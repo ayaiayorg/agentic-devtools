@@ -170,7 +170,7 @@ class TestResolveFileThreads:
 
     def test_dry_run_counts_but_does_not_resolve(self, mock_requests):
         """Test that dry run counts threads but does not resolve them."""
-            from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             _resolve_file_threads,
         )
@@ -200,7 +200,7 @@ class TestResolveFileThreads:
 
     def test_resolves_matching_threads(self, mock_requests):
         """Test that matching threads are resolved."""
-            from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             _resolve_file_threads,
         )
@@ -247,7 +247,7 @@ class TestResolveFileThreads:
 
     def test_handles_patch_failure(self, mock_requests):
         """Test that patch failures are handled gracefully."""
-            from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             _resolve_file_threads,
         )
@@ -281,8 +281,8 @@ class TestApproveFile:
 
     def test_dry_run_prints_but_does_not_call_api(self, mock_state):
         """Test that dry run prints what would be done."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
-            from agentic_devtools.state import set_value
+        from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
@@ -297,8 +297,8 @@ class TestApproveFile:
 
     def test_missing_file_path_exits(self, mock_state):
         """Test that missing file path causes exit."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
-            from agentic_devtools.state import set_value
+        from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("content", "LGTM!")
@@ -311,8 +311,8 @@ class TestApproveFile:
 
     def test_missing_content_exits(self, mock_state):
         """Test that missing content causes exit."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
-            from agentic_devtools.state import set_value
+        from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
@@ -329,10 +329,10 @@ class TestSubmitFileReview:
 
     def test_dry_run_approve_outcome(self, mock_state):
         """Test dry run with Approve outcome."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import (
+        from agentic_devtools.cli.azure_devops.file_review_commands import (
             submit_file_review,
         )
-            from agentic_devtools.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
@@ -369,10 +369,10 @@ class TestSubmitFileReview:
 
     def test_missing_file_path_exits(self, mock_state):
         """Test that missing file path causes exit."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import (
+        from agentic_devtools.cli.azure_devops.file_review_commands import (
             submit_file_review,
         )
-            from agentic_devtools.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("file_review.outcome", "Approve")
@@ -443,10 +443,10 @@ class TestRequestChanges:
 
     def test_dry_run_prints_details(self, mock_state):
         """Test that dry run prints what would be done."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import (
+        from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,
         )
-            from agentic_devtools.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
@@ -482,10 +482,10 @@ class TestRequestChanges:
 
     def test_missing_file_path_exits(self, mock_state):
         """Test that missing file path causes exit."""
-            from agentic_devtools.cli.azure_devops.file_review_commands import (
+        from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,
         )
-            from agentic_devtools.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("content", "Please fix this.")
