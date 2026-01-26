@@ -1,8 +1,8 @@
 """Compatibility shim for the legacy dfly_ai_helpers package name."""
 
-import sys as _sys
 import importlib.abc
 import importlib.util
+import sys as _sys
 from importlib import import_module
 
 _new_pkg = import_module("agentic_devtools")
