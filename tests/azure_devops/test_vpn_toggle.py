@@ -1435,11 +1435,11 @@ class TestVpnStatusUnknown:
 class TestVpnAsyncCommands:
     """Tests for async VPN commands that run in background."""
 
-    @patch("dfly_ai_helpers.task_state.print_task_tracking_info")
-    @patch("dfly_ai_helpers.background_tasks.run_function_in_background")
+    @patch("agentic_devtools.task_state.print_task_tracking_info")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
     def test_vpn_off_async_creates_background_task(self, mock_run_bg, mock_print_info):
         """Test vpn_off_async creates a background task."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_async
+        from agentic_devtools.cli.azure_devops.vpn_toggle import vpn_off_async
 
         mock_task = MagicMock()
         mock_run_bg.return_value = mock_task
@@ -1447,17 +1447,17 @@ class TestVpnAsyncCommands:
         vpn_off_async()
 
         mock_run_bg.assert_called_once_with(
-            "dfly_ai_helpers.cli.azure_devops.vpn_toggle",
+            "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_off_cmd",
             command_display_name="dfly-vpn-off",
         )
         mock_print_info.assert_called_once_with(mock_task, "Disconnecting VPN")
 
-    @patch("dfly_ai_helpers.task_state.print_task_tracking_info")
-    @patch("dfly_ai_helpers.background_tasks.run_function_in_background")
+    @patch("agentic_devtools.task_state.print_task_tracking_info")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
     def test_vpn_on_async_creates_background_task(self, mock_run_bg, mock_print_info):
         """Test vpn_on_async creates a background task."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_async
+        from agentic_devtools.cli.azure_devops.vpn_toggle import vpn_on_async
 
         mock_task = MagicMock()
         mock_run_bg.return_value = mock_task
@@ -1465,17 +1465,17 @@ class TestVpnAsyncCommands:
         vpn_on_async()
 
         mock_run_bg.assert_called_once_with(
-            "dfly_ai_helpers.cli.azure_devops.vpn_toggle",
+            "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_on_cmd",
             command_display_name="dfly-vpn-on",
         )
         mock_print_info.assert_called_once_with(mock_task, "Connecting VPN")
 
-    @patch("dfly_ai_helpers.task_state.print_task_tracking_info")
-    @patch("dfly_ai_helpers.background_tasks.run_function_in_background")
+    @patch("agentic_devtools.task_state.print_task_tracking_info")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
     def test_vpn_status_async_creates_background_task(self, mock_run_bg, mock_print_info):
         """Test vpn_status_async creates a background task."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_status_async
+        from agentic_devtools.cli.azure_devops.vpn_toggle import vpn_status_async
 
         mock_task = MagicMock()
         mock_run_bg.return_value = mock_task
@@ -1483,7 +1483,7 @@ class TestVpnAsyncCommands:
         vpn_status_async()
 
         mock_run_bg.assert_called_once_with(
-            "dfly_ai_helpers.cli.azure_devops.vpn_toggle",
+            "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_status_cmd",
             command_display_name="dfly-vpn-status",
         )

@@ -146,7 +146,7 @@ class TestAddCommentAsync:
 
         # Verify the generated script calls the correct function
         script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(script, "dfly_ai_helpers.cli.jira.comment_commands", "add_comment")
+        _assert_function_in_script(script, "agentic_devtools.cli.jira.comment_commands", "add_comment")
 
 
 class TestCreateEpicAsync:
