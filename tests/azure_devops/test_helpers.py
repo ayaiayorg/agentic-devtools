@@ -942,7 +942,8 @@ class TestFindPrFromJiraIssue:
         with patch("agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel", return_value=None):
             with patch.object(azure_devops.helpers, "find_pull_request_by_issue_key", return_value=None):
                 with patch(
-                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira", return_value=66666
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=66666,
                 ) as mock_jira:
                     result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
 
@@ -954,7 +955,8 @@ class TestFindPrFromJiraIssue:
         with patch("agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel", return_value=None):
             with patch.object(azure_devops.helpers, "find_pull_request_by_issue_key", return_value=None):
                 with patch(
-                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira", return_value=None
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=None,
                 ):
                     result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
 
@@ -979,7 +981,8 @@ class TestFindPrFromJiraIssue:
                 azure_devops.helpers, "find_pull_request_by_issue_key", return_value={"pullRequestId": 33333}
             ):
                 with patch(
-                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira", return_value=44444
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=44444,
                 ) as mock_jira:
                     result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
 

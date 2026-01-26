@@ -283,7 +283,11 @@ class TestRunE2ETestsFabricAsync:
         assert "Background task started" in captured.out
 
         script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(script, "agentic_devtools.cli.azure_devops.pipeline_commands", "run_e2e_tests_fabric")
+        _assert_function_in_script(
+            script,
+            "agentic_devtools.cli.azure_devops.pipeline_commands",
+            "run_e2e_tests_fabric",
+        )
 
 
 class TestRunWbPatchAsync:

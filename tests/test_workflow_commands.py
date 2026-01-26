@@ -1270,7 +1270,9 @@ class TestInitiateCreateJiraIssueWorkflowBranches:
         """Test when no issue_key provided, calls create_placeholder_and_setup_worktree."""
         state.set_value("jira.project_key", "DFLY")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (True, "DFLY-9999")
             commands.initiate_create_jira_issue_workflow(_argv=[])
 
@@ -1282,7 +1284,9 @@ class TestInitiateCreateJiraIssueWorkflowBranches:
         """Test when placeholder creation fails."""
         state.set_value("jira.project_key", "DFLY")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (False, None)
             with pytest.raises(SystemExit) as exc_info:
                 commands.initiate_create_jira_issue_workflow(_argv=[])
@@ -1341,7 +1345,9 @@ class TestInitiateCreateJiraEpicWorkflowBranches:
         """Test when no issue_key provided, calls create_placeholder_and_setup_worktree."""
         state.set_value("jira.project_key", "DFLY")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (True, "DFLY-9999")
             commands.initiate_create_jira_epic_workflow(_argv=[])
 
@@ -1355,7 +1361,9 @@ class TestInitiateCreateJiraEpicWorkflowBranches:
         """Test when placeholder creation fails."""
         state.set_value("jira.project_key", "DFLY")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (False, None)
             with pytest.raises(SystemExit) as exc_info:
                 commands.initiate_create_jira_epic_workflow(_argv=[])
@@ -1423,7 +1431,9 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
         """Test when no issue_key but parent_key provided, creates placeholder."""
         state.set_value("jira.parent_key", "DFLY-1234")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (True, "DFLY-1235")
             commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "DFLY-1234"])
 
@@ -1438,7 +1448,9 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
         """Test when placeholder creation fails."""
         state.set_value("jira.parent_key", "DFLY-1234")
 
-        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree") as mock_create:
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
             mock_create.return_value = (False, None)
             with pytest.raises(SystemExit) as exc_info:
                 commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "DFLY-1234"])

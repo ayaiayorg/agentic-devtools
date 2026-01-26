@@ -6,35 +6,42 @@ This package provides CLI commands for interacting with Jira:
 - create_issue: Create a Jira issue (Task, Story, Bug, etc.)
 - create_subtask: Create a Sub-task under a parent issue
 - add_comment: Add a comment to an issue
-- get_issue: Retrieve issue details
-- update_issue: Update issue fields
-
-All public APIs are exported from this module for backward compatibility.
-"""
-
-# Configuration and constants
-# ADF conversion
-from .adf import (
-    _convert_adf_to_text,
-    _process_adf_children,
+    # Async status
+    "write_async_status",
+    # Commands
+    "add_comment",
+    "create_epic",
+    "create_issue",
+    "create_issue_sync",
+    "create_subtask",
+    "get_issue",
+    "update_issue",
+    # Async command wrappers
+    "add_comment_async",
+    "add_comment_async_cli",
+    "add_users_to_project_role_async",
+    "add_users_to_project_role_batch_async",
+    "check_user_exists_async",
+    "check_users_exist_async",
+    "create_epic_async",
+    "create_issue_async",
+    "create_subtask_async",
+    "find_role_id_by_name_async",
+    "get_issue_async",
+    "get_project_role_details_async",
+    "list_project_roles_async",
+    "update_issue_async",
 )
 
 # Async command wrappers
 from .async_commands import (
     add_comment_async,
     add_comment_async_cli,
-    add_users_to_project_role_async,
-    add_users_to_project_role_batch_async,
-    check_user_exists_async,
-    check_users_exist_async,
-    create_epic_async,
-    create_issue_async,
-    create_subtask_async,
-    find_role_id_by_name_async,
-    get_issue_async,
-    get_project_role_details_async,
-    list_project_roles_async,
-    update_issue_async,
+    "check_user_exists",
+    "check_users_exist",
+    "find_role_id_by_name",
+    "get_project_role_details",
+    "list_project_roles",
 )
 
 # Async status
@@ -123,31 +130,38 @@ __all__ = [
     "_convert_adf_to_text",
     "_process_adf_children",
     # Async status
-    "create_epic_async",
+    "write_async_status",
+    # Commands
+    "add_comment",
+    "create_epic",
     "create_issue",
-    "create_issue_async",
-    """Jira CLI module for agentic-devtools."""
+    "create_issue_sync",
     "create_subtask",
-    "create_subtask_async",
     "get_issue",
-    "get_issue_async",
     "update_issue",
+    # Async command wrappers
+    "add_comment_async",
+    "add_comment_async_cli",
+    "add_users_to_project_role_async",
+    "add_users_to_project_role_batch_async",
+    "check_user_exists_async",
+    "check_users_exist_async",
+    "create_epic_async",
+    "create_issue_async",
+    "create_subtask_async",
+    "find_role_id_by_name_async",
+    "get_issue_async",
+    "get_project_role_details_async",
+    "list_project_roles_async",
     "update_issue_async",
     # Error report parsing
     "parse_jira_error_report",
     # Role management commands
     "add_users_to_project_role",
-    "add_users_to_project_role_async",
     "add_users_to_project_role_batch",
-    "add_users_to_project_role_batch_async",
     "check_user_exists",
-    "check_user_exists_async",
     "check_users_exist",
-    "check_users_exist_async",
     "find_role_id_by_name",
-    "find_role_id_by_name_async",
     "get_project_role_details",
-    "get_project_role_details_async",
     "list_project_roles",
-    "list_project_roles_async",
 ]
