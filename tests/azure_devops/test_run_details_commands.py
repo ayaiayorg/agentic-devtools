@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers.cli.azure_devops import get_run_details
-from dfly_ai_helpers.cli.azure_devops.run_details_commands import (
+from agentic_devtools.cli.azure_devops import get_run_details
+from agentic_devtools.cli.azure_devops.run_details_commands import (
     _fetch_build_run,
     _fetch_build_timeline,
     _fetch_pipeline_run,
@@ -34,7 +34,7 @@ class TestGetRunDetails:
 
     def test_dry_run_output(self, temp_state_dir, clear_state_before, capsys):
         """Should show dry run output when dry_run is set."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "12345")
         set_value("dry_run", "true")
@@ -49,7 +49,7 @@ class TestGetRunDetails:
 
     def test_dry_run_shows_endpoints(self, temp_state_dir, clear_state_before, capsys):
         """Should show API endpoints in dry run."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "99999")
         set_value("dry_run", "true")
@@ -72,7 +72,7 @@ class TestGetRunDetails:
 
     def test_invalid_run_id_exits_with_error(self, temp_state_dir, clear_state_before, capsys):
         """Should exit with error if run_id is not an integer."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "not-a-number")
 
@@ -83,13 +83,13 @@ class TestGetRunDetails:
         captured = capsys.readouterr()
         assert "integer" in captured.err
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
     def test_api_failure_exits_with_error(
         self, mock_get_pat, mock_require_requests, temp_state_dir, clear_state_before
     ):
         """Should exit with code 1 when API calls fail."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "12345")
         mock_get_pat.return_value = "fake-pat"
@@ -119,9 +119,9 @@ class TestGetRunDetailsImpl:
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._save_json")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._save_json")
     def test_prefers_build_api_over_pipeline(self, mock_save_json, mock_get_pat, mock_require_requests, capsys):
         """Should prefer build API response when both succeed."""
         mock_get_pat.return_value = "fake-pat"
@@ -164,9 +164,9 @@ class TestGetRunDetailsImpl:
         assert result["success"] is True
         assert result["source"] == "build"
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._save_json")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._save_json")
     def test_falls_back_to_pipeline_when_build_fails(self, mock_save_json, mock_get_pat, mock_require_requests, capsys):
         """Should fall back to pipeline API when build API fails."""
         mock_get_pat.return_value = "fake-pat"
@@ -203,9 +203,9 @@ class TestGetRunDetailsImpl:
         assert result["success"] is True
         assert result["source"] == "pipeline"
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._save_json")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._save_json")
     def test_both_apis_fail_returns_error(self, mock_save_json, mock_get_pat, mock_require_requests, capsys):
         """Should return error when both APIs fail."""
         mock_get_pat.return_value = "fake-pat"
@@ -405,7 +405,7 @@ class TestSaveJson:
     def test_saves_file_with_correct_name(self, tmp_path):
         """Should save JSON to correctly named file."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
             return_value=tmp_path,
         ):
             data = {"test": "data"}
@@ -421,7 +421,7 @@ class TestSaveJson:
     def test_saves_error_file(self, tmp_path):
         """Should save error files with correct suffix."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
             return_value=tmp_path,
         ):
             data = {"error": "Something went wrong"}
@@ -436,7 +436,7 @@ class TestGetTempFolder:
 
     def test_creates_temp_folder(self, tmp_path):
         """Should create temp folder if it doesn't exist."""
-        with patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.Path") as mock_path:
+        with patch("agentic_devtools.cli.azure_devops.run_details_commands.Path") as mock_path:
             # Set up the chain of Path operations
             mock_file = MagicMock()
             mock_file.parent.parent.parent.parent = tmp_path
@@ -650,7 +650,7 @@ class TestSaveLogFile:
     def test_saves_log_with_sanitized_name(self, tmp_path):
         """Should save log file with sanitized task name."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
             return_value=tmp_path,
         ):
             filepath = _save_log_file(
@@ -669,7 +669,7 @@ class TestSaveLogFile:
     def test_truncates_long_task_names(self, tmp_path):
         """Should truncate very long task names to 50 chars."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
             return_value=tmp_path,
         ):
             long_name = "A" * 100
@@ -742,9 +742,9 @@ class TestPrintFailedLogsSummary:
 class TestFetchFailedJobLogs:
     """Tests for fetch_failed_job_logs function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._fetch_build_timeline")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._fetch_build_timeline")
     def test_returns_error_on_timeline_failure(self, mock_timeline, mock_pat, mock_requests):
         """Should return error when timeline fetch fails."""
         mock_pat.return_value = "fake-pat"
@@ -755,10 +755,10 @@ class TestFetchFailedJobLogs:
         assert result["success"] is False
         assert "Timeline error" in result["error"]
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._fetch_build_timeline")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._get_failed_tasks")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._fetch_build_timeline")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._get_failed_tasks")
     def test_success_with_no_failed_tasks(self, mock_get_failed, mock_timeline, mock_pat, mock_requests):
         """Should return success when no failed tasks found."""
         mock_pat.return_value = "fake-pat"
@@ -770,12 +770,12 @@ class TestFetchFailedJobLogs:
         assert result["success"] is True
         assert result["failed_tasks"] == []
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.require_requests")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_pat")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._fetch_build_timeline")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._get_failed_tasks")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._fetch_task_log")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._save_log_file")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._fetch_build_timeline")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._get_failed_tasks")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._fetch_task_log")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._save_log_file")
     def test_fetches_and_saves_logs(
         self,
         mock_save,
@@ -851,8 +851,8 @@ class TestWaitForRunImpl:
         assert "DRY-RUN" in captured.out
         assert "12345" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_run_details_impl")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.time.sleep")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_run_details_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.time.sleep")
     def test_returns_after_run_completes(self, mock_sleep, mock_get_details, capsys):
         """Should return when run completes successfully."""
         mock_get_details.return_value = {
@@ -871,8 +871,8 @@ class TestWaitForRunImpl:
         assert result["result"] == "succeeded"
         mock_sleep.assert_not_called()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_run_details_impl")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.time.sleep")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_run_details_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.time.sleep")
     def test_polls_until_complete(self, mock_sleep, mock_get_details, capsys):
         """Should poll multiple times until run completes."""
         # First call: in progress, second call: completed
@@ -897,8 +897,8 @@ class TestWaitForRunImpl:
         assert result["poll_count"] == 2
         mock_sleep.assert_called_once_with(1)
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_run_details_impl")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.time.sleep")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_run_details_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.time.sleep")
     def test_fails_after_max_consecutive_failures(self, mock_sleep, mock_get_details, capsys):
         """Should fail after max consecutive fetch failures."""
         mock_get_details.return_value = {
@@ -913,10 +913,10 @@ class TestWaitForRunImpl:
         # Sleep is called once after first failure, then second failure hits max and returns
         assert mock_sleep.call_count == 1
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.get_run_details_impl")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.fetch_failed_job_logs")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands._print_failed_logs_summary")
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.time.sleep")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.get_run_details_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.fetch_failed_job_logs")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands._print_failed_logs_summary")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.time.sleep")
     def test_fetches_logs_on_failure_when_requested(
         self, mock_sleep, mock_print_summary, mock_fetch_logs, mock_get_details, capsys
     ):
@@ -955,7 +955,7 @@ class TestWaitForRun:
 
     def test_invalid_run_id_exits_with_error(self, temp_state_dir, clear_state_before, capsys):
         """Should exit with error if run_id is not an integer."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "not-a-number")
 
@@ -968,7 +968,7 @@ class TestWaitForRun:
 
     def test_dry_run_output(self, temp_state_dir, clear_state_before, capsys):
         """Should show dry run output when dry_run is set."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "12345")
         set_value("dry_run", "true")
@@ -979,10 +979,10 @@ class TestWaitForRun:
         assert "DRY-RUN" in captured.out
         assert "12345" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_cli_args_override_state(self, mock_impl, temp_state_dir, clear_state_before, capsys, monkeypatch):
         """CLI args should override state values."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "111")
 
@@ -999,10 +999,10 @@ class TestWaitForRun:
         assert call_kwargs["run_id"] == 222
         assert call_kwargs["poll_interval"] == 5
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_exits_on_failure(self, mock_impl, temp_state_dir, clear_state_before, capsys):
         """Should exit with code 1 when impl returns failure."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "123")
 
@@ -1013,10 +1013,10 @@ class TestWaitForRun:
 
         assert exc_info.value.code == 1
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_invalid_poll_interval_uses_default(self, mock_impl, temp_state_dir, clear_state_before, capsys):
         """Should use default poll interval when state value is invalid."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "123")
         set_value("poll_interval", "not-a-number")
@@ -1030,10 +1030,10 @@ class TestWaitForRun:
         # Should still call impl with default
         mock_impl.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_invalid_max_failures_uses_default(self, mock_impl, temp_state_dir, clear_state_before, capsys):
         """Should use default max failures when state value is invalid."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "123")
         set_value("max_failures", "invalid")
@@ -1046,10 +1046,10 @@ class TestWaitForRun:
         assert "Invalid max_failures" in captured.out
         mock_impl.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_fetch_logs_from_state_string_true(self, mock_impl, temp_state_dir, clear_state_before):
         """Should parse fetch_logs string value from state."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "123")
         set_value("fetch_logs", "true")
@@ -1061,10 +1061,10 @@ class TestWaitForRun:
         call_kwargs = mock_impl.call_args[1]
         assert call_kwargs["fetch_logs"] is True
 
-    @patch("dfly_ai_helpers.cli.azure_devops.run_details_commands.wait_for_run_impl")
+    @patch("agentic_devtools.cli.azure_devops.run_details_commands.wait_for_run_impl")
     def test_vpn_toggle_from_state_string_yes(self, mock_impl, temp_state_dir, clear_state_before):
         """Should parse vpn_toggle string value from state."""
-        from dfly_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         set_value("run_id", "123")
         set_value("vpn_toggle", "yes")
@@ -1080,10 +1080,10 @@ class TestWaitForRun:
 class TestFetchFailedJobLogsVpnToggle:
     """Tests for VPN toggle behavior in fetch_failed_job_logs."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.check_network_status")
     def test_returns_early_on_corporate_network(self, mock_check_network, capsys):
         """Should return early with message when on corporate network without VPN."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus
+        from agentic_devtools.cli.azure_devops.vpn_toggle import NetworkStatus
 
         mock_check_network.return_value = (NetworkStatus.CORPORATE_NETWORK_NO_VPN, "In office")
 
