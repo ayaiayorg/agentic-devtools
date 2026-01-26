@@ -1,0 +1,178 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-devtools"
+version = "0.1.0"
+description = "AI assistant helper commands for the Dragonfly platform"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    { name = "Dragonfly Team" }
+]
+dependencies = [
+    "requests>=2.28.0",
+    "Jinja2>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# All entry points route through the dispatcher for smart repo-local detection.
+# The dispatcher checks if a local .dfly-venv exists in the current repo
+# and delegates to that installation if found, enabling multi-worktree support.
+
+# Universal state management (auto-approve once, works for all keys)
+dfly-set = "agentic_devtools.dispatcher:set_cmd"
+dfly-get = "agentic_devtools.dispatcher:get_cmd"
+dfly-delete = "agentic_devtools.dispatcher:delete_cmd"
+dfly-clear = "agentic_devtools.dispatcher:clear_cmd"
+dfly-show = "agentic_devtools.dispatcher:show_cmd"
+
+# Azure DevOps actions (all run in background, read from state)
+dfly-add-pull-request-comment = "agentic_devtools.dispatcher:add_pull_request_comment_async"
+dfly-approve-pull-request = "agentic_devtools.dispatcher:approve_pull_request_async"
+dfly-create-pull-request = "agentic_devtools.dispatcher:create_pull_request_async_cli"
+dfly-get-pull-request-threads = "agentic_devtools.dispatcher:get_pull_request_threads_async"
+dfly-reply-to-pull-request-thread = "agentic_devtools.dispatcher:reply_to_pull_request_thread_async"
+dfly-resolve-thread = "agentic_devtools.dispatcher:resolve_thread_async"
+dfly-mark-pull-request-draft = "agentic_devtools.dispatcher:mark_pull_request_draft_async"
+dfly-publish-pull-request = "agentic_devtools.dispatcher:publish_pull_request_async"
+dfly-run-e2e-tests-synapse = "agentic_devtools.dispatcher:run_e2e_tests_synapse_async"
+dfly-run-e2e-tests-fabric = "agentic_devtools.dispatcher:run_e2e_tests_fabric_async"
+dfly-run-wb-patch = "agentic_devtools.dispatcher:run_wb_patch_async"
+dfly-get-run-details = "agentic_devtools.dispatcher:get_run_details_async"
+dfly-wait-for-run = "agentic_devtools.dispatcher:wait_for_run_async"
+dfly-list-pipelines = "agentic_devtools.dispatcher:list_pipelines_async"
+dfly-get-pipeline-id = "agentic_devtools.dispatcher:get_pipeline_id_async"
+dfly-create-pipeline = "agentic_devtools.dispatcher:create_pipeline_async"
+dfly-update-pipeline = "agentic_devtools.dispatcher:update_pipeline_async"
+dfly-get-pull-request-details = "agentic_devtools.dispatcher:get_pull_request_details_async"
+dfly-approve-file = "agentic_devtools.dispatcher:approve_file_async_cli"
+dfly-submit-file-review = "agentic_devtools.dispatcher:submit_file_review_async"
+dfly-request-changes = "agentic_devtools.dispatcher:request_changes_async_cli"
+dfly-request-changes-with-suggestion = "agentic_devtools.dispatcher:request_changes_with_suggestion_async_cli"
+dfly-mark-file-reviewed = "agentic_devtools.dispatcher:mark_file_reviewed_async"
+dfly-generate-pr-summary = "agentic_devtools.dispatcher:generate_pr_summary_async"
+
+# Jira actions (all run in background, read from state)
+dfly-create-epic = "agentic_devtools.dispatcher:create_epic_async"
+dfly-create-issue = "agentic_devtools.dispatcher:create_issue_async"
+dfly-create-subtask = "agentic_devtools.dispatcher:create_subtask_async"
+dfly-add-jira-comment = "agentic_devtools.dispatcher:add_comment_async_cli"
+dfly-get-jira-issue = "agentic_devtools.dispatcher:get_issue_async"
+dfly-update-jira-issue = "agentic_devtools.dispatcher:update_issue_async"
+dfly-list-project-roles = "agentic_devtools.dispatcher:list_project_roles_async"
+dfly-get-project-role-details = "agentic_devtools.dispatcher:get_project_role_details_async"
+dfly-add-users-to-project-role = "agentic_devtools.dispatcher:add_users_to_project_role_async"
+dfly-add-users-to-project-role-batch = "agentic_devtools.dispatcher:add_users_to_project_role_batch_async"
+dfly-find-role-id-by-name = "agentic_devtools.dispatcher:find_role_id_by_name_async"
+dfly-check-user-exists = "agentic_devtools.dispatcher:check_user_exists_async"
+dfly-check-users-exist = "agentic_devtools.dispatcher:check_users_exist_async"
+dfly-parse-jira-error-report = "agentic_devtools.dispatcher:parse_jira_error_report"
+
+# Git actions (all run in background, read from state)
+dfly-git-save-work = "agentic_devtools.dispatcher:commit_async"
+dfly-git-sync = "agentic_devtools.dispatcher:sync_async"
+dfly-git-stage = "agentic_devtools.dispatcher:stage_async"
+dfly-git-push = "agentic_devtools.dispatcher:push_async"
+dfly-git-force-push = "agentic_devtools.dispatcher:force_push_async"
+dfly-git-publish = "agentic_devtools.dispatcher:publish_async"
+
+# Testing actions (run in BACKGROUND - AI agents MUST use these, not pytest directly)
+# Use dfly-task-wait to wait for completion and see results
+dfly-test = "agentic_devtools.dispatcher:run_tests"
+dfly-test-quick = "agentic_devtools.dispatcher:run_tests_quick"
+dfly-test-file = "agentic_devtools.dispatcher:run_tests_file"
+dfly-test-pattern = "agentic_devtools.dispatcher:run_tests_pattern"
+
+# Background task monitoring (parameterless - read from state)
+dfly-tasks = "agentic_devtools.dispatcher:list_tasks"
+dfly-task-status = "agentic_devtools.dispatcher:task_status"
+dfly-task-log = "agentic_devtools.dispatcher:task_log"
+dfly-task-wait = "agentic_devtools.dispatcher:task_wait"
+dfly-tasks-clean = "agentic_devtools.dispatcher:tasks_clean"
+dfly-show-other-incomplete-tasks = "agentic_devtools.dispatcher:show_other_incomplete_tasks"
+
+# Workflow state management (parameterless - read from state)
+dfly-get-workflow = "agentic_devtools.dispatcher:get_workflow_cmd"
+dfly-clear-workflow = "agentic_devtools.dispatcher:clear_workflow_cmd"
+
+# Workflow initiation commands (parameterless - read from state, log prompt with save notice)
+dfly-initiate-pull-request-review-workflow = "agentic_devtools.dispatcher:initiate_pull_request_review_workflow"
+dfly-initiate-work-on-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_work_on_jira_issue_workflow"
+dfly-initiate-create-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_create_jira_issue_workflow"
+dfly-initiate-create-jira-epic-workflow = "agentic_devtools.dispatcher:initiate_create_jira_epic_workflow"
+dfly-initiate-create-jira-subtask-workflow = "agentic_devtools.dispatcher:initiate_create_jira_subtask_workflow"
+dfly-initiate-update-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_update_jira_issue_workflow"
+dfly-initiate-apply-pr-suggestions-workflow = "agentic_devtools.dispatcher:initiate_apply_pull_request_review_suggestions_workflow"
+
+# VPN toggle commands (all run in background - use dfly-task-wait)
+dfly-vpn-on = "agentic_devtools.dispatcher:vpn_on_cmd"
+dfly-vpn-off = "agentic_devtools.dispatcher:vpn_off_cmd"
+dfly-vpn-status = "agentic_devtools.dispatcher:vpn_status_cmd"
+
+# Background worktree setup (internal, called by background task)
+dfly-setup-worktree-background = "agentic_devtools.dispatcher:setup_worktree_background_cmd"
+
+# Workflow advancement command
+dfly-advance-workflow = "agentic_devtools.dispatcher:advance_workflow_cmd"
+
+# Workflow prompt retrieval (event-driven)
+dfly-get-next-workflow-prompt = "agentic_devtools.dispatcher:get_next_workflow_prompt_cmd"
+
+# Checklist management commands
+dfly-create-checklist = "agentic_devtools.dispatcher:create_checklist_cmd"
+dfly-update-checklist = "agentic_devtools.dispatcher:update_checklist_cmd"
+dfly-show-checklist = "agentic_devtools.dispatcher:show_checklist_cmd"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentic_devtools", "dfly_ai_helpers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=91"
+markers = [
+    "windows_only: mark test to run only on Windows (msvcrt file locking)",
+    "linux_only: mark test to run only on Linux/Unix (fcntl file locking)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes (unused imports F401, unused variables F841, etc.)
+    "W",      # pycodestyle warnings
+    "I",      # isort (import sorting)
+    "UP",     # pyupgrade (modernize syntax)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agentic_devtools", "dfly_ai_helpers"]
+
+[tool.coverage.run]
+source = ["agentic_devtools"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 91
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
