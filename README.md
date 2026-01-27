@@ -2,6 +2,15 @@
 
 AI assistant helper commands for the Dragonfly platform. This package provides simple CLI commands that can be easily auto-approved by VS Code AI assistants.
 
+## Development Container
+
+This repository includes a devcontainer configuration for Python development. To get started quickly:
+
+- **VS Code**: Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), then click "Reopen in Container"
+- **GitHub Codespaces**: Create a new Codespace - all dependencies will be set up automatically
+
+See [.devcontainer/README.md](.devcontainer/README.md) for more details.
+
 ## Installation
 
 ### Option 1: Using pipx (Recommended)
