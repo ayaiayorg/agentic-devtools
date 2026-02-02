@@ -84,11 +84,11 @@ def set_cmd() -> None:
 
 def get_cmd() -> None:
     """
-    Get a state value: dfly-get <key>
+    Get a state value: agdt-get <key>
 
     Examples:
-        dfly-get pull_request_id
-        dfly-get content
+        agdt-get pull_request_id
+        agdt-get content
     """
     if len(sys.argv) < 2:
         print("Usage: agdt-get <key>", file=sys.stderr)
@@ -110,7 +110,7 @@ def get_cmd() -> None:
 
 def delete_cmd() -> None:
     """
-    Delete a state value: dfly-delete <key>
+    Delete a state value: agdt-delete <key>
     """
     if len(sys.argv) < 2:
         print("Usage: agdt-delete <key>", file=sys.stderr)
@@ -125,7 +125,7 @@ def delete_cmd() -> None:
 
 def clear_cmd() -> None:
     """
-    Clear all state: dfly-clear
+    Clear all state: agdt-clear
     """
     clear_state()
     print("State cleared")
@@ -133,7 +133,7 @@ def clear_cmd() -> None:
 
 def show_cmd() -> None:
     """
-    Show all state: dfly-show
+    Show all state: agdt-show
     """
     state = load_state()
     if not state:
@@ -144,7 +144,7 @@ def show_cmd() -> None:
 
 def get_workflow_cmd() -> None:
     """
-    Show current workflow state: dfly-get-workflow
+    Show current workflow state: agdt-get-workflow
 
     Displays the active workflow, status, step, started time, and context.
     """
@@ -159,7 +159,7 @@ def get_workflow_cmd() -> None:
 
 def clear_workflow_cmd() -> None:
     """
-    Clear workflow state: dfly-clear-workflow
+    Clear workflow state: agdt-clear-workflow
 
     Ends the current workflow by clearing its state.
     """

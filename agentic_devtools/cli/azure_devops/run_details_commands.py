@@ -584,7 +584,7 @@ def get_run_details() -> None:
         run_id_str = get_value("run_id")
         if not run_id_str:
             print(
-                "Error: 'run_id' is required. Set it with: dfly-set run_id <run-id> or use --run-id",
+                "Error: 'run_id' is required. Set it with: agdt-set run_id <run-id> or use --run-id",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -854,7 +854,7 @@ def wait_for_run() -> None:
         run_id_str = get_value("run_id")
         if not run_id_str:
             print(
-                "Error: 'run_id' is required. Set it with: dfly-set run_id <run-id> or use --run-id",
+                "Error: 'run_id' is required. Set it with: agdt-set run_id <run-id> or use --run-id",
                 file=sys.stderr,
             )
             sys.exit(1)

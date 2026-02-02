@@ -42,8 +42,8 @@ def initiate_pull_request_review_workflow(
     a worktree, installs agentic-devtools, and opens VS Code.
 
     Usage:
-        dfly-initiate-pull-request-review-workflow --pull-request-id 12345
-        dfly-initiate-pull-request-review-workflow --issue-key DFLY-1234
+        agdt-initiate-pull-request-review-workflow --pull-request-id 12345
+        agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
 
     Args:
         pull_request_id: ID of the pull request to review.
@@ -67,9 +67,9 @@ def initiate_pull_request_review_workflow(
             description="Initiate the pull request review workflow",
             epilog="""
 Examples:
-  dfly-initiate-pull-request-review-workflow --pull-request-id 12345
-  dfly-initiate-pull-request-review-workflow --issue-key DFLY-1234
-  dfly-initiate-pull-request-review-workflow --pull-request-id 12345 --issue-key DFLY-1234
+  agdt-initiate-pull-request-review-workflow --pull-request-id 12345
+  agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
+  agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --issue-key DFLY-1234
             """,
         )
         parser.add_argument(
@@ -124,15 +124,15 @@ Examples:
             print("  - Jira issue comments and description")
             print("  - Azure DevOps PR source branch, title, and description")
             print("\nTo find a completed PR, use:")
-            print(f"  dfly-find-pr-by-issue --issue-key {resolved_issue_key} --status all")
+            print(f"  agdt-find-pr-by-issue --issue-key {resolved_issue_key} --status all")
             sys.exit(1)
 
     # Validate we have a PR ID now
     if not resolved_pr_id:
         print("ERROR: Either --pull-request-id or --issue-key must be provided.")
         print("\nUsage:")
-        print("  dfly-initiate-pull-request-review-workflow --pull-request-id 12345")
-        print("  dfly-initiate-pull-request-review-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-pull-request-review-workflow --pull-request-id 12345")
+        print("  agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234")
         sys.exit(1)
 
     # For PR review workflows, we need to know the source branch BEFORE creating
@@ -467,7 +467,7 @@ def advance_work_on_jira_issue_workflow(step: Optional[str] = None) -> None:
 
     if not is_workflow_active("work-on-jira-issue"):
         print("ERROR: work-on-jira-issue workflow is not active.", file=sys.stderr)
-        print("Start it with: dfly-initiate-work-on-jira-issue-workflow", file=sys.stderr)
+        print("Start it with: agdt-initiate-work-on-jira-issue-workflow", file=sys.stderr)
         sys.exit(1)
 
     workflow = get_workflow_state()
@@ -536,7 +536,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
     if not is_workflow_active("pull-request-review"):
         print("ERROR: pull-request-review workflow is not active.", file=sys.stderr)
-        print("Start it with: dfly-review-pull-request", file=sys.stderr)
+        print("Start it with: agdt-review-pull-request", file=sys.stderr)
         sys.exit(1)
 
     workflow = get_workflow_state()
@@ -632,13 +632,13 @@ def initiate_create_jira_issue_workflow(
 
     Usage:
         # Initial call - creates placeholder and sets up worktree:
-        dfly-initiate-create-jira-issue-workflow --user-request "I need a story to..."
+        agdt-initiate-create-jira-issue-workflow --user-request "I need a story to..."
 
         # With custom issue type:
-        dfly-initiate-create-jira-issue-workflow --issue-type Task --user-request "I need a task to..."
+        agdt-initiate-create-jira-issue-workflow --issue-type Task --user-request "I need a task to..."
 
         # Continuation call in new VS Code window:
-        dfly-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
 
     Args:
         project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
@@ -782,10 +782,10 @@ def initiate_create_jira_epic_workflow(
 
     Usage:
         # Initial call - creates placeholder and sets up worktree:
-        dfly-initiate-create-jira-epic-workflow --user-request "I need an epic for..."
+        agdt-initiate-create-jira-epic-workflow --user-request "I need an epic for..."
 
         # Continuation call in new VS Code window:
-        dfly-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --user-request "..."
 
     Args:
         project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
@@ -920,10 +920,10 @@ def initiate_create_jira_subtask_workflow(
 
     Usage:
         # Initial call - creates placeholder and sets up worktree:
-        dfly-initiate-create-jira-subtask-workflow --parent-key DFLY-1234 --user-request "I need a subtask to..."
+        agdt-initiate-create-jira-subtask-workflow --parent-key DFLY-1234 --user-request "I need a subtask to..."
 
         # Continuation call in new VS Code window:
-        dfly-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --user-request "..."
+        agdt-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --user-request "..."
 
     Args:
         parent_key: Parent issue key (e.g., DFLY-1234). Required for creating placeholder.
@@ -1023,7 +1023,7 @@ def initiate_create_jira_subtask_workflow(
     if not resolved_parent_key:
         print("ERROR: --parent-key is required to create a placeholder subtask.")
         print("\nUsage:")
-        print("  dfly-initiate-create-jira-subtask-workflow --parent-key DFLY-1234")
+        print("  agdt-initiate-create-jira-subtask-workflow --parent-key DFLY-1234")
         sys.exit(1)
 
     # Extract project key from parent key
@@ -1060,10 +1060,10 @@ def initiate_update_jira_issue_workflow(
 
     Usage:
         # Initial call - sets up worktree if needed:
-        dfly-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "I want to update..."
+        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "I want to update..."
 
         # Continuation call in new VS Code window:
-        dfly-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
 
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
@@ -1118,7 +1118,7 @@ def initiate_update_jira_issue_workflow(
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
         print("\nUsage:")
-        print("  dfly-initiate-update-jira-issue-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234")
         sys.exit(1)
 
     # Check if we're in the correct context
@@ -1158,8 +1158,8 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     a worktree, installs agentic-devtools, and opens VS Code.
 
     Usage:
-        dfly-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
-        dfly-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
+        agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
+        agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
 
     Args:
         pull_request_id: ID of the pull request with suggestions to apply.
@@ -1259,7 +1259,7 @@ def create_checklist_cmd() -> None:
     Create a new implementation checklist for the current workflow.
 
     Usage: agdt-create-checklist [items]
-           dfly-create-checklist "1. First task|2. Second task|3. Third task"
+           agdt-create-checklist "1. First task|2. Second task|3. Third task"
 
     Items can be provided as:
     - CLI argument with | delimiter
@@ -1279,10 +1279,10 @@ def create_checklist_cmd() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-create-checklist "Task 1|Task 2|Task 3"
-  dfly-set checklist_items "1. First task
+  agdt-create-checklist "Task 1|Task 2|Task 3"
+  agdt-set checklist_items "1. First task
   2. Second task"
-  dfly-create-checklist
+  agdt-create-checklist
         """,
     )
     parser.add_argument(
@@ -1319,11 +1319,11 @@ Examples:
     if not items_text:
         print("ERROR: No checklist items provided.", file=sys.stderr)
         print("\nUsage:", file=sys.stderr)
-        print('  dfly-create-checklist "1. First task|2. Second task"', file=sys.stderr)
+        print('  agdt-create-checklist "1. First task|2. Second task"', file=sys.stderr)
         print("  OR", file=sys.stderr)
-        print('  dfly-set checklist_items "1. First task', file=sys.stderr)
+        print('  agdt-set checklist_items "1. First task', file=sys.stderr)
         print('  2. Second task"', file=sys.stderr)
-        print("  dfly-create-checklist", file=sys.stderr)
+        print("  agdt-create-checklist", file=sys.stderr)
         sys.exit(1)
 
     # Parse items (support both | delimiter and newlines)
@@ -1389,11 +1389,11 @@ def update_checklist_cmd() -> None:
         --edit "1:New text"   Edit an item's text
 
     Examples:
-        dfly-update-checklist --add "Fix discovered bug"
-        dfly-update-checklist --complete "1,2"
-        dfly-update-checklist --revert "3"
-        dfly-update-checklist --remove "5"
-        dfly-update-checklist --edit "2:Updated task description"
+        agdt-update-checklist --add "Fix discovered bug"
+        agdt-update-checklist --complete "1,2"
+        agdt-update-checklist --revert "3"
+        agdt-update-checklist --remove "5"
+        agdt-update-checklist --edit "2:Updated task description"
     """
     import argparse
 
@@ -1419,18 +1419,18 @@ def update_checklist_cmd() -> None:
 
     checklist = get_checklist()
     if not checklist:
-        print("ERROR: No checklist exists. Create one first with dfly-create-checklist.", file=sys.stderr)
+        print("ERROR: No checklist exists. Create one first with agdt-create-checklist.", file=sys.stderr)
         sys.exit(1)
 
     # Check if any operation was specified
     if not any([args.add, args.remove, args.complete, args.revert, args.edit]):
         print("ERROR: No operation specified.", file=sys.stderr)
         print("\nUsage:", file=sys.stderr)
-        print('  dfly-update-checklist --add "New task"', file=sys.stderr)
-        print('  dfly-update-checklist --complete "1,2,3"', file=sys.stderr)
-        print('  dfly-update-checklist --revert "1"', file=sys.stderr)
-        print('  dfly-update-checklist --remove "5"', file=sys.stderr)
-        print('  dfly-update-checklist --edit "2:Updated text"', file=sys.stderr)
+        print('  agdt-update-checklist --add "New task"', file=sys.stderr)
+        print('  agdt-update-checklist --complete "1,2,3"', file=sys.stderr)
+        print('  agdt-update-checklist --revert "1"', file=sys.stderr)
+        print('  agdt-update-checklist --remove "5"', file=sys.stderr)
+        print('  agdt-update-checklist --edit "2:Updated text"', file=sys.stderr)
         sys.exit(1)
 
     modified = False
@@ -1526,7 +1526,7 @@ def show_checklist_cmd() -> None:
     checklist = get_checklist()
     if not checklist:
         print("No checklist exists for current workflow.")
-        print("\nCreate one with: dfly-create-checklist")
+        print("\nCreate one with: agdt-create-checklist")
         return
 
     completed, total = checklist.completion_status()

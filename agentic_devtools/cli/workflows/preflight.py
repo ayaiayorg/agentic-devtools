@@ -212,7 +212,7 @@ def generate_setup_instructions(issue_key: str, preflight_result: PreflightResul
             "After creating the worktree/branch, open VS Code in the new directory:",
             "",
             "```bash",
-            f"code ../{issue_key}/dfly-platform-management.code-workspace",
+            f"code ../{issue_key}/agdt-platform-management.code-workspace",
             "```",
             "",
         ]
@@ -301,7 +301,7 @@ when ready.
 
 To get the prompt for the new VS Code window:
 
-  1. Run: dfly-task-log
+  1. Run: agdt-task-log
 
      This shows the full output. Look for the section:
      "AI AGENT INSTRUCTIONS - IMPORTANT"
@@ -310,7 +310,7 @@ To get the prompt for the new VS Code window:
      a prompt in your chat response that the user can copy and paste into
      the new VS Code window.
 
-  3. Or run: dfly-task-wait
+  3. Or run: agdt-task-wait
 
      This waits for the task to complete and then you can check the log.
 """)

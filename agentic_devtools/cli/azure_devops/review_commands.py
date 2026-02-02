@@ -145,7 +145,7 @@ def checkout_and_sync_branch(
                 f"{'=' * 60}\n\n"
                 f"{checkout_result.message}\n\n"
                 f"After resolving, restart the workflow with:\n"
-                f"  dfly-review-pull-request\n"
+                f"  agdt-review-pull-request\n"
                 f"{'=' * 60}",
                 set(),
             )
@@ -513,26 +513,26 @@ def print_review_instructions(
     print("=" * 60)
     print("")
     print("Set the file path and content first:")
-    print(f"  dfly-set pull_request_id {pull_request_id}")
-    print('  dfly-set file_review.file_path "/path/to/file.ts"')
-    print('  dfly-set content "Your review comment here"')
+    print(f"  agdt-set pull_request_id {pull_request_id}")
+    print('  agdt-set file_review.file_path "/path/to/file.ts"')
+    print('  agdt-set content "Your review comment here"')
     print("")
     print("Then use one of these commands:")
     print("")
     print("• APPROVE (no issues found):")
-    print("    dfly-approve-file")
+    print("    agdt-approve-file")
     print("")
     print("• REQUEST CHANGES (with optional line numbers):")
-    print("    dfly-set line 42")
-    print("    dfly-set end_line 45  # optional, for multi-line context")
-    print("    dfly-request-changes")
+    print("    agdt-set line 42")
+    print("    agdt-set end_line 45  # optional, for multi-line context")
+    print("    agdt-request-changes")
     print("")
     print("• REQUEST CHANGES WITH CODE SUGGESTION:")
-    print("    dfly-set line 42")
-    print('    dfly-set content "```suggestion')
+    print("    agdt-set line 42")
+    print('    agdt-set content "```suggestion')
     print("    // Your suggested code here")
     print('    ```"')
-    print("    dfly-request-changes-with-suggestion")
+    print("    agdt-request-changes-with-suggestion")
     print("")
     print("=" * 60)
     print("IMPORTANT NOTES")

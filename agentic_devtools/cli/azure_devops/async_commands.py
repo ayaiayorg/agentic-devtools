@@ -60,9 +60,9 @@ def add_pull_request_comment_async() -> None:
         content (required): Comment content
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set content "LGTM!"
-        dfly-add-pull-request-comment
+        agdt-set pull_request_id 12345
+        agdt-set content "LGTM!"
+        agdt-add-pull-request-comment
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -80,8 +80,8 @@ def approve_pull_request_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-approve-pull-request
+        agdt-set pull_request_id 12345
+        agdt-approve-pull-request
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -110,12 +110,12 @@ def create_pull_request_async(
         description (optional): PR description
 
     Usage:
-        dfly-create-pull-request --source-branch "feature/my-feature" --title "Add feature"
+        agdt-create-pull-request --source-branch "feature/my-feature" --title "Add feature"
 
         # Or using state:
-        dfly-set source_branch "feature/my-feature"
-        dfly-set title "Add new feature"
-        dfly-create-pull-request
+        agdt-set source_branch "feature/my-feature"
+        agdt-set title "Add new feature"
+        agdt-create-pull-request
     """
     # Store CLI args in state if provided
     _set_value_if_provided("source_branch", source_branch)
@@ -141,13 +141,13 @@ def create_pull_request_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-create-pull-request --source-branch "feature/my-feature" --title "Add feature"
-  dfly-create-pull-request -b "feature/DFLY-1234" -t "feature(DFLY-1234): add feature" -d "Description"
+  agdt-create-pull-request --source-branch "feature/my-feature" --title "Add feature"
+  agdt-create-pull-request -b "feature/DFLY-1234" -t "feature(DFLY-1234): add feature" -d "Description"
 
   # Or using state:
-  dfly-set source_branch "feature/my-feature"
-  dfly-set title "Add new feature"
-  dfly-create-pull-request
+  agdt-set source_branch "feature/my-feature"
+  agdt-set title "Add new feature"
+  agdt-create-pull-request
         """,
     )
     parser.add_argument(
@@ -187,8 +187,8 @@ def get_pull_request_threads_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-get-pull-request-threads
+        agdt-set pull_request_id 12345
+        agdt-get-pull-request-threads
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -208,10 +208,10 @@ def reply_to_pull_request_thread_async() -> None:
         content (required): Reply content
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set thread_id 67890
-        dfly-set content "Thanks for the review!"
-        dfly-reply-to-pull-request-thread
+        agdt-set pull_request_id 12345
+        agdt-set thread_id 67890
+        agdt-set content "Thanks for the review!"
+        agdt-reply-to-pull-request-thread
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -230,9 +230,9 @@ def resolve_thread_async() -> None:
         thread_id (required): Thread ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set thread_id 67890
-        dfly-resolve-thread
+        agdt-set pull_request_id 12345
+        agdt-set thread_id 67890
+        agdt-resolve-thread
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -250,8 +250,8 @@ def mark_pull_request_draft_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-mark-pull-request-draft
+        agdt-set pull_request_id 12345
+        agdt-mark-pull-request-draft
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -269,8 +269,8 @@ def publish_pull_request_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-publish-pull-request
+        agdt-set pull_request_id 12345
+        agdt-publish-pull-request
     """
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -288,8 +288,8 @@ def get_pull_request_details_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-get-pull-request-details
+        agdt-set pull_request_id 12345
+        agdt-get-pull-request-details
     """
     task = run_function_in_background(
         _PR_DETAILS_MODULE,
@@ -313,9 +313,9 @@ def run_e2e_tests_synapse_async() -> None:
         e2e.stage: DEV or INT (default: DEV)
 
     Usage:
-        dfly-set branch feature/my-branch
-        dfly-set e2e.stage DEV
-        dfly-run-e2e-tests-synapse
+        agdt-set branch feature/my-branch
+        agdt-set e2e.stage DEV
+        agdt-run-e2e-tests-synapse
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -335,8 +335,8 @@ def run_e2e_tests_fabric_async() -> None:
         branch (required): Branch to test
 
     Usage:
-        dfly-set branch feature/my-branch
-        dfly-run-e2e-tests-fabric
+        agdt-set branch feature/my-branch
+        agdt-run-e2e-tests-fabric
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -354,8 +354,8 @@ def run_wb_patch_async() -> None:
         workbench (required): Workbench identifier
 
     Usage:
-        dfly-set workbench STND
-        dfly-run-wb-patch
+        agdt-set workbench STND
+        agdt-run-wb-patch
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -381,10 +381,10 @@ def get_run_details_async() -> None:
         --run-id: Override run_id from state
 
     Usage:
-        dfly-set run_id 12345
-        dfly-get-run-details
-        dfly-get-run-details --fetch-logs
-        dfly-get-run-details --fetch-logs --vpn-toggle
+        agdt-set run_id 12345
+        agdt-get-run-details
+        agdt-get-run-details --fetch-logs
+        agdt-get-run-details --fetch-logs --vpn-toggle
     """
     # Parse CLI args and store in state for background process
     parser = argparse.ArgumentParser(description="Get run details", add_help=False)
@@ -430,11 +430,11 @@ def wait_for_run_async() -> None:
         --poll-interval: Override poll interval from state
 
     Usage:
-        dfly-set run_id 12345
-        dfly-wait-for-run
-        dfly-wait-for-run --fetch-logs
-        dfly-wait-for-run --fetch-logs --vpn-toggle
-        dfly-task-wait
+        agdt-set run_id 12345
+        agdt-wait-for-run
+        agdt-wait-for-run --fetch-logs
+        agdt-wait-for-run --fetch-logs --vpn-toggle
+        agdt-task-wait
     """
     # Parse CLI args and store in state for background process
     parser = argparse.ArgumentParser(description="Wait for run", add_help=False)
@@ -469,8 +469,8 @@ def list_pipelines_async() -> None:
         pipeline.name_filter (optional): Name or prefix to filter (supports wildcards like "mgmt*")
 
     Usage:
-        dfly-set pipeline.name_filter "mgmt*"
-        dfly-list-pipelines
+        agdt-set pipeline.name_filter "mgmt*"
+        agdt-list-pipelines
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -491,8 +491,8 @@ def get_pipeline_id_async() -> None:
         Sets pipeline.id in state for use by subsequent commands.
 
     Usage:
-        dfly-set pipeline.name "mgmt-e2e-tests"
-        dfly-get-pipeline-id
+        agdt-set pipeline.name "mgmt-e2e-tests"
+        agdt-get-pipeline-id
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -518,10 +518,10 @@ def create_pipeline_async() -> None:
         Sets pipeline.id in state with the created pipeline's ID.
 
     Usage:
-        dfly-set pipeline.name "mgmt-e2e-tests-fabric"
-        dfly-set pipeline.yaml_path "/mgmt-frontend/azure-pipelines/azure-pipelines-e2e-tests-fabric.yml"
-        dfly-set pipeline.description "Fabric E2E tests pipeline"
-        dfly-create-pipeline
+        agdt-set pipeline.name "mgmt-e2e-tests-fabric"
+        agdt-set pipeline.yaml_path "/mgmt-frontend/azure-pipelines/azure-pipelines-e2e-tests-fabric.yml"
+        agdt-set pipeline.description "Fabric E2E tests pipeline"
+        agdt-create-pipeline
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -545,11 +545,11 @@ def update_pipeline_async() -> None:
     At least one of new_name, yaml_path, new_folder_path, or description must be provided.
 
     Usage (rename existing pipeline):
-        dfly-set pipeline.name "mgmt-e2e-tests"
-        dfly-get-pipeline-id  # waits for ID
-        dfly-set pipeline.new_name "mgmt-e2e-tests-synapse"
-        dfly-set pipeline.yaml_path "/mgmt-frontend/azure-pipelines/azure-pipelines-e2e-tests-synapse.yml"
-        dfly-update-pipeline
+        agdt-set pipeline.name "mgmt-e2e-tests"
+        agdt-get-pipeline-id  # waits for ID
+        agdt-set pipeline.new_name "mgmt-e2e-tests-synapse"
+        agdt-set pipeline.yaml_path "/mgmt-frontend/azure-pipelines/azure-pipelines-e2e-tests-synapse.yml"
+        agdt-update-pipeline
     """
     task = run_function_in_background(
         _PIPELINE_MODULE,
@@ -620,13 +620,13 @@ def approve_file_async(
         content (required): Approval comment
 
     Usage:
-        dfly-approve-file --file-path "src/app/component.ts" --content "LGTM"
+        agdt-approve-file --file-path "src/app/component.ts" --content "LGTM"
 
         # Or using state:
-        dfly-set pull_request_id 12345
-        dfly-set file_review.file_path "src/app/component.ts"
-        dfly-set content "LGTM"
-        dfly-approve-file
+        agdt-set pull_request_id 12345
+        agdt-set file_review.file_path "src/app/component.ts"
+        agdt-set content "LGTM"
+        agdt-approve-file
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
@@ -657,14 +657,14 @@ def approve_file_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-approve-file --file-path "src/app/component.ts" --content "LGTM"
-  dfly-approve-file --pull-request-id 12345 --file-path "src/app/component.ts" --content "Approved"
+  agdt-approve-file --file-path "src/app/component.ts" --content "LGTM"
+  agdt-approve-file --pull-request-id 12345 --file-path "src/app/component.ts" --content "Approved"
 
   # Or using state:
-  dfly-set pull_request_id 12345
-  dfly-set file_review.file_path "src/app/component.ts"
-  dfly-set content "LGTM"
-  dfly-approve-file
+  agdt-set pull_request_id 12345
+  agdt-set file_review.file_path "src/app/component.ts"
+  agdt-set content "LGTM"
+  agdt-approve-file
         """,
     )
     parser.add_argument(
@@ -706,10 +706,10 @@ def submit_file_review_async() -> None:
         content (required): Review content
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set file_path "src/app/component.ts"
-        dfly-set content "Review comments..."
-        dfly-submit-file-review
+        agdt-set pull_request_id 12345
+        agdt-set file_path "src/app/component.ts"
+        agdt-set content "Review comments..."
+        agdt-submit-file-review
     """
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -744,14 +744,14 @@ def request_changes_async(
         line (required): Line number for comment
 
     Usage:
-        dfly-request-changes --file-path "src/app/component.ts" --content "Issue here" --line 42
+        agdt-request-changes --file-path "src/app/component.ts" --content "Issue here" --line 42
 
         # Or using state:
-        dfly-set pull_request_id 12345
-        dfly-set file_review.file_path "src/app/component.ts"
-        dfly-set content "Please fix this issue..."
-        dfly-set line 42
-        dfly-request-changes
+        agdt-set pull_request_id 12345
+        agdt-set file_review.file_path "src/app/component.ts"
+        agdt-set content "Please fix this issue..."
+        agdt-set line 42
+        agdt-request-changes
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
@@ -785,14 +785,14 @@ def request_changes_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-request-changes --file-path "src/app/component.ts" --content "Fix this" --line 42
-  dfly-request-changes -f "src/main.py" -c "Issue description" -l 100
+  agdt-request-changes --file-path "src/app/component.ts" --content "Fix this" --line 42
+  agdt-request-changes -f "src/main.py" -c "Issue description" -l 100
 
   # Or using state:
-  dfly-set file_review.file_path "src/app/component.ts"
-  dfly-set content "Please fix this issue..."
-  dfly-set line 42
-  dfly-request-changes
+  agdt-set file_review.file_path "src/app/component.ts"
+  agdt-set content "Please fix this issue..."
+  agdt-set line 42
+  agdt-request-changes
         """,
     )
     parser.add_argument(
@@ -857,16 +857,16 @@ def request_changes_with_suggestion_async(
         line (required): Line number for comment
 
     Usage:
-        dfly-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
+        agdt-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
         const x = 1;
         ```" --line 42
 
         # Or using state:
-        dfly-set pull_request_id 12345
-        dfly-set file_review.file_path "src/app/component.ts"
-        dfly-set content "Suggested change..."
-        dfly-set line 42
-        dfly-request-changes-with-suggestion
+        agdt-set pull_request_id 12345
+        agdt-set file_review.file_path "src/app/component.ts"
+        agdt-set content "Suggested change..."
+        agdt-set line 42
+        agdt-request-changes-with-suggestion
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
@@ -902,15 +902,15 @@ def request_changes_with_suggestion_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
+  agdt-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
   const x = 1;
   ```" --line 42
 
   # Or using state:
-  dfly-set file_review.file_path "src/app/component.ts"
-  dfly-set content "Suggested change..."
-  dfly-set line 42
-  dfly-request-changes-with-suggestion
+  agdt-set file_review.file_path "src/app/component.ts"
+  agdt-set content "Suggested change..."
+  agdt-set line 42
+  agdt-request-changes-with-suggestion
         """,
     )
     parser.add_argument(
@@ -959,9 +959,9 @@ def mark_file_reviewed_async() -> None:
         file_path (required): Path of file
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set file_path "src/app/component.ts"
-        dfly-mark-file-reviewed
+        agdt-set pull_request_id 12345
+        agdt-set file_path "src/app/component.ts"
+        agdt-mark-file-reviewed
     """
     task = run_function_in_background(
         _MARK_REVIEWED_MODULE,
@@ -990,7 +990,7 @@ def checkout_and_sync_branch_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
+        agdt-set pull_request_id 12345
         # Then called internally by workflow
     """
     from pathlib import Path
@@ -1049,7 +1049,7 @@ def generate_review_prompts_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
+        agdt-set pull_request_id 12345
         # Then called internally by workflow
     """
     # Get PR ID from state
@@ -1095,9 +1095,9 @@ def setup_pull_request_review_async(
         jira.issue_key (optional): Jira issue key
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-set jira.issue_key DFLY-1234
-        # Then called internally by dfly-initiate-pull-request-review-workflow
+        agdt-set pull_request_id 12345
+        agdt-set jira.issue_key DFLY-1234
+        # Then called internally by agdt-initiate-pull-request-review-workflow
     """
     # Get PR ID from parameter or state
     pr_id = pull_request_id
@@ -1135,8 +1135,8 @@ def generate_pr_summary_async() -> None:
         pull_request_id (required): PR ID
 
     Usage:
-        dfly-set pull_request_id 12345
-        dfly-generate-pr-summary
+        agdt-set pull_request_id 12345
+        agdt-generate-pr-summary
     """
     task = run_function_in_background(
         _PR_SUMMARY_MODULE,

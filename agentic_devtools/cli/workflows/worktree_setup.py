@@ -439,7 +439,7 @@ def open_vscode_workspace(worktree_path: str) -> bool:
     """
     Open VS Code with the workspace file in the worktree.
 
-    This opens a new VS Code window with the dfly-platform-management.code-workspace
+    This opens a new VS Code window with the agdt-platform-management.code-workspace
     file from the worktree.
 
     Args:

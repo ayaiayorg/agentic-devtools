@@ -448,8 +448,8 @@ def print_next_file_prompt(pull_request_id: int) -> None:
         print("     (e.g., fix line numbers, content formatting)")
         print("  3. If error appears transient/external, simply resubmit as-is")
         print("")
-        print("Resubmit using: dfly-approve-file, dfly-request-changes, or")
-        print("                dfly-request-changes-with-suggestion")
+        print("Resubmit using: agdt-approve-file, dfly-request-changes, or")
+        print("                agdt-request-changes-with-suggestion")
         print("")
         return
 
@@ -472,7 +472,7 @@ def print_next_file_prompt(pull_request_id: int) -> None:
         print("IMPORTANT: The PR summary will be generated AUTOMATICALLY once all")
         print("submissions complete. Do NOT manually trigger dfly-generate-pr-summary.")
         print("")
-        print("YOUR ONLY ACTION: Run dfly-task-wait")
+        print("YOUR ONLY ACTION: Run agdt-task-wait")
         print("")
         print("This will wait for submissions to complete, auto-trigger the summary,")
         print("and provide next steps when everything is done.")
@@ -838,13 +838,13 @@ def approve_file() -> None:
     file_path = get_value("file_review.file_path")
     if not file_path:
         print("Error: 'file_review.file_path' is required.", file=sys.stderr)
-        print("Set it with: dfly-set file_review.file_path <path>", file=sys.stderr)
+        print("Set it with: agdt-set file_review.file_path <path>", file=sys.stderr)
         sys.exit(1)
 
     content = get_value("content")
     if not content:
         print("Error: 'content' is required for approval comment.", file=sys.stderr)
-        print("Set it with: dfly-set content '<approval comment>'", file=sys.stderr)
+        print("Set it with: agdt-set content '<approval comment>'", file=sys.stderr)
         sys.exit(1)
 
     if dry_run:

@@ -1033,7 +1033,7 @@ def vpn_off_cmd() -> None:
     CLI command to disconnect VPN.
 
     Usage:
-        dfly-vpn-off
+        agdt-vpn-off
 
     Disconnects from VPN using the Pulse Secure/Ivanti suspend command.
     Waits for VPN to fully disconnect before returning.
@@ -1070,7 +1070,7 @@ def vpn_on_cmd() -> None:
     CLI command to connect VPN.
 
     Usage:
-        dfly-vpn-on
+        agdt-vpn-on
 
     Connects to VPN using a smart approach:
     - First tries to resume (if VPN was suspended)
@@ -1109,7 +1109,7 @@ def vpn_status_cmd() -> None:
     CLI command to check VPN and network status.
 
     Usage:
-        dfly-vpn-status
+        agdt-vpn-status
 
     Reports current VPN connection status and network accessibility.
     """
@@ -1150,11 +1150,11 @@ def vpn_off_async() -> None:
     Disconnect VPN asynchronously in the background.
 
     Usage:
-        dfly-vpn-off
-        dfly-task-wait
+        agdt-vpn-off
+        agdt-task-wait
 
     Disconnects from VPN using the Pulse Secure/Ivanti suspend command.
-    The task runs in the background - use dfly-task-wait to wait for completion.
+    The task runs in the background - use agdt-task-wait to wait for completion.
 
     If on corporate network (physically in office) WITHOUT VPN, skips VPN adjustment
     since corporate network already provides internal resource access.
@@ -1175,14 +1175,14 @@ def vpn_on_async() -> None:
     Connect VPN asynchronously in the background.
 
     Usage:
-        dfly-vpn-on
-        dfly-task-wait
+        agdt-vpn-on
+        agdt-task-wait
 
     Connects to VPN using a smart approach:
     - First tries to resume (if VPN was suspended)
     - Falls back to full connect (if VPN was fully disconnected)
 
-    The task runs in the background - use dfly-task-wait to wait for completion.
+    The task runs in the background - use agdt-task-wait to wait for completion.
 
     If on corporate network (physically in office), skips VPN connection
     since corporate network already provides internal resource access.
@@ -1203,11 +1203,11 @@ def vpn_status_async() -> None:
     Check VPN and network status asynchronously in the background.
 
     Usage:
-        dfly-vpn-status
-        dfly-task-wait
+        agdt-vpn-status
+        agdt-task-wait
 
     Reports current VPN connection status and network accessibility.
-    The task runs in the background - use dfly-task-wait to wait for completion.
+    The task runs in the background - use agdt-task-wait to wait for completion.
     """
     from agentic_devtools.background_tasks import run_function_in_background
     from agentic_devtools.task_state import print_task_tracking_info

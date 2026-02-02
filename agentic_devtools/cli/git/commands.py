@@ -159,10 +159,10 @@ def commit_cmd() -> None:
         --skip-rebase: Skip the fetch/rebase onto main step
 
     Example:
-        dfly-set commit_message "feature(DFLY-1234): add feature"
-        dfly-git-save-work
-        dfly-git-save-work --completed "1,2"
-        dfly-git-save-work --skip-rebase
+        agdt-set commit_message "feature(DFLY-1234): add feature"
+        agdt-git-save-work
+        agdt-git-save-work --completed "1,2"
+        agdt-git-save-work --skip-rebase
     """
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description="Save work: stage, commit, rebase, push")
@@ -293,9 +293,9 @@ def amend_cmd() -> None:
         --commit-message "msg": Override commit message from state
 
     Example:
-        dfly-set commit_message "feature(DFLY-1234): add feature (updated)"
-        dfly-git-amend
-        dfly-git-amend --completed "1,2"
+        agdt-set commit_message "feature(DFLY-1234): add feature (updated)"
+        agdt-git-amend
+        agdt-git-amend --completed "1,2"
     """
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description="Git amend commit")
@@ -341,7 +341,7 @@ def stage_cmd() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Example:
-        dfly-git-stage
+        agdt-git-stage
     """
     stage_changes(is_dry_run())
 
@@ -354,7 +354,7 @@ def push_cmd() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Example:
-        dfly-git-push
+        agdt-git-push
     """
     push(is_dry_run())
 
@@ -367,7 +367,7 @@ def force_push_cmd() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Example:
-        dfly-git-force-push
+        agdt-git-force-push
     """
     force_push(is_dry_run())
 
@@ -380,7 +380,7 @@ def publish_cmd() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Example:
-        dfly-git-publish
+        agdt-git-publish
     """
     publish_branch(is_dry_run())
 

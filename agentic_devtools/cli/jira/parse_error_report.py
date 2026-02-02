@@ -154,14 +154,14 @@ def parse_jira_error_report() -> None:
     - jira-error-report-<timestamp>.csv: Table format for easy viewing
 
     Example usage:
-        dfly-set jira.error_file_path "c:\\path\\to\\error-message.txt"
-        dfly-parse-jira-error-report
+        agdt-set jira.error_file_path "c:\\path\\to\\error-message.txt"
+        agdt-parse-jira-error-report
     """
     file_path = get_jira_value("error_file_path")
 
     if not file_path:
         print("Error: error_file_path not set.")
-        print("Use: dfly-set jira.error_file_path <PATH_TO_ERROR_FILE>")
+        print("Use: agdt-set jira.error_file_path <PATH_TO_ERROR_FILE>")
         return
 
     if not os.path.exists(file_path):

@@ -122,7 +122,7 @@ def update_issue() -> None:
 
     if not issue_key:
         print(
-            "Error: jira.issue_key is required. Use: dfly-set jira.issue_key DFLY-1234",
+            "Error: jira.issue_key is required. Use: agdt-set jira.issue_key DFLY-1234",
             file=sys.stderr,
         )
         sys.exit(1)

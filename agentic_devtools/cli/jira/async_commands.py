@@ -58,7 +58,7 @@ def add_comment_async(
     Add a Jira comment asynchronously in the background.
 
     This command immediately returns after spawning a background task.
-    Use dfly-task-status or dfly-task-wait to check completion.
+    Use agdt-task-status or agdt-task-wait to check completion.
 
     Args:
         comment: Comment content (overrides state)
@@ -72,13 +72,13 @@ def add_comment_async(
     - Prints task ID for tracking
 
     Usage:
-        dfly-add-jira-comment --jira-comment "This is my comment"
-        dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+        agdt-add-jira-comment --jira-comment "This is my comment"
+        agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
 
         # Or using state:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.comment "This is my comment"
-        dfly-add-jira-comment
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.comment "This is my comment"
+        agdt-add-jira-comment
         # Returns immediately with task ID
     """
     # Store CLI args in state if provided (background task reads from state)
@@ -104,13 +104,13 @@ def add_comment_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-add-jira-comment --jira-comment "This is my comment"
-  dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+  agdt-add-jira-comment --jira-comment "This is my comment"
+  agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
 
   # Or using state:
-  dfly-set jira.issue_key DFLY-1234
-  dfly-set jira.comment "This is my comment"
-  dfly-add-jira-comment
+  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.comment "This is my comment"
+  agdt-add-jira-comment
         """,
     )
 
@@ -154,10 +154,10 @@ def create_epic_async() -> None:
     - jira.labels (optional): Comma-separated labels
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.summary "New Feature Epic"
-        dfly-set jira.epic_name "Feature Epic"
-        dfly-create-epic
+        agdt-set jira.project_key DFLY
+        agdt-set jira.summary "New Feature Epic"
+        agdt-set jira.epic_name "Feature Epic"
+        agdt-create-epic
     """
     _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("summary", 'agdt-set jira.summary "Epic Title"')
@@ -184,10 +184,10 @@ def create_issue_async() -> None:
     - jira.parent_key (optional): Parent epic key
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.summary "New Task"
-        dfly-set jira.description "Task description"
-        dfly-create-issue
+        agdt-set jira.project_key DFLY
+        agdt-set jira.summary "New Task"
+        agdt-set jira.description "Task description"
+        agdt-create-issue
     """
     _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("summary", 'agdt-set jira.summary "Issue Title"')
@@ -210,9 +210,9 @@ def create_subtask_async() -> None:
     - jira.description (optional): Subtask description
 
     Usage:
-        dfly-set jira.parent_key DFLY-1234
-        dfly-set jira.summary "Subtask Title"
-        dfly-create-subtask
+        agdt-set jira.parent_key DFLY-1234
+        agdt-set jira.summary "Subtask Title"
+        agdt-create-subtask
     """
     parent_key = _require_jira_value("parent_key", "agdt-set jira.parent_key DFLY-1234")
     _require_jira_value("summary", 'agdt-set jira.summary "Subtask Title"')
@@ -233,8 +233,8 @@ def get_issue_async() -> None:
     - jira.issue_key (required): Issue key to retrieve
 
     Usage:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-get-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-get-jira-issue
     """
     issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
 
@@ -255,9 +255,9 @@ def update_issue_async() -> None:
     - Plus any update fields (jira.summary, jira.description, etc.)
 
     Usage:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.summary "New Summary"
-        dfly-update-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.summary "New Summary"
+        agdt-update-jira-issue
     """
     issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
 
@@ -282,8 +282,8 @@ def list_project_roles_async() -> None:
     - jira.project_key (required): Project key
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-list-project-roles
+        agdt-set jira.project_key DFLY
+        agdt-list-project-roles
     """
     project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
 
@@ -304,9 +304,9 @@ def get_project_role_details_async() -> None:
     - jira.role_id (required): Role ID
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-get-project-role-details
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-get-project-role-details
     """
     project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
@@ -329,10 +329,10 @@ def add_users_to_project_role_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-set jira.users "user1,user2"
-        dfly-add-users-to-project-role
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-set jira.users "user1,user2"
+        agdt-add-users-to-project-role
     """
     project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
@@ -356,10 +356,10 @@ def add_users_to_project_role_batch_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-set jira.users "user1,user2,user3"
-        dfly-add-users-to-project-role-batch
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-set jira.users "user1,user2,user3"
+        agdt-add-users-to-project-role-batch
     """
     project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
@@ -382,9 +382,9 @@ def find_role_id_by_name_async() -> None:
     - jira.role_name (required): Role name to find
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_name "Developers"
-        dfly-find-role-id-by-name
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_name "Developers"
+        agdt-find-role-id-by-name
     """
     project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
     _require_jira_value("role_name", 'agdt-set jira.role_name "Developers"')
@@ -405,8 +405,8 @@ def check_user_exists_async() -> None:
     - jira.username (required): Username to check
 
     Usage:
-        dfly-set jira.username "amarsnik"
-        dfly-check-user-exists
+        agdt-set jira.username "amarsnik"
+        agdt-check-user-exists
     """
     username = _require_jira_value("username", "agdt-set jira.username amarsnik")
 
@@ -426,8 +426,8 @@ def check_users_exist_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.users "user1,user2,user3"
-        dfly-check-users-exist
+        agdt-set jira.users "user1,user2,user3"
+        agdt-check-users-exist
     """
     _require_jira_value("users", 'agdt-set jira.users "user1,user2,user3"')
 

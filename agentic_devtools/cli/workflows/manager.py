@@ -10,7 +10,7 @@ This module provides:
 Design principles:
 1. Commands notify the workflow manager after successful execution
 2. The workflow manager checks background task status
-3. AI agent calls dfly-get-next-workflow-prompt to get next instructions
+3. AI agent calls agdt-get-next-workflow-prompt to get next instructions
 4. Three possible responses: success (next prompt), failure (error prompt), waiting (retry instructions)
 """
 
@@ -424,9 +424,9 @@ def get_next_workflow_prompt() -> NextPromptResult:
         return NextPromptResult(
             status=PromptStatus.NO_WORKFLOW,
             content="No workflow is currently active.\n\nTo start a workflow, use one of:\n"
-            "- dfly-initiate-work-on-jira-issue-workflow\n"
-            "- dfly-initiate-pull-request-review-workflow\n"
-            "- dfly-initiate-create-jira-issue-workflow",
+            "- agdt-initiate-work-on-jira-issue-workflow\n"
+            "- agdt-initiate-pull-request-review-workflow\n"
+            "- agdt-initiate-create-jira-issue-workflow",
         )
 
     workflow_name = workflow.get("active", "")
@@ -704,15 +704,15 @@ The following tasks are in progress:
 Wait for the tasks to complete, then run:
 
 ```bash
-dfly-get-next-workflow-prompt
+agdt-get-next-workflow-prompt
 ```
 
 Or wait for a specific task:
 
 ```bash
 dfly-set task_id {pending_tasks[0].id}
-dfly-task-wait
-dfly-get-next-workflow-prompt
+agdt-task-wait
+agdt-get-next-workflow-prompt
 ```
 """
 
@@ -738,15 +738,15 @@ def _render_failure_prompt(workflow_name: str, step_name: str, failed_tasks: Lis
 
 1. **View the full log**:
    ```bash
-   dfly-set task_id <task-id>
-   dfly-task-log
+   agdt-set task_id <task-id>
+   agdt-task-log
    ```
 
 2. **Fix the issue** and retry the command
 
 3. **After fixing**, continue the workflow:
    ```bash
-   dfly-get-next-workflow-prompt
+   agdt-get-next-workflow-prompt
    ```
 """
 
