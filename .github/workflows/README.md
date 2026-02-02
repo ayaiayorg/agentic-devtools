@@ -1,0 +1,68 @@
+# GitHub Workflows
+
+This directory contains GitHub Actions workflows for the agentic-devtools project.
+
+## Workflows
+
+### test.yml
+**Python Tests and Linting**
+
+- Runs on: Pull requests and pushes to main
+- Tests Python versions: 3.11, 3.12
+- Includes: pytest with coverage, black, isort, mypy, ruff
+- Purpose: Ensures code quality and test coverage
+
+### lint.yml
+**Markdown Linting**
+
+- Runs on: Pull requests and pushes to main
+- Tool: markdownlint-cli2
+- Purpose: Ensures consistent markdown formatting across documentation
+- Scope: All `*.md` files in the repository
+
+### release.yml
+**Automated Release Creation**
+
+- Runs on: 
+  - Pushes to main affecting `.specify/memory/**`, `.specify/scripts/**`, `.specify/templates/**`, or `.github/workflows/**`
+  - Manual workflow dispatch
+- Purpose: Automatically creates releases with Spec-Driven Development (SDD) template packages
+- Outputs: Creates release packages for multiple AI assistants (Claude, Copilot, Gemini, Cursor, etc.)
+- Scripts: Uses helper scripts in `.github/workflows/scripts/`
+
+## Release Workflow Details
+
+The release workflow:
+
+1. **Version Management**: Automatically increments version based on latest git tag
+2. **Package Creation**: Generates SDD template packages for different AI assistants:
+   - Claude (`.claude/commands/`)
+   - Copilot (`.github/agents/`)
+   - Gemini (`.gemini/commands/`)
+   - Cursor (`.cursor/commands/`)
+   - And many others (OpenCode, Windsurf, Qwen, etc.)
+3. **Release Notes**: Auto-generates release notes from git history
+4. **GitHub Release**: Creates a GitHub release with all package variants
+5. **Version Update**: Updates `pyproject.toml` with the new version
+
+### Release Scripts
+
+Located in `.github/workflows/scripts/`:
+
+- `get-next-version.sh`: Calculates next semantic version
+- `check-release-exists.sh`: Prevents duplicate releases
+- `create-release-packages.sh`: Builds all SDD template packages
+- `generate-release-notes.sh`: Creates release notes from commits
+- `create-github-release.sh`: Publishes the GitHub release
+- `update-version.sh`: Updates version in pyproject.toml
+
+## Spec-Driven Development (SDD)
+
+This project follows the [Spec-Kit](https://github.com/github/spec-kit) methodology for Spec-Driven Development. The `.specify/` directory contains:
+
+- `memory/constitution.md`: Project principles and governance
+- `scripts/bash/` and `scripts/powershell/`: Helper scripts
+- `templates/`: Feature specification templates
+- `templates/commands/`: AI assistant command templates
+
+The release workflow packages these templates into formats compatible with different AI coding assistants.
