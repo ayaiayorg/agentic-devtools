@@ -107,7 +107,7 @@ class TestRunCommand:
             with pytest.raises(SystemExit):
                 runner.run_command("agdt-show")
         captured = capsys.readouterr()
-        assert "Error loading command dfly-show" in captured.err
+        assert "Error loading command agdt-show" in captured.err
 
 
 class TestMain:

@@ -27,6 +27,7 @@ venv/
 ENV/
 env/
 .dfly-venv/
+.agdt-venv/
 
 # IDE
 .vscode/
@@ -43,6 +44,7 @@ htmlcov/
 
 # State files
 scripts/temp/
+.agdt-temp/
 *.log
 
 # Spec-Driven Development artifacts
