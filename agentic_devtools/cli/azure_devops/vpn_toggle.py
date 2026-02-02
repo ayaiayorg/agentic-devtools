@@ -1123,7 +1123,7 @@ def vpn_status_cmd() -> None:
     if status == NetworkStatus.VPN_CONNECTED:
         print("🔌 VPN is CONNECTED")
         print("   External access (npm, Azure DevOps logs) may be blocked")
-        print("   Use 'dfly-vpn-off' to temporarily disconnect")
+        print("   Use 'agdt-vpn-off' to temporarily disconnect")
     elif status == NetworkStatus.CORPORATE_NETWORK_NO_VPN:
         print("🏢 On corporate network (in office) without VPN")
         print("   External access is blocked and cannot be toggled automatically")
@@ -1131,7 +1131,7 @@ def vpn_status_cmd() -> None:
     elif status == NetworkStatus.EXTERNAL_ACCESS_OK:
         print("✅ VPN is DISCONNECTED")
         print("   External access should be available")
-        print("   Use 'dfly-vpn-on' to reconnect when done")
+        print("   Use 'agdt-vpn-on' to reconnect when done")
     else:
         print(f"❓ Network status: {status.value}")
         print(f"   {msg}")
@@ -1165,7 +1165,7 @@ def vpn_off_async() -> None:
     task = run_function_in_background(
         _VPN_MODULE,
         "vpn_off_cmd",
-        command_display_name="dfly-vpn-off",
+        command_display_name="agdt-vpn-off",
     )
     print_task_tracking_info(task, "Disconnecting VPN")
 
@@ -1193,7 +1193,7 @@ def vpn_on_async() -> None:
     task = run_function_in_background(
         _VPN_MODULE,
         "vpn_on_cmd",
-        command_display_name="dfly-vpn-on",
+        command_display_name="agdt-vpn-on",
     )
     print_task_tracking_info(task, "Connecting VPN")
 
@@ -1215,6 +1215,6 @@ def vpn_status_async() -> None:
     task = run_function_in_background(
         _VPN_MODULE,
         "vpn_status_cmd",
-        command_display_name="dfly-vpn-status",
+        command_display_name="agdt-vpn-status",
     )
     print_task_tracking_info(task, "Checking VPN status")

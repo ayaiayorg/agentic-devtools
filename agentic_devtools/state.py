@@ -1,7 +1,7 @@
 """
 State management using a single JSON file.
 
-All AI helper state is stored in a single JSON file (dfly-state.json),
+All AI helper state is stored in a single JSON file (agdt-state.json),
 making it easy to inspect, debug, and manage state across commands.
 
 Key design decisions:
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from .file_locking import FileLockError, locked_state_file
 
-STATE_FILENAME = "dfly-state.json"
+STATE_FILENAME = "agdt-state.json"
 
 # Default lock timeout in seconds
 DEFAULT_LOCK_TIMEOUT = 5.0
@@ -60,7 +60,7 @@ def get_state_dir() -> Path:
     2. DFLY_AI_HELPERS_STATE_DIR environment variable (legacy)
     3. scripts/temp relative to git repo/worktree root (auto-detected via git)
     4. scripts/temp found by walking up from cwd (fallback if not in git repo)
-    5. Current working directory / .dfly-temp (final fallback)
+    5. Current working directory / .agdt-temp (final fallback)
 
     The function uses `git rev-parse --show-toplevel` to reliably find the
     repo/worktree root, which works correctly even in deep subdirectories
@@ -98,8 +98,8 @@ def get_state_dir() -> Path:
             temp_dir.mkdir(exist_ok=True)
             return temp_dir
 
-    # Final fallback to .dfly-temp in cwd
-    fallback = cwd / ".dfly-temp"
+    # Final fallback to .agdt-temp in cwd
+    fallback = cwd / ".agdt-temp"
     fallback.mkdir(exist_ok=True)
     return fallback
 
@@ -448,7 +448,7 @@ def clear_temp_folder(preserve_keys: Optional[Dict[str, Any]] = None) -> None:
     Clear the entire temp folder, removing all state and temporary files.
 
     This removes:
-    - dfly-state.json (the state file)
+    - agdt-state.json (the state file)
     - pull-request-review/ (PR review queue and prompts)
     - background-tasks/ (background task state)
     - All temp-*.json and temp-*.md files

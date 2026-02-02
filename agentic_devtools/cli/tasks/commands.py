@@ -293,7 +293,7 @@ def _parse_wait_args(_argv: Optional[List[str]] = None) -> argparse.Namespace:
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        prog="dfly-task-wait",
+        prog="agdt-task-wait",
         description="Wait for a background task to complete",
         add_help=True,
     )
@@ -566,7 +566,7 @@ def _try_advance_pr_review_to_summary() -> bool:
     task: BackgroundTask = run_function_in_background(
         _PR_SUMMARY_MODULE,
         "generate_overarching_pr_comments_cli",
-        command_display_name="dfly-generate-pr-summary",
+        command_display_name="agdt-generate-pr-summary",
     )
 
     # Update background.task_id so next dfly-task-wait tracks this task
@@ -625,7 +625,7 @@ def _try_complete_pr_review_workflow(task: BackgroundTask) -> bool:
         return False
 
     # Check if the completed task was the summary generation
-    if task.command != "dfly-generate-pr-summary":
+    if task.command != "agdt-generate-pr-summary":
         return False
 
     # All conditions met - advance workflow to completion

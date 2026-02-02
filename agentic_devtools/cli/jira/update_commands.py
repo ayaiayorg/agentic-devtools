@@ -103,14 +103,14 @@ def update_issue() -> None:
     After updating, refreshes issue details to update cached state.
 
     Usage:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.summary "Updated Summary"
-        dfly-update-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.summary "Updated Summary"
+        agdt-update-jira-issue
 
         # Or update labels incrementally:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.labels_add "in-progress,needs-review"
-        dfly-update-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.labels_add "in-progress,needs-review"
+        agdt-update-jira-issue
     """
     # Import here to avoid circular dependency
     from .get_commands import get_issue

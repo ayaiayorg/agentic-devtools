@@ -67,7 +67,7 @@ def add_pull_request_comment_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "add_pull_request_comment",
-        command_display_name="dfly-add-pull-request-comment",
+        command_display_name="agdt-add-pull-request-comment",
     )
     print_task_tracking_info(task, "Adding comment to pull request")
 
@@ -86,7 +86,7 @@ def approve_pull_request_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "approve_pull_request",
-        command_display_name="dfly-approve-pull-request",
+        command_display_name="agdt-approve-pull-request",
     )
     print_task_tracking_info(task, "Approving pull request")
 
@@ -123,13 +123,13 @@ def create_pull_request_async(
     _set_value_if_provided("description", description)
 
     # Validate required values
-    _require_value("source_branch", 'dfly-create-pull-request --source-branch "branch-name"')
-    _require_value("title", 'dfly-create-pull-request --title "PR title"')
+    _require_value("source_branch", 'agdt-create-pull-request --source-branch "branch-name"')
+    _require_value("title", 'agdt-create-pull-request --title "PR title"')
 
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "create_pull_request",
-        command_display_name="dfly-create-pull-request",
+        command_display_name="agdt-create-pull-request",
     )
     print_task_tracking_info(task, "Creating pull request")
 
@@ -193,7 +193,7 @@ def get_pull_request_threads_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "get_pull_request_threads",
-        command_display_name="dfly-get-pull-request-threads",
+        command_display_name="agdt-get-pull-request-threads",
     )
     print_task_tracking_info(task, "Getting pull request threads")
 
@@ -216,7 +216,7 @@ def reply_to_pull_request_thread_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "reply_to_pull_request_thread",
-        command_display_name="dfly-reply-to-pull-request-thread",
+        command_display_name="agdt-reply-to-pull-request-thread",
     )
     print_task_tracking_info(task, "Replying to pull request thread")
 
@@ -237,7 +237,7 @@ def resolve_thread_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "resolve_thread",
-        command_display_name="dfly-resolve-thread",
+        command_display_name="agdt-resolve-thread",
     )
     print_task_tracking_info(task, "Resolving pull request thread")
 
@@ -256,7 +256,7 @@ def mark_pull_request_draft_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "mark_pull_request_draft",
-        command_display_name="dfly-mark-pull-request-draft",
+        command_display_name="agdt-mark-pull-request-draft",
     )
     print_task_tracking_info(task, "Marking pull request as draft")
 
@@ -275,7 +275,7 @@ def publish_pull_request_async() -> None:
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "publish_pull_request",
-        command_display_name="dfly-publish-pull-request",
+        command_display_name="agdt-publish-pull-request",
     )
     print_task_tracking_info(task, "Publishing pull request")
 
@@ -294,7 +294,7 @@ def get_pull_request_details_async() -> None:
     task = run_function_in_background(
         _PR_DETAILS_MODULE,
         "get_pull_request_details",
-        command_display_name="dfly-get-pull-request-details",
+        command_display_name="agdt-get-pull-request-details",
     )
     print_task_tracking_info(task, "Getting pull request details")
 
@@ -320,7 +320,7 @@ def run_e2e_tests_synapse_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "run_e2e_tests_synapse",
-        command_display_name="dfly-run-e2e-tests-synapse",
+        command_display_name="agdt-run-e2e-tests-synapse",
     )
     print_task_tracking_info(task, "Running E2E tests pipeline (Synapse)")
 
@@ -341,7 +341,7 @@ def run_e2e_tests_fabric_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "run_e2e_tests_fabric",
-        command_display_name="dfly-run-e2e-tests-fabric",
+        command_display_name="agdt-run-e2e-tests-fabric",
     )
     print_task_tracking_info(task, "Running E2E tests pipeline (Fabric, DEV only)")
 
@@ -360,7 +360,7 @@ def run_wb_patch_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "run_wb_patch",
-        command_display_name="dfly-run-wb-patch",
+        command_display_name="agdt-run-wb-patch",
     )
     print_task_tracking_info(task, "Running workbench patch pipeline")
 
@@ -403,7 +403,7 @@ def get_run_details_async() -> None:
     task = run_function_in_background(
         _RUN_DETAILS_MODULE,
         "get_run_details",
-        command_display_name="dfly-get-run-details",
+        command_display_name="agdt-get-run-details",
     )
     print_task_tracking_info(task, "Getting pipeline run details")
 
@@ -456,7 +456,7 @@ def wait_for_run_async() -> None:
     task = run_function_in_background(
         _RUN_DETAILS_MODULE,
         "wait_for_run",
-        command_display_name="dfly-wait-for-run",
+        command_display_name="agdt-wait-for-run",
     )
     print_task_tracking_info(task, "Waiting for pipeline run to complete")
 
@@ -475,7 +475,7 @@ def list_pipelines_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "list_pipelines",
-        command_display_name="dfly-list-pipelines",
+        command_display_name="agdt-list-pipelines",
     )
     print_task_tracking_info(task, "Listing pipelines")
 
@@ -497,7 +497,7 @@ def get_pipeline_id_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "get_pipeline_id",
-        command_display_name="dfly-get-pipeline-id",
+        command_display_name="agdt-get-pipeline-id",
     )
     print_task_tracking_info(task, "Getting pipeline ID")
 
@@ -526,7 +526,7 @@ def create_pipeline_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "create_pipeline",
-        command_display_name="dfly-create-pipeline",
+        command_display_name="agdt-create-pipeline",
     )
     print_task_tracking_info(task, "Creating pipeline")
 
@@ -554,7 +554,7 @@ def update_pipeline_async() -> None:
     task = run_function_in_background(
         _PIPELINE_MODULE,
         "update_pipeline",
-        command_display_name="dfly-update-pipeline",
+        command_display_name="agdt-update-pipeline",
     )
     print_task_tracking_info(task, "Updating pipeline")
 
@@ -635,14 +635,14 @@ def approve_file_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", "dfly-approve-file --pull-request-id 12345")
-    resolved_file_path = _require_value("file_review.file_path", 'dfly-approve-file --file-path "path/to/file"')
-    _require_value("content", 'dfly-approve-file --content "Approval comment"')
+    _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
+    resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
+    _require_value("content", 'agdt-approve-file --content "Approval comment"')
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "approve_file",
-        command_display_name="dfly-approve-file",
+        command_display_name="agdt-approve-file",
     )
     print_task_tracking_info(task, f"Approving file: {resolved_file_path}")
 
@@ -714,7 +714,7 @@ def submit_file_review_async() -> None:
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "submit_file_review",
-        command_display_name="dfly-submit-file-review",
+        command_display_name="agdt-submit-file-review",
     )
     print_task_tracking_info(task, "Submitting file review")
 
@@ -762,15 +762,15 @@ def request_changes_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", "dfly-request-changes --pull-request-id 12345")
-    resolved_file_path = _require_value("file_review.file_path", 'dfly-request-changes --file-path "path/to/file"')
-    _require_value("content", 'dfly-request-changes --content "Issue description"')
-    _require_value("line", "dfly-request-changes --line 42")
+    _require_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
+    resolved_file_path = _require_value("file_review.file_path", 'agdt-request-changes --file-path "path/to/file"')
+    _require_value("content", 'agdt-request-changes --content "Issue description"')
+    _require_value("line", "agdt-request-changes --line 42")
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "request_changes",
-        command_display_name="dfly-request-changes",
+        command_display_name="agdt-request-changes",
     )
     print_task_tracking_info(task, f"Requesting changes on file: {resolved_file_path}")
 
@@ -877,17 +877,17 @@ def request_changes_with_suggestion_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", "dfly-request-changes-with-suggestion --pull-request-id 12345")
+    _require_value("pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345")
     resolved_file_path = _require_value(
-        "file_review.file_path", 'dfly-request-changes-with-suggestion --file-path "path/to/file"'
+        "file_review.file_path", 'agdt-request-changes-with-suggestion --file-path "path/to/file"'
     )
-    _require_value("content", 'dfly-request-changes-with-suggestion --content "Suggestion"')
-    _require_value("line", "dfly-request-changes-with-suggestion --line 42")
+    _require_value("content", 'agdt-request-changes-with-suggestion --content "Suggestion"')
+    _require_value("line", "agdt-request-changes-with-suggestion --line 42")
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "request_changes_with_suggestion",
-        command_display_name="dfly-request-changes-with-suggestion",
+        command_display_name="agdt-request-changes-with-suggestion",
     )
     print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
 
@@ -966,7 +966,7 @@ def mark_file_reviewed_async() -> None:
     task = run_function_in_background(
         _MARK_REVIEWED_MODULE,
         "mark_file_reviewed_cli",
-        command_display_name="dfly-mark-file-reviewed",
+        command_display_name="agdt-mark-file-reviewed",
     )
     print_task_tracking_info(task, "Marking file as reviewed")
 
@@ -1141,7 +1141,7 @@ def generate_pr_summary_async() -> None:
     task = run_function_in_background(
         _PR_SUMMARY_MODULE,
         "generate_overarching_pr_comments_cli",
-        command_display_name="dfly-generate-pr-summary",
+        command_display_name="agdt-generate-pr-summary",
     )
     print_task_tracking_info(task, "Generating PR summary")
 

@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers.cli.azure_devops import get_pull_request_details
-from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+from agdt_ai_helpers.cli.azure_devops import get_pull_request_details
+from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
     _get_iteration_change_tracking_map,
     _get_reviewer_payload,
     _get_viewed_files_via_contribution,
@@ -28,7 +28,7 @@ class TestGetPullRequestDetails:
 
     def test_dry_run_output(self, temp_state_dir, clear_state_before, capsys):
         """Should show dry run output when dry_run is set."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "23046")
         set_value("dry_run", "true")
@@ -44,7 +44,7 @@ class TestGetPullRequestDetails:
 
     def test_dry_run_shows_output_path(self, temp_state_dir, clear_state_before, capsys):
         """Should show output file path in dry run."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "true")
@@ -57,7 +57,7 @@ class TestGetPullRequestDetails:
 
     def test_missing_pull_request_id(self, temp_state_dir, clear_state_before, capsys):
         """Should raise KeyError if pull_request_id is not set."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("dry_run", "true")  # Don't set pull_request_id
 
@@ -157,7 +157,7 @@ class TestGetViewedFilesViaContribution:
     def test_returns_empty_list_when_api_returns_none(self):
         """Should return empty list when API call fails."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=None,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -166,7 +166,7 @@ class TestGetViewedFilesViaContribution:
     def test_returns_empty_list_when_no_data_providers(self):
         """Should return empty list when response has no dataProviders."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value={"someOtherKey": {}},
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -182,7 +182,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -196,7 +196,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -218,7 +218,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -256,7 +256,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -287,7 +287,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -305,7 +305,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -333,7 +333,7 @@ class TestGetIterationChangeTrackingMap:
     def test_returns_empty_dict_when_api_returns_none(self):
         """Should return empty dict when API call fails."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -354,7 +354,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -380,7 +380,7 @@ class TestGetIterationChangeTrackingMap:
             }
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -399,7 +399,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -422,7 +422,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -442,7 +442,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -462,7 +462,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -482,7 +482,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -501,7 +501,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -529,7 +529,7 @@ class TestGetReviewerPayload:
     def test_returns_none_when_no_viewed_entries(self):
         """Should return None when contribution API returns no entries."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[],
         ):
             result = _get_reviewer_payload(
@@ -548,9 +548,9 @@ class TestGetReviewerPayload:
         iterations = [{"id": 1}, {"id": 5}, {"id": 3}]
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map"
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map"
         ) as mock_map, patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ):
             mock_map.return_value = {"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}}
@@ -572,10 +572,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -596,10 +596,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -619,10 +619,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -642,10 +642,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -667,10 +667,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -689,10 +689,10 @@ class TestGetReviewerPayload:
         ]
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={},  # Empty map
         ):
             result = _get_reviewer_payload(
@@ -715,10 +715,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -738,10 +738,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -760,10 +760,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -781,10 +781,10 @@ class TestGetReviewerPayload:
     def test_handles_empty_iterations_payload(self):
         """Should handle None iterations payload gracefully."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={},
         ):
             result = _get_reviewer_payload(
@@ -807,13 +807,13 @@ class TestGetPullRequestThreads:
 
     def test_successful_threads_retrieval(self):
         """Should return threads list on successful response."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         mock_response = {"value": [{"id": 1, "comments": []}, {"id": 2, "comments": []}]}
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=mock_response,
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -822,12 +822,12 @@ class TestGetPullRequestThreads:
 
     def test_returns_none_when_api_fails(self):
         """Should return None when API call returns None."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -836,12 +836,12 @@ class TestGetPullRequestThreads:
 
     def test_returns_none_when_no_value_key(self):
         """Should return None when response has no 'value' key."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"someOtherKey": []},
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -850,12 +850,12 @@ class TestGetPullRequestThreads:
 
     def test_encodes_project_name_spaces(self):
         """Should URL-encode project names with spaces."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"value": []},
         ) as mock_rest:
             _get_pull_request_threads("https://dev.azure.com/org", "My Project Name", "repo-id", 123, {})
@@ -869,13 +869,13 @@ class TestGetPullRequestIterations:
 
     def test_successful_iterations_retrieval(self):
         """Should return iterations list on successful response."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_iterations,
         )
 
         mock_response = {"value": [{"id": 1}, {"id": 2}]}
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=mock_response,
         ):
             result = _get_pull_request_iterations("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -884,12 +884,12 @@ class TestGetPullRequestIterations:
 
     def test_returns_none_when_api_fails(self):
         """Should return None when API call returns None."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_iterations,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_pull_request_iterations("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -902,7 +902,7 @@ class TestGetIterationChanges:
 
     def test_successful_changes_retrieval(self):
         """Should return change entries on successful response."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
@@ -913,7 +913,7 @@ class TestGetIterationChanges:
             ]
         }
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=mock_response,
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -923,12 +923,12 @@ class TestGetIterationChanges:
 
     def test_returns_none_when_api_fails(self):
         """Should return None when API call returns None."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -937,12 +937,12 @@ class TestGetIterationChanges:
 
     def test_returns_none_when_no_change_entries(self):
         """Should return None when response has no changeEntries key."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"someOtherKey": []},
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -955,7 +955,7 @@ class TestGetChangeTrackingIdForFile:
 
     def test_returns_change_tracking_id_when_file_found(self):
         """Should return changeTrackingId when file is found."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             get_change_tracking_id_for_file,
         )
 
@@ -964,7 +964,7 @@ class TestGetChangeTrackingIdForFile:
             {"changeTrackingId": 43, "item": {"path": "/src/other.py"}},
         ]
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
             return_value=mock_changes,
         ):
             result = get_change_tracking_id_for_file(
@@ -975,13 +975,13 @@ class TestGetChangeTrackingIdForFile:
 
     def test_normalizes_path_without_leading_slash(self):
         """Should find file even if input path lacks leading slash."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             get_change_tracking_id_for_file,
         )
 
         mock_changes = [{"changeTrackingId": 42, "item": {"path": "/src/file.py"}}]
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
             return_value=mock_changes,
         ):
             result = get_change_tracking_id_for_file(
@@ -998,13 +998,13 @@ class TestGetChangeTrackingIdForFile:
 
     def test_returns_none_when_file_not_found(self):
         """Should return None when file is not in changes."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             get_change_tracking_id_for_file,
         )
 
         mock_changes = [{"changeTrackingId": 42, "item": {"path": "/src/other.py"}}]
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
             return_value=mock_changes,
         ):
             result = get_change_tracking_id_for_file(
@@ -1015,12 +1015,12 @@ class TestGetChangeTrackingIdForFile:
 
     def test_returns_none_when_changes_api_fails(self):
         """Should return None when getting changes fails."""
-        from dfly_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
             get_change_tracking_id_for_file,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_changes",
             return_value=None,
         ):
             result = get_change_tracking_id_for_file(
@@ -1057,7 +1057,7 @@ class TestGetPullRequestDetailsExecution:
 
     def test_exits_on_az_cli_failure(self, temp_state_dir, clear_state_before, capsys):
         """Should exit with error when az CLI command fails."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "false")
@@ -1066,11 +1066,11 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 1
         mock_result.stderr = "Failed to find PR"
 
-        with patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
+        with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
             return_value="fake-pat",
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
             return_value=mock_result,
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -1084,7 +1084,7 @@ class TestGetPullRequestDetailsExecution:
 
     def test_exits_on_invalid_json_response(self, temp_state_dir, clear_state_before, capsys):
         """Should exit with error when az CLI returns invalid JSON."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "false")
@@ -1093,11 +1093,11 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = "not valid json {{"
 
-        with patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
+        with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
             return_value="fake-pat",
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
             return_value=mock_result,
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -1111,7 +1111,7 @@ class TestGetPullRequestDetailsExecution:
 
     def test_successful_execution(self, temp_state_dir, clear_state_before, tmp_path, capsys):
         """Should successfully retrieve and save PR details."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "false")
@@ -1137,26 +1137,26 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(pr_data)
 
-        with patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
+        with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
             return_value="fake-pat",
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
             return_value=mock_result,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
             return_value={"Authorization": "Basic xxx"},
-        ), patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+        ), patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
             return_value=[],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
             return_value=[],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
             return_value=[{"id": 1}],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
             return_value={"reviewedFiles": []},
         ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
             get_pull_request_details()
@@ -1168,7 +1168,7 @@ class TestGetPullRequestDetailsExecution:
 
     def test_handles_auto_complete_set_by(self, temp_state_dir, clear_state_before, capsys):
         """Should display auto-complete info when set."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "false")
@@ -1188,26 +1188,26 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(pr_data)
 
-        with patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
+        with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
             return_value="fake-pat",
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
             return_value=mock_result,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
             return_value={},
-        ), patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+        ), patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
             return_value=[],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
             return_value=None,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
             return_value=None,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
             return_value=None,
         ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
             get_pull_request_details()
@@ -1218,7 +1218,7 @@ class TestGetPullRequestDetailsExecution:
 
     def test_handles_org_without_https(self, temp_state_dir, clear_state_before):
         """Should prepend https://dev.azure.com/ when org doesn't start with http."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
         set_value("dry_run", "false")
@@ -1242,26 +1242,26 @@ class TestGetPullRequestDetailsExecution:
             captured_args.append(args)
             return mock_result
 
-        with patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
+        with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pat",
             return_value="fake-pat",
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.run_safe",
             side_effect=capture_run_safe,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_auth_headers",
             return_value={},
-        ), patch("dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+        ), patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_diff_entries",
             return_value=[],
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
             return_value=None,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
             return_value=None,
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
             return_value=None,
         ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
             get_pull_request_details()

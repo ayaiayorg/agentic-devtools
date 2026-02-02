@@ -32,14 +32,14 @@ feature([{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})): <short sum
 Set your commit message and create the commit:
 
 ```bash
-dfly-set commit_message "feature([{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})): <summary>
+agdt-set commit_message "feature([{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})): <summary>
 
 - <change 1>
 - <change 2>
 
 [{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})"
 
-dfly-git-save-work
+agdt-git-save-work
 ```
 
 ---

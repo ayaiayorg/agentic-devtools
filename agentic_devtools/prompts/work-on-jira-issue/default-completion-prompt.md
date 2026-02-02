@@ -37,7 +37,7 @@ Ready for review and merge.
 Post the completion comment:
 
 ```bash
-dfly-set jira.comment "h4. Work Complete
+agdt-set jira.comment "h4. Work Complete
 
 *Summary:*
 * <what was accomplished>
@@ -51,7 +51,7 @@ dfly-set jira.comment "h4. Work Complete
 * Style: ✅
 
 Ready for review and merge."
-dfly-add-jira-comment
+agdt-add-jira-comment
 ```
 
 ---
@@ -61,5 +61,5 @@ dfly-add-jira-comment
 To clear the workflow state:
 
 ```bash
-dfly-clear-workflow
+agdt-clear-workflow
 ```

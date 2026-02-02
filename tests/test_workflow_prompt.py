@@ -26,7 +26,7 @@ def temp_state_dir(tmp_path):
 @pytest.fixture
 def clear_state_before(temp_state_dir):
     """Clear state before each test."""
-    state_file = temp_state_dir / "dfly-state.json"
+    state_file = temp_state_dir / "agdt-state.json"
     if state_file.exists():
         state_file.unlink()
     yield
@@ -41,7 +41,7 @@ class TestGetNextWorkflowPrompt:
 
         assert result.status == PromptStatus.NO_WORKFLOW
         assert "No workflow is currently active" in result.content
-        assert "dfly-initiate-work-on-jira-issue-workflow" in result.content
+        assert "agdt-initiate-work-on-jira-issue-workflow" in result.content
 
     def test_pending_tasks_returns_waiting_status(self, temp_state_dir, clear_state_before):
         """When there are pending background tasks, should return WAITING status."""
@@ -55,7 +55,7 @@ class TestGetNextWorkflowPrompt:
         # Mock pending tasks
         mock_task = MagicMock()
         mock_task.id = "task-123-abc-def"
-        mock_task.command = "dfly-run-tests"
+        mock_task.command = "agdt-run-tests"
         mock_task.status = MagicMock()
         mock_task.status.value = "running"
 
@@ -68,7 +68,7 @@ class TestGetNextWorkflowPrompt:
         assert result.status == PromptStatus.WAITING
         assert result.step == "implementation"
         assert "task-123" in result.content
-        assert "dfly-run-tests" in result.content
+        assert "agdt-run-tests" in result.content
         assert result.pending_task_ids == ["task-123-abc-def"]
 
     def test_successful_transition_returns_new_step(self, temp_state_dir, clear_state_before):
@@ -187,12 +187,12 @@ class TestGetNextWorkflowPrompt:
             context={
                 "pending_transition": {
                     "to_step": "completion",
-                    "required_tasks": ["dfly-run-tests"],
+                    "required_tasks": ["agdt-run-tests"],
                 },
                 "events_log": [
                     {
                         "event": "TASK_COMPLETED",
-                        "command": "dfly-run-tests",
+                        "command": "agdt-run-tests",
                         "task_id": "task-456",
                         "success": False,
                         "error": "Tests failed with 3 errors",
@@ -204,7 +204,7 @@ class TestGetNextWorkflowPrompt:
         # Mock a failed task returned by get_task_by_id
         mock_failed_task = MagicMock()
         mock_failed_task.id = "task-456"
-        mock_failed_task.command = "dfly-run-tests"
+        mock_failed_task.command = "agdt-run-tests"
         mock_failed_task.status = TaskStatus.FAILED
         mock_failed_task.error_message = "Tests failed with 3 errors"
         mock_failed_task.log_file = "/tmp/test.log"
@@ -219,7 +219,7 @@ class TestGetNextWorkflowPrompt:
             result = get_next_workflow_prompt()
 
         assert result.status == PromptStatus.FAILURE
-        assert "dfly-run-tests" in result.content
+        assert "agdt-run-tests" in result.content
         assert "Tests failed" in result.content
         assert result.failed_task_ids == ["task-456"]
 
@@ -231,7 +231,7 @@ class TestRenderWaitingPrompt:
         """Should render a waiting prompt with single task."""
         mock_task = MagicMock()
         mock_task.id = "task-abc-123-def-456"
-        mock_task.command = "dfly-run-tests"
+        mock_task.command = "agdt-run-tests"
         mock_task.status = MagicMock()
         mock_task.status.value = "running"
 
@@ -243,22 +243,22 @@ class TestRenderWaitingPrompt:
 
         assert "work-on-jira-issue" in result
         assert "implementation" in result
-        assert "dfly-run-tests" in result
+        assert "agdt-run-tests" in result
         assert "task-abc..." in result
         assert "running" in result
-        assert "dfly-get-next-workflow-prompt" in result
+        assert "agdt-get-next-workflow-prompt" in result
 
     def test_renders_multiple_pending_tasks(self):
         """Should render waiting prompt with multiple tasks."""
         task1 = MagicMock()
         task1.id = "task-111"
-        task1.command = "dfly-run-tests"
+        task1.command = "agdt-run-tests"
         task1.status = MagicMock()
         task1.status.value = "running"
 
         task2 = MagicMock()
         task2.id = "task-222"
-        task2.command = "dfly-build"
+        task2.command = "agdt-build"
         task2.status = MagicMock()
         task2.status.value = "pending"
 
@@ -268,8 +268,8 @@ class TestRenderWaitingPrompt:
             pending_tasks=[task1, task2],
         )
 
-        assert "dfly-run-tests" in result
-        assert "dfly-build" in result
+        assert "agdt-run-tests" in result
+        assert "agdt-build" in result
         assert "running" in result
         assert "pending" in result
 
@@ -281,7 +281,7 @@ class TestRenderFailurePrompt:
         """Should render failure prompt with single failed task."""
         failed_tasks = [
             {
-                "command": "dfly-run-tests",
+                "command": "agdt-run-tests",
                 "error": "3 tests failed",
                 "log_file": "/tmp/test.log",
             }
@@ -295,16 +295,16 @@ class TestRenderFailurePrompt:
 
         assert "work-on-jira-issue" in result
         assert "implementation-review" in result
-        assert "dfly-run-tests" in result
+        assert "agdt-run-tests" in result
         assert "3 tests failed" in result
         assert "/tmp/test.log" in result
-        assert "dfly-task-log" in result
+        assert "agdt-task-log" in result
 
     def test_renders_multiple_failures(self):
         """Should render failure prompt with multiple failed tasks."""
         failed_tasks = [
-            {"command": "dfly-run-tests", "error": "Tests failed"},
-            {"command": "dfly-lint", "error": "Linting errors"},
+            {"command": "agdt-run-tests", "error": "Tests failed"},
+            {"command": "agdt-lint", "error": "Linting errors"},
         ]
 
         result = _render_failure_prompt(
@@ -313,8 +313,8 @@ class TestRenderFailurePrompt:
             failed_tasks=failed_tasks,
         )
 
-        assert "dfly-run-tests" in result
-        assert "dfly-lint" in result
+        assert "agdt-run-tests" in result
+        assert "agdt-lint" in result
         assert "Tests failed" in result
         assert "Linting errors" in result
 
@@ -333,13 +333,13 @@ class TestCheckRequiredTasksStatus:
             "events_log": [
                 {
                     "event": "TASK_COMPLETED",
-                    "command": "dfly-run-tests",
+                    "command": "agdt-run-tests",
                     "task_id": "task-123",
                     "success": True,
                 }
             ]
         }
-        result = _check_required_tasks_status(["dfly-run-tests"], context)
+        result = _check_required_tasks_status(["agdt-run-tests"], context)
         assert result == []
 
     def test_failed_task_returns_failure_info(self):
@@ -350,7 +350,7 @@ class TestCheckRequiredTasksStatus:
             "events_log": [
                 {
                     "event": "TASK_COMPLETED",
-                    "command": "dfly-run-tests",
+                    "command": "agdt-run-tests",
                     "task_id": "task-123",
                     "success": False,
                     "error": "Test failures",
@@ -362,7 +362,7 @@ class TestCheckRequiredTasksStatus:
         # Mock the task returned by get_task_by_id
         mock_failed_task = MagicMock()
         mock_failed_task.id = "task-123"
-        mock_failed_task.command = "dfly-run-tests"
+        mock_failed_task.command = "agdt-run-tests"
         mock_failed_task.status = TaskStatus.FAILED
         mock_failed_task.error_message = "Test failures"
         mock_failed_task.log_file = "/tmp/log.txt"
@@ -371,17 +371,17 @@ class TestCheckRequiredTasksStatus:
             "agentic_devtools.cli.workflows.manager.get_task_by_id",
             return_value=mock_failed_task,
         ):
-            result = _check_required_tasks_status(["dfly-run-tests"], context)
+            result = _check_required_tasks_status(["agdt-run-tests"], context)
 
         assert len(result) == 1
-        assert result[0]["command"] == "dfly-run-tests"
+        assert result[0]["command"] == "agdt-run-tests"
         assert result[0]["error"] == "Test failures"
         assert result[0]["log_file"] == "/tmp/log.txt"
 
     def test_missing_task_not_treated_as_failure(self):
         """When required task has no log entry, should not treat as failure."""
         context = {"events_log": []}
-        result = _check_required_tasks_status(["dfly-run-tests"], context)
+        result = _check_required_tasks_status(["agdt-run-tests"], context)
         # Task not in log means it hasn't completed yet - not a failure
         assert result == []
 
@@ -394,7 +394,7 @@ class TestBuildCommandHint:
         long_value = "A" * 150  # Longer than 100 chars
 
         result = _build_command_hint(
-            command_name="dfly-add-jira-comment",
+            command_name="agdt-add-jira-comment",
             param_name="--jira-comment",
             state_key="jira.comment",
             current_value=long_value,
@@ -404,14 +404,14 @@ class TestBuildCommandHint:
         assert "--jira-comment" in result
         assert "optional" in result
         assert "..." in result  # Truncated
-        assert "dfly-get jira.comment" in result
+        assert "agdt-get jira.comment" in result
 
     def test_with_short_value_shows_full_preview(self):
         """When value exists and is short, should show full value."""
         short_value = "Quick note"
 
         result = _build_command_hint(
-            command_name="dfly-add-jira-comment",
+            command_name="agdt-add-jira-comment",
             param_name="--jira-comment",
             state_key="jira.comment",
             current_value=short_value,
@@ -425,7 +425,7 @@ class TestBuildCommandHint:
     def test_without_value_required_shows_required(self):
         """When no value and required, should indicate REQUIRED."""
         result = _build_command_hint(
-            command_name="dfly-git-save-work",
+            command_name="agdt-git-save-work",
             param_name="--commit-message",
             state_key="commit_message",
             current_value=None,
@@ -439,7 +439,7 @@ class TestBuildCommandHint:
     def test_without_value_optional_shows_optional(self):
         """When no value and optional, should indicate optional."""
         result = _build_command_hint(
-            command_name="dfly-git-save-work",
+            command_name="agdt-git-save-work",
             param_name="--source-branch",
             state_key="source_branch",
             current_value=None,
@@ -455,7 +455,7 @@ class TestBuildCommandHint:
         multiline = "Line 1\nLine 2\nLine 3"
 
         result = _build_command_hint(
-            command_name="dfly-add-jira-comment",
+            command_name="agdt-add-jira-comment",
             param_name="--jira-comment",
             state_key="jira.comment",
             current_value=multiline,

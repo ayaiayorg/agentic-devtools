@@ -76,7 +76,7 @@ class TestRequireValue:
         from agentic_devtools.cli.azure_devops.async_commands import _require_value
 
         with pytest.raises(SystemExit) as exc_info:
-            _require_value("missing_key", "dfly-set missing_key <value>")
+            _require_value("missing_key", "agdt-set missing_key <value>")
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -90,7 +90,7 @@ class TestRequireValue:
 
         set_value("test_key", "test_value")
 
-        result = _require_value("test_key", "dfly-set test_key <value>")
+        result = _require_value("test_key", "agdt-set test_key <value>")
         assert result == "test_value"
 
 
@@ -570,7 +570,7 @@ class TestAzureDevOpsAsyncIntegration:
             assert "Background task started" in captured.out
             assert "task_id automatically set" in captured.out
             # Simplified output now only shows dfly-task-wait
-            assert "dfly-task-wait" in captured.out
+            assert "agdt-task-wait" in captured.out
 
     def test_task_ids_are_unique(self, mock_background_and_state, capsys):
         """Test each spawned task gets a unique ID."""
@@ -601,7 +601,7 @@ class TestAsyncCliEntryPoints:
         # Mock sys.argv with CLI arguments
         monkeypatch.setattr(
             "sys.argv",
-            ["dfly-create-pull-request", "--source-branch", "feature/test", "--title", "Test PR"],
+            ["agdt-create-pull-request", "--source-branch", "feature/test", "--title", "Test PR"],
         )
 
         create_pull_request_async_cli()
@@ -619,7 +619,7 @@ class TestAsyncCliEntryPoints:
         set_value("title", "Title from state")
 
         # Mock sys.argv with no arguments
-        monkeypatch.setattr("sys.argv", ["dfly-create-pull-request"])
+        monkeypatch.setattr("sys.argv", ["agdt-create-pull-request"])
 
         create_pull_request_async_cli()
 
@@ -636,7 +636,7 @@ class TestAsyncCliEntryPoints:
 
         monkeypatch.setattr(
             "sys.argv",
-            ["dfly-approve-file", "--file-path", "path/to/file.py", "--content", "LGTM"],
+            ["agdt-approve-file", "--file-path", "path/to/file.py", "--content", "LGTM"],
         )
 
         approve_file_async_cli()
@@ -652,7 +652,7 @@ class TestAsyncCliEntryPoints:
         set_value("pull_request_id", "12345")
         set_value("file_review.file_path", "path/from/state.py")
         set_value("content", "LGTM from state")
-        monkeypatch.setattr("sys.argv", ["dfly-approve-file"])
+        monkeypatch.setattr("sys.argv", ["agdt-approve-file"])
 
         approve_file_async_cli()
 
@@ -670,7 +670,7 @@ class TestAsyncCliEntryPoints:
         monkeypatch.setattr(
             "sys.argv",
             [
-                "dfly-request-changes",
+                "agdt-request-changes",
                 "--file-path",
                 "path/to/file.py",
                 "--content",
@@ -694,7 +694,7 @@ class TestAsyncCliEntryPoints:
         set_value("file_review.file_path", "path/from/state.py")
         set_value("content", "Comment from state")
         set_value("line", "42")
-        monkeypatch.setattr("sys.argv", ["dfly-request-changes"])
+        monkeypatch.setattr("sys.argv", ["agdt-request-changes"])
 
         request_changes_async_cli()
 
@@ -712,7 +712,7 @@ class TestAsyncCliEntryPoints:
         monkeypatch.setattr(
             "sys.argv",
             [
-                "dfly-request-changes-with-suggestion",
+                "agdt-request-changes-with-suggestion",
                 "--file-path",
                 "file.py",
                 "--content",
@@ -738,7 +738,7 @@ class TestAsyncCliEntryPoints:
         set_value("file_review.file_path", "file.py")
         set_value("content", "Suggested change from state")
         set_value("line", "10")
-        monkeypatch.setattr("sys.argv", ["dfly-request-changes-with-suggestion"])
+        monkeypatch.setattr("sys.argv", ["agdt-request-changes-with-suggestion"])
 
         request_changes_with_suggestion_async_cli()
 

@@ -269,7 +269,7 @@ def run_tests() -> None:
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_sync",
-        command_display_name="dfly-test",
+        command_display_name="agdt-test",
     )
     print_task_tracking_info(
         task,
@@ -295,7 +295,7 @@ def run_tests_quick() -> None:
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_quick_sync",
-        command_display_name="dfly-test-quick",
+        command_display_name="agdt-test-quick",
     )
     print_task_tracking_info(task, "Running tests without coverage (faster)")
 
@@ -303,7 +303,7 @@ def run_tests_quick() -> None:
 def _create_test_file_parser() -> argparse.ArgumentParser:
     """Create argument parser for dfly-test-file command."""
     parser = argparse.ArgumentParser(
-        prog="dfly-test-file",
+        prog="agdt-test-file",
         description="Run tests for a specific source file with 100% coverage requirement.",
         epilog="""
 Examples:
@@ -375,7 +375,7 @@ def run_tests_file(_argv: list | None = None) -> None:
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_file_sync",
-        command_display_name="dfly-test-file",
+        command_display_name="agdt-test-file",
     )
     print_task_tracking_info(task, f"Testing {source_file} (100% coverage required)")
 

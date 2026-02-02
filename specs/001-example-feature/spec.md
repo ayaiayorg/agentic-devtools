@@ -13,11 +13,11 @@ As a developer, I want to create a new CLI command that reads from state and per
 
 **Why this priority**: This is the core pattern used by all commands in agentic-devtools, making it the foundational capability.
 
-**Independent Test**: Can be fully tested by creating a simple command, setting state with `dfly-set`, and executing the command to verify it reads state correctly and produces expected output.
+**Independent Test**: Can be fully tested by creating a simple command, setting state with `agdt-set`, and executing the command to verify it reads state correctly and produces expected output.
 
 **Acceptance Scenarios**:
 
-1. **Given** a new command is created with proper entry point, **When** the command is invoked, **Then** it successfully reads state from `dfly-state.json`
+1. **Given** a new command is created with proper entry point, **When** the command is invoked, **Then** it successfully reads state from `agdt-state.json`
 2. **Given** state contains required parameters, **When** command executes, **Then** it performs the intended action and logs appropriately
 3. **Given** command execution completes, **When** checking output, **Then** results are available in expected output file or console
 
@@ -34,7 +34,7 @@ As a developer, I want new action commands to run as background tasks, so that A
 **Acceptance Scenarios**:
 
 1. **Given** an action command is invoked, **When** execution starts, **Then** command returns immediately with task ID
-2. **Given** background task is running, **When** checking task status, **Then** progress is visible via `dfly-task-status`
+2. **Given** background task is running, **When** checking task status, **Then** progress is visible via `agdt-task-status`
 3. **Given** task completes, **When** reading task log, **Then** full execution output is available
 
 ---
@@ -49,11 +49,11 @@ As a developer, I want new action commands to run as background tasks, so that A
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide state management via `dfly-set/get/show` commands
+- **FR-001**: System MUST provide state management via `agdt-set/get/show` commands
 - **FR-002**: System MUST support parameterless command execution reading from state
 - **FR-003**: Commands MUST handle special characters and multiline content natively
 - **FR-004**: Action commands MUST spawn background tasks and return task IDs
-- **FR-005**: System MUST provide task monitoring via `dfly-task-status/log/wait`
+- **FR-005**: System MUST provide task monitoring via `agdt-task-status/log/wait`
 
 ### Key Entities *(include if feature involves data)*
 

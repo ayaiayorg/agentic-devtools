@@ -42,7 +42,7 @@ For each file, evaluate:
 The PR details have been fetched. Advance to begin reviewing files:
 
 ```bash
-dfly-advance-workflow file-review
+agdt-advance-workflow file-review
 ```
 
 ---

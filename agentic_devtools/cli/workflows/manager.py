@@ -139,7 +139,7 @@ WORK_ON_JIRA_ISSUE_WORKFLOW = WorkflowDefinition(
             from_step="initiate",
             to_step="planning",
             trigger_events={WorkflowEvent.JIRA_ISSUE_RETRIEVED},
-            required_tasks=["dfly-get-jira-issue"],
+            required_tasks=["agdt-get-jira-issue"],
             auto_advance=True,
         ),
         # Pre-flight failed: initiate -> setup
@@ -191,7 +191,7 @@ WORK_ON_JIRA_ISSUE_WORKFLOW = WorkflowDefinition(
             from_step="commit",
             to_step="pull-request",
             trigger_events={WorkflowEvent.GIT_COMMIT_CREATED, WorkflowEvent.GIT_BRANCH_PUSHED},
-            required_tasks=["dfly-git-commit"],
+            required_tasks=["agdt-git-commit"],
             auto_advance=True,
         ),
         # PR created: pull-request -> completion
@@ -199,7 +199,7 @@ WORK_ON_JIRA_ISSUE_WORKFLOW = WorkflowDefinition(
             from_step="pull-request",
             to_step="completion",
             trigger_events={WorkflowEvent.PR_CREATED},
-            required_tasks=["dfly-create-pull-request"],
+            required_tasks=["agdt-create-pull-request"],
             auto_advance=True,
         ),
     ],
@@ -233,7 +233,7 @@ PULL_REQUEST_REVIEW_WORKFLOW = WorkflowDefinition(
             from_step="summary",
             to_step="completion",
             trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-            required_tasks=["dfly-generate-pr-summary"],
+            required_tasks=["agdt-generate-pr-summary"],
             auto_advance=True,
         ),
     ],
@@ -545,7 +545,7 @@ def _build_command_hint(
     Build a dynamic command hint based on current state.
 
     Args:
-        command_name: The CLI command (e.g., "dfly-add-jira-comment")
+        command_name: The CLI command (e.g., "agdt-add-jira-comment")
         param_name: The CLI parameter (e.g., "--jira-comment")
         state_key: The state key (e.g., "jira.comment")
         current_value: Current value from state (None if not set)
@@ -561,7 +561,7 @@ def _build_command_hint(
         display_value = display_value.replace("\n", "\\n")
         hint = f'`{param_name}` (optional - current `{state_key}`: "{display_value}")'
         if was_truncated:
-            hint += f"\n  Use `dfly-get {state_key}` to see the full value."
+            hint += f"\n  Use `agdt-get {state_key}` to see the full value."
         return hint
     elif is_required:
         return f"`{param_name}` (REQUIRED - `{state_key}` not set)"
@@ -649,7 +649,7 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: Dict[str, A
 
     # Add Jira comment command hint
     variables["add_jira_comment_hint"] = _build_command_hint(
-        "dfly-add-jira-comment",
+        "agdt-add-jira-comment",
         "--jira-comment",
         "jira.comment",
         jira_comment,
@@ -658,7 +658,7 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: Dict[str, A
 
     # Add commit command hint
     variables["git_commit_hint"] = _build_command_hint(
-        "dfly-git-commit",
+        "agdt-git-commit",
         "--commit-message",
         "commit_message",
         commit_message,
@@ -667,14 +667,14 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: Dict[str, A
 
     # Simple usage examples based on state
     if jira_comment:
-        variables["add_jira_comment_usage"] = "dfly-add-jira-comment"
+        variables["add_jira_comment_usage"] = "agdt-add-jira-comment"
     else:
-        variables["add_jira_comment_usage"] = 'dfly-add-jira-comment --jira-comment "<your plan>"'
+        variables["add_jira_comment_usage"] = 'agdt-add-jira-comment --jira-comment "<your plan>"'
 
     if commit_message:
-        variables["git_commit_usage"] = "dfly-git-commit"
+        variables["git_commit_usage"] = "agdt-git-commit"
     else:
-        variables["git_commit_usage"] = 'dfly-git-commit --commit-message "<your message>"'
+        variables["git_commit_usage"] = 'agdt-git-commit --commit-message "<your message>"'
 
     return load_and_render_prompt(
         workflow_name=workflow_name,

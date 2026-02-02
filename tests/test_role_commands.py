@@ -5,7 +5,7 @@ Tests for role_commands module - Jira project role management.
 import re
 from unittest.mock import MagicMock
 
-from dfly_ai_helpers.cli.jira.role_commands import (
+from agdt_ai_helpers.cli.jira.role_commands import (
     _check_user_exists,
 )
 
@@ -230,9 +230,9 @@ class TestCheckUserExistsCommand:
         """Test prints error when username not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
             check_user_exists()
 
         captured = capsys.readouterr()
@@ -242,7 +242,7 @@ class TestCheckUserExistsCommand:
         """Test prints success message for active user."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -251,14 +251,14 @@ class TestCheckUserExistsCommand:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="test.user"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="test.user"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_user_exists()
 
         captured = capsys.readouterr()
@@ -268,7 +268,7 @@ class TestCheckUserExistsCommand:
         """Test prints warning for inactive user."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -277,14 +277,14 @@ class TestCheckUserExistsCommand:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_user_exists()
 
         captured = capsys.readouterr()
@@ -298,9 +298,9 @@ class TestCheckUsersExistCommand:
         """Test prints error when users not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
             check_users_exist()
 
         captured = capsys.readouterr()
@@ -310,9 +310,9 @@ class TestCheckUsersExistCommand:
         """Test prints error for empty users list."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=""):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=""):
             check_users_exist()
 
         captured = capsys.readouterr()
@@ -326,9 +326,9 @@ class TestListProjectRoles:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
             list_project_roles()
 
         captured = capsys.readouterr()
@@ -338,7 +338,7 @@ class TestListProjectRoles:
         """Test prints roles table on success."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -350,14 +350,14 @@ class TestListProjectRoles:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()
@@ -370,7 +370,7 @@ class TestListProjectRoles:
         """Test prints error on API failure."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -379,14 +379,14 @@ class TestListProjectRoles:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="INVALID"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="INVALID"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()
@@ -400,12 +400,12 @@ class TestGetProjectRoleDetails:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         def mock_get_jira_value(key):
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -415,14 +415,14 @@ class TestGetProjectRoleDetails:
         """Test prints error when role_id not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         def mock_get_jira_value(key):
             if key == "project_id_or_key":
                 return "PROJ"
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -432,7 +432,7 @@ class TestGetProjectRoleDetails:
         """Test prints role details on success."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -464,14 +464,14 @@ class TestGetProjectRoleDetails:
                 return "10100"
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -487,9 +487,9 @@ class TestAddUsersToProjectRole:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -499,7 +499,7 @@ class TestAddUsersToProjectRole:
         """Test prints success message on 200 response."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -517,14 +517,14 @@ class TestAddUsersToProjectRole:
                 return "user1,user2"
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -534,7 +534,7 @@ class TestAddUsersToProjectRole:
         """Test prints error on 400 Bad Request response."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 400
@@ -552,14 +552,14 @@ class TestAddUsersToProjectRole:
                 return "invalid_user"
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -573,7 +573,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on 401 Unauthorized response."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -584,14 +584,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -601,7 +601,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on 404 Not Found response."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -613,14 +613,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "INVALID", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -630,7 +630,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on unexpected status code."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -642,14 +642,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -659,12 +659,12 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test error when users parses to empty list."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "   ,  ,  "}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -678,7 +678,7 @@ class TestCheckUsersExistCommandPaths:
         """Test handling of inactive user in check_users_exist."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -687,15 +687,15 @@ class TestCheckUsersExistCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("dfly_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 check_users_exist()
 
         captured = capsys.readouterr()
@@ -705,7 +705,7 @@ class TestCheckUsersExistCommandPaths:
         """Test handling of non-existent user in check_users_exist."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -713,14 +713,14 @@ class TestCheckUsersExistCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="nonexistent.user"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="nonexistent.user"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_users_exist()
 
         captured = capsys.readouterr()
@@ -734,9 +734,9 @@ class TestListProjectRolesCommandPaths:
         """Test error when project_id_or_key not set."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
             list_project_roles()
 
         captured = capsys.readouterr()
@@ -746,7 +746,7 @@ class TestListProjectRolesCommandPaths:
         """Test error message on API failure."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 403
@@ -755,14 +755,14 @@ class TestListProjectRolesCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()
@@ -772,7 +772,7 @@ class TestListProjectRolesCommandPaths:
         """Test successful role listing."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -784,14 +784,14 @@ class TestListProjectRolesCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()
@@ -807,12 +807,12 @@ class TestGetProjectRoleDetailsCommandPaths:
         """Test error when role_id not set."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -822,7 +822,7 @@ class TestGetProjectRoleDetailsCommandPaths:
         """Test error message on API failure."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -834,14 +834,14 @@ class TestGetProjectRoleDetailsCommandPaths:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "99999"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -851,7 +851,7 @@ class TestGetProjectRoleDetailsCommandPaths:
         """Test display when role has no actors."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -868,14 +868,14 @@ class TestGetProjectRoleDetailsCommandPaths:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -886,7 +886,7 @@ class TestGetProjectRoleDetailsCommandPaths:
         """Test display when role has both user and group actors."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import get_project_role_details
+        from agdt_ai_helpers.cli.jira.role_commands import get_project_role_details
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -906,14 +906,14 @@ class TestGetProjectRoleDetailsCommandPaths:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             get_project_role_details()
 
         captured = capsys.readouterr()
@@ -931,12 +931,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -946,12 +946,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when role_id not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -961,12 +961,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when users not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -976,12 +976,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when users parses to empty list."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "   ,  ,  "}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -991,7 +991,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add with mix of existing and non-existing users."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - first user exists, second doesn't
         def mock_user_response(url, *args, **kwargs):
@@ -1016,15 +1016,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "existing.user,nonexistent.user"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("dfly_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -1035,7 +1035,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add when no users exist."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - all users don't exist
         mock_response = MagicMock()
@@ -1047,15 +1047,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "nonexistent1,nonexistent2"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("dfly_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -1065,7 +1065,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add when role add fails for some users."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - both users exist
         def mock_user_response(url, *args, **kwargs):
@@ -1094,15 +1094,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1,user2"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("dfly_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -1116,12 +1116,12 @@ class TestFindRoleIdByName:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         def mock_get_jira_value(key):
             return None
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -1131,12 +1131,12 @@ class TestFindRoleIdByName:
         """Test prints error when role_name not in state."""
         from unittest.mock import patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -1146,7 +1146,7 @@ class TestFindRoleIdByName:
         """Test finding a single matching role."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -1161,14 +1161,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Developers"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -1179,7 +1179,7 @@ class TestFindRoleIdByName:
         """Test finding multiple matching roles."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -1195,14 +1195,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Dev"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -1214,7 +1214,7 @@ class TestFindRoleIdByName:
         """Test when no roles match the search."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -1228,14 +1228,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "NonExistent"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -1246,7 +1246,7 @@ class TestFindRoleIdByName:
         """Test handling of API failure."""
         from unittest.mock import MagicMock, patch
 
-        from dfly_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -1258,14 +1258,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Developers"}.get(key)
 
-        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("dfly_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("dfly_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "dfly_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("dfly_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()

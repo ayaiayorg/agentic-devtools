@@ -105,7 +105,7 @@ def merge_labels(
         Merged, deduplicated list of labels
     """
     result = ["createdWithDflyAiHelpers"]
-    seen = {"createdwithdflyaihelpers"}  # lowercase for case-insensitive deduplication
+    seen = {"createdwithagdtaihelpers"}  # lowercase for case-insensitive deduplication
 
     if custom_labels:
         for label in custom_labels:

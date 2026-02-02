@@ -103,12 +103,12 @@ def create_epic() -> None:
     if missing:
         print(f"Error: Missing required fields: {', '.join(missing)}", file=sys.stderr)
         print("\nUsage:", file=sys.stderr)
-        print('  dfly-set jira.summary "Epic Title"', file=sys.stderr)
-        print('  dfly-set jira.epic_name "Epic Name"', file=sys.stderr)
-        print('  dfly-set jira.role "user role"', file=sys.stderr)
-        print('  dfly-set jira.desired_outcome "what you want"', file=sys.stderr)
-        print('  dfly-set jira.benefit "why you want it"', file=sys.stderr)
-        print("  dfly-create-epic", file=sys.stderr)
+        print('  agdt-set jira.summary "Epic Title"', file=sys.stderr)
+        print('  agdt-set jira.epic_name "Epic Name"', file=sys.stderr)
+        print('  agdt-set jira.role "user role"', file=sys.stderr)
+        print('  agdt-set jira.desired_outcome "what you want"', file=sys.stderr)
+        print('  agdt-set jira.benefit "why you want it"', file=sys.stderr)
+        print("  agdt-create-epic", file=sys.stderr)
         sys.exit(1)
 
     acceptance_criteria = _parse_multiline_string(get_jira_value("acceptance_criteria"))

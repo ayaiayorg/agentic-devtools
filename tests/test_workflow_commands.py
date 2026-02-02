@@ -44,7 +44,7 @@ def clear_state_before(temp_state_dir):
     Note: We only remove the state file, not the entire temp folder,
     to avoid deleting directories created by other fixtures (like temp_prompts_dir).
     """
-    state_file = temp_state_dir / "dfly-state.json"
+    state_file = temp_state_dir / "agdt-state.json"
     if state_file.exists():
         state_file.unlink()
     yield
@@ -321,7 +321,7 @@ class TestWorkflowCommands:
         captured = capsys.readouterr()
         assert "Initiating pull request review for PR #123" in captured.out
         assert "Background task started" in captured.out
-        assert "dfly-task-wait" in captured.out
+        assert "agdt-task-wait" in captured.out
 
         # Verify background task was created
         task_id = state.get_value("background.task_id")
@@ -838,7 +838,7 @@ class TestAdvanceWorkflowCmd:
             context={"jira_issue_key": "TEST-123"},
         )
 
-        with patch.object(sys, "argv", ["dfly-advance-workflow"]):
+        with patch.object(sys, "argv", ["agdt-advance-workflow"]):
             with patch("agentic_devtools.cli.workflows.advance_work_on_jira_issue_workflow") as mock_advance:
                 advance_workflow_cmd()
                 mock_advance.assert_called_once_with(None)
@@ -856,7 +856,7 @@ class TestAdvanceWorkflowCmd:
             context={"pull_request_id": "456"},
         )
 
-        with patch.object(sys, "argv", ["dfly-advance-workflow"]):
+        with patch.object(sys, "argv", ["agdt-advance-workflow"]):
             with patch("agentic_devtools.cli.workflows.advance_pull_request_review_workflow") as mock_advance:
                 advance_workflow_cmd()
                 mock_advance.assert_called_once_with(None)
@@ -874,7 +874,7 @@ class TestAdvanceWorkflowCmd:
             context={"jira_issue_key": "TEST-123"},
         )
 
-        with patch.object(sys, "argv", ["dfly-advance-workflow", "implement"]):
+        with patch.object(sys, "argv", ["agdt-advance-workflow", "implement"]):
             with patch("agentic_devtools.cli.workflows.advance_work_on_jira_issue_workflow") as mock_advance:
                 advance_workflow_cmd()
                 mock_advance.assert_called_once_with("implement")
@@ -1602,7 +1602,7 @@ class TestCreateChecklistCmd:
 
     def test_no_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test error when no workflow is active."""
-        with patch("sys.argv", ["dfly-create-checklist"]):
+        with patch("sys.argv", ["agdt-create-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.create_checklist_cmd()
             assert exc_info.value.code == 1
@@ -1618,7 +1618,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1234"},
         )
 
-        with patch("sys.argv", ["dfly-create-checklist"]):
+        with patch("sys.argv", ["agdt-create-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.create_checklist_cmd()
             assert exc_info.value.code == 1
@@ -1634,7 +1634,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1234"},
         )
 
-        with patch("sys.argv", ["dfly-create-checklist", "Task 1|Task 2|Task 3"]):
+        with patch("sys.argv", ["agdt-create-checklist", "Task 1|Task 2|Task 3"]):
             with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
                 from agentic_devtools.cli.workflows.manager import NotifyEventResult
 
@@ -1658,7 +1658,7 @@ class TestCreateChecklistCmd:
         )
         state.set_value("checklist_items", "1. First task\n2. Second task")
 
-        with patch("sys.argv", ["dfly-create-checklist"]):
+        with patch("sys.argv", ["agdt-create-checklist"]):
             with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
                 from agentic_devtools.cli.workflows.manager import NotifyEventResult
 
@@ -1681,7 +1681,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1234"},
         )
 
-        with patch("sys.argv", ["dfly-create-checklist", "Task 1|Task 2"]):
+        with patch("sys.argv", ["agdt-create-checklist", "Task 1|Task 2"]):
             with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
                 from agentic_devtools.cli.workflows.manager import NotifyEventResult
 
@@ -1703,7 +1703,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1234"},
         )
 
-        with patch("sys.argv", ["dfly-create-checklist", "Task 1"]):
+        with patch("sys.argv", ["agdt-create-checklist", "Task 1"]):
             with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
                 from agentic_devtools.cli.workflows.manager import NotifyEventResult
 
@@ -1723,7 +1723,7 @@ class TestUpdateChecklistCmd:
 
     def test_no_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test error when no workflow is active."""
-        with patch("sys.argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--complete", "1"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -1739,7 +1739,7 @@ class TestUpdateChecklistCmd:
             context={"jira_issue_key": "DFLY-1234"},
         )
 
-        with patch("sys.argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--complete", "1"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -1761,7 +1761,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1"), ChecklistItem(id=2, text="Task 2")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist"]):
+        with patch("sys.argv", ["agdt-update-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -1782,7 +1782,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--add", "New task"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--add", "New task"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1803,7 +1803,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--remove", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--remove", "1"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1823,7 +1823,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--remove", "99"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--remove", "99"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1843,7 +1843,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--complete", "1"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1863,7 +1863,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1", completed=True)])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--revert", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--revert", "1"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1883,7 +1883,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1", completed=False)])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--revert", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--revert", "1"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1903,7 +1903,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--revert", "99"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--revert", "99"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1923,7 +1923,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Old task")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--edit", "1:New task text"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--edit", "1:New task text"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1943,7 +1943,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Old task")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--edit", "1-no-colon"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--edit", "1-no-colon"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1963,7 +1963,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Old task")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--edit", "abc:New text"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--edit", "abc:New text"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -1983,7 +1983,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Old task")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--edit", "99:New text"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--edit", "99:New text"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -2003,7 +2003,7 @@ class TestUpdateChecklistCmd:
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task 1")])
         save_checklist(checklist)
 
-        with patch("sys.argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch("sys.argv", ["agdt-update-checklist", "--complete", "1"]):
             with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
                 from agentic_devtools.cli.workflows.manager import NotifyEventResult
 
@@ -2042,7 +2042,7 @@ class TestShowChecklistCmd:
 
         captured = capsys.readouterr()
         assert "No checklist exists" in captured.out
-        assert "dfly-create-checklist" in captured.out
+        assert "agdt-create-checklist" in captured.out
 
     def test_show_checklist_with_items(self, temp_state_dir, clear_state_before, capsys):
         """Test showing a checklist with items."""

@@ -23,18 +23,18 @@ Before creating the epic, prepare:
 1. Set the required state:
 
    ```bash
-   dfly-set jira.project_key {{jira_project_key}}
-   dfly-set jira.summary "<epic summary>"
-   dfly-set jira.epic_name "<short epic name>"
-   dfly-set jira.role "<user role>"
-   dfly-set jira.desired_outcome "<what the user wants>"
-   dfly-set jira.benefit "<why they want it>"
+   agdt-set jira.project_key {{jira_project_key}}
+   agdt-set jira.summary "<epic summary>"
+   agdt-set jira.epic_name "<short epic name>"
+   agdt-set jira.role "<user role>"
+   agdt-set jira.desired_outcome "<what the user wants>"
+   agdt-set jira.benefit "<why they want it>"
    ```
 
 2. Create the epic:
 
    ```bash
-   dfly-create-epic
+   agdt-create-epic
    ```
 
 ## Epic Description Format
@@ -58,6 +58,6 @@ h3. +Success Criteria+
 
 Once the epic is created:
 
-1. Create child stories/tasks using `dfly-create-issue` with the epic link
+1. Create child stories/tasks using `agdt-create-issue` with the epic link
 2. Set up the epic's roadmap in Jira
 3. Prioritize child issues within the epic

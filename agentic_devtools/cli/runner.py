@@ -1,7 +1,7 @@
 """
 Command runner for agentic-devtools.
 
-This module provides a way to run dfly-* commands by name, used by the
+This module provides a way to run agdt-* commands by name, used by the
 wrapper scripts (dfly.ps1, dfly.sh) that auto-detect the repo's local venv.
 
 Usage:
@@ -256,7 +256,7 @@ def run_command(command: str) -> None:
     Import and run the specified command.
 
     Args:
-        command: The dfly-* command name (e.g., 'dfly-set', 'dfly-get')
+        command: The agdt-* command name (e.g., 'agdt-set', 'agdt-get')
     """
     if command not in COMMAND_MAP:
         print(f"Unknown command: {command}", file=sys.stderr)

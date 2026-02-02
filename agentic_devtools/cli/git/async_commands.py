@@ -37,7 +37,7 @@ def _set_bool_value_if_true(key: str, value: bool) -> None:
 def _create_commit_parser() -> argparse.ArgumentParser:
     """Create argument parser for save-work command."""
     parser = argparse.ArgumentParser(
-        prog="dfly-git-save-work",
+        prog="agdt-git-save-work",
         description="Save work: stage, commit (or amend), rebase onto main, and push.",
         epilog="""
 Examples:
@@ -150,7 +150,7 @@ def commit_async(
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "commit_cmd",
-        command_display_name="dfly-git-save-work",
+        command_display_name="agdt-git-save-work",
     )
     print_task_tracking_info(task)
 
@@ -185,7 +185,7 @@ def amend_async(
         dfly-git-amend --message "feature(DFLY-1234): updated message"
     """
     # Parse CLI arguments for message
-    parser = argparse.ArgumentParser(prog="dfly-git-amend", add_help=False)
+    parser = argparse.ArgumentParser(prog="agdt-git-amend", add_help=False)
     parser.add_argument("-m", "--message", "--commit-message", dest="commit_message", type=str)
     argv = _argv if _argv is not None else sys.argv[1:]
     args, _ = parser.parse_known_args(argv)
@@ -199,7 +199,7 @@ def amend_async(
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "amend_cmd",
-        command_display_name="dfly-git-amend",
+        command_display_name="agdt-git-amend",
     )
     print_task_tracking_info(task)
 
@@ -217,7 +217,7 @@ def stage_async() -> None:
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "stage_cmd",
-        command_display_name="dfly-git-stage",
+        command_display_name="agdt-git-stage",
     )
     print_task_tracking_info(task)
 
@@ -237,7 +237,7 @@ def push_async() -> None:
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "push_cmd",
-        command_display_name="dfly-git-push",
+        command_display_name="agdt-git-push",
     )
     print_task_tracking_info(task)
 
@@ -255,7 +255,7 @@ def force_push_async() -> None:
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "force_push_cmd",
-        command_display_name="dfly-git-force-push",
+        command_display_name="agdt-git-force-push",
     )
     print_task_tracking_info(task)
 
@@ -275,7 +275,7 @@ def publish_async() -> None:
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "publish_cmd",
-        command_display_name="dfly-git-publish",
+        command_display_name="agdt-git-publish",
     )
     print_task_tracking_info(task)
 

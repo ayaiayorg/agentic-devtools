@@ -18,7 +18,7 @@ from typing import Optional, Tuple
 __all__ = ["_setup_worktree_from_state"]
 
 # Name of the VS Code workspace file at repo root
-WORKSPACE_FILE = "dfly-platform-management.code-workspace"
+WORKSPACE_FILE = "agdt-platform-management.code-workspace"
 
 
 def generate_workflow_branch_name(
@@ -432,7 +432,7 @@ def install_agentic_devtools(worktree_path: str) -> bool:
 
 
 # Backward-compatible alias
-install_dfly_ai_helpers = install_agentic_devtools
+install_agdt_ai_helpers = install_agentic_devtools
 
 
 def open_vscode_workspace(worktree_path: str) -> bool:
@@ -589,12 +589,12 @@ def get_worktree_continuation_prompt(
     """
     # Build the base command for each workflow
     workflow_base_commands = {
-        "work-on-jira-issue": "dfly-initiate-work-on-jira-issue-workflow",
-        "pull-request-review": "dfly-initiate-pull-request-review-workflow",
-        "create-jira-issue": "dfly-initiate-create-jira-issue-workflow",
-        "create-jira-epic": "dfly-initiate-create-jira-epic-workflow",
-        "create-jira-subtask": "dfly-initiate-create-jira-subtask-workflow",
-        "update-jira-issue": "dfly-initiate-update-jira-issue-workflow",
+        "work-on-jira-issue": "agdt-initiate-work-on-jira-issue-workflow",
+        "pull-request-review": "agdt-initiate-pull-request-review-workflow",
+        "create-jira-issue": "agdt-initiate-create-jira-issue-workflow",
+        "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
+        "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
+        "update-jira-issue": "agdt-initiate-update-jira-issue-workflow",
     }
 
     base_command = workflow_base_commands.get(workflow_name, "")
@@ -663,15 +663,15 @@ def get_ai_agent_continuation_prompt(
     """
     # Build the base command for each workflow
     workflow_base_commands = {
-        "work-on-jira-issue": "dfly-initiate-work-on-jira-issue-workflow",
-        "pull-request-review": "dfly-initiate-pull-request-review-workflow",
-        "create-jira-issue": "dfly-initiate-create-jira-issue-workflow",
-        "create-jira-epic": "dfly-initiate-create-jira-epic-workflow",
-        "create-jira-subtask": "dfly-initiate-create-jira-subtask-workflow",
-        "update-jira-issue": "dfly-initiate-update-jira-issue-workflow",
+        "work-on-jira-issue": "agdt-initiate-work-on-jira-issue-workflow",
+        "pull-request-review": "agdt-initiate-pull-request-review-workflow",
+        "create-jira-issue": "agdt-initiate-create-jira-issue-workflow",
+        "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
+        "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
+        "update-jira-issue": "agdt-initiate-update-jira-issue-workflow",
     }
 
-    base_command = workflow_base_commands.get(workflow_name, "dfly-initiate-work-on-jira-issue-workflow")
+    base_command = workflow_base_commands.get(workflow_name, "agdt-initiate-work-on-jira-issue-workflow")
 
     # Build the full command with parameters
     # For pull-request-review, use --pull-request-id instead of --issue-key
@@ -916,7 +916,7 @@ def start_worktree_setup_background(
         set_value("worktree_setup.additional_params", json.dumps(additional_params))
 
     # Build display name for the task
-    display_name = f"dfly-setup-worktree-background --issue-key {issue_key}"
+    display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"
 
     # Start background task using function-based runner
     # This avoids the need for global CLI commands to be installed

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
     CORPORATE_NETWORK_TEST_HOST,
     DEFAULT_VPN_URL,
     PULSE_LAUNCHER_PATH,
@@ -75,7 +75,7 @@ class TestIsPulseSecureInstalled:
 class TestRunPulseCommand:
     """Tests for _run_pulse_command function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_returns_false_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
@@ -86,7 +86,7 @@ class TestRunPulseCommand:
         assert "not installed" in msg.lower()
         assert return_code == -1
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("subprocess.run")
     def test_successful_command(self, mock_run, mock_installed):
         """Test successful command execution."""
@@ -103,7 +103,7 @@ class TestRunPulseCommand:
         assert "Version 9.1" in output
         assert return_code == 0
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("subprocess.run")
     def test_command_failure(self, mock_run, mock_installed):
         """Test command returns failure on non-zero return code."""
@@ -120,7 +120,7 @@ class TestRunPulseCommand:
         assert "Error" in output
         assert return_code == 1
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("subprocess.run")
     def test_command_timeout(self, mock_run, mock_installed):
         """Test command handles timeout."""
@@ -133,7 +133,7 @@ class TestRunPulseCommand:
         assert success is False
         assert return_code == -1
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("subprocess.run")
     def test_command_subprocess_timeout(self, mock_run, mock_installed):
         """Test command handles subprocess.TimeoutExpired."""
@@ -261,7 +261,7 @@ class TestIsOnCorporateNetwork:
 class TestCheckNetworkStatus:
     """Tests for check_network_status function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
     def test_vpn_connected_status(self, mock_vpn):
         """Test returns VPN_CONNECTED when VPN is on."""
         mock_vpn.return_value = True
@@ -271,8 +271,8 @@ class TestCheckNetworkStatus:
         assert status == NetworkStatus.VPN_CONNECTED
         assert "VPN is connected" in msg
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_corporate_network_status(self, mock_corp, mock_vpn):
         """Test returns CORPORATE_NETWORK_NO_VPN when in office."""
         mock_vpn.return_value = False
@@ -283,8 +283,8 @@ class TestCheckNetworkStatus:
         assert status == NetworkStatus.CORPORATE_NETWORK_NO_VPN
         assert "corporate network" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_external_access_ok(self, mock_corp, mock_vpn):
         """Test returns EXTERNAL_ACCESS_OK when not on VPN or corp network."""
         mock_vpn.return_value = False
@@ -294,7 +294,7 @@ class TestCheckNetworkStatus:
 
         assert status == NetworkStatus.EXTERNAL_ACCESS_OK
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
     def test_verbose_output(self, mock_vpn, capsys):
         """Test verbose mode prints status."""
         mock_vpn.return_value = True
@@ -308,7 +308,7 @@ class TestCheckNetworkStatus:
 class TestDisconnectVpn:
     """Tests for disconnect_vpn function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
@@ -318,9 +318,9 @@ class TestDisconnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_successful_disconnect(self, mock_sleep, mock_installed, mock_cmd, mock_vpn):
         """Test successful VPN disconnect."""
@@ -333,8 +333,8 @@ class TestDisconnectVpn:
         assert success is True
         assert "verified disconnected" in msg.lower() or "suspend" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_command_failure(self, mock_installed, mock_cmd):
         """Test handles command failure."""
         mock_installed.return_value = True
@@ -349,7 +349,7 @@ class TestDisconnectVpn:
 class TestReconnectVpn:
     """Tests for reconnect_vpn function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
@@ -359,9 +359,9 @@ class TestReconnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_successful_reconnect(self, mock_sleep, mock_installed, mock_cmd, mock_vpn):
         """Test successful VPN reconnect."""
@@ -374,8 +374,8 @@ class TestReconnectVpn:
         assert success is True
         assert "verified connected" in msg.lower() or "resume" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_command_failure(self, mock_installed, mock_cmd):
         """Test handles command failure."""
         mock_installed.return_value = True
@@ -396,7 +396,7 @@ class TestVpnToggleContext:
             assert ctx.auto_toggle is False
             assert ctx.disconnected is False
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_no_op_when_pulse_not_installed(self, mock_installed, capsys):
         """Test context is a no-op when Pulse Secure not installed."""
         mock_installed.return_value = False
@@ -407,10 +407,10 @@ class TestVpnToggleContext:
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_disconnects_and_reconnects_when_connected(self, mock_installed, mock_vpn, mock_disconnect, mock_reconnect):
         """Test disconnects on enter and reconnects on exit when VPN was connected."""
         mock_installed.return_value = True
@@ -425,10 +425,10 @@ class TestVpnToggleContext:
 
         mock_reconnect.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_no_reconnect_when_not_originally_connected(
         self, mock_installed, mock_vpn, mock_disconnect, mock_reconnect
     ):
@@ -443,10 +443,10 @@ class TestVpnToggleContext:
 
         mock_reconnect.assert_not_called()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_reconnects_even_on_exception(self, mock_installed, mock_vpn, mock_disconnect, mock_reconnect):
         """Test reconnects VPN even if exception occurs in context."""
         mock_installed.return_value = True
@@ -471,7 +471,7 @@ class TestVpnToggleContext:
 class TestGetVpnUrlFromState:
     """Tests for get_vpn_url_from_state function."""
 
-    @patch("dfly_ai_helpers.state.get_value")
+    @patch("agdt_ai_helpers.state.get_value")
     def test_returns_state_value(self, mock_get_value):
         """Test returns URL from state when set."""
         mock_get_value.return_value = "https://custom.vpn.url"
@@ -480,7 +480,7 @@ class TestGetVpnUrlFromState:
 
         assert result == "https://custom.vpn.url"
 
-    @patch("dfly_ai_helpers.state.get_value")
+    @patch("agdt_ai_helpers.state.get_value")
     def test_returns_default_when_state_empty(self, mock_get_value):
         """Test returns default URL when state value is empty."""
         mock_get_value.return_value = ""
@@ -489,7 +489,7 @@ class TestGetVpnUrlFromState:
 
         assert result == DEFAULT_VPN_URL
 
-    @patch("dfly_ai_helpers.state.get_value")
+    @patch("agdt_ai_helpers.state.get_value")
     def test_returns_default_when_state_none(self, mock_get_value):
         """Test returns default URL when state value is None."""
         mock_get_value.return_value = None
@@ -511,7 +511,7 @@ class TestGetVpnUrlFromState:
 class TestJiraVpnContext:
     """Tests for JiraVpnContext context manager."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_no_op_when_on_corporate_network(self, mock_corp, capsys):
         """Test context is a no-op when on corporate network."""
         mock_corp.return_value = True
@@ -525,8 +525,8 @@ class TestJiraVpnContext:
         assert "corporate network" in captured.out.lower()
         assert "office" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_no_op_when_pulse_not_installed(self, mock_corp, mock_installed, capsys):
         """Test context is a no-op when Pulse Secure not installed."""
         mock_corp.return_value = False
@@ -539,9 +539,9 @@ class TestJiraVpnContext:
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_no_op_when_vpn_already_connected(self, mock_corp, mock_installed, mock_vpn, capsys):
         """Test context is a no-op when VPN is already connected."""
         mock_corp.return_value = False
@@ -556,11 +556,11 @@ class TestJiraVpnContext:
         captured = capsys.readouterr()
         assert "already connected" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_connects_and_disconnects_vpn(
         self, mock_corp, mock_installed, mock_vpn, mock_connect, mock_disconnect, capsys
     ):
@@ -583,11 +583,11 @@ class TestJiraVpnContext:
         assert "connecting" in captured.out.lower()
         assert "suspending" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_no_disconnect_when_connect_failed(
         self, mock_corp, mock_installed, mock_vpn, mock_connect, mock_disconnect, capsys
     ):
@@ -605,11 +605,11 @@ class TestJiraVpnContext:
         # Should NOT disconnect since connect failed
         mock_disconnect.assert_not_called()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_disconnects_vpn_even_on_exception(
         self, mock_corp, mock_installed, mock_vpn, mock_connect, mock_disconnect
     ):
@@ -627,7 +627,7 @@ class TestJiraVpnContext:
         # Should still disconnect
         mock_disconnect.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_does_not_suppress_exceptions(self, mock_corp):
         """Test context manager does not suppress exceptions."""
         mock_corp.return_value = True  # On corporate network
@@ -636,7 +636,7 @@ class TestJiraVpnContext:
             with JiraVpnContext(verbose=False):
                 raise RuntimeError("test error")
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_verbose_false_suppresses_output(self, mock_corp, capsys):
         """Test verbose=False suppresses output."""
         mock_corp.return_value = True
@@ -647,12 +647,12 @@ class TestJiraVpnContext:
         captured = capsys.readouterr()
         assert captured.out == ""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_no_disconnect_when_on_corporate_network(self, mock_corp):
         """Test does not try to disconnect when on corporate network."""
         mock_corp.return_value = True
 
-        with patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn") as mock_disconnect:
+        with patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn") as mock_disconnect:
             with JiraVpnContext(verbose=False):
                 pass
 
@@ -663,10 +663,10 @@ class TestJiraVpnContext:
 class TestConnectVpn:
     """Tests for connect_vpn function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = False
 
@@ -675,13 +675,13 @@ class TestConnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_successful_connect_via_ui_automation(self, mock_sleep, mock_installed, mock_ui_auto, mock_vpn):
         """Test successful connect via UI automation."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Connect button clicked")
@@ -692,13 +692,13 @@ class TestConnectVpn:
         assert success is True
         assert "connected" in msg.lower() or "automation" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_connect_already_connected(self, mock_sleep, mock_installed, mock_ui_auto, mock_vpn):
         """Test connect returns success when already connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Already connected")
@@ -708,13 +708,13 @@ class TestConnectVpn:
         assert success is True
         assert "already" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.subprocess.Popen")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_falls_back_to_manual_on_ui_failure(self, mock_installed, mock_ui_auto, mock_gui_path, mock_popen):
         """Test falls back to manual connect when UI automation fails."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (False, "UI automation failed")
@@ -729,10 +729,10 @@ class TestConnectVpn:
 class TestSmartConnectVpn:
     """Tests for smart_connect_vpn function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = False
 
@@ -741,11 +741,11 @@ class TestSmartConnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_already_connected(self, mock_installed, mock_vpn):
         """Test returns success when VPN already connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = True
         mock_vpn.return_value = True
@@ -755,13 +755,13 @@ class TestSmartConnectVpn:
         assert success is True
         assert "already" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_resumes_suspended_session(self, mock_sleep, mock_installed, mock_cmd, mock_vpn):
         """Test successfully resumes suspended VPN session."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = True
         mock_vpn.side_effect = [False, True]  # First off, then connected
@@ -772,13 +772,13 @@ class TestSmartConnectVpn:
         assert success is True
         assert "resume" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_full_connect_when_no_suspended_session(self, mock_installed, mock_cmd, mock_vpn, mock_connect):
         """Test calls full connect when return code indicates no suspended session."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = True
         mock_vpn.return_value = False
@@ -790,13 +790,13 @@ class TestSmartConnectVpn:
         assert success is True
         mock_connect.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_full_connect_when_pulse_not_running(self, mock_installed, mock_cmd, mock_vpn, mock_connect):
         """Test calls full connect when Pulse not running (code -1)."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = True
         mock_vpn.return_value = False
@@ -808,13 +808,13 @@ class TestSmartConnectVpn:
         assert success is True
         mock_connect.assert_called_once()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fallback_on_unexpected_return_code(self, mock_installed, mock_cmd, mock_vpn, mock_connect):
         """Test falls back to connect_vpn on unexpected return code."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import smart_connect_vpn
 
         mock_installed.return_value = True
         mock_vpn.return_value = False
@@ -830,12 +830,12 @@ class TestSmartConnectVpn:
 class TestVpnCliCommands:
     """Tests for VPN CLI commands."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_off_on_corporate_network(self, mock_corp, mock_installed, mock_vpn_connected, capsys):
         """Test vpn_off does nothing on corporate network when VPN not connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
 
         mock_installed.return_value = True
         mock_vpn_connected.return_value = False  # VPN not connected
@@ -846,11 +846,11 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "corporate network" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_off_not_installed(self, mock_corp, mock_installed, capsys):
         """Test vpn_off when Pulse not installed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = False
@@ -860,12 +860,12 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_off_not_connected(self, mock_corp, mock_installed, mock_vpn, capsys):
         """Test vpn_off when VPN not connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = True
@@ -876,14 +876,14 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "not currently connected" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.disconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_off_success(self, mock_corp, mock_installed, mock_vpn, mock_url, mock_disconnect, capsys):
         """Test successful vpn_off."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_off_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = True
@@ -897,10 +897,10 @@ class TestVpnCliCommands:
         assert "✅" in captured.out
         mock_disconnect.assert_called_once_with("https://vpn.test")
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_on_on_corporate_network(self, mock_corp, capsys):
         """Test vpn_on does nothing on corporate network."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
 
         mock_corp.return_value = True
 
@@ -909,11 +909,11 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "corporate network" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_on_not_installed(self, mock_corp, mock_installed, capsys):
         """Test vpn_on when Pulse not installed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = False
@@ -923,12 +923,12 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_on_already_connected(self, mock_corp, mock_installed, mock_vpn, capsys):
         """Test vpn_on when VPN already connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = True
@@ -939,14 +939,14 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "already connected" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.smart_connect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_vpn_on_success(self, mock_corp, mock_installed, mock_vpn, mock_url, mock_connect, capsys):
         """Test successful vpn_on."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_on_cmd
 
         mock_corp.return_value = False
         mock_installed.return_value = True
@@ -960,10 +960,10 @@ class TestVpnCliCommands:
         assert "✅" in captured.out
         mock_connect.assert_called_once_with("https://vpn.test")
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_vpn_status_not_installed(self, mock_installed, capsys):
         """Test vpn_status when Pulse not installed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import vpn_status_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import vpn_status_cmd
 
         mock_installed.return_value = False
 
@@ -972,11 +972,11 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_vpn_status_connected(self, mock_installed, mock_status, capsys):
         """Test vpn_status when VPN connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
 
         mock_installed.return_value = True
         mock_status.return_value = (NetworkStatus.VPN_CONNECTED, "VPN connected")
@@ -986,11 +986,11 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "CONNECTED" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_vpn_status_disconnected(self, mock_installed, mock_status, capsys):
         """Test vpn_status when VPN disconnected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
 
         mock_installed.return_value = True
         mock_status.return_value = (NetworkStatus.EXTERNAL_ACCESS_OK, "External access OK")
@@ -1000,11 +1000,11 @@ class TestVpnCliCommands:
         captured = capsys.readouterr()
         assert "DISCONNECTED" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_vpn_status_corporate_network(self, mock_installed, mock_status, capsys):
         """Test vpn_status when on corporate network."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
 
         mock_installed.return_value = True
         mock_status.return_value = (
@@ -1024,7 +1024,7 @@ class TestUiAutomationFunctions:
     @patch("subprocess.run")
     def test_get_pulse_window_handle_found(self, mock_run):
         """Test _get_pulse_window_handle when window found."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -1038,7 +1038,7 @@ class TestUiAutomationFunctions:
     @patch("subprocess.run")
     def test_get_pulse_window_handle_not_found(self, mock_run):
         """Test _get_pulse_window_handle when window not found."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -1054,7 +1054,7 @@ class TestUiAutomationFunctions:
         """Test _get_pulse_window_handle handles timeout."""
         import subprocess
 
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _get_pulse_window_handle
 
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="test", timeout=5)
 
@@ -1062,10 +1062,10 @@ class TestUiAutomationFunctions:
 
         assert hwnd is None
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
     def test_launch_pulse_gui_path_not_exists(self, mock_path):
         """Test _launch_pulse_gui when path doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
 
         mock_path.exists.return_value = False
 
@@ -1073,11 +1073,11 @@ class TestUiAutomationFunctions:
 
         assert result is False
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
     def test_launch_pulse_gui_already_running(self, mock_path, mock_hwnd):
         """Test _launch_pulse_gui when already running."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
 
         mock_path.exists.return_value = True
         mock_hwnd.return_value = 12345  # Already has a window
@@ -1086,10 +1086,10 @@ class TestUiAutomationFunctions:
 
         assert result is True
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_click_connect_fails_when_gui_launch_fails(self, mock_launch):
         """Test _click_connect_button_via_ui_automation fails when GUI can't launch."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1104,11 +1104,11 @@ class TestUiAutomationFunctions:
 class TestEnsureJiraVpnAccess:
     """Tests for ensure_jira_vpn_access decorator."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.JiraVpnContext")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.JiraVpnContext")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.get_vpn_url_from_state")
     def test_decorator_wraps_function(self, mock_url, mock_context):
         """Test decorator wraps function with VPN context."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import ensure_jira_vpn_access
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import ensure_jira_vpn_access
 
         mock_url.return_value = "https://vpn.test"
         mock_instance = MagicMock()
@@ -1133,11 +1133,11 @@ class TestLaunchPulseGuiSubprocessPath:
 
     @patch("time.sleep")
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
     def test_launch_pulse_gui_launches_and_waits_for_window(self, mock_path, mock_hwnd, mock_popen, mock_sleep):
         """Test _launch_pulse_gui launches subprocess and waits for window."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
 
         mock_path.exists.return_value = True
         mock_path.__str__ = lambda x: "C:\\Program Files\\Pulse\\PulseSecure.exe"
@@ -1151,11 +1151,11 @@ class TestLaunchPulseGuiSubprocessPath:
 
     @patch("time.sleep")
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
     def test_launch_pulse_gui_timeout_waiting_for_window(self, mock_path, mock_hwnd, mock_popen, mock_sleep):
         """Test _launch_pulse_gui returns False when window never appears."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
 
         mock_path.exists.return_value = True
         mock_path.__str__ = lambda x: "C:\\Program Files\\Pulse\\PulseSecure.exe"
@@ -1167,11 +1167,11 @@ class TestLaunchPulseGuiSubprocessPath:
         assert result is False
 
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._get_pulse_window_handle")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
     def test_launch_pulse_gui_popen_exception(self, mock_path, mock_hwnd, mock_popen):
         """Test _launch_pulse_gui handles Popen exception."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import _launch_pulse_gui
 
         mock_path.exists.return_value = True
         mock_path.__str__ = lambda x: "C:\\Program Files\\Pulse\\PulseSecure.exe"
@@ -1187,10 +1187,10 @@ class TestClickConnectViaUiAutomation:
     """Additional tests for _click_connect_button_via_ui_automation."""
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_success(self, mock_launch, mock_run):
         """Test successful UI automation click."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1206,10 +1206,10 @@ class TestClickConnectViaUiAutomation:
         assert "clicked" in msg.lower()
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_already_connected(self, mock_launch, mock_run):
         """Test UI automation when already connected."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1225,10 +1225,10 @@ class TestClickConnectViaUiAutomation:
         assert "already" in msg.lower()
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_error_output(self, mock_launch, mock_run):
         """Test UI automation with error output."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1244,10 +1244,10 @@ class TestClickConnectViaUiAutomation:
         assert "failed" in msg.lower()
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_unexpected_output(self, mock_launch, mock_run):
         """Test UI automation with unexpected output."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1263,12 +1263,12 @@ class TestClickConnectViaUiAutomation:
         assert "unexpected" in msg.lower()
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_timeout(self, mock_launch, mock_run):
         """Test UI automation timeout handling."""
         import subprocess
 
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1281,10 +1281,10 @@ class TestClickConnectViaUiAutomation:
         assert "timed out" in msg.lower()
 
     @patch("subprocess.run")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._launch_pulse_gui")
     def test_ui_automation_exception(self, mock_launch, mock_run):
         """Test UI automation exception handling."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import (
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
             _click_connect_button_via_ui_automation,
         )
 
@@ -1300,15 +1300,15 @@ class TestClickConnectViaUiAutomation:
 class TestConnectVpnTimeoutPaths:
     """Tests for connect_vpn timeout and manual fallback paths."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_ui_automation_initiated_but_not_confirmed(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected
     ):
         """Test connect_vpn when UI automation initiates but connection not confirmed."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -1323,16 +1323,16 @@ class TestConnectVpnTimeoutPaths:
         assert "initiated" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_manual_fallback_success(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn manual fallback path when UI automation fails."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -1347,16 +1347,16 @@ class TestConnectVpnTimeoutPaths:
         assert "connected" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_manual_fallback_timeout(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn manual fallback when timeout waiting for user."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -1369,16 +1369,16 @@ class TestConnectVpnTimeoutPaths:
         assert success is False
         assert "timed out" in msg.lower()
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_gui_not_found(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path
     ):
         """Test connect_vpn when GUI path doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -1391,16 +1391,16 @@ class TestConnectVpnTimeoutPaths:
         assert "not found" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_popen_fails(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn when Popen fails to launch GUI."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -1417,11 +1417,11 @@ class TestConnectVpnTimeoutPaths:
 class TestVpnStatusUnknown:
     """Tests for vpn_status_cmd unknown status path."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
-    @patch("dfly_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.check_network_status")
+    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_vpn_status_unknown(self, mock_installed, mock_status, capsys):
         """Test vpn_status when network status is unknown."""
-        from dfly_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
+        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import NetworkStatus, vpn_status_cmd
 
         mock_installed.return_value = True
         mock_status.return_value = (NetworkStatus.UNKNOWN, "Could not determine status")
@@ -1449,7 +1449,7 @@ class TestVpnAsyncCommands:
         mock_run_bg.assert_called_once_with(
             "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_off_cmd",
-            command_display_name="dfly-vpn-off",
+            command_display_name="agdt-vpn-off",
         )
         mock_print_info.assert_called_once_with(mock_task, "Disconnecting VPN")
 
@@ -1467,7 +1467,7 @@ class TestVpnAsyncCommands:
         mock_run_bg.assert_called_once_with(
             "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_on_cmd",
-            command_display_name="dfly-vpn-on",
+            command_display_name="agdt-vpn-on",
         )
         mock_print_info.assert_called_once_with(mock_task, "Connecting VPN")
 
@@ -1485,6 +1485,6 @@ class TestVpnAsyncCommands:
         mock_run_bg.assert_called_once_with(
             "agentic_devtools.cli.azure_devops.vpn_toggle",
             "vpn_status_cmd",
-            command_display_name="dfly-vpn-status",
+            command_display_name="agdt-vpn-status",
         )
         mock_print_info.assert_called_once_with(mock_task, "Checking VPN status")

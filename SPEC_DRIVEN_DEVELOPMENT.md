@@ -207,9 +207,9 @@ SDD specifications define what state keys are needed:
 Implementation uses standard state pattern:
 
 ```bash
-dfly-set export.format csv
-dfly-set export.output_file issues.csv
-dfly-export-jira-issues
+agdt-set export.format csv
+agdt-set export.output_file issues.csv
+agdt-export-jira-issues
 ```
 
 ### Background Tasks

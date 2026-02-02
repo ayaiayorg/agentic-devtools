@@ -16,13 +16,13 @@ You are updating Jira issue **{{jira_issue_key}}**.
 First, retrieve and review the current issue state:
 
 ```bash
-dfly-get-jira-issue
+agdt-get-jira-issue
 ```
 
 After retrieving, add a comment documenting the current state before making changes:
 
 ```bash
-dfly-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
+agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 
 *Current Summary:* <current summary>
 
@@ -38,12 +38,12 @@ dfly-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 Based on the user request, set the fields that need to be updated, then call the update command once:
 
 ```bash
-dfly-set jira.summary "<new summary>"
-dfly-set jira.description "<new description>"
-dfly-update-jira-issue
+agdt-set jira.summary "<new summary>"
+agdt-set jira.description "<new description>"
+agdt-update-jira-issue
 ```
 
-Only set the fields you need to change. The `dfly-update-jira-issue` command:
+Only set the fields you need to change. The `agdt-update-jira-issue` command:
 
 - Reads all set fields from state
 - Updates them in a single API call
@@ -51,7 +51,7 @@ Only set the fields you need to change. The `dfly-update-jira-issue` command:
 
 ### Step 3: Verify the Updates
 
-Review the output from `dfly-update-jira-issue` and verify:
+Review the output from `agdt-update-jira-issue` and verify:
 
 - [ ] Summary reflects the requested changes
 - [ ] Description is complete and properly formatted

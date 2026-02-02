@@ -255,7 +255,7 @@ def perform_auto_setup(
     1. Progress updates during setup
     2. A continuation prompt for the AI agent when complete
 
-    Use `dfly-task-log` to see the output including the AI agent prompt.
+    Use `agdt-task-log` to see the output including the AI agent prompt.
 
     Args:
         issue_key: The Jira issue key

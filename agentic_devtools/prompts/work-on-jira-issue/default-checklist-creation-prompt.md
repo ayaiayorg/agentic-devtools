@@ -34,17 +34,17 @@ Poor checklist items (too vague):
 Use the following command to create your checklist:
 
 ```bash
-dfly-create-checklist "1. First task|2. Second task|3. Third task"
+agdt-create-checklist "1. First task|2. Second task|3. Third task"
 ```
 
 Or use the multi-line format for better readability:
 
 ```bash
-dfly-set checklist_items "1. First specific task to complete
+agdt-set checklist_items "1. First specific task to complete
 2. Second specific task to complete
 3. Add unit tests for new functionality
 4. Update relevant documentation"
-dfly-create-checklist
+agdt-create-checklist
 ```
 
 ## Important Notes

@@ -634,7 +634,7 @@ def _trigger_workflow_continuation(
         print("Summary generation will be triggered automatically when all")
         print("background file submission tasks complete.")
         print("")
-        print("Use 'dfly-task-wait' to monitor pending submissions.")
+        print("Use 'agdt-task-wait' to monitor pending submissions.")
 
     print("")
 

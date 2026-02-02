@@ -415,7 +415,7 @@ def _execute_planning_step(
     jira_comment = get_value("jira.comment")
 
     add_jira_comment_hint = _build_command_hint(
-        "dfly-add-jira-comment",
+        "agdt-add-jira-comment",
         "--jira-comment",
         "jira.comment",
         jira_comment,
@@ -423,9 +423,9 @@ def _execute_planning_step(
     )
 
     if jira_comment:
-        add_jira_comment_usage = "dfly-add-jira-comment"
+        add_jira_comment_usage = "agdt-add-jira-comment"
     else:
-        add_jira_comment_usage = 'dfly-add-jira-comment --jira-comment "<your plan>"'
+        add_jira_comment_usage = 'agdt-add-jira-comment --jira-comment "<your plan>"'
 
     # Output planning prompt
     initiate_workflow(
@@ -1506,7 +1506,7 @@ def update_checklist_cmd() -> None:
             if result.triggered and not result.immediate_advance:
                 # Has pending tasks to wait for - tell user to wait
                 print("✓ Workflow transition triggered - waiting for background tasks.")
-                print("   Run `dfly-get-next-workflow-prompt` to check status.")
+                print("   Run `agdt-get-next-workflow-prompt` to check status.")
             # If immediate_advance is True, the prompt was already rendered by notify_workflow_event
 
 

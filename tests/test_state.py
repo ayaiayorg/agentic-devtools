@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dfly_ai_helpers import state
+from agdt_ai_helpers import state
 
 
 @pytest.fixture
@@ -199,18 +199,18 @@ class TestCliStateCommands:
 
     def test_get_cmd_missing_key_exits_with_error(self, temp_state_dir):
         """Test that get_cmd exits with error when no key provided."""
-        from dfly_ai_helpers.cli.state import get_cmd
+        from agdt_ai_helpers.cli.state import get_cmd
 
-        with patch("sys.argv", ["dfly-get"]):
+        with patch("sys.argv", ["agdt-get"]):
             with pytest.raises(SystemExit) as exc_info:
                 get_cmd()
             assert exc_info.value.code == 1
 
     def test_delete_cmd_missing_key_exits_with_error(self, temp_state_dir):
         """Test that delete_cmd exits with error when no key provided."""
-        from dfly_ai_helpers.cli.state import delete_cmd
+        from agdt_ai_helpers.cli.state import delete_cmd
 
-        with patch("sys.argv", ["dfly-delete"]):
+        with patch("sys.argv", ["agdt-delete"]):
             with pytest.raises(SystemExit) as exc_info:
                 delete_cmd()
             assert exc_info.value.code == 1
@@ -301,7 +301,7 @@ class TestLoadStateEdgeCases:
 
     def test_load_state_handles_corrupt_json(self, temp_state_dir):
         """Test that corrupt JSON returns empty dict."""
-        state_file = temp_state_dir / "dfly-state.json"
+        state_file = temp_state_dir / "agdt-state.json"
         state_file.write_text("{ invalid json", encoding="utf-8")
 
         result = state.load_state()
@@ -383,7 +383,7 @@ class TestClearTempFolder:
         state.clear_temp_folder()
 
         # All files should be removed
-        # Only dfly-state.json might exist (empty) after clearing
+        # Only agdt-state.json might exist (empty) after clearing
         remaining_files = list(temp_state_dir.iterdir())
         # The state file should be recreated by load_state, but be empty
         assert len(remaining_files) <= 1
@@ -648,7 +648,7 @@ class TestTriggerCrossLookup:
 
     def test_trigger_cross_lookup_pr_to_jira(self, temp_state_dir, capsys):
         """Test that PR change triggers Jira lookup."""
-        with patch("dfly_ai_helpers.state._start_jira_lookup_from_pr") as mock_jira_lookup:
+        with patch("agdt_ai_helpers.state._start_jira_lookup_from_pr") as mock_jira_lookup:
             state._trigger_cross_lookup("pull_request_id", 12345, verbose=True)
 
             mock_jira_lookup.assert_called_once_with(12345)
@@ -658,7 +658,7 @@ class TestTriggerCrossLookup:
 
     def test_trigger_cross_lookup_jira_to_pr(self, temp_state_dir, capsys):
         """Test that Jira change triggers PR lookup."""
-        with patch("dfly_ai_helpers.state._start_pr_lookup_from_jira") as mock_pr_lookup:
+        with patch("agdt_ai_helpers.state._start_pr_lookup_from_jira") as mock_pr_lookup:
             state._trigger_cross_lookup("jira.issue_key", "DFLY-1234", verbose=True)
 
             mock_pr_lookup.assert_called_once_with("DFLY-1234")
@@ -669,8 +669,8 @@ class TestTriggerCrossLookup:
     def test_trigger_cross_lookup_unknown_key_does_nothing(self, temp_state_dir, capsys):
         """Test that unknown key does nothing (early exit)."""
         # This tests the implicit else branch (360->exit) in _trigger_cross_lookup
-        with patch("dfly_ai_helpers.state._start_jira_lookup_from_pr") as mock_jira:
-            with patch("dfly_ai_helpers.state._start_pr_lookup_from_jira") as mock_pr:
+        with patch("agdt_ai_helpers.state._start_jira_lookup_from_pr") as mock_jira:
+            with patch("agdt_ai_helpers.state._start_pr_lookup_from_jira") as mock_pr:
                 state._trigger_cross_lookup("unknown_key", "value", verbose=True)
 
                 mock_jira.assert_not_called()
@@ -686,7 +686,7 @@ class TestStartJiraLookupFromPr:
 
     def test_start_jira_lookup_calls_async_function(self, temp_state_dir):
         """Test that _start_jira_lookup_from_pr calls async lookup."""
-        with patch("dfly_ai_helpers.cli.azure_devops.async_commands.lookup_jira_issue_from_pr_async") as mock_async:
+        with patch("agdt_ai_helpers.cli.azure_devops.async_commands.lookup_jira_issue_from_pr_async") as mock_async:
             state._start_jira_lookup_from_pr(12345)
 
             mock_async.assert_called_once_with(12345)
@@ -694,14 +694,14 @@ class TestStartJiraLookupFromPr:
     def test_start_jira_lookup_handles_import_error(self, temp_state_dir):
         """Test that _start_jira_lookup_from_pr handles ImportError gracefully."""
         # Patch at the import location within the function
-        with patch.dict("sys.modules", {"dfly_ai_helpers.cli.azure_devops.async_commands": None}):
+        with patch.dict("sys.modules", {"agdt_ai_helpers.cli.azure_devops.async_commands": None}):
             # Should not raise
             state._start_jira_lookup_from_pr(12345)
 
     def test_start_jira_lookup_handles_exception(self, temp_state_dir):
         """Test that _start_jira_lookup_from_pr handles exceptions gracefully."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.async_commands.lookup_jira_issue_from_pr_async",
+            "agdt_ai_helpers.cli.azure_devops.async_commands.lookup_jira_issue_from_pr_async",
             side_effect=Exception("Network error"),
         ):
             # Should not raise
@@ -713,7 +713,7 @@ class TestStartPrLookupFromJira:
 
     def test_start_pr_lookup_calls_async_function(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira calls async lookup."""
-        with patch("dfly_ai_helpers.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async") as mock_async:
+        with patch("agdt_ai_helpers.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async") as mock_async:
             state._start_pr_lookup_from_jira("DFLY-1234")
 
             mock_async.assert_called_once_with("DFLY-1234")
@@ -721,14 +721,14 @@ class TestStartPrLookupFromJira:
     def test_start_pr_lookup_handles_import_error(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira handles ImportError gracefully."""
         # Patch at the import location within the function
-        with patch.dict("sys.modules", {"dfly_ai_helpers.cli.azure_devops.async_commands": None}):
+        with patch.dict("sys.modules", {"agdt_ai_helpers.cli.azure_devops.async_commands": None}):
             # Should not raise
             state._start_pr_lookup_from_jira("DFLY-1234")
 
     def test_start_pr_lookup_handles_exception(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira handles exceptions gracefully."""
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async",
+            "agdt_ai_helpers.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async",
             side_effect=Exception("Network error"),
         ):
             # Should not raise
@@ -742,7 +742,7 @@ class TestGetGitRepoRoot:
         """Test returns Path when git command succeeds."""
         from unittest.mock import MagicMock
 
-        with patch("dfly_ai_helpers.state.subprocess.run") as mock_run:
+        with patch("agdt_ai_helpers.state.subprocess.run") as mock_run:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = str(tmp_path) + "\n"
@@ -762,7 +762,7 @@ class TestGetGitRepoRoot:
         """Test returns None when git command fails (not in repo)."""
         from unittest.mock import MagicMock
 
-        with patch("dfly_ai_helpers.state.subprocess.run") as mock_run:
+        with patch("agdt_ai_helpers.state.subprocess.run") as mock_run:
             mock_result = MagicMock()
             mock_result.returncode = 128  # Git error: not in repo
             mock_result.stdout = ""
@@ -774,7 +774,7 @@ class TestGetGitRepoRoot:
 
     def test_returns_none_when_git_not_found(self):
         """Test returns None when git command is not found."""
-        with patch("dfly_ai_helpers.state.subprocess.run") as mock_run:
+        with patch("agdt_ai_helpers.state.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("git not found")
 
             result = state._get_git_repo_root()
@@ -783,7 +783,7 @@ class TestGetGitRepoRoot:
 
     def test_returns_none_on_os_error(self):
         """Test returns None when OSError occurs."""
-        with patch("dfly_ai_helpers.state.subprocess.run") as mock_run:
+        with patch("agdt_ai_helpers.state.subprocess.run") as mock_run:
             mock_run.side_effect = OSError("Permission denied")
 
             result = state._get_git_repo_root()
@@ -794,7 +794,7 @@ class TestGetGitRepoRoot:
         """Test returns None when git returns empty stdout."""
         from unittest.mock import MagicMock
 
-        with patch("dfly_ai_helpers.state.subprocess.run") as mock_run:
+        with patch("agdt_ai_helpers.state.subprocess.run") as mock_run:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "   \n"  # Only whitespace
@@ -904,7 +904,7 @@ class TestFileLocking:
 
     def test_load_state_filelock_error_fallback(self, temp_state_dir):
         """Test that load_state falls back to unlocked read on FileLockError."""
-        from dfly_ai_helpers.file_locking import FileLockError
+        from agdt_ai_helpers.file_locking import FileLockError
 
         state.save_state({"fallback_key": "fallback_value"})
 
@@ -918,7 +918,7 @@ class TestFileLocking:
 
     def test_save_state_filelock_error_fallback(self, temp_state_dir):
         """Test that save_state falls back to unlocked write on FileLockError."""
-        from dfly_ai_helpers.file_locking import FileLockError
+        from agdt_ai_helpers.file_locking import FileLockError
 
         # Mock locked_state_file to raise FileLockError
         with patch.object(state, "locked_state_file") as mock_lock:
