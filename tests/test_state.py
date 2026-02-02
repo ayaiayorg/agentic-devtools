@@ -244,7 +244,7 @@ class TestStateDirResolution:
         assert result == scripts_temp
 
     def test_fallback_dir_when_no_scripts_temp(self, tmp_path, monkeypatch):
-        """Test fallback to .dfly-temp when scripts/temp not found."""
+        """Test fallback to .agdt-temp when scripts/temp not found."""
         # Create an isolated working directory with no scripts/temp
         isolated_dir = tmp_path / "isolated"
         isolated_dir.mkdir()
@@ -254,7 +254,7 @@ class TestStateDirResolution:
         monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
 
         result = state.get_state_dir()
-        assert result.name == ".dfly-temp"
+        assert result.name == ".agdt-temp"
         assert result.exists()
 
     def test_scripts_dir_creates_temp(self, tmp_path, monkeypatch):
@@ -822,7 +822,7 @@ class TestGetStateDirWithGit:
                 assert result.exists()
 
     def test_falls_back_to_dfly_temp_when_no_scripts_dir(self, tmp_path):
-        """Test that get_state_dir falls back to .dfly-temp when no scripts dir found."""
+        """Test that get_state_dir falls back to .agdt-temp when no scripts dir found."""
         # Create a directory structure WITHOUT scripts folder
         subdir = tmp_path / "deep" / "nested" / "path"
         subdir.mkdir(parents=True)
@@ -832,8 +832,8 @@ class TestGetStateDirWithGit:
                 with patch("pathlib.Path.cwd", return_value=subdir):
                     result = state.get_state_dir()
 
-                    # Should fall back to .dfly-temp since no scripts dir in parent chain
-                    assert ".dfly-temp" in str(result)
+                    # Should fall back to .agdt-temp since no scripts dir in parent chain
+                    assert ".agdt-temp" in str(result)
 
     def test_env_var_takes_precedence_over_git(self, tmp_path):
         """Test that DFLY_AI_HELPERS_STATE_DIR env var takes precedence."""
@@ -861,9 +861,9 @@ class TestGetStateDirWithGit:
                 with patch("pathlib.Path.cwd", return_value=cwd):
                     result = state.get_state_dir()
 
-                    # Should fall back to .dfly-temp since git root has no scripts dir
+                    # Should fall back to .agdt-temp since git root has no scripts dir
                     # and cwd walk doesn't find scripts either
-                    assert ".dfly-temp" in str(result)
+                    assert ".agdt-temp" in str(result)
 
 
 class TestFileLocking:
