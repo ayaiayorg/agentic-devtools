@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "packages": {
+    "philippfrenzel/senior-python-developer": {
+      "name": "philippfrenzel/senior-python-developer",
+      "version": "1.0.1",
+      "installed_at": "2026-01-28T20:29:52.636529Z",
+      "digest": null,
+      "dependencies": {}
+    }
+  },
+  "updated_at": "2026-01-28T20:29:52.636545Z"
+}

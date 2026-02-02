@@ -1,5 +1,5 @@
 {
-	"name": "Python 3",
+	"name": "Python 3 Agentic DevTools",
 	"image": "mcr.microsoft.com/devcontainers/python:3.12",
 	
 	// Configure tool-specific properties.
