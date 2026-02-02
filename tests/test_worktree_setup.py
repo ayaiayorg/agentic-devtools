@@ -991,7 +991,7 @@ class TestGetWorktreeContinuationPrompt:
         )
 
         assert "DFLY-1234" in result
-        assert "dfly-initiate-work-on-jira-issue-workflow" in result
+        assert "agdt-initiate-work-on-jira-issue-workflow" in result
         assert "--issue-key DFLY-1234" in result
 
     def test_generates_pull_request_review_prompt(self):
@@ -1002,7 +1002,7 @@ class TestGetWorktreeContinuationPrompt:
         )
 
         assert "DFLY-5678" in result
-        assert "dfly-initiate-pull-request-review-workflow" in result
+        assert "agdt-initiate-pull-request-review-workflow" in result
 
     def test_generates_create_jira_issue_prompt(self):
         """Test generating prompt for create-jira-issue workflow."""
@@ -1011,7 +1011,7 @@ class TestGetWorktreeContinuationPrompt:
             workflow_name="create-jira-issue",
         )
 
-        assert "dfly-initiate-create-jira-issue-workflow" in result
+        assert "agdt-initiate-create-jira-issue-workflow" in result
 
     def test_includes_user_request_parameter(self):
         """Test including user request in the prompt."""
@@ -1074,7 +1074,7 @@ class TestGetWorktreeContinuationPrompt:
             workflow_name="create-jira-epic",
         )
 
-        assert "dfly-initiate-create-jira-epic-workflow" in result
+        assert "agdt-initiate-create-jira-epic-workflow" in result
 
     def test_generate_create_jira_subtask_prompt(self):
         """Test generating prompt for create-jira-subtask workflow."""
@@ -1083,7 +1083,7 @@ class TestGetWorktreeContinuationPrompt:
             workflow_name="create-jira-subtask",
         )
 
-        assert "dfly-initiate-create-jira-subtask-workflow" in result
+        assert "agdt-initiate-create-jira-subtask-workflow" in result
 
     def test_generate_update_jira_issue_prompt(self):
         """Test generating prompt for update-jira-issue workflow."""
@@ -1092,7 +1092,7 @@ class TestGetWorktreeContinuationPrompt:
             workflow_name="update-jira-issue",
         )
 
-        assert "dfly-initiate-update-jira-issue-workflow" in result
+        assert "agdt-initiate-update-jira-issue-workflow" in result
 
 
 class TestCreatePlaceholderIssue:
@@ -1329,7 +1329,7 @@ class TestGetAiAgentContinuationPrompt:
     def test_contains_workflow_command(self):
         """Test that prompt contains the workflow initiation command."""
         prompt = get_ai_agent_continuation_prompt("DFLY-5678")
-        assert "dfly-initiate-work-on-jira-issue-workflow --issue-key DFLY-5678" in prompt
+        assert "agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-5678" in prompt
 
     def test_contains_senior_engineer_role(self):
         """Test that prompt establishes senior engineer role."""
@@ -1379,7 +1379,7 @@ class TestGetAiAgentContinuationPrompt:
         )
         assert "--pull-request-id 24031" in prompt
         assert "--issue-key PR24031" not in prompt
-        assert "dfly-initiate-pull-request-review-workflow" in prompt
+        assert "agdt-initiate-pull-request-review-workflow" in prompt
 
     def test_pull_request_review_falls_back_to_issue_key_without_additional_params(self):
         """Test that PR review falls back to issue-key if no additional_params provided."""
@@ -1560,7 +1560,7 @@ class TestStartWorktreeSetupBackground:
         call_kwargs = mock_run_background.call_args[1]
         assert call_kwargs["module_path"] == "agentic_devtools.cli.workflows.worktree_setup"
         assert call_kwargs["function_name"] == "_setup_worktree_from_state"
-        assert "dfly-setup-worktree-background" in call_kwargs["command_display_name"]
+        assert "agdt-setup-worktree-background" in call_kwargs["command_display_name"]
         assert "--issue-key DFLY-1234" in call_kwargs["command_display_name"]
 
     @patch("agentic_devtools.state.set_value")

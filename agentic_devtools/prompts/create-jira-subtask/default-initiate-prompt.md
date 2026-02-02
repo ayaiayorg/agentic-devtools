@@ -23,15 +23,15 @@ Before creating the subtask:
 1. Set the required state:
 
    ```bash
-   dfly-set jira.parent_key {{jira_parent_key}}
-   dfly-set jira.summary "<subtask summary>"
-   dfly-set jira.description "<detailed description>"
+   agdt-set jira.parent_key {{jira_parent_key}}
+   agdt-set jira.summary "<subtask summary>"
+   agdt-set jira.description "<detailed description>"
    ```
 
 2. Create the subtask:
 
    ```bash
-   dfly-create-subtask
+   agdt-create-subtask
    ```
 
 ## Best Practices

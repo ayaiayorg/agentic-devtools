@@ -207,14 +207,14 @@ SDD complements existing commands:
 
 ```bash
 # Set state from spec requirements
-dfly-set webhook.event_type "issue_updated"
-dfly-set webhook.callback_url "https://example.com/webhook"
+agdt-set webhook.event_type "issue_updated"
+agdt-set webhook.callback_url "https://example.com/webhook"
 
 # Execute command (background task)
-dfly-register-webhook
+agdt-register-webhook
 
 # Monitor progress
-dfly-task-status
+agdt-task-status
 ```
 
 ## Resources

@@ -78,7 +78,7 @@ class TestRunInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            run_in_background("dfly-test-cmd")
+            run_in_background("agdt-test-cmd")
 
         # Verify Popen was called (with Python wrapper script)
         mock_popen.assert_called_once()

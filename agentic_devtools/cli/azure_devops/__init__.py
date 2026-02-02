@@ -9,12 +9,12 @@ Workflow:
     2. Execute action with dfly-<action> (auto-approve once)
 
 Example:
-    dfly-set pull_request_id 23046
-    dfly-set thread_id 139474
-    dfly-set content "Thanks for the feedback!
+    agdt-set pull_request_id 23046
+    agdt-set thread_id 139474
+    agdt-set content "Thanks for the feedback!
 
     I've made the changes you suggested."
-    dfly-reply-to-pull-request-thread
+    agdt-reply-to-pull-request-thread
 """
 
 # Config exports

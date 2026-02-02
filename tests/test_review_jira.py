@@ -11,7 +11,7 @@ class TestGetJiraCredentials:
 
     def test_returns_pat_from_environment(self):
         """Test that PAT is returned from environment variable."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
+        from agdt_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
             pat, base_url = get_jira_credentials()
@@ -19,7 +19,7 @@ class TestGetJiraCredentials:
 
     def test_returns_none_when_pat_not_set(self):
         """Test that None is returned when PAT is not set."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
+        from agdt_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
 
         with patch.dict(os.environ, {}, clear=True):
             pat, base_url = get_jira_credentials()
@@ -27,7 +27,7 @@ class TestGetJiraCredentials:
 
     def test_returns_default_base_url(self):
         """Test that default base URL is returned."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
+        from agdt_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
 
         with patch.dict(os.environ, {}, clear=True):
             pat, base_url = get_jira_credentials()
@@ -35,7 +35,7 @@ class TestGetJiraCredentials:
 
     def test_returns_custom_base_url(self):
         """Test that custom base URL is returned."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
+        from agdt_ai_helpers.cli.azure_devops.review_jira import get_jira_credentials
 
         with patch.dict(os.environ, {"JIRA_BASE_URL": "https://jira.example.com/"}):
             pat, base_url = get_jira_credentials()
@@ -47,7 +47,7 @@ class TestFetchJiraIssue:
 
     def test_returns_none_when_no_pat(self, capsys):
         """Test that None is returned when no PAT is set."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
+        from agdt_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
 
         with patch.dict(os.environ, {}, clear=True):
             result = fetch_jira_issue("DFLY-1234", verbose=True)
@@ -55,10 +55,10 @@ class TestFetchJiraIssue:
             captured = capsys.readouterr()
             assert "JIRA_COPILOT_PAT" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_issue_data_on_success(self, mock_get):
         """Test that issue data is returned on success."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
+        from agdt_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -72,10 +72,10 @@ class TestFetchJiraIssue:
             result = fetch_jira_issue("DFLY-1234")
             assert result == {"key": "DFLY-1234", "fields": {"summary": "Test"}}
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_none_on_error_status(self, mock_get, capsys):
         """Test that None is returned on error status."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
+        from agdt_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -87,12 +87,12 @@ class TestFetchJiraIssue:
             captured = capsys.readouterr()
             assert "404" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_handles_request_exception(self, mock_get, capsys):
         """Test that request exceptions are handled."""
         import requests
 
-        from dfly_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
+        from agdt_ai_helpers.cli.azure_devops.review_jira import fetch_jira_issue
 
         mock_get.side_effect = requests.RequestException("Connection error")
 
@@ -108,7 +108,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_returns_none_for_none_input(self):
         """Test that None is returned for None input."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -117,7 +117,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_extracts_pr_from_comments(self):
         """Test extracting PR ID from comments."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -128,7 +128,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_extracts_pr_with_asterisks(self):
         """Test extracting PR ID with Jira markup asterisks."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -139,7 +139,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_extracts_latest_pr_first(self):
         """Test that the latest PR is extracted first."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -159,7 +159,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_falls_back_to_description(self):
         """Test falling back to description when no comments have PR."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -175,7 +175,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_returns_none_when_no_pr_found(self):
         """Test that None is returned when no PR is found."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -186,7 +186,7 @@ class TestExtractLinkedPrFromIssue:
 
     def test_handles_missing_comment_field(self):
         """Test handling missing comment field."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_linked_pr_from_issue,
         )
 
@@ -199,10 +199,10 @@ class TestExtractLinkedPrFromIssue:
 class TestGetLinkedPullRequestFromJira:
     """Tests for get_linked_pull_request_from_jira function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
     def test_returns_pr_id_from_issue(self, mock_fetch):
         """Test returning PR ID from issue."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             get_linked_pull_request_from_jira,
         )
 
@@ -211,10 +211,10 @@ class TestGetLinkedPullRequestFromJira:
         result = get_linked_pull_request_from_jira("DFLY-1234")
         assert result == 4444
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
     def test_returns_none_when_fetch_fails(self, mock_fetch):
         """Test returning None when fetch fails."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             get_linked_pull_request_from_jira,
         )
 
@@ -229,7 +229,7 @@ class TestDisplayJiraIssueSummary:
 
     def test_does_nothing_for_none_input(self, capsys):
         """Test that nothing is printed for None input."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             display_jira_issue_summary,
         )
 
@@ -240,7 +240,7 @@ class TestDisplayJiraIssueSummary:
 
     def test_prints_issue_summary(self, capsys):
         """Test printing issue summary."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             display_jira_issue_summary,
         )
 
@@ -265,7 +265,7 @@ class TestDisplayJiraIssueSummary:
 
     def test_handles_missing_fields(self, capsys):
         """Test handling missing fields."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             display_jira_issue_summary,
         )
 
@@ -281,11 +281,11 @@ class TestDisplayJiraIssueSummary:
 class TestFetchAndDisplayJiraIssue:
     """Tests for fetch_and_display_jira_issue function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.display_jira_issue_summary")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.display_jira_issue_summary")
     def test_fetches_and_displays_issue(self, mock_display, mock_fetch):
         """Test fetching and displaying issue."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_and_display_jira_issue,
         )
 
@@ -296,11 +296,11 @@ class TestFetchAndDisplayJiraIssue:
         assert result == {"key": "DFLY-1234"}
         mock_display.assert_called_once_with({"key": "DFLY-1234"})
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.display_jira_issue_summary")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.display_jira_issue_summary")
     def test_does_not_display_when_fetch_fails(self, mock_display, mock_fetch):
         """Test that display is not called when fetch fails."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_and_display_jira_issue,
         )
 
@@ -317,7 +317,7 @@ class TestFetchDevelopmentPanelPrs:
 
     def test_returns_empty_list_when_no_pat(self, capsys):
         """Test that empty list is returned when no PAT is set."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -327,10 +327,10 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "JIRA_COPILOT_PAT" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_issue_fetch_fails(self, mock_get, capsys):
         """Test that empty list is returned when issue fetch fails."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -344,10 +344,10 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "Failed to fetch issue ID" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_issue_id_missing(self, mock_get, capsys):
         """Test that empty list is returned when issue ID is missing."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -362,10 +362,10 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "Issue ID not found" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_dev_status_fails(self, mock_get, capsys):
         """Test that empty list is returned when dev-status API fails."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -385,10 +385,10 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "500" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_pull_requests_on_success(self, mock_get, capsys):
         """Test that PRs are returned on success."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -423,10 +423,10 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "1 PR(s)" in captured.out
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_no_prs(self, mock_get):
         """Test that empty list is returned when no PRs exist."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -446,12 +446,12 @@ class TestFetchDevelopmentPanelPrs:
             result = fetch_development_panel_prs("DFLY-1234")
             assert result == []
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.requests.get")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.requests.get")
     def test_handles_request_exception(self, mock_get, capsys):
         """Test that request exceptions are handled."""
         import requests
 
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
 
@@ -469,7 +469,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_returns_none_for_empty_list(self):
         """Test that None is returned for empty list."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -478,7 +478,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_extracts_pr_id_from_ado_url(self):
         """Test extracting PR ID from Azure DevOps URL."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -489,7 +489,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_extracts_pr_id_from_direct_id_field(self):
         """Test extracting PR ID from direct id field."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -500,7 +500,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_extracts_pr_id_from_string_id_field(self):
         """Test extracting PR ID from string id field like '#1234'."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -511,7 +511,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_returns_first_pr_when_multiple(self):
         """Test that first PR is returned when multiple exist."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -525,7 +525,7 @@ class TestExtractPrIdFromDevelopmentPanel:
 
     def test_returns_none_when_no_valid_url_or_id(self):
         """Test that None is returned when no valid URL or ID exists."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             extract_pr_id_from_development_panel,
         )
 
@@ -538,10 +538,10 @@ class TestExtractPrIdFromDevelopmentPanel:
 class TestGetPrFromDevelopmentPanel:
     """Tests for get_pr_from_development_panel function."""
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
     def test_returns_pr_id_from_development_panel(self, mock_fetch):
         """Test returning PR ID from development panel."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             get_pr_from_development_panel,
         )
 
@@ -551,10 +551,10 @@ class TestGetPrFromDevelopmentPanel:
         assert result == 7777
         mock_fetch.assert_called_once_with("DFLY-1234", False)
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
     def test_returns_none_when_no_prs(self, mock_fetch):
         """Test returning None when no PRs in development panel."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             get_pr_from_development_panel,
         )
 
@@ -563,10 +563,10 @@ class TestGetPrFromDevelopmentPanel:
         result = get_pr_from_development_panel("DFLY-1234")
         assert result is None
 
-    @patch("dfly_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
+    @patch("agdt_ai_helpers.cli.azure_devops.review_jira.fetch_development_panel_prs")
     def test_passes_verbose_flag(self, mock_fetch):
         """Test that verbose flag is passed through."""
-        from dfly_ai_helpers.cli.azure_devops.review_jira import (
+        from agdt_ai_helpers.cli.azure_devops.review_jira import (
             get_pr_from_development_panel,
         )
 

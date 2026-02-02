@@ -51,7 +51,7 @@ def _get_task_id_from_args_or_state(_argv: Optional[List[str]] = None) -> str:
 
     if not task_id:
         print("Error: No task ID specified.")
-        print('Set a task ID with: dfly-set background.task_id <task-id> or use --id "<task-id>"')
+        print('Set a task ID with: agdt-set background.task_id <task-id> or use --id "<task-id>"')
         sys.exit(1)
 
     return task_id
@@ -140,7 +140,7 @@ def list_tasks() -> None:
     """
     List all background tasks.
 
-    Entry point: dfly-tasks
+    Entry point: agdt-tasks
     """
     tasks = get_background_tasks()
 
@@ -183,7 +183,7 @@ def task_status(_argv: Optional[List[str]] = None) -> None:
     """
     Show detailed status of a specific task.
 
-    Entry point: dfly-task-status
+    Entry point: agdt-task-status
 
     Args:
         _argv: Optional list of CLI arguments (for testing)
@@ -226,7 +226,7 @@ def task_log(_argv: Optional[List[str]] = None) -> None:
     """
     Display task log contents.
 
-    Entry point: dfly-task-log
+    Entry point: agdt-task-log
 
     Args:
         _argv: Optional list of CLI arguments (for testing)
@@ -293,7 +293,7 @@ def _parse_wait_args(_argv: Optional[List[str]] = None) -> argparse.Namespace:
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        prog="dfly-task-wait",
+        prog="agdt-task-wait",
         description="Wait for a background task to complete",
         add_help=True,
     )
@@ -341,18 +341,18 @@ def task_wait(_argv: Optional[List[str]] = None) -> None:
     """
     Wait for task completion and auto-progress workflow.
 
-    Entry point: dfly-task-wait
+    Entry point: agdt-task-wait
 
     This command checks task status twice (with a configurable wait between checks):
     1. If task completed → Handles success/failure as appropriate
-    2. If task still running → Tells AI agent to call dfly-task-wait again
+    2. If task still running → Tells AI agent to call agdt-task-wait again
     3. If task timed out (based on start_time) → Reports timeout
 
     After task completion:
     1. If task failed → Shows log with fix instructions
     2. If other incomplete most-recent-per-command tasks exist → Instructs to wait for them
     3. If any most-recent-per-command task failed → Instructs to review it
-    4. If all clear → Automatically runs dfly-get-next-workflow-prompt
+    4. If all clear → Automatically runs agdt-get-next-workflow-prompt
 
     Args:
         _argv: Optional list of CLI arguments (for testing)
@@ -379,7 +379,7 @@ def task_wait(_argv: Optional[List[str]] = None) -> None:
         task_id = get_value("background.task_id")
         if not task_id:
             print("Error: No task ID specified.")
-            print('Set a task ID with: dfly-set background.task_id <task-id> or use --id "<task-id>"')
+            print('Set a task ID with: agdt-set background.task_id <task-id> or use --id "<task-id>"')
             sys.exit(1)
 
     # Allow state overrides for wait_interval and timeout
@@ -455,11 +455,11 @@ def _handle_task_still_running(task: BackgroundTask, task_id: str, wait_interval
         print(f"Running for: {elapsed:.1f}s")
 
     _safe_print("\n📋 Next Step:")
-    print("  Run dfly-task-wait again to continue waiting for completion.")
+    print("  Run agdt-task-wait again to continue waiting for completion.")
     print()
     print("Alternative actions:")
-    print("  • Check status: dfly-task-status")
-    print("  • View log: dfly-task-log")
+    print("  • Check status: agdt-task-status")
+    print("  • View log: agdt-task-log")
     sys.exit(0)
 
 
@@ -477,9 +477,9 @@ def _handle_task_timeout(task: BackgroundTask, task_id: str, timeout: float) -> 
         print(f"Running for: {elapsed:.1f}s (timeout: {timeout}s)")
 
     _safe_print("\n📋 Next Steps:")
-    print("  1. Check if task is stuck: dfly-task-log")
+    print("  1. Check if task is stuck: agdt-task-log")
     print("  2. If stuck, consider canceling and retrying")
-    print(f"  3. Or increase timeout: dfly-set background.timeout {int(timeout * 2)}")
+    print(f"  3. Or increase timeout: agdt-set background.timeout {int(timeout * 2)}")
     sys.exit(2)
 
 
@@ -507,7 +507,7 @@ def _try_advance_pr_review_to_summary() -> bool:
     - Advances workflow to summary step
     - Triggers generate_pr_summary_async() as background task
     - Sets background.task_id to the new summary task
-    - Prints message instructing AI to run dfly-task-wait
+    - Prints message instructing AI to run agdt-task-wait
 
     Returns:
         True if workflow was advanced and summary task started
@@ -566,10 +566,10 @@ def _try_advance_pr_review_to_summary() -> bool:
     task: BackgroundTask = run_function_in_background(
         _PR_SUMMARY_MODULE,
         "generate_overarching_pr_comments_cli",
-        command_display_name="dfly-generate-pr-summary",
+        command_display_name="agdt-generate-pr-summary",
     )
 
-    # Update background.task_id so next dfly-task-wait tracks this task
+    # Update background.task_id so next agdt-task-wait tracks this task
     set_value("background.task_id", task.id)
 
     # Print clear, unambiguous message for AI agent
@@ -584,7 +584,7 @@ def _try_advance_pr_review_to_summary() -> bool:
     print("IMPORTANT: The summary will be posted automatically. Do NOT manually")
     print("trigger dfly-generate-pr-summary - it is already running.")
     print()
-    _safe_print("📋 YOUR ONLY ACTION: Run dfly-task-wait")
+    _safe_print("📋 YOUR ONLY ACTION: Run agdt-task-wait")
     print()
     print("This will wait for the summary to complete and then provide next steps.")
 
@@ -625,7 +625,7 @@ def _try_complete_pr_review_workflow(task: BackgroundTask) -> bool:
         return False
 
     # Check if the completed task was the summary generation
-    if task.command != "dfly-generate-pr-summary":
+    if task.command != "agdt-generate-pr-summary":
         return False
 
     # All conditions met - advance workflow to completion
@@ -651,7 +651,7 @@ def _try_complete_pr_review_workflow(task: BackgroundTask) -> bool:
     print("NEXT STEPS:")
     print("  1. Review the PR summary comments that were posted")
     print("  2. Make a final decision on the PR:")
-    print("     - To approve: dfly-approve-pull-request")
+    print("     - To approve: agdt-approve-pull-request")
     print("     - Or provide feedback and request changes as needed")
 
     return True
@@ -696,7 +696,7 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
         print("  1. Review the error above")
         print("  2. Fix the underlying issue")
         print(f"  3. Re-run the command: {task.command}")
-        print("  4. Run dfly-task-wait again")
+        print("  4. Run agdt-task-wait again")
         sys.exit(task.exit_code if task.exit_code is not None else 1)
 
     # Task succeeded - now check for other tasks
@@ -715,7 +715,7 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
         # Pick the first one to wait for
         next_task = other_incomplete[0]
         _safe_print("\n📋 Next Step:")
-        print(f'  dfly-task-wait --id "{next_task.id}"')
+        print(f'  agdt-task-wait --id "{next_task.id}"')
         sys.exit(0)
 
     # Check for failed most-recent-per-command tasks
@@ -736,7 +736,7 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
         # Pick the first one to review
         next_task = failed_tasks[0]
         _safe_print("\n📋 Next Steps:")
-        print(f'  1. Review the failed task: dfly-task-log --id "{next_task.id}"')
+        print(f'  1. Review the failed task: agdt-task-log --id "{next_task.id}"')
         print("  2. Fix the underlying issue")
         print(f"  3. Re-run the command: {next_task.command}")
         sys.exit(0)
@@ -744,7 +744,7 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
     # All tasks succeeded - check for special workflow handling
     # Check if we need to auto-advance pull-request-review workflow
     if _try_advance_pr_review_to_summary():
-        # Successfully advanced and triggered summary - AI agent should run dfly-task-wait
+        # Successfully advanced and triggered summary - AI agent should run agdt-task-wait
         sys.exit(0)
 
     # Check if pull-request-review workflow should complete after summary
@@ -769,14 +769,14 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
     except Exception as e:
         # Workflow command failed - still report success
         print(f"\nNote: Could not auto-progress workflow: {e}")
-        print("Run manually: dfly-get-next-workflow-prompt")
+        print("Run manually: agdt-get-next-workflow-prompt")
 
 
 def tasks_clean() -> None:
     """
     Clean up expired tasks and old log files.
 
-    Entry point: dfly-tasks-clean
+    Entry point: agdt-tasks-clean
     Optional state keys:
     - background.expiry_hours: Hours before tasks expire (default: 24)
     """
@@ -818,7 +818,7 @@ def show_other_incomplete_tasks() -> None:
     """
     Show other incomplete background tasks (not the current task_id).
 
-    Entry point: dfly-show-other-incomplete-tasks
+    Entry point: agdt-show-other-incomplete-tasks
 
     This command shows any tasks in background.recentTasks that:
     - Are not in status 'completed' or 'failed'
@@ -848,4 +848,4 @@ def show_other_incomplete_tasks() -> None:
         _safe_print(f"{task.id:<36}  {status_str:<12}  {command_display:<30}  {duration:<10}")
 
     print()
-    print('To track a specific task: dfly-task-status --id "<task-id>"')
+    print('To track a specific task: agdt-task-status --id "<task-id>"')

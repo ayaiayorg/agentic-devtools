@@ -41,7 +41,7 @@ def run_e2e_tests_synapse() -> None:
     branch = get_value("branch")
     if not branch:
         print(
-            "Error: 'branch' is required. Set it with: dfly-set branch <branch-name>",
+            "Error: 'branch' is required. Set it with: agdt-set branch <branch-name>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -134,7 +134,7 @@ def run_e2e_tests_fabric() -> None:
     branch = get_value("branch")
     if not branch:
         print(
-            "Error: 'branch' is required. Set it with: dfly-set branch <branch-name>",
+            "Error: 'branch' is required. Set it with: agdt-set branch <branch-name>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -221,7 +221,7 @@ def run_wb_patch() -> None:
     branch = get_value("branch")
     if not branch:
         print(
-            "Error: 'branch' is required. Set it with: dfly-set branch <branch-name>",
+            "Error: 'branch' is required. Set it with: agdt-set branch <branch-name>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -229,7 +229,7 @@ def run_wb_patch() -> None:
     workbench = get_value("wb_patch.workbench")
     if not workbench:
         print(
-            "Error: 'wb_patch.workbench' is required. Set it with: dfly-set wb_patch.workbench <WORKBENCH>",
+            "Error: 'wb_patch.workbench' is required. Set it with: agdt-set wb_patch.workbench <WORKBENCH>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -410,7 +410,7 @@ def get_pipeline_id() -> None:
     pipeline_name = get_value("pipeline.name")
     if not pipeline_name:
         print(
-            "Error: 'pipeline.name' is required. Set it with: dfly-set pipeline.name <name>",
+            "Error: 'pipeline.name' is required. Set it with: agdt-set pipeline.name <name>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -505,7 +505,7 @@ def create_pipeline() -> None:
     pipeline_name = get_value("pipeline.name")
     if not pipeline_name:
         print(
-            "Error: 'pipeline.name' is required. Set it with: dfly-set pipeline.name <name>",
+            "Error: 'pipeline.name' is required. Set it with: agdt-set pipeline.name <name>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -513,7 +513,7 @@ def create_pipeline() -> None:
     yaml_path = get_value("pipeline.yaml_path")
     if not yaml_path:
         print(
-            "Error: 'pipeline.yaml_path' is required. Set it with: dfly-set pipeline.yaml_path <path>",
+            "Error: 'pipeline.yaml_path' is required. Set it with: agdt-set pipeline.yaml_path <path>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -624,7 +624,7 @@ def update_pipeline() -> None:
     if not pipeline_id:
         print(
             "Error: 'pipeline.id' is required. "
-            "Run dfly-get-pipeline-id first, or set it with: dfly-set pipeline.id <id>",
+            "Run dfly-get-pipeline-id first, or set it with: agdt-set pipeline.id <id>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -640,10 +640,10 @@ def update_pipeline() -> None:
             "Error: At least one update parameter is required. Set one of:",
             file=sys.stderr,
         )
-        print("  dfly-set pipeline.new_name <name>", file=sys.stderr)
-        print("  dfly-set pipeline.yaml_path <path>", file=sys.stderr)
-        print("  dfly-set pipeline.new_folder_path <folder>", file=sys.stderr)
-        print("  dfly-set pipeline.description <description>", file=sys.stderr)
+        print("  agdt-set pipeline.new_name <name>", file=sys.stderr)
+        print("  agdt-set pipeline.yaml_path <path>", file=sys.stderr)
+        print("  agdt-set pipeline.new_folder_path <folder>", file=sys.stderr)
+        print("  agdt-set pipeline.description <description>", file=sys.stderr)
         sys.exit(1)
 
     if dry_run:

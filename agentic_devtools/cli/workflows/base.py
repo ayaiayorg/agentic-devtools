@@ -56,7 +56,7 @@ def validate_required_state(required_keys: List[str]) -> Dict[str, Any]:
         print(f"ERROR: Missing required state keys: {', '.join(missing)}", file=sys.stderr)
         print("\nPlease set them using:", file=sys.stderr)
         for key in missing:
-            print(f"  dfly-set {key} <value>", file=sys.stderr)
+            print(f"  agdt-set {key} <value>", file=sys.stderr)
         sys.exit(1)
 
     return values
@@ -210,7 +210,7 @@ def advance_workflow_step(
     # Verify workflow is active
     if not is_workflow_active(workflow_name):
         print(f"ERROR: Workflow '{workflow_name}' is not active.", file=sys.stderr)
-        print(f"Start it first with: dfly-initiate-{workflow_name}-workflow", file=sys.stderr)
+        print(f"Start it first with: agdt-initiate-{workflow_name}-workflow", file=sys.stderr)
         sys.exit(1)
 
     # Get existing context

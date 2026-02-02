@@ -18,7 +18,7 @@ def temp_state_dir(tmp_path):
 @pytest.fixture
 def clear_state_before(temp_state_dir):
     """Clear state before each test."""
-    state_file = temp_state_dir / "dfly-state.json"
+    state_file = temp_state_dir / "agdt-state.json"
     if state_file.exists():
         state_file.unlink()
     yield
@@ -98,7 +98,7 @@ class TestTryAdvanceWorkflowAfterCommit:
     def test_advances_from_commit_to_pull_request(self, temp_state_dir, clear_state_before):
         """Test that workflow sets pending transition from commit to pull-request.
 
-        The transition has required_tasks=["dfly-git-commit"], so the actual step
+        The transition has required_tasks=["agdt-git-commit"], so the actual step
         change is deferred until get_next_workflow_prompt() is called after the task completes.
         """
         state.set_workflow_state(
@@ -153,7 +153,7 @@ class TestTryAdvanceWorkflowAfterPrCreation:
     def test_advances_from_pull_request_to_completion(self, temp_state_dir, clear_state_before):
         """Test that workflow sets pending transition from pull-request to completion.
 
-        The transition has required_tasks=["dfly-create-pull-request"], so the actual step
+        The transition has required_tasks=["agdt-create-pull-request"], so the actual step
         change is deferred until get_next_workflow_prompt() is called after the task completes.
         """
         state.set_workflow_state(

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers.cli.git import core, operations
+from agdt_ai_helpers.cli.git import core, operations
 
 # =============================================================================
 # Fixtures

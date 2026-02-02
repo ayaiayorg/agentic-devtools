@@ -20,7 +20,7 @@ def temp_state_dir(tmp_path):
 @pytest.fixture
 def clear_state_before(temp_state_dir):
     """Clear state before each test."""
-    state_file = temp_state_dir / "dfly-state.json"
+    state_file = temp_state_dir / "agdt-state.json"
     if state_file.exists():
         state_file.unlink()
     yield
@@ -120,7 +120,7 @@ class TestCreateChecklistCmd:
     def test_requires_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test that command requires work-on-jira-issue workflow."""
         # No workflow active
-        with patch.object(sys, "argv", ["dfly-create-checklist", "Task 1|Task 2"]):
+        with patch.object(sys, "argv", ["agdt-create-checklist", "Task 1|Task 2"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.create_checklist_cmd()
             assert exc_info.value.code == 1
@@ -137,7 +137,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1850"},
         )
 
-        with patch.object(sys, "argv", ["dfly-create-checklist"]):
+        with patch.object(sys, "argv", ["agdt-create-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.create_checklist_cmd()
             assert exc_info.value.code == 1
@@ -154,7 +154,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1850"},
         )
 
-        with patch.object(sys, "argv", ["dfly-create-checklist", "Task 1|Task 2|Task 3"]):
+        with patch.object(sys, "argv", ["agdt-create-checklist", "Task 1|Task 2|Task 3"]):
             commands.create_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -171,7 +171,7 @@ class TestCreateChecklistCmd:
         )
         state.set_value("checklist_items", "First task\nSecond task")
 
-        with patch.object(sys, "argv", ["dfly-create-checklist"]):
+        with patch.object(sys, "argv", ["agdt-create-checklist"]):
             commands.create_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -187,7 +187,7 @@ class TestCreateChecklistCmd:
             context={"jira_issue_key": "DFLY-1850"},
         )
 
-        with patch.object(sys, "argv", ["dfly-create-checklist", "1. Task one|2. Task two"]):
+        with patch.object(sys, "argv", ["agdt-create-checklist", "1. Task one|2. Task two"]):
             commands.create_checklist_cmd()
 
         # Verify the checklist was saved without leading numbers
@@ -204,7 +204,7 @@ class TestUpdateChecklistCmd:
 
     def test_requires_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test that command requires work-on-jira-issue workflow."""
-        with patch.object(sys, "argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist", "--complete", "1"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -221,7 +221,7 @@ class TestUpdateChecklistCmd:
             context={"jira_issue_key": "DFLY-1850"},
         )
 
-        with patch.object(sys, "argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist", "--complete", "1"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -244,7 +244,7 @@ class TestUpdateChecklistCmd:
             },
         )
 
-        with patch.object(sys, "argv", ["dfly-update-checklist"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.update_checklist_cmd()
             assert exc_info.value.code == 1
@@ -270,7 +270,7 @@ class TestUpdateChecklistCmd:
             },
         )
 
-        with patch.object(sys, "argv", ["dfly-update-checklist", "--complete", "1,2"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist", "--complete", "1,2"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -292,7 +292,7 @@ class TestUpdateChecklistCmd:
             },
         )
 
-        with patch.object(sys, "argv", ["dfly-update-checklist", "--add", "New task"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist", "--add", "New task"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -313,7 +313,7 @@ class TestUpdateChecklistCmd:
             },
         )
 
-        with patch.object(sys, "argv", ["dfly-update-checklist", "--complete", "1"]):
+        with patch.object(sys, "argv", ["agdt-update-checklist", "--complete", "1"]):
             commands.update_checklist_cmd()
 
         captured = capsys.readouterr()
@@ -326,7 +326,7 @@ class TestShowChecklistCmd:
 
     def test_requires_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test that command requires work-on-jira-issue workflow."""
-        with patch.object(sys, "argv", ["dfly-show-checklist"]):
+        with patch.object(sys, "argv", ["agdt-show-checklist"]):
             with pytest.raises(SystemExit) as exc_info:
                 commands.show_checklist_cmd()
             assert exc_info.value.code == 1
@@ -343,12 +343,12 @@ class TestShowChecklistCmd:
             context={"jira_issue_key": "DFLY-1850"},
         )
 
-        with patch.object(sys, "argv", ["dfly-show-checklist"]):
+        with patch.object(sys, "argv", ["agdt-show-checklist"]):
             commands.show_checklist_cmd()
 
         captured = capsys.readouterr()
         assert "No checklist exists" in captured.out
-        assert "dfly-create-checklist" in captured.out
+        assert "agdt-create-checklist" in captured.out
 
     def test_displays_checklist(self, temp_state_dir, clear_state_before, capsys):
         """Test displaying existing checklist."""
@@ -368,7 +368,7 @@ class TestShowChecklistCmd:
             },
         )
 
-        with patch.object(sys, "argv", ["dfly-show-checklist"]):
+        with patch.object(sys, "argv", ["agdt-show-checklist"]):
             commands.show_checklist_cmd()
 
         captured = capsys.readouterr()

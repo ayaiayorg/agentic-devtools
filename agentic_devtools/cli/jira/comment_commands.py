@@ -31,13 +31,13 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
     After posting, refreshes issue details to update cached state.
 
     Usage:
-        dfly-add-jira-comment --jira-comment "This is my comment"
-        dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+        agdt-add-jira-comment --jira-comment "This is my comment"
+        agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
 
         # Or using state:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.comment "This is my comment"
-        dfly-add-jira-comment
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.comment "This is my comment"
+        agdt-add-jira-comment
     """
     # Import here to avoid circular dependency
     from .get_commands import get_issue
@@ -51,13 +51,13 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
 
     if not resolved_issue_key:
         print(
-            "Error: jira.issue_key is required. Use: dfly-add-jira-comment --jira-issue-key DFLY-1234",
+            "Error: jira.issue_key is required. Use: agdt-add-jira-comment --jira-issue-key DFLY-1234",
             file=sys.stderr,
         )
         sys.exit(1)
     if not resolved_comment:
         print(
-            'Error: jira.comment is required. Use: dfly-add-jira-comment --jira-comment "Your comment"',
+            'Error: jira.comment is required. Use: agdt-add-jira-comment --jira-comment "Your comment"',
             file=sys.stderr,
         )
         sys.exit(1)
@@ -112,12 +112,12 @@ def add_comment_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-add-jira-comment --jira-comment "This is my comment"
-  dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+  agdt-add-jira-comment --jira-comment "This is my comment"
+  agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
   # Or using state:
-  dfly-set jira.issue_key DFLY-1234
-  dfly-set jira.comment "This is my comment"
-  dfly-add-jira-comment
+  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.comment "This is my comment"
+  agdt-add-jira-comment
         """,
     )
 

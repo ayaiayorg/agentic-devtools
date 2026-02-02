@@ -8,17 +8,17 @@ instead of running pytest directly. These commands:
 
 1. Run tests in BACKGROUND TASKS - they return immediately with a task ID
 2. Prevent AI agents from thinking something went wrong during long test runs
-3. Provide proper progress tracking via dfly-task-wait
+3. Provide proper progress tracking via agdt-task-wait
 4. Log results for analysis
 
 Commands:
-- dfly-test: Full test suite with coverage (~55 seconds, 2000+ tests)
-- dfly-test-quick: Fast run without coverage
-- dfly-test-file: Run tests matching a pattern from state
-- dfly-test-pattern <args>: Run specific tests with pytest arguments
+- agdt-test: Full test suite with coverage (~55 seconds, 2000+ tests)
+- agdt-test-quick: Fast run without coverage
+- agdt-test-file: Run tests matching a pattern from state
+- agdt-test-pattern <args>: Run specific tests with pytest arguments
 
 After starting a test command, use:
-- dfly-task-wait: Wait for completion and see results
+- agdt-task-wait: Wait for completion and see results
 
 DO NOT:
 - Run pytest directly
@@ -188,8 +188,8 @@ def _run_tests_file_sync() -> int:
     source_file = get_value("source_file")
     if not source_file:
         print("Error: source_file not set in state", file=sys.stderr)
-        print("Usage: dfly-set source_file <relative-path-to-source>")
-        print("Example: dfly-set source_file agentic_devtools/state.py")
+        print("Usage: agdt-set source_file <relative-path-to-source>")
+        print("Example: agdt-set source_file agentic_devtools/state.py")
         return 1
 
     # Verify source file exists
@@ -258,18 +258,18 @@ def run_tests() -> None:
     Returns immediately with a task ID for tracking.
 
     This runs ~2000+ tests and takes approximately 55 seconds.
-    Use dfly-task-wait to wait for completion and see results.
+    Use agdt-task-wait to wait for completion and see results.
 
     Usage:
-        dfly-test
-        dfly-task-wait  # Wait for completion
+        agdt-test
+        agdt-task-wait  # Wait for completion
 
     DO NOT run pytest directly - use this command instead.
     """
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_sync",
-        command_display_name="dfly-test",
+        command_display_name="agdt-test",
     )
     print_task_tracking_info(
         task,
@@ -284,18 +284,18 @@ def run_tests_quick() -> None:
     Runs pytest with verbose output but skips coverage for faster feedback.
     Returns immediately with a task ID for tracking.
 
-    Use dfly-task-wait to wait for completion and see results.
+    Use agdt-task-wait to wait for completion and see results.
 
     Usage:
-        dfly-test-quick
-        dfly-task-wait  # Wait for completion
+        agdt-test-quick
+        agdt-task-wait  # Wait for completion
 
     DO NOT run pytest directly - use this command instead.
     """
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_quick_sync",
-        command_display_name="dfly-test-quick",
+        command_display_name="agdt-test-quick",
     )
     print_task_tracking_info(task, "Running tests without coverage (faster)")
 
@@ -303,13 +303,13 @@ def run_tests_quick() -> None:
 def _create_test_file_parser() -> argparse.ArgumentParser:
     """Create argument parser for dfly-test-file command."""
     parser = argparse.ArgumentParser(
-        prog="dfly-test-file",
+        prog="agdt-test-file",
         description="Run tests for a specific source file with 100% coverage requirement.",
         epilog="""
 Examples:
-    dfly-test-file --source-file agentic_devtools/state.py
-    dfly-test-file --source-file agentic_devtools/cli/testing.py
-  dfly-test-file  # Uses source_file from state if previously set
+    agdt-test-file --source-file agentic_devtools/state.py
+    agdt-test-file --source-file agentic_devtools/cli/testing.py
+  agdt-test-file  # Uses source_file from state if previously set
 
 Common source files:
     agentic_devtools/state.py
@@ -339,15 +339,15 @@ def run_tests_file(_argv: list | None = None) -> None:
     Runs only the tests for that file and requires 100% coverage.
 
     Returns immediately with a task ID for tracking.
-    Use dfly-task-wait to wait for completion and see results.
+    Use agdt-task-wait to wait for completion and see results.
 
     Args:
         _argv: CLI arguments (for testing). If None, uses sys.argv[1:].
 
     Usage:
-        dfly-test-file --source-file agentic_devtools/state.py
-        dfly-test-file  # Uses source_file from state if previously set
-        dfly-task-wait  # Wait for completion
+        agdt-test-file --source-file agentic_devtools/state.py
+        agdt-test-file  # Uses source_file from state if previously set
+        agdt-task-wait  # Wait for completion
 
     DO NOT run pytest directly - use this command instead.
     """
@@ -368,14 +368,14 @@ def run_tests_file(_argv: list | None = None) -> None:
 
     if not source_file:
         print("Error: source_file is required")
-        print("Usage: dfly-test-file --source-file <relative-path-to-source>")
-        print("Example: dfly-test-file --source-file agentic_devtools/state.py")
+        print("Usage: agdt-test-file --source-file <relative-path-to-source>")
+        print("Example: agdt-test-file --source-file agentic_devtools/state.py")
         return
 
     task = run_function_in_background(
         _TESTING_MODULE,
         "_run_tests_file_sync",
-        command_display_name="dfly-test-file",
+        command_display_name="agdt-test-file",
     )
     print_task_tracking_info(task, f"Testing {source_file} (100% coverage required)")
 
@@ -388,14 +388,14 @@ def run_tests_pattern() -> None:
     NOTE: This command runs synchronously because it requires CLI arguments.
 
     Usage:
-        dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
-        dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
-        dfly-test-pattern tests/test_jira_helpers.py -v
+        agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
+        agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
+        agdt-test-pattern tests/test_jira_helpers.py -v
 
     For background execution with coverage, use:
-        dfly-set source_file agentic_devtools/state.py
-        dfly-test-file
-        dfly-task-wait
+        agdt-set source_file agentic_devtools/state.py
+        agdt-test-file
+        agdt-task-wait
     """
     package_root = get_package_root()
 
@@ -404,16 +404,16 @@ def run_tests_pattern() -> None:
 
     if not pattern_args:
         print("Error: Please provide a test pattern", file=sys.stderr)
-        print("Usage: dfly-test-pattern <pattern> [pytest-args...]")
+        print("Usage: agdt-test-pattern <pattern> [pytest-args...]")
         print("Examples:")
-        print("  dfly-test-pattern tests/test_jira_helpers.py")
-        print("  dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem")
-        print("  dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem -v")
+        print("  agdt-test-pattern tests/test_jira_helpers.py")
+        print("  agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem")
+        print("  agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem -v")
         print()
         print("For background execution with coverage, use:")
-        print("  dfly-set source_file agentic_devtools/state.py")
-        print("  dfly-test-file")
-        print("  dfly-task-wait")
+        print("  agdt-set source_file agentic_devtools/state.py")
+        print("  agdt-test-file")
+        print("  agdt-task-wait")
         sys.exit(1)
 
     args = [

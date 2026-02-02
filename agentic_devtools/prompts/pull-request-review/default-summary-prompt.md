@@ -24,8 +24,8 @@ The summary should:
 Generate the PR summary:
 
 ```bash
-dfly-generate-pr-summary
-dfly-task-wait
+agdt-generate-pr-summary
+agdt-task-wait
 ```
 
 This will:

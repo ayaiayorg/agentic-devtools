@@ -45,10 +45,10 @@ Implements {{issue_key}}: {{issue_summary}}
 Set PR details and create the pull request:
 
 ```bash
-dfly-set source_branch '{{branch_name}}'
-dfly-set title 'feature([{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})): <summary>'
-dfly-set description '<PR description>'
-dfly-create-pull-request
+agdt-set source_branch '{{branch_name}}'
+agdt-set title 'feature([{{issue_key}}](https://jira.swica.ch/browse/{{issue_key}})): <summary>'
+agdt-set description '<PR description>'
+agdt-create-pull-request
 ```
 
 ---

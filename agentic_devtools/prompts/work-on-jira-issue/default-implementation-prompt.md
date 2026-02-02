@@ -26,7 +26,7 @@ Work through the checklist items above. For each item:
 When you complete one or more checklist items, commit with the `--completed` flag:
 
 ```bash
-dfly-git-commit --completed "1,2,3"
+agdt-git-commit --completed "1,2,3"
 ```
 
 The command:
@@ -41,16 +41,16 @@ If you need to add, remove, or modify checklist items:
 
 ```bash
 # Add a new item
-dfly-update-checklist --add "New task discovered during implementation"
+agdt-update-checklist --add "New task discovered during implementation"
 
 # Remove an item (by ID)
-dfly-update-checklist --remove "5"
+agdt-update-checklist --remove "5"
 
 # Mark items complete without committing
-dfly-update-checklist --complete "1,2"
+agdt-update-checklist --complete "1,2"
 
 # Revert items to incomplete
-dfly-update-checklist --revert "3"
+agdt-update-checklist --revert "3"
 ```
 
 ## Repository Conventions

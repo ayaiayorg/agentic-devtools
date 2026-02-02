@@ -7,8 +7,8 @@ You are applying review suggestions from Pull Request #{{pull_request_id}}.
 1. Retrieve the pull request details and review comments:
 
    ```bash
-   dfly-set pull_request_id {{pull_request_id}}
-   dfly-get-pull-request
+   agdt-set pull_request_id {{pull_request_id}}
+   agdt-get-pull-request
    ```
 
 2. Review all feedback and suggestions provided by reviewers
@@ -58,18 +58,18 @@ For each addressed comment:
 
 ## Updating the PR
 
-1. Stage and amend your commit (dfly-git-commit auto-detects amend):
+1. Stage and amend your commit (agdt-git-commit auto-detects amend):
 
    ```bash
-   dfly-git-commit
+   agdt-git-commit
    ```
 
 2. If new issues were found during review, update the Jira issue:
 
    ```bash
-   dfly-set jira.issue_key {{jira_issue_key}}
-   dfly-set jira.comment "h4. Addressed Review Feedback\n\n*Changes Made:*\n* <change 1>\n* <change 2>"
-   dfly-add-jira-comment
+   agdt-set jira.issue_key {{jira_issue_key}}
+   agdt-set jira.comment "h4. Addressed Review Feedback\n\n*Changes Made:*\n* <change 1>\n* <change 2>"
+   agdt-add-jira-comment
    ```
 
 ## Quality Verification

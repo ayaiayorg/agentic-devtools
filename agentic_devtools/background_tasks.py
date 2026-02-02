@@ -28,7 +28,7 @@ def create_log_file_path(command: str) -> Path:
     Create a unique log file path for a command.
 
     Args:
-        command: The command name (e.g., "dfly-git-save-work")
+        command: The command name (e.g., "agdt-git-save-work")
 
     Returns:
         Path to the new log file
@@ -174,7 +174,7 @@ def run_in_background(
     - Updates task state with progress and completion
 
     Args:
-        command: The CLI command to run (e.g., "dfly-git-save-work")
+        command: The CLI command to run (e.g., "agdt-git-save-work")
         args: Additional arguments/context to store with the task
         cwd: Working directory for the command
 
@@ -403,7 +403,7 @@ def run_function_in_background(
         task = run_function_in_background(
             "agentic_devtools.cli.jira.comment_commands",
             "add_comment",
-            command_display_name="dfly-add-jira-comment"
+            command_display_name="agdt-add-jira-comment"
         )
     """
     display_name = command_display_name or function_name

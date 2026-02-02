@@ -664,7 +664,7 @@ def checkout_branch(branch_name: str, dry_run: bool = False) -> CheckoutResult:
             CheckoutResult.UNCOMMITTED_CHANGES,
             f"Cannot checkout branch '{branch_name}' - you have uncommitted changes.\n"
             f"Please either:\n"
-            f"  1. Commit your changes: dfly-git-commit\n"
+            f"  1. Commit your changes: agdt-git-commit\n"
             f"  2. Stash your changes: git stash\n"
             f"  3. Discard changes: git checkout -- . && git clean -fd\n"
             f"Then restart the workflow.",

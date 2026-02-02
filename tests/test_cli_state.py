@@ -31,57 +31,57 @@ class TestSetCommand:
 
     def test_set_simple_value(self, temp_state_dir, clear_state_before):
         """Test setting a simple value."""
-        with patch.object(sys, "argv", ["dfly-set", "key", "value"]):
+        with patch.object(sys, "argv", ["agdt-set", "key", "value"]):
             cli_state.set_cmd()
         assert state.get_value("key") == "value"
 
     def test_set_integer_via_json(self, temp_state_dir, clear_state_before):
         """Test setting an integer value (parsed as JSON)."""
-        with patch.object(sys, "argv", ["dfly-set", "count", "42"]):
+        with patch.object(sys, "argv", ["agdt-set", "count", "42"]):
             cli_state.set_cmd()
         assert state.get_value("count") == 42
 
     def test_set_boolean_true(self, temp_state_dir, clear_state_before):
         """Test setting boolean true."""
-        with patch.object(sys, "argv", ["dfly-set", "flag", "true"]):
+        with patch.object(sys, "argv", ["agdt-set", "flag", "true"]):
             cli_state.set_cmd()
         assert state.get_value("flag") is True
 
     def test_set_boolean_false(self, temp_state_dir, clear_state_before):
         """Test setting boolean false."""
-        with patch.object(sys, "argv", ["dfly-set", "flag", "false"]):
+        with patch.object(sys, "argv", ["agdt-set", "flag", "false"]):
             cli_state.set_cmd()
         assert state.get_value("flag") is False
 
     def test_set_string_with_spaces(self, temp_state_dir, clear_state_before):
         """Test setting a string with spaces."""
-        with patch.object(sys, "argv", ["dfly-set", "msg", "hello", "world"]):
+        with patch.object(sys, "argv", ["agdt-set", "msg", "hello", "world"]):
             cli_state.set_cmd()
         assert state.get_value("msg") == "hello world"
 
     def test_set_json_object(self, temp_state_dir, clear_state_before):
         """Test setting a JSON object."""
-        with patch.object(sys, "argv", ["dfly-set", "config", '{"key": "value"}']):
+        with patch.object(sys, "argv", ["agdt-set", "config", '{"key": "value"}']):
             cli_state.set_cmd()
         assert state.get_value("config") == {"key": "value"}
 
     def test_set_special_characters(self, temp_state_dir, clear_state_before):
         """Test setting content with special characters."""
         content = "func(arg) { return [0]; }"
-        with patch.object(sys, "argv", ["dfly-set", "content", content]):
+        with patch.object(sys, "argv", ["agdt-set", "content", content]):
             cli_state.set_cmd()
         assert state.get_value("content") == content
 
     def test_set_multiline_content(self, temp_state_dir, clear_state_before):
         """Test setting multiline content."""
         content = "Line 1\nLine 2\nLine 3"
-        with patch.object(sys, "argv", ["dfly-set", "content", content]):
+        with patch.object(sys, "argv", ["agdt-set", "content", content]):
             cli_state.set_cmd()
         assert state.get_value("content") == content
 
     def test_set_missing_args_exits(self, temp_state_dir, clear_state_before):
         """Test that missing arguments causes exit."""
-        with patch.object(sys, "argv", ["dfly-set"]):
+        with patch.object(sys, "argv", ["agdt-set"]):
             with pytest.raises(SystemExit) as exc_info:
                 cli_state.set_cmd()
             assert exc_info.value.code == 1
@@ -89,7 +89,7 @@ class TestSetCommand:
     def test_set_from_stdin(self, temp_state_dir, clear_state_before):
         """Test setting value from stdin."""
         stdin_content = "content from stdin"
-        with patch.object(sys, "argv", ["dfly-set", "content", "-"]):
+        with patch.object(sys, "argv", ["agdt-set", "content", "-"]):
             with patch.object(sys, "stdin", StringIO(stdin_content)):
                 cli_state.set_cmd()
         assert state.get_value("content") == stdin_content
@@ -101,14 +101,14 @@ class TestGetCommand:
     def test_get_existing_value(self, temp_state_dir, clear_state_before):
         """Test getting an existing value."""
         state.set_value("test", "value")
-        with patch.object(sys, "argv", ["dfly-get", "test"]):
+        with patch.object(sys, "argv", ["agdt-get", "test"]):
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 cli_state.get_cmd()
                 assert mock_stdout.getvalue().strip() == "value"
 
     def test_get_nonexistent_exits(self, temp_state_dir, clear_state_before):
         """Test getting nonexistent key exits with error."""
-        with patch.object(sys, "argv", ["dfly-get", "nonexistent"]):
+        with patch.object(sys, "argv", ["agdt-get", "nonexistent"]):
             with pytest.raises(SystemExit) as exc_info:
                 cli_state.get_cmd()
             assert exc_info.value.code == 1
@@ -116,7 +116,7 @@ class TestGetCommand:
     def test_get_json_value_pretty_printed(self, temp_state_dir, clear_state_before):
         """Test getting a JSON value is pretty printed."""
         state.set_value("config", {"key": "value"})
-        with patch.object(sys, "argv", ["dfly-get", "config"]):
+        with patch.object(sys, "argv", ["agdt-get", "config"]):
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 cli_state.get_cmd()
                 output = mock_stdout.getvalue()
@@ -130,13 +130,13 @@ class TestDeleteCommand:
     def test_delete_existing_key(self, temp_state_dir, clear_state_before):
         """Test deleting an existing key."""
         state.set_value("to_delete", "value")
-        with patch.object(sys, "argv", ["dfly-delete", "to_delete"]):
+        with patch.object(sys, "argv", ["agdt-delete", "to_delete"]):
             cli_state.delete_cmd()
         assert state.get_value("to_delete") is None
 
     def test_delete_nonexistent_key(self, temp_state_dir, clear_state_before):
         """Test deleting a nonexistent key (no error, just message)."""
-        with patch.object(sys, "argv", ["dfly-delete", "nonexistent"]):
+        with patch.object(sys, "argv", ["agdt-delete", "nonexistent"]):
             # Should not raise, just print message
             cli_state.delete_cmd()
 
@@ -148,7 +148,7 @@ class TestClearCommand:
         """Test that clear removes all state."""
         state.set_value("key1", "value1")
         state.set_value("key2", "value2")
-        with patch.object(sys, "argv", ["dfly-clear"]):
+        with patch.object(sys, "argv", ["agdt-clear"]):
             cli_state.clear_cmd()
         assert state.load_state() == {}
 
@@ -180,7 +180,7 @@ class TestSetCommandContextSwitching:
     def test_set_pull_request_id_uses_set_context_value(self, temp_state_dir, clear_state_before, capsys):
         """Test that setting pull_request_id uses set_context_value."""
         with patch.object(state, "_trigger_cross_lookup"):
-            with patch.object(sys, "argv", ["dfly-set", "pull_request_id", "12345"]):
+            with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "12345"]):
                 cli_state.set_cmd()
 
         assert state.get_value("pull_request_id") == 12345
@@ -191,7 +191,7 @@ class TestSetCommandContextSwitching:
     def test_set_jira_issue_key_uses_set_context_value(self, temp_state_dir, clear_state_before, capsys):
         """Test that setting jira.issue_key uses set_context_value."""
         with patch.object(state, "_trigger_cross_lookup"):
-            with patch.object(sys, "argv", ["dfly-set", "jira.issue_key", "DFLY-1234"]):
+            with patch.object(sys, "argv", ["agdt-set", "jira.issue_key", "DFLY-1234"]):
                 cli_state.set_cmd()
 
         assert state.get_value("jira.issue_key") == "DFLY-1234"
@@ -204,7 +204,7 @@ class TestSetCommandContextSwitching:
         state.set_value("pull_request_id", "12345")
         state.set_value("other_key", "should_persist")
 
-        with patch.object(sys, "argv", ["dfly-set", "pull_request_id", "12345"]):
+        with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "12345"]):
             cli_state.set_cmd()
 
         # Other state should be preserved
@@ -221,7 +221,7 @@ class TestSetCommandContextSwitching:
         state.set_value("other_key", "should_be_cleared")
 
         with patch.object(state, "_trigger_cross_lookup"):
-            with patch.object(sys, "argv", ["dfly-set", "pull_request_id", "99999"]):
+            with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "99999"]):
                 cli_state.set_cmd()
 
         # New value should be set
@@ -235,7 +235,7 @@ class TestSetCommandContextSwitching:
         state.set_value("pull_request_id", "12345")
         state.set_value("other_key", "should_persist")
 
-        with patch.object(sys, "argv", ["dfly-set", "some_key", "some_value"]):
+        with patch.object(sys, "argv", ["agdt-set", "some_key", "some_value"]):
             cli_state.set_cmd()
 
         # New value should be set
@@ -252,7 +252,7 @@ class TestSetCommandContextSwitching:
     def test_set_context_key_triggers_cross_lookup(self, temp_state_dir, clear_state_before):
         """Test that setting context key triggers cross-lookup."""
         with patch.object(state, "_trigger_cross_lookup") as mock_lookup:
-            with patch.object(sys, "argv", ["dfly-set", "pull_request_id", "12345"]):
+            with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "12345"]):
                 cli_state.set_cmd()
 
             mock_lookup.assert_called_once_with("pull_request_id", 12345, True)

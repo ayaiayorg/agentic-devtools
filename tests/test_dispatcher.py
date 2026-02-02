@@ -55,7 +55,7 @@ class TestGetLocalVenvPython:
     def test_returns_python_path_when_venv_exists(self, tmp_path):
         """Test that get_local_venv_python returns the python path when venv exists."""
         # Create a fake venv structure
-        venv_dir = tmp_path / ".dfly-venv"
+        venv_dir = tmp_path / ".agdt-venv"
         if sys.platform == "win32":
             python_dir = venv_dir / "Scripts"
             python_file = python_dir / "python.exe"
@@ -88,7 +88,7 @@ class TestGetLocalVenvPython:
     def test_returns_none_when_python_exe_missing(self, tmp_path):
         """Test that get_local_venv_python returns None when python exe is missing."""
         # Create venv dir but no python executable
-        venv_dir = tmp_path / ".dfly-venv"
+        venv_dir = tmp_path / ".agdt-venv"
         venv_dir.mkdir()
 
         with patch.object(dispatcher, "get_repo_root", return_value=tmp_path):
@@ -102,7 +102,7 @@ class TestIsRunningFromLocalVenv:
 
     def test_returns_true_when_running_from_local_venv(self, tmp_path):
         """Test that is_running_from_local_venv returns True when in local venv."""
-        venv_dir = tmp_path / ".dfly-venv"
+        venv_dir = tmp_path / ".agdt-venv"
         if sys.platform == "win32":
             python_path = venv_dir / "Scripts" / "python.exe"
         else:
@@ -136,7 +136,7 @@ class TestDispatchToLocalVenv:
     def test_returns_false_when_already_in_local_venv(self, tmp_path):
         """Test that dispatch returns False when already in local venv."""
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=True):
-            result = dispatcher.dispatch_to_local_venv("dfly-set")
+            result = dispatcher.dispatch_to_local_venv("agdt-set")
 
         assert result is False
 
@@ -144,21 +144,21 @@ class TestDispatchToLocalVenv:
         """Test that dispatch returns False when no local venv exists."""
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=False):
             with patch.object(dispatcher, "get_local_venv_python", return_value=None):
-                result = dispatcher.dispatch_to_local_venv("dfly-set")
+                result = dispatcher.dispatch_to_local_venv("agdt-set")
 
         assert result is False
 
     def test_dispatches_to_local_venv_when_available(self, tmp_path):
         """Test that dispatch executes command in local venv when available."""
-        local_python = tmp_path / ".dfly-venv" / "Scripts" / "python.exe"
+        local_python = tmp_path / ".agdt-venv" / "Scripts" / "python.exe"
 
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=False):
             with patch.object(dispatcher, "get_local_venv_python", return_value=local_python):
                 with patch("subprocess.run") as mock_run:
-                    with patch.object(sys, "argv", ["dfly-set", "key", "value"]):
+                    with patch.object(sys, "argv", ["agdt-set", "key", "value"]):
                         with pytest.raises(SystemExit) as exc_info:
                             mock_run.return_value = MagicMock(returncode=0)
-                            dispatcher.dispatch_to_local_venv("dfly-set")
+                            dispatcher.dispatch_to_local_venv("agdt-set")
 
         assert exc_info.value.code == 0
         mock_run.assert_called_once()
@@ -166,17 +166,17 @@ class TestDispatchToLocalVenv:
         call_args = mock_run.call_args[0][0]
         assert str(local_python) in call_args[0]
         assert "agentic_devtools.cli.runner" in call_args
-        assert "dfly-set" in call_args
+        assert "agdt-set" in call_args
 
     def test_returns_false_on_dispatch_error(self, tmp_path):
         """Test that dispatch returns False when subprocess fails."""
-        local_python = tmp_path / ".dfly-venv" / "Scripts" / "python.exe"
+        local_python = tmp_path / ".agdt-venv" / "Scripts" / "python.exe"
 
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=False):
             with patch.object(dispatcher, "get_local_venv_python", return_value=local_python):
                 with patch("subprocess.run") as mock_run:
                     mock_run.side_effect = FileNotFoundError("python not found")
-                    result = dispatcher.dispatch_to_local_venv("dfly-set")
+                    result = dispatcher.dispatch_to_local_venv("agdt-set")
 
         assert result is False
 
@@ -186,7 +186,7 @@ class TestCreateDispatcher:
 
     def test_creates_callable_dispatcher(self):
         """Test that create_dispatcher returns a callable."""
-        dispatcher_func = dispatcher.create_dispatcher("dfly-test", "agentic_devtools.cli.state", "show_cmd")
+        dispatcher_func = dispatcher.create_dispatcher("agdt-test", "agentic_devtools.cli.state", "show_cmd")
         assert callable(dispatcher_func)
 
     def test_dispatcher_calls_original_when_no_local_venv(self):
@@ -199,7 +199,7 @@ class TestCreateDispatcher:
                 mock_module.test_func = mock_original
                 mock_import.return_value = mock_module
 
-                dispatcher_func = dispatcher.create_dispatcher("dfly-test", "test_module", "test_func")
+                dispatcher_func = dispatcher.create_dispatcher("agdt-test", "test_module", "test_func")
                 dispatcher_func()
 
         mock_original.assert_called_once()
@@ -210,7 +210,7 @@ class TestCreateDispatcher:
             with patch("importlib.import_module") as mock_import:
                 mock_import.side_effect = KeyboardInterrupt()
 
-                dispatcher_func = dispatcher.create_dispatcher("dfly-test", "test_module", "test_func")
+                dispatcher_func = dispatcher.create_dispatcher("agdt-test", "test_module", "test_func")
                 with pytest.raises(SystemExit) as exc_info:
                     dispatcher_func()
 

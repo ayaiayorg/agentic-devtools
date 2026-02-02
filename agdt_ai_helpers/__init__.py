@@ -1,4 +1,4 @@
-"""Compatibility shim for the legacy dfly_ai_helpers package name."""
+"""Compatibility shim for the legacy agdt_ai_helpers package name."""
 
 import importlib.abc
 import importlib.util
@@ -10,12 +10,12 @@ _sys.modules[__name__] = _new_pkg
 
 
 class _AliasFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-    """Redirect dfly_ai_helpers.* imports to agentic_devtools.* modules."""
+    """Redirect agdt_ai_helpers.* imports to agentic_devtools.* modules."""
 
     def find_spec(self, fullname, path, target=None):
-        if not fullname.startswith("dfly_ai_helpers."):
+        if not fullname.startswith("agdt_ai_helpers."):
             return None
-        target_name = "agentic_devtools" + fullname[len("dfly_ai_helpers") :]
+        target_name = "agentic_devtools" + fullname[len("agdt_ai_helpers") :]
         target_spec = importlib.util.find_spec(target_name)
         if target_spec is None:
             return None
@@ -25,7 +25,7 @@ class _AliasFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         return None
 
     def exec_module(self, module):
-        target_name = "agentic_devtools" + module.__name__[len("dfly_ai_helpers") :]
+        target_name = "agentic_devtools" + module.__name__[len("agdt_ai_helpers") :]
         target_module = import_module(target_name)
         _sys.modules[module.__name__] = target_module
 

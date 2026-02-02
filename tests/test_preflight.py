@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from dfly_ai_helpers.cli.workflows.preflight import (
+from agdt_ai_helpers.cli.workflows.preflight import (
     PreflightResult,
     check_worktree_and_branch,
     generate_setup_instructions,
@@ -139,8 +139,8 @@ class TestCheckWorktreeAndBranch:
     def test_both_valid_case_insensitive(self):
         """Test that checking is case-insensitive."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/dfly-1850")
             mock_branch.return_value = "feature/DFLY-1850/test"
             mock_root.return_value = "/repos/dfly-1850"
@@ -154,8 +154,8 @@ class TestCheckWorktreeAndBranch:
     def test_folder_contains_key(self):
         """Test that folder containing the key passes."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/my-DFLY-1850-work")
             mock_branch.return_value = "feature/DFLY-1850/work"
             mock_root.return_value = "/repos/my-DFLY-1850-work"
@@ -167,8 +167,8 @@ class TestCheckWorktreeAndBranch:
     def test_branch_missing(self):
         """Test when no branch is checked out."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/DFLY-1850")
             mock_branch.return_value = None
             mock_root.return_value = None
@@ -184,8 +184,8 @@ class TestCheckWorktreeAndBranch:
         the folder is PR{id} but the branch is the actual PR source branch.
         """
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/PR24031")
             mock_branch.return_value = "feature/dfly-test-file-source-file-param"
             mock_root.return_value = "/repos/PR24031"
@@ -205,8 +205,8 @@ class TestCheckWorktreeAndBranch:
     def test_source_branch_match_with_refs_heads_prefix(self):
         """Test that source_branch normalization handles refs/heads/ prefix."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/PR12345")
             mock_branch.return_value = "feature/my-branch"
             mock_root.return_value = "/repos/PR12345"
@@ -223,8 +223,8 @@ class TestCheckWorktreeAndBranch:
     def test_source_branch_no_match_when_different(self):
         """Test that source_branch doesn't match when branches are different."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/PR24031")
             mock_branch.return_value = "main"
             mock_root.return_value = "/repos/PR24031"
@@ -241,8 +241,8 @@ class TestCheckWorktreeAndBranch:
     def test_issue_key_match_preferred_over_source_branch(self):
         """Test that issue_key in branch is used when available, not source_branch match."""
         with patch("pathlib.Path.cwd") as mock_cwd, patch(
-            "dfly_ai_helpers.cli.workflows.preflight.get_current_git_branch"
-        ) as mock_branch, patch("dfly_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
+            "agdt_ai_helpers.cli.workflows.preflight.get_current_git_branch"
+        ) as mock_branch, patch("agdt_ai_helpers.cli.workflows.preflight.get_git_repo_root") as mock_root:
             mock_cwd.return_value = Path("/repos/DFLY-1850")
             mock_branch.return_value = "feature/DFLY-1850/my-work"
             mock_root.return_value = "/repos/DFLY-1850"
@@ -318,13 +318,13 @@ class TestGenerateSetupInstructions:
         instructions = generate_setup_instructions("DFLY-1850", result)
 
         assert "code .." in instructions
-        assert "dfly-platform-management.code-workspace" in instructions
+        assert "agdt-platform-management.code-workspace" in instructions
 
 
 class TestPerformAutoSetup:
     """Tests for perform_auto_setup function."""
 
-    @patch("dfly_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
+    @patch("agdt_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_starts_background_task_successfully(self, mock_start_background, capsys):
         """Test successful background task start."""
         mock_start_background.return_value = "task-12345"
@@ -349,7 +349,7 @@ class TestPerformAutoSetup:
         assert "task-12345" in captured.out
         assert "Background task started" in captured.out
 
-    @patch("dfly_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
+    @patch("agdt_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_passes_user_request_to_background(self, mock_start_background, capsys):
         """Test that user_request is passed to background task."""
         mock_start_background.return_value = "task-67890"
@@ -365,7 +365,7 @@ class TestPerformAutoSetup:
         call_kwargs = mock_start_background.call_args[1]
         assert call_kwargs["user_request"] == "Create a new feature for testing"
 
-    @patch("dfly_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
+    @patch("agdt_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_passes_additional_params_to_background(self, mock_start_background, capsys):
         """Test that additional_params are passed to background task."""
         mock_start_background.return_value = "task-abc"
@@ -381,7 +381,7 @@ class TestPerformAutoSetup:
         call_kwargs = mock_start_background.call_args[1]
         assert call_kwargs["additional_params"] == {"parent_key": "DFLY-1000"}
 
-    @patch("dfly_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
+    @patch("agdt_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_handles_exception_gracefully(self, mock_start_background, capsys):
         """Test that exceptions are caught and return False."""
         mock_start_background.side_effect = Exception("Connection failed")
@@ -397,7 +397,7 @@ class TestPerformAutoSetup:
         assert "Failed to start background task" in captured.out
         assert "Connection failed" in captured.out
 
-    @patch("dfly_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
+    @patch("agdt_ai_helpers.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_prints_next_steps_instructions(self, mock_start_background, capsys):
         """Test that next steps instructions are printed."""
         mock_start_background.return_value = "task-xyz"
@@ -410,5 +410,5 @@ class TestPerformAutoSetup:
 
         captured = capsys.readouterr()
         assert "NEXT STEPS" in captured.out
-        assert "dfly-task-log" in captured.out
-        assert "dfly-task-wait" in captured.out
+        assert "agdt-task-log" in captured.out
+        assert "agdt-task-wait" in captured.out

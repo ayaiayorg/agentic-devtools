@@ -10,22 +10,22 @@
 
 `agentic-devtools` is a pip-installable Python package that provides CLI commands for AI agents to interact with Git, Azure DevOps, Jira, and other services. The design prioritizes **auto-approval** in VS Code by using:
 
-- A generic `dfly-set key value` command (approve once, works for all keys)
-- Parameterless action commands like `dfly-git-save-work`, `dfly-add-jira-comment`
+- A generic `agdt-set key value` command (approve once, works for all keys)
+- Parameterless action commands like `agdt-git-save-work`, `agdt-add-jira-comment`
 - Native Python CLI handling of special characters and multiline content (no replacement tokens needed!)
 
 ### Multi-Worktree Development
 
 The package supports **multi-worktree development** where different worktrees can have different versions of `agentic-devtools`:
 
-- **Smart Repo-Local Detection**: All `dfly-*` commands automatically detect the current git repo root and use the local `.dfly-venv` installation if present
-- **Per-Worktree Isolation**: Each worktree can have its own version via `setup-dev-tools.py`, which creates a `.dfly-venv` with the local package installed
+- **Smart Repo-Local Detection**: All `agdt-*` commands automatically detect the current git repo root and use the local `.agdt-venv` installation if present
+- **Per-Worktree Isolation**: Each worktree can have its own version via `setup-dev-tools.py`, which creates a `.agdt-venv` with the local package installed
 - **Graceful Fallback**: If no local venv exists, commands use the global pip installation
-- **No Command Changes**: The same `dfly-*` commands work everywhere - the dispatcher handles routing automatically
+- **No Command Changes**: The same `agdt-*` commands work everywhere - the dispatcher handles routing automatically
 
 **How it works:**
-1. When you run any `dfly-*` command, the dispatcher checks `git rev-parse --show-toplevel`
-2. It looks for `.dfly-venv/Scripts/python.exe` (Windows) or `.dfly-venv/bin/python` (Unix) at the repo root
+1. When you run any `agdt-*` command, the dispatcher checks `git rev-parse --show-toplevel`
+2. It looks for `.agdt-venv/Scripts/python.exe` (Windows) or `.agdt-venv/bin/python` (Unix) at the repo root
 3. If found, it re-executes the command using that Python interpreter
 4. If not found, the command runs in the current Python environment
 
@@ -34,18 +34,18 @@ The package supports **multi-worktree development** where different worktrees ca
 # Run setup-dev-tools.py in the worktree
 python setup-dev-tools.py
 
-# This creates .dfly-venv with agentic-devtools installed from agentic_devtools/
-# All dfly-* commands will now use this local version in this worktree
+# This creates .agdt-venv with agentic-devtools installed from agentic_devtools/
+# All agdt-* commands will now use this local version in this worktree
 ```
 
 ### Background Task Architecture
 
 **All action commands** spawn background tasks and return immediately:
 
-- Commands like `dfly-git-save-work`, `dfly-add-jira-comment`, `dfly-create-pull-request` run in the background
+- Commands like `agdt-git-save-work`, `agdt-add-jira-comment`, `agdt-create-pull-request` run in the background
 - They return immediately with a task ID for tracking
 - Results are written to output files in `scripts/temp/` when the task completes
-- Use `dfly-task-status`, `dfly-task-log`, or `dfly-task-wait` to monitor progress
+- Use `agdt-task-status`, `agdt-task-log`, or `agdt-task-wait` to monitor progress
 - The immediate console output tells the AI agent:
   1. What background task was triggered
   2. The task ID for status checking
@@ -53,30 +53,30 @@ python setup-dev-tools.py
 
 ### ⚠️ CRITICAL: Testing Commands
 
-**When working on `agentic-devtools`, ALWAYS use `dfly-test` commands - NEVER run pytest directly!**
+**When working on `agentic-devtools`, ALWAYS use `agdt-test` commands - NEVER run pytest directly!**
 
 ```bash
 # Full test suite (background, ~55 seconds for 2000+ tests)
-dfly-test
-dfly-task-wait
+agdt-test
+agdt-task-wait
 
 # Quick tests without coverage (background)
-dfly-test-quick
-dfly-task-wait
+agdt-test-quick
+agdt-task-wait
 
 # Specific source file with 100% coverage requirement (background)
-dfly-test-file --source-file agentic_devtools/state.py  # Auto-saves to state
-dfly-task-wait
+agdt-test-file --source-file agentic_devtools/state.py  # Auto-saves to state
+agdt-task-wait
 
 # Specific test - synchronous (simpler for quick checks)
-dfly-test-pattern tests/test_jira_helpers.py::TestClassName -v
+agdt-test-pattern tests/test_jira_helpers.py::TestClassName -v
 ```
 
 Why:
 - Tests run as background tasks to prevent AI agents from thinking something went wrong
 - Logs are captured properly in `scripts/temp/background-tasks/logs/`
 - Direct pytest calls don't integrate with the background task system
-- `dfly-test-file` shows coverage ONLY for the specified source file
+- `agdt-test-file` shows coverage ONLY for the specified source file
 
 See [Testing](#10-testing) for all test commands.
 
@@ -85,7 +85,7 @@ See [Testing](#10-testing) for all test commands.
 ```
 agentic_devtools/
 ├── __init__.py          # Package metadata
-├── state.py             # JSON state management (single file: dfly-state.json)
+├── state.py             # JSON state management (single file: agdt-state.json)
 ├── file_locking.py      # Cross-platform file locking for state
 ├── task_state.py        # Background task state schema and CRUD
 ├── background_tasks.py  # Background task execution infrastructure
@@ -132,7 +132,7 @@ agentic_devtools/
 | `azure_devops/__init__.py` | Re-exports all public API for backward compatibility (`from agentic_devtools.cli.azure_devops import reply_to_pr_thread`) |
 | `git/core.py` | State helpers, git command execution, temp file handling |
 | `git/operations.py` | Individual git operations (stage, commit, push, etc.) and smart amend detection |
-| `git/commands.py` | CLI entry points: `dfly-git-save-work` (auto-detects amend), `dfly-git-stage`, `dfly-git-push`, etc. |
+| `git/commands.py` | CLI entry points: `agdt-git-save-work` (auto-detects amend), `agdt-git-stage`, `agdt-git-push`, etc. |
 | `prompts/loader.py` | Template loading, variable extraction, validation, substitution, and output saving |
 | `cli/workflows/base.py` | Base workflow utilities: `validate_required_state`, `initiate_workflow`, `advance_workflow_step` |
 | `cli/workflows/commands.py` | Workflow initiation CLI commands for each workflow type |
@@ -141,7 +141,7 @@ agentic_devtools/
 
 ## 3. State Management Pattern
 
-All state is stored in a single JSON file (`scripts/temp/dfly-state.json`):
+All state is stored in a single JSON file (`scripts/temp/agdt-state.json`):
 
 ```python
 from agentic_devtools.state import get_value, set_value, load_state
@@ -200,11 +200,11 @@ Workflows advance through steps via event-driven transitions. The transition beh
 
 2. **Deferred Advancement** (auto_advance=True, has required_tasks):
    - A `pending_transition` is recorded in the workflow context
-   - The step changes when `dfly-get-next-workflow-prompt` is called AND the background tasks complete
-   - Examples: `GIT_COMMIT_CREATED` (waits for dfly-git-commit task)
+   - The step changes when `agdt-get-next-workflow-prompt` is called AND the background tasks complete
+   - Examples: `GIT_COMMIT_CREATED` (waits for agdt-git-commit task)
 
 3. **Manual Advancement** (auto_advance=False):
-   - Requires explicit `dfly-advance-workflow` command
+   - Requires explicit `agdt-advance-workflow` command
    - Used for steps that need human confirmation
 
 When a transition fires immediately, the output looks like:
@@ -222,8 +222,8 @@ NEW STEP: implementation-review
 
 Jira commands use keys prefixed with `jira.`:
 ```bash
-dfly-set jira.issue_key DFLY-1234
-dfly-set jira.comment "My comment"
+agdt-set jira.issue_key DFLY-1234
+agdt-set jira.comment "My comment"
 ```
 
 ## 4. CLI Commands
@@ -232,11 +232,11 @@ dfly-set jira.comment "My comment"
 
 | Command | Purpose | Example |
 |---------|---------|---------|
-| `dfly-set` | Set any key-value | `dfly-set pull_request_id 23046` |
-| `dfly-get` | Get a value | `dfly-get content` |
-| `dfly-delete` | Remove a key | `dfly-delete thread_id` |
-| `dfly-clear` | Clear all state | `dfly-clear` |
-| `dfly-show` | Show all state | `dfly-show` |
+| `agdt-set` | Set any key-value | `agdt-set pull_request_id 23046` |
+| `agdt-get` | Get a value | `agdt-get content` |
+| `agdt-delete` | Remove a key | `agdt-delete thread_id` |
+| `agdt-clear` | Clear all state | `agdt-clear` |
+| `agdt-show` | Show all state | `agdt-show` |
 
 ### Azure DevOps Actions (Background Tasks)
 
@@ -244,27 +244,27 @@ All action commands that mutate state or perform API calls spawn background task
 
 | Command | Purpose | Required State / CLI Args |
 |---------|---------|---------------------------|
-| `dfly-add-pull-request-comment` | Add new PR comment | pull_request_id, content |
-| `dfly-approve-pull-request` | Approve PR with sentinel banner | pull_request_id, content |
-| `dfly-create-pull-request` | Create a new pull request | source_branch, title OR `--source-branch`, `--title`, `--description` |
-| `dfly-reply-to-pull-request-thread` | Reply to PR thread | pull_request_id, thread_id, content |
-| `dfly-resolve-thread` | Resolve a PR thread | pull_request_id, thread_id |
-| `dfly-mark-pull-request-draft` | Mark PR as draft | pull_request_id |
-| `dfly-publish-pull-request` | Publish draft PR | pull_request_id |
-| `dfly-run-e2e-tests` | Trigger E2E test pipeline | (pipeline params) |
-| `dfly-run-wb-patch` | Trigger workbench patch pipeline | (pipeline params) |
-| `dfly-review-pull-request` | Start PR review workflow | (optional) pull_request_id, jira.issue_key |
-| `dfly-generate-pr-summary` | Generate PR summary comments | pull_request_id |
+| `agdt-add-pull-request-comment` | Add new PR comment | pull_request_id, content |
+| `agdt-approve-pull-request` | Approve PR with sentinel banner | pull_request_id, content |
+| `agdt-create-pull-request` | Create a new pull request | source_branch, title OR `--source-branch`, `--title`, `--description` |
+| `agdt-reply-to-pull-request-thread` | Reply to PR thread | pull_request_id, thread_id, content |
+| `agdt-resolve-thread` | Resolve a PR thread | pull_request_id, thread_id |
+| `agdt-mark-pull-request-draft` | Mark PR as draft | pull_request_id |
+| `agdt-publish-pull-request` | Publish draft PR | pull_request_id |
+| `agdt-run-e2e-tests` | Trigger E2E test pipeline | (pipeline params) |
+| `agdt-run-wb-patch` | Trigger workbench patch pipeline | (pipeline params) |
+| `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id, jira.issue_key |
+| `agdt-generate-pr-summary` | Generate PR summary comments | pull_request_id |
 
 **Create Pull Request CLI Parameter Support:**
 
 ```bash
 # Option A: With CLI parameters (explicit)
-dfly-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feature(DFLY-1234): add new feature" --description "Description here"
+agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feature(DFLY-1234): add new feature" --description "Description here"
 
 # Option B: Parameterless (uses current state)
-# Check current values: dfly-get source_branch, dfly-get title
-dfly-create-pull-request
+# Check current values: agdt-get source_branch, agdt-get title
+agdt-create-pull-request
 ```
 
 ### Azure DevOps Query Commands (Background Tasks)
@@ -273,20 +273,20 @@ Query commands also spawn background tasks - results are written to output files
 
 | Command | Purpose | Required State | Output File |
 |---------|---------|----------------|-------------|
-| `dfly-get-pull-request-threads` | Get all PR comment threads | pull_request_id | `temp/pr-threads-{pr_id}.json` |
-| `dfly-get-pull-request-details` | Get full PR details (diff, threads, iterations) | pull_request_id | `temp/pr-details-{pr_id}.json` |
-| `dfly-get-run-details` | Get pipeline/build run details | run_id | `temp/run-details-{run_id}.json` |
+| `agdt-get-pull-request-threads` | Get all PR comment threads | pull_request_id | `temp/pr-threads-{pr_id}.json` |
+| `agdt-get-pull-request-details` | Get full PR details (diff, threads, iterations) | pull_request_id | `temp/pr-details-{pr_id}.json` |
+| `agdt-get-run-details` | Get pipeline/build run details | run_id | `temp/run-details-{run_id}.json` |
 
 ### Pull Request Review Commands (Background Tasks)
 
 | Command | Purpose | Required State / CLI Args |
 |---------|---------|---------------------------|
-| `dfly-review-pull-request` | Start PR review workflow | (optional) pull_request_id or jira.issue_key |
-| `dfly-approve-file` | Approve a file during review | pull_request_id, file_review.file_path, content OR `--file-path`, `--content`, `--pull-request-id` |
-| `dfly-request-changes` | Request changes on a file | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
-| `dfly-request-changes-with-suggestion` | Request changes with code suggestion | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
-| `dfly-mark-file-reviewed` | Mark a file as reviewed (standalone) | pull_request_id, file_review.file_path |
-| `dfly-submit-file-review` | Submit batched file review | pull_request_id |
+| `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id or jira.issue_key |
+| `agdt-approve-file` | Approve a file during review | pull_request_id, file_review.file_path, content OR `--file-path`, `--content`, `--pull-request-id` |
+| `agdt-request-changes` | Request changes on a file | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
+| `agdt-request-changes-with-suggestion` | Request changes with code suggestion | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
+| `agdt-mark-file-reviewed` | Mark a file as reviewed (standalone) | pull_request_id, file_review.file_path |
+| `agdt-submit-file-review` | Submit batched file review | pull_request_id |
 
 **File Review CLI Parameter Support:**
 
@@ -294,16 +294,16 @@ File review commands accept optional CLI arguments that override state values:
 
 ```bash
 # Option A: With CLI parameters (explicit, self-documenting)
-dfly-approve-file --file-path "src/app/component.ts" --content "LGTM - clean implementation"
-dfly-request-changes --file-path "src/app/service.ts" --content "Missing null check" --line 42
-dfly-request-changes-with-suggestion --file-path "src/utils.ts" --content "```suggestion
+agdt-approve-file --file-path "src/app/component.ts" --content "LGTM - clean implementation"
+agdt-request-changes --file-path "src/app/service.ts" --content "Missing null check" --line 42
+agdt-request-changes-with-suggestion --file-path "src/utils.ts" --content "```suggestion
 const value = x ?? defaultValue;
 ```" --line 15
 
 # Option B: Parameterless (uses current state)
-# Check current values: dfly-get file_review.file_path, dfly-get content, dfly-get line
-dfly-approve-file
-dfly-request-changes
+# Check current values: agdt-get file_review.file_path, agdt-get content, agdt-get line
+agdt-approve-file
+agdt-request-changes
 ```
 
 **Review Command Behavior:**
@@ -320,21 +320,21 @@ All Git workflow commands spawn background tasks:
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-git-save-work` | Stage, commit/amend, publish/force-push | commit_message |
-| `dfly-git-stage` | Stage all changes | (none) |
-| `dfly-git-push` | Push to origin | (none) |
-| `dfly-git-force-push` | Force push to origin | (none) |
-| `dfly-git-publish` | Publish branch upstream | (none) |
+| `agdt-git-save-work` | Stage, commit/amend, publish/force-push | commit_message |
+| `agdt-git-stage` | Stage all changes | (none) |
+| `agdt-git-push` | Push to origin | (none) |
+| `agdt-git-force-push` | Force push to origin | (none) |
+| `agdt-git-publish` | Publish branch upstream | (none) |
 
 **Smart Commit Detection:**
-The `dfly-git-save-work` command automatically detects whether to create a new commit or amend:
+The `agdt-git-save-work` command automatically detects whether to create a new commit or amend:
 - If branch has commits ahead of `origin/main` AND last commit contains current issue key → **amend + force push**
 - Otherwise → **new commit + publish**
 
 **Checklist Integration:**
 Use `--completed` to mark checklist items during commit:
 ```bash
-dfly-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before committing
+agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before committing
 ```
 
 **Optional Git state keys:**
@@ -348,15 +348,15 @@ All Jira action commands that mutate state spawn background tasks:
 
 | Command | Purpose | Required State / CLI Args |
 |---------|---------|---------------------------|
-| `dfly-add-jira-comment` | Add comment to issue | `jira.issue_key`, `jira.comment` OR `--jira-comment`, `--jira-issue-key` |
-| `dfly-update-jira-issue` | Update issue fields | jira.issue_key, plus field keys |
-| `dfly-create-epic` | Create a new epic | jira.project_key, jira.summary, jira.epic_name, jira.role, jira.desired_outcome, jira.benefit |
-| `dfly-create-issue` | Create a new issue | jira.project_key, jira.summary, jira.description (or role/outcome/benefit) |
-| `dfly-create-subtask` | Create a subtask | jira.parent_key, jira.summary, jira.description |
+| `agdt-add-jira-comment` | Add comment to issue | `jira.issue_key`, `jira.comment` OR `--jira-comment`, `--jira-issue-key` |
+| `agdt-update-jira-issue` | Update issue fields | jira.issue_key, plus field keys |
+| `agdt-create-epic` | Create a new epic | jira.project_key, jira.summary, jira.epic_name, jira.role, jira.desired_outcome, jira.benefit |
+| `agdt-create-issue` | Create a new issue | jira.project_key, jira.summary, jira.description (or role/outcome/benefit) |
+| `agdt-create-subtask` | Create a subtask | jira.parent_key, jira.summary, jira.description |
 
 **CLI Parameter Support:**
 Some commands accept optional CLI arguments that override state values:
-- `dfly-add-jira-comment --jira-comment "..." [--jira-issue-key KEY]` - Comment text and issue key can be passed directly
+- `agdt-add-jira-comment --jira-comment "..." [--jira-issue-key KEY]` - Comment text and issue key can be passed directly
 - When CLI args are provided, they are stored in state before execution
 
 **Documentation Pattern for Commands with Optional Parameters:**
@@ -365,12 +365,12 @@ When documenting commands that support both CLI parameters and parameterless exe
 
 ```bash
 # Option A: With CLI parameters (explicit)
-dfly-add-jira-comment --jira-comment "Your comment text here"
+agdt-add-jira-comment --jira-comment "Your comment text here"
 
 # Option B: Parameterless (uses current state)
-# Current jira.issue_key: run `dfly-get jira.issue_key` to check
-# Current jira.comment: run `dfly-get jira.comment` to check
-dfly-add-jira-comment
+# Current jira.issue_key: run `agdt-get jira.issue_key` to check
+# Current jira.comment: run `agdt-get jira.comment` to check
+agdt-add-jira-comment
 ```
 
 This pattern:
@@ -382,13 +382,13 @@ This pattern:
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-list-project-roles` | List project roles | jira.project_key |
-| `dfly-get-project-role-details` | Get role details | jira.project_key, jira.role_id |
-| `dfly-add-users-to-project-role` | Add users to role | jira.project_key, jira.role_id, jira.usernames |
-| `dfly-add-users-to-project-role-batch` | Batch add users | jira.project_key, jira.role_id, jira.usernames |
-| `dfly-find-role-id-by-name` | Find role ID | jira.project_key, jira.role_name |
-| `dfly-check-user-exists` | Check if user exists | jira.username |
-| `dfly-check-users-exist` | Check multiple users | jira.usernames |
+| `agdt-list-project-roles` | List project roles | jira.project_key |
+| `agdt-get-project-role-details` | Get role details | jira.project_key, jira.role_id |
+| `agdt-add-users-to-project-role` | Add users to role | jira.project_key, jira.role_id, jira.usernames |
+| `agdt-add-users-to-project-role-batch` | Batch add users | jira.project_key, jira.role_id, jira.usernames |
+| `agdt-find-role-id-by-name` | Find role ID | jira.project_key, jira.role_name |
+| `agdt-check-user-exists` | Check if user exists | jira.username |
+| `agdt-check-users-exist` | Check multiple users | jira.usernames |
 
 ### Jira Query Commands (Background Tasks)
 
@@ -396,10 +396,10 @@ Jira query commands also spawn background tasks - results are written to output 
 
 | Command | Purpose | Required State | Output File |
 |---------|---------|----------------|-------------|
-| `dfly-get-jira-issue` | Get issue details | jira.issue_key | `temp/temp-get-issue-details-response.json` |
-| `dfly-parse-jira-error-report` | Parse error report | (file input) | `temp/jira-error-report.json` |
+| `agdt-get-jira-issue` | Get issue details | jira.issue_key | `temp/temp-get-issue-details-response.json` |
+| `agdt-parse-jira-error-report` | Parse error report | (file input) | `temp/jira-error-report.json` |
 
-**`dfly-get-jira-issue` Features:**
+**`agdt-get-jira-issue` Features:**
 - **Automatic subtask detection**: Checks `issuetype.subtask` field
 - **Automatic parent retrieval**: Fetches parent issue for subtasks → `temp/temp-get-parent-issue-details-response.json`
 - **Automatic epic retrieval**: Fetches linked epic via `customfield_10008` → `temp/temp-get-epic-details-response.json`
@@ -423,11 +423,11 @@ Jira query commands also spawn background tasks - results are written to output 
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-tasks` | List all background tasks | (none) |
-| `dfly-task-status` | Show detailed task status | background.task_id |
-| `dfly-task-log` | Display task output log | background.task_id |
-| `dfly-task-wait` | Wait for task completion | background.task_id |
-| `dfly-tasks-clean` | Clean up expired tasks | (none) |
+| `agdt-tasks` | List all background tasks | (none) |
+| `agdt-task-status` | Show detailed task status | background.task_id |
+| `agdt-task-log` | Display task output log | background.task_id |
+| `agdt-task-wait` | Wait for task completion | background.task_id |
+| `agdt-tasks-clean` | Clean up expired tasks | (none) |
 
 **Optional Background Task State Keys:**
 - `background.task_id` - Task ID to query/wait for
@@ -441,21 +441,21 @@ Jira query commands also spawn background tasks - results are written to output 
 Action commands spawn background processes and return immediately:
 ```bash
 # Start background operation
-dfly-set jira.issue_key DFLY-1234
-dfly-set jira.comment "Processing complete"
-dfly-add-jira-comment
+agdt-set jira.issue_key DFLY-1234
+agdt-set jira.comment "Processing complete"
+agdt-add-jira-comment
 # Output: Background task started: <task-id>
 
 # Monitor the task
-dfly-set background.task_id <task-id>
-dfly-task-status   # Check current status
-dfly-task-log      # View output log
-dfly-task-wait     # Wait for completion
+agdt-set background.task_id <task-id>
+agdt-task-status   # Check current status
+agdt-task-log      # View output log
+agdt-task-wait     # Wait for completion
 ```
 
 ### Testing Actions
 
-**⚠️ CRITICAL FOR AI AGENTS: ALWAYS use these dfly-test commands, NEVER run pytest directly!**
+**⚠️ CRITICAL FOR AI AGENTS: ALWAYS use these agdt-test commands, NEVER run pytest directly!**
 
 These commands run tests in BACKGROUND TASKS and return immediately with a task ID.
 The test suite has 2000+ tests and takes ~55 seconds - running synchronously causes
@@ -463,25 +463,25 @@ AI agents to think something went wrong and restart tests multiple times.
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-test` | Run full test suite with coverage (~55s) | (none) |
-| `dfly-test-quick` | Run tests without coverage (faster) | (none) |
-| `dfly-test-file --source-file <path>` | Run tests for a specific source file with 100% coverage | (none - uses `--source-file` param) |
-| `dfly-test-pattern <args>` | Run specific tests (SYNCHRONOUS) | (none - takes args) |
+| `agdt-test` | Run full test suite with coverage (~55s) | (none) |
+| `agdt-test-quick` | Run tests without coverage (faster) | (none) |
+| `agdt-test-file --source-file <path>` | Run tests for a specific source file with 100% coverage | (none - uses `--source-file` param) |
+| `agdt-test-pattern <args>` | Run specific tests (SYNCHRONOUS) | (none - takes args) |
 
 **Basic workflow (full test suite):**
 ```bash
 # Run tests in background
-dfly-test
+agdt-test
 
 # Wait for completion (REQUIRED - do not skip!)
-dfly-task-wait
+agdt-task-wait
 ```
 
 **Running tests for a specific source file (with focused coverage):**
 ```bash
 # Specify source file via --source-file (auto-saved to state for future runs)
-dfly-test-file --source-file agentic_devtools/state.py
-dfly-task-wait
+agdt-test-file --source-file agentic_devtools/state.py
+agdt-task-wait
 ```
 
 This is ideal when working on a single module and wanting to ensure full test coverage.
@@ -494,17 +494,17 @@ The command:
 **Running specific test classes or methods (synchronous):**
 ```bash
 # Test a specific class
-dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem -v
+agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem -v
 
 # Test a specific method
-dfly-test-pattern "tests/test_state.py::TestWorkflowState::test_set_and_get_workflow_state" -v
+agdt-test-pattern "tests/test_state.py::TestWorkflowState::test_set_and_get_workflow_state" -v
 ```
 
 **When to use which command:**
-- `dfly-test` - Full suite validation before committing (required!)
-- `dfly-test-quick` - Full suite without coverage for faster iteration
-- `dfly-test-file` - Background execution for specific file/pattern (use when you want to check other things while tests run)
-- `dfly-test-pattern` - Synchronous execution when you need immediate results from a specific test
+- `agdt-test` - Full suite validation before committing (required!)
+- `agdt-test-quick` - Full suite without coverage for faster iteration
+- `agdt-test-file` - Background execution for specific file/pattern (use when you want to check other things while tests run)
+- `agdt-test-pattern` - Synchronous execution when you need immediate results from a specific test
 
 **DO NOT:**
 - Run `pytest` directly
@@ -515,11 +515,11 @@ dfly-test-pattern "tests/test_state.py::TestWorkflowState::test_set_and_get_work
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-get-workflow` | Display current workflow state | (none) |
-| `dfly-clear-workflow` | Clear workflow state | (none) |
-| `dfly-create-checklist` | Create checklist from CLI args | (none - takes args) |
-| `dfly-update-checklist` | Update checklist items | (checklist in workflow) |
-| `dfly-show-checklist` | Display current checklist | (checklist in workflow) |
+| `agdt-get-workflow` | Display current workflow state | (none) |
+| `agdt-clear-workflow` | Clear workflow state | (none) |
+| `agdt-create-checklist` | Create checklist from CLI args | (none - takes args) |
+| `agdt-update-checklist` | Update checklist items | (checklist in workflow) |
+| `agdt-show-checklist` | Display current checklist | (checklist in workflow) |
 
 ### Workflow Initiation Commands
 
@@ -527,14 +527,14 @@ These commands initiate a workflow, loading and rendering the appropriate prompt
 
 | Command | Purpose | Required Parameters |
 |---------|---------|---------------------|
-| `dfly-initiate-pull-request-review-workflow` | Start PR review workflow | `--pull-request-id` or `--issue-key` |
-| `dfly-initiate-work-on-jira-issue-workflow` | Start work on Jira issue | `--issue-key` |
-| `dfly-initiate-create-jira-issue-workflow` | Start create issue workflow | `--project-key` |
-| `dfly-initiate-create-jira-epic-workflow` | Start create epic workflow | `--project-key` |
-| `dfly-initiate-create-jira-subtask-workflow` | Start create subtask workflow | `--parent-key` |
-| `dfly-initiate-update-jira-issue-workflow` | Start update issue workflow | `--issue-key` |
-| `dfly-initiate-apply-pr-suggestions-workflow` | Apply PR review suggestions | `--pull-request-id` |
-| `dfly-advance-workflow` | Advance to next workflow step | (active workflow) |
+| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow | `--pull-request-id` or `--issue-key` |
+| `agdt-initiate-work-on-jira-issue-workflow` | Start work on Jira issue | `--issue-key` |
+| `agdt-initiate-create-jira-issue-workflow` | Start create issue workflow | `--project-key` |
+| `agdt-initiate-create-jira-epic-workflow` | Start create epic workflow | `--project-key` |
+| `agdt-initiate-create-jira-subtask-workflow` | Start create subtask workflow | `--parent-key` |
+| `agdt-initiate-update-jira-issue-workflow` | Start update issue workflow | `--issue-key` |
+| `agdt-initiate-apply-pr-suggestions-workflow` | Apply PR review suggestions | `--pull-request-id` |
+| `agdt-advance-workflow` | Advance to next workflow step | (active workflow) |
 
 **Workflow Command Behavior:**
 
@@ -549,7 +549,7 @@ These commands initiate a workflow, loading and rendering the appropriate prompt
 
 ### Work-on-Jira-Issue Workflow (State Machine)
 
-The `dfly-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine approach:
+The `agdt-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine approach:
 
 **Pre-flight Checks:**
 1. Validates that the current folder contains the issue key (case-insensitive)
@@ -558,7 +558,7 @@ The `dfly-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine a
 
 **Steps:**
 1. **setup** - If pre-flight fails: instructions to create worktree and branch
-2. **retrieve** - Auto-fetches Jira issue details via `dfly-get-jira-issue`
+2. **retrieve** - Auto-fetches Jira issue details via `agdt-get-jira-issue`
 3. **planning** - Analyze issue and post plan comment to Jira
 4. **checklist-creation** - Create implementation checklist based on plan
 5. **implementation** - Code changes, tests, documentation (with checklist tracking)
@@ -569,88 +569,88 @@ The `dfly-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine a
 10. **completion** - Post final Jira comment
 
 **Automatic Workflow Advancement:**
-- `dfly-add-jira-comment` advances from `planning` → `checklist-creation`
-- `dfly-create-checklist` advances from `checklist-creation` → `implementation`
+- `agdt-add-jira-comment` advances from `planning` → `checklist-creation`
+- `agdt-create-checklist` advances from `checklist-creation` → `implementation`
 - When all checklist items are complete → advances to `implementation-review`
-- `dfly-git-save-work` advances from `commit` → `pull-request`
-- `dfly-create-pull-request` advances from `pull-request` → `completion`
+- `agdt-git-save-work` advances from `commit` → `pull-request`
+- `agdt-create-pull-request` advances from `pull-request` → `completion`
 
 ### Checklist Management Commands
 
 | Command | Purpose | Required State |
 |---------|---------|----------------|
-| `dfly-create-checklist` | Create checklist from CLI args | (none - takes args) |
-| `dfly-update-checklist` | Update checklist items | (checklist in workflow) |
-| `dfly-show-checklist` | Display current checklist | (checklist in workflow) |
+| `agdt-create-checklist` | Create checklist from CLI args | (none - takes args) |
+| `agdt-update-checklist` | Update checklist items | (checklist in workflow) |
+| `agdt-show-checklist` | Display current checklist | (checklist in workflow) |
 
 **Usage:**
 ```bash
 # Create checklist
-dfly-create-checklist "Implement domain model" "Add tests" "Update docs"
+agdt-create-checklist "Implement domain model" "Add tests" "Update docs"
 
 # Mark items as complete
-dfly-update-checklist --completed 1 2
+agdt-update-checklist --completed 1 2
 
 # View checklist
-dfly-show-checklist
+agdt-show-checklist
 
 # Mark items complete during commit
-dfly-git-save-work --completed 1 2 3
+agdt-git-save-work --completed 1 2 3
 ```
 
 **Manual Advancement:**
 ```bash
 # Advance to a specific step
-dfly-advance-workflow implementation
-dfly-advance-workflow verification
-dfly-advance-workflow commit
+agdt-advance-workflow implementation
+agdt-advance-workflow verification
+agdt-advance-workflow commit
 
 # View current step
-dfly-get-workflow
+agdt-get-workflow
 ```
 
 **Usage Examples:**
 ```bash
 # Start work on a Jira issue
-dfly-set jira.issue_key DFLY-1234
-dfly-initiate-work-on-jira-issue-workflow
+agdt-set jira.issue_key DFLY-1234
+agdt-initiate-work-on-jira-issue-workflow
 # If pre-flight fails: shows worktree/branch setup instructions
 # If pre-flight passes: auto-fetches issue and shows planning prompt
 
 # Check current workflow
-dfly-get-workflow
+agdt-get-workflow
 # Output: name=work-on-jira-issue, status=in-progress, step=planning
 
 # Post plan comment (auto-advances to implementation)
-dfly-set jira.comment "h4. Plan..."
-dfly-add-jira-comment
+agdt-set jira.comment "h4. Plan..."
+agdt-add-jira-comment
 
 # Advance manually when needed
-dfly-advance-workflow verification
+agdt-advance-workflow verification
 
 # Clear workflow when done
-dfly-clear-workflow
+agdt-clear-workflow
 ```
 
 **Usage examples:**
 ```bash
-# ⚠️ ALWAYS use dfly-test commands, NEVER pytest directly!
+# ⚠️ ALWAYS use agdt-test commands, NEVER pytest directly!
 
 # Full suite with coverage (runs in background, ~55 seconds)
-dfly-test
-dfly-task-wait   # REQUIRED: Wait for completion
+agdt-test
+agdt-task-wait   # REQUIRED: Wait for completion
 
 # Quick run without coverage (runs in background)
-dfly-test-quick
-dfly-task-wait
+agdt-test-quick
+agdt-task-wait
 
 # Specific file, class, or test via CLI argument (runs synchronously)
-dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
-dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
+agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
+agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
 
 # Test a specific source file with 100% coverage (runs in background)
-dfly-test-file --source-file agentic_devtools/state.py  # Auto-saved to state
-dfly-task-wait   # REQUIRED: Wait for completion
+agdt-test-file --source-file agentic_devtools/state.py  # Auto-saved to state
+agdt-task-wait   # REQUIRED: Wait for completion
 ```
 
 ## 5. Key Design Decisions
@@ -660,25 +660,25 @@ dfly-task-wait   # REQUIRED: Wait for completion
 Unlike PowerShell, Python CLI handles special characters natively:
 ```bash
 # This just works - no token replacement needed!
-dfly-set content "Code with (parentheses) and [brackets]"
+agdt-set content "Code with (parentheses) and [brackets]"
 ```
 
 ### No Multi-line Builder
 
 Python preserves multiline strings directly:
 ```bash
-dfly-set content "Line 1
+agdt-set content "Line 1
 Line 2
 Line 3"
 ```
 
 ### Generic Setter Pattern
 
-The `dfly-set` command accepts any key, so AI agents only need to approve it once:
+The `agdt-set` command accepts any key, so AI agents only need to approve it once:
 ```bash
-dfly-set pr_id 12345       # Same command pattern
-dfly-set thread_id 67890   # Same command pattern
-dfly-set content "text"    # Same command pattern
+agdt-set pr_id 12345       # Same command pattern
+agdt-set thread_id 67890   # Same command pattern
+agdt-set content "text"    # Same command pattern
 ```
 
 ## 6. Prompt Template System
@@ -739,7 +739,7 @@ pip install -e ".[dev]"
 
 ### Multi-Worktree Development
 
-When working with multiple git worktrees (e.g., one for feature development and another for the main branch), the `dfly-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
+When working with multiple git worktrees (e.g., one for feature development and another for the main branch), the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
 
 **How it works:**
 1. State files are stored in `scripts/temp/` relative to the repository/worktree root
@@ -750,12 +750,12 @@ When working with multiple git worktrees (e.g., one for feature development and 
 **State directory resolution priority:**
 1. `AGENTIC_DEVTOOLS_STATE_DIR` environment variable (explicit override)
 2. `scripts/temp/` relative to repo root (auto-detected and created if needed)
-3. `.dfly-temp/` in current working directory (fallback for non-repo contexts)
+3. `.agdt-temp/` in current working directory (fallback for non-repo contexts)
 
 **New worktree setup:**
 When creating a new worktree, `scripts/temp/` doesn't exist initially (it's gitignored). The helpers automatically create it on first use, so no manual setup is required.
 
-**Tip:** Use the `dfly-initiate-work-on-jira-issue-workflow` command which includes worktree setup automation with VS Code integration.
+**Tip:** Use the `agdt-initiate-work-on-jira-issue-workflow` command which includes worktree setup automation with VS Code integration.
 
 ## 8. Environment Variables
 
@@ -793,7 +793,7 @@ When adding a new command that performs side effects (API calls, git operations,
 5. **Add entry point** in `pyproject.toml`:
    ```toml
    [project.scripts]
-  dfly-new-command = "agentic_devtools.cli.module.commands:new_command_async"
+  agdt-new-command = "agentic_devtools.cli.module.commands:new_command_async"
    ```
 6. Reinstall: `pip install -e .`
 7. **Document the command** in this file
@@ -815,22 +815,22 @@ def get_new_field(required: bool = False) -> Optional[str]:
 
 ## 10. Testing
 
-**⚠️ AI AGENTS: ALWAYS use dfly-test commands, NEVER pytest directly!**
+**⚠️ AI AGENTS: ALWAYS use agdt-test commands, NEVER pytest directly!**
 
 ```bash
 # Run tests (ALWAYS use these commands)
-dfly-test          # Full suite with coverage (background, ~55s)
-dfly-task-wait     # Wait for completion (REQUIRED!)
+agdt-test          # Full suite with coverage (background, ~55s)
+agdt-task-wait     # Wait for completion (REQUIRED!)
 
-dfly-test-quick    # Fast run without coverage (background)
-dfly-task-wait     # Wait for completion (REQUIRED!)
+agdt-test-quick    # Fast run without coverage (background)
+agdt-task-wait     # Wait for completion (REQUIRED!)
 
 # For specific tests (with CLI arguments, runs synchronously)
-dfly-test-pattern tests/test_state.py::TestSetValue
+agdt-test-pattern tests/test_state.py::TestSetValue
 
 # Test a specific source file with 100% coverage requirement
-dfly-test-file --source-file agentic_devtools/state.py  # Auto-saved for future runs
-dfly-task-wait                                          # Wait for completion (REQUIRED!)
+agdt-test-file --source-file agentic_devtools/state.py  # Auto-saved for future runs
+agdt-task-wait                                          # Wait for completion (REQUIRED!)
 ```
 
 **WHY background tasks?** The test suite has 2000+ tests and takes ~55 seconds.
@@ -881,34 +881,34 @@ To add new words, edit `cspell.json` directly (keep alphabetically sorted). Mult
 ## 12. Common Workflows
 
 > **Note:** All action commands (those that mutate state or make API calls) spawn background tasks.
-> These return immediately. Use `dfly-task-status` or `dfly-task-wait` to monitor.
+> These return immediately. Use `agdt-task-status` or `agdt-task-wait` to monitor.
 
 ### Initial Git Commit & Publish
 
 ```bash
 # Option A: With CLI parameter (explicit)
-dfly-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
+agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
 
 - Added new component
 - Updated tests
 
 [DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)"
-# Returns task ID immediately - use dfly-task-wait to block until complete
+# Returns task ID immediately - use agdt-task-wait to block until complete
 
 # Option B: Parameterless (uses current state)
-# Current commit_message: run `dfly-get commit_message` to check
-dfly-git-save-work
+# Current commit_message: run `agdt-get commit_message` to check
+agdt-git-save-work
 ```
 
 ### Amend Commit (Single Commit Policy - Automatic Detection)
 
-`dfly-git-save-work` now automatically detects when to amend instead of creating a new commit:
+`agdt-git-save-work` now automatically detects when to amend instead of creating a new commit:
 - If current branch has commits ahead of main AND the last commit contains the same issue key → amend
 - Otherwise → new commit
 
 ```bash
 # Option A: With CLI parameter (explicit)
-dfly-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
+agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
 
 - Added new component
 - Updated tests
@@ -918,125 +918,125 @@ dfly-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/b
 # Automatically amends if already pushed a commit for this issue
 
 # Option B: Parameterless (uses current state)
-# Current commit_message: run `dfly-get commit_message` to check
-dfly-git-save-work
+# Current commit_message: run `agdt-get commit_message` to check
+agdt-git-save-work
 ```
 
 ### Create a Pull Request
 
 ```bash
-dfly-set source_branch feature/DFLY-1234/my-changes
-dfly-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): Add new feature"
-dfly-set description "This PR implements the new feature."
-dfly-create-pull-request
+agdt-set source_branch feature/DFLY-1234/my-changes
+agdt-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): Add new feature"
+agdt-set description "This PR implements the new feature."
+agdt-create-pull-request
 ```
 
 ### Create a Draft PR (default)
 
 ```bash
-dfly-set source_branch feature/my-branch
-dfly-set title "My PR Title"
-dfly-create-pull-request
+agdt-set source_branch feature/my-branch
+agdt-set title "My PR Title"
+agdt-create-pull-request
 # Note: PRs are created as drafts by default
 ```
 
 ### Create a Non-Draft PR
 
 ```bash
-dfly-set source_branch feature/my-branch
-dfly-set title "My PR Title"
-dfly-set draft false
-dfly-create-pull-request
+agdt-set source_branch feature/my-branch
+agdt-set title "My PR Title"
+agdt-set draft false
+agdt-create-pull-request
 ```
 
 ### Reply to PR Thread
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set thread_id 139474
-dfly-set content "Thanks for the feedback!
+agdt-set pull_request_id 23046
+agdt-set thread_id 139474
+agdt-set content "Thanks for the feedback!
 
 I've addressed your concerns."
-dfly-reply-to-pull-request-thread
+agdt-reply-to-pull-request-thread
 ```
 
 ### Reply and Resolve Thread
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set thread_id 139474
-dfly-set resolve_thread true
-dfly-set content "Fixed, resolving thread."
-dfly-reply-to-pull-request-thread
+agdt-set pull_request_id 23046
+agdt-set thread_id 139474
+agdt-set resolve_thread true
+agdt-set content "Fixed, resolving thread."
+agdt-reply-to-pull-request-thread
 ```
 
 ### Add a PR Comment
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set content "Here's a general comment on this PR."
-dfly-add-pull-request-comment
+agdt-set pull_request_id 23046
+agdt-set content "Here's a general comment on this PR."
+agdt-add-pull-request-comment
 ```
 
 ### Add a PR Comment with Approval Sentinel
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set content "LGTM! All acceptance criteria met."
-dfly-set is_pr_approval true
-dfly-add-pull-request-comment
+agdt-set pull_request_id 23046
+agdt-set content "LGTM! All acceptance criteria met."
+agdt-set is_pr_approval true
+agdt-add-pull-request-comment
 ```
 
 ### Approve a Pull Request (Convenience Command)
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set content "LGTM! Great work on this feature."
-dfly-approve-pull-request
+agdt-set pull_request_id 23046
+agdt-set content "LGTM! Great work on this feature."
+agdt-approve-pull-request
 # Note: This automatically adds the approval sentinel banner
 ```
 
 ### Resolve a Thread
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-set thread_id 139474
-dfly-resolve-thread
+agdt-set pull_request_id 23046
+agdt-set thread_id 139474
+agdt-resolve-thread
 ```
 
 ### Get All PR Threads (Sync - Immediate Output)
 
 ```bash
-dfly-set pull_request_id 23046
-dfly-get-pull-request-threads
+agdt-set pull_request_id 23046
+agdt-get-pull-request-threads
 ```
 
 ### Dry Run Mode
 
 ```bash
-dfly-set dry_run true
-dfly-git-save-work  # Previews without executing git commands
-dfly-reply-to-pull-request-thread  # Previews without API calls
+agdt-set dry_run true
+agdt-git-save-work  # Previews without executing git commands
+agdt-reply-to-pull-request-thread  # Previews without API calls
 ```
 
 ### Pull Request Review Workflow
 
-The `dfly-review-pull-request` command orchestrates the entire PR review process:
+The `agdt-review-pull-request` command orchestrates the entire PR review process:
 
 ```bash
 # Option 1: Start with Jira issue key
-dfly-set jira.issue_key DFLY-1840
-dfly-review-pull-request
+agdt-set jira.issue_key DFLY-1840
+agdt-review-pull-request
 
 # Option 2: Start with PR ID
-dfly-set pull_request_id 23523
-dfly-review-pull-request
+agdt-set pull_request_id 23523
+agdt-review-pull-request
 
 # Option 3: Pass parameters directly
-dfly-review-pull-request --pull-request-id 23523 --jira-issue-key DFLY-1840
+agdt-review-pull-request --pull-request-id 23523 --jira-issue-key DFLY-1840
 
 # Option 4: Include already-reviewed files
-dfly-review-pull-request --include-reviewed
+agdt-review-pull-request --include-reviewed
 ```
 
 The command:
@@ -1064,29 +1064,29 @@ After starting a review, use these commands for each file:
 
 ```bash
 # Approve a file (no issues found)
-dfly-set pull_request_id 23523
-dfly-set file_review.file_path "/path/to/file.ts"
-dfly-set content "LGTM - code follows conventions"
-dfly-approve-file
+agdt-set pull_request_id 23523
+agdt-set file_review.file_path "/path/to/file.ts"
+agdt-set content "LGTM - code follows conventions"
+agdt-approve-file
 
 # Request changes (with line number)
-dfly-set line 42
-dfly-set content "Consider using a more descriptive variable name"
-dfly-request-changes
+agdt-set line 42
+agdt-set content "Consider using a more descriptive variable name"
+agdt-request-changes
 
 # Request changes with code suggestion
-dfly-set line 42
-dfly-set content "```suggestion
+agdt-set line 42
+agdt-set content "```suggestion
 const descriptiveVariableName = value;
 ```"
-dfly-request-changes-with-suggestion
+agdt-request-changes-with-suggestion
 ```
 
 ### Get Jira Issue Details
 
 ```bash
-dfly-set jira.issue_key DFLY-1234
-dfly-get-jira-issue
+agdt-set jira.issue_key DFLY-1234
+agdt-get-jira-issue
 ```
 
 This fetches the issue and:
@@ -1097,8 +1097,8 @@ This fetches the issue and:
 ### Add Comment to Jira Issue
 
 ```bash
-dfly-set jira.issue_key DFLY-1234
-dfly-set jira.comment "h4. Progress Update
+agdt-set jira.issue_key DFLY-1234
+agdt-set jira.comment "h4. Progress Update
 
 *Completed:*
 * Task 1
@@ -1106,7 +1106,7 @@ dfly-set jira.comment "h4. Progress Update
 
 *Next Steps:*
 * Task 3"
-dfly-add-jira-comment
+agdt-add-jira-comment
 ```
 
 After posting, the command automatically refreshes issue details.
@@ -1114,58 +1114,58 @@ After posting, the command automatically refreshes issue details.
 ### Create Jira Epic
 
 ```bash
-dfly-set jira.project_key DFLY
-dfly-set jira.summary "My Epic Title"
-dfly-set jira.epic_name "My Epic Name"
-dfly-set jira.role "developer"
-dfly-set jira.desired_outcome "a new feature"
-dfly-set jira.benefit "improved productivity"
-dfly-create-epic
+agdt-set jira.project_key DFLY
+agdt-set jira.summary "My Epic Title"
+agdt-set jira.epic_name "My Epic Name"
+agdt-set jira.role "developer"
+agdt-set jira.desired_outcome "a new feature"
+agdt-set jira.benefit "improved productivity"
+agdt-create-epic
 ```
 
 ### Create Jira Issue
 
 ```bash
-dfly-set jira.project_key DFLY
-dfly-set jira.summary "Bug: Something is broken"
-dfly-set jira.description "Detailed description here"
-dfly-create-issue
+agdt-set jira.project_key DFLY
+agdt-set jira.summary "Bug: Something is broken"
+agdt-set jira.description "Detailed description here"
+agdt-create-issue
 ```
 
 Or use the user story format:
 ```bash
-dfly-set jira.project_key DFLY
-dfly-set jira.summary "Feature request"
-dfly-set jira.role "user"
-dfly-set jira.desired_outcome "new capability"
-dfly-set jira.benefit "better experience"
-dfly-create-issue
+agdt-set jira.project_key DFLY
+agdt-set jira.summary "Feature request"
+agdt-set jira.role "user"
+agdt-set jira.desired_outcome "new capability"
+agdt-set jira.benefit "better experience"
+agdt-create-issue
 ```
 
 ### Create Subtask
 
 ```bash
-dfly-set jira.parent_key DFLY-1234
-dfly-set jira.summary "Subtask title"
-dfly-set jira.description "Subtask details"
-dfly-create-subtask
+agdt-set jira.parent_key DFLY-1234
+agdt-set jira.summary "Subtask title"
+agdt-set jira.description "Subtask details"
+agdt-create-subtask
 ```
 
 ### Jira Dry Run Mode
 
 ```bash
-dfly-set jira.dry_run true
-dfly-add-jira-comment  # Previews without posting
+agdt-set jira.dry_run true
+agdt-add-jira-comment  # Previews without posting
 ```
 
 ## 13. Output Files
 
 | File | Command | Content |
 |------|---------|---------|
-| `scripts/temp/dfly-state.json` | All commands | Persistent state storage |
-| `scripts/temp/temp-get-issue-details-response.json` | `dfly-get-jira-issue` | Full Jira API response |
-| `scripts/temp/temp-get-pull-request-details-response.json` | `dfly-get-pull-request-details` | Full PR details payload |
-| `scripts/temp/pull-request-review/prompts/<pr_id>/` | `dfly-review-pull-request` | Review prompts directory |
+| `scripts/temp/agdt-state.json` | All commands | Persistent state storage |
+| `scripts/temp/temp-get-issue-details-response.json` | `agdt-get-jira-issue` | Full Jira API response |
+| `scripts/temp/temp-get-pull-request-details-response.json` | `agdt-get-pull-request-details` | Full PR details payload |
+| `scripts/temp/pull-request-review/prompts/<pr_id>/` | `agdt-review-pull-request` | Review prompts directory |
 | `scripts/temp/temp-<workflow>-<step>-prompt.md` | Workflow initiation commands | Rendered workflow prompts |
 
 ### Background Task Storage Structure
@@ -1174,7 +1174,7 @@ Background tasks use a separate storage structure in `scripts/temp/background-ta
 
 ```
 scripts/temp/
-├── dfly-state.json                    # Main state file (contains background.recentTasks)
+├── agdt-state.json                    # Main state file (contains background.recentTasks)
 └── background-tasks/
     ├── all-background-tasks.json      # Complete history of all tasks (never pruned)
     └── logs/
@@ -1183,14 +1183,14 @@ scripts/temp/
 
 **State Structure:**
 
-The `dfly-state.json` file contains recent tasks under `background.recentTasks`:
+The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
 ```json
 {
   "background": {
     "recentTasks": [
       {
         "id": "task-abc123",
-        "command": "dfly-git-save-work",
+        "command": "agdt-git-save-work",
         "status": "completed",
         "start_time": "2024-12-19T15:50:26Z",
         "end_time": "2024-12-19T15:50:28Z",

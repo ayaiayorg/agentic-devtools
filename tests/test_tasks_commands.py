@@ -14,14 +14,14 @@ from unittest.mock import patch
 
 import pytest
 
-from dfly_ai_helpers.cli.tasks.commands import (
+from agdt_ai_helpers.cli.tasks.commands import (
     list_tasks,
     task_log,
     task_status,
     task_wait,
     tasks_clean,
 )
-from dfly_ai_helpers.task_state import (
+from agdt_ai_helpers.task_state import (
     BackgroundTask,
     add_task,
     get_background_tasks,
@@ -34,7 +34,7 @@ from dfly_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("dfly_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -50,7 +50,7 @@ class TestHelperFunctions:
 
     def test_safe_print_with_unicode_error(self, capsys):
         """Test _safe_print handles UnicodeEncodeError gracefully."""
-        from dfly_ai_helpers.cli.tasks.commands import _safe_print
+        from agdt_ai_helpers.cli.tasks.commands import _safe_print
 
         # This should work without raising
         _safe_print("Test with emoji ✅ and text")
@@ -59,7 +59,7 @@ class TestHelperFunctions:
 
     def test_format_timestamp_with_valid_timestamp(self):
         """Test _format_timestamp with valid ISO timestamp."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_timestamp
+        from agdt_ai_helpers.cli.tasks.commands import _format_timestamp
 
         ts = "2025-01-15T10:30:00+00:00"
         result = _format_timestamp(ts)
@@ -68,21 +68,21 @@ class TestHelperFunctions:
 
     def test_format_timestamp_with_none(self):
         """Test _format_timestamp with None."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_timestamp
+        from agdt_ai_helpers.cli.tasks.commands import _format_timestamp
 
         result = _format_timestamp(None)
         assert result == "N/A"
 
     def test_format_timestamp_with_invalid_timestamp(self):
         """Test _format_timestamp with invalid timestamp string."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_timestamp
+        from agdt_ai_helpers.cli.tasks.commands import _format_timestamp
 
         result = _format_timestamp("invalid-timestamp")
         assert result == "invalid-timestamp"  # Returns original on error
 
     def test_format_duration_task_not_started(self, mock_state_dir):
         """Test _format_duration with task that hasn't started."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_duration
+        from agdt_ai_helpers.cli.tasks.commands import _format_duration
 
         task = BackgroundTask.create(command="test-cmd")
         task.start_time = None
@@ -91,7 +91,7 @@ class TestHelperFunctions:
 
     def test_format_duration_running_task(self, mock_state_dir):
         """Test _format_duration with running task."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_duration
+        from agdt_ai_helpers.cli.tasks.commands import _format_duration
 
         task = BackgroundTask.create(command="test-cmd")
         task.mark_running()
@@ -104,8 +104,8 @@ class TestHelperFunctions:
 
     def test_format_duration_completed_task_minutes(self, mock_state_dir):
         """Test _format_duration with completed task showing minutes."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_duration
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.cli.tasks.commands import _format_duration
+        from agdt_ai_helpers.task_state import TaskStatus
 
         task = BackgroundTask.create(command="test-cmd")
         task.status = TaskStatus.COMPLETED
@@ -119,8 +119,8 @@ class TestHelperFunctions:
 
     def test_format_duration_completed_task_hours(self, mock_state_dir):
         """Test _format_duration with completed task showing hours."""
-        from dfly_ai_helpers.cli.tasks.commands import _format_duration
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.cli.tasks.commands import _format_duration
+        from agdt_ai_helpers.task_state import TaskStatus
 
         task = BackgroundTask.create(command="test-cmd")
         task.status = TaskStatus.COMPLETED
@@ -134,8 +134,8 @@ class TestHelperFunctions:
 
     def test_status_indicator_returns_correct_symbols(self):
         """Test _status_indicator returns correct symbols for each status."""
-        from dfly_ai_helpers.cli.tasks.commands import _status_indicator
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.cli.tasks.commands import _status_indicator
+        from agdt_ai_helpers.task_state import TaskStatus
 
         assert "⏳" in _status_indicator(TaskStatus.PENDING)
         assert "🔄" in _status_indicator(TaskStatus.RUNNING)
@@ -155,8 +155,8 @@ class TestListTasks:
 
     def test_list_tasks_shows_tasks(self, mock_state_dir, capsys):
         """Test list_tasks displays tasks."""
-        task1 = _create_and_add_task("dfly-cmd-1")
-        task2 = _create_and_add_task("dfly-cmd-2")
+        task1 = _create_and_add_task("agdt-cmd-1")
+        task2 = _create_and_add_task("agdt-cmd-2")
 
         # Mark task1 as completed
         task1.mark_completed(exit_code=0)
@@ -167,12 +167,12 @@ class TestListTasks:
         captured = capsys.readouterr()
         assert task1.id in captured.out
         assert task2.id in captured.out
-        assert "dfly-cmd-1" in captured.out
-        assert "dfly-cmd-2" in captured.out
+        assert "agdt-cmd-1" in captured.out
+        assert "agdt-cmd-2" in captured.out
 
     def test_list_tasks_shows_status(self, mock_state_dir, capsys):
         """Test list_tasks shows task status."""
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_running()
         update_task(task)
 
@@ -188,7 +188,7 @@ class TestTaskStatus:
     def test_task_status_no_task_id(self, mock_state_dir, capsys):
         """Test task_status with no task_id in state."""
         # Patch load_state where it's imported from (state module)
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             with pytest.raises(SystemExit):
                 task_status()
 
@@ -197,11 +197,11 @@ class TestTaskStatus:
 
     def test_task_status_shows_details(self, mock_state_dir, capsys):
         """Test task_status shows task details."""
-        task = _create_and_add_task("dfly-status-test")
+        task = _create_and_add_task("agdt-status-test")
         task.mark_completed(exit_code=0)
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             task_status()
 
         captured = capsys.readouterr()
@@ -210,7 +210,7 @@ class TestTaskStatus:
 
     def test_task_status_nonexistent_task(self, mock_state_dir, capsys):
         """Test task_status with non-existent task ID."""
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": "nonexistent"}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": "nonexistent"}}):
             with pytest.raises(SystemExit):
                 task_status()
 
@@ -223,13 +223,13 @@ class TestTaskLog:
 
     def test_task_log_no_task_id(self, mock_state_dir, capsys):
         """Test task_log with no task_id in state."""
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             with pytest.raises(SystemExit):
                 task_log()
 
     def test_task_log_shows_content(self, mock_state_dir, capsys):
         """Test task_log shows log file content."""
-        task = _create_and_add_task("dfly-log-test")
+        task = _create_and_add_task("agdt-log-test")
 
         # Create log file with content in the logs directory
         log_dir = mock_state_dir / "logs"
@@ -242,7 +242,7 @@ class TestTaskLog:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.write_text("Test log output\nLine 2\n")
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             try:
                 task_log()
             except SystemExit:
@@ -259,9 +259,9 @@ class TestTaskLog:
 
     def test_task_log_no_log_file(self, mock_state_dir, capsys):
         """Test task_log when log file doesn't exist."""
-        task = _create_and_add_task("dfly-no-log")
+        task = _create_and_add_task("agdt-no-log")
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             try:
                 task_log()
             except SystemExit:
@@ -275,17 +275,17 @@ class TestTaskWait:
 
     def test_task_wait_no_task_id(self, mock_state_dir, capsys):
         """Test task_wait with no task_id in state."""
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             with pytest.raises(SystemExit):
                 task_wait()
 
     def test_task_wait_completed_task(self, mock_state_dir, capsys):
         """Test task_wait with already completed task - returns normally when all tasks done."""
-        task = _create_and_add_task("dfly-wait-test")
+        task = _create_and_add_task("agdt-wait-test")
         task.mark_completed(exit_code=0)
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             # Now returns normally when task completes and all tasks are done
             task_wait()
 
@@ -296,11 +296,11 @@ class TestTaskWait:
 
     def test_task_wait_failed_task(self, mock_state_dir, capsys):
         """Test task_wait with failed task."""
-        task = _create_and_add_task("dfly-failed-test")
+        task = _create_and_add_task("agdt-failed-test")
         task.mark_failed(exit_code=1)
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 task_wait()
             # Exit code should be non-zero for failed task
@@ -311,11 +311,11 @@ class TestTaskWait:
 
     def test_task_wait_still_running_after_checks(self, mock_state_dir, capsys):
         """Test task_wait when task is still running after two checks."""
-        task = _create_and_add_task("dfly-slow-task")
+        task = _create_and_add_task("agdt-slow-task")
         task.mark_running()
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             # Should exit 0 and tell AI to wait again
             with pytest.raises(SystemExit) as exc_info:
                 task_wait(_argv=["--wait-interval", "0.01"])  # Very short wait for testing
@@ -323,12 +323,12 @@ class TestTaskWait:
 
         captured = capsys.readouterr()
         assert "still in progress" in captured.out.lower()
-        assert "dfly-task-wait" in captured.out.lower()
-        assert "dfly-slow-task" in captured.out
+        assert "agdt-task-wait" in captured.out.lower()
+        assert "agdt-slow-task" in captured.out
 
     def test_task_wait_completes_on_second_check(self, mock_state_dir, capsys):
         """Test task_wait when task completes during the wait interval."""
-        task = _create_and_add_task("dfly-fast-task")
+        task = _create_and_add_task("agdt-fast-task")
         task.mark_running()
         update_task(task)
 
@@ -346,8 +346,8 @@ class TestTaskWait:
                 return get_task_by_id(task_id)
             return t
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
-            with patch("dfly_ai_helpers.cli.tasks.commands.get_task_by_id", side_effect=mock_get_task):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+            with patch("agdt_ai_helpers.cli.tasks.commands.get_task_by_id", side_effect=mock_get_task):
                 task_wait(_argv=["--wait-interval", "0.01"])
 
         captured = capsys.readouterr()
@@ -356,14 +356,14 @@ class TestTaskWait:
 
     def test_task_wait_timeout_based_on_start_time(self, mock_state_dir, capsys):
         """Test task_wait timeout is based on task start_time."""
-        task = _create_and_add_task("dfly-old-task")
+        task = _create_and_add_task("agdt-old-task")
         task.mark_running()
         # Set start_time to 10 minutes ago
         old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
         task.start_time = old_time.isoformat()
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 # Timeout of 60 seconds, but task started 10 minutes ago
                 task_wait(_argv=["--timeout", "60"])
@@ -376,12 +376,12 @@ class TestTaskWait:
         """Test task_wait respects --wait-interval argument."""
         import time
 
-        task = _create_and_add_task("dfly-interval-test")
+        task = _create_and_add_task("agdt-interval-test")
         task.mark_running()
         update_task(task)
 
         start = time.time()
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 task_wait(_argv=["--wait-interval", "0.1"])
             assert exc_info.value.code == 0  # Task still running, exit 0 to retry
@@ -393,7 +393,7 @@ class TestTaskWait:
 
     def test_task_wait_state_override_for_timeout(self, mock_state_dir, capsys):
         """Test task_wait uses background.timeout from state."""
-        task = _create_and_add_task("dfly-state-timeout-test")
+        task = _create_and_add_task("agdt-state-timeout-test")
         task.mark_running()
         # Set start_time to 2 minutes ago
         old_time = datetime.now(timezone.utc) - timedelta(minutes=2)
@@ -402,7 +402,7 @@ class TestTaskWait:
 
         # State timeout of 60s should trigger timeout (task started 2 min ago)
         with patch(
-            "dfly_ai_helpers.state.load_state",
+            "agdt_ai_helpers.state.load_state",
             return_value={"background": {"task_id": task.id, "timeout": "60"}},
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -416,13 +416,13 @@ class TestTaskWait:
         """Test task_wait uses background.wait_interval from state."""
         import time
 
-        task = _create_and_add_task("dfly-state-interval-test")
+        task = _create_and_add_task("agdt-state-interval-test")
         task.mark_running()
         update_task(task)
 
         start = time.time()
         with patch(
-            "dfly_ai_helpers.state.load_state",
+            "agdt_ai_helpers.state.load_state",
             return_value={"background": {"task_id": task.id, "wait_interval": "0.05"}},
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -451,7 +451,7 @@ class TestTasksClean:
         # task3 stays pending
 
         # Run cleanup
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             tasks_clean()
 
         # Verify cleanup ran - tasks may or may not be removed depending on expiry settings
@@ -466,7 +466,7 @@ class TestTasksClean:
         task.mark_running()
         update_task(task)
 
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             tasks_clean()
 
         remaining = get_background_tasks()
@@ -476,7 +476,7 @@ class TestTasksClean:
 
     def test_tasks_clean_empty(self, mock_state_dir, capsys):
         """Test tasks_clean with no tasks."""
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             tasks_clean()
 
         _ = capsys.readouterr()  # Consume output, not needed for assertion
@@ -496,13 +496,13 @@ class TestTasksClean:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.write_text("Log content")
 
-            with patch("dfly_ai_helpers.state.load_state", return_value={}):
+            with patch("agdt_ai_helpers.state.load_state", return_value={}):
                 tasks_clean()
 
             # Log file may or may not be removed depending on expiry settings
         else:
             # Just run clean without crashing
-            with patch("dfly_ai_helpers.state.load_state", return_value={}):
+            with patch("agdt_ai_helpers.state.load_state", return_value={}):
                 tasks_clean()
 
 
@@ -524,7 +524,7 @@ class TestTaskCommandIntegration:
         update_task(task)
 
         # Status should show running
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
             task_status()
         captured = capsys.readouterr()
         assert "running" in captured.out.lower()
@@ -534,7 +534,7 @@ class TestTaskCommandIntegration:
         update_task(task)
 
         # Clean should work without error
-        with patch("dfly_ai_helpers.state.load_state", return_value={}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={}):
             tasks_clean()
 
         # List - task may or may not be removed depending on expiry
@@ -548,7 +548,7 @@ class TestShowOtherIncompleteTasks:
 
     def test_no_incomplete_tasks(self, mock_state_dir, capsys):
         """Test when no incomplete tasks exist."""
-        from dfly_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
+        from agdt_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
 
         show_other_incomplete_tasks()
 
@@ -557,9 +557,9 @@ class TestShowOtherIncompleteTasks:
 
     def test_shows_incomplete_running_tasks(self, mock_state_dir, capsys):
         """Test shows running tasks."""
-        from dfly_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
+        from agdt_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
 
-        task = _create_and_add_task("dfly-running-cmd")
+        task = _create_and_add_task("agdt-running-cmd")
         task.mark_running()
         update_task(task)
 
@@ -567,18 +567,18 @@ class TestShowOtherIncompleteTasks:
 
         captured = capsys.readouterr()
         assert "Other incomplete background tasks" in captured.out
-        assert "dfly-running-cmd" in captured.out
+        assert "agdt-running-cmd" in captured.out
         assert task.id in captured.out
 
     def test_excludes_completed_tasks(self, mock_state_dir, capsys):
         """Test excludes completed tasks."""
-        from dfly_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
+        from agdt_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
 
-        running = _create_and_add_task("dfly-running")
+        running = _create_and_add_task("agdt-running")
         running.mark_running()
         update_task(running)
 
-        completed = _create_and_add_task("dfly-completed")
+        completed = _create_and_add_task("agdt-completed")
         completed.mark_running()
         completed.mark_completed(exit_code=0)
         update_task(completed)
@@ -586,28 +586,28 @@ class TestShowOtherIncompleteTasks:
         show_other_incomplete_tasks()
 
         captured = capsys.readouterr()
-        assert "dfly-running" in captured.out
-        assert "dfly-completed" not in captured.out
+        assert "agdt-running" in captured.out
+        assert "agdt-completed" not in captured.out
 
     def test_excludes_current_task_id(self, mock_state_dir, capsys):
         """Test excludes current task_id from state."""
-        from dfly_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
+        from agdt_ai_helpers.cli.tasks.commands import show_other_incomplete_tasks
 
-        task1 = _create_and_add_task("dfly-cmd-1")
+        task1 = _create_and_add_task("agdt-cmd-1")
         task1.mark_running()
         update_task(task1)
 
-        task2 = _create_and_add_task("dfly-cmd-2")
+        task2 = _create_and_add_task("agdt-cmd-2")
         task2.mark_running()
         update_task(task2)
 
         # Set task1 as current task_id
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": task1.id}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task1.id}}):
             show_other_incomplete_tasks()
 
         captured = capsys.readouterr()
         # Should show task2 but not task1
-        assert "dfly-cmd-2" in captured.out
+        assert "agdt-cmd-2" in captured.out
         assert task2.id in captured.out
 
 
@@ -616,7 +616,7 @@ class TestTaskIdArgument:
 
     def test_task_status_with_id_argument(self, mock_state_dir, capsys):
         """Test task_status with --id argument."""
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_running()
         update_task(task)
 
@@ -625,14 +625,14 @@ class TestTaskIdArgument:
 
         captured = capsys.readouterr()
         assert task.id in captured.out
-        assert "dfly-test-cmd" in captured.out
+        assert "agdt-test-cmd" in captured.out
         assert "running" in captured.out.lower()
 
     def test_task_status_id_updates_state(self, mock_state_dir, capsys):
         """Test --id argument updates background.task_id in state."""
-        from dfly_ai_helpers.state import get_value
+        from agdt_ai_helpers.state import get_value
 
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_running()
         update_task(task)
 
@@ -647,7 +647,7 @@ class TestTaskIdArgument:
         log_file = tmp_path / "test.log"
         log_file.write_text("Test log content\n")
 
-        task = BackgroundTask.create(command="dfly-test-cmd", log_file=log_file)
+        task = BackgroundTask.create(command="agdt-test-cmd", log_file=log_file)
         add_task(task)
 
         task_log(_argv=["--id", task.id])
@@ -657,7 +657,7 @@ class TestTaskIdArgument:
 
     def test_task_wait_with_id_argument(self, mock_state_dir, capsys):
         """Test task_wait with --id argument for completed task."""
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_running()
         task.mark_completed(exit_code=0)
         update_task(task)
@@ -678,7 +678,7 @@ class TestTaskIdArgument:
         import time
 
         # Create an older failed task for dfly-git-save-work
-        older_failed = _create_and_add_task("dfly-git-save-work")
+        older_failed = _create_and_add_task("agdt-git-save-work")
         older_failed.mark_running()
         older_failed.mark_failed(exit_code=1)
         update_task(older_failed)
@@ -687,13 +687,13 @@ class TestTaskIdArgument:
         time.sleep(0.01)
 
         # Create a newer successful task for dfly-git-save-work
-        newer_success = _create_and_add_task("dfly-git-save-work")
+        newer_success = _create_and_add_task("agdt-git-save-work")
         newer_success.mark_running()
         newer_success.mark_completed(exit_code=0)
         update_task(newer_success)
 
         with patch(
-            "dfly_ai_helpers.state.load_state",
+            "agdt_ai_helpers.state.load_state",
             return_value={"background": {"task_id": newer_success.id}},
         ):
             # Should complete normally - no failed tasks should be reported
@@ -710,13 +710,13 @@ class TestTaskIdArgument:
         When a task succeeds, we should still report failed tasks for OTHER commands.
         """
         # Create a failed task for a different command
-        failed_other = _create_and_add_task("dfly-other-cmd")
+        failed_other = _create_and_add_task("agdt-other-cmd")
         failed_other.mark_running()
         failed_other.mark_failed(exit_code=1)
         update_task(failed_other)
 
         # Create a successful task for dfly-git-save-work
-        success_task = _create_and_add_task("dfly-git-save-work")
+        success_task = _create_and_add_task("agdt-git-save-work")
         success_task.mark_running()
         success_task.mark_completed(exit_code=0)
         update_task(success_task)
@@ -731,7 +731,7 @@ class TestTaskIdArgument:
 
         captured = capsys.readouterr()
         # Should show the other failed task
-        assert "other tasks failed" in captured.out.lower() or "dfly-other-cmd" in captured.out
+        assert "other tasks failed" in captured.out.lower() or "agdt-other-cmd" in captured.out
 
 
 class TestSafePrintUnicodeError:
@@ -739,7 +739,7 @@ class TestSafePrintUnicodeError:
 
     def test_safe_print_replaces_emoji_on_unicode_error(self, capsys):
         """Test that emoji is replaced when UnicodeEncodeError occurs."""
-        from dfly_ai_helpers.cli.tasks.commands import _safe_print
+        from agdt_ai_helpers.cli.tasks.commands import _safe_print
 
         # We need to simulate a UnicodeEncodeError on the first print call
         call_count = [0]
@@ -765,13 +765,13 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_positive_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log with positive line limit (head mode)."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         # Create task with multi-line log file
         log_file = tmp_path / "test.log"
         log_file.write_text("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n")
 
-        task = BackgroundTask.create(command="dfly-head-test", log_file=log_file)
+        task = BackgroundTask.create(command="agdt-head-test", log_file=log_file)
         add_task(task)
 
         # Set state values
@@ -788,13 +788,13 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_negative_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log with negative line limit (tail mode)."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         # Create task with multi-line log file
         log_file = tmp_path / "test.log"
         log_file.write_text("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n")
 
-        task = BackgroundTask.create(command="dfly-tail-test", log_file=log_file)
+        task = BackgroundTask.create(command="agdt-tail-test", log_file=log_file)
         add_task(task)
 
         # Set state values
@@ -811,13 +811,13 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_invalid_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log ignores invalid line limit."""
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.state import set_value
 
         # Create task with log file
         log_file = tmp_path / "test.log"
         log_file.write_text("Line 1\nLine 2\nLine 3\n")
 
-        task = BackgroundTask.create(command="dfly-invalid-test", log_file=log_file)
+        task = BackgroundTask.create(command="agdt-invalid-test", log_file=log_file)
         add_task(task)
 
         # Set invalid line limit (should be ignored)
@@ -834,7 +834,7 @@ class TestTaskLogLineLimits:
 
     def test_task_log_nonexistent_task(self, mock_state_dir, capsys):
         """Test task_log with nonexistent task ID."""
-        with patch("dfly_ai_helpers.state.load_state", return_value={"background": {"task_id": "fake-task-id"}}):
+        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": "fake-task-id"}}):
             with pytest.raises(SystemExit):
                 task_log()
 
@@ -847,13 +847,13 @@ class TestTaskWaitValueErrorHandling:
 
     def test_task_wait_invalid_timeout_in_state(self, mock_state_dir, capsys):
         """Test task_wait handles invalid timeout value in state."""
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_completed(exit_code=0)
         update_task(task)
 
         # Set invalid timeout in state
         with patch(
-            "dfly_ai_helpers.state.load_state",
+            "agdt_ai_helpers.state.load_state",
             return_value={"background": {"task_id": task.id, "timeout": "not-a-number"}},
         ):
             # Should not crash, uses default timeout
@@ -864,13 +864,13 @@ class TestTaskWaitValueErrorHandling:
 
     def test_task_wait_invalid_wait_interval_in_state(self, mock_state_dir, capsys):
         """Test task_wait handles invalid wait_interval value in state."""
-        task = _create_and_add_task("dfly-test-cmd")
+        task = _create_and_add_task("agdt-test-cmd")
         task.mark_completed(exit_code=0)
         update_task(task)
 
         # Set invalid wait_interval in state
         with patch(
-            "dfly_ai_helpers.state.load_state",
+            "agdt_ai_helpers.state.load_state",
             return_value={"background": {"task_id": task.id, "wait_interval": "invalid"}},
         ):
             # Should not crash, uses default wait interval
@@ -885,19 +885,19 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_no_workflow(self, mock_state_dir):
         """Test returns False when no workflow is active."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
 
-        with patch("dfly_ai_helpers.state.get_workflow_state", return_value=None):
+        with patch("agdt_ai_helpers.state.get_workflow_state", return_value=None):
             result = _try_advance_pr_review_to_summary()
 
         assert result is False
 
     def test_returns_false_when_wrong_workflow(self, mock_state_dir):
         """Test returns False when workflow is not pull-request-review."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "other-workflow", "step": "file-review"},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -906,10 +906,10 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_wrong_step(self, mock_state_dir):
         """Test returns False when step is not file-review."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "summary"},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -918,14 +918,14 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_no_pr_id(self, mock_state_dir):
         """Test returns False when no pull_request_id in state."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.state import set_value
 
         # Clear any existing PR ID
         set_value("pull_request_id", "")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review"},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -934,13 +934,13 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_invalid_pr_id(self, mock_state_dir):
         """Test returns False when pull_request_id is not a valid integer."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "not-a-number")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review"},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -949,16 +949,16 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_files_not_complete(self, mock_state_dir):
         """Test returns False when not all files are complete."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review"},
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
             return_value={"all_complete": False, "submission_pending_count": 0},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -967,16 +967,16 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_returns_false_when_submissions_pending(self, mock_state_dir):
         """Test returns False when submissions are still pending."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review"},
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
             return_value={"all_complete": True, "submission_pending_count": 2},
         ):
             result = _try_advance_pr_review_to_summary()
@@ -985,21 +985,21 @@ class TestTryAdvancePrReviewToSummary:
 
     def test_advances_workflow_when_conditions_met(self, mock_state_dir, capsys):
         """Test advances workflow when all conditions are met."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
-        from dfly_ai_helpers.state import set_value
+        from agdt_ai_helpers.cli.tasks.commands import _try_advance_pr_review_to_summary
+        from agdt_ai_helpers.state import set_value
 
         set_value("pull_request_id", "12345")
 
-        mock_task = BackgroundTask.create(command="dfly-generate-pr-summary")
+        mock_task = BackgroundTask.create(command="agdt-generate-pr-summary")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
         ), patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands.get_queue_status",
             return_value={"all_complete": True, "submission_pending_count": 0},
-        ), patch("dfly_ai_helpers.cli.workflows.base.set_workflow_state") as mock_set_workflow, patch(
-            "dfly_ai_helpers.background_tasks.run_function_in_background",
+        ), patch("agdt_ai_helpers.cli.workflows.base.set_workflow_state") as mock_set_workflow, patch(
+            "agdt_ai_helpers.background_tasks.run_function_in_background",
             return_value=mock_task,
         ) as mock_run_bg:
             result = _try_advance_pr_review_to_summary()
@@ -1017,23 +1017,23 @@ class TestTryCompletePrReviewWorkflow:
 
     def test_returns_false_when_no_workflow(self, mock_state_dir):
         """Test returns False when no workflow is active."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
+        from agdt_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
 
-        task = _create_and_add_task("dfly-generate-pr-summary")
+        task = _create_and_add_task("agdt-generate-pr-summary")
 
-        with patch("dfly_ai_helpers.state.get_workflow_state", return_value=None):
+        with patch("agdt_ai_helpers.state.get_workflow_state", return_value=None):
             result = _try_complete_pr_review_workflow(task)
 
         assert result is False
 
     def test_returns_false_when_wrong_workflow(self, mock_state_dir):
         """Test returns False when workflow is not pull-request-review."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
+        from agdt_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
 
-        task = _create_and_add_task("dfly-generate-pr-summary")
+        task = _create_and_add_task("agdt-generate-pr-summary")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "other-workflow", "step": "summary"},
         ):
             result = _try_complete_pr_review_workflow(task)
@@ -1042,12 +1042,12 @@ class TestTryCompletePrReviewWorkflow:
 
     def test_returns_false_when_wrong_step(self, mock_state_dir):
         """Test returns False when step is not summary."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
+        from agdt_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
 
-        task = _create_and_add_task("dfly-generate-pr-summary")
+        task = _create_and_add_task("agdt-generate-pr-summary")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "file-review"},
         ):
             result = _try_complete_pr_review_workflow(task)
@@ -1056,12 +1056,12 @@ class TestTryCompletePrReviewWorkflow:
 
     def test_returns_false_when_wrong_command(self, mock_state_dir):
         """Test returns False when task command is not dfly-generate-pr-summary."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
+        from agdt_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
 
-        task = _create_and_add_task("dfly-other-cmd")
+        task = _create_and_add_task("agdt-other-cmd")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "summary"},
         ):
             result = _try_complete_pr_review_workflow(task)
@@ -1070,14 +1070,14 @@ class TestTryCompletePrReviewWorkflow:
 
     def test_completes_workflow_when_conditions_met(self, mock_state_dir, capsys):
         """Test completes workflow when all conditions are met."""
-        from dfly_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
+        from agdt_ai_helpers.cli.tasks.commands import _try_complete_pr_review_workflow
 
-        task = _create_and_add_task("dfly-generate-pr-summary")
+        task = _create_and_add_task("agdt-generate-pr-summary")
 
         with patch(
-            "dfly_ai_helpers.state.get_workflow_state",
+            "agdt_ai_helpers.state.get_workflow_state",
             return_value={"active": "pull-request-review", "step": "summary", "context": {}},
-        ), patch("dfly_ai_helpers.cli.workflows.base.set_workflow_state") as mock_set_workflow:
+        ), patch("agdt_ai_helpers.cli.workflows.base.set_workflow_state") as mock_set_workflow:
             result = _try_complete_pr_review_workflow(task)
 
         assert result is True
@@ -1096,7 +1096,7 @@ class TestHandleTaskCompleted:
         log_file = tmp_path / "test.log"
         log_file.write_text("Error: Something went wrong\nStack trace here\n")
 
-        task = BackgroundTask.create(command="dfly-test-cmd", log_file=log_file)
+        task = BackgroundTask.create(command="agdt-test-cmd", log_file=log_file)
         task.mark_running()
         task.mark_failed(exit_code=1)
         task.error_message = "Task execution failed"
@@ -1104,13 +1104,13 @@ class TestHandleTaskCompleted:
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "dfly_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
                 return_value=[],
             ), patch(
-                "dfly_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
                 return_value=[],
             ):
-                from dfly_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(task, task.id, 300.0)
 
@@ -1124,25 +1124,25 @@ class TestHandleTaskCompleted:
     def test_reports_other_incomplete_tasks(self, mock_state_dir, capsys):
         """Test reports other incomplete tasks."""
         # Create completed task
-        completed_task = _create_and_add_task("dfly-completed-cmd")
+        completed_task = _create_and_add_task("agdt-completed-cmd")
         completed_task.mark_running()
         completed_task.mark_completed(exit_code=0)
         update_task(completed_task)
 
         # Create another incomplete task
-        incomplete_task = _create_and_add_task("dfly-incomplete-cmd")
+        incomplete_task = _create_and_add_task("agdt-incomplete-cmd")
         incomplete_task.mark_running()
         update_task(incomplete_task)
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "dfly_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
                 return_value=[incomplete_task],
             ), patch(
-                "dfly_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
                 return_value=[],
             ):
-                from dfly_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(completed_task, completed_task.id, 300.0)
 
@@ -1150,31 +1150,31 @@ class TestHandleTaskCompleted:
 
         captured = capsys.readouterr()
         assert "OTHER TASKS STILL RUNNING" in captured.out
-        assert "dfly-incomplete-cmd" in captured.out
+        assert "agdt-incomplete-cmd" in captured.out
 
     def test_reports_other_failed_tasks(self, mock_state_dir, capsys):
         """Test reports other failed tasks."""
         # Create completed task
-        completed_task = _create_and_add_task("dfly-completed-cmd")
+        completed_task = _create_and_add_task("agdt-completed-cmd")
         completed_task.mark_running()
         completed_task.mark_completed(exit_code=0)
         update_task(completed_task)
 
         # Create another failed task (different command)
-        failed_task = _create_and_add_task("dfly-failed-cmd")
+        failed_task = _create_and_add_task("agdt-failed-cmd")
         failed_task.mark_running()
         failed_task.mark_failed(exit_code=1)
         update_task(failed_task)
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "dfly_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
                 return_value=[],
             ), patch(
-                "dfly_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
                 return_value=[failed_task],
             ):
-                from dfly_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(completed_task, completed_task.id, 300.0)
 
@@ -1182,4 +1182,4 @@ class TestHandleTaskCompleted:
 
         captured = capsys.readouterr()
         assert "OTHER TASKS FAILED" in captured.out
-        assert "dfly-failed-cmd" in captured.out
+        assert "agdt-failed-cmd" in captured.out

@@ -31,7 +31,7 @@ def try_advance_workflow_after_jira_comment(task_id: Optional[str] = None) -> bo
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Jira comment added.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered
 
@@ -72,7 +72,7 @@ def try_advance_workflow_after_jira_issue_retrieved(
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Jira issue retrieved.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered
 
@@ -105,7 +105,7 @@ def try_advance_workflow_after_commit(
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Git commit created.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered
 
@@ -138,7 +138,7 @@ def try_advance_workflow_after_branch_pushed(
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Branch pushed.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered
 
@@ -175,7 +175,7 @@ def try_advance_workflow_after_pr_creation(
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Pull request created.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered
 
@@ -199,6 +199,6 @@ def try_advance_workflow_after_pr_review(
 
     if result.triggered and not result.immediate_advance:
         print("\n[Workflow] Event recorded: Pull request reviewed.")
-        print("Run 'dfly-get-next-workflow-prompt' to continue.")
+        print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
     return result.triggered

@@ -5,8 +5,8 @@
 ### I. Auto-Approval Friendly Design
 
 All CLI commands must be designed for auto-approval by AI assistants:
-- Use generic `dfly-set key value` pattern for state management (approve once, use for all keys)
-- Parameterless action commands that read from state (e.g., `dfly-reply-to-pr-thread`)
+- Use generic `agdt-set key value` pattern for state management (approve once, use for all keys)
+- Parameterless action commands that read from state (e.g., `agdt-reply-to-pr-thread`)
 - Native Python CLI handling of special characters and multiline content
 - Clear, predictable command patterns that enable trust-based automation
 
@@ -14,10 +14,10 @@ All CLI commands must be designed for auto-approval by AI assistants:
 
 ### II. Single Source of Truth
 
-State management must use a single JSON file (`scripts/temp/dfly-state.json`):
+State management must use a single JSON file (`scripts/temp/agdt-state.json`):
 - All parameters stored in one location
 - No distributed configuration
-- Transparent state inspection via `dfly-show`
+- Transparent state inspection via `agdt-show`
 - Atomic state updates with file locking
 
 **Rationale**: Simplifies debugging, ensures consistency, and provides clear audit trail.
@@ -27,7 +27,7 @@ State management must use a single JSON file (`scripts/temp/dfly-state.json`):
 All action commands that mutate state or perform API calls must run as background tasks:
 - Commands spawn async processes and return immediately with task ID
 - Results written to output files when complete
-- Monitoring via `dfly-task-status`, `dfly-task-log`, `dfly-task-wait`
+- Monitoring via `agdt-task-status`, `agdt-task-log`, `agdt-task-wait`
 - Prevents AI agents from timing out or thinking operations failed
 
 **Rationale**: Enables reliable execution of long-running operations in AI-driven workflows.
@@ -38,7 +38,7 @@ All features must follow TDD practices:
 - Tests written before implementation
 - Minimum 95% code coverage for new code
 - Integration tests for all CLI commands
-- Use `dfly-test` commands (never run pytest directly)
+- Use `agdt-test` commands (never run pytest directly)
 - Background task execution for test runs
 
 **Rationale**: Ensures reliability and maintainability of automation tools.
@@ -68,10 +68,10 @@ Follow standard Python packaging conventions:
 
 ### Testing Standards
 
-- Use `dfly-test` for full test suite (~55 seconds, 2000+ tests)
-- Use `dfly-test-quick` for rapid iteration
-- Use `dfly-test-file --source-file <file>` for focused coverage (100% required)
-- Use `dfly-test-pattern` for specific test selection
+- Use `agdt-test` for full test suite (~55 seconds, 2000+ tests)
+- Use `agdt-test-quick` for rapid iteration
+- Use `agdt-test-file --source-file <file>` for focused coverage (100% required)
+- Use `agdt-test-pattern` for specific test selection
 - All tests run as background tasks with proper log capture
 
 ### Documentation Requirements

@@ -17,10 +17,10 @@ Make a final decision on the PR:
 The PR meets quality standards and can be merged:
 
 ```bash
-dfly-set content "PR approved. All changes meet quality standards and follow repository conventions."
-dfly-set is_pull_request_approval true
-dfly-add-pull-request-comment
-dfly-task-wait
+agdt-set content "PR approved. All changes meet quality standards and follow repository conventions."
+agdt-set is_pull_request_approval true
+agdt-add-pull-request-comment
+agdt-task-wait
 ```
 
 ### If Requesting Changes
@@ -28,14 +28,14 @@ dfly-task-wait
 The PR requires modifications before it can be merged:
 
 ```bash
-dfly-set content "Changes requested. Please address the review comments before this PR can be approved:
+agdt-set content "Changes requested. Please address the review comments before this PR can be approved:
 
 1. [Critical issue 1]
 2. [Critical issue 2]
 
 Once addressed, re-request review."
-dfly-add-pull-request-comment
-dfly-task-wait
+agdt-add-pull-request-comment
+agdt-task-wait
 ```
 
 ## Decision Guidelines

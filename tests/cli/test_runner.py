@@ -30,25 +30,25 @@ class TestCommandMap:
             assert isinstance(func_name, str), f"{cmd} function name is not a string"
 
     def test_all_command_names_start_with_dfly(self):
-        """Test that all command names start with 'dfly-'."""
+        """Test that all command names start with 'agdt-'."""
         for cmd in runner.COMMAND_MAP.keys():
-            assert cmd.startswith("dfly-"), f"Command '{cmd}' doesn't start with 'dfly-'"
+            assert cmd.startswith("agdt-"), f"Command '{cmd}' doesn't start with 'agdt-'"
 
     def test_common_commands_exist(self):
         """Test that common commands are in the map."""
         expected_commands = [
-            "dfly-set",
-            "dfly-get",
-            "dfly-show",
-            "dfly-clear",
-            "dfly-delete",
-            "dfly-git-save-work",
-            "dfly-git-push",
-            "dfly-test",
-            "dfly-get-jira-issue",
-            "dfly-add-jira-comment",
-            "dfly-create-pull-request",
-            "dfly-task-wait",
+            "agdt-set",
+            "agdt-get",
+            "agdt-show",
+            "agdt-clear",
+            "agdt-delete",
+            "agdt-git-save-work",
+            "agdt-git-push",
+            "agdt-test",
+            "agdt-get-jira-issue",
+            "agdt-add-jira-comment",
+            "agdt-create-pull-request",
+            "agdt-task-wait",
         ]
         for cmd in expected_commands:
             assert cmd in runner.COMMAND_MAP, f"Expected command '{cmd}' not in COMMAND_MAP"
@@ -78,7 +78,7 @@ class TestRunCommand:
         mock_module.show_cmd = mock_func
 
         with patch("importlib.import_module", return_value=mock_module):
-            runner.run_command("dfly-show")
+            runner.run_command("agdt-show")
 
         mock_func.assert_called_once()
 
@@ -87,7 +87,7 @@ class TestRunCommand:
         with patch("importlib.import_module") as mock_import:
             mock_import.side_effect = ImportError("Module not found")
             with pytest.raises(SystemExit) as exc_info:
-                runner.run_command("dfly-show")
+                runner.run_command("agdt-show")
         assert exc_info.value.code == 1
 
     def test_exits_on_attribute_error(self):
@@ -97,7 +97,7 @@ class TestRunCommand:
 
         with patch("importlib.import_module", return_value=mock_module):
             with pytest.raises(SystemExit) as exc_info:
-                runner.run_command("dfly-show")
+                runner.run_command("agdt-show")
         assert exc_info.value.code == 1
 
     def test_prints_error_message_on_import_error(self, capsys):
@@ -105,9 +105,9 @@ class TestRunCommand:
         with patch("importlib.import_module") as mock_import:
             mock_import.side_effect = ImportError("Module not found")
             with pytest.raises(SystemExit):
-                runner.run_command("dfly-show")
+                runner.run_command("agdt-show")
         captured = capsys.readouterr()
-        assert "Error loading command dfly-show" in captured.err
+        assert "Error loading command agdt-show" in captured.err
 
 
 class TestMain:
@@ -143,11 +143,11 @@ class TestMain:
         mock_module.show_cmd = mock_func
 
         with patch("importlib.import_module", return_value=mock_module):
-            with patch.object(sys, "argv", ["runner", "dfly-show", "arg1", "arg2"]):
+            with patch.object(sys, "argv", ["runner", "agdt-show", "arg1", "arg2"]):
                 runner.main()
 
         # The command should see argv as: [command_name, arg1, arg2]
-        assert original_argv == ["dfly-show", "arg1", "arg2"]
+        assert original_argv == ["agdt-show", "arg1", "arg2"]
 
     def test_calls_run_command_with_command_name(self):
         """Test that main calls run_command with the command name."""
@@ -156,7 +156,7 @@ class TestMain:
         mock_module.show_cmd = mock_func
 
         with patch("importlib.import_module", return_value=mock_module):
-            with patch.object(sys, "argv", ["runner", "dfly-show"]):
+            with patch.object(sys, "argv", ["runner", "agdt-show"]):
                 runner.main()
 
         mock_func.assert_called_once()
@@ -174,10 +174,10 @@ class TestMain:
         mock_module.show_cmd = mock_func
 
         with patch("importlib.import_module", return_value=mock_module):
-            with patch.object(sys, "argv", ["runner", "dfly-show"]):
+            with patch.object(sys, "argv", ["runner", "agdt-show"]):
                 runner.main()
 
-        assert captured_argv == ["dfly-show"]
+        assert captured_argv == ["agdt-show"]
 
 
 class TestMainEntryPoint:
@@ -196,9 +196,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-set",
-            "dfly-get",
-            "dfly-show",
+            "agdt-set",
+            "agdt-get",
+            "agdt-show",
         ],
     )
     def test_state_commands_map_correctly(self, command):
@@ -209,9 +209,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-git-save-work",
-            "dfly-git-push",
-            "dfly-git-sync",
+            "agdt-git-save-work",
+            "agdt-git-push",
+            "agdt-git-sync",
         ],
     )
     def test_git_commands_map_correctly(self, command):
@@ -222,9 +222,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-test",
-            "dfly-test-quick",
-            "dfly-test-file",
+            "agdt-test",
+            "agdt-test-quick",
+            "agdt-test-file",
         ],
     )
     def test_testing_commands_map_correctly(self, command):
@@ -235,9 +235,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-get-jira-issue",
-            "dfly-add-jira-comment",
-            "dfly-create-issue",
+            "agdt-get-jira-issue",
+            "agdt-add-jira-comment",
+            "agdt-create-issue",
         ],
     )
     def test_jira_commands_map_correctly(self, command):
@@ -248,9 +248,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-create-pull-request",
-            "dfly-approve-pull-request",
-            "dfly-get-pull-request-details",
+            "agdt-create-pull-request",
+            "agdt-approve-pull-request",
+            "agdt-get-pull-request-details",
         ],
     )
     def test_azure_devops_commands_map_correctly(self, command):
@@ -261,9 +261,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-task-wait",
-            "dfly-tasks",
-            "dfly-task-status",
+            "agdt-task-wait",
+            "agdt-tasks",
+            "agdt-task-status",
         ],
     )
     def test_task_commands_map_correctly(self, command):
@@ -274,9 +274,9 @@ class TestCommandMapIntegrity:
     @pytest.mark.parametrize(
         "command",
         [
-            "dfly-advance-workflow",
-            "dfly-get-next-workflow-prompt",
-            "dfly-create-checklist",
+            "agdt-advance-workflow",
+            "agdt-get-next-workflow-prompt",
+            "agdt-create-checklist",
         ],
     )
     def test_workflow_commands_map_correctly(self, command):
