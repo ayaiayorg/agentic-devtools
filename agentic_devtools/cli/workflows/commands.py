@@ -223,7 +223,7 @@ def initiate_work_on_jira_issue_workflow(
     If not in the correct worktree/branch context, automatically creates
     a worktree, installs agentic-devtools, and opens VS Code.
 
-    Usage: dfly-initiate-work-on-jira-issue-workflow [--issue-key DFLY-1234]
+    Usage: agdt-initiate-work-on-jira-issue-workflow [--issue-key DFLY-1234]
 
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
@@ -456,7 +456,7 @@ def advance_work_on_jira_issue_workflow(step: Optional[str] = None) -> None:
     """
     Advance the work-on-jira-issue workflow to the next step.
 
-    Usage: dfly-advance-workflow <step>
+    Usage: agdt-advance-workflow <step>
 
     Steps: implementation, verification, commit, pull-request, completion
 
@@ -524,7 +524,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     """
     Advance the pull-request-review workflow to the next step.
 
-    Usage: dfly-advance-workflow <step>
+    Usage: agdt-advance-workflow <step>
 
     Steps: file-review, summary, decision, completion
 
@@ -1258,7 +1258,7 @@ def create_checklist_cmd() -> None:
     """
     Create a new implementation checklist for the current workflow.
 
-    Usage: dfly-create-checklist [items]
+    Usage: agdt-create-checklist [items]
            dfly-create-checklist "1. First task|2. Second task|3. Third task"
 
     Items can be provided as:
@@ -1379,7 +1379,7 @@ def update_checklist_cmd() -> None:
     """
     Update the implementation checklist.
 
-    Usage: dfly-update-checklist [options]
+    Usage: agdt-update-checklist [options]
 
     Options:
         --add "New task"      Add a new item
@@ -1514,7 +1514,7 @@ def show_checklist_cmd() -> None:
     """
     Display the current implementation checklist.
 
-    Usage: dfly-show-checklist
+    Usage: agdt-show-checklist
     """
     from ...state import is_workflow_active
     from .checklist import get_checklist
@@ -1550,7 +1550,7 @@ def setup_worktree_background_cmd(_argv: Optional[List[str]] = None) -> None:
     This command is called by the background task system and should not
     be invoked directly by users.
 
-    Usage: dfly-setup-worktree-background --issue-key DFLY-1234 [options]
+    Usage: agdt-setup-worktree-background --issue-key DFLY-1234 [options]
 
     Args:
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.

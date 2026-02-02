@@ -188,7 +188,7 @@ def _run_tests_file_sync() -> int:
     source_file = get_value("source_file")
     if not source_file:
         print("Error: source_file not set in state", file=sys.stderr)
-        print("Usage: dfly-set source_file <relative-path-to-source>")
+        print("Usage: agdt-set source_file <relative-path-to-source>")
         print("Example: dfly-set source_file agentic_devtools/state.py")
         return 1
 
@@ -368,7 +368,7 @@ def run_tests_file(_argv: list | None = None) -> None:
 
     if not source_file:
         print("Error: source_file is required")
-        print("Usage: dfly-test-file --source-file <relative-path-to-source>")
+        print("Usage: agdt-test-file --source-file <relative-path-to-source>")
         print("Example: dfly-test-file --source-file agentic_devtools/state.py")
         return
 
@@ -404,7 +404,7 @@ def run_tests_pattern() -> None:
 
     if not pattern_args:
         print("Error: Please provide a test pattern", file=sys.stderr)
-        print("Usage: dfly-test-pattern <pattern> [pytest-args...]")
+        print("Usage: agdt-test-pattern <pattern> [pytest-args...]")
         print("Examples:")
         print("  dfly-test-pattern tests/test_jira_helpers.py")
         print("  dfly-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem")

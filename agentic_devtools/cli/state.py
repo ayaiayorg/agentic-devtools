@@ -24,16 +24,16 @@ from ..state import (
 
 def set_cmd() -> None:
     """
-    Set a state value: dfly-set <key> <value>
+    Set a state value: agdt-set <key> <value>
 
     Supports:
-    - Simple strings: dfly-set pull_request_id 23046
-    - Special characters: dfly-set content "Text with (parens) and [brackets]"
-    - Multiline content: dfly-set content "Line 1
+    - Simple strings: agdt-set pull_request_id 23046
+    - Special characters: agdt-set content "Text with (parens) and [brackets]"
+    - Multiline content: agdt-set content "Line 1
       Line 2
       Line 3"
-    - JSON for complex types: dfly-set config '{"key": "value"}'
-    - Stdin input: echo "content" | dfly-set content -
+    - JSON for complex types: agdt-set config '{"key": "value"}'
+    - Stdin input: echo "content" | agdt-set content -
 
     Context-switching keys (pull_request_id, jira.issue_key):
         When these are set to a NEW value, the temp folder is cleared
@@ -41,16 +41,16 @@ def set_cmd() -> None:
         Cross-lookup is triggered to find related context values.
 
     Examples:
-        dfly-set pull_request_id 23046
-        dfly-set thread_id 139474
-        dfly-set dry_run true
-        dfly-set content "Thanks for the feedback!
+        agdt-set pull_request_id 23046
+        agdt-set thread_id 139474
+        agdt-set dry_run true
+        agdt-set content "Thanks for the feedback!
 
         I've made the changes you suggested."
     """
     if len(sys.argv) < 3:
-        print("Usage: dfly-set <key> <value>", file=sys.stderr)
-        print("       dfly-set <key> -  (read value from stdin)", file=sys.stderr)
+        print("Usage: agdt-set <key> <value>", file=sys.stderr)
+        print("       agdt-set <key> -  (read value from stdin)", file=sys.stderr)
         sys.exit(1)
 
     key = sys.argv[1]
@@ -91,7 +91,7 @@ def get_cmd() -> None:
         dfly-get content
     """
     if len(sys.argv) < 2:
-        print("Usage: dfly-get <key>", file=sys.stderr)
+        print("Usage: agdt-get <key>", file=sys.stderr)
         sys.exit(1)
 
     key = sys.argv[1]
@@ -113,7 +113,7 @@ def delete_cmd() -> None:
     Delete a state value: dfly-delete <key>
     """
     if len(sys.argv) < 2:
-        print("Usage: dfly-delete <key>", file=sys.stderr)
+        print("Usage: agdt-delete <key>", file=sys.stderr)
         sys.exit(1)
 
     key = sys.argv[1]

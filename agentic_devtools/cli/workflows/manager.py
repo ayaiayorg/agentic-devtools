@@ -760,7 +760,7 @@ def get_next_workflow_prompt_cmd() -> None:
     """
     CLI command to get the next workflow prompt.
 
-    Usage: dfly-get-next-workflow-prompt
+    Usage: agdt-get-next-workflow-prompt
 
     This checks background task status and returns:
     - The next step's prompt if all tasks succeeded
