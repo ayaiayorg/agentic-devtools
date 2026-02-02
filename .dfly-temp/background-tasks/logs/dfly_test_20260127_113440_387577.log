@@ -1,0 +1,13 @@
+=== Task 21c14f00-df25-41e7-a2e0-0ee1466b50c3 ===
+Function: agentic_devtools.cli.testing._run_tests_sync
+Started: 2026-01-27T11:34:40.590152+00:00
+Working Directory: /workspaces/agentic-devtools
+==================================================
+
+Running tests from /workspaces/agentic-devtools...
+
+/workspaces/agentic-devtools/.venv/bin/python: No module named pytest
+
+==================================================
+Completed: 2026-01-27T11:34:40.722631+00:00
+Exit Code: 1

@@ -1,0 +1,18 @@
+{
+  "background": {
+    "recentTasks": [
+      {
+        "id": "21c14f00-df25-41e7-a2e0-0ee1466b50c3",
+        "command": "dfly-test",
+        "status": "failed",
+        "startTime": "2026-01-27T11:34:40.399626+00:00",
+        "endTime": "2026-01-27T11:34:40.736510+00:00",
+        "logFile": "/workspaces/agentic-devtools/.dfly-temp/background-tasks/logs/dfly_test_20260127_113440_387577.log",
+        "exitCode": 1,
+        "args": {},
+        "errorMessage": null
+      }
+    ],
+    "task_id": "21c14f00-df25-41e7-a2e0-0ee1466b50c3"
+  }
+}
