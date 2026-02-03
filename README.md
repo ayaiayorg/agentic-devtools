@@ -422,3 +422,58 @@ agdt-set content "Line 1
 Line 2
 Line 3"
 ```
+
+## GitHub Actions: SpecKit Issue Trigger
+
+The repository includes a GitHub Action that automatically triggers the SpecKit specification process when an issue is assigned to a designated agent.
+
+### How It Works
+
+1. When you assign an issue to a configured user (e.g., `speckit-agent`), the workflow triggers
+2. The action posts an acknowledgment comment within 30 seconds
+3. A feature specification is generated from the issue title and body
+4. A new branch and pull request are created with the specification
+5. Status comments are posted to the issue throughout the process
+
+### Configuration
+
+Configure the action using repository variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPECKIT_ASSIGNEES` | `["speckit-agent"]` | JSON array of usernames that trigger SDD |
+| `SPECKIT_AI_PROVIDER` | `claude` | AI provider for spec generation (`claude`, `openai`) |
+| `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
+| `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
+| `SPECKIT_CREATE_PR` | `true` | Create a pull request |
+
+### Required Secrets
+
+| Secret | Required For | Description |
+|--------|--------------|-------------|
+| `ANTHROPIC_API_KEY` | `claude` provider | Claude API key for spec generation |
+| `OPENAI_API_KEY` | `openai` provider | OpenAI API key for spec generation |
+
+### Usage
+
+1. Create a GitHub issue describing your feature
+2. Assign the issue to your configured SpecKit agent (default: `speckit-agent`)
+3. Wait for the workflow to generate the specification
+4. Review the generated spec in the pull request
+
+### Manual Trigger
+
+You can also trigger the workflow manually for testing:
+
+```bash
+gh workflow run speckit-issue-trigger.yml \
+  -f issue_number=123 \
+  -f assignee=speckit-agent
+```
+
+### Labels
+
+The workflow uses labels to track status:
+- `speckit:processing` - Specification generation in progress
+- `speckit:completed` - Specification created successfully
+- `speckit:failed` - Generation failed (check workflow logs)
