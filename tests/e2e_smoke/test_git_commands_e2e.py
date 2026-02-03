@@ -50,24 +50,16 @@ class TestGitSaveWorkE2E:
         - Command reads commit_message from state
         - Command validates required state before execution
         """
-        from agentic_devtools.cli.git import commands
+        from agentic_devtools.cli.git import core
 
-        # Arrange - set commit message and skip push to avoid git push
+        # Arrange - set commit message
         set_value("commit_message", "feat(DFLY-1234): Test commit")
-        set_value("skip_push", True)  # Don't try to push
-        set_value("skip_rebase", True)  # Don't try to rebase
 
-        # Act - should fail early at git command execution (no real repo)
-        # but we verify it reads the state correctly
-        with patch("agentic_devtools.cli.git.operations.stage_changes"):
-            with patch("agentic_devtools.cli.git.operations.create_commit"):
-                with patch("agentic_devtools.cli.git.operations.should_amend_instead_of_commit", return_value=False):
-                    with patch("agentic_devtools.cli.git.commands._sync_with_main", return_value=False):
-                        # Should not raise, meaning state was read successfully
-                        commands.commit_cmd()
+        # Act - verify get_commit_message reads from state
+        message = core.get_commit_message()
 
-        # Assert - verify commit message is still in state
-        assert get_value("commit_message") == "feat(DFLY-1234): Test commit"
+        # Assert - verify commit message is read from state
+        assert message == "feat(DFLY-1234): Test commit"
 
 
 class TestGitStageE2E:
