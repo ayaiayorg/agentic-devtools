@@ -897,6 +897,6 @@ def print_task_tracking_info(task: BackgroundTask, action_description: Optional[
     print(f"{action_description}...")
     print()
 
-    # Simple instruction - dfly-task-wait handles everything now
+    # Simple instruction - agdt-task-wait handles everything now
     print("Wait for completion and get next instructions:")
-    print("  dfly-task-wait")
+    print("  agdt-task-wait")

@@ -37,16 +37,16 @@ def _set_bool_value_if_true(key: str, value: bool) -> None:
 def _create_commit_parser() -> argparse.ArgumentParser:
     """Create argument parser for save-work command."""
     parser = argparse.ArgumentParser(
-        prog="dfly-git-save-work",
+        prog="agdt-git-save-work",
         description="Save work: stage, commit (or amend), rebase onto main, and push.",
         epilog="""
 Examples:
-  dfly-git-save-work -m "feature(DFLY-1234): add new feature"
-  dfly-git-save-work --commit-message "fix: resolve issue"
-  dfly-git-save-work --completed "1,2,3"
-  dfly-git-save-work --skip-rebase
-  dfly-set commit_message "feature(DFLY-1234): add feature"
-  dfly-git-save-work
+  agdt-git-save-work -m "feature(DFLY-1234): add new feature"
+  agdt-git-save-work --commit-message "fix: resolve issue"
+  agdt-git-save-work --completed "1,2,3"
+  agdt-git-save-work --skip-rebase
+  agdt-set commit_message "feature(DFLY-1234): add feature"
+  agdt-git-save-work
 
 Behavior:
   - Stages all changes and commits (or amends if existing commit for issue)
@@ -116,13 +116,13 @@ def commit_async(
         skip_rebase (optional): If true, skip the fetch/rebase onto main step
 
     Usage:
-        dfly-git-save-work -m "feature(DFLY-1234): add feature"
-        dfly-git-save-work --message "feature(DFLY-1234): add feature"
-        dfly-git-save-work --commit-message "feature(DFLY-1234): add feature"
-        dfly-git-save-work --completed "1,2,3"
-        dfly-git-save-work --skip-rebase
-        dfly-git-save-work --dry-run
-        dfly-git-save-work --help
+        agdt-git-save-work -m "feature(DFLY-1234): add feature"
+        agdt-git-save-work --message "feature(DFLY-1234): add feature"
+        agdt-git-save-work --commit-message "feature(DFLY-1234): add feature"
+        agdt-git-save-work --completed "1,2,3"
+        agdt-git-save-work --skip-rebase
+        agdt-git-save-work --dry-run
+        agdt-git-save-work --help
     """
     # Parse CLI arguments
     parser = _create_commit_parser()
@@ -150,7 +150,7 @@ def commit_async(
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "commit_cmd",
-        command_display_name="dfly-git-save-work",
+        command_display_name="agdt-git-save-work",
     )
     print_task_tracking_info(task)
 
@@ -181,11 +181,11 @@ def amend_async(
         skip_push (optional): If true, skip the push step
 
     Usage:
-        dfly-git-amend -m "feature(DFLY-1234): updated message"
-        dfly-git-amend --message "feature(DFLY-1234): updated message"
+        agdt-git-amend -m "feature(DFLY-1234): updated message"
+        agdt-git-amend --message "feature(DFLY-1234): updated message"
     """
     # Parse CLI arguments for message
-    parser = argparse.ArgumentParser(prog="dfly-git-amend", add_help=False)
+    parser = argparse.ArgumentParser(prog="agdt-git-amend", add_help=False)
     parser.add_argument("-m", "--message", "--commit-message", dest="commit_message", type=str)
     argv = _argv if _argv is not None else sys.argv[1:]
     args, _ = parser.parse_known_args(argv)
@@ -199,7 +199,7 @@ def amend_async(
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "amend_cmd",
-        command_display_name="dfly-git-amend",
+        command_display_name="agdt-git-amend",
     )
     print_task_tracking_info(task)
 
@@ -212,12 +212,12 @@ def stage_async() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Usage:
-        dfly-git-stage
+        agdt-git-stage
     """
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "stage_cmd",
-        command_display_name="dfly-git-stage",
+        command_display_name="agdt-git-stage",
     )
     print_task_tracking_info(task)
 
@@ -232,12 +232,12 @@ def push_async() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Usage:
-        dfly-git-push
+        agdt-git-push
     """
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "push_cmd",
-        command_display_name="dfly-git-push",
+        command_display_name="agdt-git-push",
     )
     print_task_tracking_info(task)
 
@@ -250,12 +250,12 @@ def force_push_async() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Usage:
-        dfly-git-force-push
+        agdt-git-force-push
     """
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "force_push_cmd",
-        command_display_name="dfly-git-force-push",
+        command_display_name="agdt-git-force-push",
     )
     print_task_tracking_info(task)
 
@@ -270,12 +270,12 @@ def publish_async() -> None:
         dry_run (optional): If true, show what would happen without executing
 
     Usage:
-        dfly-git-publish
+        agdt-git-publish
     """
     task = run_function_in_background(
         _GIT_COMMANDS_MODULE,
         "publish_cmd",
-        command_display_name="dfly-git-publish",
+        command_display_name="agdt-git-publish",
     )
     print_task_tracking_info(task)
 

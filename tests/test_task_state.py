@@ -46,11 +46,11 @@ class TestBackgroundTask:
     def test_create_task_via_factory(self):
         """Test creating a BackgroundTask via factory method."""
         task = BackgroundTask.create(
-            command="dfly-test-cmd",
+            command="agdt-test-cmd",
             log_file=Path("/path/to/log.txt"),
             args={"key": "value"},
         )
-        assert task.command == "dfly-test-cmd"
+        assert task.command == "agdt-test-cmd"
         assert task.status == TaskStatus.PENDING
         # Path gets normalized by str(), so check it ends with the filename
         assert task.log_file is not None
@@ -65,13 +65,13 @@ class TestBackgroundTask:
         """Test creating a BackgroundTask directly."""
         task = BackgroundTask(
             id="test-123",
-            command="dfly-test-cmd",
+            command="agdt-test-cmd",
             status=TaskStatus.PENDING,
             start_time="2024-01-01T00:00:00+00:00",
             log_file="/path/to/log.txt",
         )
         assert task.id == "test-123"
-        assert task.command == "dfly-test-cmd"
+        assert task.command == "agdt-test-cmd"
         assert task.status == TaskStatus.PENDING
         assert task.log_file == "/path/to/log.txt"
         assert task.end_time is None
@@ -81,7 +81,7 @@ class TestBackgroundTask:
         """Test converting task to dictionary."""
         task = BackgroundTask(
             id="test-456",
-            command="dfly-another-cmd",
+            command="agdt-another-cmd",
             status=TaskStatus.RUNNING,
             start_time="2024-01-01T12:00:00+00:00",
             log_file="/tmp/log.txt",
@@ -89,7 +89,7 @@ class TestBackgroundTask:
         task_dict = task.to_dict()
 
         assert task_dict["id"] == "test-456"
-        assert task_dict["command"] == "dfly-another-cmd"
+        assert task_dict["command"] == "agdt-another-cmd"
         assert task_dict["status"] == "running"
         assert task_dict["logFile"] == "/tmp/log.txt"
         assert task_dict["startTime"] == "2024-01-01T12:00:00+00:00"
@@ -98,7 +98,7 @@ class TestBackgroundTask:
         """Test creating task from dictionary."""
         data = {
             "id": "from-dict-789",
-            "command": "dfly-cmd",
+            "command": "agdt-cmd",
             "status": "completed",
             "startTime": "2024-01-01T00:00:00+00:00",
             "logFile": "/log.txt",
@@ -116,7 +116,7 @@ class TestBackgroundTask:
         """Test task survives dict roundtrip."""
         original = BackgroundTask(
             id="roundtrip-test",
-            command="dfly-cmd",
+            command="agdt-cmd",
             status=TaskStatus.FAILED,
             start_time="2024-06-15T10:30:00+00:00",
             log_file="/var/log/task.log",
@@ -370,7 +370,7 @@ class TestAddTask:
         ) as mock_save, patch("agentic_devtools.task_state._append_to_all_tasks"):
             mock_load.return_value = {}
 
-            task = BackgroundTask.create(command="dfly-test-command")
+            task = BackgroundTask.create(command="agdt-test-command")
             add_task(task, use_locking=False)
 
             # Verify save was called
@@ -386,7 +386,7 @@ class TestGetTaskById:
 
     def test_get_existing_task(self):
         """Test retrieving an existing task."""
-        task = BackgroundTask.create(command="dfly-cmd")
+        task = BackgroundTask.create(command="agdt-cmd")
 
         with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
             "agentic_devtools.task_state.get_task_from_all_tasks", return_value=None
@@ -414,7 +414,7 @@ class TestGetTaskById:
         """Test retrieving task with partial ID match."""
         task = BackgroundTask(
             id="12345678-1234-1234-1234-123456789abc",
-            command="dfly-cmd",
+            command="agdt-cmd",
             status=TaskStatus.PENDING,
             start_time="2024-01-01T00:00:00+00:00",
         )
@@ -475,22 +475,22 @@ class TestGetMostRecentTasksPerCommand:
     def test_single_task_per_command(self):
         """Test with one task per command."""
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
 
         with patch("agentic_devtools.task_state.get_recent_tasks", return_value=[task1, task2]):
             result = get_most_recent_tasks_per_command()
 
         assert len(result) == 2
-        assert result["dfly-git-save-work"].id == task1.id
-        assert result["dfly-add-jira-comment"].id == task2.id
+        assert result["agdt-git-save-work"].id == task1.id
+        assert result["agdt-add-jira-comment"].id == task2.id
 
     def test_multiple_tasks_same_command_returns_most_recent(self):
         """Test that most recent task is returned when multiple exist for same command."""
 
         # Create tasks with different start times
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
-        task2 = BackgroundTask.create(command="dfly-git-save-work")  # More recent
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
+        task2 = BackgroundTask.create(command="agdt-git-save-work")  # More recent
 
         # List is already sorted with most recent first (task2 first)
         with patch("agentic_devtools.task_state.get_recent_tasks", return_value=[task2, task1]):
@@ -498,7 +498,7 @@ class TestGetMostRecentTasksPerCommand:
 
         assert len(result) == 1
         # task2 should be selected as it appears first (most recent)
-        assert result["dfly-git-save-work"].id == task2.id
+        assert result["agdt-git-save-work"].id == task2.id
 
 
 class TestGetFailedMostRecentPerCommand:
@@ -517,12 +517,12 @@ class TestGetFailedMostRecentPerCommand:
         """Test with all successful tasks."""
         from agentic_devtools.task_state import get_failed_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_completed(exit_code=0)
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
-            return_value={"dfly-git-save-work": task1},
+            return_value={"agdt-git-save-work": task1},
         ):
             result = get_failed_most_recent_per_command()
 
@@ -532,14 +532,14 @@ class TestGetFailedMostRecentPerCommand:
         """Test that failed tasks are returned."""
         from agentic_devtools.task_state import get_failed_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_failed(exit_code=1)
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
         task2.mark_completed(exit_code=0)
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
-            return_value={"dfly-git-save-work": task1, "dfly-add-jira-comment": task2},
+            return_value={"agdt-git-save-work": task1, "agdt-add-jira-comment": task2},
         ):
             result = get_failed_most_recent_per_command()
 
@@ -550,14 +550,14 @@ class TestGetFailedMostRecentPerCommand:
         """Test that exclude_task_id parameter works."""
         from agentic_devtools.task_state import get_failed_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_failed(exit_code=1)
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
         task2.mark_failed(exit_code=1)
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
-            return_value={"dfly-git-save-work": task1, "dfly-add-jira-comment": task2},
+            return_value={"agdt-git-save-work": task1, "agdt-add-jira-comment": task2},
         ):
             result = get_failed_most_recent_per_command(exclude_task_id=task1.id)
 
@@ -574,7 +574,7 @@ class TestGetFailedMostRecentPerCommand:
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
             # Create an older failed task for dfly-git-save-work
-            older_failed = BackgroundTask.create(command="dfly-git-save-work")
+            older_failed = BackgroundTask.create(command="agdt-git-save-work")
             older_failed.mark_running()
             older_failed.mark_failed(exit_code=1)
             add_task(older_failed)
@@ -583,13 +583,13 @@ class TestGetFailedMostRecentPerCommand:
             time.sleep(0.01)
 
             # Create a newer successful task for dfly-git-save-work
-            newer_success = BackgroundTask.create(command="dfly-git-save-work")
+            newer_success = BackgroundTask.create(command="agdt-git-save-work")
             newer_success.mark_running()
             newer_success.mark_completed(exit_code=0)
             add_task(newer_success)
 
             # Create a failed task for a different command
-            other_failed = BackgroundTask.create(command="dfly-other-cmd")
+            other_failed = BackgroundTask.create(command="agdt-other-cmd")
             other_failed.mark_running()
             other_failed.mark_failed(exit_code=1)
             add_task(other_failed)
@@ -597,59 +597,59 @@ class TestGetFailedMostRecentPerCommand:
             # When excluding the dfly-git-save-work command, we should not see the older failed task
             result = get_failed_most_recent_per_command(
                 exclude_task_id=newer_success.id,
-                exclude_commands=["dfly-git-save-work"],
+                exclude_commands=["agdt-git-save-work"],
             )
 
             # Should only see the other_failed task, not older_failed
             assert len(result) == 1
-            assert result[0].command == "dfly-other-cmd"
+            assert result[0].command == "agdt-other-cmd"
 
     def test_exclude_commands_empty_list(self, tmp_path):
         """Test that empty exclude_commands list has no effect."""
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            failed_task = BackgroundTask.create(command="dfly-cmd-a")
+            failed_task = BackgroundTask.create(command="agdt-cmd-a")
             failed_task.mark_running()
             failed_task.mark_failed(exit_code=1)
             add_task(failed_task)
 
             result = get_failed_most_recent_per_command(exclude_commands=[])
             assert len(result) == 1
-            assert result[0].command == "dfly-cmd-a"
+            assert result[0].command == "agdt-cmd-a"
 
     def test_exclude_commands_none(self, tmp_path):
         """Test that None exclude_commands has no effect."""
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            failed_task = BackgroundTask.create(command="dfly-cmd-a")
+            failed_task = BackgroundTask.create(command="agdt-cmd-a")
             failed_task.mark_running()
             failed_task.mark_failed(exit_code=1)
             add_task(failed_task)
 
             result = get_failed_most_recent_per_command(exclude_commands=None)
             assert len(result) == 1
-            assert result[0].command == "dfly-cmd-a"
+            assert result[0].command == "agdt-cmd-a"
 
     def test_exclude_commands_multiple(self, tmp_path):
         """Test excluding multiple commands."""
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
             # Create failed tasks for different commands
-            failed_a = BackgroundTask.create(command="dfly-cmd-a")
+            failed_a = BackgroundTask.create(command="agdt-cmd-a")
             failed_a.mark_running()
             failed_a.mark_failed(exit_code=1)
             add_task(failed_a)
 
-            failed_b = BackgroundTask.create(command="dfly-cmd-b")
+            failed_b = BackgroundTask.create(command="agdt-cmd-b")
             failed_b.mark_running()
             failed_b.mark_failed(exit_code=1)
             add_task(failed_b)
 
-            failed_c = BackgroundTask.create(command="dfly-cmd-c")
+            failed_c = BackgroundTask.create(command="agdt-cmd-c")
             failed_c.mark_running()
             failed_c.mark_failed(exit_code=1)
             add_task(failed_c)
 
-            result = get_failed_most_recent_per_command(exclude_commands=["dfly-cmd-a", "dfly-cmd-b"])
+            result = get_failed_most_recent_per_command(exclude_commands=["agdt-cmd-a", "agdt-cmd-b"])
             assert len(result) == 1
-            assert result[0].command == "dfly-cmd-c"
+            assert result[0].command == "agdt-cmd-c"
 
 
 class TestGetIncompleteMostRecentPerCommand:
@@ -668,14 +668,14 @@ class TestGetIncompleteMostRecentPerCommand:
         """Test with all completed tasks."""
         from agentic_devtools.task_state import get_incomplete_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_completed(exit_code=0)
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
         task2.mark_failed(exit_code=1)
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
-            return_value={"dfly-git-save-work": task1, "dfly-add-jira-comment": task2},
+            return_value={"agdt-git-save-work": task1, "agdt-add-jira-comment": task2},
         ):
             result = get_incomplete_most_recent_per_command()
 
@@ -686,19 +686,19 @@ class TestGetIncompleteMostRecentPerCommand:
         """Test that incomplete tasks are returned."""
         from agentic_devtools.task_state import get_incomplete_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_running()
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
         task2.mark_completed(exit_code=0)
-        task3 = BackgroundTask.create(command="dfly-create-pr")
+        task3 = BackgroundTask.create(command="agdt-create-pr")
         # task3 is pending (default state)
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
             return_value={
-                "dfly-git-save-work": task1,
-                "dfly-add-jira-comment": task2,
-                "dfly-create-pr": task3,
+                "agdt-git-save-work": task1,
+                "agdt-add-jira-comment": task2,
+                "agdt-create-pr": task3,
             },
         ):
             result = get_incomplete_most_recent_per_command()
@@ -712,14 +712,14 @@ class TestGetIncompleteMostRecentPerCommand:
         """Test that exclude_task_id parameter works."""
         from agentic_devtools.task_state import get_incomplete_most_recent_per_command
 
-        task1 = BackgroundTask.create(command="dfly-git-save-work")
+        task1 = BackgroundTask.create(command="agdt-git-save-work")
         task1.mark_running()
-        task2 = BackgroundTask.create(command="dfly-add-jira-comment")
+        task2 = BackgroundTask.create(command="agdt-add-jira-comment")
         task2.mark_running()
 
         with patch(
             "agentic_devtools.task_state.get_most_recent_tasks_per_command",
-            return_value={"dfly-git-save-work": task1, "dfly-add-jira-comment": task2},
+            return_value={"agdt-git-save-work": task1, "agdt-add-jira-comment": task2},
         ):
             result = get_incomplete_most_recent_per_command(exclude_task_id=task1.id)
 
@@ -864,7 +864,7 @@ class TestTaskLifecycle:
 
     def test_full_lifecycle_success(self):
         """Test complete lifecycle: create -> running -> completed."""
-        task = BackgroundTask.create(command="dfly-test-cmd")
+        task = BackgroundTask.create(command="agdt-test-cmd")
         assert task.status == TaskStatus.PENDING
 
         # Start running
@@ -879,7 +879,7 @@ class TestTaskLifecycle:
 
     def test_full_lifecycle_failure(self):
         """Test complete lifecycle: create -> running -> failed."""
-        task = BackgroundTask.create(command="dfly-failing-cmd")
+        task = BackgroundTask.create(command="agdt-failing-cmd")
 
         task.mark_running()
         task.mark_failed(exit_code=1, error_message="Process crashed")
@@ -968,7 +968,7 @@ class TestPrintTaskTrackingInfo:
         from agentic_devtools.task_state import print_task_tracking_info
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            task = BackgroundTask.create(command="dfly-test-cmd")
+            task = BackgroundTask.create(command="agdt-test-cmd")
             print_task_tracking_info(task, "Testing task")
 
             assert get_value("background.task_id") == task.id
@@ -978,12 +978,12 @@ class TestPrintTaskTrackingInfo:
         from agentic_devtools.task_state import print_task_tracking_info
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            task = BackgroundTask.create(command="dfly-test-cmd")
+            task = BackgroundTask.create(command="agdt-test-cmd")
             print_task_tracking_info(task, "Testing task")
 
             captured = capsys.readouterr()
             assert "Background task started" in captured.out
-            assert "dfly-test-cmd" in captured.out
+            assert "agdt-test-cmd" in captured.out
             assert task.id in captured.out
             assert "task_id automatically set" in captured.out
 
@@ -992,7 +992,7 @@ class TestPrintTaskTrackingInfo:
         from agentic_devtools.task_state import print_task_tracking_info
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            task = BackgroundTask.create(command="dfly-test-cmd")
+            task = BackgroundTask.create(command="agdt-test-cmd")
             print_task_tracking_info(task, "Adding comment to DFLY-1234")
 
             captured = capsys.readouterr()
@@ -1003,12 +1003,12 @@ class TestPrintTaskTrackingInfo:
         from agentic_devtools.task_state import print_task_tracking_info
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            task = BackgroundTask.create(command="dfly-test-cmd")
+            task = BackgroundTask.create(command="agdt-test-cmd")
             print_task_tracking_info(task, "Testing")
 
             captured = capsys.readouterr()
             # Simplified output now just shows dfly-task-wait
-            assert "dfly-task-wait" in captured.out
+            assert "agdt-task-wait" in captured.out
             # Should NOT show the verbose commands anymore
             assert '--id "<task-id>"' not in captured.out
 
@@ -1018,12 +1018,12 @@ class TestPrintTaskTrackingInfo:
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
             # Add a running task first
-            other_task = BackgroundTask.create(command="dfly-other-cmd")
+            other_task = BackgroundTask.create(command="agdt-other-cmd")
             other_task.mark_running()
             add_task(other_task)
 
             # Now print info for a new task
-            new_task = BackgroundTask.create(command="dfly-new-cmd")
+            new_task = BackgroundTask.create(command="agdt-new-cmd")
             print_task_tracking_info(new_task, "Testing")
 
             captured = capsys.readouterr()
@@ -1031,4 +1031,4 @@ class TestPrintTaskTrackingInfo:
             # They are handled by task_wait instead
             assert "Other recent incomplete background tasks:" not in captured.out
             # Just shows simple dfly-task-wait instruction
-            assert "dfly-task-wait" in captured.out
+            assert "agdt-task-wait" in captured.out

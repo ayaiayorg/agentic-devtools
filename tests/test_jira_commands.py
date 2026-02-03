@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers import state
-from dfly_ai_helpers.cli import jira
-from dfly_ai_helpers.cli.jira import (
+from agdt_ai_helpers import state
+from agdt_ai_helpers.cli import jira
+from agdt_ai_helpers.cli.jira import (
     comment_commands,
     create_commands,
     get_commands,

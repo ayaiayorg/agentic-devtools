@@ -58,7 +58,7 @@ def add_comment_async(
     Add a Jira comment asynchronously in the background.
 
     This command immediately returns after spawning a background task.
-    Use dfly-task-status or dfly-task-wait to check completion.
+    Use agdt-task-status or agdt-task-wait to check completion.
 
     Args:
         comment: Comment content (overrides state)
@@ -72,13 +72,13 @@ def add_comment_async(
     - Prints task ID for tracking
 
     Usage:
-        dfly-add-jira-comment --jira-comment "This is my comment"
-        dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+        agdt-add-jira-comment --jira-comment "This is my comment"
+        agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
 
         # Or using state:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.comment "This is my comment"
-        dfly-add-jira-comment
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.comment "This is my comment"
+        agdt-add-jira-comment
         # Returns immediately with task ID
     """
     # Store CLI args in state if provided (background task reads from state)
@@ -86,13 +86,13 @@ def add_comment_async(
     _set_jira_value_if_provided("comment", comment)
 
     # Validate required values exist in state
-    resolved_issue_key = _require_jira_value("issue_key", "dfly-add-jira-comment --jira-issue-key DFLY-1234")
-    _require_jira_value("comment", 'dfly-add-jira-comment --jira-comment "Your comment"')
+    resolved_issue_key = _require_jira_value("issue_key", "agdt-add-jira-comment --jira-issue-key DFLY-1234")
+    _require_jira_value("comment", 'agdt-add-jira-comment --jira-comment "Your comment"')
 
     task = run_function_in_background(
         _COMMENT_MODULE,
         "add_comment",
-        command_display_name="dfly-add-jira-comment",
+        command_display_name="agdt-add-jira-comment",
     )
     print_task_tracking_info(task, f"Adding comment to {resolved_issue_key}")
 
@@ -104,13 +104,13 @@ def add_comment_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dfly-add-jira-comment --jira-comment "This is my comment"
-  dfly-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+  agdt-add-jira-comment --jira-comment "This is my comment"
+  agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
 
   # Or using state:
-  dfly-set jira.issue_key DFLY-1234
-  dfly-set jira.comment "This is my comment"
-  dfly-add-jira-comment
+  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.comment "This is my comment"
+  agdt-add-jira-comment
         """,
     )
 
@@ -154,19 +154,19 @@ def create_epic_async() -> None:
     - jira.labels (optional): Comma-separated labels
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.summary "New Feature Epic"
-        dfly-set jira.epic_name "Feature Epic"
-        dfly-create-epic
+        agdt-set jira.project_key DFLY
+        agdt-set jira.summary "New Feature Epic"
+        agdt-set jira.epic_name "Feature Epic"
+        agdt-create-epic
     """
-    _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("summary", 'dfly-set jira.summary "Epic Title"')
-    _require_jira_value("epic_name", 'dfly-set jira.epic_name "Epic Name"')
+    _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("summary", 'agdt-set jira.summary "Epic Title"')
+    _require_jira_value("epic_name", 'agdt-set jira.epic_name "Epic Name"')
 
     task = run_function_in_background(
         _CREATE_MODULE,
         "create_epic",
-        command_display_name="dfly-create-epic",
+        command_display_name="agdt-create-epic",
     )
     print_task_tracking_info(task, "Creating epic")
 
@@ -184,18 +184,18 @@ def create_issue_async() -> None:
     - jira.parent_key (optional): Parent epic key
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.summary "New Task"
-        dfly-set jira.description "Task description"
-        dfly-create-issue
+        agdt-set jira.project_key DFLY
+        agdt-set jira.summary "New Task"
+        agdt-set jira.description "Task description"
+        agdt-create-issue
     """
-    _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("summary", 'dfly-set jira.summary "Issue Title"')
+    _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("summary", 'agdt-set jira.summary "Issue Title"')
 
     task = run_function_in_background(
         _CREATE_MODULE,
         "create_issue",
-        command_display_name="dfly-create-issue",
+        command_display_name="agdt-create-issue",
     )
     print_task_tracking_info(task, "Creating issue")
 
@@ -210,17 +210,17 @@ def create_subtask_async() -> None:
     - jira.description (optional): Subtask description
 
     Usage:
-        dfly-set jira.parent_key DFLY-1234
-        dfly-set jira.summary "Subtask Title"
-        dfly-create-subtask
+        agdt-set jira.parent_key DFLY-1234
+        agdt-set jira.summary "Subtask Title"
+        agdt-create-subtask
     """
-    parent_key = _require_jira_value("parent_key", "dfly-set jira.parent_key DFLY-1234")
-    _require_jira_value("summary", 'dfly-set jira.summary "Subtask Title"')
+    parent_key = _require_jira_value("parent_key", "agdt-set jira.parent_key DFLY-1234")
+    _require_jira_value("summary", 'agdt-set jira.summary "Subtask Title"')
 
     task = run_function_in_background(
         _CREATE_MODULE,
         "create_subtask",
-        command_display_name="dfly-create-subtask",
+        command_display_name="agdt-create-subtask",
     )
     print_task_tracking_info(task, f"Creating subtask under {parent_key}")
 
@@ -233,15 +233,15 @@ def get_issue_async() -> None:
     - jira.issue_key (required): Issue key to retrieve
 
     Usage:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-get-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-get-jira-issue
     """
-    issue_key = _require_jira_value("issue_key", "dfly-set jira.issue_key DFLY-1234")
+    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
 
     task = run_function_in_background(
         _GET_MODULE,
         "get_issue",
-        command_display_name="dfly-get-jira-issue",
+        command_display_name="agdt-get-jira-issue",
     )
     print_task_tracking_info(task, f"Getting issue {issue_key}")
 
@@ -255,16 +255,16 @@ def update_issue_async() -> None:
     - Plus any update fields (jira.summary, jira.description, etc.)
 
     Usage:
-        dfly-set jira.issue_key DFLY-1234
-        dfly-set jira.summary "New Summary"
-        dfly-update-jira-issue
+        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.summary "New Summary"
+        agdt-update-jira-issue
     """
-    issue_key = _require_jira_value("issue_key", "dfly-set jira.issue_key DFLY-1234")
+    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
 
     task = run_function_in_background(
         _UPDATE_MODULE,
         "update_issue",
-        command_display_name="dfly-update-jira-issue",
+        command_display_name="agdt-update-jira-issue",
     )
     print_task_tracking_info(task, f"Updating {issue_key}")
 
@@ -282,15 +282,15 @@ def list_project_roles_async() -> None:
     - jira.project_key (required): Project key
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-list-project-roles
+        agdt-set jira.project_key DFLY
+        agdt-list-project-roles
     """
-    project_key = _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "list_project_roles",
-        command_display_name="dfly-list-project-roles",
+        command_display_name="agdt-list-project-roles",
     )
     print_task_tracking_info(task, f"Listing roles for project {project_key}")
 
@@ -304,17 +304,17 @@ def get_project_role_details_async() -> None:
     - jira.role_id (required): Role ID
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-get-project-role-details
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-get-project-role-details
     """
-    project_key = _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("role_id", "dfly-set jira.role_id 10002")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("role_id", "agdt-set jira.role_id 10002")
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "get_project_role_details",
-        command_display_name="dfly-get-project-role-details",
+        command_display_name="agdt-get-project-role-details",
     )
     print_task_tracking_info(task, f"Getting role details for project {project_key}")
 
@@ -329,19 +329,19 @@ def add_users_to_project_role_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-set jira.users "user1,user2"
-        dfly-add-users-to-project-role
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-set jira.users "user1,user2"
+        agdt-add-users-to-project-role
     """
-    project_key = _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("role_id", "dfly-set jira.role_id 10002")
-    _require_jira_value("users", 'dfly-set jira.users "user1,user2"')
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("role_id", "agdt-set jira.role_id 10002")
+    _require_jira_value("users", 'agdt-set jira.users "user1,user2"')
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "add_users_to_project_role",
-        command_display_name="dfly-add-users-to-project-role",
+        command_display_name="agdt-add-users-to-project-role",
     )
     print_task_tracking_info(task, f"Adding users to role in project {project_key}")
 
@@ -356,19 +356,19 @@ def add_users_to_project_role_batch_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_id 10002
-        dfly-set jira.users "user1,user2,user3"
-        dfly-add-users-to-project-role-batch
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_id 10002
+        agdt-set jira.users "user1,user2,user3"
+        agdt-add-users-to-project-role-batch
     """
-    project_key = _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("role_id", "dfly-set jira.role_id 10002")
-    _require_jira_value("users", 'dfly-set jira.users "user1,user2,user3"')
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("role_id", "agdt-set jira.role_id 10002")
+    _require_jira_value("users", 'agdt-set jira.users "user1,user2,user3"')
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "add_users_to_project_role_batch",
-        command_display_name="dfly-add-users-to-project-role-batch",
+        command_display_name="agdt-add-users-to-project-role-batch",
     )
     print_task_tracking_info(task, f"Batch adding users to role in project {project_key}")
 
@@ -382,17 +382,17 @@ def find_role_id_by_name_async() -> None:
     - jira.role_name (required): Role name to find
 
     Usage:
-        dfly-set jira.project_key DFLY
-        dfly-set jira.role_name "Developers"
-        dfly-find-role-id-by-name
+        agdt-set jira.project_key DFLY
+        agdt-set jira.role_name "Developers"
+        agdt-find-role-id-by-name
     """
-    project_key = _require_jira_value("project_key", "dfly-set jira.project_key DFLY")
-    _require_jira_value("role_name", 'dfly-set jira.role_name "Developers"')
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("role_name", 'agdt-set jira.role_name "Developers"')
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "find_role_id_by_name",
-        command_display_name="dfly-find-role-id-by-name",
+        command_display_name="agdt-find-role-id-by-name",
     )
     print_task_tracking_info(task, f"Finding role ID in project {project_key}")
 
@@ -405,15 +405,15 @@ def check_user_exists_async() -> None:
     - jira.username (required): Username to check
 
     Usage:
-        dfly-set jira.username "amarsnik"
-        dfly-check-user-exists
+        agdt-set jira.username "amarsnik"
+        agdt-check-user-exists
     """
-    username = _require_jira_value("username", "dfly-set jira.username amarsnik")
+    username = _require_jira_value("username", "agdt-set jira.username amarsnik")
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "check_user_exists",
-        command_display_name="dfly-check-user-exists",
+        command_display_name="agdt-check-user-exists",
     )
     print_task_tracking_info(task, f"Checking if user {username} exists")
 
@@ -426,14 +426,14 @@ def check_users_exist_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        dfly-set jira.users "user1,user2,user3"
-        dfly-check-users-exist
+        agdt-set jira.users "user1,user2,user3"
+        agdt-check-users-exist
     """
-    _require_jira_value("users", 'dfly-set jira.users "user1,user2,user3"')
+    _require_jira_value("users", 'agdt-set jira.users "user1,user2,user3"')
 
     task = run_function_in_background(
         _ROLE_MODULE,
         "check_users_exist",
-        command_display_name="dfly-check-users-exist",
+        command_display_name="agdt-check-users-exist",
     )
     print_task_tracking_info(task, "Checking if users exist")

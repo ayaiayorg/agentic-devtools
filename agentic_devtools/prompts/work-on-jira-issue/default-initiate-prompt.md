@@ -7,8 +7,8 @@ You are working on Jira issue **{{jira_issue_key}}**.
 1. Retrieve the full issue details:
 
    ```bash
-   dfly-set jira.issue_key {{jira_issue_key}}
-   dfly-get-jira-issue
+   agdt-set jira.issue_key {{jira_issue_key}}
+   agdt-get-jira-issue
    ```
 
 2. Review the issue details for:
@@ -24,8 +24,8 @@ You are working on Jira issue **{{jira_issue_key}}**.
 3. Post your implementation plan to Jira:
 
    ```bash
-   dfly-set jira.comment "h4. Implementation Plan\n\n*Scope:*\n* <goal>\n\n*Tasks:*\n* 1) <task 1>\n* 2) <task 2>"
-   dfly-add-jira-comment
+   agdt-set jira.comment "h4. Implementation Plan\n\n*Scope:*\n* <goal>\n\n*Tasks:*\n* 1) <task 1>\n* 2) <task 2>"
+   agdt-add-jira-comment
    ```
 
 ## Implementation Phase
@@ -45,14 +45,14 @@ You are working on Jira issue **{{jira_issue_key}}**.
 1. Commit your changes:
 
    ```bash
-   dfly-set commit_message "feature([{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})): <summary>\n\n- <change 1>\n- <change 2>\n\n[{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})"
-   dfly-git-commit
+   agdt-set commit_message "feature([{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})): <summary>\n\n- <change 1>\n- <change 2>\n\n[{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})"
+   agdt-git-commit
    ```
 
 2. Create a pull request:
 
    ```bash
-   dfly-create-pull-request
+   agdt-create-pull-request
    ```
 
 3. Post completion comment to Jira

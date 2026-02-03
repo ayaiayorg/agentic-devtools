@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from dfly_ai_helpers import state
-from dfly_ai_helpers.cli import jira
+from agdt_ai_helpers import state
+from agdt_ai_helpers.cli import jira
 
 
 @pytest.fixture

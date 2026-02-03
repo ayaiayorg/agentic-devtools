@@ -725,9 +725,9 @@ def mark_file_reviewed_cli() -> None:
         - dry_run: If true, only print what would be done
 
     Usage:
-        dfly-set pull_request_id 23580
-        dfly-set file_review.file_path "/path/to/file.ts"
-        dfly-mark-file-reviewed
+        agdt-set pull_request_id 23580
+        agdt-set file_review.file_path "/path/to/file.ts"
+        agdt-mark-file-reviewed
     """
     from ...state import get_pull_request_id, get_value, is_dry_run
     from .helpers import get_repository_id
@@ -739,7 +739,7 @@ def mark_file_reviewed_cli() -> None:
     file_path = get_value("file_review.file_path")
     if not file_path:
         print("Error: 'file_review.file_path' is required.", file=sys.stderr)
-        print("Set it with: dfly-set file_review.file_path <path>", file=sys.stderr)
+        print("Set it with: agdt-set file_review.file_path <path>", file=sys.stderr)
         sys.exit(1)
 
     repo_id = get_repository_id(config.organization, config.project, config.repository)

@@ -31,24 +31,24 @@ For the current file:
 
 ## Review Commands
 
-Choose one action (all parameters inline, no dfly-set required):
+Choose one action (all parameters inline, no agdt-set required):
 
 ### ✅ Approve (no issues found)
 
 ```bash
-dfly-approve-file --file-path "{{current_file}}" --content "Looks good. Code follows conventions and no issues found."
+agdt-approve-file --file-path "{{current_file}}" --content "Looks good. Code follows conventions and no issues found."
 ```
 
 ### ⚠️ Request Changes (issues found)
 
 ```bash
-dfly-request-changes --file-path "{{current_file}}" --line <LINE_NUMBER> --content "Issue description and required fix"
+agdt-request-changes --file-path "{{current_file}}" --line <LINE_NUMBER> --content "Issue description and required fix"
 ```
 
 ### 💡 Request Changes with Code Suggestion
 
 ```bash
-dfly-request-changes-with-suggestion --file-path "{{current_file}}" --line <LINE_NUMBER> --content "\`\`\`suggestion
+agdt-request-changes-with-suggestion --file-path "{{current_file}}" --line <LINE_NUMBER> --content "\`\`\`suggestion
 // Your suggested replacement code
 \`\`\`"
 ```
@@ -56,7 +56,7 @@ dfly-request-changes-with-suggestion --file-path "{{current_file}}" --line <LINE
 ## After Submitting
 
 {% if pending_count <= 1 %}
-Run `dfly-task-wait` to:
+Run `agdt-task-wait` to:
 
 - Wait for the review to post
 - Complete the file review workflow and proceed to summary

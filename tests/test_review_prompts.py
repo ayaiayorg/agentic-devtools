@@ -8,7 +8,7 @@ class TestGetPromptsOutputDir:
 
     def test_returns_path_to_temp_pr_review_prompts(self):
         """Test that the function returns the correct path."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             get_prompts_output_dir,
         )
 
@@ -22,7 +22,7 @@ class TestBuildFilePromptContent:
 
     def test_builds_basic_prompt(self):
         """Test building a basic prompt without threads."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
@@ -42,7 +42,7 @@ class TestBuildFilePromptContent:
 
     def test_includes_jira_issue_key_when_provided(self):
         """Test that Jira issue key is included when provided."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
@@ -61,7 +61,7 @@ class TestBuildFilePromptContent:
 
     def test_includes_existing_threads(self):
         """Test that existing threads are included."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
@@ -93,7 +93,7 @@ class TestBuildFilePromptContent:
 
     def test_handles_empty_file_content(self):
         """Test that empty file content is handled."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
@@ -110,7 +110,7 @@ class TestBuildFilePromptContent:
 
     def test_uses_current_timestamp_when_not_provided(self):
         """Test that a timestamp is generated when not provided."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
@@ -130,7 +130,7 @@ class TestWriteFilePrompt:
 
     def test_writes_prompt_file(self, tmp_path):
         """Test that prompt file is written correctly."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import write_file_prompt
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import write_file_prompt
 
         result = write_file_prompt(
             file_path="/src/components/Button.tsx",
@@ -152,7 +152,7 @@ class TestGenerateReviewPrompts:
 
     def test_generates_prompts_for_all_changes(self, tmp_path):
         """Test generating prompts for all changes."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -184,7 +184,7 @@ class TestGenerateReviewPrompts:
 
     def test_skips_already_reviewed_files(self, tmp_path):
         """Test that already reviewed files are skipped."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -209,7 +209,7 @@ class TestGenerateReviewPrompts:
 
     def test_skips_files_without_path(self, tmp_path):
         """Test that files without path are skipped."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -225,7 +225,7 @@ class TestGenerateReviewPrompts:
 
     def test_handles_empty_changes(self, tmp_path):
         """Test handling empty changes list."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -241,7 +241,7 @@ class TestGenerateReviewPrompts:
 
     def test_verbose_mode_prints_progress(self, tmp_path, capsys):
         """Test that verbose mode prints progress."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -268,7 +268,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_summary(self, tmp_path, capsys):
         """Test that summary is printed."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             print_review_instructions,
         )
 
@@ -290,7 +290,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_all_reviewed_message(self, tmp_path, capsys):
         """Test that message is printed when all files already reviewed."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             print_review_instructions,
         )
 
@@ -309,7 +309,7 @@ class TestNormalizeRepoPath:
 
     def test_returns_none_for_empty_path(self):
         """Test that empty paths return None."""
-        from dfly_ai_helpers.cli.azure_devops.review_helpers import normalize_repo_path
+        from agdt_ai_helpers.cli.azure_devops.review_helpers import normalize_repo_path
 
         assert normalize_repo_path("") is None
         assert normalize_repo_path("   ") is None
@@ -322,7 +322,7 @@ class TestGenerateReviewPromptsEdgeCases:
 
     def test_cleans_existing_prompt_files(self, tmp_path):
         """Test that existing prompt files are cleaned before generating new ones."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
@@ -360,7 +360,7 @@ class TestGenerateReviewPromptsEdgeCases:
 
     def test_verbose_mode_prints_skip_message(self, tmp_path, capsys):
         """Test that verbose mode prints skip message for reviewed files."""
-        from dfly_ai_helpers.cli.azure_devops.review_prompts import (
+        from agdt_ai_helpers.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 

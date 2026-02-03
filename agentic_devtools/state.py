@@ -1,7 +1,7 @@
 """
 State management using a single JSON file.
 
-All AI helper state is stored in a single JSON file (dfly-state.json),
+All AI helper state is stored in a single JSON file (agdt-state.json),
 making it easy to inspect, debug, and manage state across commands.
 
 Key design decisions:
@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from .file_locking import FileLockError, locked_state_file
 
-STATE_FILENAME = "dfly-state.json"
+STATE_FILENAME = "agdt-state.json"
 
 # Default lock timeout in seconds
 DEFAULT_LOCK_TIMEOUT = 5.0
@@ -60,14 +60,16 @@ def get_state_dir() -> Path:
     2. DFLY_AI_HELPERS_STATE_DIR environment variable (legacy)
     3. scripts/temp relative to git repo/worktree root (auto-detected via git)
     4. scripts/temp found by walking up from cwd (fallback if not in git repo)
-    5. Current working directory / .dfly-temp (final fallback)
+    5. Current working directory / .agdt-temp (final fallback)
 
     The function uses `git rev-parse --show-toplevel` to reliably find the
     repo/worktree root, which works correctly even in deep subdirectories
     and in git worktrees.
     """
     # Check environment variable first
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get(
+        "DFLY_AI_HELPERS_STATE_DIR"
+    )
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
@@ -98,8 +100,8 @@ def get_state_dir() -> Path:
             temp_dir.mkdir(exist_ok=True)
             return temp_dir
 
-    # Final fallback to .dfly-temp in cwd
-    fallback = cwd / ".dfly-temp"
+    # Final fallback to .agdt-temp in cwd
+    fallback = cwd / ".agdt-temp"
     fallback.mkdir(exist_ok=True)
     return fallback
 
@@ -109,7 +111,9 @@ def get_state_file_path() -> Path:
     return get_state_dir() / STATE_FILENAME
 
 
-def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, Any]:
+def load_state(
+    use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT
+) -> Dict[str, Any]:
     """
     Load the current state from the JSON file.
 
@@ -141,7 +145,11 @@ def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIM
         return json.loads(content) if content.strip() else {}
 
 
-def save_state(state: Dict[str, Any], use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
+def save_state(
+    state: Dict[str, Any],
+    use_locking: bool = False,
+    lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
+) -> Path:
     """
     Save the state dictionary to the JSON file.
 
@@ -188,7 +196,9 @@ def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, A
     return load_state(use_locking=True, lock_timeout=lock_timeout)
 
 
-def save_state_locked(state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
+def save_state_locked(
+    state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT
+) -> Path:
     """
     Save state with file locking enabled.
 
@@ -448,7 +458,7 @@ def clear_temp_folder(preserve_keys: Optional[Dict[str, Any]] = None) -> None:
     Clear the entire temp folder, removing all state and temporary files.
 
     This removes:
-    - dfly-state.json (the state file)
+    - agdt-state.json (the state file)
     - pull-request-review/ (PR review queue and prompts)
     - background-tasks/ (background task state)
     - All temp-*.json and temp-*.md files
@@ -538,6 +548,54 @@ def set_dry_run(enabled: bool) -> None:
     set_value("dry_run", enabled)
 
 
+def get_pypi_package_name(required: bool = False) -> Optional[str]:
+    """Get the PyPI package name from state."""
+    value = get_value("pypi.package_name", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_package_name(package_name: str) -> None:
+    """Set the PyPI package name in state."""
+    set_value("pypi.package_name", package_name)
+
+
+def get_pypi_version(required: bool = False) -> Optional[str]:
+    """Get the PyPI version from state."""
+    value = get_value("pypi.version", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_version(version: str) -> None:
+    """Set the PyPI version in state."""
+    set_value("pypi.version", version)
+
+
+def get_pypi_repository(required: bool = False) -> Optional[str]:
+    """Get the PyPI repository from state (pypi/testpypi)."""
+    value = get_value("pypi.repository", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_repository(repository: str) -> None:
+    """Set the PyPI repository in state (pypi/testpypi)."""
+    set_value("pypi.repository", repository)
+
+
+def get_pypi_dry_run() -> bool:
+    """Check if the PyPI dry-run mode is enabled."""
+    value = get_value("pypi.dry_run")
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in ("1", "true", "yes")
+
+
+def set_pypi_dry_run(enabled: bool) -> None:
+    """Set the PyPI dry-run mode."""
+    set_value("pypi.dry_run", enabled)
+
+
 def should_resolve_thread() -> bool:
     """Check if thread should be resolved after reply."""
     value = get_value("resolve_thread")
@@ -613,7 +671,9 @@ def set_workflow_state(
             existing_context = existing.get("context", {})
             merged = {**existing_context, **context}
             # Remove keys explicitly set to None (allows clearing nested values)
-            workflow_data["context"] = {k: v for k, v in merged.items() if v is not None}
+            workflow_data["context"] = {
+                k: v for k, v in merged.items() if v is not None
+            }
         else:
             workflow_data["context"] = context
     elif existing and existing.get("active") == name:

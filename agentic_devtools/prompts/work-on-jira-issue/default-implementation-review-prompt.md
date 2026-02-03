@@ -39,20 +39,20 @@ Before advancing to verification, confirm:
 If everything looks good, advance to verification:
 
 ```bash
-dfly-advance-workflow verification
+agdt-advance-workflow verification
 ```
 
 If you find issues to fix:
 
 1. Make the necessary corrections
-2. Update checklist if needed: `dfly-update-checklist --add "Fix discovered issue"`
-3. Commit the fixes: `dfly-git-commit --completed "new_item_id"`
+2. Update checklist if needed: `agdt-update-checklist --add "Fix discovered issue"`
+3. Commit the fixes: `agdt-git-commit --completed "new_item_id"`
 4. This review will re-trigger when complete
 
 If you need to revert a checklist item to incomplete:
 
 ```bash
-dfly-update-checklist --revert "1,2"
+agdt-update-checklist --revert "1,2"
 ```
 
 ---

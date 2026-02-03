@@ -4,7 +4,7 @@ Tests for git diff helper module.
 
 from unittest.mock import MagicMock, patch
 
-from dfly_ai_helpers.cli.git.diff import (
+from agdt_ai_helpers.cli.git.diff import (
     AddedLine,
     AddedLinesInfo,
     DiffEntry,
@@ -104,7 +104,7 @@ class TestSyncGitRef:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = sync_git_ref("main")
             assert result is True
 
@@ -116,7 +116,7 @@ class TestSyncGitRef:
         mock_success = MagicMock()
         mock_success.returncode = 0
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", side_effect=[mock_fail, mock_success]) as mock_run:
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", side_effect=[mock_fail, mock_success]) as mock_run:
             result = sync_git_ref("feature-branch")
 
             assert result is True
@@ -132,7 +132,7 @@ class TestSyncGitRef:
         mock_success = MagicMock()
         mock_success.returncode = 0
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", side_effect=[mock_fail, mock_success]) as mock_run:
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", side_effect=[mock_fail, mock_success]) as mock_run:
             result = sync_git_ref("origin/main")
 
             assert result is True
@@ -146,7 +146,7 @@ class TestSyncGitRef:
         mock_fail = MagicMock()
         mock_fail.returncode = 1
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_fail):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_fail):
             result = sync_git_ref("nonexistent-branch")
             assert result is False
 
@@ -160,7 +160,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 1
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
             assert result == []
 
@@ -170,7 +170,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
             assert result == []
 
@@ -180,7 +180,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "M\tsrc/main.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 1
@@ -194,7 +194,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "A\tnew_file.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 1
@@ -207,7 +207,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "D\told_file.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 1
@@ -220,7 +220,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "R100\told_name.py\tnew_name.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 1
@@ -234,7 +234,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "M\tfile1.py\nA\tfile2.py\nD\tfile3.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 3
@@ -248,7 +248,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "M\tfile1.py\n\nA\tfile2.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 2
@@ -259,7 +259,7 @@ class TestGetDiffEntries:
         mock_result.returncode = 0
         mock_result.stdout = "M\tfile1.py\nmalformed line\nA\tfile2.py"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_entries("main", "feature")
 
             assert len(result) == 2
@@ -274,7 +274,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 1
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "file.py")
 
             assert result.lines == []
@@ -286,7 +286,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "file.py")
 
             assert result.lines == []
@@ -298,7 +298,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = "Binary files a/image.png and b/image.png differ"
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "image.png")
 
             assert result.lines == []
@@ -319,7 +319,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = diff_output
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "file.py")
 
             assert len(result.lines) == 1
@@ -341,7 +341,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = diff_output
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "file.py")
 
             assert len(result.lines) == 2
@@ -359,7 +359,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = diff_output
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "file.py")
 
             assert len(result.lines) == 0
@@ -370,7 +370,7 @@ class TestGetAddedLinesInfo:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result) as mock_run:
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result) as mock_run:
             get_added_lines_info("main", "feature", "src/file.py")
 
             # Verify the path argument uses :/ prefix for repo-root-relative
@@ -387,7 +387,7 @@ class TestGetDiffPatch:
         mock_result.returncode = 1
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_patch("main", "feature", "file.py")
             assert result is None
 
@@ -397,7 +397,7 @@ class TestGetDiffPatch:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_patch("main", "feature", "file.py")
             assert result is None
 
@@ -416,7 +416,7 @@ class TestGetDiffPatch:
         mock_result.returncode = 0
         mock_result.stdout = patch_content
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result):
             result = get_diff_patch("main", "feature", "file.py")
 
             assert result is not None
@@ -429,7 +429,7 @@ class TestGetDiffPatch:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("dfly_ai_helpers.cli.git.diff.run_safe", return_value=mock_result) as mock_run:
+        with patch("agdt_ai_helpers.cli.git.diff.run_safe", return_value=mock_result) as mock_run:
             get_diff_patch("main", "feature", "src/file.py")
 
             # Verify the path argument uses :/ prefix for repo-root-relative

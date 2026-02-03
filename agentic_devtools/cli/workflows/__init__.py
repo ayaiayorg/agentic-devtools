@@ -34,7 +34,7 @@ def advance_workflow_cmd() -> None:
     """
     CLI entry point for advancing a workflow to the next step.
 
-    Usage: dfly-advance-workflow [step]
+    Usage: agdt-advance-workflow [step]
 
     If step is not provided, advances to the next step automatically.
     """

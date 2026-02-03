@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers.cli import jira
-from dfly_ai_helpers.cli.jira import async_status
-from dfly_ai_helpers.cli.jira.async_commands import (
+from agdt_ai_helpers.cli import jira
+from agdt_ai_helpers.cli.jira import async_status
+from agdt_ai_helpers.cli.jira.async_commands import (
     add_comment_async,
     add_users_to_project_role_async,
     add_users_to_project_role_batch_async,
@@ -37,11 +37,11 @@ def temp_state_dir(tmp_path):
 def mock_background_and_state(tmp_path):
     """Mock both background task infrastructure and Jira state."""
     # Need to patch get_state_dir in both modules since task_state imports it directly
-    with patch("dfly_ai_helpers.state.get_state_dir", return_value=tmp_path):
-        with patch("dfly_ai_helpers.task_state.get_state_dir", return_value=tmp_path):
+    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+        with patch("agdt_ai_helpers.task_state.get_state_dir", return_value=tmp_path):
             # Patch subprocess.Popen only in the background_tasks module, not globally
             # This prevents interference with subprocess.run usage in state.py
-            with patch("dfly_ai_helpers.background_tasks.subprocess.Popen") as mock_popen:
+            with patch("agdt_ai_helpers.background_tasks.subprocess.Popen") as mock_popen:
                 mock_process = MagicMock()
                 mock_process.pid = 12345
                 mock_popen.return_value = mock_process
@@ -120,14 +120,14 @@ class TestAddCommentAsync:
 
     def test_requires_issue_key(self, mock_background_and_state):
         """Test add_comment_async requires issue_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 add_comment_async()
 
     def test_requires_comment(self, mock_background_and_state):
         """Test add_comment_async requires comment."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: "DFLY-123" if k == "issue_key" else None,
         ):
             with pytest.raises(SystemExit):
@@ -136,7 +136,7 @@ class TestAddCommentAsync:
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test add_comment_async spawns a background task calling the correct function."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"issue_key": "DFLY-123", "comment": "Test comment"}.get(k),
         ):
             add_comment_async()
@@ -154,14 +154,14 @@ class TestCreateEpicAsync:
 
     def test_requires_project_key(self, mock_background_and_state):
         """Test create_epic_async requires project_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 create_epic_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test create_epic_async spawns a background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "summary": "Epic", "epic_name": "Name"}.get(k),
         ):
             create_epic_async()
@@ -175,14 +175,14 @@ class TestCreateIssueAsync:
 
     def test_requires_project_key(self, mock_background_and_state):
         """Test create_issue_async requires project_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 create_issue_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test create_issue_async spawns a background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "summary": "Issue"}.get(k),
         ):
             create_issue_async()
@@ -196,14 +196,14 @@ class TestCreateSubtaskAsync:
 
     def test_requires_parent_key(self, mock_background_and_state):
         """Test create_subtask_async requires parent_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 create_subtask_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test create_subtask_async spawns a background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"parent_key": "DFLY-123", "summary": "Subtask"}.get(k),
         ):
             create_subtask_async()
@@ -218,13 +218,13 @@ class TestGetIssueAsync:
 
     def test_requires_issue_key(self, mock_background_and_state):
         """Test get_issue_async requires issue_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 get_issue_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test get_issue_async spawns a background task."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY-456"):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY-456"):
             get_issue_async()
 
         captured = capsys.readouterr()
@@ -237,13 +237,13 @@ class TestUpdateIssueAsync:
 
     def test_requires_issue_key(self, mock_background_and_state):
         """Test update_issue_async requires issue_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 update_issue_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test update_issue_async spawns a background task."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY-789"):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY-789"):
             update_issue_async()
 
         captured = capsys.readouterr()
@@ -256,13 +256,13 @@ class TestRoleCommandsAsync:
 
     def test_list_project_roles_requires_project_key(self, mock_background_and_state):
         """Test list_project_roles_async requires project_key."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 list_project_roles_async()
 
     def test_list_project_roles_spawns_task(self, mock_background_and_state, capsys):
         """Test list_project_roles_async spawns background task."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY"):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY"):
             list_project_roles_async()
 
         captured = capsys.readouterr()
@@ -270,14 +270,14 @@ class TestRoleCommandsAsync:
 
     def test_get_project_role_details_requires_keys(self, mock_background_and_state):
         """Test get_project_role_details_async requires both keys."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 get_project_role_details_async()
 
     def test_add_users_to_role_spawns_task(self, mock_background_and_state, capsys):
         """Test add_users_to_project_role_async spawns background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "role_id": "10002", "users": "user1"}.get(k),
         ):
             add_users_to_project_role_async()
@@ -288,7 +288,7 @@ class TestRoleCommandsAsync:
     def test_add_users_batch_spawns_task(self, mock_background_and_state, capsys):
         """Test add_users_to_project_role_batch_async spawns background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "role_id": "10002", "users": "u1,u2"}.get(k),
         ):
             add_users_to_project_role_batch_async()
@@ -299,7 +299,7 @@ class TestRoleCommandsAsync:
     def test_find_role_id_spawns_task(self, mock_background_and_state, capsys):
         """Test find_role_id_by_name_async spawns background task."""
         with patch(
-            "dfly_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "role_name": "Developers"}.get(k),
         ):
             find_role_id_by_name_async()
@@ -309,7 +309,7 @@ class TestRoleCommandsAsync:
 
     def test_check_user_exists_spawns_task(self, mock_background_and_state, capsys):
         """Test check_user_exists_async spawns background task."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="testuser"):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="testuser"):
             check_user_exists_async()
 
         captured = capsys.readouterr()
@@ -317,7 +317,7 @@ class TestRoleCommandsAsync:
 
     def test_check_users_exist_spawns_task(self, mock_background_and_state, capsys):
         """Test check_users_exist_async spawns background task."""
-        with patch("dfly_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="u1,u2,u3"):
+        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="u1,u2,u3"):
             check_users_exist_async()
 
         captured = capsys.readouterr()

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dfly_ai_helpers.prompts import loader
+from agdt_ai_helpers.prompts import loader
 
 
 @pytest.fixture

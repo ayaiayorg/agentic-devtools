@@ -19,7 +19,7 @@ class TestConstants:
 
     def test_default_repository(self):
         """Test default repository."""
-        assert azure_devops.DEFAULT_REPOSITORY == "dfly-platform-management"
+        assert azure_devops.DEFAULT_REPOSITORY == "agdt-platform-management"
 
     def test_approval_sentinel(self):
         """Test approval sentinel constant."""

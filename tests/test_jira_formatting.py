@@ -4,7 +4,7 @@ Tests for Jira formatting utilities.
 
 from unittest.mock import patch
 
-from dfly_ai_helpers.cli import jira
+from agdt_ai_helpers.cli import jira
 
 
 class TestFormatBulletList:

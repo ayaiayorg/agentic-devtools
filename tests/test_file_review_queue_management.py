@@ -120,7 +120,7 @@ class TestMarkFileAsSubmissionPending:
 
     def test_handles_invalid_json(self, temp_queue_dir):
         """Should return False for invalid JSON."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             mark_file_as_submission_pending,
         )
 
@@ -129,7 +129,7 @@ class TestMarkFileAsSubmissionPending:
             f.write("not valid json")
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             result = mark_file_as_submission_pending(
@@ -143,7 +143,7 @@ class TestMarkFileAsSubmissionPending:
 
     def test_cleans_up_failure_fields(self, temp_queue_dir):
         """Should remove failure fields when marking as submission-pending."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             mark_file_as_submission_pending,
         )
 
@@ -164,7 +164,7 @@ class TestMarkFileAsSubmissionPending:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             result = mark_file_as_submission_pending(
@@ -189,12 +189,12 @@ class TestUpdateSubmissionToCompleted:
 
     def test_moves_file_to_completed(self, temp_queue_dir, queue_file):
         """Should move file from pending to completed."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             update_submission_to_completed,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             result = update_submission_to_completed(
@@ -221,14 +221,14 @@ class TestUpdateSubmissionToCompleted:
 
     def test_returns_false_when_queue_not_found(self, tmp_path):
         """Should return False when queue file doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             update_submission_to_completed,
         )
 
         non_existent = tmp_path / "nonexistent" / "queue.json"
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=non_existent,
         ):
             result = update_submission_to_completed(
@@ -240,12 +240,12 @@ class TestUpdateSubmissionToCompleted:
 
     def test_returns_false_for_file_not_in_queue(self, temp_queue_dir, queue_file):
         """Should return False when file is not found."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             update_submission_to_completed,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             result = update_submission_to_completed(
@@ -261,12 +261,12 @@ class TestUpdateSubmissionToFailed:
 
     def test_marks_file_as_failed(self, temp_queue_dir, queue_file):
         """Should update file status to failed with error message."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             update_submission_to_failed,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             result = update_submission_to_failed(
@@ -287,14 +287,14 @@ class TestUpdateSubmissionToFailed:
 
     def test_returns_false_when_queue_not_found(self, tmp_path):
         """Should return False when queue file doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             update_submission_to_failed,
         )
 
         non_existent = tmp_path / "nonexistent" / "queue.json"
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=non_existent,
         ):
             result = update_submission_to_failed(
@@ -311,7 +311,7 @@ class TestGetFailedSubmissions:
 
     def test_returns_failed_entries(self, temp_queue_dir):
         """Should return list of failed entries."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_failed_submissions,
         )
 
@@ -329,7 +329,7 @@ class TestGetFailedSubmissions:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             result = get_failed_submissions(pull_request_id=12345)
@@ -341,12 +341,12 @@ class TestGetFailedSubmissions:
 
     def test_returns_empty_for_no_failures(self, temp_queue_dir, queue_file):
         """Should return empty list when no failures."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_failed_submissions,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             result = get_failed_submissions(pull_request_id=12345)
@@ -355,14 +355,14 @@ class TestGetFailedSubmissions:
 
     def test_returns_empty_when_queue_not_found(self, tmp_path):
         """Should return empty list when queue doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_failed_submissions,
         )
 
         non_existent = tmp_path / "nonexistent" / "queue.json"
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=non_existent,
         ):
             result = get_failed_submissions(pull_request_id=12345)
@@ -375,7 +375,7 @@ class TestResetFailedSubmission:
 
     def test_resets_failed_to_pending(self, temp_queue_dir):
         """Should reset failed entry back to pending status."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             reset_failed_submission,
         )
 
@@ -399,7 +399,7 @@ class TestResetFailedSubmission:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             result = reset_failed_submission(
@@ -422,12 +422,12 @@ class TestResetFailedSubmission:
 
     def test_does_not_reset_non_failed_entry(self, temp_queue_dir, queue_file):
         """Should not reset entries that aren't failed."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             reset_failed_submission,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             result = reset_failed_submission(
@@ -444,7 +444,7 @@ class TestGetQueueStatus:
 
     def test_returns_correct_counts(self, temp_queue_dir):
         """Should return accurate queue status counts."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_queue_status,
         )
 
@@ -465,7 +465,7 @@ class TestGetQueueStatus:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             status = get_queue_status(pull_request_id=12345)
@@ -480,7 +480,7 @@ class TestGetQueueStatus:
 
     def test_all_complete_when_no_pending(self, temp_queue_dir):
         """Should mark all_complete when no pending files remain."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_queue_status,
         )
 
@@ -496,7 +496,7 @@ class TestGetQueueStatus:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             status = get_queue_status(pull_request_id=12345)
@@ -506,14 +506,14 @@ class TestGetQueueStatus:
 
     def test_returns_empty_status_for_missing_queue(self, tmp_path):
         """Should return empty status when queue doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             get_queue_status,
         )
 
         non_existent = tmp_path / "nonexistent" / "queue.json"
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=non_existent,
         ):
             status = get_queue_status(pull_request_id=12345)
@@ -528,10 +528,10 @@ class TestSyncSubmissionPendingWithTasks:
 
     def test_marks_completed_when_task_completed(self, temp_queue_dir):
         """Should move entry to completed when task is completed."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             sync_submission_pending_with_tasks,
         )
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.task_state import TaskStatus
 
         queue_data = {
             "pending": [
@@ -552,11 +552,11 @@ class TestSyncSubmissionPendingWithTasks:
         mock_task.status = TaskStatus.COMPLETED
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             with patch(
-                "dfly_ai_helpers.task_state.get_task_by_id",
+                "agdt_ai_helpers.task_state.get_task_by_id",
                 return_value=mock_task,
             ):
                 sync_submission_pending_with_tasks(pull_request_id=12345)
@@ -571,10 +571,10 @@ class TestSyncSubmissionPendingWithTasks:
 
     def test_marks_failed_when_task_failed(self, temp_queue_dir):
         """Should mark entry as failed when task failed."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             sync_submission_pending_with_tasks,
         )
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.task_state import TaskStatus
 
         queue_data = {
             "pending": [
@@ -597,11 +597,11 @@ class TestSyncSubmissionPendingWithTasks:
         mock_task.exit_code = 1
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             with patch(
-                "dfly_ai_helpers.task_state.get_task_by_id",
+                "agdt_ai_helpers.task_state.get_task_by_id",
                 return_value=mock_task,
             ):
                 sync_submission_pending_with_tasks(pull_request_id=12345)
@@ -616,7 +616,7 @@ class TestSyncSubmissionPendingWithTasks:
 
     def test_marks_failed_when_task_not_found(self, temp_queue_dir):
         """Should mark entry as failed when task is not found."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             sync_submission_pending_with_tasks,
         )
 
@@ -636,11 +636,11 @@ class TestSyncSubmissionPendingWithTasks:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             with patch(
-                "dfly_ai_helpers.task_state.get_task_by_id",
+                "agdt_ai_helpers.task_state.get_task_by_id",
                 return_value=None,
             ):
                 sync_submission_pending_with_tasks(pull_request_id=12345)
@@ -654,10 +654,10 @@ class TestSyncSubmissionPendingWithTasks:
 
     def test_does_nothing_for_running_task(self, temp_queue_dir):
         """Should leave entry unchanged when task is still running."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             sync_submission_pending_with_tasks,
         )
-        from dfly_ai_helpers.task_state import TaskStatus
+        from agdt_ai_helpers.task_state import TaskStatus
 
         queue_data = {
             "pending": [
@@ -678,11 +678,11 @@ class TestSyncSubmissionPendingWithTasks:
         mock_task.status = TaskStatus.RUNNING
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             with patch(
-                "dfly_ai_helpers.task_state.get_task_by_id",
+                "agdt_ai_helpers.task_state.get_task_by_id",
                 return_value=mock_task,
             ):
                 sync_submission_pending_with_tasks(pull_request_id=12345)
@@ -699,12 +699,12 @@ class TestUpdateQueueAfterReview:
 
     def test_moves_file_from_pending_to_completed(self, temp_queue_dir, queue_file):
         """Should move reviewed file to completed."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             _update_queue_after_review,
         )
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             pending, completed = _update_queue_after_review(
@@ -729,7 +729,7 @@ class TestUpdateQueueAfterReview:
 
     def test_dry_run_does_not_modify_file(self, temp_queue_dir, queue_file):
         """Should not modify queue in dry run mode."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             _update_queue_after_review,
         )
 
@@ -738,7 +738,7 @@ class TestUpdateQueueAfterReview:
             original_data = json.load(f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
             pending, completed = _update_queue_after_review(
@@ -760,14 +760,14 @@ class TestUpdateQueueAfterReview:
 
     def test_returns_zero_for_missing_queue(self, tmp_path):
         """Should return zeros when queue doesn't exist."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             _update_queue_after_review,
         )
 
         non_existent = tmp_path / "nonexistent" / "queue.json"
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=non_existent,
         ):
             pending, completed = _update_queue_after_review(
@@ -786,7 +786,7 @@ class TestTriggerWorkflowContinuation:
 
     def test_prints_continuation_for_pending_files(self, capsys):
         """Should print continuation message when files remain."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             _trigger_workflow_continuation,
         )
 
@@ -802,7 +802,7 @@ class TestTriggerWorkflowContinuation:
 
     def test_prints_completion_message_when_all_reviewed(self, capsys):
         """Should print completion message when all files reviewed (no summary generation)."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             _trigger_workflow_continuation,
         )
 
@@ -824,7 +824,7 @@ class TestPrintNextFilePrompt:
 
     def test_shows_failed_submissions_first(self, temp_queue_dir, capsys):
         """Should show failed submissions before next file."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             print_next_file_prompt,
         )
 
@@ -841,7 +841,7 @@ class TestPrintNextFilePrompt:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             print_next_file_prompt(pull_request_id=12345)
@@ -853,7 +853,7 @@ class TestPrintNextFilePrompt:
 
     def test_shows_all_complete_message(self, temp_queue_dir, capsys):
         """Should show completion message when all files done."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             print_next_file_prompt,
         )
 
@@ -869,7 +869,7 @@ class TestPrintNextFilePrompt:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             print_next_file_prompt(pull_request_id=12345)
@@ -879,7 +879,7 @@ class TestPrintNextFilePrompt:
 
     def test_shows_next_file_when_pending(self, temp_queue_dir, capsys):
         """Should show queue status when files remain."""
-        from dfly_ai_helpers.cli.azure_devops.file_review_commands import (
+        from agdt_ai_helpers.cli.azure_devops.file_review_commands import (
             print_next_file_prompt,
         )
 
@@ -895,11 +895,11 @@ class TestPrintNextFilePrompt:
             json.dump(queue_data, f)
 
         with patch(
-            "dfly_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
+            "agdt_ai_helpers.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_path,
         ):
             with patch(
-                "dfly_ai_helpers.task_state.get_task_by_id",
+                "agdt_ai_helpers.task_state.get_task_by_id",
                 return_value=None,
             ):
                 print_next_file_prompt(pull_request_id=12345)

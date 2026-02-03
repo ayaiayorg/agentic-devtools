@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dfly_ai_helpers.cli.subprocess_utils import run_safe
+from agdt_ai_helpers.cli.subprocess_utils import run_safe
 
 
 class TestRunSafe:
@@ -56,7 +56,7 @@ class TestRunSafe:
         assert hasattr(result, "stdout")
         assert hasattr(result, "stderr")
 
-    @patch("dfly_ai_helpers.cli.subprocess_utils.subprocess.run")
+    @patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run")
     def test_run_safe_handles_keyboard_interrupt(self, mock_run):
         """Test run_safe handles KeyboardInterrupt gracefully."""
         mock_run.side_effect = KeyboardInterrupt()
@@ -67,7 +67,7 @@ class TestRunSafe:
         assert result.stdout == ""
         assert "Interrupted" in result.stderr
 
-    @patch("dfly_ai_helpers.cli.subprocess_utils.subprocess.run")
+    @patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run")
     def test_run_safe_handles_unicode_decode_error(self, mock_run):
         """Test run_safe handles UnicodeDecodeError gracefully."""
         mock_run.side_effect = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid byte")

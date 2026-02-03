@@ -16,7 +16,7 @@ You have completed the review of Pull Request **#{{pull_request_id}}**.
 If linked to a Jira issue, post a summary comment:
 
 ```bash
-dfly-set jira.comment "h4. PR Review Complete
+agdt-set jira.comment "h4. PR Review Complete
 
 *PR:* #{{pull_request_id}}
 *Decision:* {{decision}}
@@ -27,7 +27,7 @@ dfly-set jira.comment "h4. PR Review Complete
 
 *Next Steps:*
 * <what the author should do>"
-dfly-add-jira-comment
+agdt-add-jira-comment
 ```
 
 ## Workflow Complete
@@ -37,7 +37,7 @@ The pull request review workflow is now complete.
 To clear the workflow state:
 
 ```bash
-dfly-clear-workflow
+agdt-clear-workflow
 ```
 
 ---

@@ -79,7 +79,7 @@ def require_content() -> str:
     content = get_value("content")
     if not content:
         print(
-            'Error: No content found. Use: dfly-set content "your message"',
+            'Error: No content found. Use: agdt-set content "your message"',
             file=sys.stderr,
         )
         sys.exit(1)
@@ -98,12 +98,12 @@ def reply_to_pull_request_thread() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-set thread_id 139474
-        dfly-set content "Thanks for the feedback!
+        agdt-set pull_request_id 23046
+        agdt-set thread_id 139474
+        agdt-set content "Thanks for the feedback!
 
         I've made the changes you suggested."
-        dfly-reply-to-pull-request-thread
+        agdt-reply-to-pull-request-thread
     """
     requests = require_requests()
 
@@ -175,18 +175,18 @@ def add_pull_request_comment() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-set content "Great work on this PR!"
-        dfly-add-pull-request-comment
+        agdt-set pull_request_id 23046
+        agdt-set content "Great work on this PR!"
+        agdt-add-pull-request-comment
 
         # For file-level comment
-        dfly-set path "src/main.py"
-        dfly-set line 42
-        dfly-add-pull-request-comment
+        agdt-set path "src/main.py"
+        agdt-set line 42
+        agdt-add-pull-request-comment
 
         # For approval comment
-        dfly-set is_pull_request_approval true
-        dfly-add-pull-request-comment
+        agdt-set is_pull_request_approval true
+        agdt-add-pull-request-comment
     """
     requests = require_requests()
 
@@ -318,23 +318,23 @@ def create_pull_request() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set source_branch "feature/DFLY-1234/my-feature"
-        dfly-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
-        dfly-set description "This PR adds the new feature"
-        dfly-create-pull-request
+        agdt-set source_branch "feature/DFLY-1234/my-feature"
+        agdt-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
+        agdt-set description "This PR adds the new feature"
+        agdt-create-pull-request
     """
     # Get required values from state
     source_branch = get_value("source_branch")
     if not source_branch:
         print(
-            'Error: No source_branch found. Use: dfly-set source_branch "branch-name"',
+            'Error: No source_branch found. Use: agdt-set source_branch "branch-name"',
             file=sys.stderr,
         )
         sys.exit(1)
 
     title = get_value("title")
     if not title:
-        print('Error: No title found. Use: dfly-set title "PR title"', file=sys.stderr)
+        print('Error: No title found. Use: agdt-set title "PR title"', file=sys.stderr)
         sys.exit(1)
 
     # Strip Markdown links from title
@@ -450,9 +450,9 @@ def resolve_thread() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-set thread_id 139474
-        dfly-resolve-thread
+        agdt-set pull_request_id 23046
+        agdt-set thread_id 139474
+        agdt-resolve-thread
     """
     requests = require_requests()
 
@@ -492,8 +492,8 @@ def get_pull_request_threads() -> None:
     - Comments with author and content
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-get-pull-request-threads
+        agdt-set pull_request_id 23046
+        agdt-get-pull-request-threads
     """
     requests = require_requests()
 
@@ -548,9 +548,9 @@ def approve_pull_request() -> None:
         --- APPROVED ---
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-set content "LGTM! All acceptance criteria met."
-        dfly-approve-pull-request
+        agdt-set pull_request_id 23046
+        agdt-set content "LGTM! All acceptance criteria met."
+        agdt-approve-pull-request
     """
     # Set approval mode and delegate to add_pull_request_comment
     set_value("is_pull_request_approval", True)
@@ -566,8 +566,8 @@ def mark_pull_request_draft() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-mark-pull-request-draft
+        agdt-set pull_request_id 23046
+        agdt-mark-pull-request-draft
     """
     pull_request_id = get_pull_request_id(required=True)
     dry_run = is_dry_run()
@@ -631,12 +631,12 @@ def publish_pull_request() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        dfly-set pull_request_id 23046
-        dfly-publish-pull-request
+        agdt-set pull_request_id 23046
+        agdt-publish-pull-request
 
         # To skip auto-complete:
-        dfly-set skip_auto_complete true
-        dfly-publish-pull-request
+        agdt-set skip_auto_complete true
+        agdt-publish-pull-request
     """
     pull_request_id = get_pull_request_id(required=True)
     dry_run = is_dry_run()

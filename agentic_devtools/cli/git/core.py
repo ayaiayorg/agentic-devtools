@@ -119,7 +119,7 @@ def get_commit_message() -> str:
 
     if not message:
         print(
-            f'Error: No commit message set. Use: dfly-set {STATE_COMMIT_MESSAGE} "Your message"',
+            f'Error: No commit message set. Use: agdt-set {STATE_COMMIT_MESSAGE} "Your message"',
             file=sys.stderr,
         )
         sys.exit(1)

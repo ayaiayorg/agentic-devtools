@@ -25,7 +25,10 @@ Key principles for agentic-devtools:
 - Auto-approval friendly command design
 - Single source of truth (state file)
 - Background task architecture
-- Test-driven development
+- Test-driven development and coverage standards
+- Code quality and maintainability
+- User experience consistency
+- Performance and responsiveness
 - Python best practices
 
 ### 2. Create a Feature Specification
@@ -207,9 +210,9 @@ SDD specifications define what state keys are needed:
 Implementation uses standard state pattern:
 
 ```bash
-dfly-set export.format csv
-dfly-set export.output_file issues.csv
-dfly-export-jira-issues
+agdt-set export.format csv
+agdt-set export.output_file issues.csv
+agdt-export-jira-issues
 ```
 
 ### Background Tasks

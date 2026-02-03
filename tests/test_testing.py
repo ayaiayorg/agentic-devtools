@@ -250,7 +250,7 @@ class TestRunTestsPattern:
 
     def test_exits_with_error_when_no_pattern_provided(self):
         """Should exit with error code when no pattern provided."""
-        with patch.object(sys, "argv", ["dfly-test-pattern"]):
+        with patch.object(sys, "argv", ["agdt-test-pattern"]):
             with pytest.raises(SystemExit) as exc_info:
                 testing.run_tests_pattern()
             assert exc_info.value.code == 1
@@ -261,7 +261,7 @@ class TestRunTestsPattern:
         mock_result.returncode = 0
 
         with patch.object(testing, "get_package_root", return_value=tmp_path):
-            with patch.object(sys, "argv", ["dfly-test-pattern", "tests/test_example.py", "-v"]):
+            with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_example.py", "-v"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result) as mock_run:
                     with pytest.raises(SystemExit) as exc_info:
                         testing.run_tests_pattern()
@@ -277,7 +277,7 @@ class TestRunTestsPattern:
         mock_result.returncode = 5  # pytest failure exit code
 
         with patch.object(testing, "get_package_root", return_value=tmp_path):
-            with patch.object(sys, "argv", ["dfly-test-pattern", "tests/test_fail.py"]):
+            with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_fail.py"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result):
                     with pytest.raises(SystemExit) as exc_info:
                         testing.run_tests_pattern()
@@ -300,7 +300,7 @@ class TestAsyncWrappers:
         """Mock run_function_in_background to prevent actual subprocess spawning."""
         mock_task = MagicMock()
         mock_task.id = "test-task-id"
-        mock_task.command = "dfly-test"
+        mock_task.command = "agdt-test"
         with patch.object(testing, "run_function_in_background", return_value=mock_task) as mock_bg:
             with patch.object(testing, "print_task_tracking_info"):
                 yield mock_bg
@@ -310,14 +310,14 @@ class TestAsyncWrappers:
         testing.run_tests()
         mock_background.assert_called_once()
         call_kwargs = mock_background.call_args
-        assert call_kwargs[1]["command_display_name"] == "dfly-test"
+        assert call_kwargs[1]["command_display_name"] == "agdt-test"
 
     def test_run_tests_quick_spawns_background_task(self, mock_background):
         """run_tests_quick should spawn a background task."""
         testing.run_tests_quick()
         mock_background.assert_called_once()
         call_kwargs = mock_background.call_args
-        assert call_kwargs[1]["command_display_name"] == "dfly-test-quick"
+        assert call_kwargs[1]["command_display_name"] == "agdt-test-quick"
 
     def test_run_tests_file_spawns_background_task_with_source_file_param(self, mock_background):
         """run_tests_file should spawn a background task when --source-file is provided."""
@@ -325,7 +325,7 @@ class TestAsyncWrappers:
             testing.run_tests_file(_argv=["--source-file", "agentic_devtools/state.py"])
         mock_background.assert_called_once()
         call_kwargs = mock_background.call_args
-        assert call_kwargs[1]["command_display_name"] == "dfly-test-file"
+        assert call_kwargs[1]["command_display_name"] == "agdt-test-file"
 
     def test_run_tests_file_spawns_background_task_from_state(self, mock_background):
         """run_tests_file should spawn a background task when source_file is in state."""
@@ -333,7 +333,7 @@ class TestAsyncWrappers:
             testing.run_tests_file(_argv=[])
         mock_background.assert_called_once()
         call_kwargs = mock_background.call_args
-        assert call_kwargs[1]["command_display_name"] == "dfly-test-file"
+        assert call_kwargs[1]["command_display_name"] == "agdt-test-file"
 
     def test_run_tests_file_prints_error_when_no_source_file(self, mock_background, capsys):
         """run_tests_file should print error when source_file is not provided."""

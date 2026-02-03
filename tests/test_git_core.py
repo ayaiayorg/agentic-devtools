@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dfly_ai_helpers import state
-from dfly_ai_helpers.cli.git import core
+from agdt_ai_helpers import state
+from agdt_ai_helpers.cli.git import core
 
 # =============================================================================
 # Fixtures

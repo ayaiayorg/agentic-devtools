@@ -16,15 +16,15 @@ Before creating the issue, ensure you have:
 1. Set the required state:
 
    ```bash
-   dfly-set jira.project_key {{jira_project_key}}
-   dfly-set jira.summary "<issue summary>"
-   dfly-set jira.description "<detailed description>"
+   agdt-set jira.project_key {{jira_project_key}}
+   agdt-set jira.summary "<issue summary>"
+   agdt-set jira.description "<detailed description>"
    ```
 
 2. Create the issue:
 
    ```bash
-   dfly-create-issue
+   agdt-create-issue
    ```
 
 ---

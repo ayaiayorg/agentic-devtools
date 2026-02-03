@@ -60,13 +60,13 @@ def check_user_exists() -> None:
     - jira.username: The username to check
 
     Example usage:
-        dfly-set jira.username "amarsnik"
-        dfly-check-user-exists
+        agdt-set jira.username "amarsnik"
+        agdt-check-user-exists
     """
     username = get_jira_value("username")
 
     if not username:
-        print("Error: username not set. Use: dfly-set jira.username <USERNAME>")
+        print("Error: username not set. Use: agdt-set jira.username <USERNAME>")
         return
 
     base_url = get_jira_base_url()
@@ -97,13 +97,13 @@ def check_users_exist() -> None:
     Users that don't exist are saved to temp/nonexistent-users-<timestamp>.json
 
     Example usage:
-        dfly-set jira.users "user1,user2,user3.EXT"
-        dfly-check-users-exist
+        agdt-set jira.users "user1,user2,user3.EXT"
+        agdt-check-users-exist
     """
     users_raw = get_jira_value("users")
 
     if not users_raw:
-        print("Error: users not set. Use: dfly-set jira.users 'user1,user2,user3'")
+        print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
         return
 
     users = _parse_comma_separated(users_raw)
@@ -165,8 +165,8 @@ def check_users_exist() -> None:
         usernames = [u["username"] for u in existing_users]
         print(f"  {','.join(usernames)}")
         print("\nTo add these users to a role, run:")
-        print(f'  dfly-set jira.users "{",".join(usernames)}"')
-        print("  dfly-add-users-to-project-role")
+        print(f'  agdt-set jira.users "{",".join(usernames)}"')
+        print("  agdt-add-users-to-project-role")
 
 
 @with_jira_vpn_context
@@ -178,7 +178,7 @@ def list_project_roles() -> None:
     """
     project_id_or_key = get_jira_value("project_id_or_key")
     if not project_id_or_key:
-        print("Error: project_id_or_key not set. Use: dfly-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
+        print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
 
     base_url = get_jira_base_url()
@@ -209,7 +209,7 @@ def list_project_roles() -> None:
         print(f"{role_name:<40} {role_id:<15}")
 
     print(f"\nTotal: {len(roles_data)} roles")
-    print("\nTo see role details, use: dfly-get-project-role-details")
+    print("\nTo see role details, use: agdt-get-project-role-details")
 
 
 @with_jira_vpn_context
@@ -224,10 +224,10 @@ def get_project_role_details() -> None:
     role_id = get_jira_value("role_id")
 
     if not project_id_or_key:
-        print("Error: project_id_or_key not set. Use: dfly-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
+        print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
     if not role_id:
-        print("Error: role_id not set. Use: dfly-set jira.role_id <ROLE_ID>")
+        print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
 
@@ -288,10 +288,10 @@ def add_users_to_project_role() -> None:
     - jira.users: Comma-separated list of usernames to add
 
     Example usage:
-        dfly-set jira.project_id_or_key 21703
-        dfly-set jira.role_id 10500
-        dfly-set jira.users "user1,user2,user3.EXT"
-        dfly-add-users-to-project-role
+        agdt-set jira.project_id_or_key 21703
+        agdt-set jira.role_id 10500
+        agdt-set jira.users "user1,user2,user3.EXT"
+        agdt-add-users-to-project-role
 
     API: POST /rest/api/2/project/{projectIdOrKey}/role/{id}
     Body: {"user": ["username1", "username2"]}
@@ -301,14 +301,14 @@ def add_users_to_project_role() -> None:
     users_raw = get_jira_value("users")
 
     if not project_id_or_key:
-        print("Error: project_id_or_key not set. Use: dfly-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
+        print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
     if not role_id:
-        print("Error: role_id not set. Use: dfly-set jira.role_id <ROLE_ID>")
+        print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
     if not users_raw:
-        print("Error: users not set. Use: dfly-set jira.users 'user1,user2,user3'")
+        print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
         return
 
     users = _parse_comma_separated(users_raw)
@@ -365,10 +365,10 @@ def add_users_to_project_role_batch() -> None:
     - jira.users: Comma-separated list of usernames to add
 
     Example usage:
-        dfly-set jira.project_id_or_key DH
-        dfly-set jira.role_id 10100
-        dfly-set jira.users "user1,user2,user3.EXT,nonexistent_user"
-        dfly-add-users-to-project-role-batch
+        agdt-set jira.project_id_or_key DH
+        agdt-set jira.role_id 10100
+        agdt-set jira.users "user1,user2,user3.EXT,nonexistent_user"
+        agdt-add-users-to-project-role-batch
 
     Output files (in scripts/temp/):
     - nonexistent-users-<timestamp>.json: Users that don't exist in Jira
@@ -378,14 +378,14 @@ def add_users_to_project_role_batch() -> None:
     users_raw = get_jira_value("users")
 
     if not project_id_or_key:
-        print("Error: project_id_or_key not set. Use: dfly-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
+        print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
     if not role_id:
-        print("Error: role_id not set. Use: dfly-set jira.role_id <ROLE_ID>")
+        print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
     if not users_raw:
-        print("Error: users not set. Use: dfly-set jira.users 'user1,user2,user3'")
+        print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
         return
 
     users = _parse_comma_separated(users_raw)
@@ -511,10 +511,10 @@ def find_role_id_by_name() -> None:
     role_name = get_jira_value("role_name")
 
     if not project_id_or_key:
-        print("Error: project_id_or_key not set. Use: dfly-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
+        print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
     if not role_name:
-        print("Error: role_name not set. Use: dfly-set jira.role_name 'Projektmitarbeiter'")
+        print("Error: role_name not set. Use: agdt-set jira.role_name 'Projektmitarbeiter'")
         return
 
     base_url = get_jira_base_url()
@@ -552,7 +552,7 @@ def find_role_id_by_name() -> None:
         name, role_id = matches[0]
         print(f"\nFound role: {name}")
         print(f"Role ID: {role_id}")
-        print(f"\nTo use this role, run: dfly-set jira.role_id {role_id}")
+        print(f"\nTo use this role, run: agdt-set jira.role_id {role_id}")
     else:
         print(f"\nMultiple roles match '{role_name}':")
         for name, role_id in matches:
