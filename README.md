@@ -427,6 +427,14 @@ Line 3"
 
 The repository includes a GitHub Action that automatically triggers the SpecKit specification process when a `speckit` label is added to an issue.
 
+### Visual Documentation
+
+For a comprehensive visual representation of the complete workflow, see the [SpecKit Workflow Sequence Diagram](specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md). The diagram shows:
+- All 8 workflow phases from initiation to completion
+- Interactions between actors (User, GitHub, SpecKit Action, AI Provider, Repository)
+- Decision points and error handling
+- Integration with the Spec-Driven Development (SDD) pattern
+
 ### How It Works
 
 1. Create a GitHub issue describing your feature
