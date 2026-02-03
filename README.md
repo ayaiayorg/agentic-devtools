@@ -128,6 +128,9 @@ If commands are not found after installation:
 2. **JSON state file**: Single `agdt-state.json` file stores all parameters
 3. **Generic set/get pattern**: One `agdt-set` command works for all keys (approve once, use for everything)
 4. **Native special character support**: Python CLI handles `()[]{}` and multiline content directly!
+5. **Test-driven development**: Tests first with strict coverage expectations
+6. **UX consistency**: Predictable command patterns and actionable output
+7. **Performance responsiveness**: Long-running operations use background tasks
 
 ## Quick Start
 
@@ -333,6 +336,34 @@ agdt-advance-workflow
 
 # Clear workflow
 agdt-clear-workflow
+```
+
+## PyPI Release Commands
+
+Verwende die `pypi.*` Namespace-Keys für Release-Parameter. Setze deine PyPI Tokens via Umgebungsvariablen:
+
+- `TWINE_USERNAME=__token__`
+- `TWINE_PASSWORD=<pypi-token>`
+
+### PyPI Release starten
+
+```bash
+# Parameter setzen
+agdt-set pypi.package_name agentic-devtools
+agdt-set pypi.version 0.1.0
+agdt-set pypi.repository pypi  # oder testpypi
+agdt-set pypi.dry_run false
+
+# Release starten (parameterlos)
+agdt-release-pypi
+```
+
+### Status prüfen
+
+```bash
+agdt-task-status
+agdt-task-log
+agdt-task-wait
 ```
 
 ## Jira Commands

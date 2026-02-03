@@ -67,7 +67,9 @@ def get_state_dir() -> Path:
     and in git worktrees.
     """
     # Check environment variable first
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get(
+        "DFLY_AI_HELPERS_STATE_DIR"
+    )
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
@@ -109,7 +111,9 @@ def get_state_file_path() -> Path:
     return get_state_dir() / STATE_FILENAME
 
 
-def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, Any]:
+def load_state(
+    use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT
+) -> Dict[str, Any]:
     """
     Load the current state from the JSON file.
 
@@ -141,7 +145,11 @@ def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIM
         return json.loads(content) if content.strip() else {}
 
 
-def save_state(state: Dict[str, Any], use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
+def save_state(
+    state: Dict[str, Any],
+    use_locking: bool = False,
+    lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
+) -> Path:
     """
     Save the state dictionary to the JSON file.
 
@@ -188,7 +196,9 @@ def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, A
     return load_state(use_locking=True, lock_timeout=lock_timeout)
 
 
-def save_state_locked(state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
+def save_state_locked(
+    state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT
+) -> Path:
     """
     Save state with file locking enabled.
 
@@ -538,6 +548,54 @@ def set_dry_run(enabled: bool) -> None:
     set_value("dry_run", enabled)
 
 
+def get_pypi_package_name(required: bool = False) -> Optional[str]:
+    """Get the PyPI package name from state."""
+    value = get_value("pypi.package_name", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_package_name(package_name: str) -> None:
+    """Set the PyPI package name in state."""
+    set_value("pypi.package_name", package_name)
+
+
+def get_pypi_version(required: bool = False) -> Optional[str]:
+    """Get the PyPI version from state."""
+    value = get_value("pypi.version", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_version(version: str) -> None:
+    """Set the PyPI version in state."""
+    set_value("pypi.version", version)
+
+
+def get_pypi_repository(required: bool = False) -> Optional[str]:
+    """Get the PyPI repository from state (pypi/testpypi)."""
+    value = get_value("pypi.repository", required=required)
+    return str(value) if value is not None else None
+
+
+def set_pypi_repository(repository: str) -> None:
+    """Set the PyPI repository in state (pypi/testpypi)."""
+    set_value("pypi.repository", repository)
+
+
+def get_pypi_dry_run() -> bool:
+    """Check if the PyPI dry-run mode is enabled."""
+    value = get_value("pypi.dry_run")
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in ("1", "true", "yes")
+
+
+def set_pypi_dry_run(enabled: bool) -> None:
+    """Set the PyPI dry-run mode."""
+    set_value("pypi.dry_run", enabled)
+
+
 def should_resolve_thread() -> bool:
     """Check if thread should be resolved after reply."""
     value = get_value("resolve_thread")
@@ -613,7 +671,9 @@ def set_workflow_state(
             existing_context = existing.get("context", {})
             merged = {**existing_context, **context}
             # Remove keys explicitly set to None (allows clearing nested values)
-            workflow_data["context"] = {k: v for k, v in merged.items() if v is not None}
+            workflow_data["context"] = {
+                k: v for k, v in merged.items() if v is not None
+            }
         else:
             workflow_data["context"] = context
     elif existing and existing.get("active") == name:

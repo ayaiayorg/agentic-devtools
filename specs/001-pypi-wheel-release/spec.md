@@ -1,10 +1,17 @@
 # Feature Specification: PyPI Wheel Release
-### Measurable Outcomes
 
-- **SC-001**: Mindestens 95 % der Veröffentlichungsläufe schließen erfolgreich ab (Wheel erstellt, Tests bestanden, Veröffentlichung erfolgt) innerhalb von 10 Minuten.
-- **SC-002**: 100 % der Veröffentlichungsläufe mit fehlgeschlagenen Tests führen zu keiner Veröffentlichung.
-- **SC-003**: 100 % der erfolgreichen Veröffentlichungen sind spätestens 5 Minuten nach Abschluss auf pypi.org sichtbar.
-- **SC-004**: In mindestens 90 % der Fälle ist der Release-Status für Stakeholder ohne zusätzliche Nachforschung eindeutig nachvollziehbar.
+**Feature Branch**: `001-pypi-wheel-release`  
+**Created**: 2026-02-03  
+**Status**: Draft  
+**Input**: User description: "I wanna be able to build this python project to a wheel file, that can be deployed to pypi.org, this should include a test before it finally ships"
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - Rad für PyPI veröffentlichen (Priority: P1)
+
+Als Release-Verantwortliche möchte ich ein Wheel-Artefakt aus dem aktuellen Projektstand erzeugen und auf pypi.org veröffentlichen, damit Nutzer die Veröffentlichung sofort installieren können.
+
+**Why this priority**: Das ist der Kernnutzen der Funktion und die Grundlage für jede Veröffentlichung.
 
 **Independent Test**: Kann vollständig getestet werden, indem eine Veröffentlichung gestartet wird und das neue Paket anschließend auf pypi.org sichtbar ist.
 
@@ -81,14 +88,9 @@ Akzeptanzkriterien für die Anforderungen sind in den User Stories und den Edge 
 
 ## Success Criteria *(mandatory)*
 
-<!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
--->
-
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: Mindestens 95 % der Veröffentlichungsläufe schließen erfolgreich ab (Wheel erstellt, Tests bestanden, Veröffentlichung erfolgt) innerhalb von 10 Minuten.
+- **SC-002**: 100 % der Veröffentlichungsläufe mit fehlgeschlagenen Tests führen zu keiner Veröffentlichung.
+- **SC-003**: 100 % der erfolgreichen Veröffentlichungen sind spätestens 5 Minuten nach Abschluss auf pypi.org sichtbar.
+- **SC-004**: In mindestens 90 % der Fälle ist der Release-Status für Stakeholder ohne zusätzliche Nachforschung eindeutig nachvollziehbar.

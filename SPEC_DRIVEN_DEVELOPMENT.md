@@ -25,7 +25,10 @@ Key principles for agentic-devtools:
 - Auto-approval friendly command design
 - Single source of truth (state file)
 - Background task architecture
-- Test-driven development
+- Test-driven development and coverage standards
+- Code quality and maintainability
+- User experience consistency
+- Performance and responsiveness
 - Python best practices
 
 ### 2. Create a Feature Specification

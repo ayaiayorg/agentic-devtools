@@ -192,11 +192,15 @@ def show_cmd():
 
 
 def get_workflow_cmd():
-    create_dispatcher("agdt-get-workflow", "agentic_devtools.cli.state", "get_workflow_cmd")()
+    create_dispatcher(
+        "agdt-get-workflow", "agentic_devtools.cli.state", "get_workflow_cmd"
+    )()
 
 
 def clear_workflow_cmd():
-    create_dispatcher("agdt-clear-workflow", "agentic_devtools.cli.state", "clear_workflow_cmd")()
+    create_dispatcher(
+        "agdt-clear-workflow", "agentic_devtools.cli.state", "clear_workflow_cmd"
+    )()
 
 
 # Azure DevOps
@@ -394,31 +398,47 @@ def generate_pr_summary_async():
 
 # Jira
 def create_epic_async():
-    create_dispatcher("agdt-create-epic", "agentic_devtools.cli.jira", "create_epic_async")()
+    create_dispatcher(
+        "agdt-create-epic", "agentic_devtools.cli.jira", "create_epic_async"
+    )()
 
 
 def create_issue_async():
-    create_dispatcher("agdt-create-issue", "agentic_devtools.cli.jira", "create_issue_async")()
+    create_dispatcher(
+        "agdt-create-issue", "agentic_devtools.cli.jira", "create_issue_async"
+    )()
 
 
 def create_subtask_async():
-    create_dispatcher("agdt-create-subtask", "agentic_devtools.cli.jira", "create_subtask_async")()
+    create_dispatcher(
+        "agdt-create-subtask", "agentic_devtools.cli.jira", "create_subtask_async"
+    )()
 
 
 def add_comment_async_cli():
-    create_dispatcher("agdt-add-jira-comment", "agentic_devtools.cli.jira", "add_comment_async_cli")()
+    create_dispatcher(
+        "agdt-add-jira-comment", "agentic_devtools.cli.jira", "add_comment_async_cli"
+    )()
 
 
 def get_issue_async():
-    create_dispatcher("agdt-get-jira-issue", "agentic_devtools.cli.jira", "get_issue_async")()
+    create_dispatcher(
+        "agdt-get-jira-issue", "agentic_devtools.cli.jira", "get_issue_async"
+    )()
 
 
 def update_issue_async():
-    create_dispatcher("agdt-update-jira-issue", "agentic_devtools.cli.jira", "update_issue_async")()
+    create_dispatcher(
+        "agdt-update-jira-issue", "agentic_devtools.cli.jira", "update_issue_async"
+    )()
 
 
 def list_project_roles_async():
-    create_dispatcher("agdt-list-project-roles", "agentic_devtools.cli.jira", "list_project_roles_async")()
+    create_dispatcher(
+        "agdt-list-project-roles",
+        "agentic_devtools.cli.jira",
+        "list_project_roles_async",
+    )()
 
 
 def get_project_role_details_async():
@@ -454,11 +474,15 @@ def find_role_id_by_name_async():
 
 
 def check_user_exists_async():
-    create_dispatcher("agdt-check-user-exists", "agentic_devtools.cli.jira", "check_user_exists_async")()
+    create_dispatcher(
+        "agdt-check-user-exists", "agentic_devtools.cli.jira", "check_user_exists_async"
+    )()
 
 
 def check_users_exist_async():
-    create_dispatcher("agdt-check-users-exist", "agentic_devtools.cli.jira", "check_users_exist_async")()
+    create_dispatcher(
+        "agdt-check-users-exist", "agentic_devtools.cli.jira", "check_users_exist_async"
+    )()
 
 
 def parse_jira_error_report():
@@ -471,7 +495,9 @@ def parse_jira_error_report():
 
 # Git
 def commit_async():
-    create_dispatcher("agdt-git-save-work", "agentic_devtools.cli.git", "commit_async")()
+    create_dispatcher(
+        "agdt-git-save-work", "agentic_devtools.cli.git", "commit_async"
+    )()
 
 
 def sync_async():
@@ -487,7 +513,9 @@ def push_async():
 
 
 def force_push_async():
-    create_dispatcher("agdt-git-force-push", "agentic_devtools.cli.git", "force_push_async")()
+    create_dispatcher(
+        "agdt-git-force-push", "agentic_devtools.cli.git", "force_push_async"
+    )()
 
 
 def publish_async():
@@ -500,15 +528,21 @@ def run_tests():
 
 
 def run_tests_quick():
-    create_dispatcher("agdt-test-quick", "agentic_devtools.cli.testing", "run_tests_quick")()
+    create_dispatcher(
+        "agdt-test-quick", "agentic_devtools.cli.testing", "run_tests_quick"
+    )()
 
 
 def run_tests_file():
-    create_dispatcher("agdt-test-file", "agentic_devtools.cli.testing", "run_tests_file")()
+    create_dispatcher(
+        "agdt-test-file", "agentic_devtools.cli.testing", "run_tests_file"
+    )()
 
 
 def run_tests_pattern():
-    create_dispatcher("agdt-test-pattern", "agentic_devtools.cli.testing", "run_tests_pattern")()
+    create_dispatcher(
+        "agdt-test-pattern", "agentic_devtools.cli.testing", "run_tests_pattern"
+    )()
 
 
 # Tasks
@@ -606,7 +640,11 @@ def setup_worktree_background_cmd():
 
 
 def advance_workflow_cmd():
-    create_dispatcher("agdt-advance-workflow", "agentic_devtools.cli.workflows", "advance_workflow_cmd")()
+    create_dispatcher(
+        "agdt-advance-workflow",
+        "agentic_devtools.cli.workflows",
+        "advance_workflow_cmd",
+    )()
 
 
 def get_next_workflow_prompt_cmd():
@@ -618,25 +656,49 @@ def get_next_workflow_prompt_cmd():
 
 
 def create_checklist_cmd():
-    create_dispatcher("agdt-create-checklist", "agentic_devtools.cli.workflows", "create_checklist_cmd")()
+    create_dispatcher(
+        "agdt-create-checklist",
+        "agentic_devtools.cli.workflows",
+        "create_checklist_cmd",
+    )()
 
 
 def update_checklist_cmd():
-    create_dispatcher("agdt-update-checklist", "agentic_devtools.cli.workflows", "update_checklist_cmd")()
+    create_dispatcher(
+        "agdt-update-checklist",
+        "agentic_devtools.cli.workflows",
+        "update_checklist_cmd",
+    )()
 
 
 def show_checklist_cmd():
-    create_dispatcher("agdt-show-checklist", "agentic_devtools.cli.workflows", "show_checklist_cmd")()
+    create_dispatcher(
+        "agdt-show-checklist", "agentic_devtools.cli.workflows", "show_checklist_cmd"
+    )()
 
 
 # VPN toggle commands (all run in background)
 def vpn_on_cmd():
-    create_dispatcher("agdt-vpn-on", "agentic_devtools.cli.azure_devops.vpn_toggle", "vpn_on_async")()
+    create_dispatcher(
+        "agdt-vpn-on", "agentic_devtools.cli.azure_devops.vpn_toggle", "vpn_on_async"
+    )()
 
 
 def vpn_off_cmd():
-    create_dispatcher("agdt-vpn-off", "agentic_devtools.cli.azure_devops.vpn_toggle", "vpn_off_async")()
+    create_dispatcher(
+        "agdt-vpn-off", "agentic_devtools.cli.azure_devops.vpn_toggle", "vpn_off_async"
+    )()
 
 
 def vpn_status_cmd():
-    create_dispatcher("agdt-vpn-status", "agentic_devtools.cli.azure_devops.vpn_toggle", "vpn_status_async")()
+    create_dispatcher(
+        "agdt-vpn-status",
+        "agentic_devtools.cli.azure_devops.vpn_toggle",
+        "vpn_status_async",
+    )()
+
+
+def release_pypi_async():
+    create_dispatcher(
+        "agdt-release-pypi", "agentic_devtools.cli.release", "release_pypi_async"
+    )()

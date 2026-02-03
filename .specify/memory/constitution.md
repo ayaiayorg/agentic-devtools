@@ -1,3 +1,24 @@
+<!--
+Sync Impact Report
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles:
+   - IV. Test-Driven Development (Non-Negotiable) -> IV. Test-Driven Development & Coverage
+   - V. Python Package Best Practices -> VIII. Python Package Best Practices (renumbered)
+- Added sections:
+   - V. Code Quality & Maintainability
+   - VI. User Experience Consistency
+   - VII. Performance & Responsiveness
+- Removed sections: None
+- Templates requiring updates:
+   - .specify/templates/spec-template.md ✅ updated
+   - .specify/templates/tasks-template.md ✅ updated
+   - .specify/templates/commands/tasks.md ✅ updated
+   - .specify/templates/commands/implement.md ✅ updated
+   - README.md ✅ updated
+   - SPEC_DRIVEN_DEVELOPMENT.md ✅ updated
+- Follow-up TODOs: None
+-->
+
 # agentic-devtools Constitution
 
 ## Core Principles
@@ -32,18 +53,49 @@ All action commands that mutate state or perform API calls must run as backgroun
 
 **Rationale**: Enables reliable execution of long-running operations in AI-driven workflows.
 
-### IV. Test-Driven Development (Non-Negotiable)
+### IV. Test-Driven Development & Coverage
 
 All features must follow TDD practices:
 - Tests written before implementation
-- Minimum 95% code coverage for new code
-- Integration tests for all CLI commands
+- Minimum 95% code coverage for new or changed code
+- Unit tests for new logic and integration tests for all CLI commands
 - Use `agdt-test` commands (never run pytest directly)
 - Background task execution for test runs
+- Any exception to coverage requires explicit justification in the PR
 
 **Rationale**: Ensures reliability and maintainability of automation tools.
 
-### V. Python Package Best Practices
+### V. Code Quality & Maintainability
+
+All changes must meet explicit quality and maintainability standards:
+- Public APIs MUST include type hints and docstrings
+- Linting and formatting MUST pass without warnings
+- Changes MUST avoid dead code and unused configuration
+- Error handling MUST be explicit and actionable (no silent failures)
+
+**Rationale**: Ensures reliable automation and long-term maintainability.
+
+### VI. User Experience Consistency
+
+CLI user experience must be consistent and predictable:
+- Command naming, flags, and state keys MUST follow existing patterns
+- Output MUST be structured, concise, and include next-step guidance
+- Error messages MUST explain cause and resolution steps
+- Breaking changes to CLI UX require a major version bump and migration notes
+
+**Rationale**: Enables AI and human users to operate the CLI confidently.
+
+### VII. Performance & Responsiveness
+
+Performance requirements must be explicit and enforced:
+- Any synchronous CLI command MUST complete within 2 seconds on typical inputs
+- Operations expected to exceed 2 seconds MUST use background tasks
+- Network calls MUST set timeouts and include retry logic where safe
+- Performance expectations MUST be documented in specs and validated in tests
+
+**Rationale**: Prevents workflow stalls and supports reliable automation.
+
+### VIII. Python Package Best Practices
 
 Follow standard Python packaging conventions:
 - Clear module organization under `agentic_devtools/`
@@ -73,6 +125,7 @@ Follow standard Python packaging conventions:
 - Use `agdt-test-file --source-file <file>` for focused coverage (100% required)
 - Use `agdt-test-pattern` for specific test selection
 - All tests run as background tasks with proper log capture
+- Performance expectations documented and verified for new commands
 
 ### Documentation Requirements
 
@@ -89,6 +142,7 @@ Follow standard Python packaging conventions:
 - Code coverage ≥ 95% for changed files
 - No linting errors
 - Type checking passes
+- UX output and error handling conform to established patterns
 
 ### Pre-Release
 
@@ -96,6 +150,7 @@ Follow standard Python packaging conventions:
 - Documentation updated
 - CHANGELOG.md updated
 - Version bumped appropriately
+- Performance expectations validated for new or modified commands
 
 ## Technical Constraints
 
@@ -137,4 +192,4 @@ Constitution changes require:
 - Code reviews must reference relevant principles
 - Non-compliance requires explicit justification and approval
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-02-02
+**Version**: 1.1.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-02-03

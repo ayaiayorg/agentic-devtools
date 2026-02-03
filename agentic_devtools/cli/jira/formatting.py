@@ -6,7 +6,9 @@ import os
 from typing import List, Optional
 
 
-def format_bullet_list(items: Optional[List[str]], placeholder: Optional[str] = None) -> str:
+def format_bullet_list(
+    items: Optional[List[str]], placeholder: Optional[str] = None
+) -> str:
     """
     Format items as a Jira bullet list.
 
@@ -105,7 +107,7 @@ def merge_labels(
         Merged, deduplicated list of labels
     """
     result = ["createdWithDflyAiHelpers"]
-    seen = {"createdwithagdtaihelpers"}  # lowercase for case-insensitive deduplication
+    seen = {"createdwithdflyaihelpers"}  # lowercase for case-insensitive deduplication
 
     if custom_labels:
         for label in custom_labels:

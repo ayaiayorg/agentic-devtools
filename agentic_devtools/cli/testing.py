@@ -163,6 +163,10 @@ def _infer_test_file_from_source(source_file: str) -> str | None:
     if not filename.endswith(".py"):
         return None
 
+    # Special-case common modules without matching test file name
+    if filename == "commands.py" and "cli/release" in source_file.replace("\\", "/"):
+        return "test_release_commands.py"
+
     # Strip .py and add test_ prefix
     base_name = filename[:-3]  # Remove ".py"
     return f"test_{base_name}.py"
@@ -428,7 +432,9 @@ def run_tests_pattern() -> None:
     args.extend(pattern_args)
 
     print(f"Running: pytest {' '.join(pattern_args)}")
-    print("(Note: This runs synchronously. For background execution, use dfly-test-file)")
+    print(
+        "(Note: This runs synchronously. For background execution, use dfly-test-file)"
+    )
     print()
 
     # Run synchronously - output goes directly to terminal
