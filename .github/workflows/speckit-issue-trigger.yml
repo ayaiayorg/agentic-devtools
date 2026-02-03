@@ -2,17 +2,13 @@ name: SpecKit Issue Trigger
 
 on:
   issues:
-    types: [assigned]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
         description: 'Issue number to process (for manual testing)'
         required: true
         type: number
-      assignee:
-        description: 'Simulated assignee username'
-        required: true
-        type: string
 
 # Prevent concurrent runs on the same issue
 concurrency:
@@ -21,15 +17,18 @@ concurrency:
 
 env:
   SPEC_BASE_PATH: specs
+  # The label that triggers the SDD process (configurable via repository variable)
+  TRIGGER_LABEL: ${{ vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
 
 jobs:
   validate-and-trigger:
-    name: Validate Assignee and Trigger SpecKit
+    name: Validate Label and Trigger SpecKit
     runs-on: ubuntu-latest
-    # Only run if assignee matches configured list
+    # Only run if the added label matches the trigger label, or manual dispatch
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(fromJSON(vars.SPECKIT_ASSIGNEES || '["speckit-agent"]'), github.event.assignee.login)
+      github.event.label.name == vars.SPECKIT_TRIGGER_LABEL ||
+      github.event.label.name == 'speckit'
 
     permissions:
       contents: write
@@ -46,8 +45,9 @@ jobs:
       - name: Debug Event
         run: |
           echo "Event: ${{ github.event_name }}"
-          echo "Assignee: ${{ github.event.assignee.login || inputs.assignee }}"
+          echo "Label: ${{ github.event.label.name || 'manual' }}"
           echo "Issue Number: ${{ github.event.issue.number || inputs.issue_number }}"
+          echo "Trigger Label: ${{ env.TRIGGER_LABEL }}"
 
       # Step 1: Post acknowledgment comment immediately (< 30 seconds target)
       - name: Post Started Comment
@@ -57,24 +57,36 @@ jobs:
         with:
           script: |
             const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
-            const assignee = context.payload.assignee?.login || '${{ inputs.assignee }}';
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `## 🚀 SpecKit: Specification Creation Started
-
-            I'm creating a feature specification based on this issue.
-
-            **Status**: In Progress
-            **Triggered by**: Assignment to @${assignee}
-
-            ---
-            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              body: [
+                '## 🚀 SpecKit: Specification Creation Started',
+                '',
+                "I'm creating a feature specification based on this issue.",
+                '',
+                '**Status**: In Progress',
+                `**Triggered by**: \`${{ env.TRIGGER_LABEL }}\` label`,
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
             });
 
-            // Add processing label
+            // Replace trigger label with processing label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: '${{ env.TRIGGER_LABEL }}'
+              });
+            } catch (e) {
+              console.log('Could not remove trigger label:', e.message);
+            }
+
             try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
@@ -83,7 +95,7 @@ jobs:
                 labels: ['speckit:processing']
               });
             } catch (e) {
-              console.log('Could not add label:', e.message);
+              console.log('Could not add processing label:', e.message);
             }
 
       - name: Checkout Repository
@@ -131,19 +143,21 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `## ℹ️ SpecKit: Specification Already Exists
-
-            A specification for this issue has already been created.
-
-            **Existing Spec**: [\`${existingSpec}\`](${existingSpec})
-
-            If you need to regenerate the specification, please delete the existing spec directory first.
-
-            ---
-            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              body: [
+                '## ℹ️ SpecKit: Specification Already Exists',
+                '',
+                'A specification for this issue has already been created.',
+                '',
+                `**Existing Spec**: [\`${existingSpec}\`](${existingSpec})`,
+                '',
+                'If you need to regenerate the specification, please delete the existing spec directory first.',
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
             });
 
-            // Update label
+            // Remove processing label
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -230,38 +244,40 @@ jobs:
             const specFile = '${{ steps.generate.outputs.spec_file }}';
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
 
-            let body = `## ✅ SpecKit: Specification Created Successfully
-
-            A feature specification has been generated from this issue.
-
-            **Branch**: \`${branchName}\`
-            **Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`;
+            const lines = [
+              '## ✅ SpecKit: Specification Created Successfully',
+              '',
+              'A feature specification has been generated from this issue.',
+              '',
+              `**Branch**: \`${branchName}\``,
+              `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
+            ];
 
             if (prUrl) {
-              body += `
-            **Pull Request**: ${prUrl}`;
+              lines.push(`**Pull Request**: ${prUrl}`);
             }
 
-            body += `
-
-            ### Next Steps
-
-            1. Review the generated specification
-            2. Clarify any \`[NEEDS CLARIFICATION]\` items
-            3. Run \`/speckit.plan\` to create an implementation plan
-            4. Run \`/speckit.tasks\` to break down into tasks
-
-            ---
-            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`;
+            lines.push(
+              '',
+              '### Next Steps',
+              '',
+              '1. Review the generated specification',
+              '2. Clarify any `[NEEDS CLARIFICATION]` items',
+              '3. Run `/speckit.plan` to create an implementation plan',
+              '4. Run `/speckit.tasks` to break down into tasks',
+              '',
+              '---',
+              `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+            );
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: body
+              body: lines.join('\n')
             });
 
-            // Update label
+            // Update label: remove processing, add completed
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -290,30 +306,32 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `## ❌ SpecKit: Specification Generation Failed
-
-            An error occurred while generating the specification.
-
-            **Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
-
-            ### Troubleshooting
-
-            1. Check that the issue has a descriptive title and body
-            2. Verify that required secrets are configured (\`ANTHROPIC_API_KEY\` or \`OPENAI_API_KEY\`)
-            3. Review the workflow logs for detailed error messages
-
-            ### Manual Alternative
-
-            You can manually create a specification by running:
-            \`\`\`
-            /speckit.specify ${context.payload.issue?.title || 'your feature description'}
-            \`\`\`
-
-            ---
-            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              body: [
+                '## ❌ SpecKit: Specification Generation Failed',
+                '',
+                'An error occurred while generating the specification.',
+                '',
+                `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '### Troubleshooting',
+                '',
+                '1. Check that the issue has a descriptive title and body',
+                '2. Verify that required secrets are configured (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)',
+                '3. Review the workflow logs for detailed error messages',
+                '',
+                '### Manual Alternative',
+                '',
+                'You can manually create a specification by running:',
+                '```',
+                `/speckit.specify ${context.payload.issue?.title || 'your feature description'}`,
+                '```',
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
             });
 
-            // Update label
+            // Update label: remove processing, add failed
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
