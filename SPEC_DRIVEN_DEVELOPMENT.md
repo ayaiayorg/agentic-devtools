@@ -2,6 +2,15 @@
 
 This guide explains how to use Spec-Driven Development (SDD) with agentic-devtools.
 
+**Developer-only**: This guide is intended for AGDT maintainers and contributors. **End‑User**: [README.md](README.md).
+
+## Audience Labels
+
+Use explicit audience labels when cross‑linking documentation:
+
+- **Developer-only**: Use this label for links intended only for maintainers or contributors.
+- **End‑User**: Use this label when pointing to end‑user documentation.
+
 ## What is Spec-Driven Development?
 
 Spec-Driven Development is a methodology that emphasizes:
@@ -111,6 +120,35 @@ AI assistant will:
 - Run tests continuously
 - Update documentation
 
+## Repository SDD Assets
+
+The `.specify/` directory contains the SDD templates and helper scripts:
+
+```
+.specify/
+├── memory/
+│   └── constitution.md      # Project principles and governance
+├── templates/
+│   ├── spec-template.md     # Feature specification template
+│   ├── plan-template.md     # Implementation plan template
+│   ├── tasks-template.md    # Task breakdown template
+│   ├── checklist-template.md
+│   └── commands/            # SDD workflow command templates
+└── scripts/                 # Helper scripts (bash & PowerShell)
+```
+
+### SDD Command Templates
+
+AI assistants can use these command templates (in `.specify/templates/commands/`):
+
+- `/speckit.constitution` - Update project principles
+- `/speckit.specify` - Create feature specifications
+- `/speckit.plan` - Develop implementation plans
+- `/speckit.tasks` - Generate task lists
+- `/speckit.implement` - Execute implementation
+- `/speckit.analyze` - Validate cross-artifact consistency
+- `/speckit.checklist` - Generate quality checklists
+
 ## Directory Structure
 
 ```
@@ -143,6 +181,13 @@ agentic-devtools/
 ├── agentic_devtools/           # Source code
 └── tests/                      # Test suite
 ```
+
+## Documentation Boundaries
+
+- **End‑User entry point**: README.md (must not include Specify references).
+- **Developer entry point**: SPEC_DRIVEN_DEVELOPMENT.md (this file).
+- **Developer-only**: specs/README.md may link here with labels.
+- Cross‑links between sections must include explicit audience labels (e.g., “Developer‑only”, “End‑User”).
 
 ## SDD Commands for AI Assistants
 
@@ -334,6 +379,41 @@ specs/00X-complex-feature/
 ```
 
 ## Troubleshooting
+
+## Development Environment
+
+### Dev Container
+
+This repository includes a devcontainer configuration for Python development:
+
+- **VS Code**: Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), then click "Reopen in Container"
+- **GitHub Codespaces**: Create a new Codespace - all dependencies will be set up automatically
+
+See [.devcontainer/README.md](.devcontainer/README.md) for more details (Developer-only).
+
+### Testing Commands (Developer-only)
+
+Use the AGDT test commands (do not run pytest directly):
+
+```bash
+# Run full test suite with coverage (background)
+agdt-test
+agdt-task-wait
+
+# Run tests quickly (no coverage)
+agdt-test-quick
+agdt-task-wait
+
+# Run specific test file, class, or method (synchronous)
+agdt-test-pattern tests/test_jira_helpers.py
+agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
+agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
+
+# Run tests using state (alternative)
+agdt-set test_pattern test_jira_helpers.py
+agdt-test-file
+agdt-task-wait
+```
 
 ### Scripts Not Executable
 
