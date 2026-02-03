@@ -52,9 +52,10 @@ class TestGitSaveWorkE2E:
         """
         from agentic_devtools.cli.git import commands
 
-        # Arrange - set commit message and skip publish to avoid git push
+        # Arrange - set commit message and skip push to avoid git push
         set_value("commit_message", "feat(DFLY-1234): Test commit")
-        set_value("skip_publish", True)  # Don't try to push
+        set_value("skip_push", True)  # Don't try to push
+        set_value("skip_rebase", True)  # Don't try to rebase
 
         # Act - should fail early at git command execution (no real repo)
         # but we verify it reads the state correctly
