@@ -4,6 +4,17 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 ## Workflows
 
+### speckit-issue-trigger.yml
+**SpecKit Issue to Specification Automation**
+
+- Runs on: 
+  - Issues labeled event (when `speckit` or configured label is added)
+  - Manual workflow dispatch
+- Purpose: Automatically generates feature specifications from GitHub issues following the Spec-Driven Development (SDD) pattern
+- Outputs: Creates specification branch, files, and pull request
+- Scripts: Uses helper scripts in `.github/scripts/speckit-trigger/`
+- **Sequence Diagram**: See [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md) for complete visual documentation of the workflow
+
 ### test.yml
 **Python Tests and Linting**
 
