@@ -2,69 +2,7 @@
 
 AI assistant helper commands for the Dragonfly platform. This package provides simple CLI commands that can be easily auto-approved by VS Code AI assistants.
 
-## Spec-Driven Development (SDD) Support
-
-This project follows [Spec-Driven Development](https://github.com/github/spec-kit) methodology. SDD enables structured feature development through executable specifications.
-
-### Quick Start with SDD
-
-The `.specify/` directory contains all SDD templates and tools:
-
-```
-.specify/
-├── memory/
-│   └── constitution.md      # Project principles and governance
-├── templates/
-│   ├── spec-template.md     # Feature specification template
-│   ├── plan-template.md     # Implementation plan template
-│   ├── tasks-template.md    # Task breakdown template
-│   ├── checklist-template.md
-│   └── commands/            # SDD workflow command templates
-└── scripts/                 # Helper scripts (bash & PowerShell)
-```
-
-### SDD Workflow
-
-1. **Constitution** - Define project principles (see `.specify/memory/constitution.md`)
-2. **Specify** - Create feature spec in `specs/NNN-feature-name/spec.md`
-3. **Plan** - Develop technical implementation plan
-4. **Tasks** - Break down into actionable tasks
-5. **Implement** - Execute tasks following the plan
-
-### Creating a New Feature
-
-```bash
-# Create feature branch and spec directory
-.specify/scripts/bash/create-new-feature.sh "feature-name"
-
-# This creates:
-# - Branch: NNN-feature-name
-# - Directory: specs/NNN-feature-name/
-# - Initial spec.md from template
-```
-
-### SDD Command Templates
-
-AI assistants can use these command templates (in `.specify/templates/commands/`):
-
-- `/speckit.constitution` - Update project principles
-- `/speckit.specify` - Create feature specifications
-- `/speckit.plan` - Develop implementation plans
-- `/speckit.tasks` - Generate task lists
-- `/speckit.implement` - Execute implementation
-- `/speckit.analyze` - Validate cross-artifact consistency
-- `/speckit.checklist` - Generate quality checklists
-
-See individual command files for detailed execution workflows.
-
-## Development Container
-
-This repository includes a devcontainer configuration for Python development. To get started quickly:
-
-- **VS Code**: Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), then click "Reopen in Container"
-- **GitHub Codespaces**: Create a new Codespace - all dependencies will be set up automatically
-
-See [.devcontainer/README.md](.devcontainer/README.md) for more details.
+**Audience**: End users of the AGDT CLI. This README focuses on installation and usage.
 
 ## Installation
 
@@ -483,41 +421,4 @@ Python preserves multiline strings from the shell:
 agdt-set content "Line 1
 Line 2
 Line 3"
-```
-
-## Development
-
-### Testing Commands
-
-The package provides test commands that can be auto-approved:
-
-```bash
-# Run full test suite with coverage
-agdt-test
-
-# Run tests quickly (no coverage)
-agdt-test-quick
-
-# Run specific test file, class, or method
-agdt-test-pattern tests/test_jira_helpers.py
-agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem
-agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_existing_pem_path
-
-# Run tests using state (alternative)
-agdt-set test_pattern test_jira_helpers.py
-agdt-test-file
-```
-
-### Manual pytest
-
-Run tests:
-
-```bash
-pytest
-```
-
-Run with coverage:
-
-```bash
-pytest --cov=agentic_devtools
 ```

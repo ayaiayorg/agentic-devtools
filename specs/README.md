@@ -2,6 +2,8 @@
 
 This directory contains feature specifications following the Spec-Driven Development (SDD) methodology.
 
+**Developer-only**: This directory is intended for AGDT maintainers and contributors. See the [Spec-Driven Development Guide](../SPEC_DRIVEN_DEVELOPMENT.md) (Developer-only).
+
 ## Directory Structure
 
 Each feature has its own numbered directory:
