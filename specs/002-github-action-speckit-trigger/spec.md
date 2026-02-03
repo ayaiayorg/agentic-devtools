@@ -5,6 +5,21 @@
 **Status**: Draft
 **Input**: User description: "I wanna add the capability of starting the speckit process with the creation of an issue within the repository. I would love to have a github action that on adding a label, the process of SDD should start"
 
+---
+
+## 📊 Workflow Sequence Diagram
+
+For a comprehensive visual representation of the complete workflow showing all actors, phases, and decision points, see the [Workflow Sequence Diagram](./workflow-sequence-diagram.md).
+
+The diagram illustrates:
+- All 8 workflow phases from initiation to completion
+- Interactions between User, GitHub, SpecKit Action, AI Provider, and Repository
+- Decision points for idempotency checks and error handling
+- Integration with the SDD pattern
+- Next steps for continuing the SDD workflow
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Trigger SDD Process via Issue Label (Priority: P1)

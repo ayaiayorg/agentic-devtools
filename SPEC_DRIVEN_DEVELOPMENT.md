@@ -358,7 +358,19 @@ See `specs/001-example-feature/spec.md` for a complete example showing:
 - Edge cases
 - Success metrics
 
-### Example 2: Complex Feature
+### Example 2: Workflow Documentation
+
+See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for a comprehensive example showing:
+- Mermaid sequence diagram of complete workflow
+- Documentation of all actors and their responsibilities
+- Phase-by-phase breakdown of the process
+- Decision points and error handling
+- Integration with SDD pattern
+- Configuration options and performance targets
+
+This example demonstrates how to document complex workflows that follow the SDD pattern, making it easy for new contributors to understand the system behavior.
+
+### Example 3: Complex Feature
 
 For multi-component features:
 
