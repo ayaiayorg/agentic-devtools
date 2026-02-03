@@ -1,0 +1,334 @@
+name: SpecKit Issue Trigger
+
+on:
+  issues:
+    types: [assigned]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process (for manual testing)'
+        required: true
+        type: number
+      assignee:
+        description: 'Simulated assignee username'
+        required: true
+        type: string
+
+# Prevent concurrent runs on the same issue
+concurrency:
+  group: speckit-trigger-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+env:
+  SPEC_BASE_PATH: specs
+
+jobs:
+  validate-and-trigger:
+    name: Validate Assignee and Trigger SpecKit
+    runs-on: ubuntu-latest
+    # Only run if assignee matches configured list
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON(vars.SPECKIT_ASSIGNEES || '["speckit-agent"]'), github.event.assignee.login)
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    outputs:
+      branch_name: ${{ steps.generate.outputs.branch_name }}
+      spec_file: ${{ steps.generate.outputs.spec_file }}
+      pr_url: ${{ steps.create-pr.outputs.pr_url }}
+      skipped: ${{ steps.idempotency.outputs.skipped }}
+
+    steps:
+      - name: Debug Event
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Assignee: ${{ github.event.assignee.login || inputs.assignee }}"
+          echo "Issue Number: ${{ github.event.issue.number || inputs.issue_number }}"
+
+      # Step 1: Post acknowledgment comment immediately (< 30 seconds target)
+      - name: Post Started Comment
+        id: started-comment
+        if: vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+            const assignee = context.payload.assignee?.login || '${{ inputs.assignee }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## 🚀 SpecKit: Specification Creation Started
+
+            I'm creating a feature specification based on this issue.
+
+            **Status**: In Progress
+            **Triggered by**: Assignment to @${assignee}
+
+            ---
+            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+            });
+
+            // Add processing label
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:processing']
+              });
+            } catch (e) {
+              console.log('Could not add label:', e.message);
+            }
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Issue Details
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+
+            core.setOutput('number', issue.number);
+            core.setOutput('title', issue.title);
+            core.setOutput('body', issue.body || '');
+            core.setOutput('url', issue.html_url);
+            core.setOutput('labels', JSON.stringify(issue.labels.map(l => l.name)));
+
+            return issue;
+
+      - name: Check Idempotency
+        id: idempotency
+        run: |
+          chmod +x .github/scripts/speckit-trigger/check-idempotency.sh
+          .github/scripts/speckit-trigger/check-idempotency.sh "${{ steps.issue.outputs.number }}"
+
+      - name: Post Already Processed Comment
+        if: steps.idempotency.outputs.skipped == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+            const existingSpec = '${{ steps.idempotency.outputs.existing_spec }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ℹ️ SpecKit: Specification Already Exists
+
+            A specification for this issue has already been created.
+
+            **Existing Spec**: [\`${existingSpec}\`](${existingSpec})
+
+            If you need to regenerate the specification, please delete the existing spec directory first.
+
+            ---
+            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+            });
+
+            // Update label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+            } catch (e) {}
+
+      - name: Sanitize Branch Name
+        if: steps.idempotency.outputs.skipped != 'true'
+        id: sanitize
+        run: |
+          chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
+          .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
+
+      - name: Generate Specification
+        if: steps.idempotency.outputs.skipped != 'true'
+        id: generate
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+          SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
+          AI_PROVIDER: ${{ vars.SPECKIT_AI_PROVIDER || 'claude' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
+          .github/scripts/speckit-trigger/generate-spec-from-issue.sh
+
+      - name: Commit Specification
+        if: steps.idempotency.outputs.skipped != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
+          SPEC_FILE="${{ steps.generate.outputs.spec_file }}"
+
+          # Create and checkout new branch
+          git checkout -b "$BRANCH_NAME"
+
+          # Add and commit spec files
+          git add "$SPEC_FILE"
+          git add "$(dirname "$SPEC_FILE")/checklists/" 2>/dev/null || true
+
+          git commit -m "spec: Add specification for issue #${{ steps.issue.outputs.number }}
+
+          Generated from: ${{ steps.issue.outputs.url }}
+
+          This specification was automatically generated by SpecKit.
+
+          Relates to #${{ steps.issue.outputs.number }}"
+
+      - name: Push Branch
+        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
+        run: |
+          BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
+          git push -u origin "$BRANCH_NAME"
+
+      - name: Create Pull Request
+        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_PR != 'false'
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
+          .github/scripts/speckit-trigger/create-spec-pr.sh \
+            "${{ steps.generate.outputs.branch_name }}" \
+            "${{ steps.generate.outputs.spec_file }}" \
+            "${{ steps.issue.outputs.number }}" \
+            "${{ steps.issue.outputs.title }}" \
+            "${{ steps.issue.outputs.labels }}"
+
+      - name: Post Completed Comment
+        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+            const branchName = '${{ steps.generate.outputs.branch_name }}';
+            const specFile = '${{ steps.generate.outputs.spec_file }}';
+            const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
+
+            let body = `## ✅ SpecKit: Specification Created Successfully
+
+            A feature specification has been generated from this issue.
+
+            **Branch**: \`${branchName}\`
+            **Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`;
+
+            if (prUrl) {
+              body += `
+            **Pull Request**: ${prUrl}`;
+            }
+
+            body += `
+
+            ### Next Steps
+
+            1. Review the generated specification
+            2. Clarify any \`[NEEDS CLARIFICATION]\` items
+            3. Run \`/speckit.plan\` to create an implementation plan
+            4. Run \`/speckit.tasks\` to break down into tasks
+
+            ---
+            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: body
+            });
+
+            // Update label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:completed']
+              });
+            } catch (e) {
+              console.log('Could not update labels:', e.message);
+            }
+
+      - name: Post Failed Comment
+        if: failure() && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ❌ SpecKit: Specification Generation Failed
+
+            An error occurred while generating the specification.
+
+            **Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+
+            ### Troubleshooting
+
+            1. Check that the issue has a descriptive title and body
+            2. Verify that required secrets are configured (\`ANTHROPIC_API_KEY\` or \`OPENAI_API_KEY\`)
+            3. Review the workflow logs for detailed error messages
+
+            ### Manual Alternative
+
+            You can manually create a specification by running:
+            \`\`\`
+            /speckit.specify ${context.payload.issue?.title || 'your feature description'}
+            \`\`\`
+
+            ---
+            _This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+            });
+
+            // Update label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:failed']
+              });
+            } catch (e) {
+              console.log('Could not update labels:', e.message);
+            }
+
+    timeout-minutes: 10
