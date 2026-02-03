@@ -3,39 +3,39 @@
 **Feature Branch**: `002-github-action-speckit-trigger`
 **Created**: 2026-02-03
 **Status**: Draft
-**Input**: User description: "I wanna add the capability of starting the speckit process with the creation of an issue within the repository. I would love to have a github action that on assignment to a specific agent, the process of SDD should start"
+**Input**: User description: "I wanna add the capability of starting the speckit process with the creation of an issue within the repository. I would love to have a github action that on adding a label, the process of SDD should start"
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Trigger SDD Process on Issue Assignment (Priority: P1)
+### User Story 1 - Trigger SDD Process via Issue Label (Priority: P1)
 
-As a repository maintainer, I want the Specification-Driven Development (SDD) process to automatically start when I assign an issue to a designated AI agent (e.g., `@speckit-bot` or a configurable assignee), so that feature specifications are created without manual intervention.
+As a repository maintainer, I want the Specification-Driven Development (SDD) process to automatically start when I add a `speckit` label to an issue, so that feature specifications are created without manual intervention.
 
 **Why this priority**: This is the core functionality that enables automated SDD initiation from GitHub issues, removing friction from the specification creation workflow.
 
-**Independent Test**: Can be fully tested by creating a GitHub issue, assigning it to the configured agent, and verifying that the `/speckit.specify` process initiates and creates a spec draft.
+**Independent Test**: Can be fully tested by creating a GitHub issue, adding the `speckit` label, and verifying that the `/speckit.specify` process initiates and creates a spec draft.
 
 **Acceptance Scenarios**:
 
-1. **Given** a GitHub repository with the SpecKit Action installed, **When** a new issue is assigned to the configured agent (e.g., `speckit-agent`), **Then** the GitHub Action triggers and initiates the `/speckit.specify` command with the issue title and body as input.
-2. **Given** an existing issue that is reassigned to the SpecKit agent, **When** the assignment event fires, **Then** the SDD process starts using the current issue content.
-3. **Given** an issue assigned to a non-SpecKit user, **When** the assignment event fires, **Then** no action is taken and the workflow exits silently.
+1. **Given** a GitHub repository with the SpecKit Action installed, **When** the `speckit` label is added to an issue, **Then** the GitHub Action triggers and initiates the `/speckit.specify` command with the issue title and body as input.
+2. **Given** an issue that already had the label removed and re-added, **When** the `labeled` event fires, **Then** the SDD process starts using the current issue content.
+3. **Given** a label other than `speckit` added to an issue, **When** the `labeled` event fires, **Then** no action is taken and the workflow exits silently.
 
 ---
 
-### User Story 2 - Configurable Agent Assignment (Priority: P2)
+### User Story 2 - Configurable Trigger Label (Priority: P2)
 
-As a repository administrator, I want to configure which GitHub user or bot account triggers the SDD process, so that I can customize the workflow to fit my team's setup.
+As a repository administrator, I want to configure which label triggers the SDD process, so that I can customize the workflow to fit my team's setup.
 
-**Why this priority**: Different teams may use different bot accounts or team members as the trigger, making configurability essential for adoption.
+**Why this priority**: Different teams may use different labeling conventions, making configurability essential for adoption.
 
-**Independent Test**: Can be tested by modifying the workflow configuration to use a different assignee and verifying that only that assignee triggers the process.
+**Independent Test**: Can be tested by setting the `SPECKIT_TRIGGER_LABEL` repository variable to a different label name and verifying that only that label triggers the process.
 
 **Acceptance Scenarios**:
 
-1. **Given** a workflow file with a custom `speckit_assignee` input, **When** an issue is assigned to that specific user, **Then** the SDD process triggers.
-2. **Given** a workflow file with multiple allowed assignees configured, **When** an issue is assigned to any of those users, **Then** the SDD process triggers.
-3. **Given** no custom configuration, **When** the workflow runs, **Then** a sensible default assignee (e.g., `speckit-agent`) is used.
+1. **Given** a repository with `SPECKIT_TRIGGER_LABEL` set to `sdd-start`, **When** the `sdd-start` label is added to an issue, **Then** the SDD process triggers.
+2. **Given** no custom configuration, **When** the workflow runs, **Then** the default `speckit` label is used as the trigger.
+3. **Given** a custom trigger label, **When** the default `speckit` label is added instead, **Then** no action is taken.
 
 ---
 
@@ -90,18 +90,18 @@ As a project manager, I want the generated specification to be linked back to th
 
 - What happens when the issue body is empty or contains only minimal information?
 - How does the system handle rate limiting from the GitHub API?
-- What happens if the SpecKit agent is assigned but then immediately unassigned?
+- What happens if the trigger label is added and removed quickly before the workflow starts?
 - How does the system behave if the spec directory already exists for the same feature name?
 - What happens if the GitHub Action lacks permissions to create branches or PRs?
-- How does the system handle concurrent assignments to the same agent on multiple issues?
+- How does the system handle the trigger label being added to multiple issues concurrently?
 - What happens if the issue title contains special characters that are invalid for branch names?
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST listen for GitHub `issues.assigned` webhook events.
-- **FR-002**: System MUST compare the assignee against a configurable list of trigger accounts.
+- **FR-001**: System MUST listen for GitHub `issues.labeled` webhook events.
+- **FR-002**: System MUST compare the added label against a configurable trigger label (default: `speckit`).
 - **FR-003**: System MUST extract the issue title and body as input for the `/speckit.specify` command.
 - **FR-004**: System MUST create a new spec directory following the `NNN-feature-name` naming convention.
 - **FR-005**: System MUST generate a `spec.md` file using the SpecKit specification template.
@@ -113,7 +113,7 @@ As a project manager, I want the generated specification to be linked back to th
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The GitHub Action MUST complete initial acknowledgment (posting "started" comment) within 30 seconds of the assignment event.
+- **NFR-001**: The GitHub Action MUST complete initial acknowledgment (posting "started" comment) within 30 seconds of the label event.
 - **NFR-002**: The full specification generation process MUST complete within 5 minutes for typical issue descriptions.
 - **NFR-003**: The Action MUST be idempotent - re-running on the same issue should not create duplicate specs or branches.
 - **NFR-004**: The Action MUST fail gracefully with clear error messages when GitHub API permissions are insufficient.
@@ -121,8 +121,8 @@ As a project manager, I want the generated specification to be linked back to th
 
 ### Key Entities
 
-- **Trigger Event**: The GitHub `issues.assigned` webhook payload containing issue details and assignee information.
-- **SpecKit Agent**: The configured GitHub user account(s) that trigger the SDD process when assigned.
+- **Trigger Event**: The GitHub `issues.labeled` webhook payload containing issue details and label information.
+- **Trigger Label**: The configured label (default: `speckit`) that starts the SDD process when added to an issue.
 - **Spec Directory**: The generated `specs/NNN-feature-name/` directory containing the specification artifacts.
 - **Feedback Comment**: Issue comments posted by the Action to communicate status and results.
 
@@ -130,24 +130,23 @@ As a project manager, I want the generated specification to be linked back to th
 
 ### Measurable Outcomes
 
-- **SC-001**: 95% of issue assignments to the SpecKit agent result in a specification being generated within 5 minutes.
+- **SC-001**: 95% of issues labeled with the trigger label result in a specification being generated within 5 minutes.
 - **SC-002**: 100% of triggered workflows post an acknowledgment comment to the issue within 30 seconds.
 - **SC-003**: 100% of generated specifications include a valid reference to the source issue.
-- **SC-004**: 90% of users can configure the Action with their preferred assignee without consulting documentation beyond the README.
+- **SC-004**: 90% of users can configure the Action with their preferred trigger label without consulting documentation beyond the README.
 - **SC-005**: Zero duplicate specifications are created when the same issue triggers the workflow multiple times.
 
 ## Configuration Options
 
-The GitHub Action should support the following configuration options via workflow inputs:
+The GitHub Action should support the following configuration options via repository variables:
 
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `speckit_assignees` | No | `speckit-agent` | Comma-separated list of GitHub usernames that trigger the SDD process |
-| `create_pr` | No | `true` | Whether to create a PR with the generated spec |
-| `create_branch` | No | `true` | Whether to create a feature branch |
-| `spec_base_path` | No | `specs` | Base directory for specification files |
-| `comment_on_issue` | No | `true` | Whether to post status comments on the issue |
-| `ai_provider` | No | `claude` | AI provider to use for spec generation (claude, copilot, etc.) |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SPECKIT_TRIGGER_LABEL` | No | `speckit` | The label that triggers the SDD process |
+| `SPECKIT_CREATE_PR` | No | `true` | Whether to create a PR with the generated spec |
+| `SPECKIT_CREATE_BRANCH` | No | `true` | Whether to create a feature branch |
+| `SPECKIT_COMMENT_ON_ISSUE` | No | `true` | Whether to post status comments on the issue |
+| `SPECKIT_AI_PROVIDER` | No | `claude` | AI provider to use for spec generation (claude, openai) |
 
 ## Out of Scope
 
