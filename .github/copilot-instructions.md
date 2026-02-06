@@ -14,6 +14,12 @@
 - Parameterless action commands like `agdt-git-save-work`, `agdt-add-jira-comment`
 - Native Python CLI handling of special characters and multiline content (no replacement tokens needed!)
 
+### Copilot Chat Agents
+
+Workflow steps can be started from VS Code Copilot Chat using `/agdt.<workflow>.<step>` commands.
+Agents live in `.github/agents/` and prompts live in `.github/prompts/`, mirroring the
+existing `speckit.*` pattern.
+
 ### Multi-Worktree Development
 
 The package supports **multi-worktree development** where different worktrees can have different versions of `agentic-devtools`:

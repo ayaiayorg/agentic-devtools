@@ -84,6 +84,17 @@ I've made the changes you suggested."
 agdt-reply-to-pr-thread
 ```
 
+## Copilot Chat Commands
+
+Use the new Copilot Chat agents to start workflow steps from VS Code:
+
+- Type `/agdt.` in Copilot Chat to browse available workflow step commands.
+- Example: `/agdt.work-on-jira-issue.planning` to start planning.
+- Example: `/agdt.pull-request-review.file-review` to review a PR file.
+
+For the full workflow step list and usage details, see
+[specs/001-add-workflow-step-agents/quickstart.md](specs/001-add-workflow-step-agents/quickstart.md).
+
 ## State Management Commands
 
 ```bash
