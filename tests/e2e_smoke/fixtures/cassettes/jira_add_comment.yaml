@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "interactions": [
+    {
+      "request": {
+        "method": "POST",
+        "uri": "https://test.atlassian.net/rest/api/2/issue/DFLY-1234/comment",
+        "body": "{\"body\": \"This is a test comment from E2E smoke test\"}",
+        "headers": {
+          "Accept": ["*/*"],
+          "Accept-Encoding": ["gzip, deflate"],
+          "Connection": ["keep-alive"],
+          "Content-Type": ["application/json"],
+          "User-Agent": ["python-requests/2.28.0"]
+        }
+      },
+      "response": {
+        "status": {
+          "code": 201,
+          "message": "Created"
+        },
+        "headers": {
+          "Content-Type": ["application/json;charset=UTF-8"],
+          "Date": ["Mon, 03 Feb 2026 19:00:00 GMT"],
+          "Location": ["https://test.atlassian.net/rest/api/2/issue/12345/comment/67891"],
+          "Server": ["AtlassianEdge"],
+          "X-AREQUESTID": ["test-request-id-12346"]
+        },
+        "body": {
+          "string": "{\"self\":\"https://test.atlassian.net/rest/api/2/issue/12345/comment/67891\",\"id\":\"67891\",\"author\":{\"self\":\"https://test.atlassian.net/rest/api/2/user?accountId=test-user\",\"accountId\":\"test-user\",\"displayName\":\"Test User\",\"active\":true},\"body\":\"This is a test comment from E2E smoke test\",\"created\":\"2026-02-03T19:00:00.000+0000\",\"updated\":\"2026-02-03T19:00:00.000+0000\"}"
+        }
+      }
+    }
+  ]
+}

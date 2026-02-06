@@ -38,7 +38,11 @@ jobs:
       
       - name: Run tests with pytest
         run: |
-          pytest --cov=src/agentic-devtools --cov-report=term-missing
+          pytest --cov=agentic_devtools --cov-report=term-missing
+      
+      - name: Run E2E smoke tests
+        run: |
+          pytest tests/e2e_smoke/ -v --no-cov
       
       - name: Upload coverage reports
         if: matrix.python-version == '3.11'
