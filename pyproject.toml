@@ -17,6 +17,8 @@ dependencies = [
     "Jinja2>=3.0.0",
     "build>=1.2.2",
     "twine>=5.0.0",
+    "azure-monitor-query>=1.0.0",
+    "azure-identity>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -102,6 +104,12 @@ agdt-test-pattern = "agentic_devtools.dispatcher:run_tests_pattern"
 
 # PyPI release commands (run in background)
 agdt-release-pypi = "agentic_devtools.dispatcher:release_pypi_async"
+
+# Azure CLI (App Insights queries)
+agdt-query-app-insights = "agentic_devtools.dispatcher:query_app_insights_async"
+agdt-query-fabric-dap-errors = "agentic_devtools.dispatcher:query_fabric_dap_errors_async"
+agdt-query-fabric-dap-provisioning = "agentic_devtools.dispatcher:query_fabric_dap_provisioning_async"
+agdt-query-fabric-dap-timeline = "agentic_devtools.dispatcher:query_fabric_dap_timeline_async"
 
 # Background task monitoring (parameterless - read from state)
 agdt-tasks = "agentic_devtools.dispatcher:list_tasks"

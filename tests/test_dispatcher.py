@@ -6,7 +6,6 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agentic_devtools import dispatcher
 
 
@@ -153,7 +152,9 @@ class TestDispatchToLocalVenv:
         local_python = tmp_path / ".agdt-venv" / "Scripts" / "python.exe"
 
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=False):
-            with patch.object(dispatcher, "get_local_venv_python", return_value=local_python):
+            with patch.object(
+                dispatcher, "get_local_venv_python", return_value=local_python
+            ):
                 with patch("subprocess.run") as mock_run:
                     with patch.object(sys, "argv", ["agdt-set", "key", "value"]):
                         with pytest.raises(SystemExit) as exc_info:
@@ -173,7 +174,9 @@ class TestDispatchToLocalVenv:
         local_python = tmp_path / ".agdt-venv" / "Scripts" / "python.exe"
 
         with patch.object(dispatcher, "is_running_from_local_venv", return_value=False):
-            with patch.object(dispatcher, "get_local_venv_python", return_value=local_python):
+            with patch.object(
+                dispatcher, "get_local_venv_python", return_value=local_python
+            ):
                 with patch("subprocess.run") as mock_run:
                     mock_run.side_effect = FileNotFoundError("python not found")
                     result = dispatcher.dispatch_to_local_venv("agdt-set")
@@ -186,7 +189,9 @@ class TestCreateDispatcher:
 
     def test_creates_callable_dispatcher(self):
         """Test that create_dispatcher returns a callable."""
-        dispatcher_func = dispatcher.create_dispatcher("agdt-test", "agentic_devtools.cli.state", "show_cmd")
+        dispatcher_func = dispatcher.create_dispatcher(
+            "agdt-test", "agentic_devtools.cli.state", "show_cmd"
+        )
         assert callable(dispatcher_func)
 
     def test_dispatcher_calls_original_when_no_local_venv(self):
@@ -199,7 +204,9 @@ class TestCreateDispatcher:
                 mock_module.test_func = mock_original
                 mock_import.return_value = mock_module
 
-                dispatcher_func = dispatcher.create_dispatcher("agdt-test", "test_module", "test_func")
+                dispatcher_func = dispatcher.create_dispatcher(
+                    "agdt-test", "test_module", "test_func"
+                )
                 dispatcher_func()
 
         mock_original.assert_called_once()
@@ -210,7 +217,9 @@ class TestCreateDispatcher:
             with patch("importlib.import_module") as mock_import:
                 mock_import.side_effect = KeyboardInterrupt()
 
-                dispatcher_func = dispatcher.create_dispatcher("agdt-test", "test_module", "test_func")
+                dispatcher_func = dispatcher.create_dispatcher(
+                    "agdt-test", "test_module", "test_func"
+                )
                 with pytest.raises(SystemExit) as exc_info:
                     dispatcher_func()
 
@@ -336,6 +345,22 @@ class TestDispatcherEntryPoints:
         """Test that advance_workflow_cmd dispatcher is callable."""
         assert callable(dispatcher.advance_workflow_cmd)
 
+    def test_query_app_insights_async_is_callable(self):
+        """Test that query_app_insights_async dispatcher is callable."""
+        assert callable(dispatcher.query_app_insights_async)
+
+    def test_query_fabric_dap_errors_async_is_callable(self):
+        """Test that query_fabric_dap_errors_async dispatcher is callable."""
+        assert callable(dispatcher.query_fabric_dap_errors_async)
+
+    def test_query_fabric_dap_provisioning_async_is_callable(self):
+        """Test that query_fabric_dap_provisioning_async dispatcher is callable."""
+        assert callable(dispatcher.query_fabric_dap_provisioning_async)
+
+    def test_query_fabric_dap_timeline_async_is_callable(self):
+        """Test that query_fabric_dap_timeline_async dispatcher is callable."""
+        assert callable(dispatcher.query_fabric_dap_timeline_async)
+
 
 # List of all entry point functions that delegate to create_dispatcher
 # Excludes utility functions: create_dispatcher, dispatch_to_local_venv,
@@ -385,6 +410,10 @@ ENTRY_POINT_FUNCTIONS = [
     "publish_async",
     "publish_pull_request_async",
     "push_async",
+    "query_app_insights_async",
+    "query_fabric_dap_errors_async",
+    "query_fabric_dap_provisioning_async",
+    "query_fabric_dap_timeline_async",
     "reply_to_pull_request_thread_async",
     "request_changes_async_cli",
     "request_changes_with_suggestion_async_cli",
