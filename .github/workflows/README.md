@@ -7,7 +7,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 ### speckit-issue-trigger.yml
 **SpecKit Issue to Specification Automation**
 
-- Runs on: 
+- Runs on:
   - Issues labeled event (when `speckit` or configured label is added)
   - Manual workflow dispatch
 - Purpose: Automatically generates feature specifications from GitHub issues following the Spec-Driven Development (SDD) pattern
@@ -34,7 +34,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 ### release.yml
 **Automated Release Creation**
 
-- Runs on: 
+- Runs on:
   - Pushes to main affecting `.specify/memory/**`, `.specify/scripts/**`, `.specify/templates/**`, or `.github/workflows/**`
   - Manual workflow dispatch
 - Purpose: Automatically creates releases with Spec-Driven Development (SDD) template packages

@@ -743,7 +743,7 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-### Multi-Worktree Development
+### Multi-Worktree State Isolation
 
 When working with multiple git worktrees (e.g., one for feature development and another for the main branch), the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
 
@@ -769,7 +769,7 @@ When creating a new worktree, `scripts/temp/` doesn't exist initially (it's giti
 |----------|---------||
 | `AZURE_DEV_OPS_COPILOT_PAT` | PAT for Azure DevOps API calls |
 | `JIRA_COPILOT_PAT` | PAT for Jira API calls |
-| `JIRA_BASE_URL` | Override default Jira URL (default: https://jira.swica.ch) |
+| `JIRA_BASE_URL` | Override default Jira URL (default: `https://jira.swica.ch`) |
 | `JIRA_SSL_VERIFY` | Set to "0" to disable SSL verification |
 | `JIRA_CA_BUNDLE` | Path to custom CA bundle PEM file for Jira SSL |
 | `REQUESTS_CA_BUNDLE` | Standard requests library CA bundle path (fallback) |

@@ -9,7 +9,7 @@ This directory contains the configuration for a Python development container tha
 
 - **Python 3.12**: Latest stable Python version
 - **Development Tools**: Pre-configured with pytest, black, mypy, ruff, and isort
-- **VS Code Extensions**: 
+- **VS Code Extensions**:
   - Python language support (Pylance)
   - Black formatter
   - Ruff linter
