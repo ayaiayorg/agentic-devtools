@@ -1,6 +1,7 @@
 # Work on Jira Issue - Pull Request Step
 
-You are creating a pull request for Jira issue **{{issue_key}}**: {{issue_summary}}
+You are creating a pull request for Jira issue **{{issue_key}}**:
+{{issue_summary}}
 
 ## Your Task
 
@@ -53,4 +54,6 @@ agdt-create-pull-request
 
 ---
 
-**Workflow Status**: Pull request step. After creating the PR, the workflow will advance to the completion step.
+**Workflow Status**: Pull request step. After creating the PR, the workflow
+will
+advance to the completion step.

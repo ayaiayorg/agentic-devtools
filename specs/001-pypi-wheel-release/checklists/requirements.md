@@ -1,6 +1,7 @@
 # Specification Quality Checklist: PyPI Wheel Release
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate specification completeness and quality before proceeding
+to planning
 **Created**: 2026-02-03
 **Feature**: [specs/001-pypi-wheel-release/spec.md](../spec.md)
 
@@ -31,5 +32,9 @@
 
 ## Notes
 
-- Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
+- Items marked incomplete require spec updates before `/speckit.clarify` or
+
+  `/speckit.plan`
+  `/speckit.plan`
+
 - Alle Kriterien erfüllt.

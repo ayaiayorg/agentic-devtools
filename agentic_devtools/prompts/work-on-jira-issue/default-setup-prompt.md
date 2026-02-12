@@ -1,6 +1,7 @@
 # Work on Jira Issue - Setup Step
 
-Pre-flight checks failed. Your environment needs to be configured before working on this issue.
+Pre-flight checks failed. Your environment needs to be configured before working
+on this issue.
 
 ## Issue Details
 
@@ -16,4 +17,5 @@ Pre-flight checks failed. Your environment needs to be configured before working
 
 ---
 
-**Next Step**: After setting up your environment, run `agdt-initiate-work-on-jira-issue-workflow` again in the new VS Code window.
+**Next Step**: After setting up your environment, run
+`agdt-initiate-work-on-jira-issue-workflow` again in the new VS Code window.

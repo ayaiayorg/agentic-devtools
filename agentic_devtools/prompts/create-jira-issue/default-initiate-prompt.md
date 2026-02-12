@@ -31,16 +31,22 @@ Before creating the issue, ensure you have:
 
 ## Acceptance Criteria Guidance
 
-**Every issue must have well-defined acceptance criteria.** Use the following decision trees and checklists to determine what acceptance criteria to include.
+**Every issue must have well-defined acceptance criteria.** Use the following
+decision trees and checklists to determine what acceptance criteria to include.
 
 ### Minimum Expectations
 
 At minimum, every code change issue should address:
 
 - **Test requirements** - What tests are needed to verify the change?
-- **Documentation requirements** - What documentation needs to be added or updated?
+- **Documentation requirements** - What documentation needs to be added or
 
-If an issue genuinely doesn't require tests or documentation, explicitly state why in the acceptance criteria (e.g., "No tests required - configuration-only change with no logic").
+  updated?
+  updated?
+
+If an issue genuinely doesn't require tests or documentation, explicitly state
+why in the acceptance criteria (e.g., "No tests required - configuration-only
+change with no logic").
 
 ---
 
@@ -60,7 +66,10 @@ If an issue genuinely doesn't require tests or documentation, explicitly state w
 **Coverage guidance:**
 
 - Target minimum 80% coverage for added/modified files
-- Document justification if coverage target cannot be met (e.g., mocking complexity, infrastructure-only code)
+- Document justification if coverage target cannot be met (e.g., mocking
+
+  complexity, infrastructure-only code)
+  complexity, infrastructure-only code)
 
 ### E2E Tests
 
@@ -151,9 +160,13 @@ Place diagrams in the same directory (or parent) as the code they document.
 
 1. Check if affected code area has coverage threshold in CI
 2. If no threshold exists:
+
    - Run coverage analysis on current codebase
    - Add threshold set to current coverage (rounded down to nearest integer)
+
 3. After completing changes:
+4. After completing changes:
+
    - Run coverage analysis again
    - Update threshold to new coverage (rounded down to nearest integer)
 
@@ -161,7 +174,9 @@ Place diagrams in the same directory (or parent) as the code they document.
 
 ## Codebase Analysis Requirement
 
-Before finalizing acceptance criteria, analyze the relevant part(s) of the codebase and include gathered context in the issue's **Additional Information** section:
+Before finalizing acceptance criteria, analyze the relevant part(s) of the
+codebase and include gathered context in the issue's **Additional Information**
+section:
 
 - **Existing patterns** - What conventions are used in the affected area?
 - **Related components** - What other files or services are involved?

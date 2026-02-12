@@ -1,13 +1,22 @@
 # Requirements Checklist: GitHub Action SpecKit Trigger
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning phase
+**Purpose**: Validate specification completeness and quality before proceeding
+to planning phase
 **Created**: 2026-02-03
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
-- [x] CHK001 Specification focuses on user value and outcomes, not implementation details
-- [x] CHK002 User stories are written from the user's perspective (As a... I want... So that...)
+- [x] CHK001 Specification focuses on user value and outcomes, not
+
+  implementation details
+  implementation details
+
+- [x] CHK002 User stories are written from the user's perspective (As a... I
+
+  want... So that...)
+  want... So that...)
+
 - [x] CHK003 Each user story has a clear priority (P1, P2, P3)
 - [x] CHK004 Acceptance scenarios use Given/When/Then format
 - [x] CHK005 No technology-specific implementation details in requirements
@@ -31,10 +40,25 @@
 
 ## Constitution Compliance
 
-- [x] CHK017 Aligns with Auto-Approval Friendly Design (workflow inputs follow predictable patterns)
-- [x] CHK018 Aligns with User Experience Consistency (comments and feedback follow standard patterns)
-- [x] CHK019 Aligns with Performance & Responsiveness (timing requirements specified in NFRs)
-- [x] CHK020 Aligns with Background Task Architecture (long-running spec generation handled appropriately)
+- [x] CHK017 Aligns with Auto-Approval Friendly Design (workflow inputs follow
+
+  predictable patterns)
+  predictable patterns)
+
+- [x] CHK018 Aligns with User Experience Consistency (comments and feedback
+
+  follow standard patterns)
+  follow standard patterns)
+
+- [x] CHK019 Aligns with Performance & Responsiveness (timing requirements
+
+  specified in NFRs)
+  specified in NFRs)
+
+- [x] CHK020 Aligns with Background Task Architecture (long-running spec
+
+  generation handled appropriately)
+  generation handled appropriately)
 
 ## Notes
 

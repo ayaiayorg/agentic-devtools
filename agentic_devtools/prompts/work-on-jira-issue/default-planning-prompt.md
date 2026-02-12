@@ -47,4 +47,5 @@ Post your plan to Jira:
 
 ---
 
-**Workflow Status**: Planning in progress. After posting your plan comment, the workflow will advance to the implementation step.
+**Workflow Status**: Planning in progress. After posting your plan comment, the
+workflow will advance to the implementation step.

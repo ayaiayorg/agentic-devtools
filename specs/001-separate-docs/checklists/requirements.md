@@ -1,6 +1,7 @@
 # Specification Quality Checklist: Separate AGDT and Specify Documentation
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate specification completeness and quality before proceeding
+to planning
 **Created**: 2026-02-03
 **Feature**: [specs/001-separate-docs/spec.md](specs/001-separate-docs/spec.md)
 
@@ -31,4 +32,5 @@
 
 ## Notes
 
-- Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
+- Items marked incomplete require spec updates before `/speckit.clarify` or
+  `/speckit.plan`

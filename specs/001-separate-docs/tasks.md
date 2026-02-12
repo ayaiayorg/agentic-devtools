@@ -1,11 +1,14 @@
 # Tasks: Separate AGDT and Specify Documentation
 
 **Input**: Design documents from `/specs/001-separate-docs/`
-**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md (required), spec.md (required for user stories),
+research.md, data-model.md, contracts/
 
-**Tests**: Heuristic validation required (documentation review + checklist) per NFR-004.
+**Tests**: Heuristic validation required (documentation review + checklist) per
+NFR-004.
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Organization**: Tasks are grouped by user story to enable independent
+implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -19,7 +22,10 @@
 
 **Purpose**: Establish documentation inventory and scope
 
-- [x] T001 Create documentation inventory table in specs/001-separate-docs/research.md (pages/sections → audience)
+- [x] T001 Create documentation inventory table in
+
+  specs/001-separate-docs/research.md (pages/sections → audience)
+  specs/001-separate-docs/research.md (pages/sections → audience)
 
 ---
 
@@ -27,10 +33,18 @@
 
 **Purpose**: Establish shared labeling conventions and entry-point framing
 
-- [x] T002 Define audience label conventions in SPEC_DRIVEN_DEVELOPMENT.md (e.g., “Developer-only”)
-- [x] T003 Add end-user audience statement in README.md (explicitly end-user focused)
+- [x] T002 Define audience label conventions in SPEC_DRIVEN_DEVELOPMENT.md
 
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+  (e.g., “Developer-only”)
+  (e.g., “Developer-only”)
+
+- [x] T003 Add end-user audience statement in README.md (explicitly end-user
+
+  focused)
+  focused)
+
+**Checkpoint**: Foundation ready - user story implementation can now begin in
+parallel
 
 ---
 
@@ -38,12 +52,20 @@
 
 **Goal**: End users land on README.md and see only AGDT usage guidance.
 
-**Independent Test**: Open README.md and confirm no Specify references and end-user navigation only.
+**Independent Test**: Open README.md and confirm no Specify references and
+end-user navigation only.
 
 ### Implementation for User Story 1
 
-- [x] T004 [US1] Rework README.md to remove SDD/Specify content and focus on AGDT end-user usage
-- [x] T005 [US1] Record README.md end-user validation notes in specs/001-separate-docs/quickstart.md
+- [x] T004 [US1] Rework README.md to remove SDD/Specify content and focus on
+
+  AGDT end-user usage
+  AGDT end-user usage
+
+- [x] T005 [US1] Record README.md end-user validation notes in
+
+  specs/001-separate-docs/quickstart.md
+  specs/001-separate-docs/quickstart.md
 
 **Checkpoint**: User Story 1 is complete and independently verifiable
 
@@ -51,15 +73,28 @@
 
 ## Phase 4: User Story 2 - Find Specify Developer Documentation (Priority: P2)
 
-**Goal**: Developers can find Specify guidance in SPEC_DRIVEN_DEVELOPMENT.md with clear developer framing.
+**Goal**: Developers can find Specify guidance in SPEC_DRIVEN_DEVELOPMENT.md
+with clear developer framing.
 
-**Independent Test**: Open SPEC_DRIVEN_DEVELOPMENT.md and confirm it is labeled for developers and contains the SDD workflow.
+**Independent Test**: Open SPEC_DRIVEN_DEVELOPMENT.md and confirm it is labeled
+for developers and contains the SDD workflow.
 
 ### Implementation for User Story 2
 
-- [x] T006 [US2] Add a developer-only header/intro in SPEC_DRIVEN_DEVELOPMENT.md that states the audience and purpose
-- [x] T007 [US2] Move SDD workflow and command guidance from README.md into SPEC_DRIVEN_DEVELOPMENT.md
-- [x] T008 [P] [US2] Update specs/README.md with a developer-only audience label and a labeled link to SPEC_DRIVEN_DEVELOPMENT.md
+- [x] T006 [US2] Add a developer-only header/intro in
+
+  SPEC_DRIVEN_DEVELOPMENT.md that states the audience and purpose
+  SPEC_DRIVEN_DEVELOPMENT.md that states the audience and purpose
+
+- [x] T007 [US2] Move SDD workflow and command guidance from README.md into
+
+  SPEC_DRIVEN_DEVELOPMENT.md
+  SPEC_DRIVEN_DEVELOPMENT.md
+
+- [x] T008 [P] [US2] Update specs/README.md with a developer-only audience
+
+  label and a labeled link to SPEC_DRIVEN_DEVELOPMENT.md
+  label and a labeled link to SPEC_DRIVEN_DEVELOPMENT.md
 
 **Checkpoint**: User Story 2 is complete and independently verifiable
 
@@ -67,14 +102,23 @@
 
 ## Phase 5: User Story 3 - Clear Documentation Boundaries (Priority: P3)
 
-**Goal**: Maintainers have clear rules to keep end-user and developer content separated.
+**Goal**: Maintainers have clear rules to keep end-user and developer content
+separated.
 
-**Independent Test**: Review boundary rules and cross-links for explicit audience labels.
+**Independent Test**: Review boundary rules and cross-links for explicit
+audience labels.
 
 ### Implementation for User Story 3
 
-- [x] T009 [US3] Add a “Documentation Boundaries” section in SPEC_DRIVEN_DEVELOPMENT.md with placement rules
-- [x] T010 [US3] Add cross-link audience labels in SPEC_DRIVEN_DEVELOPMENT.md wherever it references end-user docs
+- [x] T009 [US3] Add a “Documentation Boundaries” section in
+
+  SPEC_DRIVEN_DEVELOPMENT.md with placement rules
+  SPEC_DRIVEN_DEVELOPMENT.md with placement rules
+
+- [x] T010 [US3] Add cross-link audience labels in SPEC_DRIVEN_DEVELOPMENT.md
+
+  wherever it references end-user docs
+  wherever it references end-user docs
 
 **Checkpoint**: User Story 3 is complete and independently verifiable
 
@@ -84,9 +128,20 @@
 
 **Purpose**: Final review and documentation consistency check
 
-- [x] T011 [P] Perform heuristic documentation review and record results in specs/001-separate-docs/quickstart.md
-- [x] T012 [P] Verify README.md contains no Specify references and record verification in specs/001-separate-docs/quickstart.md
-- [x] T013 [P] Add documentation review checklist section in specs/001-separate-docs/quickstart.md
+- [x] T011 [P] Perform heuristic documentation review and record results in
+
+  specs/001-separate-docs/quickstart.md
+  specs/001-separate-docs/quickstart.md
+
+- [x] T012 [P] Verify README.md contains no Specify references and record
+
+  verification in specs/001-separate-docs/quickstart.md
+  verification in specs/001-separate-docs/quickstart.md
+
+- [x] T013 [P] Add documentation review checklist section in
+
+  specs/001-separate-docs/quickstart.md
+  specs/001-separate-docs/quickstart.md
 
 ---
 
@@ -95,15 +150,30 @@
 ### Phase Dependencies
 
 - **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
+- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user
+
+  stories
+  stories
+
 - **User Stories (Phase 3+)**: Depend on Foundational phase completion
 - **Polish (Final Phase)**: Depends on all desired user stories being complete
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - no dependencies on other stories
-- **User Story 2 (P2)**: Can start after Foundational (Phase 2); coordinate with US1 to avoid duplicate content during README→SPEC move
-- **User Story 3 (P3)**: Can start after Foundational (Phase 2); should follow US2 to ensure boundary rules reflect final doc structure
+- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - no
+
+  dependencies on other stories
+  dependencies on other stories
+
+- **User Story 2 (P2)**: Can start after Foundational (Phase 2); coordinate
+
+  with US1 to avoid duplicate content during README→SPEC move
+  with US1 to avoid duplicate content during README→SPEC move
+
+- **User Story 3 (P3)**: Can start after Foundational (Phase 2); should follow
+
+  US2 to ensure boundary rules reflect final doc structure
+  US2 to ensure boundary rules reflect final doc structure
 
 ### Within Each User Story
 
@@ -143,7 +213,8 @@ Task: "Record README.md end-user validation notes in specs/001-separate-docs/qui
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational
 3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Confirm README.md is end-user only and free of Specify references
+4. **STOP and VALIDATE**: Confirm README.md is end-user only and free of
+   Specify references
 
 ### Incremental Delivery
 
@@ -159,10 +230,13 @@ With multiple maintainers:
 
 1. Team completes Setup + Foundational together
 2. Once Foundational is done:
+
    - Maintainer A: User Story 1 (README.md)
    - Maintainer B: User Story 2 (SPEC_DRIVEN_DEVELOPMENT.md)
    - Maintainer C: User Story 2 (specs/README.md)
+
 3. Maintainer A/B coordinate boundary rules for User Story 3
+4. Maintainer A/B coordinate boundary rules for User Story 3
 
 ---
 

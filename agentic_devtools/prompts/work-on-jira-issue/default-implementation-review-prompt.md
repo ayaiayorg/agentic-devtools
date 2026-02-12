@@ -1,6 +1,7 @@
 # Work on Jira Issue - Implementation Review Step
 
-All checklist items for **{{issue_key}}** have been marked complete. Review your implementation before proceeding to verification.
+All checklist items for **{{issue_key}}** have been marked complete. Review your
+implementation before proceeding to verification.
 
 ## Current Status
 
@@ -45,7 +46,8 @@ agdt-advance-workflow verification
 If you find issues to fix:
 
 1. Make the necessary corrections
-2. Update checklist if needed: `agdt-update-checklist --add "Fix discovered issue"`
+2. Update checklist if needed: `agdt-update-checklist --add "Fix discovered
+   issue"`
 3. Commit the fixes: `agdt-git-commit --completed "new_item_id"`
 4. This review will re-trigger when complete
 
@@ -57,4 +59,5 @@ agdt-update-checklist --revert "1,2"
 
 ---
 
-**Workflow Status**: Implementation review. All checklist items complete. Advance to verification when satisfied.
+**Workflow Status**: Implementation review. All checklist items complete.
+Advance to verification when satisfied.
