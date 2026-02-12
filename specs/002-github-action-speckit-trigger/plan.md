@@ -88,7 +88,7 @@ specs/002-github-action-speckit-trigger/
 ├── tasks.md             # Phase 2 output (/speckit.tasks command)
 └── checklists/
     └── requirements.md  # Spec quality checklist
-```
+```text
 
 ### Source Code (repository root)
 
@@ -102,7 +102,7 @@ specs/002-github-action-speckit-trigger/
         ├── sanitize-branch-name.sh  # Convert issue title to valid branch name
         ├── post-issue-comment.sh    # Post status comments to issue
         └── generate-spec-from-issue.sh  # Invoke SpecKit specify process
-```
+```text
 
 **Structure Decision**: Single workflow file with modular helper scripts for
 testability and reusability. Scripts follow existing patterns in
@@ -199,7 +199,7 @@ I'm creating a feature specification based on this issue.
 
 ---
 _This comment was posted by the SpecKit GitHub Action._
-```
+```text
 
 ### AD-005: Branch and PR Creation
 
@@ -214,7 +214,7 @@ create PR using `gh` CLI.
 
 ## Workflow Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    GitHub Issue Assigned Event                       │
 └─────────────────────────────────────────────────────────────────────┘
@@ -272,14 +272,14 @@ create PR using `gh` CLI.
 │  - Include link to spec file and PR                                  │
 │  - Or post error message if failed                                   │
 └─────────────────────────────────────────────────────────────────────┘
-```
+```text
 
 ## Configuration Schema
 
 ### Workflow Inputs
 
 | Input | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
+| ------- | ------ | ---------- | --------- | ------------- |
 | `speckit_assignees` | string | No | `speckit-agent` | Comma-separated GitHub usernames that trigger SDD |
 | `create_pr` | boolean | No | `true` | Create a PR with the generated specification |
 | `create_branch` | boolean | No | `true` | Create a feature branch for the specification |
@@ -291,7 +291,7 @@ create PR using `gh` CLI.
 ### Repository Secrets
 
 | Secret | Required For | Description |
-|--------|--------------|-------------|
+| -------- | -------------- | ------------- |
 | `ANTHROPIC_API_KEY` | ai_provider=claude | Claude API key for spec generation |
 | `OPENAI_API_KEY` | ai_provider=openai | OpenAI API key for spec generation |
 | `GITHUB_TOKEN` | Always | Auto-provided; used for issue comments and PR creation |
@@ -344,7 +344,7 @@ the existing release workflow.
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
+| ------ | ------------ | -------- | ------------ |
 | AI API rate limits | Medium | Medium | Implement retry with backoff; document limits |
 | GitHub API rate limits | Low | Low | Use conditional requests; cache where possible |
 | Spec generation timeout | Low | Medium | Set explicit 5-minute timeout; post partial results |

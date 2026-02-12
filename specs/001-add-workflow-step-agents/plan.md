@@ -46,7 +46,7 @@ catalog completeness
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 | Principle | Status | Notes |
-|-----------|--------|-------|
+| ----------- | -------- | ------- |
 | I. Auto-Approval Friendly Design | ✅ PASS | No CLI changes; agents invoke existing `agdt-*` commands |
 | II. Single Source of Truth | ✅ PASS | Agents reference existing prompt templates via `agdt-*` CLI; no state duplication |
 | III. Background Task Architecture | ✅ PASS | No new tasks; agents delegate to existing background commands |

@@ -493,8 +493,8 @@ Configure the action using repository variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-|`SPECKIT_TRIGG| `speckit` |The label that|
-|`SPECKIT_AI_PR| `claude` |AI provider fo|
+| `SPECKIT_TRIGG | `speckit` | The label that |
+| `SPECKIT_AI_PR | `claude` | AI provider fo |
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
 | `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
 | `SPECKIT_CREATE_PR` | `true` | Create a pull request |

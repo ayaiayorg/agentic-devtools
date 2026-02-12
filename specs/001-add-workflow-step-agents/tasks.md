@@ -371,7 +371,7 @@ and receive step-specific guidance with CLI commands.
   agdt.apply-pr-suggestions.initiate
 
 **Checkpoint**: All 21 agents + 21 prompts created. Every workflow step is
-accessible via `/agdt.<workflow>.<step>` in Copilot Chat.
+accessible via `/agdt.`workflow`.`step`` in Copilot Chat.
 
 ---
 
@@ -429,8 +429,8 @@ workflow steps are added.
   scripts/verify-agent-coverage.py that reads WORKFLOW_REGISTRY from
   scripts/verify-agent-coverage.py that reads WORKFLOW_REGISTRY from
   agentic_devtools/cli/workflows/manager.py and checks for matching
-  .github/agents/agdt.<workflow>.<step>.agent.md and
-  .github/prompts/agdt.<workflow>.<step>.prompt.md files
+  .github/agents/agdt.`workflow`.`step`.agent.md and
+  .github/prompts/agdt.`workflow`.`step`.prompt.md files
 
 - [x] T052 [US3] Add support in scripts/verify-agent-coverage.py for
 
