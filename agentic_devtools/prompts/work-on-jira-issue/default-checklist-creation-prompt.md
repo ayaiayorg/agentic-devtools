@@ -1,16 +1,20 @@
 # Work on Jira Issue - Checklist Creation Step
 
-You are creating an implementation checklist for Jira issue **{{issue_key}}**: {{issue_summary}}
+You are creating an implementation checklist for Jira issue **{{issue_key}}**:
+{{issue_summary}}
 
 ## Your Task
 
-Create a detailed checklist of specific, actionable items that need to be completed for this issue. The checklist will guide the implementation step and track progress.
+Create a detailed checklist of specific, actionable items that need to be
+completed for this issue. The checklist will guide the implementation step and
+track progress.
 
 ## Guidelines for Checklist Items
 
 1. **Be specific** - Each item should describe a concrete, verifiable task
 2. **Match acceptance criteria** - Ensure each AC from the issue is represented
-3. **Add technical tasks** - Include necessary code, test, and documentation work
+3. **Add technical tasks** - Include necessary code, test, and documentation
+   work
 4. **Keep items small** - Each item should be completable in a focused session
 5. **Order logically** - Dependencies should come before dependent items
 
@@ -51,8 +55,12 @@ agdt-create-checklist
 
 - The checklist can be modified during implementation if needed
 - Each item will be tracked and marked complete as you progress
-- When all items are complete and code is committed, a review sub-step will trigger
+- When all items are complete and code is committed, a review sub-step will
+
+  trigger
+  trigger
 
 ---
 
-**Workflow Status**: Checklist creation in progress. After creating the checklist, the workflow will advance to implementation.
+**Workflow Status**: Checklist creation in progress. After creating the
+checklist, the workflow will advance to implementation.

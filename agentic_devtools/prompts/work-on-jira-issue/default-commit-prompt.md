@@ -1,6 +1,7 @@
 # Work on Jira Issue - Commit Step
 
-You are preparing to commit work for Jira issue **{{issue_key}}**: {{issue_summary}}
+You are preparing to commit work for Jira issue **{{issue_key}}**:
+{{issue_summary}}
 
 ## Your Task
 
@@ -44,4 +45,5 @@ agdt-git-save-work
 
 ---
 
-**Workflow Status**: Commit step. After committing, the workflow will advance to the pull-request step.
+**Workflow Status**: Commit step. After committing, the workflow will advance to
+the pull-request step.

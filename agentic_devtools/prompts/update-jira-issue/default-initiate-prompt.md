@@ -19,7 +19,8 @@ First, retrieve and review the current issue state:
 agdt-get-jira-issue
 ```
 
-After retrieving, add a comment documenting the current state before making changes:
+After retrieving, add a comment documenting the current state before making
+changes:
 
 ```bash
 agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
@@ -35,7 +36,8 @@ agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 
 ### Step 2: Make the Requested Updates
 
-Based on the user request, set the fields that need to be updated, then call the update command once:
+Based on the user request, set the fields that need to be updated, then call the
+update command once:
 
 ```bash
 agdt-set jira.summary "<new summary>"
@@ -62,7 +64,11 @@ Review the output from `agdt-update-jira-issue` and verify:
 
 When writing descriptions or comments, use Jira wiki markup:
 
-- _Headings:_ `h3. +Section Title+` (h3 for main), `h4. *Subsection*` (h4 for sub)
+- _Headings:_ `h3. +Section Title+` (h3 for main), `h4. *Subsection*` (h4 for
+
+  sub)
+  sub)
+
 - _Bold:_ `*text*`
 - _Monospace:_ double curly braces around text
 - _Code blocks:_ `{code:language}...{code}` (use `none` for plain text)
@@ -75,4 +81,5 @@ When writing descriptions or comments, use Jira wiki markup:
 - Always document the current state BEFORE making changes
 - Retrieve the issue AFTER updates to verify success
 - If the user request is unclear, ask for clarification before proceeding
-- Do NOT implement code changes - this workflow is for updating Jira issue metadata only
+- Do NOT implement code changes - this workflow is for updating Jira issue
+  metadata only

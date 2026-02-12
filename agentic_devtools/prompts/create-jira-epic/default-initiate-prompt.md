@@ -4,7 +4,8 @@ You are creating a new epic in project **{{jira_project_key}}**.
 
 ## Understanding Epics
 
-Epics are large bodies of work that can be broken down into smaller stories or tasks. They typically:
+Epics are large bodies of work that can be broken down into smaller stories or
+tasks. They typically:
 
 - Span multiple sprints
 - Represent a significant feature or initiative

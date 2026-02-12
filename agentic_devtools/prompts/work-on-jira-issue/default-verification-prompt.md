@@ -70,4 +70,5 @@ If issues are found, return to implementation to fix them.
 
 ---
 
-**Workflow Status**: Verification in progress. Advance to commit step when all checks pass.
+**Workflow Status**: Verification in progress. Advance to commit step when all
+checks pass.

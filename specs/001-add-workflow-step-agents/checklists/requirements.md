@@ -1,8 +1,10 @@
 # Specification Quality Checklist: Workflow Step Chat Prompts
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate specification completeness and quality before proceeding
+to planning
 **Created**: 2026-02-06
-**Feature**: [specs/001-add-workflow-step-agents/spec.md](specs/001-add-workflow-step-agents/spec.md)
+**Feature**:
+[specs/001-add-workflow-step-agents/spec.md](specs/001-add-workflow-step-agents/spec.md)
 
 ## Content Quality
 
@@ -31,4 +33,5 @@
 
 ## Notes
 
-- Items marked incomplete require spec updates before /speckit.clarify or /speckit.plan
+- Items marked incomplete require spec updates before /speckit.clarify or
+  /speckit.plan

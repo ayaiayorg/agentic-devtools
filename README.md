@@ -1,8 +1,10 @@
 # agentic-devtools
 
-AI assistant helper commands for the Dragonfly platform. This package provides simple CLI commands that can be easily auto-approved by VS Code AI assistants.
+AI assistant helper commands for the Dragonfly platform. This package provides
+simple CLI commands that can be easily auto-approved by VS Code AI assistants.
 
-**Audience**: End users of the AGDT CLI. This README focuses on installation and usage.
+**Audience**: End users of the AGDT CLI. This README focuses on installation and
+usage.
 
 ## Installation
 
@@ -29,7 +31,8 @@ pipx install -e .
 
 ### Option 2: Global pip install
 
-Install directly into your system Python. May require administrator privileges on Windows.
+Install directly into your system Python. May require administrator privileges
+on Windows.
 
 ```bash
 cd agentic_devtools
@@ -44,7 +47,8 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-> **Note:** Avoid `pip install --user` as it places scripts in a directory that may not be on your PATH (`%APPDATA%\Python\PythonXXX\Scripts` on Windows).
+> **Note:** Avoid `pip install --user` as it places scripts in a directory that
+may not be on your PATH (`%APPDATA%\Python\PythonXXX\Scripts` on Windows).
 
 ### Verify Installation
 
@@ -62,10 +66,13 @@ If commands are not found after installation:
 
 ## Design Principles
 
-1. **Auto-approvable commands**: Commands are designed to be auto-approved by VS Code
+1. **Auto-approvable commands**: Commands are designed to be auto-approved by
+   VS Code
 2. **JSON state file**: Single `agdt-state.json` file stores all parameters
-3. **Generic set/get pattern**: One `agdt-set` command works for all keys (approve once, use for everything)
-4. **Native special character support**: Python CLI handles `()[]{}` and multiline content directly!
+3. **Generic set/get pattern**: One `agdt-set` command works for all keys
+   (approve once, use for everything)
+4. **Native special character support**: Python CLI handles `()[]{}` and
+   multiline content directly!
 5. **Test-driven development**: Tests first with strict coverage expectations
 6. **UX consistency**: Predictable command patterns and actionable output
 7. **Performance responsiveness**: Long-running operations use background tasks
@@ -174,7 +181,8 @@ agdt-reply-to-pr-thread  # Previews without making API calls
 
 ## Git Commands
 
-The package provides streamlined Git workflow commands that support the single-commit policy.
+The package provides streamlined Git workflow commands that support the
+single-commit policy.
 
 ### Initial Commit & Publish
 
@@ -194,7 +202,8 @@ agdt-git-save-work
 
 ### Smart Commit (Auto-detects Amend)
 
-The `agdt-git-save-work` command automatically detects if you're updating an existing commit:
+The `agdt-git-save-work` command automatically detects if you're updating an
+existing commit:
 
 ```bash
 # First commit - creates new commit and publishes branch
@@ -211,7 +220,8 @@ agdt-git-save-work --commit-message "feature(DFLY-1234): refined implementation
 **Detection logic:**
 
 1. If branch has commits ahead of `origin/main` AND
-2. Last commit message contains the current Jira issue key (from `jira.issue_key` state)
+2. Last commit message contains the current Jira issue key (from
+   `jira.issue_key` state)
 3. Then: amend existing commit and force push
 4. Otherwise: create new commit and publish
 
@@ -289,7 +299,8 @@ agdt-clear-workflow
 
 ## PyPI Release Commands
 
-Verwende die `pypi.*` Namespace-Keys für Release-Parameter. Setze deine PyPI Tokens via Umgebungsvariablen:
+Verwende die `pypi.*` Namespace-Keys für Release-Parameter. Setze deine PyPI
+Tokens via Umgebungsvariablen:
 
 - `TWINE_USERNAME=__token__`
 - `TWINE_PASSWORD=<pypi-token>`
@@ -317,7 +328,8 @@ agdt-task-wait
 
 ## Jira Commands
 
-All Jira commands use the `jira.*` namespace for state values. Set `JIRA_COPILOT_PAT` environment variable with your Jira API token.
+All Jira commands use the `jira.*` namespace for state values. Set
+`JIRA_COPILOT_PAT` environment variable with your Jira API token.
 
 ### Get Issue Details
 
@@ -402,7 +414,8 @@ agdt-create-issue  # Previews payload without API call
 
 ## State File Location
 
-By default, state is stored in `scripts/temp/agdt-state.json` (relative to the repo root).
+By default, state is stored in `scripts/temp/agdt-state.json` (relative to the
+repo root).
 
 ## Why This Design?
 
@@ -413,7 +426,8 @@ VS Code's auto-approval matches exact command strings. By using:
 - Generic `agdt-set key value` - approve once, use for any key
 - Parameterless action commands like `agdt-reply-to-pr-thread`
 
-...you only need to approve a few commands once, then they work for all future operations.
+...you only need to approve a few commands once, then they work for all future
+operations.
 
 ### No Replacement Tokens Needed
 
@@ -436,26 +450,38 @@ Line 3"
 
 ## GitHub Actions: SpecKit Issue Trigger
 
-The repository includes a GitHub Action that automatically triggers the SpecKit specification process when a `speckit` label is added to an issue.
+The repository includes a GitHub Action that automatically triggers the SpecKit
+specification process when a `speckit` label is added to an issue.
 
 ### Visual Documentation
 
-For a comprehensive visual representation of the complete workflow, see the [SpecKit Workflow Sequence Diagram](specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md). The diagram shows:
+For a comprehensive visual representation of the complete workflow, see the
+[SpecKit Workflow Sequence
+Diagram](specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md).
+The diagram shows:
+
 - All 8 workflow phases from initiation to completion
-- Interactions between actors (User, GitHub, SpecKit Action, AI Provider, Repository)
+- Interactions between actors (User, GitHub, SpecKit Action, AI Provider,
+
+  Repository)
+  Repository)
+
 - Decision points and error handling
 - Integration with the Spec-Driven Development (SDD) pattern
 
 ### How It Works
 
 1. Create a GitHub issue describing your feature
-2. Add the `speckit` label to the issue (optionally assign it to Copilot or a team member)
+2. Add the `speckit` label to the issue (optionally assign it to Copilot or a
+   team member)
 3. The action posts an acknowledgment comment within 30 seconds
 4. A feature specification is generated from the issue title and body
 5. A new branch and pull request are created with the specification
 6. Status comments are posted to the issue throughout the process
 
-The `speckit` trigger label is automatically removed once processing starts, and replaced with status labels (`speckit:processing`, `speckit:completed`, or `speckit:failed`).
+The `speckit` trigger label is automatically removed once processing starts, and
+replaced with status labels (`speckit:processing`, `speckit:completed`, or
+`speckit:failed`).
 
 ### Configuration
 
@@ -494,7 +520,12 @@ gh workflow run speckit-issue-trigger.yml -f issue_number=123
 ### Labels
 
 The workflow uses labels to manage state:
-- `speckit` - **Trigger label**: Add this to an issue to start specification generation
+
+- `speckit` - **Trigger label**: Add this to an issue to start specification
+
+  generation
+  generation
+
 - `speckit:processing` - Specification generation in progress
 - `speckit:completed` - Specification created successfully
 - `speckit:failed` - Generation failed (check workflow logs)

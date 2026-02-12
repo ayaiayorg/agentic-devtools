@@ -16,14 +16,19 @@ Work through the checklist items above. For each item:
 
 ## Key Guidelines
 
-- **Single commit per issue** - All work goes into one commit (use amend for updates)
+- **Single commit per issue** - All work goes into one commit (use amend for
+
+  updates)
+  updates)
+
 - **Follow existing patterns** - Match the codebase style and conventions
 - **Add/update tests** - Ensure test coverage for new code
 - **Update documentation** - Keep README and instruction files current
 
 ## Committing Your Work
 
-When you complete one or more checklist items, commit with the `--completed` flag:
+When you complete one or more checklist items, commit with the `--completed`
+flag:
 
 ```bash
 agdt-git-commit --completed "1,2,3"
@@ -63,4 +68,5 @@ Follow the conventions documented in:
 
 ---
 
-**Workflow Status**: Implementation in progress. Complete all checklist items and commit to trigger implementation review.
+**Workflow Status**: Implementation in progress. Complete all checklist items
+and commit to trigger implementation review.

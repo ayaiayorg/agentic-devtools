@@ -45,6 +45,7 @@ Organize the suggestions into:
    - Evaluate "Consider" items
 
 2. For each change:
+
    - Make the modification
    - Verify it works as expected
    - Consider adding tests if applicable

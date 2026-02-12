@@ -12,6 +12,7 @@ You are working on Jira issue **{{jira_issue_key}}**.
    ```
 
 2. Review the issue details for:
+
    - **Summary**: What needs to be accomplished
    - **Description**: User story and detailed context
    - **Acceptance Criteria**: Specific requirements to meet

@@ -3,16 +3,22 @@
 **Branch**: `001-separate-docs` | **Date**: 2026-02-03 | **Spec**: [specs/001-separate-docs/spec.md](specs/001-separate-docs/spec.md)
 **Input**: Feature specification from `/specs/001-separate-docs/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command. See
+`.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Separate AGDT end‑user documentation from Specify developer documentation by restructuring existing content into two clear sections with dedicated entry points. Use README.md for end‑user guidance and SPEC_DRIVEN_DEVELOPMENT.md for developer‑only Specify guidance, with explicit audience labeling on any cross‑references.
+Separate AGDT end‑user documentation from Specify developer documentation by
+restructuring existing content into two clear sections with dedicated entry
+points. Use README.md for end‑user guidance and SPEC_DRIVEN_DEVELOPMENT.md for
+developer‑only Specify guidance, with explicit audience labeling on any
+cross‑references.
 
 ## Technical Context
 
 <!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
+  ACTION REQUIRED: Replace the content in this section with the technical
+  details
   for the project. The structure here is presented in advisory capacity to guide
   the iteration process.
 -->
@@ -24,7 +30,8 @@ Separate AGDT end‑user documentation from Specify developer documentation by r
 **Target Platform**: GitHub repository documentation  
 **Project Type**: Documentation-only change  
 **Performance Goals**: N/A (documentation navigation)  
-**Constraints**: README.md must not include Specify references; cross-links require audience labels  
+**Constraints**: README.md must not include Specify references; cross-links
+require audience labels
 **Scale/Scope**: Repository documentation only
 
 ## Constitution Check
@@ -34,9 +41,21 @@ Separate AGDT end‑user documentation from Specify developer documentation by r
 - I. Auto-Approval Friendly Design: Pass (no CLI changes).
 - II. Single Source of Truth: Pass (no state changes).
 - III. Background Task Architecture: Pass (no command changes).
-- IV. Test-Driven Development & Coverage: Pass (documentation-only change; no executable code).
-- V. Code Quality & Maintainability: Pass (docs updates will be clear and scoped).
-- VI. User Experience Consistency: Pass (explicit audience labels, consistent structure).
+- IV. Test-Driven Development & Coverage: Pass (documentation-only change; no
+
+  executable code).
+  executable code).
+
+- V. Code Quality & Maintainability: Pass (docs updates will be clear and
+
+  scoped).
+  scoped).
+
+- VI. User Experience Consistency: Pass (explicit audience labels, consistent
+
+  structure).
+  structure).
+
 - VII. Performance & Responsiveness: Pass (no runtime impact).
 - VIII. Python Package Best Practices: Pass (no package changes).
 
@@ -75,7 +94,8 @@ specs/
 └── 001-separate-docs/
 ```
 
-**Structure Decision**: Documentation-only update scoped to repository root docs and specs/README.md. No source code changes.
+**Structure Decision**: Documentation-only update scoped to repository root docs
+and specs/README.md. No source code changes.
 
 ## Complexity Tracking
 

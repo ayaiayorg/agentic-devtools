@@ -1,20 +1,31 @@
 # Implementation Plan: GitHub Action SpecKit Trigger
 
 **Branch**: `002-github-action-speckit-trigger` | **Date**: 2026-02-03 | **Spec**: [spec.md](spec.md)
-**Input**: Feature specification from `/specs/002-github-action-speckit-trigger/spec.md`
+**Input**: Feature specification from
+`/specs/002-github-action-speckit-trigger/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command. See
+`.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Repository maintainers want to automatically trigger the Specification-Driven Development (SDD) process when a GitHub issue is assigned to a designated agent (e.g., `speckit-agent`). The solution involves creating a GitHub Actions workflow that listens for `issues.assigned` events, validates the assignee against a configurable list, extracts issue content, invokes the SpecKit `/speckit.specify` process, and provides feedback via issue comments and optional PR creation.
+Repository maintainers want to automatically trigger the Specification-Driven
+Development (SDD) process when a GitHub issue is assigned to a designated agent
+(e.g., `speckit-agent`). The solution involves creating a GitHub Actions
+workflow that listens for `issues.assigned` events, validates the assignee
+against a configurable list, extracts issue content, invokes the SpecKit
+`/speckit.specify` process, and provides feedback via issue comments and
+optional PR creation.
 
 ## Technical Context
 
-**Language/Version**: YAML (GitHub Actions), Bash scripts, Node.js 20 (for actions/github-script)
-**Primary Dependencies**: GitHub Actions (`actions/checkout@v4`, `actions/github-script@v7`), gh CLI
+**Language/Version**: YAML (GitHub Actions), Bash scripts, Node.js 20 (for
+actions/github-script)
+**Primary Dependencies**: GitHub Actions (`actions/checkout@v4`,
+`actions/github-script@v7`), gh CLI
 **Storage**: N/A (specifications stored in `specs/` directory via git)
-**Testing**: Manual testing via issue creation; automated via act (local GitHub Actions runner)
+**Testing**: Manual testing via issue creation; automated via act (local GitHub
+Actions runner)
 **Target Platform**: GitHub.com, GitHub Enterprise Server
 **Project Type**: single (GitHub Actions workflow + helper scripts)
 **Performance Goals**: Acknowledge within 30 seconds, complete within 5 minutes
@@ -25,14 +36,45 @@ Repository maintainers want to automatically trigger the Specification-Driven De
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Auto-Approval Friendly Design**: PASS — Workflow uses configurable inputs with sensible defaults; no interactive prompts.
-- **Single Source of Truth**: PASS — Configuration via workflow inputs and repository variables; spec output in `specs/` directory.
-- **Background Task Architecture**: N/A — GitHub Actions handles async execution natively.
-- **Test-Driven Development**: PARTIAL — Manual testing via issue creation; recommend adding workflow testing via `act`.
-- **Code Quality & Maintainability**: PASS — YAML follows GitHub Actions best practices; scripts include error handling.
-- **User Experience Consistency**: PASS — Feedback comments follow consistent format; errors explain resolution steps.
-- **Performance & Responsiveness**: PASS — NFR-001 specifies 30-second acknowledgment; NFR-002 specifies 5-minute completion.
-- **Python Package Best Practices**: N/A — This feature is YAML/Bash-based, not Python.
+- **Auto-Approval Friendly Design**: PASS — Workflow uses configurable inputs
+
+  with sensible defaults; no interactive prompts.
+  with sensible defaults; no interactive prompts.
+
+- **Single Source of Truth**: PASS — Configuration via workflow inputs and
+
+  repository variables; spec output in `specs/` directory.
+  repository variables; spec output in `specs/` directory.
+
+- **Background Task Architecture**: N/A — GitHub Actions handles async
+
+  execution natively.
+  execution natively.
+
+- **Test-Driven Development**: PARTIAL — Manual testing via issue creation;
+
+  recommend adding workflow testing via `act`.
+  recommend adding workflow testing via `act`.
+
+- **Code Quality & Maintainability**: PASS — YAML follows GitHub Actions best
+
+  practices; scripts include error handling.
+  practices; scripts include error handling.
+
+- **User Experience Consistency**: PASS — Feedback comments follow consistent
+
+  format; errors explain resolution steps.
+  format; errors explain resolution steps.
+
+- **Performance & Responsiveness**: PASS — NFR-001 specifies 30-second
+
+  acknowledgment; NFR-002 specifies 5-minute completion.
+  acknowledgment; NFR-002 specifies 5-minute completion.
+
+- **Python Package Best Practices**: N/A — This feature is YAML/Bash-based, not
+
+  Python.
+  Python.
 
 ## Project Structure
 
@@ -62,61 +104,90 @@ specs/002-github-action-speckit-trigger/
         └── generate-spec-from-issue.sh  # Invoke SpecKit specify process
 ```
 
-**Structure Decision**: Single workflow file with modular helper scripts for testability and reusability. Scripts follow existing patterns in `.github/workflows/scripts/`.
+**Structure Decision**: Single workflow file with modular helper scripts for
+testability and reusability. Scripts follow existing patterns in
+`.github/workflows/scripts/`.
 
 ## Architecture Decisions
 
 ### AD-001: Workflow Trigger Mechanism
 
-**Decision**: Use `issues.assigned` event with conditional assignee check in the workflow.
+**Decision**: Use `issues.assigned` event with conditional assignee check in the
+workflow.
 
 **Rationale**:
+
 - GitHub Actions natively supports `issues.assigned` event type
-- Checking assignee in workflow (vs. repository dispatch) avoids external webhook setup
+- Checking assignee in workflow (vs. repository dispatch) avoids external
+
+  webhook setup
+  webhook setup
+
 - Allows filtering before any compute resources are used
 
 **Alternatives Considered**:
-- Repository dispatch with external webhook: More complex setup, requires additional infrastructure
-- Issue comment trigger (e.g., `/speckit`): Requires parsing comments, less intuitive UX
+
+- Repository dispatch with external webhook: More complex setup, requires
+
+  additional infrastructure
+  additional infrastructure
+
+- Issue comment trigger (e.g., `/speckit`): Requires parsing comments, less
+
+  intuitive UX
+  intuitive UX
 
 ### AD-002: AI Provider Integration
 
-**Decision**: Use environment-based AI provider selection with Claude as default.
+**Decision**: Use environment-based AI provider selection with Claude as
+default.
 
 **Rationale**:
+
 - Supports multiple AI providers (Claude, Copilot, etc.) through configuration
 - Aligns with existing SpecKit agent architecture in `.github/agents/`
 - Secrets managed via GitHub repository secrets
 
 **Implementation**:
+
 - Workflow input `ai_provider` selects provider
-- Provider-specific API keys stored as repository secrets (e.g., `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+- Provider-specific API keys stored as repository secrets (e.g.,
+
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+
 - Helper script invokes appropriate agent based on selection
 
 ### AD-003: Spec Generation Approach
 
-**Decision**: Invoke existing SpecKit scripts and templates rather than reimplementing spec generation.
+**Decision**: Invoke existing SpecKit scripts and templates rather than
+reimplementing spec generation.
 
 **Rationale**:
+
 - Reuses tested, proven specification workflow
 - Ensures consistency with manual `/speckit.specify` invocations
 - Reduces maintenance burden
 
 **Implementation**:
+
 - Call `.specify/scripts/bash/create-new-feature.sh` for directory setup
 - Use spec template from `.specify/templates/spec-template.md`
 - Invoke AI agent with issue content as input
 
 ### AD-004: Feedback Mechanism
 
-**Decision**: Post structured comments to the originating GitHub issue using `actions/github-script`.
+**Decision**: Post structured comments to the originating GitHub issue using
+`actions/github-script`.
 
 **Rationale**:
+
 - Native GitHub integration, no external dependencies
 - Supports rich markdown formatting
 - Easy to implement status updates (started, completed, failed)
 
 **Comment Format**:
+
 ```markdown
 ## 🚀 SpecKit: Specification Creation Started
 
@@ -132,9 +203,11 @@ _This comment was posted by the SpecKit GitHub Action._
 
 ### AD-005: Branch and PR Creation
 
-**Decision**: Create branch using existing `create-new-feature.sh` script; create PR using `gh` CLI.
+**Decision**: Create branch using existing `create-new-feature.sh` script;
+create PR using `gh` CLI.
 
 **Rationale**:
+
 - Leverages existing branch naming logic (NNN-feature-name)
 - `gh` CLI is pre-installed in GitHub Actions runners
 - Consistent with existing release workflow patterns
@@ -225,18 +298,48 @@ _This comment was posted by the SpecKit GitHub Action._
 
 ## Constitution Check (Post-Design)
 
-- **Auto-Approval Friendly Design**: PASS — All inputs have defaults; no user interaction required during execution.
-- **Single Source of Truth**: PASS — Configuration in workflow file; outputs in `specs/` directory.
-- **Background Task Architecture**: N/A — GitHub Actions handles execution lifecycle.
-- **Test-Driven Development**: PASS — Recommend testing with `act` and test issues.
-- **Code Quality & Maintainability**: PASS — Modular scripts with error handling and logging.
-- **User Experience Consistency**: PASS — Structured comment templates with clear status indicators.
-- **Performance & Responsiveness**: PASS — Acknowledgment within 30 seconds; completion within 5 minutes.
+- **Auto-Approval Friendly Design**: PASS — All inputs have defaults; no user
+
+  interaction required during execution.
+  interaction required during execution.
+
+- **Single Source of Truth**: PASS — Configuration in workflow file; outputs in
+
+  `specs/` directory.
+  `specs/` directory.
+
+- **Background Task Architecture**: N/A — GitHub Actions handles execution
+
+  lifecycle.
+  lifecycle.
+
+- **Test-Driven Development**: PASS — Recommend testing with `act` and test
+
+  issues.
+  issues.
+
+- **Code Quality & Maintainability**: PASS — Modular scripts with error
+
+  handling and logging.
+  handling and logging.
+
+- **User Experience Consistency**: PASS — Structured comment templates with
+
+  clear status indicators.
+  clear status indicators.
+
+- **Performance & Responsiveness**: PASS — Acknowledgment within 30 seconds;
+
+  completion within 5 minutes.
+  completion within 5 minutes.
+
 - **Python Package Best Practices**: N/A — This feature is YAML/Bash-based.
 
 ## Complexity Tracking
 
-No violations against the constitution identified. The feature is self-contained within GitHub Actions and helper scripts, following established patterns from the existing release workflow.
+No violations against the constitution identified. The feature is self-contained
+within GitHub Actions and helper scripts, following established patterns from
+the existing release workflow.
 
 ## Risk Assessment
 

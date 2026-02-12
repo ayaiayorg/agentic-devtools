@@ -1,14 +1,20 @@
 # Spec-Driven Development Guide
 
-This guide explains how to use Spec-Driven Development (SDD) with agentic-devtools.
+This guide explains how to use Spec-Driven Development (SDD) with
+agentic-devtools.
 
-**Developer-only**: This guide is intended for AGDT maintainers and contributors. **End‑User**: [README.md](README.md).
+**Developer-only**: This guide is intended for AGDT maintainers and
+contributors. **End‑User**: [README.md](README.md).
 
 ## Audience Labels
 
 Use explicit audience labels when cross‑linking documentation:
 
-- **Developer-only**: Use this label for links intended only for maintainers or contributors.
+- **Developer-only**: Use this label for links intended only for maintainers or
+
+  contributors.
+  contributors.
+
 - **End‑User**: Use this label when pointing to end‑user documentation.
 
 ## What is Spec-Driven Development?
@@ -31,6 +37,7 @@ cat .specify/memory/constitution.md
 ```
 
 Key principles for agentic-devtools:
+
 - Auto-approval friendly command design
 - Single source of truth (state file)
 - Background task architecture
@@ -59,11 +66,13 @@ Use the helper script:
 Edit `specs/NNN-feature-name/spec.md`:
 
 1. **User Stories** - Prioritized scenarios (P1, P2, P3)
+
    - What users want to accomplish
    - Why it's valuable
    - How to test independently
 
 2. **Requirements** - Functional and non-functional
+
    - FR-001, FR-002, etc. (functional)
    - NFR-001, NFR-002, etc. (non-functional)
 
@@ -85,6 +94,7 @@ Technology stack:
 ```
 
 This creates `specs/NNN-feature-name/plan.md` with:
+
 - Technical context
 - Architecture decisions
 - Project structure
@@ -100,6 +110,7 @@ Use `/speckit.tasks` to generate task list:
 ```
 
 This creates `specs/NNN-feature-name/tasks.md` with:
+
 - Tasks organized by user story
 - Parallel execution markers [P]
 - Exact file paths
@@ -114,6 +125,7 @@ Execute the implementation:
 ```
 
 AI assistant will:
+
 - Follow the task list
 - Reference the spec for requirements
 - Check against the plan
@@ -139,7 +151,8 @@ The `.specify/` directory contains the SDD templates and helper scripts:
 
 ### SDD Command Templates
 
-AI assistants can use these command templates (in `.specify/templates/commands/`):
+AI assistants can use these command templates (in
+`.specify/templates/commands/`):
 
 - `/speckit.constitution` - Update project principles
 - `/speckit.specify` - Create feature specifications
@@ -187,7 +200,10 @@ agentic-devtools/
 - **End‑User entry point**: README.md (must not include Specify references).
 - **Developer entry point**: SPEC_DRIVEN_DEVELOPMENT.md (this file).
 - **Developer-only**: specs/README.md may link here with labels.
-- Cross‑links between sections must include explicit audience labels (e.g., “Developer‑only”, “End‑User”).
+- Cross‑links between sections must include explicit audience labels (e.g.,
+
+  “Developer‑only”, “End‑User”).
+  “Developer‑only”, “End‑User”).
 
 ## SDD Commands for AI Assistants
 
@@ -196,26 +212,31 @@ These slash commands are available when properly configured:
 ### Core Workflow
 
 1. **`/speckit.constitution`** - Update project principles
+
    ```
    /speckit.constitution Update testing standards to require 95% coverage
    ```
 
 2. **`/speckit.specify`** - Create feature specification
+
    ```
    /speckit.specify Build a command that exports Jira issues to CSV format
    ```
 
 3. **`/speckit.plan`** - Create implementation plan
+
    ```
    /speckit.plan Use pandas for CSV export, Click for CLI
    ```
 
 4. **`/speckit.tasks`** - Generate task list
+
    ```
    /speckit.tasks
    ```
 
 5. **`/speckit.implement`** - Execute implementation
+
    ```
    /speckit.implement
    ```
@@ -223,16 +244,19 @@ These slash commands are available when properly configured:
 ### Quality Assurance
 
 - **`/speckit.analyze`** - Check cross-artifact consistency
+
   ```
   /speckit.analyze
   ```
 
 - **`/speckit.checklist`** - Generate quality checklist
+
   ```
   /speckit.checklist
   ```
 
 - **`/speckit.clarify`** - Clarify underspecified areas
+
   ```
   /speckit.clarify
   ```
@@ -303,6 +327,7 @@ def test_export_100_issues():
 ### Writing Specifications
 
 ✅ **Do:**
+
 - Focus on user value and "what" not "how"
 - Prioritize user stories (P1 > P2 > P3)
 - Make stories independently testable
@@ -311,6 +336,7 @@ def test_export_100_issues():
 - Define success metrics
 
 ❌ **Don't:**
+
 - Specify implementation details in spec
 - Mix multiple concerns in one story
 - Create dependencies between stories
@@ -320,6 +346,7 @@ def test_export_100_issues():
 ### Creating Plans
 
 ✅ **Do:**
+
 - Document technical decisions and rationale
 - Define clear project structure
 - List all dependencies with versions
@@ -327,6 +354,7 @@ def test_export_100_issues():
 - Consider existing patterns
 
 ❌ **Don't:**
+
 - Start implementation before plan approval
 - Ignore constitution principles
 - Skip architecture discussion
@@ -335,6 +363,7 @@ def test_export_100_issues():
 ### Breaking Down Tasks
 
 ✅ **Do:**
+
 - Organize by user story
 - Mark parallel tasks with [P]
 - Include exact file paths
@@ -342,6 +371,7 @@ def test_export_100_issues():
 - Estimate blocking dependencies
 
 ❌ **Don't:**
+
 - Create monolithic tasks
 - Hide dependencies
 - Skip test tasks
@@ -352,6 +382,7 @@ def test_export_100_issues():
 ### Example 1: Simple Command
 
 See `specs/001-example-feature/spec.md` for a complete example showing:
+
 - User story structure
 - Acceptance scenarios
 - Requirements (FR/NFR)
@@ -360,7 +391,9 @@ See `specs/001-example-feature/spec.md` for a complete example showing:
 
 ### Example 2: Workflow Documentation
 
-See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for a comprehensive example showing:
+See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for a
+comprehensive example showing:
+
 - Mermaid sequence diagram of complete workflow
 - Documentation of all actors and their responsibilities
 - Phase-by-phase breakdown of the process
@@ -368,7 +401,8 @@ See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for a
 - Integration with SDD pattern
 - Configuration options and performance targets
 
-This example demonstrates how to document complex workflows that follow the SDD pattern, making it easy for new contributors to understand the system behavior.
+This example demonstrates how to document complex workflows that follow the SDD
+pattern, making it easy for new contributors to understand the system behavior.
 
 ### Example 3: Complex Feature
 
@@ -399,9 +433,13 @@ specs/00X-complex-feature/
 This repository includes a devcontainer configuration for Python development:
 
 - **VS Code**: Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), then click "Reopen in Container"
-- **GitHub Codespaces**: Create a new Codespace - all dependencies will be set up automatically
+- **GitHub Codespaces**: Create a new Codespace - all dependencies will be set
 
-See [.devcontainer/README.md](.devcontainer/README.md) for more details (Developer-only).
+  up automatically
+  up automatically
+
+See [.devcontainer/README.md](.devcontainer/README.md) for more details
+(Developer-only).
 
 ### Testing Commands (Developer-only)
 
@@ -459,8 +497,15 @@ Run consistency check:
 
 - [GitHub spec-kit](https://github.com/github/spec-kit) - Official SDD toolkit
 - [Spec-Driven Development Guide](https://github.github.io/spec-kit/) - Full documentation
-- [Constitution Template](../.specify/templates/commands/constitution.md) - How to manage constitution
-- [Example Spec](../specs/001-example-feature/spec.md) - Reference implementation
+- [Constitution Template](../.specify/templates/commands/constitution.md) - How
+
+  to manage constitution
+  to manage constitution
+
+- [Example Spec](../specs/001-example-feature/spec.md) - Reference
+
+  implementation
+  implementation
 
 ## Contributing
 
