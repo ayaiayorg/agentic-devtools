@@ -6,7 +6,7 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 
 ### For AI Assistants
 
-```
+```text
 /speckit.constitution [prompt]    # Update project principles
 /speckit.specify [description]    # Create feature specification
 /speckit.plan [tech-stack]        # Create implementation plan
@@ -35,7 +35,7 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 
 ## Directory Structure
 
-```
+```text
 .specify/
 ├── memory/constitution.md       # Project governance
 ├── templates/                   # All SDD templates
@@ -69,7 +69,7 @@ cat .specify/memory/constitution.md
 
 Or via AI:
 
-```
+```text
 /speckit.constitution Update testing to require 95% coverage
 ```
 
@@ -96,7 +96,7 @@ Edit `specs/NNN-feature-name/spec.md`:
 
 ### 4. Create Plan
 
-```
+```text
 /speckit.plan
 Technology: Python 3.11, Click, Requests
 Architecture: Event-driven webhook handler
@@ -105,7 +105,7 @@ Storage: Redis for event queue
 
 ### 5. Generate Tasks
 
-```
+```text
 /speckit.tasks
 ```
 
@@ -113,7 +113,7 @@ Organizes tasks by user story for independent implementation.
 
 ### 6. Implement
 
-```
+```text
 /speckit.implement
 ```
 

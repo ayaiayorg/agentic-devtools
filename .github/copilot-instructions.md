@@ -92,7 +92,7 @@ See [Testing](#10-testing) for all test commands.
 
 ## 2. Package Structure
 
-```
+```text
 agentic_devtools/
 ├── __init__.py          # Package metadata
 ├── state.py             # JSON state management (single file: agdt-state.json)
@@ -219,7 +219,7 @@ Workflows advance through steps via event-driven transitions. The transition beh
 
 When a transition fires immediately, the output looks like:
 
-```
+```text
 ================================================================================
 WORKFLOW ADVANCED: work-on-jira-issue
 NEW STEP: implementation-review
@@ -754,7 +754,7 @@ Users can create override templates to customize workflow prompts:
 
 Example validation error:
 
-```
+```text
 TemplateValidationError: Override template uses variables not in default: {'new_variable'}
 ```
 
@@ -837,10 +837,9 @@ When adding a new command that performs side effects (API calls, git operations,
 
    ```toml
    [project.scripts]
-
-  agdt-new-command = "agentic_devtools.cli.module.commands:new_command_async"
-
+   agdt-new-command = "agentic_devtools.cli.module.commands:new_command_async"
    ```
+
 6. Reinstall: `pip install -e .`
 7. **Document the command** in this file
 
@@ -1226,7 +1225,7 @@ agdt-add-jira-comment  # Previews without posting
 
 Background tasks use a separate storage structure in `scripts/temp/background-tasks/`:
 
-```
+```text
 scripts/temp/
 ├── agdt-state.json                    # Main state file (contains background.recentTasks)
 └── background-tasks/

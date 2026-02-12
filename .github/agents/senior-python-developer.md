@@ -67,7 +67,7 @@ You structure applications using DDD tactical patterns:
 
 #### Layered Architecture
 
-```
+```text
 project/
 ├── domain/              # Core business logic
 │   ├── entities/       # Domain entities

@@ -14,7 +14,7 @@ An error occurred while generating the specification.
 
 You can manually create a specification by running:
 
-```
+```text
 /speckit.specify {{issue_title}}
 ```
 
