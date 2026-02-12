@@ -1,0 +1,34 @@
+// markdownlint-cli2 configuration for agentic-devtools
+{
+  "config": {
+    "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/schema/markdownlint-config-schema.json",
+    "default": true,
+    // MD013: Line length - increase limit to 120 for better readability
+    // Exclude code blocks and tables which often need longer lines
+    "MD013": {
+      "line_length": 120,
+      "code_blocks": false,
+      "tables": false
+    },
+    // MD041: First line in file should be top-level heading
+    // Agent files use YAML front matter, so they need front_matter_title support
+    "MD041": {
+      "front_matter_title": ""
+    },
+    // MD060: Table column style - disabled because table formatting is often
+    // auto-generated and forcing alignment can make content harder to maintain
+    "MD060": false,
+    // MD036: Emphasis as heading - disable because we use emphasis for subheadings
+    // in documentation which is acceptable for our style
+    "MD036": false,
+    // MD033: Inline HTML - allow common HTML elements used in markdown
+    "MD033": {
+      "allowed_elements": ["a", "img", "br", "details", "summary"]
+    }
+  },
+  "customRules": [],
+  "globs": [
+    "**/*.md"
+  ],
+  "ignores": []
+}
