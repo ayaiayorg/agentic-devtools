@@ -1,10 +1,12 @@
 # End-to-End (E2E) Smoke Tests
 
-This directory contains end-to-end smoke tests for CLI commands that interact with external services like Azure DevOps and Jira.
+This directory contains end-to-end smoke tests for CLI commands that
+interact with external services like Azure DevOps and Jira.
 
 ## Purpose
 
 These tests validate that CLI command entry points:
+
 - Are correctly wired and callable
 - Read state correctly
 - Handle missing required parameters gracefully
@@ -16,38 +18,48 @@ These tests validate that CLI command entry points:
 ### Jira Commands (5 tests)
 
 **agdt-get-jira-issue:**
+
 - ✅ Retrieves issue and saves response file
-- ✅ Parses all expected fields (summary, description, labels, comments)
+- ✅ Parses all expected fields (summary, description, labels,
+  comments)
 - ✅ Fails gracefully without issue key
 
 **agdt-add-jira-comment:**
+
 - ✅ Posts comment successfully with mocked API
 - ✅ Returns expected response structure with author info
 
 ### Azure DevOps Commands (3 tests)
 
 **agdt-create-pull-request:**
+
 - ✅ Fails gracefully without required fields
 
 **agdt-reply-to-pull-request-thread:**
+
 - ✅ Requires pull_request_id state
 
 **agdt-add-pull-request-comment:**
+
 - ✅ Requires pull_request_id state
 
 ### Git Commands (5 tests)
 
 **agdt-git-save-work:**
+
 - ✅ Fails without commit message
 - ✅ Reads commit message from state
 
 **agdt-git-stage:**
+
 - ✅ Command exists and is callable
 
 **agdt-git-push:**
+
 - ✅ Command exists and is callable
 
 **agdt-git-force-push:**
+
 - ✅ Command exists and is callable
 
 ## Running the Tests
@@ -60,20 +72,26 @@ pytest tests/e2e_smoke/ -v
 pytest tests/e2e_smoke/test_jira_commands_e2e.py -v
 
 # Run specific test
-pytest tests/e2e_smoke/test_jira_commands_e2e.py::TestJiraGetIssueE2E::test_get_jira_issue_returns_valid_response -v
+pytest tests/e2e_smoke/test_jira_commands_e2e.py::TestJiraGetIssueE2E::
+test_get_jira_issue_returns_valid_response -v
 ```
 
 ## Test Approach
 
 ### Mocking Strategy
 
-Rather than using network-based cassette recording (VCR.py), these tests use:
+Rather than using network-based cassette recording (VCR.py), these
+tests use:
 
-1. **Mock responses** - Realistic API response structures are created in test fixtures
-2. **Patched dependencies** - HTTP libraries and external dependencies are mocked
-3. **State isolation** - Each test uses a temporary state directory
+1. **Mock responses** - Realistic API response structures are created
+   in test fixtures
+2. **Patched dependencies** - HTTP libraries and external
+   dependencies are mocked
+3. **State isolation** - Each test uses a temporary state
+   directory
 
 This approach provides:
+
 - ✅ Fast execution (no network delays)
 - ✅ No external dependencies (no real API credentials needed)
 - ✅ Deterministic results
@@ -94,11 +112,11 @@ class TestJiraGetIssueE2E:
         # Arrange - set up state and mocks
         set_value("jira.issue_key", "DFLY-1234")
         mock_requests = MagicMock()
-        
+
         # Act - call the command
         with patch("..._get_requests", return_value=mock_requests):
             get_commands.get_issue()
-        
+
         # Assert - verify behavior
         assert response_file.exists()
 ```
@@ -115,7 +133,9 @@ class TestJiraGetIssueE2E:
 
 ### Cassette Fixtures (Not Used)
 
-The `fixtures/cassettes/` directory contains example API response structures in YAML format for reference, but tests use in-code mock responses instead of cassette-based recording.
+The `fixtures/cassettes/` directory contains example API response
+structures in YAML format for reference, but tests use in-code mock
+responses instead of cassette-based recording.
 
 ## CI Integration
 
@@ -128,18 +148,23 @@ E2E smoke tests run in CI as part of the `test.yml` workflow:
 ```
 
 Tests run on:
+
 - Python 3.11
 - Python 3.12
 - Ubuntu Latest
 
 ## Coverage Goals
 
-While these are smoke tests (not comprehensive integration tests), they contribute to:
-- **CLI entry point coverage**: Validates command wiring and state reading
+While these are smoke tests (not comprehensive integration tests),
+they contribute to:
+
+- **CLI entry point coverage**: Validates command wiring and state
+  reading
 - **Error handling coverage**: Tests graceful failure scenarios
 - **Overall project coverage**: Helps maintain 91%+ coverage threshold
 
 Current coverage for tested modules:
+
 - `cli/jira/get_commands.py`: 49%
 - `cli/jira/comment_commands.py`: 66%
 - `cli/azure_devops/commands.py`: 36%
@@ -150,25 +175,28 @@ Current coverage for tested modules:
 To add a new E2E smoke test:
 
 1. **Create mock response helper:**
+
    ```python
    def _create_mock_response() -> dict:
        return {"key": "value", ...}
    ```
 
 2. **Write test with mocks:**
+
    ```python
    def test_command_succeeds(self, temp_state_dir, clean_state, mock_env):
        set_value("key", "value")
        mock_requests = MagicMock()
        mock_requests.post.return_value.json.return_value = _create_mock_response()
-       
+
        with patch("module._get_requests", return_value=mock_requests):
            command_function()
-       
+
        assert expected_behavior()
    ```
 
 3. **Test error scenarios:**
+
    ```python
    def test_command_fails_without_required_state(self, ...):
        with pytest.raises(SystemExit) as exc_info:
