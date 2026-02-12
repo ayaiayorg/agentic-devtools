@@ -13,7 +13,8 @@ An error occurred while generating the specification.
 ### Manual Alternative
 
 You can manually create a specification by running:
-```
+
+```text
 /speckit.specify {{issue_title}}
 ```
 

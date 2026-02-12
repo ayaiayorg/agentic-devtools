@@ -26,6 +26,7 @@ Sync Impact Report
 ### I. Auto-Approval Friendly Design
 
 All CLI commands must be designed for auto-approval by AI assistants:
+
 - Use generic `agdt-set key value` pattern for state management (approve once, use for all keys)
 - Parameterless action commands that read from state (e.g., `agdt-reply-to-pr-thread`)
 - Native Python CLI handling of special characters and multiline content
@@ -36,6 +37,7 @@ All CLI commands must be designed for auto-approval by AI assistants:
 ### II. Single Source of Truth
 
 State management must use a single JSON file (`scripts/temp/agdt-state.json`):
+
 - All parameters stored in one location
 - No distributed configuration
 - Transparent state inspection via `agdt-show`
@@ -46,6 +48,7 @@ State management must use a single JSON file (`scripts/temp/agdt-state.json`):
 ### III. Background Task Architecture
 
 All action commands that mutate state or perform API calls must run as background tasks:
+
 - Commands spawn async processes and return immediately with task ID
 - Results written to output files when complete
 - Monitoring via `agdt-task-status`, `agdt-task-log`, `agdt-task-wait`
@@ -56,6 +59,7 @@ All action commands that mutate state or perform API calls must run as backgroun
 ### IV. Test-Driven Development & Coverage
 
 All features must follow TDD practices:
+
 - Tests written before implementation
 - Minimum 95% code coverage for new or changed code
 - Unit tests for new logic and integration tests for all CLI commands
@@ -68,6 +72,7 @@ All features must follow TDD practices:
 ### V. Code Quality & Maintainability
 
 All changes must meet explicit quality and maintainability standards:
+
 - Public APIs MUST include type hints and docstrings
 - Linting and formatting MUST pass without warnings
 - Changes MUST avoid dead code and unused configuration
@@ -78,6 +83,7 @@ All changes must meet explicit quality and maintainability standards:
 ### VI. User Experience Consistency
 
 CLI user experience must be consistent and predictable:
+
 - Command naming, flags, and state keys MUST follow existing patterns
 - Output MUST be structured, concise, and include next-step guidance
 - Error messages MUST explain cause and resolution steps
@@ -88,6 +94,7 @@ CLI user experience must be consistent and predictable:
 ### VII. Performance & Responsiveness
 
 Performance requirements must be explicit and enforced:
+
 - Any synchronous CLI command MUST complete within 2 seconds on typical inputs
 - Operations expected to exceed 2 seconds MUST use background tasks
 - Network calls MUST set timeouts and include retry logic where safe
@@ -98,6 +105,7 @@ Performance requirements must be explicit and enforced:
 ### VIII. Python Package Best Practices
 
 Follow standard Python packaging conventions:
+
 - Clear module organization under `agentic_devtools/`
 - Entry points defined in `pyproject.toml`
 - Type hints for all public APIs
@@ -181,6 +189,7 @@ This constitution supersedes all other practices. All changes must comply with t
 ### Amendments
 
 Constitution changes require:
+
 1. Documentation of rationale
 2. Approval from maintainers
 3. Migration plan for affected code

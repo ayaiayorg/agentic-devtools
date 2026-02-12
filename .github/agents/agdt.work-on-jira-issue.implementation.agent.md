@@ -35,6 +35,7 @@ Implement the checklist items for the Jira issue.
    ```bash
    agdt-update-checklist --completed <item-numbers>
    ```
+
 2. Save work as needed:
 
    ```bash

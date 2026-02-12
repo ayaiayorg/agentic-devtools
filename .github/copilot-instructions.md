@@ -1,6 +1,7 @@
 # AI Agent Instructions: agentic-devtools Python Package
 
 > Parent Instruction Chain
+>
 > 1. [Root global instructions](../../../.github/copilot-instructions.md)
 > 2. [Scripts & Automation Navigation Hub](../../.github/copilot-instructions.md)
 >
@@ -8,7 +9,8 @@
 
 ## 1. Purpose
 
-`agentic-devtools` is a pip-installable Python package that provides CLI commands for AI agents to interact with Git, Azure DevOps, Jira, and other services. The design prioritizes **auto-approval** in VS Code by using:
+`agentic-devtools` is a pip-installable Python package that provides CLI commands for AI agents to interact with
+Git, Azure DevOps, Jira, and other services. The design prioritizes **auto-approval** in VS Code by using:
 
 - A generic `agdt-set key value` command (approve once, works for all keys)
 - Parameterless action commands like `agdt-git-save-work`, `agdt-add-jira-comment`
@@ -30,12 +32,14 @@ The package supports **multi-worktree development** where different worktrees ca
 - **No Command Changes**: The same `agdt-*` commands work everywhere - the dispatcher handles routing automatically
 
 **How it works:**
+
 1. When you run any `agdt-*` command, the dispatcher checks `git rev-parse --show-toplevel`
 2. It looks for `.agdt-venv/Scripts/python.exe` (Windows) or `.agdt-venv/bin/python` (Unix) at the repo root
 3. If found, it re-executes the command using that Python interpreter
 4. If not found, the command runs in the current Python environment
 
 **Setting up a worktree with local helpers:**
+
 ```bash
 # Run setup-dev-tools.py in the worktree
 python setup-dev-tools.py
@@ -79,6 +83,7 @@ agdt-test-pattern tests/test_jira_helpers.py::TestClassName -v
 ```
 
 Why:
+
 - Tests run as background tasks to prevent AI agents from thinking something went wrong
 - Logs are captured properly in `scripts/temp/background-tasks/logs/`
 - Direct pytest calls don't integrate with the background task system
@@ -88,7 +93,7 @@ See [Testing](#10-testing) for all test commands.
 
 ## 2. Package Structure
 
-```
+```text
 agentic_devtools/
 ├── __init__.py          # Package metadata
 ├── state.py             # JSON state management (single file: agdt-state.json)
@@ -214,7 +219,8 @@ Workflows advance through steps via event-driven transitions. The transition beh
    - Used for steps that need human confirmation
 
 When a transition fires immediately, the output looks like:
-```
+
+```text
 ================================================================================
 WORKFLOW ADVANCED: work-on-jira-issue
 NEW STEP: implementation-review
@@ -227,6 +233,7 @@ NEW STEP: implementation-review
 ### Jira Namespace
 
 Jira commands use keys prefixed with `jira.`:
+
 ```bash
 agdt-set jira.issue_key DFLY-1234
 agdt-set jira.comment "My comment"
@@ -315,6 +322,7 @@ agdt-request-changes
 **Review Command Behavior:**
 
 All file review commands automatically:
+
 1. Post the review comment (runs as background task)
 2. Mark the file as reviewed in Azure DevOps (visible as "viewed" eye icon in PR UI)
 3. Update the review queue (`queue.json`)
@@ -334,16 +342,19 @@ All Git workflow commands spawn background tasks:
 
 **Smart Commit Detection:**
 The `agdt-git-save-work` command automatically detects whether to create a new commit or amend:
+
 - If branch has commits ahead of `origin/main` AND last commit contains current issue key → **amend + force push**
 - Otherwise → **new commit + publish**
 
 **Checklist Integration:**
 Use `--completed` to mark checklist items during commit:
+
 ```bash
 agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before committing
 ```
 
 **Optional Git state keys:**
+
 - `dry_run` - Preview operations without executing
 - `skip_stage` - Skip the staging step
 - `skip_publish` - Skip branch publish after initial commit
@@ -362,6 +373,7 @@ All Jira action commands that mutate state spawn background tasks:
 
 **CLI Parameter Support:**
 Some commands accept optional CLI arguments that override state values:
+
 - `agdt-add-jira-comment --jira-comment "..." [--jira-issue-key KEY]` - Comment text and issue key can be passed directly
 - When CLI args are provided, they are stored in state before execution
 
@@ -380,6 +392,7 @@ agdt-add-jira-comment
 ```
 
 This pattern:
+
 1. Shows CLI parameters first for explicit, self-documenting usage
 2. Shows parameterless alternative that uses current state values
 3. Indicates how to check current state values before running parameterless
@@ -406,6 +419,7 @@ Jira query commands also spawn background tasks - results are written to output 
 | `agdt-parse-jira-error-report` | Parse error report | (file input) | `temp/jira-error-report.json` |
 
 **`agdt-get-jira-issue` Features:**
+
 - **Automatic subtask detection**: Checks `issuetype.subtask` field
 - **Automatic parent retrieval**: Fetches parent issue for subtasks → `temp/temp-get-parent-issue-details-response.json`
 - **Automatic epic retrieval**: Fetches linked epic via `customfield_10008` → `temp/temp-get-epic-details-response.json`
@@ -416,6 +430,7 @@ Jira query commands also spawn background tasks - results are written to output 
 - **Console output**: Prints formatted issue details including parent/epic info
 
 **Update Issue State Keys:**
+
 - `jira.summary` - New summary text
 - `jira.description` - New description text
 - `jira.labels` - Comma-separated labels (replaces existing)
@@ -436,6 +451,7 @@ Jira query commands also spawn background tasks - results are written to output 
 | `agdt-tasks-clean` | Clean up expired tasks | (none) |
 
 **Optional Background Task State Keys:**
+
 - `background.task_id` - Task ID to query/wait for
 - `background.timeout` - Wait timeout in seconds (default: 300)
 - `background.poll_interval` - Poll interval in seconds (default: 2)
@@ -445,6 +461,7 @@ Jira query commands also spawn background tasks - results are written to output 
 **Background Task Pattern:**
 
 Action commands spawn background processes and return immediately:
+
 ```bash
 # Start background operation
 agdt-set jira.issue_key DFLY-1234
@@ -475,6 +492,7 @@ AI agents to think something went wrong and restart tests multiple times.
 | `agdt-test-pattern <args>` | Run specific tests (SYNCHRONOUS) | (none - takes args) |
 
 **Basic workflow (full test suite):**
+
 ```bash
 # Run tests in background
 agdt-test
@@ -484,6 +502,7 @@ agdt-task-wait
 ```
 
 **Running tests for a specific source file (with focused coverage):**
+
 ```bash
 # Specify source file via --source-file (auto-saved to state for future runs)
 agdt-test-file --source-file agentic_devtools/state.py
@@ -492,12 +511,14 @@ agdt-task-wait
 
 This is ideal when working on a single module and wanting to ensure full test coverage.
 The command:
+
 - Infers the test file from the source file name (e.g., `state.py` → `test_state.py`)
 - Shows coverage ONLY for the specified source file (not the entire codebase)
 - Requires 100% coverage for the target file to pass
 - Auto-saves `--source-file` to state, so subsequent runs can omit the parameter
 
 **Running specific test classes or methods (synchronous):**
+
 ```bash
 # Test a specific class
 agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem -v
@@ -507,12 +528,14 @@ agdt-test-pattern "tests/test_state.py::TestWorkflowState::test_set_and_get_work
 ```
 
 **When to use which command:**
+
 - `agdt-test` - Full suite validation before committing (required!)
 - `agdt-test-quick` - Full suite without coverage for faster iteration
 - `agdt-test-file` - Background execution for specific file/pattern (use when you want to check other things while tests run)
 - `agdt-test-pattern` - Synchronous execution when you need immediate results from a specific test
 
 **DO NOT:**
+
 - Run `pytest` directly
 - Run multiple test commands in parallel
 - Assume tests failed if command returns quickly (they run in background)
@@ -558,11 +581,13 @@ These commands initiate a workflow, loading and rendering the appropriate prompt
 The `agdt-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine approach:
 
 **Pre-flight Checks:**
+
 1. Validates that the current folder contains the issue key (case-insensitive)
 2. Validates that the current git branch contains the issue key
 3. If either check fails → outputs setup instructions with worktree/branch commands
 
 **Steps:**
+
 1. **setup** - If pre-flight fails: instructions to create worktree and branch
 2. **retrieve** - Auto-fetches Jira issue details via `agdt-get-jira-issue`
 3. **planning** - Analyze issue and post plan comment to Jira
@@ -575,6 +600,7 @@ The `agdt-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine a
 10. **completion** - Post final Jira comment
 
 **Automatic Workflow Advancement:**
+
 - `agdt-add-jira-comment` advances from `planning` → `checklist-creation`
 - `agdt-create-checklist` advances from `checklist-creation` → `implementation`
 - When all checklist items are complete → advances to `implementation-review`
@@ -590,6 +616,7 @@ The `agdt-initiate-work-on-jira-issue-workflow` uses an enhanced state-machine a
 | `agdt-show-checklist` | Display current checklist | (checklist in workflow) |
 
 **Usage:**
+
 ```bash
 # Create checklist
 agdt-create-checklist "Implement domain model" "Add tests" "Update docs"
@@ -605,6 +632,7 @@ agdt-git-save-work --completed 1 2 3
 ```
 
 **Manual Advancement:**
+
 ```bash
 # Advance to a specific step
 agdt-advance-workflow implementation
@@ -616,6 +644,7 @@ agdt-get-workflow
 ```
 
 **Usage Examples:**
+
 ```bash
 # Start work on a Jira issue
 agdt-set jira.issue_key DFLY-1234
@@ -639,6 +668,7 @@ agdt-clear-workflow
 ```
 
 **Usage examples:**
+
 ```bash
 # ⚠️ ALWAYS use agdt-test commands, NEVER pytest directly!
 
@@ -664,6 +694,7 @@ agdt-task-wait   # REQUIRED: Wait for completion
 ### No Replacement Tokens
 
 Unlike PowerShell, Python CLI handles special characters natively:
+
 ```bash
 # This just works - no token replacement needed!
 agdt-set content "Code with (parentheses) and [brackets]"
@@ -672,6 +703,7 @@ agdt-set content "Code with (parentheses) and [brackets]"
 ### No Multi-line Builder
 
 Python preserves multiline strings directly:
+
 ```bash
 agdt-set content "Line 1
 Line 2
@@ -681,6 +713,7 @@ Line 3"
 ### Generic Setter Pattern
 
 The `agdt-set` command accepts any key, so AI agents only need to approve it once:
+
 ```bash
 agdt-set pr_id 12345       # Same command pattern
 agdt-set thread_id 67890   # Same command pattern
@@ -700,6 +733,7 @@ Workflow commands use a template system for generating prompts:
 ### Template Variables
 
 Templates use `{{variable_name}}` syntax for substitution:
+
 ```markdown
 # Working on {{jira_issue_key}}
 
@@ -707,6 +741,7 @@ You are working on Jira issue **{{jira_issue_key}}**.
 ```
 
 Variables are populated from state, with dot notation converted to underscores:
+
 - State key `jira.issue_key` → Template variable `{{jira_issue_key}}`
 - State key `pull_request_id` → Template variable `{{pull_request_id}}`
 
@@ -719,7 +754,8 @@ Users can create override templates to customize workflow prompts:
 3. **Important**: Override templates cannot introduce new variables not present in the default
 
 Example validation error:
-```
+
+```text
 TemplateValidationError: Override template uses variables not in default: {'new_variable'}
 ```
 
@@ -743,17 +779,20 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-### Multi-Worktree Development
+### Multi-Worktree State Isolation
 
-When working with multiple git worktrees (e.g., one for feature development and another for the main branch), the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
+When working with multiple git worktrees (e.g., one for feature development and another for the main branch),
+the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
 
 **How it works:**
+
 1. State files are stored in `scripts/temp/` relative to the repository/worktree root
 2. The `get_state_dir()` function walks up from the current directory looking for a `scripts` directory
 3. Once found, it automatically creates `scripts/temp/` if it doesn't exist
 4. This ensures each worktree has its own isolated state, even with a single global pip installation
 
 **State directory resolution priority:**
+
 1. `AGENTIC_DEVTOOLS_STATE_DIR` environment variable (explicit override)
 2. `scripts/temp/` relative to repo root (auto-detected and created if needed)
 3. `.agdt-temp/` in current working directory (fallback for non-repo contexts)
@@ -769,7 +808,7 @@ When creating a new worktree, `scripts/temp/` doesn't exist initially (it's giti
 |----------|---------||
 | `AZURE_DEV_OPS_COPILOT_PAT` | PAT for Azure DevOps API calls |
 | `JIRA_COPILOT_PAT` | PAT for Jira API calls |
-| `JIRA_BASE_URL` | Override default Jira URL (default: https://jira.swica.ch) |
+| `JIRA_BASE_URL` | Override default Jira URL (default: `https://jira.swica.ch`) |
 | `JIRA_SSL_VERIFY` | Set to "0" to disable SSL verification |
 | `JIRA_CA_BUNDLE` | Path to custom CA bundle PEM file for Jira SSL |
 | `REQUESTS_CA_BUNDLE` | Standard requests library CA bundle path (fallback) |
@@ -797,10 +836,12 @@ When adding a new command that performs side effects (API calls, git operations,
 3. Export the function in the module's `__init__.py`
 4. **Create an async wrapper** that uses `run_in_background()` to spawn the sync command as a background task
 5. **Add entry point** in `pyproject.toml`:
+
    ```toml
    [project.scripts]
-  agdt-new-command = "agentic_devtools.cli.module.commands:new_command_async"
+   agdt-new-command = "agentic_devtools.cli.module.commands:new_command_async"
    ```
+
 6. Reinstall: `pip install -e .`
 7. **Document the command** in this file
 
@@ -813,6 +854,7 @@ When adding a new command that performs side effects (API calls, git operations,
 ### Adding convenience state functions
 
 Add typed functions in `state.py`:
+
 ```python
 def get_new_field(required: bool = False) -> Optional[str]:
     """Get the new field from state."""
@@ -852,16 +894,19 @@ git config core.hooksPath .githooks
 ```
 
 The hooks run automatically on `git commit` and check:
+
 - **ruff check**: Lints for pycodestyle errors (E), Pyflakes (F - unused imports/variables), warnings (W), import sorting (I), and pyupgrade (UP)
 - **ruff format**: Auto-formats code
 - **cspell**: Checks spelling against the dictionary in `cspell.json`
 
 To disable hooks:
+
 ```bash
 git config --unset core.hooksPath
 ```
 
 To run checks manually:
+
 ```bash
 # Ruff lint (with auto-fix)
 ruff check --fix --config scripts/agentic_devtools/pyproject.toml scripts/agentic_devtools/
@@ -878,6 +923,7 @@ cspell lint "scripts/**/*.py"
 The `cspell.json` file is the single source of truth for spelling. The VS Code workspace imports it via `cSpell.import`.
 
 **Required global installs** (one-time setup, requires disconnecting from VPN):
+
 ```bash
 npm install -g cspell @cspell/dict-de-de @cspell/dict-python @cspell/dict-dotnet @cspell/dict-companies @cspell/dict-fullstack @cspell/dict-typescript
 ```
@@ -909,6 +955,7 @@ agdt-git-save-work
 ### Amend Commit (Single Commit Policy - Automatic Detection)
 
 `agdt-git-save-work` now automatically detects when to amend instead of creating a new commit:
+
 - If current branch has commits ahead of main AND the last commit contains the same issue key → amend
 - Otherwise → new commit
 
@@ -1046,6 +1093,7 @@ agdt-review-pull-request --include-reviewed
 ```
 
 The command:
+
 1. **Resolves both PR ID and Jira issue key** from params, state, or derived sources:
    - If Jira key provided but no PR ID → searches Jira for linked PRs
    - If PR ID provided but no Jira key → extracts issue key from PR title
@@ -1096,6 +1144,7 @@ agdt-get-jira-issue
 ```
 
 This fetches the issue and:
+
 - Prints formatted details (key, summary, type, labels, description, comments)
 - Saves full JSON response to `scripts/temp/temp-get-issue-details-response.json`
 - Stores issue in state as `jira.last_issue`
@@ -1139,6 +1188,7 @@ agdt-create-issue
 ```
 
 Or use the user story format:
+
 ```bash
 agdt-set jira.project_key DFLY
 agdt-set jira.summary "Feature request"
@@ -1178,7 +1228,7 @@ agdt-add-jira-comment  # Previews without posting
 
 Background tasks use a separate storage structure in `scripts/temp/background-tasks/`:
 
-```
+```text
 scripts/temp/
 ├── agdt-state.json                    # Main state file (contains background.recentTasks)
 └── background-tasks/
@@ -1190,6 +1240,7 @@ scripts/temp/
 **State Structure:**
 
 The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
+
 ```json
 {
   "background": {
@@ -1210,16 +1261,19 @@ The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
 ```
 
 **Sorting Rules:**
+
 - Unfinished tasks appear first, sorted by start time (earliest first)
 - Finished tasks appear after, sorted by end time (earliest first)
 
 **Auto-Pruning:**
+
 - Recent tasks are automatically pruned when not running and finished more than 5 minutes ago
 - The `all-background-tasks.json` file keeps the complete history without pruning
 
 ## 14. Instruction Maintenance
 
 Update this file when:
+
 - Adding new CLI commands
 - Changing state file structure
 - Modifying the auto-approval pattern

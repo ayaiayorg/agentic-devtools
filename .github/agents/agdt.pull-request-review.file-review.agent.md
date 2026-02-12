@@ -39,6 +39,7 @@ Review files and record approvals or requested changes.
    ```bash
    agdt-approve-file
    ```
+
 2. Request changes:
 
    ```bash

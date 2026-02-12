@@ -35,6 +35,7 @@ Run tests and quality checks before committing.
    ```bash
    agdt-test
    ```
+
 2. Advance the workflow:
 
    ```bash
