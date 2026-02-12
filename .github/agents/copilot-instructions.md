@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2026-02-03
 
 ## Active Technologies
+
 - Markdown (repository documentation) + None (001-separate-docs)
 - Markdown (YAML frontmatter) for agents/prompts; Python 3.11 for optional coverage script + VS Code Copilot Chat (agent `.agent.md` and prompt `.prompt.md` conventions) (001-add-workflow-step-agents)
 - N/A — all artifacts are static Markdown files committed to the repository (001-add-workflow-step-agents)
@@ -29,6 +30,7 @@ ruff check .
 Python >= 3.8: Follow standard conventions
 
 ## Recent Changes
+
 - 001-add-workflow-step-agents: Added Markdown (YAML frontmatter) for agents/prompts; Python 3.11 for optional coverage script + VS Code Copilot Chat (agent `.agent.md` and prompt `.prompt.md` conventions)
 - 001-separate-docs: Added Markdown (repository documentation) + None
 

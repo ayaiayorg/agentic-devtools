@@ -35,6 +35,7 @@ Decide whether to approve or request changes for the pull request.
    ```bash
    agdt-approve-pull-request
    ```
+
 2. Request changes with a comment:
 
    ```bash

@@ -1,6 +1,7 @@
 # Python Development Container
 
 This directory contains the configuration for a Python development container that can be used with:
+
 - Visual Studio Code with the Dev Containers extension
 - GitHub Codespaces
 - Any tool that supports the Dev Container specification
@@ -35,6 +36,7 @@ This directory contains the configuration for a Python development container tha
 ## Post-Create Setup
 
 After the container is created, the following command runs automatically:
+
 ```bash
 pip install -e '.[dev]'
 ```
@@ -44,6 +46,7 @@ This installs the `agentic-devtools` package in editable mode with all developme
 ## Customization
 
 To customize the development environment, edit the `devcontainer.json` file:
+
 - Add more VS Code extensions to the `extensions` array
 - Modify VS Code settings in the `settings` object
 - Change the Python version by updating the `image` property

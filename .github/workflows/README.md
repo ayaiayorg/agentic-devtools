@@ -5,6 +5,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 ## Workflows
 
 ### speckit-issue-trigger.yml
+
 **SpecKit Issue to Specification Automation**
 
 - Runs on:
@@ -16,6 +17,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - **Sequence Diagram**: See [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md) for complete visual documentation of the workflow
 
 ### test.yml
+
 **Python Tests and Linting**
 
 - Runs on: Pull requests and pushes to main
@@ -24,6 +26,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - Purpose: Ensures code quality and test coverage
 
 ### lint.yml
+
 **Markdown Linting**
 
 - Runs on: Pull requests and pushes to main
@@ -32,6 +35,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - Scope: All `*.md` files in the repository
 
 ### release.yml
+
 **Automated Release Creation**
 
 - Runs on:

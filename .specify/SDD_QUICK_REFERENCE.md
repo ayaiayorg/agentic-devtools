@@ -189,6 +189,7 @@ See `specs/001-example-feature/spec.md` for a complete example.
 ## Tips
 
 ✅ **Do:**
+
 - Start with spec before any code
 - Make user stories independently testable
 - Include edge cases
@@ -196,6 +197,7 @@ See `specs/001-example-feature/spec.md` for a complete example.
 - Check constitution compliance
 
 ❌ **Don't:**
+
 - Skip specification phase
 - Mix implementation details in spec
 - Create dependent user stories
