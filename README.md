@@ -3,14 +3,16 @@
 AI assistant helper commands for the Dragonfly platform. This package provides
 simple CLI commands that can be easily auto-approved by VS Code AI assistants.
 
-**Audience**: End users of the AGDT CLI. This README focuses on installation and
+**Audience**: End users of the AGDT CLI. This README focuses on installation
+and
 usage.
 
 ## Installation
 
 ### Option 1: Using pipx (Recommended)
 
-[pipx](https://pipx.pypa.io/) installs CLI tools in isolated environments with commands available globally. This is the cleanest approach.
+A pip-installable Python package that provides CLI commands for AI agents
+to interact with Git, Azure DevOps, Jira, and other services.
 
 ```bash
 # Install pipx if you don't have it
@@ -19,7 +21,8 @@ pipx ensurepath
 
 # ⚠️ IMPORTANT: Restart your terminal for PATH changes to take effect
 # Or refresh PATH in current PowerShell session:
-$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "User") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
+Workflow steps can be started from VS Code Copilot Chat using
+`/agdt.<workflow>.<step>` commands.
 
 # Install agentic-devtools
 cd agentic_devtools
@@ -27,7 +30,7 @@ pipx install .
 
 # For development (editable install)
 pipx install -e .
-```
+```text
 
 ### Option 2: Global pip install
 
@@ -45,7 +48,7 @@ pip install -e .
 
 # With dev dependencies
 pip install -e ".[dev]"
-```
+```text
 
 > **Note:** Avoid `pip install --user` as it places scripts in a directory that
 may not be on your PATH (`%APPDATA%\Python\PythonXXX\Scripts` on Windows).
@@ -57,7 +60,7 @@ After installation, verify the commands are available:
 ```bash
 agdt-set --help
 agdt-show
-```
+```text
 
 If commands are not found after installation:
 
@@ -89,7 +92,7 @@ I've made the changes you suggested."
 
 # Execute action (parameterless - approve once)
 agdt-reply-to-pr-thread
-```
+```text
 
 ## Copilot Chat Commands
 
@@ -119,7 +122,7 @@ agdt-clear
 
 # Show all state
 agdt-show
-```
+```text
 
 ### Examples
 
@@ -142,7 +145,7 @@ I've addressed your concerns:
 
 # View current state
 agdt-show
-```
+```text
 
 ## Azure DevOps Commands
 
@@ -157,7 +160,7 @@ agdt-reply-to-pr-thread
 # Optionally resolve the thread after replying
 agdt-set resolve_thread true
 agdt-reply-to-pr-thread
-```
+```text
 
 ### Add New PR Comment
 
@@ -170,14 +173,14 @@ agdt-add-pr-comment
 agdt-set path "src/example.py"
 agdt-set line 42
 agdt-add-pr-comment
-```
+```text
 
 ### Dry Run Mode
 
 ```bash
 agdt-set dry_run true
 agdt-reply-to-pr-thread  # Previews without making API calls
-```
+```text
 
 ## Git Commands
 
@@ -188,7 +191,7 @@ single-commit policy.
 
 ```bash
 # Option A: With CLI parameter (explicit)
-agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature
+| `agdt-get-pull-request-threads` | Get all PR comment threads |
 
 - Change 1
 - Change 2
@@ -198,7 +201,7 @@ agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/b
 # Option B: Parameterless (uses current state)
 # Current commit_message: run `agdt-get commit_message` to check
 agdt-git-save-work
-```
+```text
 
 ### Smart Commit (Auto-detects Amend)
 
@@ -215,7 +218,7 @@ agdt-git-save-work --commit-message "feature(DFLY-1234): refined implementation
 - Original changes
 - Additional updates"
 # Auto-detects and amends!
-```
+```text
 
 **Detection logic:**
 
@@ -232,7 +235,7 @@ agdt-git-stage       # Stage all changes (git add .)
 agdt-git-push        # Push changes (git push)
 agdt-git-force-push  # Force push with lease
 agdt-git-publish     # Push with upstream tracking
-```
+```text
 
 ### Git State Options
 
@@ -253,7 +256,7 @@ The package provides workflow commands for managing structured work processes.
 # Start work on a Jira issue
 agdt-set jira.issue_key "DFLY-1234"
 agdt-initiate-work-on-jira-issue-workflow
-```
+```text
 
 **Workflow Steps:**
 
@@ -282,7 +285,7 @@ agdt-show-checklist
 
 # Update during commit (auto-marks items and advances workflow)
 agdt-git-save-work --completed 1 2  # Marks items complete before committing
-```
+```text
 
 ### Workflow Navigation
 
@@ -295,7 +298,7 @@ agdt-advance-workflow
 
 # Clear workflow
 agdt-clear-workflow
-```
+```text
 
 ## PyPI Release Commands
 
@@ -316,7 +319,7 @@ agdt-set pypi.dry_run false
 
 # Release starten (parameterlos)
 agdt-release-pypi
-```
+```text
 
 ### Status prüfen
 
@@ -324,7 +327,7 @@ agdt-release-pypi
 agdt-task-status
 agdt-task-log
 agdt-task-wait
-```
+```text
 
 ## Jira Commands
 
@@ -336,7 +339,7 @@ All Jira commands use the `jira.*` namespace for state values. Set
 ```bash
 agdt-set jira.issue_key "DFLY-1234"
 agdt-get-jira-issue
-```
+```text
 
 ### Add Comment to Issue
 
@@ -350,7 +353,7 @@ agdt-add-jira-comment --jira-comment "Your comment text"
 # Current jira.issue_key: run `agdt-get jira.issue_key` to check
 # Current jira.comment: run `agdt-get jira.comment` to check
 agdt-add-jira-comment
-```
+```text
 
 ### Create Epic
 
@@ -367,7 +370,7 @@ agdt-create-epic
 agdt-set jira.acceptance_criteria "- Criterion 1
 - Criterion 2"
 agdt-create-epic
-```
+```text
 
 ### Create Issue (Task/Bug/Story)
 
@@ -382,7 +385,7 @@ agdt-set jira.role "developer"
 agdt-set jira.desired_outcome "complete task"
 agdt-set jira.benefit "value delivered"
 agdt-create-issue
-```
+```text
 
 ### Create Subtask
 
@@ -391,26 +394,26 @@ agdt-set jira.parent_key "DFLY-1234"
 agdt-set jira.summary "Subtask Title"
 agdt-set jira.description "Subtask description"
 agdt-create-subtask
-```
+```text
 
 ### Dry Run Mode for Jira
 
 ```bash
 agdt-set jira.dry_run true
 agdt-create-issue  # Previews payload without API call
-```
+```text
 
 ## Environment Variables
 
-| Variable                    | Purpose                                             |
-| --------------------------- | --------------------------------------------------- |
-| `AZURE_DEV_OPS_COPILOT_PAT` | Azure DevOps PAT for API calls                      |
-| `JIRA_COPILOT_PAT`          | Jira API token for authentication                   |
-| `JIRA_BASE_URL`             | Override default Jira URL (default: jira.swica.ch)  |
-| `JIRA_SSL_VERIFY`           | Set to `0` to disable SSL verification              |
-| `JIRA_CA_BUNDLE`            | Path to custom CA bundle PEM file for Jira SSL      |
-| `REQUESTS_CA_BUNDLE`        | Standard requests library CA bundle path (fallback) |
-| `AGDT_STATE_FILE`           | Override default state file path                    |
+| Variable                    | Purpose
+| --------------------------- | ------------------------------------------------
+| `AZURE_DEV_OPS_COPILOT_PAT` | Azure DevOps PAT for API calls
+| `JIRA_COPILOT_PAT`          | Jira API token for authentication
+| `JIRA_BASE_URL`             | Override default Jira URL (default: jira.swica.c
+| `JIRA_SSL_VERIFY`           | Set to `0` to disable SSL verification
+| `JIRA_CA_BUNDLE`            | Path to custom CA bundle PEM file for Jira SSL  
+| `REQUESTS_CA_BUNDLE`        | Standard requests library CA bundle path (fallba
+| `AGDT_STATE_FILE`           | Override default state file path
 
 ## State File Location
 
@@ -436,7 +439,7 @@ Unlike PowerShell, Python's CLI parsing handles special characters natively:
 ```bash
 # This just works!
 agdt-set content "Code with (parentheses) and [brackets]"
-```
+```text
 
 ### No Multi-line Builder Needed
 
@@ -446,7 +449,7 @@ Python preserves multiline strings from the shell:
 agdt-set content "Line 1
 Line 2
 Line 3"
-```
+```text
 
 ## GitHub Actions: SpecKit Issue Trigger
 
@@ -479,7 +482,8 @@ The diagram shows:
 5. A new branch and pull request are created with the specification
 6. Status comments are posted to the issue throughout the process
 
-The `speckit` trigger label is automatically removed once processing starts, and
+The `speckit` trigger label is automatically removed once processing starts,
+and
 replaced with status labels (`speckit:processing`, `speckit:completed`, or
 `speckit:failed`).
 
@@ -489,8 +493,8 @@ Configure the action using repository variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SPECKIT_TRIGGER_LABEL` | `speckit` | The label that triggers the SDD process |
-| `SPECKIT_AI_PROVIDER` | `claude` | AI provider for spec generation (`claude`, `openai`) |
+|`SPECKIT_TRIGG| `speckit` |The label that|
+|`SPECKIT_AI_PR| `claude` |AI provider fo|
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
 | `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
 | `SPECKIT_CREATE_PR` | `true` | Create a pull request |
@@ -515,7 +519,7 @@ You can also trigger the workflow manually for testing:
 
 ```bash
 gh workflow run speckit-issue-trigger.yml -f issue_number=123
-```
+```text
 
 ### Labels
 

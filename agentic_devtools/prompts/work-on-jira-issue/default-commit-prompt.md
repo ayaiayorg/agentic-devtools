@@ -45,5 +45,6 @@ agdt-git-save-work
 
 ---
 
-**Workflow Status**: Commit step. After committing, the workflow will advance to
+**Workflow Status**: Commit step. After committing, the workflow will advance
+to
 the pull-request step.

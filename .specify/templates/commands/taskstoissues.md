@@ -14,7 +14,7 @@ scripts:
 
 ```text
 $ARGUMENTS
-```
+```text
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -28,7 +28,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ```bash
 git config --get remote.origin.url
-```
+```text
 
 > [!CAUTION]
 > ONLY PROCEED TO NEXT STEPS IF THE REMOTE IS A GITHUB URL

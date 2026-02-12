@@ -16,7 +16,8 @@ script serves as validation).
 
 ## Phase 1: Setup
 
-**Purpose**: Establish the agent/prompt template pattern and directory awareness
+**Purpose**: Establish the agent/prompt template pattern and directory
+awareness
 
 - [x] T001 Create agent body template file at
 
@@ -47,7 +48,8 @@ script serves as validation).
   extract required state keys and CLI commands for each step (capture in
   data-model.md catalog)
 
-**Checkpoint**: Template validated, step catalog confirmed — agent authoring can
+**Checkpoint**: Template validated, step catalog confirmed — agent authoring
+can
 begin
 
 ---
@@ -75,7 +77,8 @@ and receive step-specific guidance with CLI commands.
   .github/agents/agdt.work-on-jira-issue.setup.agent.md — description: "Work on
   .github/agents/agdt.work-on-jira-issue.setup.agent.md — description: "Work on
   Jira Issue – Setup: Create worktree and branch (step 2 of 11)"; required
-  state: jira.issue_key; CLI: agdt-setup-worktree-background; handoff → retrieve
+  state: jira.issue_key; CLI: agdt-setup-worktree-background; handoff →
+  retrieve
 
 - [x] T006 [P] [US1] Create agent at
 
@@ -126,9 +129,12 @@ and receive step-specific guidance with CLI commands.
 
 - [x] T012 [P] [US1] Create agent at
 
-  .github/agents/agdt.work-on-jira-issue.commit.agent.md — description: "Work on
-  .github/agents/agdt.work-on-jira-issue.commit.agent.md — description: "Work on
-  Jira Issue – Commit: Stage and commit changes (step 9 of 11)"; required state:
+  .github/agents/agdt.work-on-jira-issue.commit.agent.md — description: "Work
+  on
+  .github/agents/agdt.work-on-jira-issue.commit.agent.md — description: "Work
+  on
+  Jira Issue – Commit: Stage and commit changes (step 9 of 11)"; required
+  state:
   commit_message; CLI: agdt-git-save-work; handoff → pull-request
 
 - [x] T013 [P] [US1] Create agent at
@@ -136,7 +142,8 @@ and receive step-specific guidance with CLI commands.
   .github/agents/agdt.work-on-jira-issue.pull-request.agent.md — description:
   .github/agents/agdt.work-on-jira-issue.pull-request.agent.md — description:
   "Work on Jira Issue – Pull Request: Create a pull request (step 10 of 11)";
-  required state: source_branch, title; CLI: agdt-create-pull-request; handoff →
+  required state: source_branch, title; CLI: agdt-create-pull-request; handoff
+  →
   completion
 
 - [x] T014 [P] [US1] Create agent at
@@ -221,7 +228,8 @@ and receive step-specific guidance with CLI commands.
 
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
-  Review – Initiate: Start a pull request review (step 1 of 5)"; required state:
+  Review – Initiate: Start a pull request review (step 1 of 5)"; required
+  state:
   pull_request_id OR jira.issue_key; CLI: agdt-review-pull-request; handoff →
   file-review
 
@@ -249,8 +257,10 @@ and receive step-specific guidance with CLI commands.
 
 - [x] T030 [P] [US1] Create agent at
 
-  .github/agents/agdt.pull-request-review.completion.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.completion.agent.md — description: "PR
+  .github/agents/agdt.pull-request-review.completion.agent.md — description:
+  "PR
+  .github/agents/agdt.pull-request-review.completion.agent.md — description:
+  "PR
   Review – Completion: Finalize review (step 5 of 5)"; required state:
   pull_request_id; CLI: agdt-add-jira-comment; no handoff
 
@@ -290,8 +300,10 @@ and receive step-specific guidance with CLI commands.
 
 - [x] T036 [P] [US1] Create agent at
 
-  .github/agents/agdt.create-jira-issue.initiate.agent.md — description: "Create
-  .github/agents/agdt.create-jira-issue.initiate.agent.md — description: "Create
+  .github/agents/agdt.create-jira-issue.initiate.agent.md — description:
+  "Create
+  .github/agents/agdt.create-jira-issue.initiate.agent.md — description:
+  "Create
   Jira Issue – Initiate: Create a new Jira issue"; required state:
   jira.project_key; CLI: agdt-initiate-create-jira-issue-workflow; no handoff
 
@@ -311,8 +323,10 @@ and receive step-specific guidance with CLI commands.
 
 - [x] T039 [P] [US1] Create agent at
 
-  .github/agents/agdt.update-jira-issue.initiate.agent.md — description: "Update
-  .github/agents/agdt.update-jira-issue.initiate.agent.md — description: "Update
+  .github/agents/agdt.update-jira-issue.initiate.agent.md — description:
+  "Update
+  .github/agents/agdt.update-jira-issue.initiate.agent.md — description:
+  "Update
   Jira Issue – Initiate: Update an existing Jira issue"; required state:
   jira.issue_key; CLI: agdt-initiate-update-jira-issue-workflow; no handoff
 
@@ -403,7 +417,8 @@ agent sees the same sections in the same order.
 
 ## Phase 5: User Story 3 – Maintain step coverage (Priority: P3)
 
-**Goal**: A coverage verification script detects missing agents/prompts when new
+**Goal**: A coverage verification script detects missing agents/prompts when
+new
 workflow steps are added.
 
 **Independent Test**: Run `python scripts/verify-agent-coverage.py` and see
@@ -421,8 +436,10 @@ workflow steps are added.
 
   single-step workflows (create-jira-issue, create-jira-epic,
   single-step workflows (create-jira-issue, create-jira-epic,
-  create-jira-subtask, update-jira-issue, apply-pull-request-review-suggestions)
-  that are not in WORKFLOW_REGISTRY but defined in commands.py. Include explicit
+  create-jira-subtask, update-jira-issue,
+  apply-pull-request-review-suggestions)
+  that are not in WORKFLOW_REGISTRY but defined in commands.py. Include
+  explicit
   name mapping for apply-pull-request-review-suggestions →
   agdt.apply-pr-suggestions.* agent namespace
 
@@ -496,7 +513,8 @@ agent/prompt is detectable.
 
 ### Within Phase 3 (US1)
 
-All 42 file creation tasks are marked [P] and can run in parallel — each creates
+All 42 file creation tasks are marked [P] and can run in parallel — each
+creates
 a separate file with no cross-dependencies.
 
 ### Parallel Opportunities
@@ -575,4 +593,5 @@ With multiple developers:
   duplicate Jinja2 templates
   duplicate Jinja2 templates
 
-- Handoffs create a navigable chain: each step links to the next in the workflow
+- Handoffs create a navigable chain: each step links to the next in the
+workflow

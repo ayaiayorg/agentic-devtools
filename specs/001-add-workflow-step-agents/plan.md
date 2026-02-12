@@ -13,8 +13,10 @@ defined in `agentic_devtools` — 21 steps across 7 workflows (11 + 5 multi-step
 
 5 single-step) = 42 new files plus a coverage verification script. This lets a
 
-developer type `/agdt.work-on-jira-issue.planning` in the Copilot Chat window to
-developer type `/agdt.work-on-jira-issue.planning` in the Copilot Chat window to
+developer type `/agdt.work-on-jira-issue.planning` in the Copilot Chat window
+to
+developer type `/agdt.work-on-jira-issue.planning` in the Copilot Chat window
+to
 receive the same step-specific guidance that
 `agdt-initiate-work-on-jira-issue-workflow` renders on the CLI, eliminating the
 need to leave the editor. No Python runtime changes are required.
@@ -27,7 +29,8 @@ need to leave the editor. No Python runtime changes are required.
 `.prompt.md` conventions)
 **Storage**: N/A — all artifacts are static Markdown files committed to the
 repository
-**Testing**: Manual smoke test in Copilot Chat; optional Python script to verify
+**Testing**: Manual smoke test in Copilot Chat; optional Python script to
+verify
 catalog completeness
 **Target Platform**: VS Code (any OS) with GitHub Copilot extension  
 **Project Type**: Single project (existing repository)  
@@ -105,7 +108,8 @@ modules, no `pyproject.toml` changes.
 **Naming Exception**: The workflow `apply-pull-request-review-suggestions` uses
 a shortened agent namespace `agdt.apply-pr-suggestions.*` to keep file names
 manageable. The coverage script must map between the internal workflow name and
-the shortened agent prefix. All other workflows use their full name as the agent
+the shortened agent prefix. All other workflows use their full name as the
+agent
 namespace segment.
 
 ## Complexity Tracking

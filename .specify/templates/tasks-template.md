@@ -258,7 +258,7 @@ Task: "Integration test for [user journey] in tests/integration/test_[name].py"
 # Launch all models for User Story 1 together:
 Task: "Create [Entity1] model in src/models/[entity1].py"
 Task: "Create [Entity2] model in src/models/[entity2].py"
-```
+```text
 
 ---
 

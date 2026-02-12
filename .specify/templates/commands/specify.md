@@ -26,7 +26,7 @@ scripts:
 
 ```text
 $ARGUMENTS
-```
+```text
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -62,11 +62,12 @@ Given that feature description, do this:
 
 2. **Check for existing branches before creating new one**:
 
-   a. First, fetch all remote branches to ensure we have the latest information:
+   a. First, fetch all remote branches to ensure we have the latest
+   information:
 
       ```bash
       git fetch --all --prune
-      ```
+      ```text
 
    b. Find the highest feature number across all sources for the short-name:
 
@@ -129,7 +130,8 @@ Given that feature description, do this:
        - Make informed guesses based on context and industry standards
        - Only mark with [NEEDS CLARIFICATION: specific question] if:
          - The choice significantly impacts feature scope or user experience
-         - Multiple reasonable interpretations exist with different implications
+         - Multiple reasonable interpretations exist with different
+         implications
          - No reasonable default exists
        - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
        - Prioritize clarifications by impact: scope > security/privacy > user
@@ -198,7 +200,7 @@ Given that feature description, do this:
       
       - Items marked incomplete require spec updates before `/speckit.clarify` or
         `/speckit.plan`
-      ```
+      ```text
 
    b. **Run Validation Check**: Review the spec against each checklist item:
 
@@ -246,7 +248,7 @@ Given that feature description, do this:
            | Custom | Provide your own answer | [How to provide] |
            
            **Your choice**: _[Wait for user response]_
-           ```
+           ```text
 
         1. **CRITICAL - Table Formatting**: Ensure markdown tables are properly
            formatted:
@@ -357,6 +359,7 @@ Success criteria must be:
   instantly")
   instantly")
 
-- "Database can handle 1000 TPS" (implementation detail, use user-facing metric)
+- "Database can handle 1000 TPS" (implementation detail, use user-facing
+metric)
 - "React components render efficiently" (framework-specific)
 - "Redis cache hit rate above 80%" (technology-specific)

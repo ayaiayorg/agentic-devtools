@@ -54,5 +54,6 @@ agdt-create-pull-request
 
 ---
 
-**Workflow Status**: Pull request step. After creating the PR, the workflow will
+**Workflow Status**: Pull request step. After creating the PR, the workflow
+will
 advance to the completion step.

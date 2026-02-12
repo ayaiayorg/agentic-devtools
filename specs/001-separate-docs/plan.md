@@ -19,7 +19,8 @@ cross‑references.
 <!--
   ACTION REQUIRED: Replace the content in this section with the technical
   details
-  for the project. The structure here is presented in advisory capacity to guide
+  for the project. The structure here is presented in advisory capacity to
+  guide
   the iteration process.
 -->
 
@@ -94,7 +95,8 @@ specs/
 └── 001-separate-docs/
 ```
 
-**Structure Decision**: Documentation-only update scoped to repository root docs
+**Structure Decision**: Documentation-only update scoped to repository root
+docs
 and specs/README.md. No source code changes.
 
 ## Complexity Tracking

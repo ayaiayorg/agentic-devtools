@@ -16,7 +16,8 @@ research]
 <!--
   ACTION REQUIRED: Replace the content in this section with the technical
   details
-  for the project. The structure here is presented in advisory capacity to guide
+  for the project. The structure here is presented in advisory capacity to
+  guide
   the iteration process.
 -->
 
@@ -27,7 +28,8 @@ CLARIFICATION]
 **Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
 **Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
 **Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60
+fps
 or NEEDS CLARIFICATION]
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory,
 offline-capable or NEEDS CLARIFICATION]
@@ -52,7 +54,7 @@ specs/[###-feature]/
 ├── quickstart.md        # Phase 1 output (/speckit.plan command)
 ├── contracts/           # Phase 1 output (/speckit.plan command)
 └── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
-```
+```text
 
 ### Source Code (repository root)
 <!--
@@ -96,7 +98,7 @@ api/
 
 ios/ or android/
 └── [platform-specific structure: feature modules, UI flows, platform tests]
-```
+```text
 
 **Structure Decision**: [Document the selected structure and reference the real
 directories captured above]

@@ -34,7 +34,7 @@ The project constitution defines core principles and governance:
 
 ```bash
 cat .specify/memory/constitution.md
-```
+```text
 
 Key principles for agentic-devtools:
 
@@ -59,7 +59,7 @@ Use the helper script:
 # - Branch: 002-add-webhook-support
 # - Directory: specs/002-add-webhook-support/
 # - File: specs/002-add-webhook-support/spec.md (from template)
-```
+```text
 
 ### 3. Fill Out the Specification
 
@@ -84,14 +84,14 @@ Edit `specs/NNN-feature-name/spec.md`:
 
 AI assistants can use the `/speckit.plan` command:
 
-```
+```text
 /speckit.plan
 Technology stack:
 - Python 3.11+
 - Click for CLI
 - Background task execution
 - State-based parameter passing
-```
+```text
 
 This creates `specs/NNN-feature-name/plan.md` with:
 
@@ -105,9 +105,9 @@ This creates `specs/NNN-feature-name/plan.md` with:
 
 Use `/speckit.tasks` to generate task list:
 
-```
+```text
 /speckit.tasks
-```
+```text
 
 This creates `specs/NNN-feature-name/tasks.md` with:
 
@@ -120,9 +120,9 @@ This creates `specs/NNN-feature-name/tasks.md` with:
 
 Execute the implementation:
 
-```
+```text
 /speckit.implement
-```
+```text
 
 AI assistant will:
 
@@ -136,7 +136,7 @@ AI assistant will:
 
 The `.specify/` directory contains the SDD templates and helper scripts:
 
-```
+```text
 .specify/
 ├── memory/
 │   └── constitution.md      # Project principles and governance
@@ -147,7 +147,7 @@ The `.specify/` directory contains the SDD templates and helper scripts:
 │   ├── checklist-template.md
 │   └── commands/            # SDD workflow command templates
 └── scripts/                 # Helper scripts (bash & PowerShell)
-```
+```text
 
 ### SDD Command Templates
 
@@ -164,7 +164,7 @@ AI assistants can use these command templates (in
 
 ## Directory Structure
 
-```
+```text
 agentic-devtools/
 ├── .specify/                    # SDD infrastructure
 │   ├── memory/
@@ -193,7 +193,7 @@ agentic-devtools/
 │   └── README.md
 ├── agentic_devtools/           # Source code
 └── tests/                      # Test suite
-```
+```text
 
 ## Documentation Boundaries
 
@@ -213,53 +213,53 @@ These slash commands are available when properly configured:
 
 1. **`/speckit.constitution`** - Update project principles
 
-   ```
+   ```text
    /speckit.constitution Update testing standards to require 95% coverage
-   ```
+   ```text
 
 2. **`/speckit.specify`** - Create feature specification
 
-   ```
+   ```text
    /speckit.specify Build a command that exports Jira issues to CSV format
-   ```
+   ```text
 
 3. **`/speckit.plan`** - Create implementation plan
 
-   ```
+   ```text
    /speckit.plan Use pandas for CSV export, Click for CLI
-   ```
+   ```text
 
 4. **`/speckit.tasks`** - Generate task list
 
-   ```
+   ```text
    /speckit.tasks
-   ```
+   ```text
 
 5. **`/speckit.implement`** - Execute implementation
 
-   ```
+   ```text
    /speckit.implement
-   ```
+   ```text
 
 ### Quality Assurance
 
 - **`/speckit.analyze`** - Check cross-artifact consistency
 
-  ```
+  ```text
   /speckit.analyze
-  ```
+  ```text
 
 - **`/speckit.checklist`** - Generate quality checklist
 
-  ```
+  ```text
   /speckit.checklist
-  ```
+  ```text
 
 - **`/speckit.clarify`** - Clarify underspecified areas
 
-  ```
+  ```text
   /speckit.clarify
-  ```
+  ```text
 
 ## Integration with Existing Workflows
 
@@ -274,7 +274,7 @@ SDD specifications define what state keys are needed:
 
 - FR-001: System MUST support export.format state key
 - FR-002: System MUST support export.output_file state key
-```
+```text
 
 Implementation uses standard state pattern:
 
@@ -282,7 +282,7 @@ Implementation uses standard state pattern:
 agdt-set export.format csv
 agdt-set export.output_file issues.csv
 agdt-export-jira-issues
-```
+```text
 
 ### Background Tasks
 
@@ -292,7 +292,7 @@ Specifications identify long-running operations:
 ## Non-Functional Requirements
 
 - NFR-001: Export operation MAY take > 30 seconds for large datasets
-```
+```text
 
 Implementation uses background task pattern:
 
@@ -301,7 +301,7 @@ Implementation uses background task pattern:
 def export_jira_issues():
     # Long-running export logic
     pass
-```
+```text
 
 ### Testing
 
@@ -312,7 +312,7 @@ Specifications drive test requirements:
 
 1. **Given** 100 Jira issues exist, **When** export runs, 
    **Then** CSV contains 100 rows with correct data
-```
+```text
 
 Tests verify acceptance criteria:
 
@@ -320,7 +320,7 @@ Tests verify acceptance criteria:
 def test_export_100_issues():
     # Test implementation matching spec
     pass
-```
+```text
 
 ## Best Practices
 
@@ -391,7 +391,8 @@ See `specs/001-example-feature/spec.md` for a complete example showing:
 
 ### Example 2: Workflow Documentation
 
-See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for a
+See `specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md` for
+a
 comprehensive example showing:
 
 - Mermaid sequence diagram of complete workflow
@@ -408,7 +409,7 @@ pattern, making it easy for new contributors to understand the system behavior.
 
 For multi-component features:
 
-```
+```text
 specs/00X-complex-feature/
 ├── spec.md              # Main specification
 ├── plan.md              # Implementation plan
@@ -422,7 +423,7 @@ specs/00X-complex-feature/
 └── contracts/           # API contracts (auto-generated)
     ├── endpoint-1.md
     └── endpoint-2.md
-```
+```text
 
 ## Troubleshooting
 
@@ -463,13 +464,13 @@ agdt-test-pattern tests/test_jira_helpers.py::TestEnsureJiraPem::test_returns_ex
 agdt-set test_pattern test_jira_helpers.py
 agdt-test-file
 agdt-task-wait
-```
+```text
 
 ### Scripts Not Executable
 
 ```bash
 chmod +x .specify/scripts/bash/*.sh
-```
+```text
 
 ### Commands Not Available
 
@@ -477,7 +478,7 @@ Ensure templates are in place:
 
 ```bash
 ls .specify/templates/commands/
-```
+```text
 
 ### Constitution Conflicts
 
@@ -485,13 +486,13 @@ Review and update constitution:
 
 ```bash
 vim .specify/memory/constitution.md
-```
+```text
 
 Run consistency check:
 
-```
+```text
 /speckit.analyze
-```
+```text
 
 ## Additional Resources
 

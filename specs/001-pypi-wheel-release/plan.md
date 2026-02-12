@@ -12,8 +12,10 @@ Release-Verantwortliche sollen einen Release-Lauf starten können, der vor dem
 Upload einen vollständigen Testlauf ausführt, ein Wheel erzeugt und das Paket
 auf pypi.org veröffentlicht. Technisch wird ein neuer CLI-Release-Command
 eingeführt, der als Background-Task läuft, Tests via bestehender
-Test-Infrastruktur ausführt, das Wheel mit PEP-517 (`python -m build`) erstellt,
-Metadaten validiert und den Upload via Twine vornimmt, inklusive Versionsprüfung
+Test-Infrastruktur ausführt, das Wheel mit PEP-517 (`python -m build`)
+erstellt,
+Metadaten validiert und den Upload via Twine vornimmt, inklusive
+Versionsprüfung
 über die PyPI-JSON-API.
 
 ## Technical Context
