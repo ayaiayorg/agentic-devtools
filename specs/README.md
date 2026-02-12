@@ -1,14 +1,17 @@
 # Feature Specifications
 
-This directory contains feature specifications following the Spec-Driven Development (SDD) methodology.
+This directory contains feature specifications following the
+Spec-Driven Development (SDD) methodology.
 
-**Developer-only**: This directory is intended for AGDT maintainers and contributors. See the [Spec-Driven Development Guide](../SPEC_DRIVEN_DEVELOPMENT.md) (Developer-only).
+**Developer-only**: This directory is intended for AGDT maintainers
+and contributors. See the [Spec-Driven Development
+Guide](../SPEC_DRIVEN_DEVELOPMENT.md) (Developer-only).
 
 ## Directory Structure
 
 Each feature has its own numbered directory:
 
-```
+```text
 specs/
 ├── 001-example-feature/
 │   ├── spec.md              # Feature specification (mandatory)
@@ -26,6 +29,7 @@ specs/
 ## Feature Numbering
 
 Features are numbered sequentially (001, 002, 003, etc.) to:
+
 - Maintain chronological order
 - Enable easy reference in commits and PRs
 - Track feature evolution over time
@@ -43,6 +47,7 @@ Use the helper script to create a new feature:
 ```
 
 This will:
+
 1. Create a new feature branch: `NNN-your-feature-name`
 2. Create the specs directory: `specs/NNN-your-feature-name/`
 3. Initialize with spec template
@@ -75,6 +80,7 @@ This will:
 ## Example Feature
 
 See `001-example-feature/` for a complete example demonstrating:
+
 - Well-structured user stories with priorities
 - Clear acceptance criteria
 - Functional and non-functional requirements
@@ -114,7 +120,7 @@ See `001-example-feature/` for a complete example demonstrating:
 
 AI assistants can use these specifications through slash commands:
 
-```
+```text
 /speckit.constitution - Update project principles
 /speckit.specify - Create feature specifications
 /speckit.plan - Develop implementation plans

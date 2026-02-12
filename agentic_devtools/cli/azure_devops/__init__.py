@@ -5,8 +5,8 @@ This package provides command-line tools for interacting with Azure DevOps,
 including pull request management, thread handling, and approvals.
 
 Workflow:
-    1. Set state values with dfly-set (auto-approve once)
-    2. Execute action with dfly-<action> (auto-approve once)
+    1. Set state values with agdt-set (auto-approve once)
+    2. Execute action with agdt-<action> (auto-approve once)
 
 Example:
     agdt-set pull_request_id 23046

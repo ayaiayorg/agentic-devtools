@@ -702,3 +702,36 @@ def release_pypi_async():
     create_dispatcher(
         "agdt-release-pypi", "agentic_devtools.cli.release", "release_pypi_async"
     )()
+
+
+# Azure CLI (App Insights queries)
+def query_app_insights_async():
+    create_dispatcher(
+        "agdt-query-app-insights",
+        "agentic_devtools.cli.azure",
+        "query_app_insights_async",
+    )()
+
+
+def query_fabric_dap_errors_async():
+    create_dispatcher(
+        "agdt-query-fabric-dap-errors",
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_errors_async",
+    )()
+
+
+def query_fabric_dap_provisioning_async():
+    create_dispatcher(
+        "agdt-query-fabric-dap-provisioning",
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_provisioning_async",
+    )()
+
+
+def query_fabric_dap_timeline_async():
+    create_dispatcher(
+        "agdt-query-fabric-dap-timeline",
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_timeline_async",
+    )()

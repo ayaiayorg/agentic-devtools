@@ -3,7 +3,7 @@ Testing commands for agentic_devtools package.
 
 IMPORTANT FOR AI AGENTS:
 ========================
-When working on the agentic_devtools package, ALWAYS use these dfly-test commands
+When working on the agentic_devtools package, ALWAYS use these agdt-test commands
 instead of running pytest directly. These commands:
 
 1. Run tests in BACKGROUND TASKS - they return immediately with a task ID
@@ -305,7 +305,7 @@ def run_tests_quick() -> None:
 
 
 def _create_test_file_parser() -> argparse.ArgumentParser:
-    """Create argument parser for dfly-test-file command."""
+    """Create argument parser for agdt-test-file command."""
     parser = argparse.ArgumentParser(
         prog="agdt-test-file",
         description="Run tests for a specific source file with 100% coverage requirement.",
@@ -433,7 +433,7 @@ def run_tests_pattern() -> None:
 
     print(f"Running: pytest {' '.join(pattern_args)}")
     print(
-        "(Note: This runs synchronously. For background execution, use dfly-test-file)"
+        "(Note: This runs synchronously. For background execution, use agdt-test-file)"
     )
     print()
 

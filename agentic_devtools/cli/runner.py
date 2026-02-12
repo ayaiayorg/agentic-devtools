@@ -120,6 +120,23 @@ COMMAND_MAP = {
         "agentic_devtools.cli.azure_devops",
         "generate_pr_summary_async",
     ),
+    # Azure CLI (App Insights queries)
+    "agdt-query-app-insights": (
+        "agentic_devtools.cli.azure",
+        "query_app_insights_async",
+    ),
+    "agdt-query-fabric-dap-errors": (
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_errors_async",
+    ),
+    "agdt-query-fabric-dap-provisioning": (
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_provisioning_async",
+    ),
+    "agdt-query-fabric-dap-timeline": (
+        "agentic_devtools.cli.azure",
+        "query_fabric_dap_timeline_async",
+    ),
     # VPN Toggle (all run in background)
     "agdt-vpn-off": (
         "agentic_devtools.cli.azure_devops.vpn_toggle",
@@ -291,7 +308,7 @@ def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: python -m agentic_devtools.cli.runner <command> [args...]")
         print()
-        print("Example: python -m agentic_devtools.cli.runner dfly-set key value")
+        print("Example: python -m agentic_devtools.cli.runner agdt-set key value")
         print()
         print("Available commands:")
         for cmd in sorted(COMMAND_MAP.keys()):
