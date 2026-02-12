@@ -9,7 +9,8 @@
 
 ## 1. Purpose
 
-`agentic-devtools` is a pip-installable Python package that provides CLI commands for AI agents to interact with Git, Azure DevOps, Jira, and other services. The design prioritizes **auto-approval** in VS Code by using:
+`agentic-devtools` is a pip-installable Python package that provides CLI commands for AI agents to interact with
+Git, Azure DevOps, Jira, and other services. The design prioritizes **auto-approval** in VS Code by using:
 
 - A generic `agdt-set key value` command (approve once, works for all keys)
 - Parameterless action commands like `agdt-git-save-work`, `agdt-add-jira-comment`
@@ -780,7 +781,8 @@ pip install -e ".[dev]"
 
 ### Multi-Worktree State Isolation
 
-When working with multiple git worktrees (e.g., one for feature development and another for the main branch), the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
+When working with multiple git worktrees (e.g., one for feature development and another for the main branch),
+the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep state isolated per worktree.
 
 **How it works:**
 
@@ -852,6 +854,7 @@ When adding a new command that performs side effects (API calls, git operations,
 ### Adding convenience state functions
 
 Add typed functions in `state.py`:
+
 ```python
 def get_new_field(required: bool = False) -> Optional[str]:
     """Get the new field from state."""
