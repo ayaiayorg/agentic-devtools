@@ -6,6 +6,7 @@ This document explains the markdown linting setup for the agentic-devtools repos
 
 We use `markdownlint-cli2` to ensure consistent markdown formatting across all documentation files.
 The configuration resolves all 887 initial linting errors through a combination of:
+
 - Adjusted rule defaults
 - Directory-specific overrides
 - Strategic rule disabling for special file types
@@ -28,12 +29,14 @@ Base rules applied to all markdown files:
 ### Agent Directories (`.github/agents/`, `.github/prompts/`)
 
 AI agent files have special needs:
+
 - Contain YAML front matter → disable MD041 (first-line-heading)
 - Contain long instructional prompts → disable MD013 (line-length)
 
 ### Template Directories (`.specify/templates/commands/`, `.github/scripts/speckit-trigger/templates/`)
 
 Template files also have special requirements:
+
 - Contain YAML front matter → disable MD041
 - Contain long template instructions → disable MD013
 
@@ -54,6 +57,7 @@ Place in appropriate template directory where MD041 and MD013 are disabled.
 ### Regular Documentation
 
 Follow these guidelines:
+
 - Keep lines under 200 characters
 - Add blank lines around lists, headings, and code blocks
 - Specify language for code blocks (use `text` for plain text)
@@ -90,6 +94,7 @@ The linter runs automatically on all PRs via `.github/workflows/lint.yml`.
 
 **Problem**: Line exceeds 200 characters
 **Solutions**:
+
 1. Break the line naturally at a clause or phrase boundary
 2. If in a template/agent file, ensure MD013 is disabled for that directory
 
@@ -97,6 +102,7 @@ The linter runs automatically on all PRs via `.github/workflows/lint.yml`.
 
 **Problem**: Code block has ` ``` ` without language specifier
 **Solution**: Add appropriate language:
+
 - ` ```bash ` for shell commands
 - ` ```python ` for Python code
 - ` ```text ` for plain text or examples
@@ -118,6 +124,7 @@ The linter runs automatically on all PRs via `.github/workflows/lint.yml`.
 ### Why disable MD013 for agents/templates?
 
 These files contain AI prompts and instructions that:
+
 - Often need to be continuous for clarity
 - Are optimized for AI readability, not human line-length preferences
 - Would be awkward if artificially broken
@@ -125,6 +132,7 @@ These files contain AI prompts and instructions that:
 ### Why disable MD041 for files with YAML front matter?
 
 YAML front matter is a standard pattern for:
+
 - GitHub Copilot agent definitions
 - Jekyll/Hugo/static site generators
 - Metadata in markdown files
