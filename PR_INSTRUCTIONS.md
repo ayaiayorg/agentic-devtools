@@ -1,13 +1,14 @@
 # Pull Request Creation Instructions
 
 ## Title
-```
+
+```text
 fix: resolve PyPI publishing 400 Bad Request error with dynamic versioning
 ```
 
 ## How to Create the PR
 
-1. Navigate to: https://github.com/ayaiayorg/agentic-devtools/compare/main...copilot/analyze-pypi-upload-error
+1. Navigate to: <https://github.com/ayaiayorg/agentic-devtools/compare/main...copilot/analyze-pypi-upload-error>
 
 2. Click "Create pull request"
 
@@ -30,12 +31,14 @@ gh pr create \
 This PR fixes the PyPI publishing workflow that was failing with 400 Bad Request errors.
 
 **Key Changes:**
+
 - Implements dynamic versioning using hatch-vcs
 - Adds pre-upload duplicate version checking
 - Enhances diagnostics with verbose logging
 - Includes comprehensive documentation
 
 **Files Changed:**
+
 - pyproject.toml (dynamic versioning)
 - .github/workflows/publish.yml (enhanced workflow)
 - RELEASING.md (new documentation)

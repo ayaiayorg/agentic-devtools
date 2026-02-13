@@ -1,7 +1,9 @@
 # PyPI Publishing Fix - Summary
 
 ## Problem Statement
+
 The GitHub Actions workflow "Publish to PyPI" was failing with:
+
 - **Error**: `HTTPError: 400 Bad Request from https://upload.pypi.org/legacy/`
 - **Root Cause**: Attempting to upload version `0.2.0` which already exists on PyPI
 - **Underlying Issue**: Hardcoded version in `pyproject.toml` not synchronized with Git release tags
@@ -9,13 +11,16 @@ The GitHub Actions workflow "Publish to PyPI" was failing with:
 ## Solution Implemented
 
 ### 1. Dynamic Versioning with `hatch-vcs`
-- **Changed**: `pyproject.toml` now uses `dynamic = ["version"]` 
+
+- **Changed**: `pyproject.toml` now uses `dynamic = ["version"]`
 - **Benefit**: Version automatically derived from Git tags
 - **Implementation**: Added `hatch-vcs` build dependency
 - **Result**: Tag `v0.0.10` → Package version `0.0.10`
 
 ### 2. Enhanced Workflow Diagnostics
+
 Added to `.github/workflows/publish.yml`:
+
 - ✅ `fetch-depth: 0` for full Git history (required by hatch-vcs)
 - ✅ Distribution file listing (`ls -lh dist/`)
 - ✅ Version extraction and display
@@ -24,12 +29,15 @@ Added to `.github/workflows/publish.yml`:
 - ✅ Verbose logging (`verbose: true`, `print-hash: true`)
 
 ### 3. Duplicate Version Prevention
+
 - **Check**: Before upload, queries PyPI to see if version exists
 - **Action**: Skips upload with clear warning message if duplicate
 - **Benefit**: Prevents 400 errors and provides actionable guidance
 
 ### 4. Documentation
+
 Created `RELEASING.md` with:
+
 - Complete release process instructions
 - Versioning strategy explanation
 - Troubleshooting guide
@@ -38,12 +46,14 @@ Created `RELEASING.md` with:
 ## Technical Details
 
 ### Version Detection Flow
-```
+
+```text
 Git Tag → hatch-vcs → setuptools-scm → Package Version
 v0.0.10  →          →                 → 0.0.10
 ```
 
 ### Workflow Behavior
+
 | Scenario | Result |
 |----------|--------|
 | New version | Uploads to PyPI successfully |
@@ -87,6 +97,7 @@ v0.0.10  →          →                 → 0.0.10
 ## Testing
 
 Local build test:
+
 ```bash
 $ python -m build
 Successfully built agentic_devtools-0.0.9.dev1+gf5d261924.d20260213-py3-none-any.whl
@@ -99,6 +110,7 @@ Checking dist/*.tar.gz: PASSED
 ## Next Steps for Users
 
 To publish a new version:
+
 1. Create a git tag: `git tag v0.0.10`
 2. Push the tag: `git push origin v0.0.10`
 3. Create a GitHub release from the tag

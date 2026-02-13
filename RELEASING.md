@@ -62,6 +62,7 @@ The GitHub Actions workflow (`.github/workflows/publish.yml`) will:
 **Cause**: Attempting to upload a version that already exists on PyPI (PyPI doesn't allow overwrites)
 
 **Solution**:
+
 1. Create a **new** Git tag with a different version: `git tag v0.0.11`
 2. Push the tag: `git push origin v0.0.11`
 3. Create a new GitHub release for the new tag
@@ -73,6 +74,7 @@ The GitHub Actions workflow (`.github/workflows/publish.yml`) will:
 **Cause**: Working tree is dirty or not on a tagged commit
 
 **Solution**:
+
 1. Ensure working tree is clean: `git status`
 2. Ensure you're on the tagged commit: `git describe --tags`
 3. If building locally, commit or stash changes

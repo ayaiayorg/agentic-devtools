@@ -1,3 +1,5 @@
+# Fix PyPI Publishing 400 Error
+
 ## Problem
 
 The PyPI publishing workflow was failing with a **400 Bad Request** error when attempting to upload packages. Investigation revealed that:
@@ -19,6 +21,7 @@ This PR implements a comprehensive fix with multiple improvements:
 - Git tag v0.0.10 → Package version 0.0.10
 
 **Benefits:**
+
 - No manual version updates needed
 - Perfect sync between Git tags and package versions
 - Supports dev versions for non-tagged commits
@@ -51,10 +54,12 @@ Added to .github/workflows/publish.yml:
 ## Changes
 
 ### Modified Files
+
 - pyproject.toml - Dynamic versioning configuration
 - .github/workflows/publish.yml - Enhanced validation and diagnostics
 
 ### New Files
+
 - RELEASING.md - Release process documentation
 - SOLUTION_SUMMARY.md - Technical solution summary
 - agentic_devtools/_version.py - Auto-generated version file
@@ -62,6 +67,7 @@ Added to .github/workflows/publish.yml:
 ## Testing
 
 ✅ Local build tested successfully:
+
 ```bash
 $ python -m build
 Successfully built agentic_devtools-0.0.9.dev1+gf5d261924.d20260213-py3-none-any.whl
@@ -98,6 +104,7 @@ Fixes the workflow failure in run [#21980681578](https://github.com/ayaiayorg/ag
 ---
 
 **Note**: This PR includes best practices for Python packaging:
+
 - Semantic versioning from Git tags
 - Automated version management
 - Pre-upload validation
