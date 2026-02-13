@@ -77,6 +77,7 @@ Run E2E tests with:
 ```bash
 pytest tests/test_e2e_*.py -v
 ```
+
 ## Code Quality
 
 We maintain high code quality standards using multiple tools. All code must pass these checks before being merged.
