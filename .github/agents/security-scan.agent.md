@@ -88,7 +88,7 @@ pip install bandit safety pip-audit
 pip-audit
 
 # Check for security issues in dependencies
-safety check --json
+safety scan --json
 
 # Generate dependency report
 pip list --format=json > dependencies.json
