@@ -37,6 +37,34 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: List distribution files
+        run: ls -lh dist/
+
+      - name: Check built package version
+        run: |
+          # Extract version from wheel filename
+          WHEEL_FILE=$(ls dist/*.whl)
+          echo "Built wheel: $WHEEL_FILE"
+          # Extract version using python
+          python -c "
+          import re
+          import sys
+          wheel = '$WHEEL_FILE'
+          match = re.search(r'agentic_devtools-([0-9.]+(?:\\.dev[0-9]+)?.*?)-py', wheel)
+          if match:
+              version = match.group(1)
+              print(f'Built version: {version}')
+              sys.exit(0)
+          else:
+              print('ERROR: Could not extract version from wheel filename')
+              sys.exit(1)
+          "
+
+      - name: Validate distributions with twine
+        run: |
+          pip install twine
+          twine check --strict dist/*
+
       - name: Store distribution packages
         uses: actions/upload-artifact@v4
         with:
@@ -63,10 +91,15 @@ jobs:
           name: python-package-distributions
           path: dist/
 
+      - name: List downloaded distributions
+        run: ls -lh dist/
+
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          verbose: true
+          print-hash: true
 
   publish-pypi:
     name: Publish to PyPI
@@ -88,5 +121,39 @@ jobs:
           name: python-package-distributions
           path: dist/
 
+      - name: List downloaded distributions
+        run: ls -lh dist/
+
+      - name: Check if version already exists on PyPI
+        id: check_version
+        continue-on-error: true
+        run: |
+          # Extract version from wheel filename
+          WHEEL_FILE=$(ls dist/*.whl)
+          VERSION=$(echo "$WHEEL_FILE" | sed -n 's/.*agentic_devtools-\([0-9.]*\).*/\1/p')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Checking if version $VERSION exists on PyPI..."
+          
+          # Check PyPI for existing version
+          if pip index versions agentic-devtools 2>&1 | grep -q "$VERSION"; then
+            echo "⚠️  WARNING: Version $VERSION already exists on PyPI!"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "✓ Version $VERSION does not exist on PyPI yet"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip upload if version exists
+        if: steps.check_version.outputs.exists == 'true'
+        run: |
+          echo "::warning::Skipping upload - version ${{ steps.check_version.outputs.version }} already exists on PyPI"
+          echo "To publish a new version, create a new release with a unique version tag (e.g., v0.0.10)"
+          exit 0
+
       - name: Publish to PyPI
+        if: steps.check_version.outputs.exists != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          print-hash: true
