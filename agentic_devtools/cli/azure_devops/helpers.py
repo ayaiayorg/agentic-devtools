@@ -233,7 +233,7 @@ def print_threads(threads: List[Dict[str, Any]]) -> None:
     for thread in threads:
         thread_id = thread.get("id")
         status = thread.get("status", "unknown")
-        thread_context = thread.get("threadContext", {})
+        thread_context = thread.get("threadContext") or {}
         file_path = thread_context.get("filePath", "(general comment)")
 
         print(f"--- Thread {thread_id} [{status}] ---")
@@ -241,7 +241,7 @@ def print_threads(threads: List[Dict[str, Any]]) -> None:
 
         comments = thread.get("comments", [])
         for comment in comments:
-            author = comment.get("author", {}).get("displayName", "Unknown")
+            author = (comment.get("author") or {}).get("displayName", "Unknown")
             content = comment.get("content", "(no content)")
             comment_id = comment.get("id")
             # Truncate long content

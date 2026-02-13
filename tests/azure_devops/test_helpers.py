@@ -319,6 +319,56 @@ class TestPrintThreads:
         captured = capsys.readouterr()
         assert "Unknown" in captured.out
 
+    def test_handles_none_thread_context(self, capsys):
+        """Test handles threadContext that is explicitly None."""
+        threads = [
+            {
+                "id": 456,
+                "status": "active",
+                "threadContext": None,  # Explicitly None, not missing
+                "comments": [
+                    {
+                        "id": 1,
+                        "author": {"displayName": "Test User"},
+                        "content": "Test comment",
+                    }
+                ],
+            }
+        ]
+
+        azure_devops.print_threads(threads)
+
+        captured = capsys.readouterr()
+        assert "456" in captured.out
+        assert "active" in captured.out
+        assert "(general comment)" in captured.out  # Should fall back to default
+        assert "Test User" in captured.out
+        assert "Test comment" in captured.out
+
+    def test_handles_none_author(self, capsys):
+        """Test handles author that is explicitly None."""
+        threads = [
+            {
+                "id": 789,
+                "status": "active",
+                "threadContext": {},
+                "comments": [
+                    {
+                        "id": 1,
+                        "author": None,  # Explicitly None, not missing
+                        "content": "Test comment",
+                    }
+                ],
+            }
+        ]
+
+        azure_devops.print_threads(threads)
+
+        captured = capsys.readouterr()
+        assert "789" in captured.out
+        assert "Unknown" in captured.out  # Should fall back to default
+        assert "Test comment" in captured.out
+
 
 class TestVerifyAzCli:
     """Tests for verify_az_cli helper function."""
