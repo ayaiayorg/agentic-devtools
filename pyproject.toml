@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "agentic-devtools"
-version = "0.2.0"
+dynamic = ["version"]
 description = "AI assistant helper commands for the Dragonfly platform"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -150,6 +150,12 @@ agdt-get-next-workflow-prompt = "agentic_devtools.dispatcher:get_next_workflow_p
 agdt-create-checklist = "agentic_devtools.dispatcher:create_checklist_cmd"
 agdt-update-checklist = "agentic_devtools.dispatcher:update_checklist_cmd"
 agdt-show-checklist = "agentic_devtools.dispatcher:show_checklist_cmd"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "agentic_devtools/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agentic_devtools", "agdt_ai_helpers"]
