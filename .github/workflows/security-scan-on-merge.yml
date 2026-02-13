@@ -119,16 +119,16 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Run Safety Check
+      - name: Run Safety Scan
         id: safety
         run: |
-          echo "Running safety check..."
-          safety check --json > safety-report.json || true
+          echo "Running safety scan..."
+          safety scan --json > safety-report.json || true
           
           # Show summary
           if [ -s safety-report.json ]; then
             echo "Vulnerabilities found in dependencies - see safety-report.json"
-            safety check || true
+            safety scan || true
           else
             echo "No vulnerabilities found by safety"
           fi
