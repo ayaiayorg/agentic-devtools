@@ -591,5 +591,5 @@ pip install bandit safety pip-audit
 # Run scans
 pip-audit
 bandit -r agentic_devtools
-safety check
+safety scan
 ```
