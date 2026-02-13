@@ -1,0 +1,281 @@
+name: Security Scan on Main Merge
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  security-scan:
+    name: Run Security Scanning Agent
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          # Install security scanning tools
+          pip install bandit safety pip-audit
+
+      - name: Get Merge Information
+        id: merge-info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commitSha = context.sha;
+            console.log(`Current commit SHA: ${commitSha}`);
+            
+            // Get the commit details
+            const { data: commit } = await github.rest.repos.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: commitSha
+            });
+            
+            console.log(`Commit message: ${commit.commit.message}`);
+            console.log(`Author: ${commit.commit.author.name}`);
+            
+            // Check if this is a merge commit
+            const isMerge = commit.parents.length > 1;
+            console.log(`Is merge commit: ${isMerge}`);
+            
+            core.setOutput('commit_sha', commitSha);
+            core.setOutput('commit_message', commit.commit.message);
+            core.setOutput('is_merge', isMerge);
+            
+            // Try to find associated PR
+            let prNumber = null;
+            if (isMerge) {
+              // Extract PR number from merge commit message
+              const prMatch = commit.commit.message.match(/#(\d+)/);
+              if (prMatch) {
+                prNumber = parseInt(prMatch[1]);
+                console.log(`Found PR number from commit: ${prNumber}`);
+              }
+            }
+            
+            if (prNumber) {
+              // Get PR details
+              try {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber
+                });
+                
+                core.setOutput('pr_number', prNumber);
+                core.setOutput('pr_title', pr.title);
+                core.setOutput('pr_url', pr.html_url);
+                console.log(`Associated PR: #${prNumber} - ${pr.title}`);
+              } catch (error) {
+                console.log(`Could not fetch PR details: ${error.message}`);
+              }
+            }
+
+      - name: Run Dependency Vulnerability Scan
+        id: pip-audit
+        run: |
+          echo "Running pip-audit..."
+          pip-audit --format json > pip-audit-report.json || true
+          
+          # Show summary
+          if [ -s pip-audit-report.json ]; then
+            echo "Dependency vulnerabilities found - see pip-audit-report.json"
+            pip-audit || true
+          else
+            echo "No dependency vulnerabilities found"
+          fi
+        continue-on-error: true
+
+      - name: Run Bandit Security Scanner
+        id: bandit
+        run: |
+          echo "Running bandit security scanner..."
+          bandit -r agentic_devtools -f json -o bandit-report.json || true
+          
+          # Show summary
+          if [ -s bandit-report.json ]; then
+            echo "Security issues found - see bandit-report.json"
+            bandit -r agentic_devtools -f screen || true
+          else
+            echo "No security issues found by bandit"
+          fi
+        continue-on-error: true
+
+      - name: Run Safety Check
+        id: safety
+        run: |
+          echo "Running safety check..."
+          safety check --json > safety-report.json || true
+          
+          # Show summary
+          if [ -s safety-report.json ]; then
+            echo "Vulnerabilities found in dependencies - see safety-report.json"
+            safety check || true
+          else
+            echo "No vulnerabilities found by safety"
+          fi
+        continue-on-error: true
+
+      - name: Create Security Scan Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commitSha = '${{ steps.merge-info.outputs.commit_sha }}';
+            const isMerge = '${{ steps.merge-info.outputs.is_merge }}' === 'true';
+            const prNumber = '${{ steps.merge-info.outputs.pr_number }}';
+            const prTitle = '${{ steps.merge-info.outputs.pr_title }}';
+            const prUrl = '${{ steps.merge-info.outputs.pr_url }}';
+            
+            // Read scan results
+            let pipAuditResults = 'No vulnerabilities detected';
+            let banditResults = 'No issues detected';
+            let safetyResults = 'No vulnerabilities detected';
+            
+            try {
+              if (fs.existsSync('pip-audit-report.json')) {
+                const pipAudit = JSON.parse(fs.readFileSync('pip-audit-report.json', 'utf8'));
+                if (pipAudit.vulnerabilities && pipAudit.vulnerabilities.length > 0) {
+                  pipAuditResults = `Found ${pipAudit.vulnerabilities.length} vulnerability(ies)`;
+                }
+              }
+            } catch (e) {
+              console.log('Could not read pip-audit results:', e.message);
+            }
+            
+            try {
+              if (fs.existsSync('bandit-report.json')) {
+                const bandit = JSON.parse(fs.readFileSync('bandit-report.json', 'utf8'));
+                if (bandit.results && bandit.results.length > 0) {
+                  const critical = bandit.results.filter(r => r.issue_severity === 'HIGH').length;
+                  const medium = bandit.results.filter(r => r.issue_severity === 'MEDIUM').length;
+                  const low = bandit.results.filter(r => r.issue_severity === 'LOW').length;
+                  banditResults = `Found ${bandit.results.length} issue(s): ${critical} high, ${medium} medium, ${low} low`;
+                }
+              }
+            } catch (e) {
+              console.log('Could not read bandit results:', e.message);
+            }
+            
+            try {
+              if (fs.existsSync('safety-report.json')) {
+                const safety = JSON.parse(fs.readFileSync('safety-report.json', 'utf8'));
+                if (safety.vulnerabilities && safety.vulnerabilities.length > 0) {
+                  safetyResults = `Found ${safety.vulnerabilities.length} vulnerability(ies)`;
+                }
+              }
+            } catch (e) {
+              console.log('Could not read safety results:', e.message);
+            }
+            
+            // Determine if there are any findings
+            const hasFindings = 
+              pipAuditResults.includes('Found') || 
+              banditResults.includes('Found') || 
+              safetyResults.includes('Found');
+            
+            // Build issue body
+            let issueBody = [
+              '<!-- security-scan-report -->',
+              '',
+              '# 🔒 Security Scan Report',
+              '',
+              '**Date**: ' + new Date().toISOString().split('T')[0],
+              '**Commit**: ' + commitSha.substring(0, 7),
+              '**Branch**: main',
+              ''
+            ];
+            
+            if (isMerge && prNumber) {
+              issueBody.push(`**Merged PR**: [#${prNumber} - ${prTitle}](${prUrl})`);
+              issueBody.push('');
+            }
+            
+            issueBody.push('## Summary');
+            issueBody.push('');
+            
+            if (hasFindings) {
+              issueBody.push('⚠️ **Security findings detected** - review required.');
+            } else {
+              issueBody.push('✅ **No security issues detected** - all scans passed.');
+            }
+            
+            issueBody.push('');
+            issueBody.push('## Scan Results');
+            issueBody.push('');
+            issueBody.push('### Dependency Vulnerabilities (pip-audit)');
+            issueBody.push('');
+            issueBody.push(pipAuditResults);
+            issueBody.push('');
+            issueBody.push('### Static Security Analysis (bandit)');
+            issueBody.push('');
+            issueBody.push(banditResults);
+            issueBody.push('');
+            issueBody.push('### Dependency Safety Check (safety)');
+            issueBody.push('');
+            issueBody.push(safetyResults);
+            issueBody.push('');
+            issueBody.push('## Next Steps');
+            issueBody.push('');
+            
+            if (hasFindings) {
+              issueBody.push('1. Review the [workflow logs](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') for detailed findings');
+              issueBody.push('2. Address critical and high-severity issues immediately');
+              issueBody.push('3. Create tickets for medium-priority items');
+              issueBody.push('4. Tag @copilot for assistance with remediation');
+            } else {
+              issueBody.push('No action required. Continue monitoring for security issues.');
+            }
+            
+            issueBody.push('');
+            issueBody.push('---');
+            issueBody.push('');
+            issueBody.push('*Automated security scan performed by the Security Scanning Agent*');
+            issueBody.push('*View [workflow run](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') for full details*');
+            
+            const issueTitle = hasFindings 
+              ? '🔒 Security Scan Report - Findings Detected' 
+              : '🔒 Security Scan Report - All Clear';
+            
+            // Create the issue
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody.join('\n'),
+              labels: hasFindings 
+                ? ['security', 'security-scan', 'needs-review']
+                : ['security', 'security-scan', 'all-clear']
+            });
+            
+            console.log(`Created issue #${issue.number}: ${issue.title}`);
+            console.log(`Issue URL: ${issue.html_url}`);
+
+      - name: Upload Scan Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-reports
+          path: |
+            pip-audit-report.json
+            bandit-report.json
+            safety-report.json
+          retention-days: 90
