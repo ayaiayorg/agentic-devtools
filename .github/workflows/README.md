@@ -4,6 +4,33 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 ## Workflows
 
+### auto-fix-on-failure.yml
+
+**Automated PR Check Failure Fix**
+
+- Runs on: `workflow_run` completion for test and lint workflows
+- Trigger condition: Only when workflow fails and was triggered by a pull request
+- Purpose: Automatically tags `@copilot` to analyze and fix failing PR checks
+- Retry Limit: Calculates max retries as `number_of_failing_jobs × 3`
+- Loop Prevention: Tracks attempts using HTML comments, stops at max retry limit
+
+**How it works**:
+
+1. **Failure Detection**: Triggered when "Python Tests and Linting" or "Lint" workflows fail on a PR
+2. **PR Lookup**: Finds the associated pull request from the workflow run's head branch
+3. **Retry Tracking**:
+   - On first attempt: Counts failed jobs, calculates max retries (e.g., 2 failed jobs = 6 max retries)
+   - Stores max retry in first comment: `<!-- auto-fix-max: 6 -->`
+   - Marks each attempt with: `<!-- auto-fix-comment -->`
+4. **Auto-Fix Request**: Posts comment tagging `@copilot` with failure details and job links
+5. **Limit Enforcement**: When max retries reached, posts a comment requesting human review
+
+**Required Permissions**:
+
+- `contents: read`
+- `issues: write`
+- `pull-requests: write`
+
 ### speckit-issue-trigger.yml
 
 **SpecKit Issue to Specification Automation**
