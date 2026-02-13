@@ -1,0 +1,218 @@
+name: Auto-Fix on PR Check Failure
+
+on:
+  workflow_run:
+    workflows: ["Python Tests and Linting", "Lint"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    name: Trigger Copilot Auto-Fix
+    runs-on: ubuntu-latest
+    # Only run when a workflow fails and it was triggered by a pull request
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+
+    steps:
+      - name: Find Associated PR and Check Retry Limit
+        id: check-retry
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find the PR associated with this workflow run
+            const workflowRun = context.payload.workflow_run;
+            const headBranch = workflowRun.head_branch;
+            const headSha = workflowRun.head_sha;
+
+            console.log(`Looking for PR with head branch: ${headBranch}`);
+
+            // Get all open PRs for this repository
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+
+            // Find the PR that matches the head branch
+            const pr = pulls.find(p => p.head.ref === headBranch);
+
+            if (!pr) {
+              console.log('No open PR found for this workflow run');
+              core.setOutput('should_comment', 'false');
+              return;
+            }
+
+            console.log(`Found PR #${pr.number}: ${pr.title}`);
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('pr_title', pr.title);
+
+            // Get all comments on this PR to check for existing auto-fix attempts
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number
+            });
+
+            // Look for auto-fix comments (marked with <!-- auto-fix-comment -->)
+            const autoFixComments = comments.filter(c => 
+              c.body && c.body.includes('<!-- auto-fix-comment -->')
+            );
+
+            console.log(`Found ${autoFixComments.length} existing auto-fix comments`);
+
+            let maxRetries = null;
+            
+            // Check if max retry limit has already been set
+            for (const comment of autoFixComments) {
+              const match = comment.body.match(/<!-- auto-fix-max: (\d+) -->/);
+              if (match) {
+                maxRetries = parseInt(match[1], 10);
+                console.log(`Found max retry limit: ${maxRetries}`);
+                break;
+              }
+            }
+
+            // If this is the first auto-fix attempt, calculate max retries
+            if (maxRetries === null) {
+              console.log('First auto-fix attempt - calculating max retries');
+              
+              // Get failed jobs from the workflow run
+              const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: workflowRun.id
+              });
+
+              const failedJobs = jobs.jobs.filter(job => 
+                job.conclusion === 'failure'
+              );
+
+              console.log(`Found ${failedJobs.length} failed jobs`);
+              
+              // Calculate max retries: number of failed jobs × 3
+              maxRetries = failedJobs.length * 3;
+              console.log(`Calculated max retries: ${maxRetries}`);
+              
+              core.setOutput('max_retries', maxRetries);
+              core.setOutput('is_first_attempt', 'true');
+              core.setOutput('failed_job_count', failedJobs.length);
+              core.setOutput('failed_jobs', JSON.stringify(
+                failedJobs.map(job => ({
+                  name: job.name,
+                  conclusion: job.conclusion,
+                  html_url: job.html_url
+                }))
+              ));
+            } else {
+              core.setOutput('max_retries', maxRetries);
+              core.setOutput('is_first_attempt', 'false');
+            }
+
+            // Count current attempts
+            const currentAttempts = autoFixComments.length;
+            console.log(`Current attempts: ${currentAttempts}, Max retries: ${maxRetries}`);
+
+            if (currentAttempts >= maxRetries) {
+              console.log('Max retry limit reached');
+              core.setOutput('should_comment', 'false');
+              core.setOutput('limit_reached', 'true');
+            } else {
+              console.log('Retries remaining, will post auto-fix comment');
+              core.setOutput('should_comment', 'true');
+              core.setOutput('limit_reached', 'false');
+              core.setOutput('attempt_number', currentAttempts + 1);
+            }
+
+      - name: Post Auto-Fix Comment
+        if: steps.check-retry.outputs.should_comment == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.check-retry.outputs.pr_number }};
+            const isFirstAttempt = '${{ steps.check-retry.outputs.is_first_attempt }}' === 'true';
+            const maxRetries = ${{ steps.check-retry.outputs.max_retries }};
+            const attemptNumber = ${{ steps.check-retry.outputs.attempt_number }};
+            const workflowRun = context.payload.workflow_run;
+
+            let failedJobsInfo = '';
+            
+            if (isFirstAttempt) {
+              const failedJobs = JSON.parse('${{ steps.check-retry.outputs.failed_jobs }}');
+              failedJobsInfo = '\n### Failed Jobs\n\n';
+              failedJobs.forEach(job => {
+                failedJobsInfo += `- [${job.name}](${job.html_url})\n`;
+              });
+            } else {
+              // For subsequent attempts, just link to the workflow run
+              failedJobsInfo = `\n[View failed workflow run](${workflowRun.html_url})\n`;
+            }
+
+            const commentBody = [
+              '<!-- auto-fix-comment -->',
+              isFirstAttempt ? `<!-- auto-fix-max: ${maxRetries} -->` : '',
+              '',
+              '## 🤖 Auto-Fix Request',
+              '',
+              `@copilot The PR checks have failed. Please analyze the failures and push a fix commit.`,
+              '',
+              `**Attempt**: ${attemptNumber} of ${maxRetries}`,
+              `**Workflow**: ${workflowRun.name}`,
+              `**Run**: [#${workflowRun.run_number}](${workflowRun.html_url})`,
+              failedJobsInfo,
+              '',
+              '---',
+              '_This is an automated comment from the auto-fix workflow. New checks will require human approval before running._'
+            ].filter(line => line !== '').join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+            console.log(`Posted auto-fix comment (attempt ${attemptNumber}/${maxRetries})`);
+
+      - name: Post Max Retry Limit Reached Comment
+        if: steps.check-retry.outputs.limit_reached == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.check-retry.outputs.pr_number }};
+            const maxRetries = ${{ steps.check-retry.outputs.max_retries }};
+            const workflowRun = context.payload.workflow_run;
+
+            const commentBody = [
+              '## ⚠️ Auto-Fix Retry Limit Reached',
+              '',
+              `The maximum number of auto-fix attempts (${maxRetries}) has been reached.`,
+              '',
+              '**A human review is now required.**',
+              '',
+              `**Failed Workflow**: ${workflowRun.name}`,
+              `**Run**: [#${workflowRun.run_number}](${workflowRun.html_url})`,
+              '',
+              '### Next Steps',
+              '',
+              '1. Review the [workflow logs](${workflowRun.html_url}) to understand the failures',
+              '2. Manually fix the issues in your local branch',
+              '3. Push your changes to trigger new checks',
+              '',
+              '---',
+              '_This is an automated comment from the auto-fix workflow._'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+            console.log('Posted max retry limit reached comment');
