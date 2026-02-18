@@ -149,38 +149,88 @@ agdt-show
 
 ## Azure DevOps Commands
 
+All Azure DevOps commands support both CLI parameters and state-based execution.
+Parameters passed via CLI are automatically persisted to state for reuse.
+
 ### Reply to PR Thread
 
 ```bash
-agdt-set pr_id 23046
+# Option A: With CLI parameters (explicit, self-documenting)
+agdt-reply-to-pull-request-thread --pull-request-id 23046 --thread-id 139474 --content "Your reply"
+agdt-reply-to-pull-request-thread -p 23046 -t 139474 -c "Thanks!"
+
+# Option B: Parameterless (uses current state)
+agdt-set pull_request_id 23046
 agdt-set thread_id 139474
 agdt-set content "Your reply message"
-agdt-reply-to-pr-thread
+agdt-reply-to-pull-request-thread
 
 # Optionally resolve the thread after replying
 agdt-set resolve_thread true
-agdt-reply-to-pr-thread
-```text
+agdt-reply-to-pull-request-thread
+```
 
 ### Add New PR Comment
 
 ```bash
-agdt-set pr_id 23046
+# Option A: With CLI parameters (explicit)
+agdt-add-pull-request-comment --pull-request-id 23046 --content "LGTM!"
+agdt-add-pull-request-comment -p 23046 -c "Looks good"
+
+# Option B: Parameterless (uses current state)
+agdt-set pull_request_id 23046
 agdt-set content "Your comment"
-agdt-add-pr-comment
+agdt-add-pull-request-comment
 
 # For file-level comment
 agdt-set path "src/example.py"
 agdt-set line 42
-agdt-add-pr-comment
-```text
+agdt-add-pull-request-comment
+```
+
+### Approve Pull Request
+
+```bash
+# Option A: With CLI parameters
+agdt-approve-pull-request --pull-request-id 23046 --content "Approved!"
+agdt-approve-pull-request -p 23046
+
+# Option B: Parameterless (uses current state)
+agdt-set pull_request_id 23046
+agdt-approve-pull-request
+```
+
+### Get PR Threads
+
+```bash
+# Option A: With CLI parameter
+agdt-get-pull-request-threads --pull-request-id 23046
+agdt-get-pull-request-threads -p 23046
+
+# Option B: Parameterless (uses current state)
+agdt-set pull_request_id 23046
+agdt-get-pull-request-threads
+```
+
+### Resolve Thread
+
+```bash
+# Option A: With CLI parameters
+agdt-resolve-thread --pull-request-id 23046 --thread-id 139474
+agdt-resolve-thread -p 23046 -t 139474
+
+# Option B: Parameterless (uses current state)
+agdt-set pull_request_id 23046
+agdt-set thread_id 139474
+agdt-resolve-thread
+```
 
 ### Dry Run Mode
 
 ```bash
 agdt-set dry_run true
-agdt-reply-to-pr-thread  # Previews without making API calls
-```text
+agdt-reply-to-pull-request-thread  # Previews without making API calls
+```
 
 ## Azure Context Management
 

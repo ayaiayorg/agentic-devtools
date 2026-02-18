@@ -232,7 +232,7 @@ def get_pull_request_threads_async():
     create_dispatcher(
         "agdt-get-pull-request-threads",
         "agentic_devtools.cli.azure_devops",
-        "get_pull_request_threads_async",
+        "get_pull_request_threads_async_cli",
     )()
 
 

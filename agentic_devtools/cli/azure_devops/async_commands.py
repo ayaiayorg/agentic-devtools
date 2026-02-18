@@ -288,23 +288,65 @@ Examples:
     )
 
 
-def get_pull_request_threads_async() -> None:
+def get_pull_request_threads_async(
+    pull_request_id: Optional[str] = None,
+) -> None:
     """
     Get pull request threads asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
 
     Usage:
+        agdt-get-pull-request-threads --pull-request-id 12345
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-get-pull-request-threads
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-get-pull-request-threads --pull-request-id 12345')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "get_pull_request_threads",
         command_display_name="agdt-get-pull-request-threads",
     )
     print_task_tracking_info(task, "Getting pull request threads")
+
+
+def get_pull_request_threads_async_cli() -> None:
+    """CLI entry point for get_pull_request_threads_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Get pull request threads (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-get-pull-request-threads --pull-request-id 12345
+  agdt-get-pull-request-threads -p 12345
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-get-pull-request-threads
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    args = parser.parse_args()
+    get_pull_request_threads_async(
+        pull_request_id=args.pull_request_id,
+    )
 
 
 def reply_to_pull_request_thread_async(
