@@ -416,6 +416,7 @@ agdt-network-status
 ```
 
 Output shows:
+
 - 🏢 Corporate network (in office) - VPN operations skipped automatically
 - 🔌 Remote with VPN - Can access internal resources, external blocked
 - 📡 Remote without VPN - Can access external resources, internal blocked
@@ -437,6 +438,7 @@ agdt-vpn-run "npm install express"  # --smart is the default
 ```
 
 The command will:
+
 - Detect if you're on corporate network (in office) and skip VPN operations
 - Connect VPN if needed for internal resources
 - Disconnect VPN temporarily for public registry access
@@ -486,7 +488,11 @@ agdt-vpn-run "curl https://jira.swica.ch/rest/api/2/issue/DP-123"
 
 ### In-Office Behavior
 
-When on the corporate network (physically in the office), VPN operations are automatically skipped since internal resources are already accessible. However, note that the corporate network may still block external registries (npm, PyPI) - in that case, consider connecting to a different network (e.g., mobile hotspot) for external access.
+When on the corporate network (physically in the office), VPN operations are
+automatically skipped since internal resources are already accessible. However,
+note that the corporate network may still block external registries (npm, PyPI) -
+in that case, consider connecting to a different network (e.g., mobile hotspot)
+for external access.
 
 ## Environment Variables
 
