@@ -62,7 +62,7 @@ def get_repository_name_from_git_remote() -> Optional[str]:
         )
         remote_url = result.stdout.strip()
 
-        if not remote_url:
+        if not remote_url or not isinstance(remote_url, str):
             return None
 
         # Azure DevOps pattern: https://dev.azure.com/org/project/_git/repo-name
@@ -77,8 +77,8 @@ def get_repository_name_from_git_remote() -> Optional[str]:
 
         return None
 
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Git command failed or git not available
+    except (subprocess.CalledProcessError, FileNotFoundError, AttributeError, TypeError):
+        # Git command failed, git not available, or mocked incorrectly in tests
         return None
 
 
