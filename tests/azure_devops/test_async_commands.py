@@ -583,6 +583,8 @@ class TestAzureDevOpsAsyncIntegration:
         # Set up required state for commands that validate
         from agentic_devtools.state import set_value
 
+        set_value("pull_request_id", "12345")
+        set_value("content", "Test content")
         set_value("source_branch", "feature/test-branch")
         set_value("title", "Test PR title")
 
@@ -603,6 +605,12 @@ class TestAzureDevOpsAsyncIntegration:
 
     def test_task_ids_are_unique(self, mock_background_and_state, capsys):
         """Test each spawned task gets a unique ID."""
+        # Set up required state for commands
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "12345")
+        set_value("content", "Test content")
+
         add_pull_request_comment_async()
         out1 = capsys.readouterr().out
 
