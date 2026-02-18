@@ -208,7 +208,7 @@ def add_pull_request_comment_async():
     create_dispatcher(
         "agdt-add-pull-request-comment",
         "agentic_devtools.cli.azure_devops",
-        "add_pull_request_comment_async",
+        "add_pull_request_comment_async_cli",
     )()
 
 
@@ -216,7 +216,7 @@ def approve_pull_request_async():
     create_dispatcher(
         "agdt-approve-pull-request",
         "agentic_devtools.cli.azure_devops",
-        "approve_pull_request_async",
+        "approve_pull_request_async_cli",
     )()
 
 
@@ -240,7 +240,7 @@ def reply_to_pull_request_thread_async():
     create_dispatcher(
         "agdt-reply-to-pull-request-thread",
         "agentic_devtools.cli.azure_devops",
-        "reply_to_pull_request_thread_async",
+        "reply_to_pull_request_thread_async_cli",
     )()
 
 
@@ -248,7 +248,7 @@ def resolve_thread_async():
     create_dispatcher(
         "agdt-resolve-thread",
         "agentic_devtools.cli.azure_devops",
-        "resolve_thread_async",
+        "resolve_thread_async_cli",
     )()
 
 
