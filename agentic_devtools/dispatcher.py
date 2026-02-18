@@ -735,3 +735,36 @@ def query_fabric_dap_timeline_async():
         "agentic_devtools.cli.azure",
         "query_fabric_dap_timeline_async",
     )()
+
+
+# Azure Context Management
+def azure_context_use_cmd():
+    create_dispatcher(
+        "agdt-azure-context-use",
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_use_command",
+    )()
+
+
+def azure_context_status_cmd():
+    create_dispatcher(
+        "agdt-azure-context-status",
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_status_command",
+    )()
+
+
+def azure_context_current_cmd():
+    create_dispatcher(
+        "agdt-azure-context-current",
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_current_command",
+    )()
+
+
+def azure_context_ensure_login_cmd():
+    create_dispatcher(
+        "agdt-azure-context-ensure-login",
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_ensure_login_command",
+    )()
