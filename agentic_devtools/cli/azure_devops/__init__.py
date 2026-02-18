@@ -72,6 +72,7 @@ from .config import (
     DEFAULT_PROJECT,
     DEFAULT_REPOSITORY,
     AzureDevOpsConfig,
+    get_repository_name_from_git_remote,
 )
 
 # File review command exports
@@ -134,6 +135,7 @@ __all__ = [
     "API_VERSION",
     # Config
     "AzureDevOpsConfig",
+    "get_repository_name_from_git_remote",
     # Auth
     "get_pat",
     "get_auth_headers",
