@@ -1,5 +1,20 @@
 """
 Azure DevOps constants and configuration.
+
+Repository Detection:
+    The repository name is determined in the following priority order:
+    1. State value (if set via agdt-set repository "repo-name")
+    2. Git remote detection (from `git remote get-url origin`)
+    3. Hardcoded DEFAULT_REPOSITORY constant
+
+    This allows the package to automatically detect the correct repository name
+    from the git remote URL, fixing issues where the hardcoded value may be
+    incorrect for different projects.
+
+    Supported URL formats:
+    - Azure DevOps: https://dev.azure.com/org/project/_git/repo-name
+    - GitHub HTTPS: https://github.com/owner/repo-name.git
+    - GitHub SSH: git@github.com:owner/repo-name.git
 """
 
 import re
