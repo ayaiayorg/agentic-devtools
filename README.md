@@ -182,6 +182,106 @@ agdt-set dry_run true
 agdt-reply-to-pr-thread  # Previews without making API calls
 ```text
 
+## Azure Context Management
+
+Manage multiple Azure CLI accounts (e.g., corporate account for Azure DevOps and AZA account for App Insights) without repeated `az login` / `az logout` cycles.
+
+### Overview
+
+The Azure context system uses separate `AZURE_CONFIG_DIR` directories per account context. Both accounts can stay authenticated simultaneously and can be switched instantly via environment variable.
+
+**Available Contexts:**
+- `devops` - Corporate account for Azure DevOps, Service Bus, etc.
+- `resources` - AZA account for App Insights, Azure resources, Terraform, etc.
+
+### Setup
+
+1. **Switch to a context** (one-time setup per context):
+
+```bash
+# Switch to DevOps context
+agdt-azure-context-use devops
+
+# Switch to resources context
+agdt-azure-context-use resources
+```text
+
+2. **Log in to each context** (one-time per context):
+
+```bash
+# After switching to a context, log in using Azure CLI
+az login
+# This login is stored in the context's isolated config directory
+```text
+
+### Usage
+
+**Show all contexts with login status:**
+
+```bash
+agdt-azure-context-status
+```text
+
+Output:
+```text
+Azure CLI Contexts:
+================================================================================
+
+devops [ACTIVE]
+  Description: Corporate account for Azure DevOps, Service Bus, etc.
+  Config Dir:  ~/.azure-contexts/devops
+  Status:      ✓ Logged in as user@company.com
+
+resources
+  Description: AZA account for App Insights, Azure resources, Terraform, etc.
+  Config Dir:  ~/.azure-contexts/resources
+  Status:      ✓ Logged in as user@company.com
+
+================================================================================
+```text
+
+**Check current active context:**
+
+```bash
+agdt-azure-context-current
+```text
+
+**Switch contexts:**
+
+```bash
+# Switch to DevOps context
+agdt-azure-context-use devops
+
+# Switch to resources context
+agdt-azure-context-use resources
+```text
+
+**Ensure logged in (prompts if needed):**
+
+```bash
+# Ensure current context is logged in
+agdt-azure-context-ensure-login
+
+# Ensure specific context is logged in
+agdt-azure-context-ensure-login devops
+```text
+
+### How It Works
+
+Each context uses its own isolated Azure CLI configuration directory:
+- `~/.azure-contexts/devops/` - DevOps context config and tokens
+- `~/.azure-contexts/resources/` - Resources context config and tokens
+
+When you run `az` commands, the active context's `AZURE_CONFIG_DIR` is used, so both accounts stay authenticated simultaneously. Switching contexts is instant (no browser login flow).
+
+### Integration
+
+**With VPN toggle:**
+Contexts work seamlessly with the VPN toggle system. When certain contexts require VPN, the system coordinates VPN state automatically.
+
+**With Azure CLI:**
+All `az` commands respect the active context automatically via the `AZURE_CONFIG_DIR` environment variable.
+
 ## Git Commands
 
 The package provides streamlined Git workflow commands that support the
