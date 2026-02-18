@@ -2,6 +2,8 @@
 Azure DevOps constants and configuration.
 """
 
+import re
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
@@ -16,6 +18,53 @@ DEFAULT_PROJECT = "DragonflyMgmt"
 DEFAULT_REPOSITORY = "agdt-platform-management"
 APPROVAL_SENTINEL = "--- APPROVED ---"
 API_VERSION = "7.0"
+
+
+# =============================================================================
+# Repository Detection
+# =============================================================================
+
+
+def get_repository_name_from_git_remote() -> Optional[str]:
+    """
+    Extract the repository name from the git remote URL.
+
+    Supports Azure DevOps and GitHub URL formats:
+    - Azure DevOps: https://dev.azure.com/org/project/_git/repo-name
+    - GitHub: https://github.com/owner/repo-name.git
+    - GitHub SSH: git@github.com:owner/repo-name.git
+
+    Returns:
+        Repository name if found, None otherwise.
+    """
+    try:
+        # Get the origin remote URL
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        remote_url = result.stdout.strip()
+
+        if not remote_url:
+            return None
+
+        # Azure DevOps pattern: https://dev.azure.com/org/project/_git/repo-name
+        azure_match = re.search(r"/_git/([^/?#]+)", remote_url)
+        if azure_match:
+            return azure_match.group(1)
+
+        # GitHub HTTPS pattern: https://github.com/owner/repo-name.git
+        github_https_match = re.search(r"github\.com[:/][\w-]+/([\w-]+?)(?:\.git)?$", remote_url)
+        if github_https_match:
+            return github_https_match.group(1)
+
+        return None
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # Git command failed or git not available
+        return None
 
 
 # =============================================================================
@@ -36,10 +85,15 @@ class AzureDevOpsConfig:
     @classmethod
     def from_state(cls) -> "AzureDevOpsConfig":
         """Create config from state values or defaults."""
+        # Try to get repository from state, then git remote, then hardcoded default
+        repository = get_value("repository")
+        if not repository:
+            repository = get_repository_name_from_git_remote() or DEFAULT_REPOSITORY
+
         return cls(
             organization=get_value("organization") or DEFAULT_ORGANIZATION,
             project=get_value("project") or DEFAULT_PROJECT,
-            repository=get_value("repository") or DEFAULT_REPOSITORY,
+            repository=repository,
         )
 
     def build_api_url(self, repo_id: str, *path_segments) -> str:
