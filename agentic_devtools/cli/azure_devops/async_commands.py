@@ -51,19 +51,37 @@ _MARK_REVIEWED_MODULE = "agentic_devtools.cli.azure_devops.mark_reviewed"
 # =============================================================================
 
 
-def add_pull_request_comment_async() -> None:
+def add_pull_request_comment_async(
+    pull_request_id: Optional[str] = None,
+    content: Optional[str] = None,
+) -> None:
     """
     Add a comment to a pull request asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+        content: Comment content (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
         content (required): Comment content
 
     Usage:
+        agdt-add-pull-request-comment --pull-request-id 12345 --content "LGTM!"
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-set content "LGTM!"
         agdt-add-pull-request-comment
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("content", content)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-add-pull-request-comment --pull-request-id 12345')
+    _require_value("content", 'agdt-add-pull-request-comment --content "Your comment"')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "add_pull_request_comment",
@@ -72,23 +90,114 @@ def add_pull_request_comment_async() -> None:
     print_task_tracking_info(task, "Adding comment to pull request")
 
 
-def approve_pull_request_async() -> None:
+def add_pull_request_comment_async_cli() -> None:
+    """CLI entry point for add_pull_request_comment_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Add a comment to a pull request (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-add-pull-request-comment --pull-request-id 12345 --content "LGTM!"
+  agdt-add-pull-request-comment -p 12345 -c "Looks good to me"
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-set content "LGTM!"
+  agdt-add-pull-request-comment
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--content",
+        "-c",
+        type=str,
+        default=None,
+        help="Comment content (falls back to content state)",
+    )
+    args = parser.parse_args()
+    add_pull_request_comment_async(
+        pull_request_id=args.pull_request_id,
+        content=args.content,
+    )
+
+
+def approve_pull_request_async(
+    pull_request_id: Optional[str] = None,
+    content: Optional[str] = None,
+) -> None:
     """
     Approve a pull request asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+        content: Optional approval comment (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
+        content (optional): Approval comment
 
     Usage:
+        agdt-approve-pull-request --pull-request-id 12345 --content "LGTM!"
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-approve-pull-request
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("content", content)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-approve-pull-request --pull-request-id 12345')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "approve_pull_request",
         command_display_name="agdt-approve-pull-request",
     )
     print_task_tracking_info(task, "Approving pull request")
+
+
+def approve_pull_request_async_cli() -> None:
+    """CLI entry point for approve_pull_request_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Approve a pull request (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-approve-pull-request --pull-request-id 12345
+  agdt-approve-pull-request -p 12345 -c "Approved with comments"
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-approve-pull-request
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--content",
+        "-c",
+        type=str,
+        default=None,
+        help="Optional approval comment (falls back to content state)",
+    )
+    args = parser.parse_args()
+    approve_pull_request_async(
+        pull_request_id=args.pull_request_id,
+        content=args.content,
+    )
 
 
 def create_pull_request_async(
@@ -179,17 +288,31 @@ Examples:
     )
 
 
-def get_pull_request_threads_async() -> None:
+def get_pull_request_threads_async(
+    pull_request_id: Optional[str] = None,
+) -> None:
     """
     Get pull request threads asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
 
     Usage:
+        agdt-get-pull-request-threads --pull-request-id 12345
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-get-pull-request-threads
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-get-pull-request-threads --pull-request-id 12345')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "get_pull_request_threads",
@@ -198,21 +321,71 @@ def get_pull_request_threads_async() -> None:
     print_task_tracking_info(task, "Getting pull request threads")
 
 
-def reply_to_pull_request_thread_async() -> None:
+def get_pull_request_threads_async_cli() -> None:
+    """CLI entry point for get_pull_request_threads_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Get pull request threads (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-get-pull-request-threads --pull-request-id 12345
+  agdt-get-pull-request-threads -p 12345
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-get-pull-request-threads
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    args = parser.parse_args()
+    get_pull_request_threads_async(
+        pull_request_id=args.pull_request_id,
+    )
+
+
+def reply_to_pull_request_thread_async(
+    pull_request_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    content: Optional[str] = None,
+) -> None:
     """
     Reply to a pull request thread asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+        thread_id: Thread ID (overrides state)
+        content: Reply content (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
         thread_id (required): Thread ID
         content (required): Reply content
 
     Usage:
+        agdt-reply-to-pull-request-thread --pull-request-id 12345 --thread-id 67890 --content "Thanks!"
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-set thread_id 67890
         agdt-set content "Thanks for the review!"
         agdt-reply-to-pull-request-thread
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("thread_id", thread_id)
+    _set_value_if_provided("content", content)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-reply-to-pull-request-thread --pull-request-id 12345')
+    _require_value("thread_id", 'agdt-reply-to-pull-request-thread --thread-id 67890')
+    _require_value("content", 'agdt-reply-to-pull-request-thread --content "Your reply"')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "reply_to_pull_request_thread",
@@ -221,25 +394,126 @@ def reply_to_pull_request_thread_async() -> None:
     print_task_tracking_info(task, "Replying to pull request thread")
 
 
-def resolve_thread_async() -> None:
+def reply_to_pull_request_thread_async_cli() -> None:
+    """CLI entry point for reply_to_pull_request_thread_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Reply to a pull request thread (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-reply-to-pull-request-thread --pull-request-id 12345 --thread-id 67890 --content "Thanks!"
+  agdt-reply-to-pull-request-thread -p 12345 -t 67890 -c "Fixed"
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-set thread_id 67890
+  agdt-set content "Thanks for the review!"
+  agdt-reply-to-pull-request-thread
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--thread-id",
+        "-t",
+        type=str,
+        default=None,
+        help="Thread ID (falls back to thread_id state)",
+    )
+    parser.add_argument(
+        "--content",
+        "-c",
+        type=str,
+        default=None,
+        help="Reply content (falls back to content state)",
+    )
+    args = parser.parse_args()
+    reply_to_pull_request_thread_async(
+        pull_request_id=args.pull_request_id,
+        thread_id=args.thread_id,
+        content=args.content,
+    )
+
+
+def resolve_thread_async(
+    pull_request_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+) -> None:
     """
     Resolve a pull request thread asynchronously in the background.
 
-    State keys:
+    Args:
+        pull_request_id: PR ID (overrides state)
+        thread_id: Thread ID (overrides state)
+
+    State keys (used as fallbacks):
         pull_request_id (required): PR ID
         thread_id (required): Thread ID
 
     Usage:
+        agdt-resolve-thread --pull-request-id 12345 --thread-id 67890
+
+        # Or using state:
         agdt-set pull_request_id 12345
         agdt-set thread_id 67890
         agdt-resolve-thread
     """
+    # Store CLI args in state if provided
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("thread_id", thread_id)
+
+    # Validate required values
+    _require_value("pull_request_id", 'agdt-resolve-thread --pull-request-id 12345')
+    _require_value("thread_id", 'agdt-resolve-thread --thread-id 67890')
+
     task = run_function_in_background(
         _COMMANDS_MODULE,
         "resolve_thread",
         command_display_name="agdt-resolve-thread",
     )
     print_task_tracking_info(task, "Resolving pull request thread")
+
+
+def resolve_thread_async_cli() -> None:
+    """CLI entry point for resolve_thread_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Resolve a pull request thread (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-resolve-thread --pull-request-id 12345 --thread-id 67890
+  agdt-resolve-thread -p 12345 -t 67890
+
+  # Or using state:
+  agdt-set pull_request_id 12345
+  agdt-set thread_id 67890
+  agdt-resolve-thread
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--thread-id",
+        "-t",
+        type=str,
+        default=None,
+        help="Thread ID (falls back to thread_id state)",
+    )
+    args = parser.parse_args()
+    resolve_thread_async(
+        pull_request_id=args.pull_request_id,
+        thread_id=args.thread_id,
+    )
 
 
 def mark_pull_request_draft_async() -> None:

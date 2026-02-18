@@ -137,6 +137,11 @@ agdt-vpn-on = "agentic_devtools.dispatcher:vpn_on_cmd"
 agdt-vpn-off = "agentic_devtools.dispatcher:vpn_off_cmd"
 agdt-vpn-status = "agentic_devtools.dispatcher:vpn_status_cmd"
 
+# Azure context management commands (instant, read/write state)
+agdt-azure-context-use = "agentic_devtools.dispatcher:azure_context_use_cmd"
+agdt-azure-context-status = "agentic_devtools.dispatcher:azure_context_status_cmd"
+agdt-azure-context-current = "agentic_devtools.dispatcher:azure_context_current_cmd"
+agdt-azure-context-ensure-login = "agentic_devtools.dispatcher:azure_context_ensure_login_cmd"
 # Network context management (synchronous)
 agdt-network-status = "agentic_devtools.dispatcher:network_status_cmd"
 
