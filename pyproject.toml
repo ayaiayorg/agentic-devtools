@@ -142,6 +142,11 @@ agdt-azure-context-use = "agentic_devtools.dispatcher:azure_context_use_cmd"
 agdt-azure-context-status = "agentic_devtools.dispatcher:azure_context_status_cmd"
 agdt-azure-context-current = "agentic_devtools.dispatcher:azure_context_current_cmd"
 agdt-azure-context-ensure-login = "agentic_devtools.dispatcher:azure_context_ensure_login_cmd"
+# Network context management (synchronous)
+agdt-network-status = "agentic_devtools.dispatcher:network_status_cmd"
+
+# VPN command wrapper (synchronous - wraps command execution)
+agdt-vpn-run = "agentic_devtools.dispatcher:vpn_run_cmd"
 
 # Background worktree setup (internal, called by background task)
 agdt-setup-worktree-background = "agentic_devtools.dispatcher:setup_worktree_background_cmd"

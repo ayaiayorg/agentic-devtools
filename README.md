@@ -554,6 +554,97 @@ agdt-set jira.dry_run true
 agdt-create-issue  # Previews payload without API call
 ```text
 
+## VPN & Network Management
+
+The corporate VPN (Pulse Secure/Ivanti) creates a full tunnel that blocks public registries (npm, PyPI) while being required for internal resources (Jira, ESB). These commands provide intelligent VPN management so you don't need to manually connect/disconnect VPN when switching between tasks.
+
+### Network Status
+
+Check your current network context:
+
+```bash
+agdt-network-status
+```
+
+Output shows:
+
+- 🏢 Corporate network (in office) - VPN operations skipped automatically
+- 🔌 Remote with VPN - Can access internal resources, external blocked
+- 📡 Remote without VPN - Can access external resources, internal blocked
+
+### Run Command with VPN Context
+
+Automatically manage VPN based on command requirements:
+
+```bash
+# Ensure VPN is connected before running (for Jira, ESB, etc.)
+agdt-vpn-run --require-vpn "curl https://jira.swica.ch/rest/api/2/issue/DP-123"
+
+# Temporarily disconnect VPN for public access (npm, pip, etc.)
+agdt-vpn-run --require-public "npm install"
+
+# Auto-detect requirement from command content (default)
+agdt-vpn-run --smart "az devops ..."
+agdt-vpn-run "npm install express"  # --smart is the default
+```
+
+The command will:
+
+- Detect if you're on corporate network (in office) and skip VPN operations
+- Connect VPN if needed for internal resources
+- Disconnect VPN temporarily for public registry access
+- Restore VPN state after command completes
+
+### Manual VPN Control
+
+Direct VPN control commands (run in background):
+
+```bash
+# Connect VPN (skipped if on corporate network)
+agdt-vpn-on
+agdt-task-wait
+
+# Disconnect VPN
+agdt-vpn-off
+agdt-task-wait
+
+# Check VPN status
+agdt-vpn-status
+agdt-task-wait
+```
+
+### Common Workflows
+
+**Install npm packages (needs public access):**
+
+```bash
+agdt-vpn-run --require-public "npm install"
+```
+
+**Access Jira API (needs VPN):**
+
+```bash
+agdt-vpn-run --require-vpn "curl https://jira.swica.ch/rest/api/2/serverInfo"
+```
+
+**Smart detection (recommended):**
+
+```bash
+# Auto-detects that npm install needs public access
+agdt-vpn-run "npm install express lodash"
+
+# Auto-detects that Jira URL needs VPN
+agdt-vpn-run "curl https://jira.swica.ch/rest/api/2/issue/DP-123"
+```
+
+### In-Office Behavior
+
+When on the corporate network (physically in the office), VPN operations are
+automatically skipped since internal resources are already accessible. However,
+note that the corporate network may still block external registries (npm, PyPI) -
+in that case, consider connecting to a different network (e.g., mobile hotspot)
+for external access.
+
 ## Environment Variables
 
 | Variable                    | Purpose

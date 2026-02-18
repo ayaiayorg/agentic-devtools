@@ -698,6 +698,18 @@ def vpn_status_cmd():
     )()
 
 
+# Network context commands
+def network_status_cmd():
+    create_dispatcher(
+        "agdt-network-status", "agentic_devtools.cli.network", "network_status_cmd"
+    )()
+
+
+# VPN run commands (run commands with VPN context management)
+def vpn_run_cmd():
+    create_dispatcher("agdt-vpn-run", "agentic_devtools.cli.vpn", "vpn_run_cmd")()
+
+
 def release_pypi_async():
     create_dispatcher(
         "agdt-release-pypi", "agentic_devtools.cli.release", "release_pypi_async"
