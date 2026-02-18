@@ -241,6 +241,7 @@ Manage multiple Azure CLI accounts (e.g., corporate account for Azure DevOps and
 The Azure context system uses separate `AZURE_CONFIG_DIR` directories per account context. Both accounts can stay authenticated simultaneously and can be switched instantly via environment variable.
 
 **Available Contexts:**
+
 - `devops` - Corporate account for Azure DevOps, Service Bus, etc.
 - `resources` - AZA account for App Insights, Azure resources, Terraform, etc.
 
