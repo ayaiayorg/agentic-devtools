@@ -12,7 +12,9 @@ Repository Detection:
     incorrect for different projects.
 
     Supported URL formats:
-    - Azure DevOps: https://dev.azure.com/org/project/_git/repo-name
+    - Azure DevOps HTTPS: https://dev.azure.com/org/project/_git/repo-name
+    - Azure DevOps SSH: git@ssh.dev.azure.com:v3/org/project/repo-name
+    - Azure DevOps SSH (legacy): org@vs-ssh.visualstudio.com:v3/org/project/repo-name
     - GitHub HTTPS: https://github.com/owner/repo-name.git
     - GitHub SSH: git@github.com:owner/repo-name.git
 """
@@ -30,7 +32,7 @@ from ...state import get_value
 
 DEFAULT_ORGANIZATION = "https://dev.azure.com/swica"
 DEFAULT_PROJECT = "DragonflyMgmt"
-DEFAULT_REPOSITORY = "agdt-platform-management"
+DEFAULT_REPOSITORY = "dfly-platform-management"
 APPROVAL_SENTINEL = "--- APPROVED ---"
 API_VERSION = "7.0"
 
@@ -45,8 +47,10 @@ def get_repository_name_from_git_remote() -> Optional[str]:
     Extract the repository name from the git remote URL.
 
     Supports Azure DevOps and GitHub URL formats:
-    - Azure DevOps: https://dev.azure.com/org/project/_git/repo-name
-    - GitHub: https://github.com/owner/repo-name.git
+    - Azure DevOps HTTPS: https://dev.azure.com/org/project/_git/repo-name
+    - Azure DevOps SSH: git@ssh.dev.azure.com:v3/org/project/repo-name
+    - Azure DevOps SSH (legacy): org@vs-ssh.visualstudio.com:v3/org/project/repo-name
+    - GitHub HTTPS: https://github.com/owner/repo-name.git
     - GitHub SSH: git@github.com:owner/repo-name.git
 
     Returns:
@@ -65,10 +69,20 @@ def get_repository_name_from_git_remote() -> Optional[str]:
         if not remote_url or not isinstance(remote_url, str):
             return None
 
-        # Azure DevOps pattern: https://dev.azure.com/org/project/_git/repo-name
+        # Azure DevOps HTTPS pattern: https://dev.azure.com/org/project/_git/repo-name
         azure_match = re.search(r"/_git/([^/?#]+)", remote_url)
         if azure_match:
             return azure_match.group(1)
+
+        # Azure DevOps SSH patterns:
+        # New format: git@ssh.dev.azure.com:v3/{org}/{project}/{repo}
+        # Legacy format: {org}@vs-ssh.visualstudio.com:v3/{org}/{project}/{repo}
+        azure_ssh_match = re.search(
+            r"(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com):v3/[^/]+/[^/]+/([^/\s]+?)(?:\.git)?$",
+            remote_url,
+        )
+        if azure_ssh_match:
+            return azure_ssh_match.group(1)
 
         # GitHub HTTPS pattern: https://github.com/owner/repo-name.git
         github_https_match = re.search(r"github\.com[:/][\w-]+/([\w-]+?)(?:\.git)?$", remote_url)
