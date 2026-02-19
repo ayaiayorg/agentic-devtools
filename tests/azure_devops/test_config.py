@@ -219,6 +219,60 @@ class TestRepositoryDetection:
         result = get_repository_name_from_git_remote()
         assert result == "agentic-devtools"
 
+    def test_get_repository_name_from_azure_devops_ssh(self, monkeypatch):
+        """Test extracting repository name from Azure DevOps SSH URL (new format)."""
+        import subprocess
+
+        def mock_run(*args, **kwargs):
+            class MockResult:
+                stdout = "git@ssh.dev.azure.com:v3/swica/DragonflyMgmt/dfly-platform-management"
+                returncode = 0
+
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
+
+        result = get_repository_name_from_git_remote()
+        assert result == "dfly-platform-management"
+
+    def test_get_repository_name_from_azure_devops_ssh_legacy(self, monkeypatch):
+        """Test extracting repository name from Azure DevOps SSH URL (legacy visualstudio.com format)."""
+        import subprocess
+
+        def mock_run(*args, **kwargs):
+            class MockResult:
+                stdout = "swica@vs-ssh.visualstudio.com:v3/swica/DragonflyMgmt/dfly-platform-management"
+                returncode = 0
+
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
+
+        result = get_repository_name_from_git_remote()
+        assert result == "dfly-platform-management"
+
+    def test_get_repository_name_from_azure_devops_ssh_with_git_suffix(self, monkeypatch):
+        """Test extracting repository name from Azure DevOps SSH URL with .git suffix."""
+        import subprocess
+
+        def mock_run(*args, **kwargs):
+            class MockResult:
+                stdout = "git@ssh.dev.azure.com:v3/swica/DragonflyMgmt/dfly-platform-management.git"
+                returncode = 0
+
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
+
+        result = get_repository_name_from_git_remote()
+        assert result == "dfly-platform-management"
+
     def test_get_repository_name_git_command_fails(self, monkeypatch):
         """Test returns None when git command fails."""
         import subprocess
