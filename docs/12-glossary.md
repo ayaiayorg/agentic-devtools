@@ -327,7 +327,6 @@
 | `JIRA_COPILOT_PAT` | Jira PAT authentication | For Jira commands |
 | `JIRA_EMAIL` | Jira account email (for basic auth) | Optional for Jira |
 | `JIRA_USERNAME` | Jira username (for basic auth) | Optional for Jira |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription | For Azure commands |
 
 ## File Locations
 

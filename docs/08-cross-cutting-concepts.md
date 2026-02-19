@@ -184,7 +184,6 @@ graph TB
 - `AZURE_DEVOPS_EXT_PAT` - Azure DevOps Personal Access Token (fallback)
 - `JIRA_COPILOT_PAT` - Jira API token (PAT)
 - `JIRA_EMAIL` / `JIRA_USERNAME` - Jira account identifier for basic auth (optional)
-- `AZURE_SUBSCRIPTION_ID` - Azure subscription (optional)
 
 ### 8.4.2 Security Checklist
 
@@ -291,7 +290,7 @@ graph TB
 
 ```text
 # Success
-✓ Task started: task_abc123
+✓ Task started: 123e4567-e89b-12d3-a456-426614174000
   Status: agdt-task-status
   Logs: agdt-task-log
   Wait: agdt-task-wait

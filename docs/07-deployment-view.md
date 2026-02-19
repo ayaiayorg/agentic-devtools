@@ -209,7 +209,7 @@ graph TB
         Temp[scripts/temp/]
         State[agdt-state.json]
         Output[Output files<br/>*.json]
-        Logs[logs/]
+        Logs[scripts/temp/background-tasks/logs/]
     end
     
     subgraph "Git Tracking"
@@ -257,7 +257,6 @@ graph TB
         ADO_PAT[AZURE_DEV_OPS_COPILOT_PAT<br/>AZURE_DEVOPS_EXT_PAT]
         Jira_Token[JIRA_COPILOT_PAT]
         Jira_Email[JIRA_EMAIL/JIRA_USERNAME]
-        Azure_Sub[AZURE_SUBSCRIPTION_ID]
     end
     
     subgraph "Command Execution"
@@ -267,7 +266,6 @@ graph TB
     EnvVars --> ADO_PAT
     EnvVars --> Jira_Token
     EnvVars --> Jira_Email
-    EnvVars --> Azure_Sub
     
     StateFile --> Commands
     CLI --> Commands

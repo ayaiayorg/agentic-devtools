@@ -121,8 +121,8 @@ graph TD
 
 **Examples**:
 
-- ❌ `agdt-add-pr-comment --pr-id 123 --message "..."` (unique per PR)
-- ✅ `agdt-set pr_id 123` + `agdt-set content "..."` + `agdt-add-pr-comment` (reusable)
+- ❌ `agdt-add-pull-request-comment --pull-request-id 123 --content "..."` (unique per PR)
+- ✅ `agdt-set pull_request_id 123` + `agdt-set content "..."` + `agdt-add-pull-request-comment` (reusable)
 
 ### 4.3.2 Multi-Worktree Strategy
 

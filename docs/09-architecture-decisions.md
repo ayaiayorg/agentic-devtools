@@ -59,13 +59,13 @@
 
 ```bash
 # ❌ Bad: Requires approval each time
-agdt-add-pr-comment --pr-id 123 --message "LGTM"
-agdt-add-pr-comment --pr-id 124 --message "Needs work"  # New approval!
+agdt-add-pull-request-comment --pull-request-id 123 --content "LGTM"
+agdt-add-pull-request-comment --pull-request-id 124 --content "Needs work"  # New approval!
 
 # ✅ Good: Approve agdt-set once, reuse forever
 agdt-set pull_request_id 123
 agdt-set content "LGTM"
-agdt-add-pr-comment  # Already approved!
+agdt-add-pull-request-comment  # Already approved!
 ```
 
 ## 9.3 ADR-003: Background Task Execution

@@ -68,9 +68,12 @@ graph TB
 
 ### 5.3.1 State Management
 
+**Note**: The diagrams below show conceptual class representations for clarity. The actual implementation uses module-level functions rather than class-based APIs.
+
 ```mermaid
 classDiagram
     class State {
+        <<module functions>>
         +get_value(key) dict
         +set_value(key, value)
         +delete_key(key)
@@ -80,13 +83,12 @@ classDiagram
     }
     
     class FileLock {
-        +acquire()
-        +release()
-        +__enter__()
-        +__exit__()
+        <<context manager>>
+        +locked_state_file(path, timeout)
     }
     
     class WorkflowState {
+        <<module functions>>
         +get_workflow_state() dict
         +set_workflow_state(name, status, step, context)
         +update_workflow_step(step)
@@ -107,25 +109,13 @@ classDiagram
 
 ### 5.3.2 Background Tasks
 
+**Note**: The diagram below shows conceptual relationships. `BackgroundTask` is a dataclass in `task_state.py`, while spawning/monitoring is handled by module-level functions in `background_tasks.py`.
+
 ```mermaid
 classDiagram
     class BackgroundTask {
-        +spawn_task(func, args) TaskID
-        +get_task_status(task_id) Status
-        +wait_for_task(task_id, timeout) Result
-        +clean_expired_tasks()
-    }
-    
-    class TaskState {
-        +create_task(name, command) TaskID
-        +update_task_status(task_id, status)
-        +get_task(task_id) Task
-        +list_tasks() List~Task~
-        +save_task_output(task_id, output)
-    }
-    
-    class TaskMetadata {
-        +task_id: str
+        <<dataclass>>
+        +id: str
         +name: str
         +command: str
         +status: str
@@ -133,6 +123,22 @@ classDiagram
         +completed_at: datetime
         +exit_code: int
         +output_file: str
+        +log_file: str
+    }
+    
+    class TaskFunctions {
+        <<module functions>>
+        +spawn_task(func, args) TaskID
+        +get_task_status(task_id) Status
+        +wait_for_task(task_id, timeout) Result
+        +clean_expired_tasks()
+        +create_task(name, command) TaskID
+        +update_task_status(task_id, status)
+        +get_task(task_id) Task
+        +list_tasks() List~Task~
+    }
+    
+    TaskFunctions --> BackgroundTask : manages
         +log_file: str
     }
     
