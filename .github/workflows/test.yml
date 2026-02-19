@@ -36,6 +36,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       
+      - name: Validate 1:1:1 test structure
+        run: |
+          python scripts/validate_test_structure.py
+
       - name: Run tests with pytest
         run: |
           pytest --cov=agentic_devtools --cov-report=term-missing
