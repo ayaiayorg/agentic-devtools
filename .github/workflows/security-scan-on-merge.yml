@@ -60,33 +60,59 @@ jobs:
             core.setOutput('commit_message', commit.commit.message);
             core.setOutput('is_merge', isMerge);
             
-            // Try to find associated PR
+            // Try to find associated PR using GitHub API
             let prNumber = null;
-            if (isMerge) {
-              // Extract PR number from merge commit message
+            let prTitle = '';
+            let prUrl = '';
+            
+            try {
+              // Use the API to list PRs associated with this commit
+              const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: commitSha
+              });
+              
+              if (prs.length > 0) {
+                // Take the first merged PR
+                const pr = prs.find(p => p.merged_at) || prs[0];
+                prNumber = pr.number;
+                prTitle = pr.title;
+                prUrl = pr.html_url;
+                console.log(`Found associated PR via API: #${prNumber} - ${prTitle}`);
+              }
+            } catch (error) {
+              console.log(`Could not fetch associated PRs via API: ${error.message}`);
+            }
+            
+            // Fallback: try to parse PR number from commit message
+            if (!prNumber && isMerge) {
               const prMatch = commit.commit.message.match(/#(\d+)/);
               if (prMatch) {
                 prNumber = parseInt(prMatch[1]);
-                console.log(`Found PR number from commit: ${prNumber}`);
+                console.log(`Found PR number from commit message: ${prNumber}`);
+                
+                // Get PR details
+                try {
+                  const { data: pr } = await github.rest.pulls.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber
+                  });
+                  
+                  prTitle = pr.title;
+                  prUrl = pr.html_url;
+                  console.log(`Fetched PR details: #${prNumber} - ${prTitle}`);
+                } catch (error) {
+                  console.log(`Could not fetch PR details: ${error.message}`);
+                }
               }
             }
             
             if (prNumber) {
-              // Get PR details
-              try {
-                const { data: pr } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber
-                });
-                
-                core.setOutput('pr_number', prNumber);
-                core.setOutput('pr_title', pr.title);
-                core.setOutput('pr_url', pr.html_url);
-                console.log(`Associated PR: #${prNumber} - ${pr.title}`);
-              } catch (error) {
-                console.log(`Could not fetch PR details: ${error.message}`);
-              }
+              core.setOutput('pr_number', prNumber);
+              core.setOutput('pr_title', prTitle);
+              core.setOutput('pr_url', prUrl);
             }
 
       - name: Run Dependency Vulnerability Scan
@@ -95,12 +121,17 @@ jobs:
           echo "Running pip-audit..."
           pip-audit --format json > pip-audit-report.json || true
           
-          # Show summary
+          # Check if vulnerabilities were actually found by parsing JSON
           if [ -s pip-audit-report.json ]; then
-            echo "Dependency vulnerabilities found - see pip-audit-report.json"
-            pip-audit || true
+            vuln_count=$(python -c "import json; data=json.load(open('pip-audit-report.json')); print(len(data.get('vulnerabilities', [])))" 2>/dev/null || echo "0")
+            if [ "$vuln_count" -gt 0 ]; then
+              echo "Dependency vulnerabilities found: $vuln_count vulnerability(ies)"
+              pip-audit || true
+            else
+              echo "No dependency vulnerabilities found"
+            fi
           else
-            echo "No dependency vulnerabilities found"
+            echo "pip-audit did not produce a report"
           fi
         continue-on-error: true
 
@@ -110,12 +141,17 @@ jobs:
           echo "Running bandit security scanner..."
           bandit -r agentic_devtools -f json -o bandit-report.json || true
           
-          # Show summary
+          # Check if issues were actually found by parsing JSON
           if [ -s bandit-report.json ]; then
-            echo "Security issues found - see bandit-report.json"
-            bandit -r agentic_devtools -f screen || true
+            issue_count=$(python -c "import json; data=json.load(open('bandit-report.json')); print(len(data.get('results', [])))" 2>/dev/null || echo "0")
+            if [ "$issue_count" -gt 0 ]; then
+              echo "Security issues found: $issue_count issue(s)"
+              bandit -r agentic_devtools -f screen || true
+            else
+              echo "No security issues found by bandit"
+            fi
           else
-            echo "No security issues found by bandit"
+            echo "Bandit did not produce a report"
           fi
         continue-on-error: true
 
@@ -123,14 +159,23 @@ jobs:
         id: safety
         run: |
           echo "Running safety scan..."
-          safety scan --json > safety-report.json || true
+          safety scan --json > safety-report.json
+          safety_exit_code=$?
           
-          # Show summary
-          if [ -s safety-report.json ]; then
-            echo "Vulnerabilities found in dependencies - see safety-report.json"
-            safety scan || true
+          # Validate that the report exists and is valid JSON before interpreting results
+          if [ ! -s safety-report.json ]; then
+            echo "Safety scan did not produce a report (exit code: ${safety_exit_code})"
+          elif ! python -c "import json; json.load(open('safety-report.json'))" 2>/dev/null; then
+            echo "Safety scan produced an invalid JSON report (exit code: ${safety_exit_code})"
           else
-            echo "No vulnerabilities found by safety"
+            # At this point, we have a non-empty, parseable JSON report
+            if [ "${safety_exit_code}" -eq 0 ]; then
+              echo "No vulnerabilities found by safety"
+            else
+              echo "Vulnerabilities or issues reported by safety - see safety-report.json"
+              # Run a human-readable summary; ignore its exit code to keep the workflow running
+              safety scan || true
+            fi
           fi
         continue-on-error: true
 
@@ -142,8 +187,8 @@ jobs:
             const commitSha = '${{ steps.merge-info.outputs.commit_sha }}';
             const isMerge = '${{ steps.merge-info.outputs.is_merge }}' === 'true';
             const prNumber = '${{ steps.merge-info.outputs.pr_number }}';
-            const prTitle = '${{ steps.merge-info.outputs.pr_title }}';
-            const prUrl = '${{ steps.merge-info.outputs.pr_url }}';
+            const prTitle = ${{ toJson(steps.merge-info.outputs.pr_title) }};
+            const prUrl = ${{ toJson(steps.merge-info.outputs.pr_url) }};
             
             // Read scan results
             let pipAuditResults = 'No vulnerabilities detected';
