@@ -50,8 +50,8 @@ graph LR
     end
     
     subgraph "Python Ecosystem"
-        Click[click]
         Requests[requests]
+        Jinja2[Jinja2]
         Pytest[pytest]
         Hatch[hatch-vcs]
     end
@@ -63,8 +63,8 @@ graph LR
         Azure_CLI[Azure CLI]
     end
     
-    Core --> Click
     Core --> Requests
+    Core --> Jinja2
     Core --> Pytest
     Core --> Hatch
     Core --> ADO_API

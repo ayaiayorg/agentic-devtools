@@ -220,40 +220,48 @@ def dispatch_command():
 | Draw.io | Binary format, not diffable |
 | Lucidchart | Commercial, not embeddable |
 
-## 9.7 ADR-007: Click Framework for CLI
+## 9.7 ADR-007: Argparse-Based CLI with Custom Dispatcher
 
 **Status**: Accepted
 
-**Context**: Need robust CLI framework with help generation and parameter handling
+**Context**: Need robust, auto-approvable CLI with good help text, simple parameter handling, and zero additional runtime dependencies so it can be installed per-repo or per-worktree
 
-**Decision**: Use Click library for all CLI commands
+**Decision**: Use Python's built-in `argparse` module for all CLI commands, with a lightweight custom dispatcher to handle `agdt-*` entry points and repo-local virtual environment detection
 
 **Rationale**:
 
-- Automatic help generation
-- Decorator-based command definition
-- Context passing support
-- Excellent documentation
-- Industry standard
+- No third-party dependency required (stdlib only)
+- Argparse provides structured parsing, validation, and help generation
+- Custom dispatcher supports multi-worktree behavior (re-exec into `.agdt-venv` when present)
+- Works well with many small, parameterless commands designed for AI auto-approval
+- Easier to reason about and debug than a heavier framework
+- Simpler dependency management for per-worktree installations
 
 **Consequences**:
 
-- ✅ Clean command definitions
-- ✅ Auto-generated help
-- ✅ Type conversion
-- ⚠️ Another dependency
-- ⚠️ Click-specific patterns
+- ✅ Consistent, explicit CLI behavior across all `agdt-*` commands
+- ✅ Auto-generated `--help` output from argparse without extra libraries
+- ✅ Simple integration with the background task system and state management
+- ✅ Easier to vendor or run in constrained environments (no extra dependencies)
+- ⚠️ More manual wiring needed for subcommands and shared options compared to a full-featured framework like Click
 
 **Example**:
 
 ```python
-import click
+import argparse
 
-@click.command()
-@click.option('--source-file', help='Source file to test')
-def test_file(source_file):
-    """Test specific source file with coverage."""
+def add_pull_request_comment_async_cli():
+    """CLI entry point for adding PR comment."""
+    parser = argparse.ArgumentParser(description='Add comment to pull request')
+    parser.add_argument('--pull-request-id', type=int, help='PR ID to comment on')
+    parser.add_argument('--content', help='Comment content')
+    args = parser.parse_args()
+    
     # Implementation
+    add_pull_request_comment_async(
+        pull_request_id=args.pull_request_id,
+        content=args.content
+    )
 ```
 
 ## 9.8 ADR-008: pyproject.toml for Package Configuration
@@ -356,11 +364,13 @@ No tag → hatch-vcs → Package version 0.2.9.dev1+g1234abc
 
 **Enforcement**:
 
-```yaml
-# pytest.ini
+```toml
+# pyproject.toml
 [tool.pytest.ini_options]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=95"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=91"
 ```
+
+**Note**: Current enforcement is set to 91% coverage. The 95% target remains the aspirational goal for all new code.
 
 ## 9.12 ADR-012: Cross-Platform File Locking
 
@@ -408,7 +418,7 @@ else:
 | 004 | Multi-worktree auto-detection | ✅ Accepted | Developer experience |
 | 005 | Workflow state machine | ✅ Accepted | Workflow orchestration |
 | 006 | Mermaid diagrams | ✅ Accepted | Documentation |
-| 007 | Click framework | ✅ Accepted | CLI foundation |
+| 007 | argparse CLI with dispatcher | ✅ Accepted | CLI foundation |
 | 008 | pyproject.toml | ✅ Accepted | Package configuration |
 | 009 | Dynamic versioning | ✅ Accepted | Release management |
 | 010 | Azure DevOps primary | ✅ Accepted | Service integration |

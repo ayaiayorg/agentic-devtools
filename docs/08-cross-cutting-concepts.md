@@ -12,17 +12,16 @@ graph TB
         Root[Root Object]
         Regular[Regular Keys]
         Workflow[_workflow Key]
-        Background[_background Key]
         Namespaced[Namespaced Keys]
     end
     
     Root --> Regular
     Root --> Workflow
-    Root --> Background
     Regular --> Namespaced
     
     Namespaced --> Jira[jira.*]
     Namespaced --> FileReview[file_review.*]
+    Namespaced --> Background[background.*]
     Namespaced --> Git[commit_message, etc.]
 ```
 
@@ -30,9 +29,9 @@ graph TB
 
 - `jira.*` - Jira issue operations
 - `file_review.*` - PR file review context
+- `background.*` - Background task tracking (task_id, timeout, etc.)
 - `pull_request_id` - Azure DevOps PR ID
 - `_workflow` - Workflow state (reserved)
-- `_background` - Background task metadata (reserved)
 
 ### 8.1.2 File Locking Strategy
 
@@ -42,10 +41,22 @@ graph TB
 
 ```python
 # Pattern used throughout
-with state_lock():
-    state = load_state()
+from agentic_devtools.state import load_state, save_state
+
+# Load and save with automatic locking
+state = load_state(use_locking=True)
+state[key] = value
+save_state(state, use_locking=True)
+
+# Or use locked file directly
+from agentic_devtools.file_locking import locked_state_file
+
+with locked_state_file(state_file_path) as f:
+    state = json.load(f)
     state[key] = value
-    save_state(state)
+    f.seek(0)
+    f.truncate()
+    json.dump(state, f)
 ```
 
 **Implementation**:

@@ -5,7 +5,7 @@
 | Decision | Rationale | Alternatives Considered |
 |----------|-----------|------------------------|
 | **Python** | Native CLI support, rich ecosystem, type hints, async/await | Node.js (complex approval), Bash (limited) |
-| **Click** | Powerful CLI framework, auto-help generation | argparse (verbose), Typer (overkill) |
+| **argparse** | Standard library, no extra dependency, explicit flags | Click (extra dependency), Typer (overkill) |
 | **JSON State File** | Simple, human-readable, no database | SQLite (overkill), YAML (parsing issues) |
 | **Background Tasks** | Non-blocking AI agents, subprocess isolation | Threading (complex), Celery (heavyweight) |
 | **Mermaid** | GitHub native, VS Code support, simple syntax | PlantUML (external), Graphviz (complex) |

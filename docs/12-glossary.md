@@ -95,7 +95,7 @@
 ## L
 
 **Lock Timeout**
-: Maximum time to wait for file lock before failing; default 10 seconds
+: Maximum time to wait for file lock before failing; default 5 seconds
 
 ## M
 
@@ -154,7 +154,7 @@
 ## T
 
 **Task ID**
-: Unique identifier for background task; format: `task_<timestamp>_<random>`
+: Unique identifier for background task; format: UUIDv4 (e.g., `550e8400-e29b-41d4-a716-446655440000`)
 
 **Task State**
 : Metadata about background task (status, PID, logs, output file)
@@ -270,8 +270,13 @@
 
 | Command | Purpose |
 |---------|---------|
-| `agdt-initiate-work-on-jira-issue` | Start Jira issue workflow |
-| `agdt-initiate-pull-request-review` | Start PR review workflow |
+| `agdt-initiate-work-on-jira-issue-workflow` | Start Jira issue workflow |
+| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow |
+| `agdt-initiate-create-jira-issue-workflow` | Start create Jira issue workflow |
+| `agdt-initiate-create-jira-epic-workflow` | Start create Jira epic workflow |
+| `agdt-initiate-create-jira-subtask-workflow` | Start create Jira subtask workflow |
+| `agdt-initiate-update-jira-issue-workflow` | Start update Jira issue workflow |
+| `agdt-initiate-apply-pr-suggestions-workflow` | Start apply PR suggestions workflow |
 | `agdt-advance-workflow` | Manually advance workflow step |
 | `agdt-get-next-workflow-prompt` | Get next step prompt |
 
@@ -317,9 +322,11 @@
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `AZURE_DEVOPS_PAT` | Azure DevOps authentication | For ADO commands |
-| `JIRA_API_TOKEN` | Jira authentication | For Jira commands |
-| `JIRA_EMAIL` | Jira account email | For Jira commands |
+| `AZURE_DEV_OPS_COPILOT_PAT` | Azure DevOps authentication (preferred) | For ADO commands |
+| `AZURE_DEVOPS_EXT_PAT` | Azure DevOps authentication (fallback) | For ADO commands |
+| `JIRA_COPILOT_PAT` | Jira PAT authentication | For Jira commands |
+| `JIRA_EMAIL` | Jira account email (for basic auth) | Optional for Jira |
+| `JIRA_USERNAME` | Jira username (for basic auth) | Optional for Jira |
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription | For Azure commands |
 
 ## File Locations

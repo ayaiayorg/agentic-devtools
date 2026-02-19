@@ -362,13 +362,16 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Runtime Dependencies"
-        Click[click>=8.0]
         Requests[requests>=2.28]
+        Jinja2[Jinja2>=3.0]
+        AzureMonitor[azure-monitor-query]
+        AzureIdentity[azure-identity]
     end
     
     subgraph "Build Dependencies"
         Hatch[hatch-vcs]
-        Build[build]
+        Build[build>=1.2.2]
+        Twine[twine>=5.0.0]
     end
     
     subgraph "Dev Dependencies"
@@ -376,19 +379,22 @@ graph TB
         Coverage[pytest-cov]
         Black[black]
         MyPy[mypy]
-        Twine[twine]
+        Ruff[ruff]
     end
     
     subgraph "agentic-devtools"
         Package[Package Code]
     end
     
-    Package --> Click
     Package --> Requests
+    Package --> Jinja2
+    Package --> AzureMonitor
+    Package --> AzureIdentity
     
     Build --> Hatch
+    Build --> Twine
     
     style Package fill:#9cf
-    style Click fill:#9f9
     style Requests fill:#9f9
+    style Jinja2 fill:#9f9
 ```

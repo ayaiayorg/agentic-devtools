@@ -60,12 +60,12 @@ graph LR
 
 **Mitigation**:
 
-- Lock timeout with retry (exponential backoff)
+- Lock timeout with retry loop (5s timeout, 10ms fixed sleep interval)
 - Clear error messages on timeout
 - Lock release in finally blocks
 - Context manager pattern enforced
 
-**Current Status**: No deadlocks observed; timeout set to 10s with 5 retries
+**Current Status**: No deadlocks observed; lock uses 5s timeout with tight retry loop (10ms sleep, no exponential backoff)
 
 ### 11.1.2 Medium Priority Risks
 
@@ -339,15 +339,16 @@ agdt-diff --since "5 minutes ago"
 ```mermaid
 graph TB
     subgraph "Direct Dependencies"
-        Click[click]
         Requests[requests]
+        Jinja2[Jinja2]
+        AzureMonitor[azure-monitor-query]
     end
     
     subgraph "Risks"
-        Click -->|Security| CVE1[CVE vulnerability]
-        Click -->|Compatibility| Break1[Breaking change]
-        Requests -->|Security| CVE2[CVE vulnerability]
-        Requests -->|Compatibility| Break2[Breaking change]
+        Requests -->|Security| CVE1[CVE vulnerability]
+        Requests -->|Compatibility| Break1[Breaking change]
+        Jinja2 -->|Security| CVE2[CVE vulnerability]
+        Jinja2 -->|Compatibility| Break2[Breaking change]
     end
     
     subgraph "Mitigation"
@@ -365,8 +366,9 @@ graph TB
 
 | Dependency | Risk Level | Mitigation |
 |------------|-----------|------------|
-| **click** | Low | Stable API, wide usage, pin to major version |
 | **requests** | Low | Stable API, wide usage, security updates frequent |
+| **Jinja2** | Low | Stable API, wide usage, pin to major version |
+| **azure-monitor-query** | Medium | Microsoft-maintained, Azure SDK, regular updates |
 | **hatch-vcs** | Medium | Build-time only, can be replaced |
 
 ## 11.4 Compliance and Licensing

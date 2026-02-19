@@ -48,7 +48,7 @@ graph TB
 
 **Scenario**: AI assistant needs to add comments to multiple PRs
 
-**Stimulus**: Execute `agdt-add-pr-comment` for different PRs
+**Stimulus**: Execute `agdt-add-pull-request-comment` for different PRs
 
 **Response**: Command requires approval only once
 
@@ -64,11 +64,13 @@ graph TB
 ```bash
 # Approve once
 agdt-set pull_request_id 123
-agdt-add-pr-comment  # First approval
+agdt-set content "LGTM"
+agdt-add-pull-request-comment  # First approval
 
 # Reuse forever
 agdt-set pull_request_id 456
-agdt-add-pr-comment  # No approval needed!
+agdt-set content "Needs work"
+agdt-add-pull-request-comment  # No approval needed!
 ```
 
 #### US-2: Clear Error Messages

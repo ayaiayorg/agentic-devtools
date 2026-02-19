@@ -65,8 +65,8 @@ C4Context
 
 **Interface**:
 
-- Jira REST API v3
-- Authentication via API token + email
+- Jira REST API (Cloud, primarily v2 endpoints)
+- Authentication via API token (bearer or basic with email/username)
 - Endpoints: Issues, comments, transitions, custom fields
 
 **Data Flow**:
