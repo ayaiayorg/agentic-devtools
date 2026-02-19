@@ -14,7 +14,7 @@ sequenceDiagram
     participant ADO as Azure DevOps
     
     Dev->>Copilot: /agdt.work-on-jira-issue.initiate
-    Copilot->>State: set_workflow_state("work-on-jira-issue", "initiate")
+    Copilot->>State: set_workflow_state(name="work-on-jira-issue", status="active", step="initiate")
     Copilot-->>Dev: Prompt: Enter issue key
     
     Dev->>Copilot: DFLY-1234
@@ -128,7 +128,7 @@ sequenceDiagram
     participant Queue as Review Queue
     
     Agent->>CLI: /agdt.pull-request-review.initiate
-    CLI->>State: set_workflow_state("pull-request-review")
+    CLI->>State: set_workflow_state(name="pull-request-review", status="active", step="initiate")
     CLI->>State: set_value("pull_request_id", "123")
     
     Agent->>CLI: agdt-get-pull-request-details

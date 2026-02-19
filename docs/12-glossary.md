@@ -160,7 +160,7 @@
 : Metadata about background task (status, PID, logs, output file)
 
 **Template**
-: Prompt template loaded from `.github/prompts/` for workflow steps
+: Prompt template for workflow steps, stored under `agentic_devtools/prompts/` (not `.github/prompts/`, which only contains Copilot Chat prompt stubs)
 
 **Thread**
 : Discussion thread on Azure DevOps pull request
@@ -313,10 +313,10 @@
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `_workflow.name` | str | Workflow identifier |
-| `_workflow.status` | str | active/completed |
-| `_workflow.step` | str | Current step name |
-| `_workflow.context` | dict | Workflow-specific data |
+| `workflow.name` | str | Workflow identifier |
+| `workflow.status` | str | active/completed |
+| `workflow.step` | str | Current step name |
+| `workflow.context` | dict | Workflow-specific data |
 
 ## Environment Variables
 
@@ -324,9 +324,10 @@
 |----------|---------|----------|
 | `AZURE_DEV_OPS_COPILOT_PAT` | Azure DevOps authentication (preferred) | For ADO commands |
 | `AZURE_DEVOPS_EXT_PAT` | Azure DevOps authentication (fallback) | For ADO commands |
-| `JIRA_COPILOT_PAT` | Jira PAT authentication | For Jira commands |
-| `JIRA_EMAIL` | Jira account email (for basic auth) | Optional for Jira |
-| `JIRA_USERNAME` | Jira username (for basic auth) | Optional for Jira |
+| `JIRA_COPILOT_PAT` | Jira bearer/PAT authentication | For Jira commands (default; used when `JIRA_AUTH_SCHEME` is unset or `bearer`) |
+| `JIRA_AUTH_SCHEME` | Jira auth scheme: `bearer` (default) or `basic` | Optional; defaults to `bearer` |
+| `JIRA_EMAIL` | Jira account email (basic auth only) | Only when `JIRA_AUTH_SCHEME=basic` |
+| `JIRA_USERNAME` | Jira username (basic auth only) | Only when `JIRA_AUTH_SCHEME=basic` |
 
 ## File Locations
 
@@ -337,4 +338,5 @@
 | `scripts/temp/background-tasks/logs/` | Background task logs |
 | `.agdt-venv/` | Repo-local virtual environment |
 | `.github/agents/` | Copilot Chat agent definitions |
-| `.github/prompts/` | Workflow prompt templates |
+| `.github/prompts/` | Copilot Chat prompt stubs |
+| `agentic_devtools/prompts/` | Workflow prompt templates (rendered by CLI workflows) |

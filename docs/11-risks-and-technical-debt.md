@@ -204,7 +204,7 @@ def call_api(url):
 ```json
 {
   "_version": "2.0",
-  "_workflow": {...},
+  "workflow": {...},
   "key": "value"
 }
 ```

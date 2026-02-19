@@ -11,7 +11,7 @@ graph TB
     subgraph "State Structure"
         Root[Root Object]
         Regular[Regular Keys]
-        Workflow[_workflow Key]
+        Workflow[workflow Key]
         Namespaced[Namespaced Keys]
     end
     
@@ -31,7 +31,7 @@ graph TB
 - `file_review.*` - PR file review context
 - `background.*` - Background task tracking (task_id, timeout, etc.)
 - `pull_request_id` - Azure DevOps PR ID
-- `_workflow` - Workflow state (reserved)
+- `workflow` - Workflow state (reserved)
 
 ### 8.1.2 File Locking Strategy
 
@@ -183,7 +183,11 @@ graph TB
 - `AZURE_DEV_OPS_COPILOT_PAT` - Azure DevOps Personal Access Token (preferred)
 - `AZURE_DEVOPS_EXT_PAT` - Azure DevOps Personal Access Token (fallback)
 - `JIRA_COPILOT_PAT` - Jira API token (PAT)
-- `JIRA_EMAIL` / `JIRA_USERNAME` - Jira account identifier for basic auth (optional)
+- `JIRA_AUTH_SCHEME` - Jira auth scheme; set to `basic` when using email/username + API token for basic auth
+
+**Optional Environment Variables**:
+
+- `JIRA_EMAIL` / `JIRA_USERNAME` - Jira account identifier used with `JIRA_AUTH_SCHEME=basic`
 
 ### 8.4.2 Security Checklist
 

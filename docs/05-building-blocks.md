@@ -139,11 +139,6 @@ classDiagram
     }
     
     TaskFunctions --> BackgroundTask : manages
-        +log_file: str
-    }
-    
-    BackgroundTask --> TaskState : uses
-    TaskState --> TaskMetadata : manages
 ```
 
 **Responsibilities**:
@@ -326,7 +321,7 @@ sequenceDiagram
     State-->>CLI: "DFLY-1234"
     CLI->>BG: Spawn background task
     BG-->>CLI: Task ID
-    CLI-->>User: Task started: task_abc123
+    CLI-->>User: Task started: 550e8400-e29b-41d4-a716-446655440000
     
     BG->>API: GET /issue/DFLY-1234
     API-->>BG: Issue data

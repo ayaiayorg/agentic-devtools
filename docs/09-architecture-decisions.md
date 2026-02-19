@@ -174,8 +174,8 @@ def dispatch_command():
 
 ```json
 {
-  "_workflow": {
-    "name": "work-on-jira-issue",
+  "workflow": {
+    "active": "work-on-jira-issue",
     "status": "active",
     "step": "implementation",
     "context": {

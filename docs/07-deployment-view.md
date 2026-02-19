@@ -273,7 +273,6 @@ graph TB
     ADO_PAT --> Commands
     Jira_Token --> Commands
     Jira_Email --> Commands
-    Azure_Sub --> Commands
     
     style EnvVars fill:#9cf
     style StateFile fill:#9f9
