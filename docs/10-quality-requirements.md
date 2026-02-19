@@ -109,7 +109,7 @@ agdt-add-pull-request-comment  # No approval needed!
 **Example**:
 
 ```text
-✓ Background task started: task_abc123
+✓ Background task started: 550e8400-e29b-41d4-a716-446655440000
   Status: agdt-task-status
   Logs: agdt-task-log
   Wait: agdt-task-wait
@@ -166,7 +166,7 @@ agdt-add-pull-request-comment  # No approval needed!
 - ✅ Success: 95%+ coverage, all tests pass
 - ❌ Failure: Coverage drops below 95%
 
-**Enforcement**: CI pipeline blocks merge if coverage <95%
+**Enforcement**: CI pipeline currently blocks merge if coverage <91% (target coverage remains ≥95%)
 
 ### 10.2.3 Performance
 
@@ -294,15 +294,15 @@ agdt-add-pull-request-comment  # No approval needed!
 
 **Measure**:
 
-- ✅ Success: Token from `JIRA_API_TOKEN`
+- ✅ Success: Token from `JIRA_COPILOT_PAT`
 - ❌ Failure: Token from state file or config
 
 **Pattern**:
 
 ```python
-token = os.environ.get('JIRA_API_TOKEN')
+token = os.environ.get('JIRA_COPILOT_PAT')
 if not token:
-    raise ValueError('JIRA_API_TOKEN not set')
+    raise ValueError('JIRA_COPILOT_PAT not set')
 ```
 
 #### SE-3: Sanitized Logs

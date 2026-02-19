@@ -63,7 +63,7 @@ with locked_state_file(state_file_path) as f:
 
 - **Windows**: `msvcrt.locking()`
 - **Unix**: `fcntl.flock()`
-- Automatic retry with exponential backoff
+- Automatic retry with fixed 10ms intervals until 5s timeout
 
 ## 8.2 Error Handling
 
@@ -103,7 +103,7 @@ flowchart TD
    Run: agdt-set jira.issue_key DFLY-1234
 
 ❌ Error: API request failed (401 Unauthorized)
-   Check your AZURE_DEVOPS_PAT environment variable
+   Check your AZURE_DEV_OPS_COPILOT_PAT (or AZURE_DEVOPS_EXT_PAT) environment variable
 
 ❌ Error: Background task failed (exit code 1)
    View logs: agdt-task-log
@@ -180,9 +180,10 @@ graph TB
 
 **Required Environment Variables**:
 
-- `AZURE_DEVOPS_PAT` - Azure DevOps Personal Access Token
-- `JIRA_API_TOKEN` - Jira API token
-- `JIRA_EMAIL` - Jira account email
+- `AZURE_DEV_OPS_COPILOT_PAT` - Azure DevOps Personal Access Token (preferred)
+- `AZURE_DEVOPS_EXT_PAT` - Azure DevOps Personal Access Token (fallback)
+- `JIRA_COPILOT_PAT` - Jira API token (PAT)
+- `JIRA_EMAIL` / `JIRA_USERNAME` - Jira account identifier for basic auth (optional)
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription (optional)
 
 ### 8.4.2 Security Checklist

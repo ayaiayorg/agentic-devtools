@@ -37,7 +37,7 @@ C4Context
 **Interface**:
 
 - Local Git commands (`git commit`, `git push`, `git worktree`)
-- GitHub API for repository operations
+- Git over SSH/HTTPS to remote repositories (no GitHub REST API usage)
 
 **Data Flow**:
 

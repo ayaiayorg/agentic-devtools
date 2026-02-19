@@ -172,7 +172,7 @@ flowchart TD
     Trigger -->|Release created| Publish[publish.yml]
     
     Test --> RunTests[Run pytest]
-    RunTests --> Coverage[Check coverage 95%+]
+    RunTests --> Coverage[Check coverage ≥91%]
     Coverage -->|Pass| TestPass[✓ Tests Pass]
     Coverage -->|Fail| TestFail[✗ Tests Fail]
     
@@ -254,9 +254,9 @@ graph TB
     end
     
     subgraph "Configuration Keys"
-        ADO_PAT[AZURE_DEVOPS_PAT]
-        Jira_Token[JIRA_API_TOKEN]
-        Jira_Email[JIRA_EMAIL]
+        ADO_PAT[AZURE_DEV_OPS_COPILOT_PAT<br/>AZURE_DEVOPS_EXT_PAT]
+        Jira_Token[JIRA_COPILOT_PAT]
+        Jira_Email[JIRA_EMAIL/JIRA_USERNAME]
         Azure_Sub[AZURE_SUBSCRIPTION_ID]
     end
     

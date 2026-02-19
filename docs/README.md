@@ -48,4 +48,4 @@ When updating the architecture documentation:
 3. Keep diagrams simple and focused
 4. Update the glossary for new terms
 5. Cross-reference related sections
-6. Follow markdownlint rules (see `.markdownlint.json`)
+6. Follow markdownlint rules (see `.markdownlint-cli2.jsonc` for CI config, `.markdownlint.json` for local checks)

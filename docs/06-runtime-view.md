@@ -97,7 +97,7 @@ sequenceDiagram
     Spawner->>Process: subprocess.Popen()
     Process-->>Spawner: PID
     Spawner-->>CLI: task_id
-    CLI-->>Copilot: Task started: task_xyz789
+    CLI-->>Copilot: Task started: 550e8400-e29b-41d4-a716-446655440000
     
     Note over Process: Executes in background
     
