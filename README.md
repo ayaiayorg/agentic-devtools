@@ -775,3 +775,63 @@ The workflow uses labels to manage state:
 - `speckit:processing` - Specification generation in progress
 - `speckit:completed` - Specification created successfully
 - `speckit:failed` - Generation failed (check workflow logs)
+
+## GitHub Actions: Security Scanning on Main Merge
+
+The repository includes an automated security scanning workflow that runs whenever
+code is merged to the main branch. This ensures continuous security monitoring and
+helps identify vulnerabilities early.
+
+### How It Works
+
+1. Workflow triggers automatically on push to main branch (typically after PR merge)
+2. Installs security scanning tools: `bandit`, `pip-audit`, `safety`
+3. Runs comprehensive security scans:
+   - **pip-audit**: Scans dependencies for known vulnerabilities (CVEs)
+   - **bandit**: Static analysis for common security issues in Python code
+   - **safety**: Checks dependencies against a database of known security issues
+4. Creates a GitHub issue with the security scan report
+5. Attaches scan reports as artifacts for detailed review
+
+### Security Scan Report
+
+After each merge to main, an issue is automatically created with:
+
+- **Summary**: Quick overview of security status
+- **Scan Results**: Findings from each security tool
+- **Severity Breakdown**: Critical, high, medium, low issues
+- **Next Steps**: Recommended actions to address findings
+- **Artifacts**: Detailed JSON reports attached to the workflow run
+
+### Labels
+
+The workflow uses labels to categorize scan results:
+
+- `security` - All security scan reports
+- `security-scan` - Identifies automated scan issues
+- `needs-review` - Findings detected, review required
+- `all-clear` - No security issues detected
+
+### Responding to Security Findings
+
+When a security scan detects issues:
+
+1. Review the created issue for summary of findings
+2. Check workflow logs for detailed information
+3. Download scan report artifacts for in-depth analysis
+4. Address critical and high-severity issues immediately
+5. Tag @copilot in the issue for assistance with remediation
+
+### Manual Security Scan
+
+You can manually trigger a security scan by running:
+
+```bash
+# Install security tools
+pip install bandit safety pip-audit
+
+# Run scans
+pip-audit
+bandit -r agentic_devtools
+safety scan
+```
