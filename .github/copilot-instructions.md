@@ -24,7 +24,8 @@ existing `speckit.*` pattern.
 
 ### Multi-Worktree Development
 
-The package supports **multi-worktree development** using a single global pip/pipx install of `agentic-devtools` shared across all worktrees. Each worktree has its own `scripts/temp/agdt-state.json` file, so state is fully isolated between branches.
+The package supports **multi-worktree development** using a single global pip/pipx install of `agentic-devtools` shared across all
+worktrees. Each worktree has its own `scripts/temp/agdt-state.json` file, so state is fully isolated between branches.
 
 - **Single Global Install**: Install once with `pip install agentic-devtools` or `pipx install agentic-devtools`; all worktrees use the same installation
 - **No Command Changes**: The same `agdt-*` commands work everywhere - entry points call implementations directly
