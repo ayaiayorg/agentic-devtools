@@ -6,9 +6,7 @@ import os
 from typing import List, Optional
 
 
-def format_bullet_list(
-    items: Optional[List[str]], placeholder: Optional[str] = None
-) -> str:
+def format_bullet_list(items: Optional[List[str]], placeholder: Optional[str] = None) -> str:
     """
     Format items as a Jira bullet list.
 

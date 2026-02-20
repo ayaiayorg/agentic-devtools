@@ -79,7 +79,7 @@ def add_pull_request_comment_async(
     _set_value_if_provided("content", content)
 
     # Validate required values
-    _require_value("pull_request_id", 'agdt-add-pull-request-comment --pull-request-id 12345')
+    _require_value("pull_request_id", "agdt-add-pull-request-comment --pull-request-id 12345")
     _require_value("content", 'agdt-add-pull-request-comment --content "Your comment"')
 
     task = run_function_in_background(
@@ -154,7 +154,7 @@ def approve_pull_request_async(
     _set_value_if_provided("content", content)
 
     # Validate required values
-    _require_value("pull_request_id", 'agdt-approve-pull-request --pull-request-id 12345')
+    _require_value("pull_request_id", "agdt-approve-pull-request --pull-request-id 12345")
 
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -311,7 +311,7 @@ def get_pull_request_threads_async(
     _set_value_if_provided("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", 'agdt-get-pull-request-threads --pull-request-id 12345')
+    _require_value("pull_request_id", "agdt-get-pull-request-threads --pull-request-id 12345")
 
     task = run_function_in_background(
         _COMMANDS_MODULE,
@@ -382,8 +382,8 @@ def reply_to_pull_request_thread_async(
     _set_value_if_provided("content", content)
 
     # Validate required values
-    _require_value("pull_request_id", 'agdt-reply-to-pull-request-thread --pull-request-id 12345')
-    _require_value("thread_id", 'agdt-reply-to-pull-request-thread --thread-id 67890')
+    _require_value("pull_request_id", "agdt-reply-to-pull-request-thread --pull-request-id 12345")
+    _require_value("thread_id", "agdt-reply-to-pull-request-thread --thread-id 67890")
     _require_value("content", 'agdt-reply-to-pull-request-thread --content "Your reply"')
 
     task = run_function_in_background(
@@ -468,8 +468,8 @@ def resolve_thread_async(
     _set_value_if_provided("thread_id", thread_id)
 
     # Validate required values
-    _require_value("pull_request_id", 'agdt-resolve-thread --pull-request-id 12345')
-    _require_value("thread_id", 'agdt-resolve-thread --thread-id 67890')
+    _require_value("pull_request_id", "agdt-resolve-thread --pull-request-id 12345")
+    _require_value("thread_id", "agdt-resolve-thread --thread-id 67890")
 
     task = run_function_in_background(
         _COMMANDS_MODULE,

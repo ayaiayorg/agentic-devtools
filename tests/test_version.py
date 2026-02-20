@@ -6,8 +6,6 @@ auto-generated _version.py file (created by hatch-vcs) rather than being
 hardcoded in __init__.py.
 """
 
-import pytest
-
 
 class TestVersionManagement:
     """Tests for version import."""

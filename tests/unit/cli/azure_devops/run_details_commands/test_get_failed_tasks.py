@@ -2,8 +2,6 @@
 Tests for run_details_commands module.
 """
 
-
-
 from agentic_devtools.cli.azure_devops.run_details_commands import (
     _get_failed_tasks,
 )

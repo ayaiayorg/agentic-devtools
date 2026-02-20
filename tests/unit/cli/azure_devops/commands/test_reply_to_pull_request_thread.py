@@ -1,4 +1,5 @@
 """Tests for reply_to_pull_request_thread function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from agentic_devtools.cli import azure_devops
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
+
 
 class TestReplyToPullRequestThread:
     """Tests for reply_to_pull_request_thread command."""
@@ -85,6 +87,7 @@ class TestReplyToPullRequestThread:
 
         captured = capsys.readouterr()
         assert "quotes" in captured.out
+
 
 class TestReplyToPullRequestThreadActualCall:
     """Tests for reply_to_pull_request_thread with mocked API calls."""

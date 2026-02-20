@@ -1,6 +1,4 @@
-"""
-Tests for agentic-devtools CLI state commands.
-"""
+"""Tests for agentic_devtools.cli.state.set_cmd."""
 
 import sys
 from io import StringIO
@@ -27,7 +25,7 @@ def clear_state_before(temp_state_dir):
 
 
 class TestSetCommand:
-    """Tests for dfly-set command."""
+    """Tests for agdt-set command."""
 
     def test_set_simple_value(self, temp_state_dir, clear_state_before):
         """Test setting a simple value."""
@@ -95,85 +93,6 @@ class TestSetCommand:
         assert state.get_value("content") == stdin_content
 
 
-class TestGetCommand:
-    """Tests for dfly-get command."""
-
-    def test_get_existing_value(self, temp_state_dir, clear_state_before):
-        """Test getting an existing value."""
-        state.set_value("test", "value")
-        with patch.object(sys, "argv", ["agdt-get", "test"]):
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-                cli_state.get_cmd()
-                assert mock_stdout.getvalue().strip() == "value"
-
-    def test_get_nonexistent_exits(self, temp_state_dir, clear_state_before):
-        """Test getting nonexistent key exits with error."""
-        with patch.object(sys, "argv", ["agdt-get", "nonexistent"]):
-            with pytest.raises(SystemExit) as exc_info:
-                cli_state.get_cmd()
-            assert exc_info.value.code == 1
-
-    def test_get_json_value_pretty_printed(self, temp_state_dir, clear_state_before):
-        """Test getting a JSON value is pretty printed."""
-        state.set_value("config", {"key": "value"})
-        with patch.object(sys, "argv", ["agdt-get", "config"]):
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-                cli_state.get_cmd()
-                output = mock_stdout.getvalue()
-                assert '"key"' in output
-                assert '"value"' in output
-
-
-class TestDeleteCommand:
-    """Tests for dfly-delete command."""
-
-    def test_delete_existing_key(self, temp_state_dir, clear_state_before):
-        """Test deleting an existing key."""
-        state.set_value("to_delete", "value")
-        with patch.object(sys, "argv", ["agdt-delete", "to_delete"]):
-            cli_state.delete_cmd()
-        assert state.get_value("to_delete") is None
-
-    def test_delete_nonexistent_key(self, temp_state_dir, clear_state_before):
-        """Test deleting a nonexistent key (no error, just message)."""
-        with patch.object(sys, "argv", ["agdt-delete", "nonexistent"]):
-            # Should not raise, just print message
-            cli_state.delete_cmd()
-
-
-class TestClearCommand:
-    """Tests for dfly-clear command."""
-
-    def test_clear_removes_all_state(self, temp_state_dir, clear_state_before):
-        """Test that clear removes all state."""
-        state.set_value("key1", "value1")
-        state.set_value("key2", "value2")
-        with patch.object(sys, "argv", ["agdt-clear"]):
-            cli_state.clear_cmd()
-        assert state.load_state() == {}
-
-
-class TestShowCommand:
-    """Tests for dfly-show command."""
-
-    def test_show_empty_state(self, temp_state_dir, clear_state_before):
-        """Test showing empty state."""
-        with patch.object(sys, "argv", ["dfly-show"]):
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-                cli_state.show_cmd()
-                assert "(empty state)" in mock_stdout.getvalue()
-
-    def test_show_state_with_values(self, temp_state_dir, clear_state_before):
-        """Test showing state with values."""
-        state.set_value("test", "value")
-        with patch.object(sys, "argv", ["dfly-show"]):
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-                cli_state.show_cmd()
-                output = mock_stdout.getvalue()
-                assert "test" in output
-                assert "value" in output
-
-
 class TestSetCommandContextSwitching:
     """Tests for context-switching behavior in set_cmd."""
 
@@ -207,11 +126,9 @@ class TestSetCommandContextSwitching:
         with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "12345"]):
             cli_state.set_cmd()
 
-        # Other state should be preserved
         assert state.get_value("other_key") == "should_persist"
 
         captured = capsys.readouterr()
-        # Should say "Set pull_request_id" without "context switched"
         assert "Set pull_request_id" in captured.out
         assert "context switched" not in captured.out
 
@@ -224,10 +141,7 @@ class TestSetCommandContextSwitching:
             with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "99999"]):
                 cli_state.set_cmd()
 
-        # New value should be set
         assert state.get_value("pull_request_id") == 99999
-
-        # Other state should be cleared
         assert state.get_value("other_key") is None
 
     def test_set_non_context_key_uses_set_value(self, temp_state_dir, clear_state_before, capsys):
@@ -238,10 +152,7 @@ class TestSetCommandContextSwitching:
         with patch.object(sys, "argv", ["agdt-set", "some_key", "some_value"]):
             cli_state.set_cmd()
 
-        # New value should be set
         assert state.get_value("some_key") == "some_value"
-
-        # Other state should be preserved (no clearing)
         assert state.get_value("pull_request_id") == "12345"
         assert state.get_value("other_key") == "should_persist"
 

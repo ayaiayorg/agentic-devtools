@@ -1,4 +1,5 @@
 """Tests for display_jira_issue_summary function."""
+
 import pytest
 
 

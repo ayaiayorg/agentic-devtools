@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestFetchAndDisplayJiraIssue:
     """Tests for _fetch_and_display_jira_issue function."""
 

@@ -1,4 +1,5 @@
 """Tests for azure devops config."""
+
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
 

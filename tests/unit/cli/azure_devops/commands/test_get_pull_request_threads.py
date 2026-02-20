@@ -1,4 +1,5 @@
 """Tests for get_pull_request_threads function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from agentic_devtools.cli import azure_devops
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
+
 
 class TestGetPullRequestThreads:
     """Tests for get_pull_request_threads command."""
@@ -27,6 +29,7 @@ class TestGetPullRequestThreads:
         """Test raises error when pull request ID is missing."""
         with pytest.raises(KeyError, match="pull_request_id"):
             azure_devops.get_pull_request_threads()
+
 
 class TestGetPullRequestThreadsActualCall:
     """Tests for get_pull_request_threads with mocked API calls."""

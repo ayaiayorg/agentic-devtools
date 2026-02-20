@@ -1,4 +1,5 @@
 """Tests for extract_linked_pr_from_issue function."""
+
 import pytest
 
 

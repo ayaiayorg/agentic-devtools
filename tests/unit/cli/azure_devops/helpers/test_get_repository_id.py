@@ -1,4 +1,5 @@
 """Tests for get_repository_id helper."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
