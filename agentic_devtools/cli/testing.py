@@ -149,7 +149,6 @@ def _infer_test_file_from_source(source_file: str) -> str | None:
     - agentic_devtools/state.py -> test_state.py
     - agentic_devtools/cli/testing.py -> test_testing.py
     - agentic_devtools/cli/runner.py -> test_runner.py
-    - agentic_devtools/dispatcher.py -> test_dispatcher.py
     - agentic_devtools/cli/azure_devops/vpn_toggle.py -> test_vpn_toggle.py
     - agentic_devtools/cli/workflows/commands.py -> test_commands.py
 
@@ -319,7 +318,6 @@ Common source files:
     agentic_devtools/state.py
     agentic_devtools/cli/testing.py
     agentic_devtools/cli/runner.py
-    agentic_devtools/dispatcher.py
     agentic_devtools/cli/azure_devops/vpn_toggle.py
     agentic_devtools/cli/workflows/commands.py
         """,

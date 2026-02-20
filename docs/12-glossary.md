@@ -179,7 +179,7 @@
 ## V
 
 **Virtual Environment (venv)**
-: Isolated Python environment with independent packages; `.agdt-venv` for repo-local
+: Isolated Python environment with independent packages
 
 **VS Code**
 : Visual Studio Code; Microsoft's code editor with Copilot integration
@@ -336,7 +336,6 @@
 | `scripts/temp/agdt-state.json` | State file |
 | `scripts/temp/*.json` | Command output files |
 | `scripts/temp/background-tasks/logs/` | Background task logs |
-| `.agdt-venv/` | Repo-local virtual environment |
 | `.github/agents/` | Copilot Chat agent definitions |
 | `.github/prompts/` | Copilot Chat prompt stubs |
 | `agentic_devtools/prompts/` | Workflow prompt templates (rendered by CLI workflows) |

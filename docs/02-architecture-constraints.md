@@ -97,7 +97,4 @@ graph LR
 
 | Constraint | Background and Motivation |
 |-----------|---------------------------|
-| **Repo-Local Detection** | Commands auto-detect repo root via `git rev-parse` |
-| **Isolated Environments** | Each worktree can have separate `.agdt-venv` |
-| **Graceful Fallback** | Use global pip install if no local venv exists |
 | **Same Command Interface** | No command changes required for worktree usage |

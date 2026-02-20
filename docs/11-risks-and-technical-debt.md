@@ -116,7 +116,6 @@ graph LR
 - State schema versioning
 - Backward compatibility testing
 - Clear upgrade path documentation
-- Version detection in dispatcher
 
 **Current Status**: Version detection not yet implemented
 

@@ -367,7 +367,6 @@ scripts/temp/               # All temp files
   agdt-state.json          # State file
   *.json                   # Output files
   background-tasks/        # Task logs
-.agdt-venv/                # Local virtual environment
 __pycache__/               # Python cache
 *.pyc                      # Compiled Python
 dist/                      # Build artifacts

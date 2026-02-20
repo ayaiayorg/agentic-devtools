@@ -14,16 +14,14 @@ graph TB
     subgraph "Execution Environments"
         GlobalEnv[Global Python<br/>Site-packages]
         PipxEnv[Isolated pipx venv]
-        LocalEnv[Repo-local .agdt-venv]
     end
     
     Pipx --> PipxEnv
     PipGlobal --> GlobalEnv
     PipUser --> GlobalEnv
-    DevInstall --> LocalEnv
+    DevInstall --> GlobalEnv
     
     style Pipx fill:#9f9
-    style LocalEnv fill:#9f9
 ```
 
 ## 7.2 Runtime Environment
@@ -85,15 +83,11 @@ graph TB
     
     subgraph "Main Worktree"
         MainRepo[main branch]
-        MainVenv[.agdt-venv]
-        MainAgdt[agentic-devtools<br/>v0.3.0]
         MainState[agdt-state.json]
     end
     
     subgraph "Feature Worktree 1"
         WT1[feature/DFLY-1234]
-        WT1Venv[.agdt-venv]
-        WT1Agdt[agentic-devtools<br/>v0.3.1-dev]
         WT1State[agdt-state.json]
     end
     
@@ -106,20 +100,11 @@ graph TB
     Shell --> GlobalAgdt
     GlobalAgdt --> Python
     
-    MainVenv --> MainAgdt
-    WT1Venv --> WT1Agdt
-    
-    Shell -->|agdt-* in main| MainAgdt
-    Shell -->|agdt-* in WT1| WT1Agdt
-    Shell -->|agdt-* in WT2| GlobalAgdt
-    
-    MainAgdt --> MainState
-    WT1Agdt --> WT1State
+    GlobalAgdt --> MainState
+    GlobalAgdt --> WT1State
     GlobalAgdt --> WT2State
     
-    style MainAgdt fill:#9f9
-    style WT1Agdt fill:#ff9
-    style GlobalAgdt fill:#9cf
+    style GlobalAgdt fill:#9f9
 ```
 
 ## 7.3 CI/CD Deployment

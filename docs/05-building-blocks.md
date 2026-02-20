@@ -33,7 +33,7 @@ graph TB
     end
     
     subgraph "Core Infrastructure"
-        Dispatcher[dispatcher.py<br/>Command routing]
+        Runner[cli/runner.py<br/>Command routing]
         State[state.py<br/>State management]
         BG[background_tasks.py<br/>Async execution]
         TaskState[task_state.py<br/>Task tracking]
@@ -63,6 +63,8 @@ graph TB
     Dispatcher --> TaskCmd
     Dispatcher --> WorkflowCmd
 ```
+
+Note: `Dispatcher` here refers to `cli/runner.py`, which provides programmatic access to all commands by name.
 
 ## 5.3 Level 3: Core Components
 
@@ -149,24 +151,19 @@ classDiagram
 - Write results to output files
 - Clean up expired tasks
 
-### 5.3.3 Dispatcher
+### 5.3.3 Command Runner
 
 ```mermaid
 flowchart TD
-    Entry[Command Entry Point] --> Detect{Repo-local<br/>venv exists?}
-    Detect -->|Yes| Reexec[Re-execute with<br/>local Python]
-    Detect -->|No| Route[Route to<br/>command module]
-    Reexec --> Route
+    Entry[Command Entry Point] --> Route[Route to<br/>command module]
     Route --> Exec[Execute command]
     Exec --> Exit[Return exit code]
 ```
 
 **Responsibilities**:
 
-- Detect repository root
-- Find local `.agdt-venv` if present
-- Re-execute command with correct Python
-- Route to appropriate command handler
+- Map command names to implementation modules
+- Import and invoke the appropriate command handler
 
 ## 5.4 Service Integration Modules
 
@@ -361,5 +358,5 @@ sequenceDiagram
 | **state.py** | `get_value`, `set_value`, `delete_key`, `clear_state` | All CLI commands |
 | **background_tasks.py** | `spawn_task`, `get_task_status`, `wait_for_task` | Action commands |
 | **task_state.py** | `create_task`, `update_task_status`, `get_task`, `list_tasks` | Background tasks |
-| **dispatcher.py** | Command routing, venv detection | All entry points |
+| **cli/runner.py** | Command routing | Entry points, programmatic use |
 | **prompts/loader.py** | `load_template`, `substitute_variables`, `save_output` | Workflow commands |

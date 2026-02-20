@@ -1,8 +1,7 @@
 """
 Command runner for agentic-devtools.
 
-This module provides a way to run agdt-* commands by name, used by the
-wrapper scripts (agdt.ps1, agdt.sh) that auto-detect the repo's local venv.
+This module provides a way to run agdt-* commands by name.
 
 Usage:
     python -m agentic_devtools.cli.runner agdt-set key value

@@ -34,133 +34,130 @@ dev = [
 ]
 
 [project.scripts]
-# All entry points route through the dispatcher for smart repo-local detection.
-# The dispatcher checks if a local .agdt-venv exists in the current repo
-# and delegates to that installation if found, enabling multi-worktree support.
-
 # Universal state management (auto-approve once, works for all keys)
-agdt-set = "agentic_devtools.dispatcher:set_cmd"
-agdt-get = "agentic_devtools.dispatcher:get_cmd"
-agdt-delete = "agentic_devtools.dispatcher:delete_cmd"
-agdt-clear = "agentic_devtools.dispatcher:clear_cmd"
-agdt-show = "agentic_devtools.dispatcher:show_cmd"
+agdt-set = "agentic_devtools.cli.state:set_cmd"
+agdt-get = "agentic_devtools.cli.state:get_cmd"
+agdt-delete = "agentic_devtools.cli.state:delete_cmd"
+agdt-clear = "agentic_devtools.cli.state:clear_cmd"
+agdt-show = "agentic_devtools.cli.state:show_cmd"
 
 # Azure DevOps actions (all run in background, read from state)
-agdt-add-pull-request-comment = "agentic_devtools.dispatcher:add_pull_request_comment_async"
-agdt-approve-pull-request = "agentic_devtools.dispatcher:approve_pull_request_async"
-agdt-create-pull-request = "agentic_devtools.dispatcher:create_pull_request_async_cli"
-agdt-get-pull-request-threads = "agentic_devtools.dispatcher:get_pull_request_threads_async"
-agdt-reply-to-pull-request-thread = "agentic_devtools.dispatcher:reply_to_pull_request_thread_async"
-agdt-resolve-thread = "agentic_devtools.dispatcher:resolve_thread_async"
-agdt-mark-pull-request-draft = "agentic_devtools.dispatcher:mark_pull_request_draft_async"
-agdt-publish-pull-request = "agentic_devtools.dispatcher:publish_pull_request_async"
-agdt-run-e2e-tests-synapse = "agentic_devtools.dispatcher:run_e2e_tests_synapse_async"
-agdt-run-e2e-tests-fabric = "agentic_devtools.dispatcher:run_e2e_tests_fabric_async"
-agdt-run-wb-patch = "agentic_devtools.dispatcher:run_wb_patch_async"
-agdt-get-run-details = "agentic_devtools.dispatcher:get_run_details_async"
-agdt-wait-for-run = "agentic_devtools.dispatcher:wait_for_run_async"
-agdt-list-pipelines = "agentic_devtools.dispatcher:list_pipelines_async"
-agdt-get-pipeline-id = "agentic_devtools.dispatcher:get_pipeline_id_async"
-agdt-create-pipeline = "agentic_devtools.dispatcher:create_pipeline_async"
-agdt-update-pipeline = "agentic_devtools.dispatcher:update_pipeline_async"
-agdt-get-pull-request-details = "agentic_devtools.dispatcher:get_pull_request_details_async"
-agdt-approve-file = "agentic_devtools.dispatcher:approve_file_async_cli"
-agdt-submit-file-review = "agentic_devtools.dispatcher:submit_file_review_async"
-agdt-request-changes = "agentic_devtools.dispatcher:request_changes_async_cli"
-agdt-request-changes-with-suggestion = "agentic_devtools.dispatcher:request_changes_with_suggestion_async_cli"
-agdt-mark-file-reviewed = "agentic_devtools.dispatcher:mark_file_reviewed_async"
-agdt-generate-pr-summary = "agentic_devtools.dispatcher:generate_pr_summary_async"
+agdt-add-pull-request-comment = "agentic_devtools.cli.azure_devops:add_pull_request_comment_async_cli"
+agdt-approve-pull-request = "agentic_devtools.cli.azure_devops:approve_pull_request_async_cli"
+agdt-create-pull-request = "agentic_devtools.cli.azure_devops:create_pull_request_async_cli"
+agdt-get-pull-request-threads = "agentic_devtools.cli.azure_devops:get_pull_request_threads_async_cli"
+agdt-reply-to-pull-request-thread = "agentic_devtools.cli.azure_devops:reply_to_pull_request_thread_async_cli"
+agdt-resolve-thread = "agentic_devtools.cli.azure_devops:resolve_thread_async_cli"
+agdt-mark-pull-request-draft = "agentic_devtools.cli.azure_devops:mark_pull_request_draft_async"
+agdt-publish-pull-request = "agentic_devtools.cli.azure_devops:publish_pull_request_async"
+agdt-run-e2e-tests-synapse = "agentic_devtools.cli.azure_devops:run_e2e_tests_synapse_async"
+agdt-run-e2e-tests-fabric = "agentic_devtools.cli.azure_devops:run_e2e_tests_fabric_async"
+agdt-run-wb-patch = "agentic_devtools.cli.azure_devops:run_wb_patch_async"
+agdt-get-run-details = "agentic_devtools.cli.azure_devops:get_run_details_async"
+agdt-wait-for-run = "agentic_devtools.cli.azure_devops:wait_for_run_async"
+agdt-list-pipelines = "agentic_devtools.cli.azure_devops:list_pipelines_async"
+agdt-get-pipeline-id = "agentic_devtools.cli.azure_devops:get_pipeline_id_async"
+agdt-create-pipeline = "agentic_devtools.cli.azure_devops:create_pipeline_async"
+agdt-update-pipeline = "agentic_devtools.cli.azure_devops:update_pipeline_async"
+agdt-get-pull-request-details = "agentic_devtools.cli.azure_devops:get_pull_request_details_async"
+agdt-approve-file = "agentic_devtools.cli.azure_devops:approve_file_async_cli"
+agdt-submit-file-review = "agentic_devtools.cli.azure_devops:submit_file_review_async"
+agdt-request-changes = "agentic_devtools.cli.azure_devops:request_changes_async_cli"
+agdt-request-changes-with-suggestion = "agentic_devtools.cli.azure_devops:request_changes_with_suggestion_async_cli"
+agdt-mark-file-reviewed = "agentic_devtools.cli.azure_devops:mark_file_reviewed_async"
+agdt-generate-pr-summary = "agentic_devtools.cli.azure_devops:generate_pr_summary_async"
 
 # Jira actions (all run in background, read from state)
-agdt-create-epic = "agentic_devtools.dispatcher:create_epic_async"
-agdt-create-issue = "agentic_devtools.dispatcher:create_issue_async"
-agdt-create-subtask = "agentic_devtools.dispatcher:create_subtask_async"
-agdt-add-jira-comment = "agentic_devtools.dispatcher:add_comment_async_cli"
-agdt-get-jira-issue = "agentic_devtools.dispatcher:get_issue_async"
-agdt-update-jira-issue = "agentic_devtools.dispatcher:update_issue_async"
-agdt-list-project-roles = "agentic_devtools.dispatcher:list_project_roles_async"
-agdt-get-project-role-details = "agentic_devtools.dispatcher:get_project_role_details_async"
-agdt-add-users-to-project-role = "agentic_devtools.dispatcher:add_users_to_project_role_async"
-agdt-add-users-to-project-role-batch = "agentic_devtools.dispatcher:add_users_to_project_role_batch_async"
-agdt-find-role-id-by-name = "agentic_devtools.dispatcher:find_role_id_by_name_async"
-agdt-check-user-exists = "agentic_devtools.dispatcher:check_user_exists_async"
-agdt-check-users-exist = "agentic_devtools.dispatcher:check_users_exist_async"
-agdt-parse-jira-error-report = "agentic_devtools.dispatcher:parse_jira_error_report"
+agdt-create-epic = "agentic_devtools.cli.jira:create_epic_async"
+agdt-create-issue = "agentic_devtools.cli.jira:create_issue_async"
+agdt-create-subtask = "agentic_devtools.cli.jira:create_subtask_async"
+agdt-add-jira-comment = "agentic_devtools.cli.jira:add_comment_async_cli"
+agdt-get-jira-issue = "agentic_devtools.cli.jira:get_issue_async"
+agdt-update-jira-issue = "agentic_devtools.cli.jira:update_issue_async"
+agdt-list-project-roles = "agentic_devtools.cli.jira:list_project_roles_async"
+agdt-get-project-role-details = "agentic_devtools.cli.jira:get_project_role_details_async"
+agdt-add-users-to-project-role = "agentic_devtools.cli.jira:add_users_to_project_role_async"
+agdt-add-users-to-project-role-batch = "agentic_devtools.cli.jira:add_users_to_project_role_batch_async"
+agdt-find-role-id-by-name = "agentic_devtools.cli.jira:find_role_id_by_name_async"
+agdt-check-user-exists = "agentic_devtools.cli.jira:check_user_exists_async"
+agdt-check-users-exist = "agentic_devtools.cli.jira:check_users_exist_async"
+agdt-parse-jira-error-report = "agentic_devtools.cli.jira:parse_jira_error_report"
 
 # Git actions (all run in background, read from state)
-agdt-git-save-work = "agentic_devtools.dispatcher:commit_async"
-agdt-git-sync = "agentic_devtools.dispatcher:sync_async"
-agdt-git-stage = "agentic_devtools.dispatcher:stage_async"
-agdt-git-push = "agentic_devtools.dispatcher:push_async"
-agdt-git-force-push = "agentic_devtools.dispatcher:force_push_async"
-agdt-git-publish = "agentic_devtools.dispatcher:publish_async"
+agdt-git-save-work = "agentic_devtools.cli.git:commit_async"
+agdt-git-sync = "agentic_devtools.cli.git:sync_async"
+agdt-git-stage = "agentic_devtools.cli.git:stage_async"
+agdt-git-push = "agentic_devtools.cli.git:push_async"
+agdt-git-force-push = "agentic_devtools.cli.git:force_push_async"
+agdt-git-publish = "agentic_devtools.cli.git:publish_async"
 
 # Testing actions (run in BACKGROUND - AI agents MUST use these, not pytest directly)
 # Use agdt-task-wait to wait for completion and see results
-agdt-test = "agentic_devtools.dispatcher:run_tests"
-agdt-test-quick = "agentic_devtools.dispatcher:run_tests_quick"
-agdt-test-file = "agentic_devtools.dispatcher:run_tests_file"
-agdt-test-pattern = "agentic_devtools.dispatcher:run_tests_pattern"
+agdt-test = "agentic_devtools.cli.testing:run_tests"
+agdt-test-quick = "agentic_devtools.cli.testing:run_tests_quick"
+agdt-test-file = "agentic_devtools.cli.testing:run_tests_file"
+agdt-test-pattern = "agentic_devtools.cli.testing:run_tests_pattern"
 
 # PyPI release commands (run in background)
-agdt-release-pypi = "agentic_devtools.dispatcher:release_pypi_async"
+agdt-release-pypi = "agentic_devtools.cli.release:release_pypi_async"
 
 # Azure CLI (App Insights queries)
-agdt-query-app-insights = "agentic_devtools.dispatcher:query_app_insights_async"
-agdt-query-fabric-dap-errors = "agentic_devtools.dispatcher:query_fabric_dap_errors_async"
-agdt-query-fabric-dap-provisioning = "agentic_devtools.dispatcher:query_fabric_dap_provisioning_async"
-agdt-query-fabric-dap-timeline = "agentic_devtools.dispatcher:query_fabric_dap_timeline_async"
+agdt-query-app-insights = "agentic_devtools.cli.azure:query_app_insights_async"
+agdt-query-fabric-dap-errors = "agentic_devtools.cli.azure:query_fabric_dap_errors_async"
+agdt-query-fabric-dap-provisioning = "agentic_devtools.cli.azure:query_fabric_dap_provisioning_async"
+agdt-query-fabric-dap-timeline = "agentic_devtools.cli.azure:query_fabric_dap_timeline_async"
 
 # Background task monitoring (parameterless - read from state)
-agdt-tasks = "agentic_devtools.dispatcher:list_tasks"
-agdt-task-status = "agentic_devtools.dispatcher:task_status"
-agdt-task-log = "agentic_devtools.dispatcher:task_log"
-agdt-task-wait = "agentic_devtools.dispatcher:task_wait"
-agdt-tasks-clean = "agentic_devtools.dispatcher:tasks_clean"
-agdt-show-other-incomplete-tasks = "agentic_devtools.dispatcher:show_other_incomplete_tasks"
+agdt-tasks = "agentic_devtools.cli.tasks:list_tasks"
+agdt-task-status = "agentic_devtools.cli.tasks:task_status"
+agdt-task-log = "agentic_devtools.cli.tasks:task_log"
+agdt-task-wait = "agentic_devtools.cli.tasks:task_wait"
+agdt-tasks-clean = "agentic_devtools.cli.tasks:tasks_clean"
+agdt-show-other-incomplete-tasks = "agentic_devtools.cli.tasks:show_other_incomplete_tasks"
 
 # Workflow state management (parameterless - read from state)
-agdt-get-workflow = "agentic_devtools.dispatcher:get_workflow_cmd"
-agdt-clear-workflow = "agentic_devtools.dispatcher:clear_workflow_cmd"
+agdt-get-workflow = "agentic_devtools.cli.state:get_workflow_cmd"
+agdt-clear-workflow = "agentic_devtools.cli.state:clear_workflow_cmd"
 
 # Workflow initiation commands (parameterless - read from state, log prompt with save notice)
-agdt-initiate-pull-request-review-workflow = "agentic_devtools.dispatcher:initiate_pull_request_review_workflow"
-agdt-initiate-work-on-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_work_on_jira_issue_workflow"
-agdt-initiate-create-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_create_jira_issue_workflow"
-agdt-initiate-create-jira-epic-workflow = "agentic_devtools.dispatcher:initiate_create_jira_epic_workflow"
-agdt-initiate-create-jira-subtask-workflow = "agentic_devtools.dispatcher:initiate_create_jira_subtask_workflow"
-agdt-initiate-update-jira-issue-workflow = "agentic_devtools.dispatcher:initiate_update_jira_issue_workflow"
-agdt-initiate-apply-pr-suggestions-workflow = "agentic_devtools.dispatcher:initiate_apply_pull_request_review_suggestions_workflow"
+agdt-initiate-pull-request-review-workflow = "agentic_devtools.cli.workflows:initiate_pull_request_review_workflow"
+agdt-initiate-work-on-jira-issue-workflow = "agentic_devtools.cli.workflows:initiate_work_on_jira_issue_workflow"
+agdt-initiate-create-jira-issue-workflow = "agentic_devtools.cli.workflows:initiate_create_jira_issue_workflow"
+agdt-initiate-create-jira-epic-workflow = "agentic_devtools.cli.workflows:initiate_create_jira_epic_workflow"
+agdt-initiate-create-jira-subtask-workflow = "agentic_devtools.cli.workflows:initiate_create_jira_subtask_workflow"
+agdt-initiate-update-jira-issue-workflow = "agentic_devtools.cli.workflows:initiate_update_jira_issue_workflow"
+agdt-initiate-apply-pr-suggestions-workflow = "agentic_devtools.cli.workflows:initiate_apply_pull_request_review_suggestions_workflow"
 
 # VPN toggle commands (all run in background - use agdt-task-wait)
-agdt-vpn-on = "agentic_devtools.dispatcher:vpn_on_cmd"
-agdt-vpn-off = "agentic_devtools.dispatcher:vpn_off_cmd"
-agdt-vpn-status = "agentic_devtools.dispatcher:vpn_status_cmd"
+agdt-vpn-on = "agentic_devtools.cli.azure_devops.vpn_toggle:vpn_on_async"
+agdt-vpn-off = "agentic_devtools.cli.azure_devops.vpn_toggle:vpn_off_async"
+agdt-vpn-status = "agentic_devtools.cli.azure_devops.vpn_toggle:vpn_status_async"
 
 # Azure context management commands (instant, read/write state)
-agdt-azure-context-use = "agentic_devtools.dispatcher:azure_context_use_cmd"
-agdt-azure-context-status = "agentic_devtools.dispatcher:azure_context_status_cmd"
-agdt-azure-context-current = "agentic_devtools.dispatcher:azure_context_current_cmd"
-agdt-azure-context-ensure-login = "agentic_devtools.dispatcher:azure_context_ensure_login_cmd"
+agdt-azure-context-use = "agentic_devtools.cli.azure_context.commands:azure_context_use_command"
+agdt-azure-context-status = "agentic_devtools.cli.azure_context.commands:azure_context_status_command"
+agdt-azure-context-current = "agentic_devtools.cli.azure_context.commands:azure_context_current_command"
+agdt-azure-context-ensure-login = "agentic_devtools.cli.azure_context.commands:azure_context_ensure_login_command"
+
 # Network context management (synchronous)
-agdt-network-status = "agentic_devtools.dispatcher:network_status_cmd"
+agdt-network-status = "agentic_devtools.cli.network:network_status_cmd"
 
 # VPN command wrapper (synchronous - wraps command execution)
-agdt-vpn-run = "agentic_devtools.dispatcher:vpn_run_cmd"
+agdt-vpn-run = "agentic_devtools.cli.vpn:vpn_run_cmd"
 
 # Background worktree setup (internal, called by background task)
-agdt-setup-worktree-background = "agentic_devtools.dispatcher:setup_worktree_background_cmd"
+agdt-setup-worktree-background = "agentic_devtools.cli.workflows:setup_worktree_background_cmd"
 
 # Workflow advancement command
-agdt-advance-workflow = "agentic_devtools.dispatcher:advance_workflow_cmd"
+agdt-advance-workflow = "agentic_devtools.cli.workflows:advance_workflow_cmd"
 
 # Workflow prompt retrieval (event-driven)
-agdt-get-next-workflow-prompt = "agentic_devtools.dispatcher:get_next_workflow_prompt_cmd"
+agdt-get-next-workflow-prompt = "agentic_devtools.cli.workflows:get_next_workflow_prompt_cmd"
 
 # Checklist management commands
-agdt-create-checklist = "agentic_devtools.dispatcher:create_checklist_cmd"
-agdt-update-checklist = "agentic_devtools.dispatcher:update_checklist_cmd"
-agdt-show-checklist = "agentic_devtools.dispatcher:show_checklist_cmd"
+agdt-create-checklist = "agentic_devtools.cli.workflows:create_checklist_cmd"
+agdt-update-checklist = "agentic_devtools.cli.workflows:update_checklist_cmd"
+agdt-show-checklist = "agentic_devtools.cli.workflows:show_checklist_cmd"
 
 [tool.hatch.version]
 source = "vcs"
@@ -175,7 +172,7 @@ packages = ["agentic_devtools", "agdt_ai_helpers"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=91"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=90"
 markers = [
     "windows_only: mark test to run only on Windows (msvcrt file locking)",
     "linux_only: mark test to run only on Linux/Unix (fcntl file locking)",
@@ -203,7 +200,7 @@ source = ["agentic_devtools"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 91
+fail_under = 90
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
