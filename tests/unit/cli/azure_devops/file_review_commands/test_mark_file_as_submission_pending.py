@@ -1,4 +1,5 @@
 """Tests for mark_file_as_submission_pending function."""
+
 import pytest
 
 

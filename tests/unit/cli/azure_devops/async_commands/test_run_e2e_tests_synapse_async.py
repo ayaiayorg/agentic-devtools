@@ -1,4 +1,5 @@
 """Tests for run_e2e_tests_synapse_async function."""
+
 from agentic_devtools.cli.azure_devops.async_commands import run_e2e_tests_synapse_async
 from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_in_script, get_script_from_call
 

@@ -1,4 +1,5 @@
 """Tests for build_thread_context helper."""
+
 from agentic_devtools.cli import azure_devops
 
 

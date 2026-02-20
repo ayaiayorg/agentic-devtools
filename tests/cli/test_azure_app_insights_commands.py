@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from agentic_devtools.cli.azure.app_insights_commands import (
     FABRIC_DAP_ERROR_QUERY,
     FABRIC_DAP_PROVISIONING_QUERY,
@@ -260,9 +261,7 @@ class TestQueryAppInsights:
 
     @patch("agentic_devtools.cli.azure.app_insights_commands._print_query_results")
     @patch("agentic_devtools.cli.azure.app_insights_commands._run_app_insights_query")
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True)
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_value")
     def test_dry_run(self, mock_get, mock_dry, mock_run, mock_print):
         """Test dry run mode."""
@@ -293,9 +292,7 @@ class TestQueryFabricDapErrors:
 
     @patch("agentic_devtools.cli.azure.app_insights_commands._print_query_results")
     @patch("agentic_devtools.cli.azure.app_insights_commands._run_app_insights_query")
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True)
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_value")
     def test_dry_run(self, mock_get, mock_dry, mock_run, mock_print):
         """Test dry run mode for error query."""
@@ -322,9 +319,7 @@ class TestQueryFabricDapErrors:
 class TestQueryFabricDapProvisioning:
     """Tests for query_fabric_dap_provisioning function."""
 
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands._query_fabric_dap_provisioning_sync"
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands._query_fabric_dap_provisioning_sync")
     @patch(
         "agentic_devtools.cli.azure.app_insights_commands.is_dry_run",
         return_value=False,
@@ -337,9 +332,7 @@ class TestQueryFabricDapProvisioning:
         mock_sync.assert_called_once()
 
     @patch("agentic_devtools.cli.azure.app_insights_commands.print_task_tracking_info")
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.run_function_in_background"
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.run_function_in_background")
     @patch(
         "agentic_devtools.cli.azure.app_insights_commands.is_dry_run",
         return_value=False,
@@ -351,16 +344,10 @@ class TestQueryFabricDapProvisioning:
         mock_bg.return_value = {"task_id": "123"}
         query_fabric_dap_provisioning()
         mock_bg.assert_called_once()
-        assert (
-            "agentic_devtools.cli.azure.app_insights_commands" in mock_bg.call_args[0]
-        )
+        assert "agentic_devtools.cli.azure.app_insights_commands" in mock_bg.call_args[0]
 
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands._query_fabric_dap_provisioning_sync"
-    )
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands._query_fabric_dap_provisioning_sync")
+    @patch("agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True)
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_value")
     def test_dry_run_skips_background(self, mock_get, mock_dry, mock_sync):
         """Test dry run skips background even if azure.background is true."""
@@ -374,9 +361,7 @@ class TestQueryFabricDapTimeline:
 
     @patch("agentic_devtools.cli.azure.app_insights_commands._print_query_results")
     @patch("agentic_devtools.cli.azure.app_insights_commands._run_app_insights_query")
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True)
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_value")
     def test_dry_run(self, mock_get, mock_dry, mock_run, mock_print):
         """Test dry run mode for timeline query."""
@@ -529,9 +514,7 @@ class TestRunAppInsightsQuery:
 
         from azure.core.exceptions import HttpResponseError
 
-        mock_client.return_value.query_resource.side_effect = HttpResponseError(
-            message="Bad request"
-        )
+        mock_client.return_value.query_resource.side_effect = HttpResponseError(message="Bad request")
 
         from agentic_devtools.cli.azure.app_insights_commands import (
             _run_app_insights_query,
@@ -547,17 +530,13 @@ class TestRunAppInsightsQuery:
         return_value=True,
     )
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_app_insights_config")
-    def test_handles_generic_exception(
-        self, mock_config, mock_ensure, mock_cred, mock_client
-    ):
+    def test_handles_generic_exception(self, mock_config, mock_ensure, mock_cred, mock_client):
         """Test handles generic exceptions gracefully."""
         mock_config.return_value = MagicMock(
             name="test-ai",
             resource_id="/subscriptions/x/resourceGroups/rg/providers/microsoft.insights/components/test-ai",
         )
-        mock_client.return_value.query_resource.side_effect = Exception(
-            "Connection timeout"
-        )
+        mock_client.return_value.query_resource.side_effect = Exception("Connection timeout")
 
         from agentic_devtools.cli.azure.app_insights_commands import (
             _run_app_insights_query,
@@ -574,9 +553,7 @@ class TestRunAppInsightsQuery:
         return_value=True,
     )
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_app_insights_config")
-    def test_writes_to_output_file(
-        self, mock_config, mock_ensure, mock_cred, mock_client, mock_write
-    ):
+    def test_writes_to_output_file(self, mock_config, mock_ensure, mock_cred, mock_client, mock_write):
         """Test writing results to output file when specified."""
         mock_config.return_value = MagicMock(
             name="test-ai",
@@ -642,9 +619,7 @@ class TestAsyncCLIWrappers:
             query_fabric_dap_errors_async()
         mock_query.assert_called_once()
 
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.query_fabric_dap_provisioning"
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.query_fabric_dap_provisioning")
     def test_query_fabric_dap_provisioning_async_no_args(self, mock_query):
         """Test query_fabric_dap_provisioning_async with no args."""
         with patch("sys.argv", ["agdt-query-fabric-dap-provisioning"]):
@@ -702,9 +677,7 @@ class TestQueryFabricDapProvisioningSync:
     """Tests for _query_fabric_dap_provisioning_sync function."""
 
     @patch("agentic_devtools.cli.azure.app_insights_commands._run_app_insights_query")
-    @patch(
-        "agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True
-    )
+    @patch("agentic_devtools.cli.azure.app_insights_commands.is_dry_run", return_value=True)
     @patch("agentic_devtools.cli.azure.app_insights_commands.get_value")
     def test_returns_zero_on_success(self, mock_get, mock_dry, mock_run):
         """Test returns 0 on successful query."""

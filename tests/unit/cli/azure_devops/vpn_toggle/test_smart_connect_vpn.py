@@ -1,4 +1,5 @@
 """Tests for smart_connect_vpn function."""
+
 from unittest.mock import patch
 
 

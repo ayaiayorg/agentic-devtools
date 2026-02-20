@@ -1,5 +1,6 @@
 """Tests for get_jira_issue_key_from_state function."""
 
+
 class TestGetJiraIssueKeyFromState:
     """Tests for _get_jira_issue_key_from_state function."""
 

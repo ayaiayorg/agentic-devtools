@@ -1,4 +1,5 @@
 """Tests for require_content helper."""
+
 import pytest
 
 from agentic_devtools import state

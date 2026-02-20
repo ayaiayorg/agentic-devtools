@@ -1,4 +1,5 @@
 """Tests for create_pull_request function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -112,7 +113,6 @@ class TestCreatePullRequest:
         state.set_value(
             "title",
             "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): test",
-
         )
         state.set_dry_run(True)
 
@@ -156,6 +156,7 @@ class TestCreatePullRequest:
 
         captured = capsys.readouterr()
         assert "Description:" not in captured.out  # No description line when empty
+
 
 class TestCreatePullRequestActualCall:
     """Tests for create_pull_request with mocked subprocess calls."""

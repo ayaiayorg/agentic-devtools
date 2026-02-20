@@ -1,4 +1,5 @@
 """Tests for get_jira_credentials function."""
+
 import pytest
 
 

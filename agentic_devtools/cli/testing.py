@@ -430,9 +430,7 @@ def run_tests_pattern() -> None:
     args.extend(pattern_args)
 
     print(f"Running: pytest {' '.join(pattern_args)}")
-    print(
-        "(Note: This runs synchronously. For background execution, use agdt-test-file)"
-    )
+    print("(Note: This runs synchronously. For background execution, use agdt-test-file)")
     print()
 
     # Run synchronously - output goes directly to terminal
