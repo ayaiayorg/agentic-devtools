@@ -56,15 +56,15 @@ graph TB
     TaskState --> Lock
     WorkflowCmd --> Prompts
     
-    Dispatcher --> StateCmd
-    Dispatcher --> GitCmd
-    Dispatcher --> ADOCmd
-    Dispatcher --> JiraCmd
-    Dispatcher --> TaskCmd
-    Dispatcher --> WorkflowCmd
+    Runner --> StateCmd
+    Runner --> GitCmd
+    Runner --> ADOCmd
+    Runner --> JiraCmd
+    Runner --> TaskCmd
+    Runner --> WorkflowCmd
 ```
 
-Note: `Dispatcher` here refers to `cli/runner.py`, which provides programmatic access to all commands by name.
+Note: `Runner` here refers to `cli/runner.py`, which provides programmatic access to all commands by name. Console script entry points invoke the CLI implementation functions directly.
 
 ## 5.3 Level 3: Core Components
 

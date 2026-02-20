@@ -157,7 +157,7 @@ flowchart TD
     Trigger -->|Release created| Publish[publish.yml]
     
     Test --> RunTests[Run pytest]
-    RunTests --> Coverage[Check coverage ≥91%]
+    RunTests --> Coverage[Check coverage ≥90%]
     Coverage -->|Pass| TestPass[✓ Tests Pass]
     Coverage -->|Fail| TestFail[✗ Tests Fail]
     

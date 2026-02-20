@@ -350,10 +350,10 @@ No tag → hatch-vcs → Package version 0.2.9.dev1+g1234abc
 ```toml
 # pyproject.toml
 [tool.pytest.ini_options]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=91"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=90"
 ```
 
-**Note**: Current enforcement is set to 91% coverage. The 95% target remains the aspirational goal for all new code.
+**Note**: Current enforcement is set to 90% coverage. The 95% target remains the aspirational goal for all new code.
 
 ## 9.12 ADR-012: Cross-Platform File Locking
 

@@ -696,7 +696,7 @@ def setup_worktree_in_background_sync(
     existing_path = check_worktree_exists(issue_key)
     if existing_path:
         print(f"\nWorktree already exists at: {existing_path}")
-        print("Ensuring development tools are configured...")
+        print("Opening VS Code in the existing worktree (using the workspace file if available)...")
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
