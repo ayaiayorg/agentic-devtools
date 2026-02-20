@@ -115,11 +115,12 @@ For testing before production:
 
 ## RELEASE_PAT Requirement
 
-The `release.yml` workflow must use a Personal Access Token (PAT) — not `GITHUB_TOKEN` — when
-creating GitHub Releases. GitHub deliberately does **not** fire the `release: published` event to
+`RELEASE_PAT` is required for **automatically triggering `publish.yml`** (PyPI publish) after a
+GitHub Release is created. GitHub deliberately does **not** fire the `release: published` event to
 other workflows when a release is created with `GITHUB_TOKEN` (to prevent cascading triggers).
-Because `publish.yml` listens for `release: types: [published]`, it will **never run** unless the
-release is created with a PAT.
+Because `publish.yml` listens for `release: types: [published]`, it will only be triggered
+automatically when the release is created with a PAT. Without it, the GitHub Release is still
+created — only the automatic PyPI publish is skipped.
 
 ### Creating the PAT
 
@@ -142,7 +143,9 @@ release is created with a PAT.
 
 If `RELEASE_PAT` is not configured, the workflow falls back to `GITHUB_TOKEN`. The release will
 still be created, but `publish.yml` will **not** be triggered automatically. In that case, you can
-trigger it manually via **Actions → Publish to PyPI → Run workflow → pypi**.
+trigger it manually via **Actions → Publish to PyPI → Run workflow → pypi** and **make sure to
+select the release tag (e.g. `v1.2.3`) in the branch/tag dropdown** before clicking **Run
+workflow**, so that the published package version matches the release.
 
 ## References
 

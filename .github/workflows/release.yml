@@ -18,13 +18,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        # Use RELEASE_PAT so that the GitHub Release created below triggers the
-        # `release: published` event, which activates publish.yml to push to PyPI.
-        # Releases created with GITHUB_TOKEN do NOT fire that event (GitHub safeguard).
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Get latest tag
         id: get_tag
         run: |
