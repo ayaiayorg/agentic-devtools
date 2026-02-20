@@ -71,7 +71,9 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - Purpose: Automatically creates releases with Spec-Driven Development (SDD) template packages
 - Outputs: Creates release packages for multiple AI assistants (Claude, Copilot, Gemini, Cursor, etc.)
 - Scripts: Uses helper scripts in `.github/workflows/scripts/`
-- **Required for automatic PyPI publishing**: `RELEASE_PAT` — a fine-grained PAT with `contents: write` permission (see [RELEASING.md](../../RELEASING.md#release_pat-requirement)); the workflow falls back to `GITHUB_TOKEN` but automatic publishing to PyPI will not trigger without it
+- **Required for automatic PyPI publishing**: `RELEASE_PAT` — a fine-grained PAT with `contents: write` permission
+  (see [RELEASING.md](../../RELEASING.md#release_pat-requirement)); the workflow falls back to `GITHUB_TOKEN`
+  but automatic publishing to PyPI will not trigger without it
 
 > **Why a PAT?** GitHub does not fire the `release: published` event when a release is created with
 > `GITHUB_TOKEN`. A PAT is required so that creating a release here automatically triggers
