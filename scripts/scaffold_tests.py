@@ -54,11 +54,11 @@ def _collect_public_functions(source_file: Path) -> list[str]:
 
 
 def _source_files() -> list[Path]:
-    """Return all .py source files under SOURCE_ROOT, excluding __init__.py."""
+    """Return all .py source files under SOURCE_ROOT, excluding __init__.py and _version.py."""
     return sorted(
         p
         for p in SOURCE_ROOT.rglob("*.py")
-        if p.name != "__init__.py" and "__pycache__" not in p.parts
+        if p.name not in {"__init__.py", "_version.py"} and "__pycache__" not in p.parts
     )
 
 

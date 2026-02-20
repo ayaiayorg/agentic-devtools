@@ -888,6 +888,19 @@ A file is auto-generated when it contains a comment such as:
 When you encounter such a comment in a file you are about to edit or commit, **stop** — the file
 should not be touched manually.
 
+### Excluding auto-generated files from source-scanning tools
+
+Any script that iterates over `agentic_devtools/` source files (e.g., `scripts/scaffold_tests.py`)
+must **explicitly exclude** `_version.py` by name, in addition to `__init__.py`. Even though
+`_version.py` currently has no public functions, the exclusion makes the intent clear and prevents
+the file from accidentally appearing in generated output if it ever gains a public symbol.
+
+Pattern to follow:
+
+```python
+if p.name not in {"__init__.py", "_version.py"} and "__pycache__" not in p.parts
+```
+
 ## 11. Python Coding Patterns
 
 ### Dynamic script loading with `importlib`
