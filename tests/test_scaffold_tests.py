@@ -188,6 +188,17 @@ class TestCollectAllStubs:
         for stub in stubs[:10]:
             assert stub.test_file.is_relative_to(unit_dir)
 
+    def test_excludes_version_py(self):
+        """_version.py is auto-generated and must never appear in source files or stubs."""
+        sources = scaffold._source_files()
+        for src in sources:
+            assert src.name != "_version.py", "_version.py should be excluded from source files"
+
+    def test_stubs_do_not_reference_version_py(self):
+        stubs = scaffold.collect_all_stubs()
+        for stub in stubs:
+            assert stub.source_file.name != "_version.py"
+
 
 # ---------------------------------------------------------------------------
 # main / CLI integration
