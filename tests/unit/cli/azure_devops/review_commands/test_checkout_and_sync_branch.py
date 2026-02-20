@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestCheckoutAndSyncBranch:
     """Tests for checkout_and_sync_branch function."""
 

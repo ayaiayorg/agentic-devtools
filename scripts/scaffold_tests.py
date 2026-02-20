@@ -192,9 +192,7 @@ def generate(stubs: list[TestStub]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Scaffold tests/unit/ structure from agentic_devtools/ source files."
-    )
+    parser = argparse.ArgumentParser(description="Scaffold tests/unit/ structure from agentic_devtools/ source files.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
         "--dry-run",

@@ -1,5 +1,6 @@
 """Tests for get_pull_request_id_from_state function."""
 
+
 class TestGetPullRequestIdFromState:
     """Tests for _get_pull_request_id_from_state function."""
 

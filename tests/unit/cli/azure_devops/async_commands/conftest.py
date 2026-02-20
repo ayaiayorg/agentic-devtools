@@ -1,6 +1,7 @@
 """
 Shared fixtures for async_commands tests.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest

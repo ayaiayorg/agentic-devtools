@@ -1,4 +1,5 @@
 """Tests for get_pipeline_id function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,6 +43,7 @@ class TestGetPipelineIdDryRun:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "pipeline.name" in captured.err
+
 
 class TestGetPipelineIdApiCall:
     """Tests for get_pipeline_id command with mocked API calls."""
@@ -141,6 +143,7 @@ class TestGetPipelineIdApiCall:
         captured = capsys.readouterr()
         assert "similar names" in captured.err
         assert "my-pipeline-1" in captured.err
+
 
 class TestGetPipelineIdJsonParseError:
     """Tests for JSON parse error handling in get_pipeline_id."""

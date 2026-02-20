@@ -1,5 +1,6 @@
 """Tests for write_file_prompt function."""
 
+
 class TestWriteFilePrompt:
     """Tests for _write_file_prompt function."""
 

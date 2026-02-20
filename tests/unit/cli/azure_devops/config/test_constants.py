@@ -1,4 +1,5 @@
 """Tests for constants."""
+
 from agentic_devtools.cli import azure_devops
 
 

@@ -1,4 +1,5 @@
 """Tests for publish_pull_request function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -90,6 +91,7 @@ class TestPublishPullRequest:
         state.set_dry_run(True)
         with pytest.raises(KeyError, match="pull_request_id"):
             azure_devops.publish_pull_request()
+
 
 class TestPublishPullRequestActualCall:
     """Tests for publish_pull_request with mocked API calls."""

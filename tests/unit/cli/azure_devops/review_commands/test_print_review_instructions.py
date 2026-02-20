@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestPrintReviewInstructions:
     """Tests for print_review_instructions function."""
 

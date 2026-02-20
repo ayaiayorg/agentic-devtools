@@ -285,4 +285,3 @@ class TestJiraAddCommentE2E:
         assert "displayName" in author, "Author should have display name"
         assert "accountId" in author, "Author should have account ID"
         assert author["displayName"] == "Test User"
-

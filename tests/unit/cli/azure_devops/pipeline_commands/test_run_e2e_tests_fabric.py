@@ -1,4 +1,5 @@
 """Tests for run e2e tests fabric function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -56,6 +57,7 @@ class TestRunE2eTestsFabricJsonParseError:
         captured = capsys.readouterr()
         assert "https://fallback/url" in captured.out
 
+
 class TestRunE2eTestsFabric:
     """Tests for run_e2e_tests_fabric command."""
 
@@ -88,6 +90,7 @@ class TestRunE2eTestsFabric:
         state.set_dry_run(True)
         with pytest.raises(SystemExit):
             azure_devops.run_e2e_tests_fabric()
+
 
 class TestRunE2eTestsFabricActualCall:
     """Tests for run_e2e_tests_fabric with mocked API calls."""

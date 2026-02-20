@@ -45,6 +45,21 @@ To run the validator locally:
 python scripts/validate_test_structure.py
 ```
 
+## Top-Level Source Files
+
+Source files directly inside `agentic_devtools/` (e.g., `state.py`, `background_tasks.py`)
+map to `tests/unit/{source_file_name}/test_{function_name}.py`. The `module_path` part is
+simply empty.
+
+| Source | Test |
+|--------|------|
+| `agentic_devtools/state.py` → `get_workflow_state()` | `tests/unit/state/test_get_workflow_state.py` |
+| `agentic_devtools/background_tasks.py` → `run_function_in_background()` | `tests/unit/background_tasks/test_run_function_in_background.py` |
+
+> **Do NOT** create proxy/stub source files (e.g., `agentic_devtools/root/state.py`) just to
+> add a path component. The validator supports 2-component minimum paths, so top-level
+> source files are handled correctly without any workaround.
+
 ## Linting Requirements
 
 All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to avoid:

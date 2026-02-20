@@ -7,12 +7,10 @@ Provides functions to switch contexts, check login status, and execute commands.
 import json
 import os
 import subprocess
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from agentic_devtools.cli.azure_context.config import (
     AzureContext,
-    AzureContextConfig,
     get_context_config,
 )
 from agentic_devtools.state import get_value, set_value
@@ -127,7 +125,7 @@ def ensure_logged_in(context: AzureContext) -> bool:
         return True
 
     print(f"✗ Not logged in to context '{context.value}': {error}")
-    print(f"\nPlease log in using: az login (with AZURE_CONFIG_DIR set)")
+    print("\nPlease log in using: az login (with AZURE_CONFIG_DIR set)")
 
     config = get_context_config(context)
     env = get_context_env(context)
@@ -136,7 +134,7 @@ def ensure_logged_in(context: AzureContext) -> bool:
     cmd_env = os.environ.copy()
     cmd_env.update(env)
 
-    print(f"\nExecuting: az login")
+    print("\nExecuting: az login")
     print(f"Using config directory: {config.config_dir}")
 
     try:
