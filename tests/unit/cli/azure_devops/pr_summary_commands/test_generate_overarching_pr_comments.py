@@ -8,30 +8,13 @@ Covers:
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from agentic_devtools.cli.azure_devops.pr_summary_commands import (
-    FileSummary,
-    FolderSummary,
-    _build_comment_link,
-    _build_file_link,
-    _build_folder_comment,
-    _filter_threads,
-    _get_azure_devops_sort_key,
-    _get_file_thread_status,
-    _get_latest_comment_context,
-    _get_root_folder,
-    _get_thread_file_path,
-    _normalize_repo_path,
-    _post_comment,
-    _sort_entries_by_path,
-    _sort_folders,
     generate_overarching_pr_comments,
-    generate_overarching_pr_comments_cli,
 )
-
 
 
 class TestGenerateOverarchingPrComments:

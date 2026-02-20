@@ -1,8 +1,10 @@
 """Tests for require_requests helper."""
-from agentic_devtools import state
-from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 import pytest
+
+from agentic_devtools.cli import azure_devops
+
 
 class TestRequireRequests:
     """Tests for require_requests helper."""

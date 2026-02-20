@@ -2,6 +2,7 @@
 
 from agentic_devtools.cli import azure_devops
 
+
 class TestGetAuthHeaders:
     """Tests for get_auth_headers function."""
 

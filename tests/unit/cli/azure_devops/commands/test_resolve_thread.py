@@ -1,8 +1,10 @@
 """Tests for resolve_thread function."""
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"

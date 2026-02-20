@@ -1,8 +1,11 @@
 """Tests for get_pull_request_details function."""
-from agdt_ai_helpers.cli.azure_devops import get_pull_request_details
-from unittest.mock import MagicMock, patch
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
+
+from agdt_ai_helpers.cli.azure_devops import get_pull_request_details
+
 
 class TestGetPullRequestDetails:
     """Tests for get_pull_request_details command."""

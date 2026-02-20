@@ -2,6 +2,7 @@
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
 
+
 class TestRepositoryDetection:
     """Tests for repository name detection from git remote."""
 

@@ -1,8 +1,6 @@
 """Tests for build_thread_context helper."""
-from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestBuildThreadContext:
     """Tests for build_thread_context helper."""

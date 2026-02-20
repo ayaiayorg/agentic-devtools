@@ -1,7 +1,6 @@
 """Tests for run_e2e_tests_fabric_async function."""
-import pytest
 from agentic_devtools.cli.azure_devops.async_commands import run_e2e_tests_fabric_async
-from tests.unit.cli.azure_devops.async_commands._helpers import get_script_from_call, assert_function_in_script
+from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_in_script, get_script_from_call
 
 
 class TestRunE2ETestsFabricAsync:

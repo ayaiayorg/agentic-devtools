@@ -1,8 +1,7 @@
 """Tests for parse_bool_from_state helper."""
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestParseBoolFromState:
     """Tests for parse_bool_from_state helper."""

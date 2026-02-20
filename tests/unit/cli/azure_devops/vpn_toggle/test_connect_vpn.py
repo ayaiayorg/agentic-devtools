@@ -1,7 +1,6 @@
 """Tests for connect_vpn function."""
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-import pytest
+from unittest.mock import patch
+
 
 class TestConnectVpn:
     """Tests for connect_vpn function."""

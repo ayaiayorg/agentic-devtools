@@ -1,6 +1,6 @@
 """Tests for constants."""
-from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
+
 
 class TestConstants:
     """Tests for module constants."""

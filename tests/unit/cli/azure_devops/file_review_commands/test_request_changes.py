@@ -2,15 +2,10 @@
 Tests for file_review_commands module (dry-run and validation tests).
 """
 
-import pytest
 
 from agentic_devtools.cli.azure_devops import (
-    approve_file,
     request_changes,
-    request_changes_with_suggestion,
-    submit_file_review,
 )
-
 
 
 class TestRequestChanges:

@@ -1,8 +1,10 @@
 """Tests for get_repository_id helper."""
-from agentic_devtools import state
-from agentic_devtools.cli import azure_devops
 from unittest.mock import MagicMock, patch
+
 import pytest
+
+from agentic_devtools.cli import azure_devops
+
 
 class TestGetRepositoryId:
     """Tests for get_repository_id function."""

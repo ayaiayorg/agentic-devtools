@@ -1,8 +1,11 @@
 """Tests for create_pipeline function."""
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestCreatePipelineDryRun:
     """Tests for create_pipeline command in dry-run mode."""

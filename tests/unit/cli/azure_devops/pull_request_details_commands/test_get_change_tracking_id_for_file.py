@@ -8,20 +8,7 @@ Covers:
 - Reviewer payload building (_get_reviewer_payload)
 """
 
-import json
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from agdt_ai_helpers.cli.azure_devops import get_pull_request_details
-from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
-    _get_iteration_change_tracking_map,
-    _get_reviewer_payload,
-    _get_viewed_files_via_contribution,
-    _invoke_ado_rest,
-    _invoke_ado_rest_post,
-)
-
+from unittest.mock import patch
 
 
 class TestGetChangeTrackingIdForFile:

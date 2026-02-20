@@ -5,28 +5,11 @@ Tests verify VPN detection, corporate network detection,
 and the VpnToggleContext manager.
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
-    CORPORATE_NETWORK_TEST_HOST,
-    DEFAULT_VPN_URL,
-    PULSE_LAUNCHER_PATH,
-    JiraVpnContext,
-    NetworkStatus,
-    VpnToggleContext,
-    _run_pulse_command,
-    check_network_status,
-    disconnect_vpn,
-    get_vpn_url_from_state,
-    is_on_corporate_network,
-    is_pulse_secure_installed,
-    is_vpn_connected,
     reconnect_vpn,
 )
-
 
 
 class TestReconnectVpn:

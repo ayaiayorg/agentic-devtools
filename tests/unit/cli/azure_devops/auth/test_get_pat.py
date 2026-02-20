@@ -6,6 +6,7 @@ import pytest
 
 from agentic_devtools.cli import azure_devops
 
+
 class TestGetPat:
     """Tests for get_pat function."""
 

@@ -1,5 +1,6 @@
 """Tests for mark_file_reviewed_cli function."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 
 class TestMarkFileReviewedCli:
     """Tests for mark_file_reviewed_cli entry point."""

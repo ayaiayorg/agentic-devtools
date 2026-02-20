@@ -2,17 +2,10 @@
 Tests for mark_reviewed module - Azure DevOps PR file review marking.
 """
 
-from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.azure_devops.mark_reviewed import (
-    AuthenticatedUser,
-    ChangeEntry,
-    _extract_authenticated_user,
-    _get_graph_api_root,
-    _get_organization_account_name,
     normalize_repo_path,
 )
-
 
 
 class TestNormalizeRepoPath:

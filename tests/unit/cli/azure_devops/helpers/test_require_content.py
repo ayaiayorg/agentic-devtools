@@ -1,8 +1,9 @@
 """Tests for require_content helper."""
+import pytest
+
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestRequireContent:
     """Tests for require_content helper."""

@@ -1,8 +1,11 @@
 """Tests for run e2e tests fabric function."""
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestRunE2eTestsFabricJsonParseError:
     """Tests for JSON parse error handling in run_e2e_tests_fabric."""

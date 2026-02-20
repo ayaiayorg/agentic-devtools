@@ -1,5 +1,4 @@
 """Tests for write_file_prompt function."""
-import pytest
 
 class TestWriteFilePrompt:
     """Tests for _write_file_prompt function."""

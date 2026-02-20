@@ -1,5 +1,4 @@
 """Tests for get_pull_request_id_from_state function."""
-import pytest
 
 class TestGetPullRequestIdFromState:
     """Tests for _get_pull_request_id_from_state function."""

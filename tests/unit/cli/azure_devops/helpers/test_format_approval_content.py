@@ -1,8 +1,6 @@
 """Tests for format_approval_content helper."""
-from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
-from unittest.mock import MagicMock, patch
-import pytest
+
 
 class TestFormatApprovalContent:
     """Tests for format_approval_content helper."""
