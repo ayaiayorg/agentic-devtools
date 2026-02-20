@@ -89,7 +89,7 @@ Why:
 - Direct pytest calls don't integrate with the background task system
 - `agdt-test-file` shows coverage ONLY for the specified source file
 
-See [Testing](#10-testing) for all test commands.
+See [Testing](#12-testing) for all test commands.
 
 ## 2. Package Structure
 
