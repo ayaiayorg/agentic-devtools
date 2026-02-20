@@ -27,20 +27,6 @@ def clear_state_before(temp_state_dir):
 class TestJiraStateHelpers:
     """Tests for Jira state namespace helpers."""
 
-    def test_get_jira_value_returns_value(self, temp_state_dir, clear_state_before):
-        """Test getting a value from jira namespace."""
-        state.set_value("jira.summary", "Test Summary")
-        assert jira.get_jira_value("summary") == "Test Summary"
-
-    def test_get_jira_value_returns_none_for_missing(self, temp_state_dir, clear_state_before):
-        """Test getting a missing value returns None."""
-        assert jira.get_jira_value("nonexistent") is None
-
-    def test_get_jira_value_required_raises_error(self, temp_state_dir, clear_state_before):
-        """Test getting a required missing value raises error."""
-        with pytest.raises(KeyError):
-            jira.get_jira_value("nonexistent", required=True)
-
     def test_set_jira_value_creates_nested_structure(self, temp_state_dir, clear_state_before):
         """Test setting a jira value creates nested structure."""
         jira.set_jira_value("summary", "My Summary")
@@ -55,6 +41,3 @@ class TestJiraStateHelpers:
         assert loaded["other_key"] == "other_value"
         assert loaded["jira"]["summary"] == "My Summary"
 
-    def test_namespace_constant_is_used(self):
-        """Test that JIRA_STATE_NAMESPACE constant is defined and used."""
-        assert jira.JIRA_STATE_NAMESPACE == "jira"
