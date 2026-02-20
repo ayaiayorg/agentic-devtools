@@ -52,6 +52,8 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
 1. **No unused imports (F401):** Each test file should only import what it actually uses.
    Ruff will flag any import that is never referenced in the file. Run `ruff check tests/unit/`
    or `ruff check tests/unit/ --fix` to auto-remove them.
+   This is especially important when migrating tests from old flat files: the original preamble
+   carries every import the old file needed, but the new per-function file may only need a subset.
 
 2. **Sorted imports (I001):** Imports must be sorted (isort-style). The project uses
    `known-first-party = ["agentic_devtools", "agdt_ai_helpers"]`. Run `ruff check tests/unit/ --fix`

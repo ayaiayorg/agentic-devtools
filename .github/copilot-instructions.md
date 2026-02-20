@@ -887,10 +887,10 @@ The file is listed in `.gitignore`. **Do not** `git add`, edit, or commit it.
 - To bump the package version, create a new Git tag — see [RELEASING.md](../RELEASING.md).
 - If you see it modified in `git status`, discard it: `git checkout -- agentic_devtools/_version.py`
 
-> **⚠️ AI AGENTS using `report_progress`:** The `report_progress` tool runs `git add .` internally,
-> which **will stage `_version.py`** even though it is in `.gitignore`, because the file is already
-> tracked by Git. **Always run `git checkout -- agentic_devtools/_version.py` before every
-> `report_progress` call** if `git status` shows `_version.py` as modified.
+> **⚠️ `report_progress` uses `git add .` which will stage this file** because it is still
+> tracked by Git despite being in `.gitignore`. Always run
+> `git checkout -- agentic_devtools/_version.py` **before** calling `report_progress` if the
+> file appears modified in `git status`.
 
 ### Identifying auto-generated files in the future
 
