@@ -37,12 +37,13 @@ def validate() -> list[str]:
         parts = rel.parts  # e.g. ("cli", "git", "core", "test_get_current_branch.py")
 
         # Rule: test file must be exactly one level inside a source-file folder.
-        # Minimum depth: module_path (>=1 part) + source_file_name folder + test file = >= 3 parts.
-        if len(parts) < 3:
+        # Minimum depth: source_file_name folder + test file = >= 2 parts.
+        # (module_path may be empty for top-level source files like background_tasks.py)
+        if len(parts) < 2:
             violations.append(
                 f"{rel}: test file is too shallow — expected "
                 f"tests/unit/{{module_path}}/{{source_file}}/test_{{function}}.py "
-                f"(minimum 3 path components, got {len(parts)})"
+                f"(minimum 2 path components, got {len(parts)})"
             )
             continue
 
