@@ -1,4 +1,5 @@
 """Tests for get_prompts_output_dir function."""
+
 import pytest
 
 

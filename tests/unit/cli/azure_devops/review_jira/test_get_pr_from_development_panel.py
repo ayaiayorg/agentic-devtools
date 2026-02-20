@@ -1,4 +1,5 @@
 """Tests for get_pr_from_development_panel function."""
+
 import pytest
 
 

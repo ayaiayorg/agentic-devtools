@@ -1,6 +1,5 @@
 """Tests for the review_commands module and helper functions."""
 
-
 from agdt_ai_helpers.cli.azure_devops.review_helpers import (
     extract_jira_issue_key_from_title,
 )

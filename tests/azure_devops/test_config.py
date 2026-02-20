@@ -370,9 +370,7 @@ class TestRepositoryDetection:
         config = azure_devops.AzureDevOpsConfig.from_state()
         assert config.repository == "custom-repo"
 
-    def test_from_state_falls_back_to_default_when_git_fails(
-        self, temp_state_dir, clear_state_before, monkeypatch
-    ):
+    def test_from_state_falls_back_to_default_when_git_fails(self, temp_state_dir, clear_state_before, monkeypatch):
         """Test config falls back to default when git command fails."""
         import subprocess
 
@@ -383,4 +381,3 @@ class TestRepositoryDetection:
 
         config = azure_devops.AzureDevOpsConfig.from_state()
         assert config.repository == azure_devops.DEFAULT_REPOSITORY
-

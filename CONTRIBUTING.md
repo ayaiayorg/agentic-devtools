@@ -188,6 +188,10 @@ If you see a modified `_version.py` in `git status`, discard the change:
 git checkout -- agentic_devtools/_version.py
 ```
 
+> **⚠️ AI AGENTS:** Run the command above **before** calling `report_progress` (or any other
+> commit/push tool). `report_progress` runs `git add .` which will include `_version.py` if it was
+> modified by a package install or build step during your session.
+
 ## Submitting Changes
 
 ### Branch Naming

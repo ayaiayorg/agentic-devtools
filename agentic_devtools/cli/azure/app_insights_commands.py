@@ -205,11 +205,7 @@ def _run_app_insights_query(
         print(f"  Environment   : {environment}")
         print(f"  App Insights  : {config.name}")
         print(f"  Resource ID   : {config.resource_id}")
-        print(
-            f"  Query         : {query[:100]}..."
-            if len(query) > 100
-            else f"  Query         : {query}"
-        )
+        print(f"  Query         : {query[:100]}..." if len(query) > 100 else f"  Query         : {query}")
         if output_file:
             print(f"  Output File   : {output_file}")
         return {"dry_run": True}
@@ -303,9 +299,7 @@ def _write_results_to_file(data: dict, output_file: Path) -> None:
         return
 
     table = tables[0]
-    columns = [
-        col.get("name", f"col{i}") for i, col in enumerate(table.get("columns", []))
-    ]
+    columns = [col.get("name", f"col{i}") for i, col in enumerate(table.get("columns", []))]
     rows = table.get("rows", [])
 
     lines = [
@@ -337,9 +331,7 @@ def _print_query_results(data: dict, format_type: str = "table") -> None:
         return
 
     table = tables[0]
-    columns = [
-        col.get("name", f"col{i}") for i, col in enumerate(table.get("columns", []))
-    ]
+    columns = [col.get("name", f"col{i}") for i, col in enumerate(table.get("columns", []))]
     rows = table.get("rows", [])
 
     if not rows:
@@ -464,15 +456,9 @@ def query_fabric_dap_errors() -> None:
     if workbench:
         filter_parts.append(f"workbench={workbench}")
     filter_msg = f" [{', '.join(filter_parts)}]" if filter_parts else ""
-    print(
-        f"Querying Fabric DAP errors in {environment} (last {timespan}){filter_msg}..."
-    )
+    print(f"Querying Fabric DAP errors in {environment} (last {timespan}){filter_msg}...")
 
-    output_file = (
-        _get_temp_output_dir() / "temp-fabric-dap-errors.txt"
-        if output_to_file
-        else None
-    )
+    output_file = _get_temp_output_dir() / "temp-fabric-dap-errors.txt" if output_to_file else None
 
     result = _run_app_insights_query(
         environment=environment,
@@ -584,15 +570,9 @@ def _query_fabric_dap_provisioning_sync() -> int:
     if workbench:
         filter_parts.append(f"workbench={workbench}")
     filter_msg = f" [{', '.join(filter_parts)}]" if filter_parts else ""
-    print(
-        f"Querying Fabric DAP provisioning flow in {environment} (last {timespan}){filter_msg}..."
-    )
+    print(f"Querying Fabric DAP provisioning flow in {environment} (last {timespan}){filter_msg}...")
 
-    output_file = (
-        _get_temp_output_dir() / "temp-fabric-dap-provisioning.txt"
-        if output_to_file
-        else None
-    )
+    output_file = _get_temp_output_dir() / "temp-fabric-dap-provisioning.txt" if output_to_file else None
 
     result = _run_app_insights_query(
         environment=environment,
@@ -670,15 +650,9 @@ def query_fabric_dap_timeline() -> None:
     if workbench:
         filter_parts.append(f"workbench={workbench}")
     filter_msg = f" [{', '.join(filter_parts)}]" if filter_parts else ""
-    print(
-        f"Querying Fabric DAP timeline in {environment} (last {timespan}){filter_msg}..."
-    )
+    print(f"Querying Fabric DAP timeline in {environment} (last {timespan}){filter_msg}...")
 
-    output_file = (
-        _get_temp_output_dir() / "temp-fabric-dap-timeline.txt"
-        if output_to_file
-        else None
-    )
+    output_file = _get_temp_output_dir() / "temp-fabric-dap-timeline.txt" if output_to_file else None
 
     result = _run_app_insights_query(
         environment=environment,
@@ -841,9 +815,7 @@ def query_fabric_dap_errors_async() -> None:
         agdt-query-fabric-dap-errors --workbench STND --timespan 1h
         agdt-query-fabric-dap-errors  # Uses values from state
     """
-    parser = _create_common_parser(
-        "Query Fabric DAP error logs from Application Insights"
-    )
+    parser = _create_common_parser("Query Fabric DAP error logs from Application Insights")
     args = parser.parse_args()
 
     # Set state from CLI args (if provided)
@@ -875,9 +847,7 @@ def query_fabric_dap_provisioning_async() -> None:
         agdt-query-fabric-dap-provisioning --workbench STND --output-file
         agdt-query-fabric-dap-provisioning  # Uses values from state
     """
-    parser = _create_common_parser(
-        "Query Fabric DAP provisioning flow logs from Application Insights"
-    )
+    parser = _create_common_parser("Query Fabric DAP provisioning flow logs from Application Insights")
     parser.add_argument(
         "--background/--no-background",
         dest="background",
@@ -918,9 +888,7 @@ def query_fabric_dap_timeline_async() -> None:
         agdt-query-fabric-dap-timeline --workbench STND --limit 1000
         agdt-query-fabric-dap-timeline  # Uses values from state
     """
-    parser = _create_common_parser(
-        "Query Fabric DAP provisioning timeline for performance analysis"
-    )
+    parser = _create_common_parser("Query Fabric DAP provisioning timeline for performance analysis")
     args = parser.parse_args()
 
     # Set state from CLI args (if provided)

@@ -1,4 +1,5 @@
 """Tests for connect_vpn function."""
+
 from unittest.mock import patch
 
 
@@ -66,6 +67,7 @@ class TestConnectVpn:
 
         assert success is False
         assert "not found" in msg.lower() or "manually" in msg.lower()
+
 
 class TestConnectVpnTimeoutPaths:
     """Tests for connect_vpn timeout and manual fallback paths."""

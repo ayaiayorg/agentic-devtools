@@ -1,4 +1,5 @@
 """Tests for resolve_thread function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from agentic_devtools.cli import azure_devops
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
+
 
 class TestResolveThread:
     """Tests for resolve_thread command."""
@@ -36,6 +38,7 @@ class TestResolveThread:
         state.set_pull_request_id(12345)
         with pytest.raises(KeyError, match="thread_id"):
             azure_devops.resolve_thread()
+
 
 class TestResolveThreadActualCall:
     """Tests for resolve_thread with mocked API calls."""
