@@ -71,7 +71,7 @@ Why:
 - Direct pytest calls don't integrate with the background task system
 - `agdt-test-file` shows coverage ONLY for the specified source file
 
-See [Testing](#12-testing) for all test commands.
+See [Testing](#13-testing) for all test commands.
 
 ### ⚠️ CRITICAL: Run PR Checks Before Pushing
 
@@ -928,6 +928,7 @@ tests/unit/{source_file_name}/test_{function_name}.py
 ```
 
 For example:
+
 - `agentic_devtools/state.py` → `tests/unit/state/test_get_workflow_state.py`
 - `agentic_devtools/background_tasks.py` → `tests/unit/background_tasks/test_run_function_in_background.py`
 
