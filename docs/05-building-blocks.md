@@ -64,7 +64,9 @@ graph TB
     Runner --> WorkflowCmd
 ```
 
-Note: `Runner` here refers to `cli/runner.py`, which provides programmatic access to all commands by name. Console script entry points invoke the CLI implementation functions directly.
+Note: `Runner` here refers to `cli/runner.py`, which provides programmatic access to all commands by name.
+Console script entry points call `cli.runner:run_as_script`, which uses `COMMAND_MAP` to route to the
+appropriate CLI implementation function and centralizes routing and `KeyboardInterrupt` handling.
 
 ## 5.3 Level 3: Core Components
 
