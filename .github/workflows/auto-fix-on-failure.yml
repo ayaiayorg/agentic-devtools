@@ -6,13 +6,13 @@ on:
     types: [completed]
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   auto-fix:
-    name: Trigger Copilot Auto-Fix
+    name: Auto-Fix PR Check Failures
     runs-on: ubuntu-latest
     # Only run when a workflow fails and it was triggered by a pull request
     if: >
@@ -20,199 +20,237 @@ jobs:
       github.event.workflow_run.event == 'pull_request'
 
     steps:
-      - name: Find Associated PR and Check Retry Limit
+      # ── Step 1: Find PR and count existing auto-fix attempts ──────────────
+      - name: Find PR and Check Retry Counts
         id: check-retry
         uses: actions/github-script@v7
         with:
           script: |
-            // Find the PR associated with this workflow run
             const workflowRun = context.payload.workflow_run;
             const headBranch = workflowRun.head_branch;
-            const headSha = workflowRun.head_sha;
 
             console.log(`Looking for PR with head branch: ${headBranch}`);
 
-            // Get all open PRs for this repository
             const { data: pulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open'
             });
 
-            // Find the PR that matches the head branch
             const pr = pulls.find(p => p.head.ref === headBranch);
 
             if (!pr) {
               console.log('No open PR found for this workflow run');
-              core.setOutput('should_comment', 'false');
+              core.setOutput('found_pr', 'false');
               return;
             }
 
             console.log(`Found PR #${pr.number}: ${pr.title}`);
-            core.setOutput('pr_number', pr.number);
-            core.setOutput('pr_title', pr.title);
 
-            // Get all comments on this PR to check for existing auto-fix attempts
+            // Skip fork PRs — cannot push to forks
+            if (pr.head.repo.full_name !== pr.base.repo.full_name) {
+              console.log('PR is from a fork — skipping auto-fix (cannot push to forks)');
+              core.setOutput('found_pr', 'false');
+              return;
+            }
+
+            core.setOutput('found_pr', 'true');
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('head_branch', headBranch);
+
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number
             });
 
-            // Look for auto-fix comments (marked with <!-- auto-fix-comment -->)
-            const autoFixComments = comments.filter(c => 
-              c.body && c.body.includes('<!-- auto-fix-comment -->')
-            );
+            const tier1Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-push -->')).length;
+            const tier2Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-copilot-cli -->')).length;
 
-            console.log(`Found ${autoFixComments.length} existing auto-fix comments`);
+            console.log(`Tier 1 (ruff) attempts so far: ${tier1Count}`);
+            console.log(`Tier 2 (Copilot CLI) attempts so far: ${tier2Count}`);
 
-            let maxRetries = null;
-            
-            // Check if max retry limit has already been set
-            for (const comment of autoFixComments) {
-              const match = comment.body.match(/<!-- auto-fix-max: (\d+) -->/);
-              if (match) {
-                maxRetries = parseInt(match[1], 10);
-                console.log(`Found max retry limit: ${maxRetries}`);
-                break;
-              }
-            }
+            const tier1Max = 3;
+            const tier2Max = 2;
 
-            // If this is the first auto-fix attempt, calculate max retries
-            if (maxRetries === null) {
-              console.log('First auto-fix attempt - calculating max retries');
-              
-              // Get failed jobs from the workflow run
-              const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: workflowRun.id
-              });
+            core.setOutput('tier1_count', tier1Count);
+            core.setOutput('tier2_count', tier2Count);
+            core.setOutput('tier1_remaining', tier1Count < tier1Max ? 'true' : 'false');
+            core.setOutput('tier2_remaining', tier2Count < tier2Max ? 'true' : 'false');
+            core.setOutput('exhausted', (tier1Count >= tier1Max && tier2Count >= tier2Max) ? 'true' : 'false');
 
-              const failedJobs = jobs.jobs.filter(job => 
-                job.conclusion === 'failure'
-              );
+      # ── Step 2: Tier 1 — ruff auto-fix (direct commit + push) ────────────
+      - name: Checkout PR Branch
+        if: steps.check-retry.outputs.found_pr == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.check-retry.outputs.head_branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-              console.log(`Found ${failedJobs.length} failed jobs`);
-              
-              // Calculate max retries: number of failed jobs × 3
-              maxRetries = failedJobs.length * 3;
-              console.log(`Calculated max retries: ${maxRetries}`);
-              
-              core.setOutput('max_retries', maxRetries);
-              core.setOutput('is_first_attempt', 'true');
-              core.setOutput('failed_job_count', failedJobs.length);
-              core.setOutput('failed_jobs', JSON.stringify(
-                failedJobs.map(job => ({
-                  name: job.name,
-                  conclusion: job.conclusion,
-                  html_url: job.html_url
-                }))
-              ));
-            } else {
-              core.setOutput('max_retries', maxRetries);
-              core.setOutput('is_first_attempt', 'false');
-            }
+      - name: Tier 1 — ruff auto-fix
+        id: ruff-fix
+        if: >
+          steps.check-retry.outputs.found_pr == 'true' &&
+          steps.check-retry.outputs.tier1_remaining == 'true'
+        run: |
+          python -m pip install --quiet ruff
+          ruff check --fix . || true
+          ruff format .
+          if git diff --quiet; then
+            echo "No changes made by ruff"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ruff made changes"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
-            // Count current attempts
-            const currentAttempts = autoFixComments.length;
-            console.log(`Current attempts: ${currentAttempts}, Max retries: ${maxRetries}`);
+      - name: Commit and push ruff fixes
+        id: ruff-push
+        if: steps.ruff-fix.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: auto-fix lint issues with ruff"
+          git push origin HEAD
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
 
-            if (currentAttempts >= maxRetries) {
-              console.log('Max retry limit reached');
-              core.setOutput('should_comment', 'false');
-              core.setOutput('limit_reached', 'true');
-            } else {
-              console.log('Retries remaining, will post auto-fix comment');
-              core.setOutput('should_comment', 'true');
-              core.setOutput('limit_reached', 'false');
-              core.setOutput('attempt_number', currentAttempts + 1);
-            }
-
-      - name: Post Auto-Fix Comment
-        if: steps.check-retry.outputs.should_comment == 'true'
+      - name: Post Tier 1 comment
+        if: steps.ruff-push.outputs.pushed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = ${{ steps.check-retry.outputs.pr_number }};
-            const isFirstAttempt = '${{ steps.check-retry.outputs.is_first_attempt }}' === 'true';
-            const maxRetries = ${{ steps.check-retry.outputs.max_retries }};
-            const attemptNumber = ${{ steps.check-retry.outputs.attempt_number }};
+            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
+            const tier1Count = parseInt('${{ steps.check-retry.outputs.tier1_count }}', 10) + 1;
             const workflowRun = context.payload.workflow_run;
-
-            let failedJobsInfo = '';
-            
-            if (isFirstAttempt) {
-              const failedJobs = JSON.parse('${{ steps.check-retry.outputs.failed_jobs }}');
-              failedJobsInfo = '\n### Failed Jobs\n\n';
-              failedJobs.forEach(job => {
-                failedJobsInfo += `- [${job.name}](${job.html_url})\n`;
-              });
-            } else {
-              // For subsequent attempts, just link to the workflow run
-              failedJobsInfo = `\n[View failed workflow run](${workflowRun.html_url})\n`;
-            }
-
-            const commentBody = [
-              '<!-- auto-fix-comment -->',
-              isFirstAttempt ? `<!-- auto-fix-max: ${maxRetries} -->` : '',
-              '',
-              '## 🤖 Auto-Fix Request',
-              '',
-              `@copilot The PR checks have failed. Please analyze the failures and push a fix commit.`,
-              '',
-              `**Attempt**: ${attemptNumber} of ${maxRetries}`,
-              `**Workflow**: ${workflowRun.name}`,
-              `**Run**: [#${workflowRun.run_number}](${workflowRun.html_url})`,
-              failedJobsInfo,
-              '',
-              '---',
-              '_This is an automated comment from the auto-fix workflow. New checks will require human approval before running._'
-            ].filter(line => line !== '').join('\n');
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: commentBody
+              body: [
+                '<!-- auto-fix-push -->',
+                '## 🔧 Auto-Fix: ruff (Tier 1)',
+                '',
+                `**Attempt**: ${tier1Count} of 3`,
+                `**Triggered by**: [${workflowRun.name} #${workflowRun.run_number}](${workflowRun.html_url})`,
+                '',
+                'Applied `ruff check --fix` and `ruff format` and pushed the changes directly to this branch.',
+                '',
+                '---',
+                '_Automated fix by the auto-fix workflow._'
+              ].join('\n')
             });
 
-            console.log(`Posted auto-fix comment (attempt ${attemptNumber}/${maxRetries})`);
+      # ── Step 3: Tier 2 — Copilot CLI headless fix ────────────────────────
+      # Security note: this step only runs for same-repo PRs (fork PRs have
+      # found_pr=false set in step 1). pip install -e ".[dev]" installs PR code,
+      # which carries the same trust level as what the test CI already executes.
+      - name: Tier 2 — Copilot CLI headless fix
+        id: copilot-fix
+        if: >
+          steps.check-retry.outputs.found_pr == 'true' &&
+          steps.ruff-fix.outputs.changed != 'true' &&
+          steps.check-retry.outputs.tier2_remaining == 'true'
+        env:
+          COPILOT_AGENT_PAT: ${{ secrets.COPILOT_AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
+        run: |
+          python -m pip install --quiet -e ".[dev]"
+          npm install -g @githubnext/copilot-cli 2>/dev/null || true
 
-      - name: Post Max Retry Limit Reached Comment
-        if: steps.check-retry.outputs.limit_reached == 'true'
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Capture current errors to include in the prompt
+          RUFF_ERRORS=$(ruff check . 2>&1 || true)
+          PYTEST_ERRORS=$(python -m pytest --tb=short -q 2>&1 | tail -50 || true)
+          WORKFLOW_URL="${{ github.event.workflow_run.html_url }}"
+
+          PROMPT="CI checks failed on this pull request. \
+          Workflow run: ${WORKFLOW_URL}
+
+          Current ruff errors:
+          ${RUFF_ERRORS}
+
+          Current pytest errors (last 50 lines):
+          ${PYTEST_ERRORS}
+
+          Please fix the source code so all checks pass:
+          1. Run 'bash scripts/run-pr-checks.sh' to see the exact errors
+          2. Fix the source code
+          3. Re-run 'bash scripts/run-pr-checks.sh' to verify all checks pass
+          4. Commit and push directly to this branch using 'git push origin HEAD'
+
+          Do NOT create a new PR. Push directly to the current branch."
+
+          copilot -p "$PROMPT" -s --no-ask-user --allow-all-tools --allow-all-paths || true
+
+          # Safety net: if Copilot left uncommitted changes, commit and push them
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git add -A
+            git commit -m "chore: auto-fix via Copilot CLI"
+            git push origin HEAD
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post Tier 2 comment
+        if: steps.copilot-fix.outputs.pushed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = ${{ steps.check-retry.outputs.pr_number }};
-            const maxRetries = ${{ steps.check-retry.outputs.max_retries }};
+            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
+            const tier2Count = parseInt('${{ steps.check-retry.outputs.tier2_count }}', 10) + 1;
             const workflowRun = context.payload.workflow_run;
-
-            const commentBody = [
-              '## ⚠️ Auto-Fix Retry Limit Reached',
-              '',
-              `The maximum number of auto-fix attempts (${maxRetries}) has been reached.`,
-              '',
-              '**A human review is now required.**',
-              '',
-              `**Failed Workflow**: ${workflowRun.name}`,
-              `**Run**: [#${workflowRun.run_number}](${workflowRun.html_url})`,
-              '',
-              '### Next Steps',
-              '',
-              '1. Review the [workflow logs](${workflowRun.html_url}) to understand the failures',
-              '2. Manually fix the issues in your local branch',
-              '3. Push your changes to trigger new checks',
-              '',
-              '---',
-              '_This is an automated comment from the auto-fix workflow._'
-            ].join('\n');
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: commentBody
+              body: [
+                '<!-- auto-fix-copilot-cli -->',
+                '## 🤖 Auto-Fix: Copilot CLI (Tier 2)',
+                '',
+                `**Attempt**: ${tier2Count} of 2`,
+                `**Triggered by**: [${workflowRun.name} #${workflowRun.run_number}](${workflowRun.html_url})`,
+                '',
+                'Ran the Copilot CLI in headless mode to diagnose and fix the failures. Changes pushed directly to this branch.',
+                '',
+                '---',
+                '_Automated fix by the auto-fix workflow._'
+              ].join('\n')
             });
 
-            console.log('Posted max retry limit reached comment');
+      # ── Step 4: Exhaustion notice ─────────────────────────────────────────
+      - name: Post exhaustion notice
+        if: >
+          steps.check-retry.outputs.found_pr == 'true' &&
+          steps.check-retry.outputs.exhausted == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
+            const workflowRun = context.payload.workflow_run;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: [
+                '## ⚠️ Auto-Fix Exhausted — Human Intervention Required',
+                '',
+                'Both auto-fix tiers have been exhausted (3 ruff attempts + 2 Copilot CLI attempts).',
+                '',
+                '**A human review is now required.**',
+                '',
+                `**Failed Workflow**: [${workflowRun.name} #${workflowRun.run_number}](${workflowRun.html_url})`,
+                '',
+                '### Next Steps',
+                '',
+                '1. Review the [workflow logs](' + workflowRun.html_url + ') to understand the failures',
+                '2. Run `bash scripts/run-pr-checks.sh` locally to reproduce the errors',
+                '3. Fix the issues and push your changes',
+                '',
+                '---',
+                '_Automated notice from the auto-fix workflow._'
+              ].join('\n')
+            });
