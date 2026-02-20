@@ -38,11 +38,12 @@ def validate() -> list[str]:
 
         # Rule: test file must be exactly one level inside a source-file folder.
         # Minimum depth: source_file_name folder + test file = >= 2 parts.
-        # (module_path may be empty for top-level source files like background_tasks.py)
+        # Root-level source files (e.g. agentic_devtools/background_tasks.py) have 2 parts;
+        # deeper modules (e.g. agentic_devtools/cli/testing.py) have 3+ parts.
         if len(parts) < 2:
             violations.append(
                 f"{rel}: test file is too shallow — expected "
-                f"tests/unit/{{module_path}}/{{source_file}}/test_{{function}}.py "
+                f"tests/unit/{{source_file}}/test_{{function}}.py "
                 f"(minimum 2 path components, got {len(parts)})"
             )
             continue
@@ -55,9 +56,10 @@ def validate() -> list[str]:
         # Rule: the corresponding source file must exist.
         expected_source = SOURCE_ROOT.joinpath(*module_path_parts) / f"{source_file_folder}.py"
         if not expected_source.exists():
+            source_path_display = "/".join((*module_path_parts, f"{source_file_folder}.py"))
             violations.append(
                 f"{rel}: no matching source file found at "
-                f"agentic_devtools/{'/'.join(module_path_parts)}/{source_file_folder}.py"
+                f"agentic_devtools/{source_path_display}"
             )
 
         # Rule: every intermediate directory must have an __init__.py.
