@@ -9,6 +9,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from agentic_devtools.cli import runner
 
 
@@ -31,9 +32,7 @@ class TestCommandMap:
     def test_all_command_names_start_with_agdt(self):
         """Test that all command names start with 'agdt-'."""
         for cmd in runner.COMMAND_MAP.keys():
-            assert cmd.startswith("agdt-"), (
-                f"Command '{cmd}' doesn't start with 'agdt-'"
-            )
+            assert cmd.startswith("agdt-"), f"Command '{cmd}' doesn't start with 'agdt-'"
 
     def test_common_commands_exist(self):
         """Test that common commands are in the map."""
@@ -52,9 +51,7 @@ class TestCommandMap:
             "agdt-task-wait",
         ]
         for cmd in expected_commands:
-            assert cmd in runner.COMMAND_MAP, (
-                f"Expected command '{cmd}' not in COMMAND_MAP"
-            )
+            assert cmd in runner.COMMAND_MAP, f"Expected command '{cmd}' not in COMMAND_MAP"
 
     def test_azure_cli_commands_exist(self):
         """Test that Azure CLI commands are in the map."""
@@ -65,9 +62,7 @@ class TestCommandMap:
             "agdt-query-fabric-dap-timeline",
         ]
         for cmd in azure_commands:
-            assert cmd in runner.COMMAND_MAP, (
-                f"Expected Azure command '{cmd}' not in COMMAND_MAP"
-            )
+            assert cmd in runner.COMMAND_MAP, f"Expected Azure command '{cmd}' not in COMMAND_MAP"
 
     @pytest.mark.parametrize(
         "command,expected_module,expected_func",
@@ -343,9 +338,7 @@ class TestCommandMapIntegrity:
     )
     def test_newly_added_commands_exist(self, command):
         """Test that commands previously missing from COMMAND_MAP are present."""
-        assert command in runner.COMMAND_MAP, (
-            f"Expected command '{command}' not in COMMAND_MAP"
-        )
+        assert command in runner.COMMAND_MAP, f"Expected command '{command}' not in COMMAND_MAP"
 
 
 class TestRunAsScript:

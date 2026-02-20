@@ -1,4 +1,5 @@
 """Tests for require_requests helper."""
+
 from unittest.mock import patch
 
 import pytest

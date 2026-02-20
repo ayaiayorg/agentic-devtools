@@ -1,4 +1,5 @@
 """Tests for approve_pull_request function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from agentic_devtools.cli import azure_devops
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
+
 
 class TestApprovePullRequest:
     """Tests for approve_pull_request command."""
@@ -28,6 +30,7 @@ class TestApprovePullRequest:
         state.set_value("content", "LGTM!")
         with pytest.raises(KeyError, match="pull_request_id"):
             azure_devops.approve_pull_request()
+
 
 class TestApprovePullRequestActualCall:
     """Tests for approve_pull_request with mocked API calls."""

@@ -4,8 +4,6 @@ Tests for network context detection module.
 
 from unittest.mock import patch
 
-import pytest
-
 from agentic_devtools.cli.network.detection import (
     NetworkContext,
     detect_network_context,

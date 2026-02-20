@@ -31,9 +31,7 @@ def _get_requests():
     try:
         import requests
     except ImportError as exc:  # pragma: no cover - defensive branch
-        raise ImportError(
-            "requests library required. Install with: pip install requests"
-        ) from exc
+        raise ImportError("requests library required. Install with: pip install requests") from exc
     return requests
 
 
@@ -43,16 +41,12 @@ def normalize_package_name(name: str) -> str:
     return normalized.strip("-")
 
 
-def pypi_version_exists(
-    package_name: str, version: str, *, repository: str = "pypi"
-) -> bool:
+def pypi_version_exists(package_name: str, version: str, *, repository: str = "pypi") -> bool:
     """Check whether a version exists on PyPI/TestPyPI."""
     repo = repository.lower()
     if repo not in {"pypi", "testpypi"}:
         raise ValueError(f"Unsupported repository: {repository}")
-    base_url = (
-        "https://test.pypi.org/pypi" if repo == "testpypi" else "https://pypi.org/pypi"
-    )
+    base_url = "https://test.pypi.org/pypi" if repo == "testpypi" else "https://pypi.org/pypi"
     normalized = normalize_package_name(package_name)
     url = f"{base_url}/{normalized}/{version}/json"
     requests = _get_requests()
@@ -90,9 +84,7 @@ def validate_distribution(dist_dir: str = "dist") -> None:
         raise ReleaseError(f"Twine check failed: {result.stderr or result.stdout}")
 
 
-def upload_distribution(
-    dist_dir: str = "dist", *, repository: Optional[str] = None
-) -> None:
+def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = None) -> None:
     """Upload built artifacts with twine."""
     pattern = str(Path(dist_dir) / "*")
     args = ["python", "-m", "twine", "upload"]

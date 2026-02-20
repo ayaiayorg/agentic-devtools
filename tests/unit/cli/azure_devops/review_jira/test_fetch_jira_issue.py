@@ -1,4 +1,5 @@
 """Tests for fetch_jira_issue function."""
+
 import pytest
 
 

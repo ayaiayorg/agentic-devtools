@@ -6,11 +6,10 @@ to ensure CLI commands work correctly with realistic API structures.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agentic_devtools.state import get_value, set_value
+from agentic_devtools.state import set_value
 
 
 class TestAzureDevOpsCreatePullRequestE2E:

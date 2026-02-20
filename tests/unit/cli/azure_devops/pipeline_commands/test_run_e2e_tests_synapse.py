@@ -1,4 +1,5 @@
 """Tests for run e2e tests synapse function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,6 +56,7 @@ class TestRunE2eTestsSynapseJsonParseError:
 
         captured = capsys.readouterr()
         assert "https://fallback/url" in captured.out
+
 
 class TestRunE2eTestsSynapse:
     """Tests for run_e2e_tests_synapse command."""
@@ -118,6 +120,7 @@ class TestRunE2eTestsSynapse:
         state.set_dry_run(True)
         with pytest.raises(SystemExit):
             azure_devops.run_e2e_tests_synapse()
+
 
 class TestRunE2eTestsSynapseActualCall:
     """Tests for run_e2e_tests_synapse with mocked API calls."""

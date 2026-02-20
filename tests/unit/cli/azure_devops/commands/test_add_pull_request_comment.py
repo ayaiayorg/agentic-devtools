@@ -1,4 +1,5 @@
 """Tests for add_pull_request_comment function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from agentic_devtools.cli import azure_devops
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
+
 
 class TestAddPullRequestComment:
     """Tests for add_pull_request_comment command."""
@@ -102,6 +104,7 @@ class TestAddPullRequestComment:
 
         captured = capsys.readouterr()
         assert "resolve" in captured.out.lower()
+
 
 class TestAddPullRequestCommentActualCall:
     """Tests for add_pull_request_comment with mocked API calls."""

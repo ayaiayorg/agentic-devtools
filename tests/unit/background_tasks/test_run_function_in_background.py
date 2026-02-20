@@ -29,9 +29,7 @@ class TestRunFunctionInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            task = run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
+            task = run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
 
         assert isinstance(task, BackgroundTask)
 
@@ -40,9 +38,7 @@ class TestRunFunctionInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            task = run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
+            task = run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
 
         assert task.command == "cleanup_old_logs"
 
@@ -64,9 +60,7 @@ class TestRunFunctionInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            task = run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
+            task = run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
 
             stored_task = get_task_by_id(task.id)
             assert stored_task.status == TaskStatus.PENDING
@@ -76,9 +70,7 @@ class TestRunFunctionInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
+            run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
 
         mock_popen.assert_called_once()
 
@@ -87,11 +79,7 @@ class TestRunFunctionInBackground:
         with patch("subprocess.Popen") as mock_popen:
             mock_popen.return_value = MagicMock(pid=1)
 
-            task1 = run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
-            task2 = run_function_in_background(
-                "agentic_devtools.background_tasks", "cleanup_old_logs"
-            )
+            task1 = run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
+            task2 = run_function_in_background("agentic_devtools.background_tasks", "cleanup_old_logs")
 
         assert task1.id != task2.id

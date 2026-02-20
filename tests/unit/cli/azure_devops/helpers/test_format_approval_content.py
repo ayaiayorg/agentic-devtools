@@ -1,4 +1,5 @@
 """Tests for format_approval_content helper."""
+
 from agentic_devtools.cli import azure_devops
 
 

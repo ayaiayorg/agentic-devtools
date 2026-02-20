@@ -1,4 +1,5 @@
 """Tests for run wb patch function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -57,6 +58,7 @@ class TestRunWbPatchJsonParseError:
 
         captured = capsys.readouterr()
         assert "https://fallback/url" in captured.out
+
 
 class TestRunWbPatch:
     """Tests for run_wb_patch command."""
@@ -166,6 +168,7 @@ class TestRunWbPatch:
 
         captured = capsys.readouterr()
         assert "Deploy Fabric DAP" in captured.out
+
 
 class TestRunWbPatchActualCall:
     """Tests for run_wb_patch with mocked API calls."""
