@@ -113,6 +113,40 @@ For testing before production:
 - Don't delete and recreate tags with the same name
 - Development versions (with `.devN`) are not typically published to PyPI
 
+## RELEASE_PAT Requirement
+
+`RELEASE_PAT` is required for **automatically triggering `publish.yml`** (PyPI publish) after a
+GitHub Release is created. GitHub deliberately does **not** fire the `release: published` event to
+other workflows when a release is created with `GITHUB_TOKEN` (to prevent cascading triggers).
+Because `publish.yml` listens for `release: types: [published]`, it will only be triggered
+automatically when the release is created with a PAT. Without it, the GitHub Release is still
+created — only the automatic PyPI publish is skipped.
+
+### Creating the PAT
+
+1. Go to **GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Set the resource owner to `ayaiayorg`
+4. Under **Repository access**, select **Only select repositories** → `ayaiayorg/agentic-devtools`
+5. Under **Repository permissions**, grant **Contents: Read and write**
+6. Generate the token and copy it
+
+### Storing the PAT as a Repository Secret
+
+1. Go to the repository **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Name: `RELEASE_PAT`
+4. Value: the fine-grained PAT you just created
+5. Click **Add secret**
+
+### Fallback Behavior
+
+If `RELEASE_PAT` is not configured, the workflow falls back to `GITHUB_TOKEN`. The release will
+still be created, but `publish.yml` will **not** be triggered automatically. In that case, you can
+trigger it manually via **Actions → Publish to PyPI → Run workflow → pypi** and **make sure to
+select the release tag (e.g. `v1.2.3`) in the branch/tag dropdown** before clicking **Run
+workflow**, so that the published package version matches the release.
+
 ## References
 
 - [hatch-vcs documentation](https://github.com/ofek/hatch-vcs)
