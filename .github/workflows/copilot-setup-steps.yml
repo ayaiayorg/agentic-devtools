@@ -1,0 +1,39 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Install additional tools
+        run: |
+          npm install -g markdownlint-cli2
+          npm install -g @githubnext/copilot-cli
+
+      - name: Verify setup
+        run: |
+          python --version
+          ruff --version
+          pytest --version
+          markdownlint-cli2 --help > /dev/null 2>&1 && echo "markdownlint-cli2 OK"
+          which copilot && echo "copilot OK" || echo "copilot MISSING"
+          echo "Setup complete — run 'bash scripts/run-pr-checks.sh' to verify all checks pass"

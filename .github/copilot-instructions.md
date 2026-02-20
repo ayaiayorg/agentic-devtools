@@ -73,6 +73,35 @@ Why:
 
 See [Testing](#12-testing) for all test commands.
 
+### ⚠️ CRITICAL: Run PR Checks Before Pushing
+
+**Before pushing ANY changes (especially before creating a PR), ALWAYS run the full PR check suite:**
+
+```bash
+bash scripts/run-pr-checks.sh
+```
+
+This script runs CI-blocking checks plus ruff formatting (applied by the auto-fix workflow):
+
+1. Test structure validation
+2. pytest with coverage
+3. E2E smoke tests
+4. ruff check (lint)
+5. ruff format check
+6. markdownlint
+7. mypy (informational — does not block CI)
+
+**If any check fails, fix the issues before pushing.** This prevents CI failures and avoids triggering the auto-fix workflow unnecessarily.
+
+For quick auto-fixable lint issues:
+
+```bash
+ruff check --fix .
+ruff format .
+```
+
+Then re-run `bash scripts/run-pr-checks.sh` to verify everything passes.
+
 ## 2. Package Structure
 
 ```text
