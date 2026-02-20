@@ -81,7 +81,7 @@ See [Testing](#12-testing) for all test commands.
 bash scripts/run-pr-checks.sh
 ```
 
-This script runs the exact same checks as CI (`test.yml` + `lint.yml`):
+This script runs CI-blocking checks plus ruff formatting (applied by the auto-fix workflow):
 
 1. Test structure validation
 2. pytest with coverage
@@ -89,6 +89,7 @@ This script runs the exact same checks as CI (`test.yml` + `lint.yml`):
 4. ruff check (lint)
 5. ruff format check
 6. markdownlint
+7. mypy (informational — does not block CI)
 
 **If any check fails, fix the issues before pushing.** This prevents CI failures and avoids triggering the auto-fix workflow unnecessarily.
 

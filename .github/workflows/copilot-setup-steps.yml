@@ -35,4 +35,5 @@ jobs:
           ruff --version
           pytest --version
           markdownlint-cli2 --help > /dev/null 2>&1 && echo "markdownlint-cli2 OK"
+          which copilot && echo "copilot OK" || echo "copilot MISSING"
           echo "Setup complete — run 'bash scripts/run-pr-checks.sh' to verify all checks pass"
