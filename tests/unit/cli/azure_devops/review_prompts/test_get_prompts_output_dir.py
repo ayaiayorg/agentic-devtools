@@ -1,6 +1,4 @@
-"""
-Tests for review_prompts module.
-"""
+"""Tests for get_prompts_output_dir function."""
 
 
 class TestGetPromptsOutputDir:

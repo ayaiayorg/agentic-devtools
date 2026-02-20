@@ -71,7 +71,7 @@ Why:
 - Direct pytest calls don't integrate with the background task system
 - `agdt-test-file` shows coverage ONLY for the specified source file
 
-See [Testing](#12-testing) for all test commands.
+See [Testing](#13-testing) for all test commands.
 
 ### ⚠️ CRITICAL: Run PR Checks Before Pushing
 
@@ -887,10 +887,15 @@ The file is listed in `.gitignore`. **Do not** `git add`, edit, or commit it.
 - To bump the package version, create a new Git tag — see [RELEASING.md](../RELEASING.md).
 - If you see it modified in `git status`, discard it: `git checkout -- agentic_devtools/_version.py`
 
-> **⚠️ `report_progress` uses `git add .` which will stage this file** because it is still
-> tracked by Git despite being in `.gitignore`. Always run
-> `git checkout -- agentic_devtools/_version.py` **before** calling `report_progress` if the
-> file appears modified in `git status`.
+> **⚠️ AI AGENTS: Before calling `report_progress`**, always run:
+>
+> ```bash
+> git checkout -- agentic_devtools/_version.py
+> ```
+>
+> to discard any auto-generated version bump. The `report_progress` tool runs `git add .` which
+> will pick up this file if it has been modified by a package install or build step during your
+> session. Including it in a commit will cause CI/review failures.
 
 ### Identifying auto-generated files in the future
 
@@ -917,7 +922,29 @@ Pattern to follow:
 if p.name not in {"__init__.py", "_version.py"} and "__pycache__" not in p.parts
 ```
 
-## 11. Python Coding Patterns
+## 11. 1:1:1 Test Structure
+
+### Top-level source files (e.g., `state.py`, `background_tasks.py`)
+
+Source files directly in `agentic_devtools/` (with no subdirectory) map to:
+
+```text
+tests/unit/{source_file_name}/test_{symbol_name}.py
+```
+
+For example:
+
+- `agentic_devtools/state.py` → `tests/unit/state/test_get_workflow_state.py`
+- `agentic_devtools/background_tasks.py` → `tests/unit/background_tasks/test_run_function_in_background.py`
+
+The validator (`scripts/validate_test_structure.py`) requires a minimum of **2 path components**
+under `tests/unit/`, so top-level source files are fully supported without any workaround.
+
+> **⚠️ Do NOT create proxy/stub source files** (e.g., `agentic_devtools/root/state.py`) just to
+> add an extra path component. This approach pollutes the package with files that serve no
+> purpose beyond satisfying a validator that already handles the case natively.
+
+## 12. Python Coding Patterns
 
 ### Import ordering (ruff/isort)
 
@@ -970,7 +997,7 @@ recognised as a loadable Python source. Without the guard, the very first call �
 problem. The explicit `RuntimeError` surfaces the actual path that failed, making failures
 trivially easy to diagnose.
 
-## 12. Testing
+## 13. Testing
 
 **⚠️ AI AGENTS: ALWAYS use agdt-test commands, NEVER pytest directly!**
 
@@ -994,7 +1021,7 @@ agdt-task-wait                                          # Wait for completion (R
 Running synchronously causes AI agents to think something went wrong during the
 wait, leading to multiple restarts and wasted resources.
 
-## 13. Pre-commit Hooks
+## 14. Pre-commit Hooks
 
 The repository has pre-commit hooks for linting Python files in `scripts/`. To enable:
 
@@ -1039,7 +1066,7 @@ npm install -g cspell @cspell/dict-de-de @cspell/dict-python @cspell/dict-dotnet
 
 To add new words, edit `cspell.json` directly (keep alphabetically sorted). Multiple language dictionaries are enabled via imports in `cspell.json`.
 
-## 14. Common Workflows
+## 15. Common Workflows
 
 > **Note:** All action commands (those that mutate state or make API calls) spawn background tasks.
 > These return immediately. Use `agdt-task-status` or `agdt-task-wait` to monitor.
@@ -1323,7 +1350,7 @@ agdt-set jira.dry_run true
 agdt-add-jira-comment  # Previews without posting
 ```
 
-## 15. Output Files
+## 16. Output Files
 
 | File | Command | Content |
 |------|---------|---------|
@@ -1379,7 +1406,7 @@ The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
 - Recent tasks are automatically pruned when not running and finished more than 5 minutes ago
 - The `all-background-tasks.json` file keeps the complete history without pruning
 
-## 16. Instruction Maintenance
+## 17. Instruction Maintenance
 
 Update this file when:
 

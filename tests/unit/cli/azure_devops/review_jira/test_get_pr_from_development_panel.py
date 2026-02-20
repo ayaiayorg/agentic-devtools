@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for get_pr_from_development_panel function."""
 
 from unittest.mock import patch
 

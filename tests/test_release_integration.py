@@ -25,9 +25,7 @@ def _set_release_state(
 def test_release_flow_runs_build_and_upload(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_release_state()
 
-    monkeypatch.setattr(
-        commands.helpers, "pypi_version_exists", Mock(return_value=False)
-    )
+    monkeypatch.setattr(commands.helpers, "pypi_version_exists", Mock(return_value=False))
     monkeypatch.setattr(commands, "_run_tests_and_wait", Mock(return_value=0))
     build_mock = Mock()
     validate_mock = Mock()
@@ -47,9 +45,7 @@ def test_release_flow_skips_upload_on_dry_run(monkeypatch: pytest.MonkeyPatch) -
     _set_release_state()
     set_value("pypi.dry_run", True)
 
-    monkeypatch.setattr(
-        commands.helpers, "pypi_version_exists", Mock(return_value=False)
-    )
+    monkeypatch.setattr(commands.helpers, "pypi_version_exists", Mock(return_value=False))
     monkeypatch.setattr(commands, "_run_tests_and_wait", Mock(return_value=0))
     monkeypatch.setattr(commands.helpers, "build_distribution", Mock())
     monkeypatch.setattr(commands.helpers, "validate_distribution", Mock())
@@ -64,9 +60,7 @@ def test_release_flow_skips_upload_on_dry_run(monkeypatch: pytest.MonkeyPatch) -
 def test_release_blocks_upload_on_test_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_release_state()
 
-    monkeypatch.setattr(
-        commands.helpers, "pypi_version_exists", Mock(return_value=False)
-    )
+    monkeypatch.setattr(commands.helpers, "pypi_version_exists", Mock(return_value=False))
     monkeypatch.setattr(commands, "_run_tests_and_wait", Mock(return_value=1))
     monkeypatch.setattr(commands.helpers, "build_distribution", Mock())
     monkeypatch.setattr(commands.helpers, "validate_distribution", Mock())
@@ -79,14 +73,10 @@ def test_release_blocks_upload_on_test_failure(monkeypatch: pytest.MonkeyPatch) 
     upload_mock.assert_not_called()
 
 
-def test_release_summary_output(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_release_summary_output(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     _set_release_state()
 
-    monkeypatch.setattr(
-        commands.helpers, "pypi_version_exists", Mock(return_value=False)
-    )
+    monkeypatch.setattr(commands.helpers, "pypi_version_exists", Mock(return_value=False))
     monkeypatch.setattr(commands, "_run_tests_and_wait", Mock(return_value=0))
     monkeypatch.setattr(commands.helpers, "build_distribution", Mock())
     monkeypatch.setattr(commands.helpers, "validate_distribution", Mock())

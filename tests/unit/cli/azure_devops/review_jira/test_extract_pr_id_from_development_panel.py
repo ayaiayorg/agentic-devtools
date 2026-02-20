@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for extract_pr_id_from_development_panel function."""
 
 
 class TestExtractPrIdFromDevelopmentPanel:

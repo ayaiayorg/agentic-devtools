@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for get_jira_credentials function."""
 
 import os
 from unittest.mock import patch

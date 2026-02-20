@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for display_jira_issue_summary function."""
 
 
 class TestDisplayJiraIssueSummary:

@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for get_linked_pull_request_from_jira function."""
 
 from unittest.mock import patch
 

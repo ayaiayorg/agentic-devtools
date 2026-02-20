@@ -2,8 +2,8 @@
 
 import importlib.abc
 import importlib.util
-from importlib import import_module
 import sys as _sys
+from importlib import import_module
 
 _new_pkg = import_module("agentic_devtools")
 _sys.modules[__name__] = _new_pkg

@@ -5,13 +5,11 @@ These tests validate git workflow commands with mocked git operations
 to ensure commands work correctly.
 """
 
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agentic_devtools.state import get_value, set_value
+from agentic_devtools.state import set_value
 
 
 class TestGitSaveWorkE2E:

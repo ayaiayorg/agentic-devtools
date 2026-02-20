@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Verify that every workflow step has agent and prompt files."""
+
 from __future__ import annotations
 
 import re
@@ -42,9 +43,7 @@ def load_workflow_steps() -> dict[str, set[str]]:
         steps.update(re.findall(r'to_step="([^"]+)"', block))
         return steps
 
-    work_block = extract_block(
-        "WORK_ON_JIRA_ISSUE_WORKFLOW", "PULL_REQUEST_REVIEW_WORKFLOW"
-    )
+    work_block = extract_block("WORK_ON_JIRA_ISSUE_WORKFLOW", "PULL_REQUEST_REVIEW_WORKFLOW")
     pr_block = extract_block("PULL_REQUEST_REVIEW_WORKFLOW", "WORKFLOW_REGISTRY")
 
     return {

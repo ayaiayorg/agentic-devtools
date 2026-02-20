@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for extract_linked_pr_from_issue function."""
 
 
 class TestExtractLinkedPrFromIssue:

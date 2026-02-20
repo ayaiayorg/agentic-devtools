@@ -1,6 +1,4 @@
-"""
-Tests for review_prompts module.
-"""
+"""Tests for print_review_instructions function."""
 
 
 class TestPrintReviewInstructions:
