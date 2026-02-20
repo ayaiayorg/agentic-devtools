@@ -47,12 +47,13 @@ class TestRunInBackground:
         assert task1.id != task2.id
 
     def test_creates_log_directory(self, mock_state_dir):
-        """Test log directory is created (by get_logs_dir during task creation)."""
-        from agentic_devtools.background_tasks import get_logs_dir
+        """Test log directory is created as a side effect of run_in_background."""
+        with patch("subprocess.Popen") as mock_popen:
+            mock_popen.return_value = MagicMock(pid=1)
+            run_in_background("echo")
 
-        # Force logs dir creation by calling the function
-        logs_dir = get_logs_dir()
-
+        # Logs directory should now exist under the mocked state dir
+        logs_dir = mock_state_dir / "background-tasks" / "logs"
         assert logs_dir.exists()
         assert logs_dir.name == "logs"
 

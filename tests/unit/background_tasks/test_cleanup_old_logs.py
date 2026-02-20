@@ -68,10 +68,13 @@ class TestCleanupOldLogs:
 
     def test_creates_log_directory_when_missing(self, mock_state_dir):
         """Test cleanup creates log directory when it is initially missing and deletes nothing."""
+        from agentic_devtools.background_tasks import get_logs_dir
+
         # Don't create logs directory explicitly; cleanup_old_logs should ensure it exists
         removed = cleanup_old_logs(max_age_hours=24)
 
         assert removed == 0
+        assert get_logs_dir().exists()
 
     def test_max_count_deletes_excess_logs(self, mock_state_dir):
         """Test cleanup_old_logs with max_count deletes excess files."""
