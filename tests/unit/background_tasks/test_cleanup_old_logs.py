@@ -2,9 +2,9 @@
 
 import os
 import time
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from agentic_devtools.background_tasks import cleanup_old_logs
 
@@ -66,9 +66,9 @@ class TestCleanupOldLogs:
 
         assert removed == 0
 
-    def test_handles_missing_log_directory(self, mock_state_dir):
-        """Test cleanup handles missing log directory."""
-        # Don't create logs directory
+    def test_creates_log_directory_when_missing(self, mock_state_dir):
+        """Test cleanup creates log directory when it is initially missing and deletes nothing."""
+        # Don't create logs directory explicitly; cleanup_old_logs should ensure it exists
         removed = cleanup_old_logs(max_age_hours=24)
 
         assert removed == 0

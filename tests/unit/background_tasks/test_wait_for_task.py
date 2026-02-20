@@ -1,9 +1,9 @@
 """Tests for agentic_devtools.background_tasks.wait_for_task."""
 
 import time
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from agentic_devtools.background_tasks import wait_for_task
 from agentic_devtools.task_state import (

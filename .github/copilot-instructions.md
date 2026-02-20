@@ -903,6 +903,35 @@ if p.name not in {"__init__.py", "_version.py"} and "__pycache__" not in p.parts
 
 ## 11. Python Coding Patterns
 
+### Import ordering (ruff/isort)
+
+Ruff enforces isort-style import ordering (rule set `I`). All Python files must use this order:
+
+1. **Standard library** imports
+2. **Third-party** imports (e.g., `pytest`, `requests`)
+3. **First-party** imports (`agentic_devtools.*`, `agdt_ai_helpers.*`)
+
+Within each group, `import X` lines come before `from X import Y` lines.
+
+```python
+# Correct
+import os
+import time
+from unittest.mock import patch   # stdlib — same group as os/time
+
+import pytest                     # third-party
+
+from agentic_devtools.state import get_value  # first-party
+```
+
+```python
+# Wrong — stdlib 'from unittest.mock import patch' placed after third-party 'import pytest'
+import pytest
+from unittest.mock import patch   # ← ruff I001 violation
+```
+
+To auto-fix: `ruff check --fix tests/` or `ruff check --fix --select I tests/`
+
 ### Dynamic script loading with `importlib`
 
 When loading a script dynamically (e.g., loading a `scripts/*.py` file by path), always guard

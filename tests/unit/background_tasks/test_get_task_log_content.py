@@ -1,7 +1,8 @@
 """Tests for agentic_devtools.background_tasks.get_task_log_content."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from agentic_devtools.background_tasks import get_task_log_content
 from agentic_devtools.task_state import (
