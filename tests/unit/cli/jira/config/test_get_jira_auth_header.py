@@ -24,29 +24,6 @@ def clear_state_before(temp_state_dir):
     yield
 
 
-class TestJiraConfiguration:
-    """Tests for Jira configuration functions."""
-
-    def test_default_jira_base_url(self, temp_state_dir, clear_state_before):
-        """Test default Jira base URL."""
-        with patch.dict("os.environ", {}, clear=True):
-            url = jira.get_jira_base_url()
-            assert url == jira.DEFAULT_JIRA_BASE_URL
-
-    def test_jira_base_url_from_env(self, temp_state_dir, clear_state_before):
-        """Test Jira base URL from environment."""
-        with patch.dict("os.environ", {"JIRA_BASE_URL": "https://custom.jira.com"}):
-            url = jira.get_jira_base_url()
-            assert url == "https://custom.jira.com"
-
-    def test_jira_base_url_from_state(self, temp_state_dir, clear_state_before):
-        """Test Jira base URL from state takes precedence."""
-        state.set_value("jira_base_url", "https://state.jira.com")
-        with patch.dict("os.environ", {"JIRA_BASE_URL": "https://env.jira.com"}):
-            url = jira.get_jira_base_url()
-            assert url == "https://state.jira.com"
-
-
 class TestJiraAuth:
     """Tests for Jira authentication."""
 
@@ -86,7 +63,6 @@ class TestJiraAuth:
         ):
             header = jira.get_jira_auth_header()
             assert header.startswith("Basic ")
-            # Should contain base64 of 'test@example.com:test-token'
 
     def test_auth_header_basic_with_username(self):
         """Test basic auth with username."""
@@ -129,10 +105,3 @@ class TestJiraAuth:
                 jira.get_jira_auth_header()
             assert "oauth" in str(exc_info.value)
 
-    def test_get_jira_headers(self):
-        """Test get_jira_headers returns proper headers."""
-        with patch.dict("os.environ", {"JIRA_COPILOT_PAT": "test-token"}):
-            headers = jira.get_jira_headers()
-            assert "Authorization" in headers
-            assert headers["Content-Type"] == "application/json"
-            assert headers["Accept"] == "application/json"
