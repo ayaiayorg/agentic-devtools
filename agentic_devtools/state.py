@@ -67,9 +67,7 @@ def get_state_dir() -> Path:
     and in git worktrees.
     """
     # Check environment variable first
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get(
-        "DFLY_AI_HELPERS_STATE_DIR"
-    )
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
@@ -111,9 +109,7 @@ def get_state_file_path() -> Path:
     return get_state_dir() / STATE_FILENAME
 
 
-def load_state(
-    use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT
-) -> Dict[str, Any]:
+def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, Any]:
     """
     Load the current state from the JSON file.
 
@@ -196,9 +192,7 @@ def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, A
     return load_state(use_locking=True, lock_timeout=lock_timeout)
 
 
-def save_state_locked(
-    state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT
-) -> Path:
+def save_state_locked(state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
     """
     Save state with file locking enabled.
 
@@ -671,9 +665,7 @@ def set_workflow_state(
             existing_context = existing.get("context", {})
             merged = {**existing_context, **context}
             # Remove keys explicitly set to None (allows clearing nested values)
-            workflow_data["context"] = {
-                k: v for k, v in merged.items() if v is not None
-            }
+            workflow_data["context"] = {k: v for k, v in merged.items() if v is not None}
         else:
             workflow_data["context"] = context
     elif existing and existing.get("active") == name:

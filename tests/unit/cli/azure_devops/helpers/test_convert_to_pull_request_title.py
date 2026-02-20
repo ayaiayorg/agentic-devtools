@@ -1,4 +1,5 @@
 """Tests for convert_to_pull_request_title helper."""
+
 from agentic_devtools.cli import azure_devops
 
 
@@ -16,7 +17,6 @@ class TestConvertToPullRequestTitle:
         title = (
             "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234) / "
             "[DFLY-1235](https://jira.swica.ch/browse/DFLY-1235)): summary"
-
         )
         result = azure_devops.convert_to_pull_request_title(title)
         assert result == "feature(DFLY-1234/DFLY-1235): summary"

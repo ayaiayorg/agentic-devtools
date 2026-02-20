@@ -160,9 +160,9 @@ def _execute_command(command: str, shell: bool) -> Tuple[int, str, str]:
     Returns:
         Tuple of (return_code, stdout, stderr)
     """
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"Executing: {command}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     try:
         if shell:
@@ -187,9 +187,9 @@ def _execute_command(command: str, shell: bool) -> Tuple[int, str, str]:
         if result.stderr:
             print(result.stderr, end="", flush=True)
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Command exited with code: {result.returncode}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         return result.returncode, result.stdout, result.stderr
 

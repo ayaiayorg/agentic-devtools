@@ -7,8 +7,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agentic_devtools.cli.azure_context.config import AzureContext
 from agentic_devtools.cli.azure_context.management import (
     check_login_status,
@@ -97,9 +95,7 @@ class TestCheckLoginStatus:
         """Test check_login_status when logged in."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = json.dumps({
-            "user": {"name": "user@company.com"}
-        })
+        mock_result.stdout = json.dumps({"user": {"name": "user@company.com"}})
         mock_run.return_value = mock_result
 
         is_logged_in, account_name, error = check_login_status(AzureContext.DEVOPS)

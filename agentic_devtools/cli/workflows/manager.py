@@ -31,11 +31,7 @@ def _safe_print(text: str) -> None:
         print(text)
     except UnicodeEncodeError:
         # Fall back to replacing characters that cannot be encoded
-        print(
-            text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(
-                sys.stdout.encoding or "utf-8"
-            )
-        )
+        print(text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8"))
 
 
 class WorkflowEvent(str, Enum):
@@ -111,9 +107,7 @@ class WorkflowDefinition:
     transitions: List[WorkflowTransition]
     initial_step: str = "initiate"
 
-    def get_transition(
-        self, from_step: str, event: WorkflowEvent
-    ) -> Optional[WorkflowTransition]:
+    def get_transition(self, from_step: str, event: WorkflowEvent) -> Optional[WorkflowTransition]:
         """Find a transition that matches the current step and event."""
         for t in self.transitions:
             if t.from_step == from_step and event in t.trigger_events:
@@ -123,10 +117,7 @@ class WorkflowDefinition:
     def get_next_step(self, current_step: str) -> Optional[str]:
         """Get the default next step from current step (for manual advancement)."""
         for t in self.transitions:
-            if (
-                t.from_step == current_step
-                and WorkflowEvent.MANUAL_ADVANCE in t.trigger_events
-            ):
+            if t.from_step == current_step and WorkflowEvent.MANUAL_ADVANCE in t.trigger_events:
                 return t.to_step
         # Fallback: find any transition from current step
         for t in self.transitions:
@@ -479,9 +470,7 @@ def get_next_workflow_prompt() -> NextPromptResult:
         if failed_tasks:
             return NextPromptResult(
                 status=PromptStatus.FAILURE,
-                content=_render_failure_prompt(
-                    workflow_name, current_step, failed_tasks
-                ),
+                content=_render_failure_prompt(workflow_name, current_step, failed_tasks),
                 step=current_step,
                 failed_task_ids=[t["id"] for t in failed_tasks],
             )
@@ -531,9 +520,7 @@ def get_next_workflow_prompt() -> NextPromptResult:
         )
 
 
-def _check_required_tasks_status(
-    required_task_commands: List[str], context: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+def _check_required_tasks_status(required_task_commands: List[str], context: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Check if any required tasks failed.
 
@@ -600,9 +587,7 @@ def _build_command_hint(
         return f"`{param_name}` (optional - `{state_key}` not set)"
 
 
-def _render_step_prompt(
-    workflow_name: str, step_name: str, context: Dict[str, Any]
-) -> str:
+def _render_step_prompt(workflow_name: str, step_name: str, context: Dict[str, Any]) -> str:
     """
     Render the prompt for a workflow step.
 
@@ -702,16 +687,12 @@ def _render_step_prompt(
     if jira_comment:
         variables["add_jira_comment_usage"] = "agdt-add-jira-comment"
     else:
-        variables["add_jira_comment_usage"] = (
-            'agdt-add-jira-comment --jira-comment "<your plan>"'
-        )
+        variables["add_jira_comment_usage"] = 'agdt-add-jira-comment --jira-comment "<your plan>"'
 
     if commit_message:
         variables["git_commit_usage"] = "agdt-git-commit"
     else:
-        variables["git_commit_usage"] = (
-            'agdt-git-commit --commit-message "<your message>"'
-        )
+        variables["git_commit_usage"] = 'agdt-git-commit --commit-message "<your message>"'
 
     return load_and_render_prompt(
         workflow_name=workflow_name,
@@ -722,15 +703,11 @@ def _render_step_prompt(
     )
 
 
-def _render_waiting_prompt(
-    workflow_name: str, step_name: str, pending_tasks: List[Any]
-) -> str:
+def _render_waiting_prompt(workflow_name: str, step_name: str, pending_tasks: List[Any]) -> str:
     """Render a prompt indicating tasks are still in progress."""
     task_lines = []
     for task in pending_tasks:
-        task_lines.append(
-            f"- **{task.command}** (ID: `{task.id[:8]}...`): {task.status.value}"
-        )
+        task_lines.append(f"- **{task.command}** (ID: `{task.id[:8]}...`): {task.status.value}")
 
     return f"""# Workflow: {workflow_name}
 ## Step: {step_name}
@@ -758,9 +735,7 @@ agdt-get-next-workflow-prompt
 """
 
 
-def _render_failure_prompt(
-    workflow_name: str, step_name: str, failed_tasks: List[Dict[str, Any]]
-) -> str:
+def _render_failure_prompt(workflow_name: str, step_name: str, failed_tasks: List[Dict[str, Any]]) -> str:
     """Render a prompt indicating task failure."""
     task_lines = []
     for task in failed_tasks:

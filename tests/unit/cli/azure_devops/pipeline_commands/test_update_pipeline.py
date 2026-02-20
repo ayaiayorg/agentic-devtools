@@ -8,4 +8,3 @@ from agentic_devtools.cli.azure_devops.pipeline_commands import update_pipeline 
 @pytest.mark.skip(reason="TODO: implement tests for update_pipeline")
 def test_update_pipeline() -> None:
     raise NotImplementedError
-

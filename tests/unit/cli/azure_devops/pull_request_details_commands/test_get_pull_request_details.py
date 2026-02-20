@@ -1,4 +1,5 @@
 """Tests for get_pull_request_details function."""
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -47,6 +48,7 @@ class TestGetPullRequestDetails:
 
         with pytest.raises(KeyError, match="pull_request_id"):
             get_pull_request_details()
+
 
 class TestGetPullRequestDetailsExecution:
     """Tests for get_pull_request_details when not in dry-run mode."""

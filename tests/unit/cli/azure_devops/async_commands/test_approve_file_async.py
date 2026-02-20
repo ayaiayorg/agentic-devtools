@@ -1,4 +1,5 @@
 """Tests for approve_file_async function."""
+
 from agentic_devtools.cli.azure_devops.async_commands import approve_file_async
 from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_in_script, get_script_from_call
 
@@ -6,6 +7,7 @@ from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_
 class TestApproveFileAsync:
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         from agentic_devtools.state import set_value
+
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "src/app/component.ts")
         set_value("content", "LGTM")
@@ -24,6 +26,7 @@ class TestApproveFileAsync:
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
         from agentic_devtools.state import get_value
+
         assert get_value("file_review.file_path") == "src/cli/test.ts"
         assert get_value("content") == "Approved via CLI"
         assert get_value("pull_request_id") == 99999

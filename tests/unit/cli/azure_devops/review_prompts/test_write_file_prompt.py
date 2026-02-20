@@ -1,4 +1,5 @@
 """Tests for write_file_prompt function."""
+
 import pytest
 
 

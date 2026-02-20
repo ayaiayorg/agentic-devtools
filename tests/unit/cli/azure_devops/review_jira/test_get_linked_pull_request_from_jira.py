@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestGetLinkedPullRequestFromJira:
     """Tests for _get_linked_pull_request_from_jira function."""
 

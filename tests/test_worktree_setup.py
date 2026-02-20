@@ -687,7 +687,6 @@ class TestSetupWorktreeFromState:
         )
 
 
-
 class TestOpenVscodeWorkspace:
     """Tests for open_vscode_workspace function."""
 

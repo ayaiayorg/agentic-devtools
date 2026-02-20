@@ -24,9 +24,7 @@ def azure_context_use_command() -> None:
         agdt-azure-context-use devops
         agdt-azure-context-use resources
     """
-    parser = argparse.ArgumentParser(
-        description="Switch to a specific Azure CLI context"
-    )
+    parser = argparse.ArgumentParser(description="Switch to a specific Azure CLI context")
     parser.add_argument(
         "context",
         type=str,
@@ -65,9 +63,7 @@ def azure_context_status_command() -> None:
     Usage:
         agdt-azure-context-status
     """
-    parser = argparse.ArgumentParser(
-        description="Show status of all Azure CLI contexts"
-    )
+    parser = argparse.ArgumentParser(description="Show status of all Azure CLI contexts")
     parser.parse_args()
 
     show_all_contexts()
@@ -80,9 +76,7 @@ def azure_context_current_command() -> None:
     Usage:
         agdt-azure-context-current
     """
-    parser = argparse.ArgumentParser(
-        description="Show the currently active Azure CLI context"
-    )
+    parser = argparse.ArgumentParser(description="Show the currently active Azure CLI context")
     parser.parse_args()
 
     current = get_current_context()
@@ -102,9 +96,7 @@ def azure_context_ensure_login_command() -> None:
         agdt-azure-context-ensure-login devops
         agdt-azure-context-ensure-login resources
     """
-    parser = argparse.ArgumentParser(
-        description="Ensure logged in to a specific Azure CLI context"
-    )
+    parser = argparse.ArgumentParser(description="Ensure logged in to a specific Azure CLI context")
     parser.add_argument(
         "context",
         type=str,

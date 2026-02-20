@@ -32,12 +32,8 @@ def _require_pypi_value(value: Optional[str], key: str, example: str) -> str:
 
 def release_pypi_async() -> None:
     """Run the PyPI release flow in a background task."""
-    package_name = _require_pypi_value(
-        get_pypi_package_name(), "package_name", "agdt-set pypi.package_name <name>"
-    )
-    version = _require_pypi_value(
-        get_pypi_version(), "version", "agdt-set pypi.version <version>"
-    )
+    package_name = _require_pypi_value(get_pypi_package_name(), "package_name", "agdt-set pypi.package_name <name>")
+    version = _require_pypi_value(get_pypi_version(), "version", "agdt-set pypi.version <version>")
     task = run_function_in_background(
         "agentic_devtools.cli.release.commands",
         "_release_pypi_sync",
@@ -72,19 +68,13 @@ def _normalize_repository(value: Optional[str]) -> str:
 
 def _release_pypi_sync() -> None:
     """Sync implementation for the PyPI release flow."""
-    package_name = _require_pypi_value(
-        get_pypi_package_name(), "package_name", "agdt-set pypi.package_name <name>"
-    )
-    version = _require_pypi_value(
-        get_pypi_version(), "version", "agdt-set pypi.version <version>"
-    )
+    package_name = _require_pypi_value(get_pypi_package_name(), "package_name", "agdt-set pypi.package_name <name>")
+    version = _require_pypi_value(get_pypi_version(), "version", "agdt-set pypi.version <version>")
     repository = _normalize_repository(get_pypi_repository())
     dry_run = get_pypi_dry_run()
 
     start_time = datetime.now(timezone.utc)
-    print(
-        f"Starting PyPI release for {package_name} {version} (repo={repository}, dry_run={dry_run})"
-    )
+    print(f"Starting PyPI release for {package_name} {version} (repo={repository}, dry_run={dry_run})")
 
     if helpers.pypi_version_exists(package_name, version, repository=repository):
         raise helpers.ReleaseError(f"Version {version} already exists on {repository}")
