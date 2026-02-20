@@ -173,6 +173,12 @@ control"_.
 - Version numbers are derived from Git tags — to bump the version, create a new Git tag
   (see [RELEASING.md](RELEASING.md)).
 
+> **⚠️ Important for AI agents using `report_progress`:** Even though `_version.py` is in
+> `.gitignore`, the file is still **tracked** in git. This means `git add .` (as called internally
+> by `report_progress`) **will pick up local changes** to this file. Before calling
+> `report_progress`, always run: `git checkout -- agentic_devtools/_version.py` to discard any
+> local modifications.
+>
 > **Maintainer note:** Because the file was previously committed and tracked, `.gitignore` alone
 > is not enough to prevent accidental staging. Run the following **once** after merging to fully
 > untrack it:

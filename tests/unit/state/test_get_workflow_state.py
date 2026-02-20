@@ -1,4 +1,4 @@
-"""Tests for GetWorkflowState."""
+"""Tests for agentic_devtools.state.get_workflow_state."""
 
 from unittest.mock import patch
 
@@ -14,32 +14,23 @@ def temp_state_dir(tmp_path):
         yield tmp_path
 
 
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state before each test."""
-    state.clear_state()
-    yield
+def test_get_workflow_state_when_none(temp_state_dir):
+    """Test get_workflow_state returns None when no workflow active."""
+    assert state.get_workflow_state() is None
 
 
-class TestGetWorkflowState:
-    """Tests for get_workflow_state function."""
+def test_get_workflow_state_returns_active_workflow(temp_state_dir):
+    """Test get_workflow_state returns active workflow state."""
+    state.set_workflow_state(
+        name="test-workflow",
+        status="in-progress",
+        step="step-1",
+        context={"key": "value"},
+    )
 
-    def test_get_workflow_state_when_not_set(self, temp_state_dir, clear_state_before):
-        """Test getting workflow state when no workflow is active."""
-        result = state.get_workflow_state()
-        assert result is None
-
-    def test_get_workflow_state_when_set(self, temp_state_dir, clear_state_before):
-        """Test getting workflow state when workflow is active."""
-        state.set_workflow_state(
-            name="pull-request-review",
-            status="active",
-            step="initiate",
-            context={"pull_request_id": "123"},
-        )
-        result = state.get_workflow_state()
-        assert result is not None
-        assert result["active"] == "pull-request-review"
-        assert result["status"] == "active"
-        assert result["step"] == "initiate"
-        assert result["context"] == {"pull_request_id": "123"}
+    workflow = state.get_workflow_state()
+    assert workflow["active"] == "test-workflow"
+    assert workflow["status"] == "in-progress"
+    assert workflow["step"] == "step-1"
+    assert workflow["context"] == {"key": "value"}
+    assert "started_at" in workflow

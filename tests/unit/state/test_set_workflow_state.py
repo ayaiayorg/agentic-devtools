@@ -1,4 +1,4 @@
-"""Tests for SetWorkflowState."""
+"""Tests for agentic_devtools.state.set_workflow_state."""
 
 from unittest.mock import patch
 
@@ -14,49 +14,67 @@ def temp_state_dir(tmp_path):
         yield tmp_path
 
 
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state before each test."""
-    state.clear_state()
-    yield
-
-
 class TestSetWorkflowState:
     """Tests for set_workflow_state function."""
 
-    def test_set_workflow_state_basic(self, temp_state_dir, clear_state_before):
-        """Test setting basic workflow state."""
+    def test_set_and_get_workflow_state(self, temp_state_dir):
+        """Test setting and getting workflow state."""
         state.set_workflow_state(
-            name="work-on-jira-issue",
-            status="active",
-            step="planning",
+            name="test-workflow",
+            status="in-progress",
+            step="step-1",
+            context={"key": "value"},
         )
-        result = state.get_workflow_state()
-        assert result["active"] == "work-on-jira-issue"
-        assert result["status"] == "active"
-        assert result["step"] == "planning"
-        # Context may not be present if not provided
-        assert result.get("context") is None or result.get("context") == {}
 
-    def test_set_workflow_state_with_context(self, temp_state_dir, clear_state_before):
-        """Test setting workflow state with context."""
-        context = {
-            "jira_issue_key": "DFLY-1234",
-            "branch_name": "feature/DFLY-1234/test",
-        }
+        workflow = state.get_workflow_state()
+        assert workflow["active"] == "test-workflow"
+        assert workflow["status"] == "in-progress"
+        assert workflow["step"] == "step-1"
+        assert workflow["context"] == {"key": "value"}
+        assert "started_at" in workflow
+
+    def test_set_workflow_state_preserves_started_at(self, temp_state_dir):
+        """Test that updating workflow preserves original started_at."""
+        state.set_workflow_state(name="test-workflow", status="initiated")
+        original_started = state.get_workflow_state()["started_at"]
+
+        state.set_workflow_state(name="test-workflow", status="in-progress")
+        updated_started = state.get_workflow_state()["started_at"]
+
+        assert original_started == updated_started
+
+    def test_set_workflow_state_merges_context(self, temp_state_dir):
+        """Test that context is merged when updating same workflow."""
         state.set_workflow_state(
-            name="work-on-jira-issue",
-            status="active",
-            step="implementation",
-            context=context,
+            name="test-workflow",
+            status="initiated",
+            context={"key1": "value1"},
         )
-        result = state.get_workflow_state()
-        assert result["context"] == context
 
-    def test_set_workflow_state_overwrites_previous(self, temp_state_dir, clear_state_before):
-        """Test that setting workflow state overwrites previous state."""
-        state.set_workflow_state(name="workflow1", status="active", step="step1")
-        state.set_workflow_state(name="workflow2", status="active", step="step2")
-        result = state.get_workflow_state()
-        assert result["active"] == "workflow2"
-        assert result["step"] == "step2"
+        state.set_workflow_state(
+            name="test-workflow",
+            status="in-progress",
+            context={"key2": "value2"},
+        )
+
+        workflow = state.get_workflow_state()
+        assert workflow["context"] == {"key1": "value1", "key2": "value2"}
+
+    def test_set_workflow_state_context_none_removal(self, temp_state_dir):
+        """Test that None values in context remove keys."""
+        state.set_workflow_state(
+            name="test-workflow",
+            status="initiated",
+            context={"key1": "value1", "key2": "value2"},
+        )
+
+        state.set_workflow_state(
+            name="test-workflow",
+            status="in-progress",
+            context={"key1": None, "key3": "value3"},
+        )
+
+        workflow = state.get_workflow_state()
+        assert "key1" not in workflow["context"]
+        assert workflow["context"]["key2"] == "value2"
+        assert workflow["context"]["key3"] == "value3"
