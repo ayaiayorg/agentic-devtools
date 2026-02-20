@@ -14,19 +14,9 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
-    list_tasks,
-    task_log,
-    task_status,
-    task_wait,
-    tasks_clean,
-)
 from agdt_ai_helpers.task_state import (
     BackgroundTask,
     add_task,
-    get_background_tasks,
-    get_task_by_id,
-    update_task,
 )
 
 

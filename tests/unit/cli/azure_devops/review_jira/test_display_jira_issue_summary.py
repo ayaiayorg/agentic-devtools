@@ -2,9 +2,6 @@
 Tests for review_jira module.
 """
 
-import os
-from unittest.mock import MagicMock, patch
-
 
 class TestDisplayJiraIssueSummary:
     """Tests for display_jira_issue_summary function."""

@@ -2,13 +2,6 @@
 Tests for role_commands module - Jira project role management.
 """
 
-import re
-from unittest.mock import MagicMock
-
-from agdt_ai_helpers.cli.jira.role_commands import (
-    _check_user_exists,
-)
-
 
 class TestAddUsersToProjectRoleAdditionalCases:
     """Additional tests for add_users_to_project_role command error paths."""

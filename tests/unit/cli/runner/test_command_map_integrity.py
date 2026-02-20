@@ -5,10 +5,8 @@ This module tests the command runner that maps agdt-* commands to their
 entry point functions.
 """
 
-import sys
-from unittest.mock import MagicMock, patch
-
 import pytest
+
 from agentic_devtools.cli import runner
 
 
@@ -118,6 +116,4 @@ class TestCommandMapIntegrity:
     )
     def test_newly_added_commands_exist(self, command):
         """Test that commands previously missing from COMMAND_MAP are present."""
-        assert command in runner.COMMAND_MAP, (
-            f"Expected command '{command}' not in COMMAND_MAP"
-        )
+        assert command in runner.COMMAND_MAP, f"Expected command '{command}' not in COMMAND_MAP"

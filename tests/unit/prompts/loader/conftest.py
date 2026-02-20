@@ -2,7 +2,6 @@
 Tests for prompt template loader.
 """
 
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -26,5 +25,3 @@ def temp_output_dir(tmp_path):
     output_dir.mkdir()
     with patch.object(loader, "get_temp_output_dir", return_value=output_dir):
         yield output_dir
-
-

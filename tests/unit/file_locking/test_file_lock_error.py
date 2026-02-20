@@ -6,10 +6,6 @@ import pytest
 
 from agentic_devtools.file_locking import (
     FileLockError,
-    lock_file,
-    locked_file,
-    locked_state_file,
-    unlock_file,
 )
 
 

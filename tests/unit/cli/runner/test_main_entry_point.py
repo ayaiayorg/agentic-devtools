@@ -5,10 +5,6 @@ This module tests the command runner that maps agdt-* commands to their
 entry point functions.
 """
 
-import sys
-from unittest.mock import MagicMock, patch
-
-import pytest
 from agentic_devtools.cli import runner
 
 

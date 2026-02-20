@@ -2,9 +2,6 @@
 Tests for review_jira module.
 """
 
-import os
-from unittest.mock import MagicMock, patch
-
 
 class TestExtractPrIdFromDevelopmentPanel:
     """Tests for extract_pr_id_from_development_panel function."""

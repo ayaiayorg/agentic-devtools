@@ -5,9 +5,7 @@ Tests verify the with_jira_vpn_context decorator properly wraps functions
 and handles VPN management gracefully even when dependencies are unavailable.
 """
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from agentic_devtools.cli.jira.vpn_wrapper import with_jira_vpn_context
 

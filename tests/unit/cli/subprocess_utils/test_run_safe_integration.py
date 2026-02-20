@@ -2,11 +2,6 @@
 Tests for subprocess_utils module - safe subprocess execution.
 """
 
-import subprocess
-from unittest.mock import patch
-
-import pytest
-
 from agdt_ai_helpers.cli.subprocess_utils import run_safe
 
 

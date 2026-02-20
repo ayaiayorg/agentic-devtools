@@ -2,10 +2,7 @@
 Tests for prompt template loader.
 """
 
-from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from agdt_ai_helpers.prompts import loader
 

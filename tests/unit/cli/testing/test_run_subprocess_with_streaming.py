@@ -9,10 +9,6 @@ is tested separately in test_background_tasks.py.
 """
 
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from agentic_devtools.cli import testing
 

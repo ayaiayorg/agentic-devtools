@@ -2,9 +2,6 @@
 Tests for review_jira module.
 """
 
-import os
-from unittest.mock import MagicMock, patch
-
 
 class TestExtractLinkedPrFromIssue:
     """Tests for extract_linked_pr_from_issue function."""

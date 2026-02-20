@@ -52,8 +52,11 @@ def mock_jira_vpn_context(request):
         return
 
     # Skip mocking for VPN-specific tests that test the VPN module itself
+    from pathlib import Path
+
     test_path = str(request.fspath)
-    if "test_vpn_toggle" in test_path or "test_vpn_wrapper" in test_path or "/vpn_wrapper/" in test_path:
+    test_path_parts = Path(request.fspath).parts
+    if "test_vpn_toggle" in test_path or "test_vpn_wrapper" in test_path or "vpn_wrapper" in test_path_parts:
         yield
         return
 

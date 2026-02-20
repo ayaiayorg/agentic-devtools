@@ -2,8 +2,7 @@
 Tests for review_jira module.
 """
 
-import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestGetLinkedPullRequestFromJira:

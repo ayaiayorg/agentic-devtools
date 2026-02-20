@@ -1,4 +1,5 @@
 """Tests for mark_pull_request_draft function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,6 +38,7 @@ class TestMarkPullRequestDraft:
         state.set_dry_run(True)
         with pytest.raises(KeyError, match="pull_request_id"):
             azure_devops.mark_pull_request_draft()
+
 
 class TestMarkPullRequestDraftActualCall:
     """Tests for mark_pull_request_draft with mocked API calls."""

@@ -1,4 +1,5 @@
 """Tests for update_submission_to_completed function."""
+
 import pytest
 
 

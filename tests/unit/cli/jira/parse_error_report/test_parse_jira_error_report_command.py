@@ -5,13 +5,6 @@ Note: Test data contains German text with unicode escapes (e.g., k\\u00f6nnen).
 """
 # cspell:ignore nnen nge
 
-from unittest.mock import MagicMock
-
-from agdt_ai_helpers.cli.jira.parse_error_report import (
-    _get_user_details,
-    _parse_error_file,
-)
-
 
 class TestParseJiraErrorReportCommand:
     """Tests for parse_jira_error_report CLI command."""

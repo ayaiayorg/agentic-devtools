@@ -2,7 +2,6 @@
 Tests for mark_reviewed module - Azure DevOps PR file review marking.
 """
 
-
 from agentic_devtools.cli.azure_devops.mark_reviewed import (
     normalize_repo_path,
 )

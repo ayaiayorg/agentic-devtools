@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestGenerateReviewPrompts:
     """Tests for generate_review_prompts function."""
 
