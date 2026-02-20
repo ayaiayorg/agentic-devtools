@@ -1,4 +1,5 @@
 """Tests for list_pipelines function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -40,6 +41,7 @@ class TestListPipelinesDryRun:
         captured = capsys.readouterr()
         assert "Org" in captured.out
         assert "Project" in captured.out
+
 
 class TestListPipelinesApiCall:
     """Tests for list_pipelines command with mocked API calls."""

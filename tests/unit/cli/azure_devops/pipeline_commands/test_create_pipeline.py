@@ -1,4 +1,5 @@
 """Tests for create_pipeline function."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,6 +64,7 @@ class TestCreatePipelineDryRun:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "pipeline.yaml_path" in captured.err
+
 
 class TestCreatePipelineApiCall:
     """Tests for create_pipeline command with mocked API calls."""
@@ -146,6 +148,7 @@ class TestCreatePipelineApiCall:
         captured = capsys.readouterr()
         assert "Error creating pipeline" in captured.err
 
+
 class TestCreatePipelineJsonParseError:
     """Tests for JSON parse error handling in create_pipeline."""
 
@@ -187,7 +190,6 @@ class TestCreatePipelineJsonParseError:
         mock_create.returncode = 0
         mock_create.stdout = (
             '{"id": 789, "name": "new-pipeline", "_links": {"web": {"href": "https://test/pipeline/url"}}}'
-
         )
         mock_run.side_effect = [mock_version, mock_ext, mock_create]
 

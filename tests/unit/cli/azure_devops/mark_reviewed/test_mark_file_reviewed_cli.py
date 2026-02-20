@@ -1,4 +1,5 @@
 """Tests for mark_file_reviewed_cli function."""
+
 from unittest.mock import patch
 
 

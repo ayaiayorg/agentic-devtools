@@ -1,9 +1,6 @@
 """Tests for the review_commands module and helper functions."""
 
 
-
-
-
 class TestFetchPullRequestBasicInfo:
     """Tests for _fetch_pull_request_basic_info function."""
 

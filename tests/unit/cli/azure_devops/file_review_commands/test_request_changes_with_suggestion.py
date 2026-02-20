@@ -2,7 +2,6 @@
 Tests for file_review_commands module (dry-run and validation tests).
 """
 
-
 from agentic_devtools.cli.azure_devops import (
     request_changes_with_suggestion,
 )

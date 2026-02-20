@@ -1,61 +1,39 @@
-"""Tests for the review_commands module and helper functions."""
+"""
+Tests for review_jira module.
+"""
 
-
-
+from unittest.mock import patch
 
 
 class TestFetchAndDisplayJiraIssue:
-    """Tests for _fetch_and_display_jira_issue function."""
+    """Tests for fetch_and_display_jira_issue function."""
 
-    def test_returns_true_on_success(self):
-        """Test returns True when Jira issue fetched successfully."""
-        from unittest.mock import patch
+    @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agentic_devtools.cli.azure_devops.review_jira.display_jira_issue_summary")
+    def test_fetches_and_displays_issue(self, mock_display, mock_fetch):
+        """Test fetching and displaying issue."""
+        from agentic_devtools.cli.azure_devops.review_jira import (
+            fetch_and_display_jira_issue,
+        )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
-            with patch("agdt_ai_helpers.cli.jira.get_commands.get_issue") as mock_get_issue:
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                        _fetch_and_display_jira_issue,
-                    )
+        mock_fetch.return_value = {"key": "DFLY-1234"}
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
-                    assert result is True
-                    mock_get_issue.assert_called_once()
+        result = fetch_and_display_jira_issue("DFLY-1234")
 
-    def test_returns_false_on_system_exit(self, capsys):
-        """Test returns False when get_issue raises SystemExit."""
-        from unittest.mock import patch
+        assert result == {"key": "DFLY-1234"}
+        mock_display.assert_called_once_with({"key": "DFLY-1234"})
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
-            with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
-                side_effect=SystemExit(1),
-            ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                        _fetch_and_display_jira_issue,
-                    )
+    @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_jira_issue")
+    @patch("agentic_devtools.cli.azure_devops.review_jira.display_jira_issue_summary")
+    def test_does_not_display_when_fetch_fails(self, mock_display, mock_fetch):
+        """Test that display is not called when fetch fails."""
+        from agentic_devtools.cli.azure_devops.review_jira import (
+            fetch_and_display_jira_issue,
+        )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
-                    assert result is False
-                    captured = capsys.readouterr()
-                    assert "could not be fetched" in captured.err
+        mock_fetch.return_value = None
 
-    def test_returns_false_on_exception(self, capsys):
-        """Test returns False when get_issue raises Exception."""
-        from unittest.mock import patch
+        result = fetch_and_display_jira_issue("DFLY-1234")
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
-            with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
-                side_effect=Exception("API error"),
-            ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                        _fetch_and_display_jira_issue,
-                    )
-
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
-                    assert result is False
-                    captured = capsys.readouterr()
-                    assert "Failed to fetch Jira issue" in captured.err
+        assert result is None
+        mock_display.assert_not_called()
