@@ -166,7 +166,7 @@ agdt-add-pull-request-comment  # No approval needed!
 - ✅ Success: 95%+ coverage, all tests pass
 - ❌ Failure: Coverage drops below 95%
 
-**Enforcement**: CI pipeline currently blocks merge if coverage <91% (target coverage remains ≥95%)
+**Enforcement**: CI pipeline currently blocks merge if coverage <90% (target coverage remains ≥95%)
 
 ### 10.2.3 Performance
 

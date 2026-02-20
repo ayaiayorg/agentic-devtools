@@ -111,41 +111,26 @@ sequenceDiagram
     Process->>Process: Update task state
 ```
 
-## 9.4 ADR-004: Multi-Worktree Support via Auto-Detection
+## 9.4 ADR-004: Multi-Worktree Support
 
 **Status**: Accepted
 
-**Context**: Developers use git worktrees; different branches may need different package versions
+**Context**: Developers use git worktrees for parallel branch development
 
-**Decision**: Auto-detect repo-local `.agdt-venv` and re-execute with local Python
+**Decision**: Use a single global pip/pipx install of agentic-devtools, shared across all worktrees
 
 **Rationale**:
 
-- Seamless UX (same commands everywhere)
-- Each worktree can have isolated version
-- Graceful fallback to global install
-- No command changes required
+- Simplifies installation and maintenance
+- Single source of truth for command versions
+- No per-worktree setup required
+- No startup overhead from venv detection
 
 **Consequences**:
 
 - ✅ Zero UX impact
-- ✅ Per-worktree versioning
-- ✅ Automatic detection
-- ⚠️ Slight startup overhead (detection)
-- ⚠️ Re-execution complexity
-
-**Algorithm**:
-
-```python
-def dispatch_command():
-    repo_root = git_rev_parse_show_toplevel()
-    venv_python = find_venv_python(repo_root)
-    
-    if venv_python and venv_python != current_python:
-        re_execute_with(venv_python)
-    else:
-        execute_command()
-```
+- ✅ Simple installation
+- ✅ No re-execution complexity
 
 ## 9.5 ADR-005: Workflow State Machine Pattern
 
@@ -220,22 +205,20 @@ def dispatch_command():
 | Draw.io | Binary format, not diffable |
 | Lucidchart | Commercial, not embeddable |
 
-## 9.7 ADR-007: Argparse-Based CLI with Custom Dispatcher
+## 9.7 ADR-007: Argparse-Based CLI
 
 **Status**: Accepted
 
-**Context**: Need robust, auto-approvable CLI with good help text, simple parameter handling, and zero additional runtime dependencies so it can be installed per-repo or per-worktree
+**Context**: Need robust, auto-approvable CLI with good help text, simple parameter handling, and zero additional runtime dependencies
 
-**Decision**: Use Python's built-in `argparse` module for all CLI commands, with a lightweight custom dispatcher to handle `agdt-*` entry points and repo-local virtual environment detection
+**Decision**: Use Python's built-in `argparse` module for all CLI commands, with entry points that call implementation functions directly
 
 **Rationale**:
 
 - No third-party dependency required (stdlib only)
 - Argparse provides structured parsing, validation, and help generation
-- Custom dispatcher supports multi-worktree behavior (re-exec into `.agdt-venv` when present)
 - Works well with many small, parameterless commands designed for AI auto-approval
 - Easier to reason about and debug than a heavier framework
-- Simpler dependency management for per-worktree installations
 
 **Consequences**:
 
@@ -367,10 +350,10 @@ No tag → hatch-vcs → Package version 0.2.9.dev1+g1234abc
 ```toml
 # pyproject.toml
 [tool.pytest.ini_options]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=91"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=90"
 ```
 
-**Note**: Current enforcement is set to 91% coverage. The 95% target remains the aspirational goal for all new code.
+**Note**: Current enforcement is set to 90% coverage. The 95% target remains the aspirational goal for all new code.
 
 ## 9.12 ADR-012: Cross-Platform File Locking
 
@@ -415,10 +398,10 @@ else:
 | 001 | Single JSON state file | ✅ Accepted | Core architecture |
 | 002 | Parameterless commands | ✅ Accepted | UX foundation |
 | 003 | Background tasks | ✅ Accepted | Performance critical |
-| 004 | Multi-worktree auto-detection | ✅ Accepted | Developer experience |
+| 004 | Multi-worktree support | ✅ Accepted | Developer experience |
 | 005 | Workflow state machine | ✅ Accepted | Workflow orchestration |
 | 006 | Mermaid diagrams | ✅ Accepted | Documentation |
-| 007 | argparse CLI with dispatcher | ✅ Accepted | CLI foundation |
+| 007 | argparse CLI | ✅ Accepted | CLI foundation |
 | 008 | pyproject.toml | ✅ Accepted | Package configuration |
 | 009 | Dynamic versioning | ✅ Accepted | Release management |
 | 010 | Azure DevOps primary | ✅ Accepted | Service integration |

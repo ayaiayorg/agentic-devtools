@@ -124,26 +124,7 @@ graph TD
 - ❌ `agdt-add-pull-request-comment --pull-request-id 123 --content "..."` (unique per PR)
 - ✅ `agdt-set pull_request_id 123` + `agdt-set content "..."` + `agdt-add-pull-request-comment` (reusable)
 
-### 4.3.2 Multi-Worktree Strategy
-
-**Problem**: Different branches may need different package versions
-
-**Solution**: Auto-detect repo-local virtual environment
-
-```mermaid
-flowchart TD
-    Start[Command Executed] --> Check{Local venv exists?}
-    Check -->|Yes| UseLocal[Use .agdt-venv]
-    Check -->|No| UseGlobal[Use global pip]
-    UseLocal --> Execute[Execute Command]
-    UseGlobal --> Execute
-    Execute --> End[Return]
-    
-    style UseLocal fill:#9f9
-    style UseGlobal fill:#ff9
-```
-
-### 4.3.3 Workflow Orchestration Strategy
+### 4.3.2 Workflow Orchestration Strategy
 
 **Problem**: Complex multi-step workflows are hard to manage
 
@@ -178,7 +159,7 @@ graph TB
     end
     
     subgraph "Core Layer"
-        Dispatcher[dispatcher.py]
+        Runner[cli/runner.py]
         BG[background_tasks.py]
         TaskState[task_state.py]
         Lock[file_locking.py]
@@ -190,14 +171,14 @@ graph TB
         Logs[logs/*.log]
     end
     
-    State --> Dispatcher
-    Git --> Dispatcher
-    ADO --> Dispatcher
-    Jira --> Dispatcher
+    State --> Runner
+    Git --> Runner
+    ADO --> Runner
+    Jira --> Runner
     Tasks --> TaskState
     Workflows --> State
     
-    Dispatcher --> Lock
+    Runner --> Lock
     BG --> TaskState
     TaskState --> Lock
     
@@ -246,7 +227,7 @@ flowchart LR
 ## 4.7 Deployment Strategy
 
 - **Distribution**: PyPI package (`pip install agentic-devtools`)
-- **Installation**: Global via pip/pipx, or local via `.agdt-venv`
+- **Installation**: Global via pip/pipx
 - **Configuration**: Environment variables for credentials
 - **Updates**: Version from Git tags via hatch-vcs
 - **CI/CD**: GitHub Actions for test, lint, publish

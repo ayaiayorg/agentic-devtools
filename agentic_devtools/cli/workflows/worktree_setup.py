@@ -1,8 +1,8 @@
 """
 Worktree setup automation for workflows.
 
-This module provides functions to automatically set up git worktrees,
-install agentic-devtools, and open VS Code workspaces for workflow execution.
+This module provides functions to automatically set up git worktrees
+and open VS Code workspaces for workflow execution.
 It also includes placeholder issue creation for create workflows.
 """
 
@@ -74,7 +74,6 @@ class WorktreeSetupResult:
     branch_name: str
     error_message: Optional[str] = None
     vscode_opened: bool = False
-    helpers_installed: bool = False
 
 
 def is_in_worktree() -> bool:
@@ -378,63 +377,6 @@ def create_worktree(
         )
 
 
-def install_agentic_devtools(worktree_path: str) -> bool:
-    """
-    Set up development tools in the worktree using setup-dev-tools.py.
-
-    This runs `python setup-dev-tools.py` in the worktree to:
-    - Create a local .dfly-venv with agentic-devtools installed
-    - Configure git hooks
-    - Install cspell and ruff
-
-    The venv approach enables multi-worktree development where each worktree
-    has its own isolated installation of agentic-devtools.
-
-    Args:
-        worktree_path: Path to the worktree directory
-
-    Returns:
-        True if setup succeeded, False otherwise
-    """
-    setup_script = os.path.join(worktree_path, "setup-dev-tools.py")
-
-    if not os.path.exists(setup_script):
-        print(f"Warning: setup-dev-tools.py not found at {setup_script}", file=sys.stderr)
-        return False
-
-    print(f"Running setup-dev-tools.py in {worktree_path}...")
-
-    try:
-        # Use the same Python interpreter that's running this script
-        python_exe = sys.executable
-
-        result = subprocess.run(
-            [python_exe, setup_script],
-            cwd=worktree_path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            print(f"Warning: Failed to run setup-dev-tools.py: {result.stderr}", file=sys.stderr)
-            # Print stdout too as it may contain useful info
-            if result.stdout:
-                print(result.stdout, file=sys.stderr)
-            return False
-
-        print("Development tools configured successfully in worktree")
-        return True
-
-    except (FileNotFoundError, OSError) as e:
-        print(f"Warning: Error running setup-dev-tools.py: {e}", file=sys.stderr)
-        return False
-
-
-# Backward-compatible alias
-install_agdt_ai_helpers = install_agentic_devtools
-
-
 def open_vscode_workspace(worktree_path: str) -> bool:
     """
     Open VS Code with the workspace file in the worktree.
@@ -491,17 +433,15 @@ def setup_worktree_environment(
     branch_prefix: str = "feature",
     branch_name: Optional[str] = None,
     use_existing_branch: bool = False,
-    install_helpers: bool = True,
     open_vscode: bool = True,
 ) -> WorktreeSetupResult:
     """
-    Complete worktree setup: create worktree, install helpers, open VS Code.
+    Complete worktree setup: create worktree and open VS Code.
 
     This is the main entry point for setting up a new development environment
     for an issue. It:
     1. Creates a git worktree for the issue
-    2. Installs agentic-devtools in the worktree
-    3. Opens VS Code with the workspace file
+    2. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "DFLY-1234")
@@ -511,7 +451,6 @@ def setup_worktree_environment(
             Used for PR review workflows where the branch already exists on origin.
         use_existing_branch: If True and branch_name is provided, checkout the
             existing branch from origin instead of creating a new one.
-        install_helpers: Whether to install agentic-devtools (default: True)
         open_vscode: Whether to open VS Code (default: True)
 
     Returns:
@@ -528,11 +467,7 @@ def setup_worktree_environment(
     if not result.success:
         return result
 
-    # Step 2: Install agentic-devtools
-    if install_helpers:
-        result.helpers_installed = install_agentic_devtools(result.worktree_path)
-
-    # Step 3: Open VS Code
+    # Step 2: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
@@ -761,11 +696,7 @@ def setup_worktree_in_background_sync(
     existing_path = check_worktree_exists(issue_key)
     if existing_path:
         print(f"\nWorktree already exists at: {existing_path}")
-        print("Ensuring development tools are configured...")
-
-        # Ensure helpers are installed
-        helpers_installed = install_agentic_devtools(existing_path)
-        print(f"   Helpers installed: {'Yes' if helpers_installed else 'No'}")
+        print("Opening VS Code in the existing worktree (using the workspace file if available)...")
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
@@ -795,7 +726,6 @@ can copy and paste it into the new VS Code window that just opened:
         branch_prefix=branch_prefix,
         branch_name=branch_name,
         use_existing_branch=use_existing_branch,
-        install_helpers=True,
         open_vscode=True,
     )
 
@@ -803,7 +733,6 @@ can copy and paste it into the new VS Code window that just opened:
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
         print(f"   Branch: {result.branch_name}")
-        print(f"   Helpers installed: {'Yes' if result.helpers_installed else 'No'}")
         print(f"   VS Code opened: {'Yes' if result.vscode_opened else 'No'}")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         print("\n" + "=" * 80)
@@ -1073,7 +1002,6 @@ def create_placeholder_and_setup_worktree(
     existing_path = check_worktree_exists(issue_key)
     if existing_path:
         print(f"   Worktree already exists at: {existing_path}")
-        install_agentic_devtools(existing_path)
         open_vscode_workspace(existing_path)
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         return True, issue_key
@@ -1090,7 +1018,6 @@ def create_placeholder_and_setup_worktree(
     result = setup_worktree_environment(
         issue_key=issue_key,
         branch_name=branch_name,
-        install_helpers=True,
         open_vscode=True,
     )
 
@@ -1098,7 +1025,6 @@ def create_placeholder_and_setup_worktree(
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
         print(f"   Branch: {result.branch_name}")
-        print(f"   Helpers installed: {'Yes' if result.helpers_installed else 'No'}")
         print(f"   VS Code opened: {'Yes' if result.vscode_opened else 'No'}")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         return True, issue_key

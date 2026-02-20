@@ -197,15 +197,7 @@ graph TB
         WT2[worktree-2]
     end
     
-    subgraph "Local Environments"
-        MainVenv[main/.agdt-venv]
-        WT1Venv[worktree-1/.agdt-venv]
-    end
-    
-    Main -->|Uses| MainVenv
-    WT1 -->|Uses| WT1Venv
+    Main -->|Uses| Global
+    WT1 -->|Uses| Global
     WT2 -->|Uses| Global
-    
-    MainVenv -.->|Fallback| Global
-    WT1Venv -.->|Fallback| Global
 ```

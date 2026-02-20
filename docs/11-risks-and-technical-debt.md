@@ -103,11 +103,11 @@ graph LR
 
 **Current Status**: Environment variables remain best practice for CLI tools
 
-#### RISK-006: Multi-Worktree Version Conflicts
+#### RISK-006: State Schema Backward Compatibility
 
-**Risk**: Different worktrees use incompatible versions
+**Risk**: Changes to the state schema break existing state files after an upgrade
 
-**Probability**: Medium
+**Probability**: Low
 
 **Impact**: Medium
 
@@ -116,9 +116,8 @@ graph LR
 - State schema versioning
 - Backward compatibility testing
 - Clear upgrade path documentation
-- Version detection in dispatcher
 
-**Current Status**: Version detection not yet implemented
+**Current Status**: No schema versioning implemented yet
 
 ### 11.1.3 Low Priority Risks
 

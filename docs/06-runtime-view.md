@@ -212,28 +212,7 @@ flowchart TD
     style ForcePush fill:#ff9
 ```
 
-## 6.5 Scenario: Multi-Worktree Command Execution
-
-```mermaid
-flowchart TD
-    Start[Command: agdt-set key value] --> Entry[dispatcher.py entry point]
-    Entry --> Detect[git rev-parse --show-toplevel]
-    
-    Detect --> CheckVenv{.agdt-venv exists<br/>at repo root?}
-    CheckVenv -->|Yes| CheckPython{Python executable<br/>exists in venv?}
-    CheckVenv -->|No| DirectExec[Execute in current Python]
-    
-    CheckPython -->|Yes| Reexec[Re-execute with venv Python]
-    CheckPython -->|No| DirectExec
-    
-    Reexec --> Route[Route to command handler]
-    DirectExec --> Route
-    
-    Route --> Execute[Execute command logic]
-    Execute --> Return[Return exit code]
-```
-
-## 6.6 Scenario: Workflow Auto-Advancement
+## 6.5 Scenario: Workflow Auto-Advancement
 
 ```mermaid
 sequenceDiagram
@@ -273,7 +252,7 @@ sequenceDiagram
     end
 ```
 
-## 6.7 Error Handling Patterns
+## 6.6 Error Handling Patterns
 
 ```mermaid
 flowchart TD
@@ -298,7 +277,7 @@ flowchart TD
     Update --> ReturnErr[Return non-zero exit code]
 ```
 
-## 6.8 State Locking During Concurrent Access
+## 6.7 State Locking During Concurrent Access
 
 ```mermaid
 sequenceDiagram

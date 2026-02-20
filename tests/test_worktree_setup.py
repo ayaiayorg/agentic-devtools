@@ -17,7 +17,6 @@ from agentic_devtools.cli.workflows.worktree_setup import (
     get_main_repo_root,
     get_repos_parent_dir,
     get_worktree_continuation_prompt,
-    install_agentic_devtools,
     is_in_worktree,
     open_vscode_workspace,
     setup_worktree_environment,
@@ -43,7 +42,6 @@ class TestWorktreeSetupResult:
         # Default values for optional fields
         assert result.error_message is None
         assert result.vscode_opened is False
-        assert result.helpers_installed is False
 
     def test_custom_values(self):
         """Test custom values for WorktreeSetupResult."""
@@ -51,14 +49,12 @@ class TestWorktreeSetupResult:
             success=True,
             worktree_path="/path/to/worktree",
             branch_name="feature/DFLY-1234/test",
-            helpers_installed=True,
             vscode_opened=True,
             error_message=None,
         )
         assert result.success is True
         assert result.worktree_path == "/path/to/worktree"
         assert result.branch_name == "feature/DFLY-1234/test"
-        assert result.helpers_installed is True
         assert result.vscode_opened is True
         assert result.error_message is None
 
@@ -691,89 +687,6 @@ class TestSetupWorktreeFromState:
         )
 
 
-class TestInstallDflyAiHelpers:
-    """Tests for install_agentic_devtools function."""
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("os.path.exists")
-    def test_installs_helpers_successfully(self, mock_exists, mock_run):
-        """Test successful helpers installation via setup-dev-tools.py."""
-        mock_exists.return_value = True  # setup-dev-tools.py exists
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is True
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args[0][0]
-        # Now uses setup-dev-tools.py instead of pip
-        assert "setup-dev-tools.py" in call_args[1]
-        assert call_args[1].endswith("setup-dev-tools.py")
-
-    @patch("os.path.exists")
-    def test_skips_install_when_setup_script_not_found(self, mock_exists):
-        """Test skipping installation when setup-dev-tools.py not found."""
-        mock_exists.return_value = False  # setup-dev-tools.py doesn't exist
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is False
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("os.path.exists")
-    def test_handles_setup_script_failure(self, mock_exists, mock_run):
-        """Test handling setup-dev-tools.py failure."""
-        mock_exists.return_value = True
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stderr="ERROR: Could not complete setup",
-            stdout="",
-        )
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is False
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("os.path.exists")
-    def test_handles_setup_script_failure_with_stdout(self, mock_exists, mock_run, capsys):
-        """Test handling setup-dev-tools.py failure with stdout content."""
-        mock_exists.return_value = True
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stderr="ERROR: Could not complete setup",
-            stdout="Some useful output before failure",
-        )
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is False
-        captured = capsys.readouterr()
-        # Stdout should be printed to stderr when failure occurs
-        assert "Some useful output before failure" in captured.err
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("os.path.exists")
-    def test_handles_file_not_found_error(self, mock_exists, mock_run):
-        """Test handling FileNotFoundError when Python is not available."""
-        mock_exists.return_value = True
-        mock_run.side_effect = FileNotFoundError("python not found")
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is False
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("os.path.exists")
-    def test_handles_os_error_during_setup(self, mock_exists, mock_run):
-        """Test handling OSError during setup-dev-tools.py execution."""
-        mock_exists.return_value = True
-        mock_run.side_effect = OSError("Permission denied")
-
-        result = install_agentic_devtools("/repos/DFLY-1234")
-
-        assert result is False
-
 
 class TestOpenVscodeWorkspace:
     """Tests for open_vscode_workspace function."""
@@ -850,29 +763,25 @@ class TestSetupWorktreeEnvironment:
     """Tests for setup_worktree_environment function."""
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.install_agentic_devtools")
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_full_setup_success(self, mock_create, mock_install, mock_vscode):
+    def test_full_setup_success(self, mock_create, mock_vscode):
         """Test successful full environment setup."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
             worktree_path="/repos/DFLY-1234",
             branch_name="feature/DFLY-1234/implementation",
         )
-        mock_install.return_value = True
         mock_vscode.return_value = True
 
         result = setup_worktree_environment(
             issue_key="DFLY-1234",
             branch_prefix="feature",
-            install_helpers=True,
             open_vscode=True,
         )
 
         assert result.success is True
         assert result.worktree_path == "/repos/DFLY-1234"
         assert result.branch_name == "feature/DFLY-1234/implementation"
-        assert result.helpers_installed is True
         assert result.vscode_opened is True
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
@@ -890,40 +799,18 @@ class TestSetupWorktreeEnvironment:
         assert result.success is False
         assert "Git error" in result.error_message
 
-    @patch("agentic_devtools.cli.workflows.worktree_setup.install_agentic_devtools")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_setup_without_helpers_install(self, mock_create, mock_install):
-        """Test setup without installing helpers."""
-        mock_create.return_value = WorktreeSetupResult(
-            success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
-        )
-
-        result = setup_worktree_environment(
-            issue_key="DFLY-1234",
-            install_helpers=False,
-            open_vscode=False,
-        )
-
-        assert result.success is True
-        mock_install.assert_not_called()
-
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.install_agentic_devtools")
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_setup_without_vscode(self, mock_create, mock_install, mock_vscode):
+    def test_setup_without_vscode(self, mock_create, mock_vscode):
         """Test setup without opening VS Code."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
             worktree_path="/repos/DFLY-1234",
             branch_name="feature/DFLY-1234/implementation",
         )
-        mock_install.return_value = True
 
         result = setup_worktree_environment(
             issue_key="DFLY-1234",
-            install_helpers=True,
             open_vscode=False,
         )
 
@@ -1185,7 +1072,6 @@ class TestCreatePlaceholderAndSetupWorktree:
             success=True,
             worktree_path="/repos/DFLY-9999",
             branch_name="feature/DFLY-9999/implementation",
-            helpers_installed=True,
             vscode_opened=True,
         )
         mock_prompt.return_value = "Continue command..."
@@ -1216,7 +1102,6 @@ class TestCreatePlaceholderAndSetupWorktree:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.install_agentic_devtools")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue")
@@ -1225,14 +1110,12 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_create_issue,
         mock_set_value,
         mock_check_exists,
-        mock_install,
         mock_vscode,
         mock_prompt,
     ):
         """Test using existing worktree when it already exists."""
         mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="DFLY-9999")
         mock_check_exists.return_value = "/repos/DFLY-9999"  # Worktree exists
-        mock_install.return_value = True
         mock_vscode.return_value = True
         mock_prompt.return_value = "Continue command..."
 
@@ -1243,8 +1126,7 @@ class TestCreatePlaceholderAndSetupWorktree:
 
         assert success is True
         assert issue_key == "DFLY-9999"
-        # Should install helpers and open vscode for existing worktree
-        mock_install.assert_called_once()
+        # Should open vscode for existing worktree
         mock_vscode.assert_called_once()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
@@ -1409,12 +1291,10 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.install_agentic_devtools")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_existing_worktree_reuses_and_opens(
         self,
         mock_check_exists,
-        mock_install_helpers,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -1422,7 +1302,6 @@ class TestSetupWorktreeInBackgroundSync:
     ):
         """Test that existing worktree is reused and opened."""
         mock_check_exists.return_value = "/repos/DFLY-1234"
-        mock_install_helpers.return_value = True
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
@@ -1434,7 +1313,6 @@ class TestSetupWorktreeInBackgroundSync:
         )
 
         mock_check_exists.assert_called_once_with("DFLY-1234")
-        mock_install_helpers.assert_called_once_with("/repos/DFLY-1234")
         mock_open_vscode.assert_called_once_with("/repos/DFLY-1234")
         captured = capsys.readouterr()
         assert "Worktree already exists" in captured.out
@@ -1458,7 +1336,6 @@ class TestSetupWorktreeInBackgroundSync:
             success=True,
             worktree_path="/repos/DFLY-1234",
             branch_name="feature/DFLY-1234/implementation",
-            helpers_installed=True,
             vscode_opened=True,
         )
         mock_continuation_prompt.return_value = "Continue..."

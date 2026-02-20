@@ -24,29 +24,11 @@ existing `speckit.*` pattern.
 
 ### Multi-Worktree Development
 
-The package supports **multi-worktree development** where different worktrees can have different versions of `agentic-devtools`:
+The package supports **multi-worktree development** using a single global pip/pipx install of `agentic-devtools` shared across all
+worktrees. Each worktree has its own `scripts/temp/agdt-state.json` file, so state is fully isolated between branches.
 
-- **Smart Repo-Local Detection**: All `agdt-*` commands automatically detect the current git repo root and use the local `.agdt-venv` installation if present
-- **Per-Worktree Isolation**: Each worktree can have its own version via `setup-dev-tools.py`, which creates a `.agdt-venv` with the local package installed
-- **Graceful Fallback**: If no local venv exists, commands use the global pip installation
-- **No Command Changes**: The same `agdt-*` commands work everywhere - the dispatcher handles routing automatically
-
-**How it works:**
-
-1. When you run any `agdt-*` command, the dispatcher checks `git rev-parse --show-toplevel`
-2. It looks for `.agdt-venv/Scripts/python.exe` (Windows) or `.agdt-venv/bin/python` (Unix) at the repo root
-3. If found, it re-executes the command using that Python interpreter
-4. If not found, the command runs in the current Python environment
-
-**Setting up a worktree with local helpers:**
-
-```bash
-# Run setup-dev-tools.py in the worktree
-python setup-dev-tools.py
-
-# This creates .agdt-venv with agentic-devtools installed from agentic_devtools/
-# All agdt-* commands will now use this local version in this worktree
-```
+- **Single Global Install**: Install once with `pip install agentic-devtools` or `pipx install agentic-devtools`; all worktrees use the same installation
+- **No Command Changes**: The same `agdt-*` commands work everywhere - entry points call implementations directly
 
 ### Background Task Architecture
 

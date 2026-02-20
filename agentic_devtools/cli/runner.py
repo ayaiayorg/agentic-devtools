@@ -1,8 +1,7 @@
 """
 Command runner for agentic-devtools.
 
-This module provides a way to run agdt-* commands by name, used by the
-wrapper scripts (agdt.ps1, agdt.sh) that auto-detect the repo's local venv.
+This module provides a way to run agdt-* commands by name.
 
 Usage:
     python -m agentic_devtools.cli.runner agdt-set key value
@@ -265,6 +264,28 @@ COMMAND_MAP = {
         "agentic_devtools.cli.workflows",
         "setup_worktree_background_cmd",
     ),
+    # Release
+    "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
+    # Azure context management
+    "agdt-azure-context-use": (
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_use_command",
+    ),
+    "agdt-azure-context-status": (
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_status_command",
+    ),
+    "agdt-azure-context-current": (
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_current_command",
+    ),
+    "agdt-azure-context-ensure-login": (
+        "agentic_devtools.cli.azure_context.commands",
+        "azure_context_ensure_login_command",
+    ),
+    # Network / VPN wrappers
+    "agdt-network-status": ("agentic_devtools.cli.network", "network_status_cmd"),
+    "agdt-vpn-run": ("agentic_devtools.cli.vpn", "vpn_run_cmd"),
 }
 
 
@@ -296,6 +317,24 @@ def run_command(command: str) -> None:
 
     # Run the command
     func()
+
+
+def run_as_script() -> None:
+    """
+    Entry point called by console_scripts.
+
+    Derives the command name from ``sys.argv[0]`` (the script name) and runs
+    it, handling :exc:`KeyboardInterrupt` gracefully so Ctrl+C produces a
+    clean message and exits with code 130 instead of a traceback.
+    """
+    import os
+
+    command = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+    try:
+        run_command(command)
+    except KeyboardInterrupt:
+        print("\nOperation cancelled.")
+        sys.exit(130)
 
 
 def main() -> None:
