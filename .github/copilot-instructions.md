@@ -888,9 +888,11 @@ The file is listed in `.gitignore`. **Do not** `git add`, edit, or commit it.
 - If you see it modified in `git status`, discard it: `git checkout -- agentic_devtools/_version.py`
 
 > **⚠️ AI AGENTS: Before calling `report_progress`**, always run:
+>
 > ```bash
 > git checkout -- agentic_devtools/_version.py
 > ```
+>
 > to discard any auto-generated version bump. The `report_progress` tool runs `git add .` which
 > will pick up this file if it has been modified by a package install or build step during your
 > session. Including it in a commit will cause CI/review failures.
