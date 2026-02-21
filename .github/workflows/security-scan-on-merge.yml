@@ -157,10 +157,11 @@ jobs:
 
       - name: Run Safety Scan
         id: safety
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
           echo "Running safety scan..."
-          safety scan --json > safety-report.json
-          safety_exit_code=$?
+          safety scan --json > safety-report.json 2>/dev/null; safety_exit_code=$?
           
           # Validate that the report exists and is valid JSON before interpreting results
           if [ ! -s safety-report.json ]; then
