@@ -40,10 +40,11 @@ class TestWorkflowStateIntegration:
         result = state.get_workflow_state()
         assert result["step"] == "reviewing"
 
-        # Update context (replaces existing context)
+        # Update context (merges with existing context)
         state.update_workflow_context({"review_started": True})
         result = state.get_workflow_state()
         assert result["context"]["review_started"] is True
+        assert result["context"]["pull_request_id"] == "123"
 
         # Complete workflow
         state.set_workflow_state(
