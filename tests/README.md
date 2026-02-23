@@ -111,7 +111,7 @@ agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
 agdt-test-pattern tests/unit/cli/git/core/ -v
 
 # Run a specific test function
-agdt-test-pattern tests/unit/state/test_get_value.py::test_returns_default_when_missing -v
+agdt-test-pattern tests/unit/state/test_get_value.py::TestGetValue::test_get_nonexistent_key_returns_none -v
 
 # Run full test suite with coverage (background task, ~55 s)
 agdt-test
