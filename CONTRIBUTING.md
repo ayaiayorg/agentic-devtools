@@ -40,6 +40,24 @@ This installs agentic-devtools with all development tools including pytest, blac
 
 ## Running Tests
 
+### Test Organization Policy
+
+New unit tests must follow the **1:1:1 policy**: one test file per symbol (function or class), in a directory
+that mirrors the source structure. See [tests/README.md](tests/README.md) for the full policy,
+rationale, and how to add new tests.
+
+**Quick path convention:**
+
+```text
+tests/unit/{module_path}/{source_file_name}/test_{symbol_name}.py
+```
+
+Run the structure validator before pushing:
+
+```bash
+python scripts/validate_test_structure.py
+```
+
 ### Full Test Suite
 
 Run the complete test suite with coverage:

@@ -3,10 +3,26 @@
 This document defines the strict 1:1:1 test organization policy for `agentic-devtools`.
 All new tests **must** follow this policy. No exceptions are allowed.
 
+## Rationale
+
+The 1:1:1 policy enforces a strict, predictable mapping between source code and tests:
+
+- **Discoverability**: Given any symbol (function or class), you can immediately find its tests and vice versa without
+  searching — just follow the path convention.
+- **Isolation**: Each test file has exactly one responsibility. Tests for `get_value()` never
+  interfere with tests for `set_value()`.
+- **Incremental coverage**: Adding tests for a new symbol (function or class) means creating one new file in a
+  predictable location — no hunting for where tests "should go".
+- **CI enforcement (structure only)**: The automated validator (`scripts/validate_test_structure.py`)
+  checks the folder↔source-file mapping and required `__init__.py` files. Structural violations fail the
+  build immediately, before review. It does **not** verify per-symbol coverage — that is enforced by convention and code review.
+- **AI-agent friendly**: AI coding agents can deterministically locate and create test files by following
+  the path convention, even though CI only validates directory structure.
+
 ## Policy
 
 - **One folder per source file under test** — the test directory structure mirrors the source structure.
-- **One test file per function under test** — each test file covers exactly one function.
+- **One test file per symbol (function or class) under test** — each test file covers exactly one symbol.
 
 ## Directory Structure
 
@@ -43,11 +59,79 @@ where `{symbol_name}` is:
 4. Every directory in the hierarchy **must** contain an `__init__.py` file so pytest can
    resolve imports correctly.
 
+## How to Add New Tests
+
+Follow these steps whenever you add a new function or class to a source file:
+
+1. **Identify the source file path**, e.g. `agentic_devtools/cli/git/core.py`.
+2. **Determine the test folder**: drop the `agentic_devtools/` prefix and strip the `.py`
+   extension → `tests/unit/cli/git/core/`.
+3. **Create the folder** (and any missing intermediate folders) plus an `__init__.py`
+   in every new directory:
+
+   ```bash
+   mkdir -p tests/unit/cli/git/core
+   touch tests/unit/cli/git/core/__init__.py
+   # Also ensure parent dirs have __init__.py:
+   touch tests/unit/cli/git/__init__.py tests/unit/cli/__init__.py tests/unit/__init__.py
+   ```
+
+4. **Create the test file** named `test_{symbol_name}.py`:
+   - Functions: `test_get_current_branch.py`
+   - Classes/dataclasses/enums: `test_worktreesetupresult.py` (lowercase, no added underscores)
+5. **Write your tests** in the new file. A minimal example:
+
+   ```python
+   from agentic_devtools.cli.git.core import get_current_branch
+
+
+   def test_returns_branch_name():
+       # arrange / act / assert
+       ...
+   ```
+
+6. **Run the validator** to confirm the structure is correct:
+
+   ```bash
+   python scripts/validate_test_structure.py
+   ```
+
+7. **Run only the new test file** to confirm it passes:
+
+   ```bash
+   agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
+   ```
+
+## How to Run Specific Tests
+
+```bash
+# Run one test file
+agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
+
+# Run all tests for a source file's folder
+agdt-test-pattern tests/unit/cli/git/core/ -v
+
+# Run a specific test function
+agdt-test-pattern tests/unit/state/test_get_value.py::TestGetValue::test_get_nonexistent_key_returns_none -v
+
+# Run full test suite with coverage (background task, ~55 s)
+agdt-test
+agdt-task-wait
+
+# Run tests for a specific source file with 100% coverage requirement
+# NOTE: agdt-test-file infers a legacy tests/test_<module>.py path and does NOT
+# support the tests/unit/ 1:1:1 layout. Use agdt-test-pattern for 1:1:1 tests
+# (see examples above), and reserve agdt-test-file for modules that still have
+# a matching legacy flat test file (tests/test_<module>.py). If no such file
+# exists the command will fail with "Test file not found".
+```
+
 ## Enforcement
 
-A CI validation script (`scripts/validate_test_structure.py`) automatically checks that
-every file inside `tests/unit/` obeys the rules above. The script exits with a non-zero
-status if any violation is found, causing the CI build to fail.
+`scripts/validate_test_structure.py` runs in CI and **fails the build** when it finds structural
+issues in `tests/unit/`: incorrect source-file folder mapping, or missing `__init__.py` files.
+It does **not** verify that every symbol has a test file or that `test_<symbol>.py` corresponds
+to a real symbol — those parts of the policy are enforced by convention and code review.
 
 To run the validator locally:
 
