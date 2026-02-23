@@ -1,4 +1,6 @@
-"""Shared fixtures for tests/unit/cli/git/operations/."""
+"""
+Shared fixtures for tests/unit/cli/git/.
+"""
 
 from unittest.mock import MagicMock, patch
 
