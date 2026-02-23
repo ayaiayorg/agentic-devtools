@@ -1,6 +1,4 @@
-"""
-Tests for review_prompts module.
-"""
+"""Tests for build_file_prompt_content function."""
 
 
 class TestBuildFilePromptContent:

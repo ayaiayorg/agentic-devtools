@@ -1,6 +1,4 @@
-"""
-Tests for review_prompts module.
-"""
+"""Tests for write_file_prompt function."""
 
 
 class TestWriteFilePrompt:

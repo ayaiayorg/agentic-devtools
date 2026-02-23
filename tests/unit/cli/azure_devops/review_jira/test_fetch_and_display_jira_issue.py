@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for fetch_and_display_jira_issue function."""
 
 from unittest.mock import patch
 

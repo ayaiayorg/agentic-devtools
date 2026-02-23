@@ -22,9 +22,7 @@ class TestGetCurrentAzureAccount:
         """Test parsing account name from az account show returns (user_name, subscription_name)."""
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout=json.dumps(
-                {"user": {"name": "user@domain.com"}, "name": "my-subscription"}
-            ),
+            stdout=json.dumps({"user": {"name": "user@domain.com"}, "name": "my-subscription"}),
         )
         result = get_current_azure_account()
         assert result == ("user@domain.com", "my-subscription")

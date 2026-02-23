@@ -11,25 +11,35 @@ All new tests **must** follow this policy. No exceptions are allowed.
 ## Directory Structure
 
 ```text
-tests/unit/{module_path}/{source_file_name}/test_{function_name}.py
+tests/unit/{module_path}/{source_file_name}/test_{symbol_name}.py
 ```
+
+where `{symbol_name}` is:
+
+- **Functions**: the exact snake\_case function name (e.g., `get_current_branch` → `test_get_current_branch.py`)
+- **Classes / dataclasses / enums**: the class name lowercased **without** additional underscores
+  (e.g., `WorktreeSetupResult` → `test_worktreesetupresult.py`, `ChecklistItem` → `test_checklistitem.py`)
 
 ### Example
 
-| Source | Test |
-|--------|------|
+| Source symbol | Test file |
+|---|---|
 | `agentic_devtools/cli/git/core.py` → `get_current_branch()` | `tests/unit/cli/git/core/test_get_current_branch.py` |
 | `agentic_devtools/state.py` → `get_value()` | `tests/unit/state/test_get_value.py` |
 | `agentic_devtools/cli/jira/config.py` → `get_jira_url()` | `tests/unit/cli/jira/config/test_get_jira_url.py` |
+| `agentic_devtools/cli/workflows/worktree_setup.py` → `WorktreeSetupResult` | `tests/unit/cli/workflows/worktree_setup/test_worktreesetupresult.py` |
+| `agentic_devtools/cli/workflows/checklist.py` → `ChecklistItem` | `tests/unit/cli/workflows/checklist/test_checklistitem.py` |
 
 ## Rules
 
 1. The path under `tests/unit/` **must** mirror the path under `agentic_devtools/` exactly
    (drop the `agentic_devtools/` prefix and strip the `.py` extension to form the folder name).
-2. The test file **must** be named `test_{function_name}.py` where `{function_name}` is the
-   name of the single function under test.
-3. **Each test file tests exactly one function.** If a source file has ten functions, it will
-   have ten corresponding test files inside its folder.
+2. The test file **must** be named `test_{symbol_name}.py` where `{symbol_name}` is:
+   - For **functions**: the exact snake\_case function name.
+   - For **classes / dataclasses / enums**: the class name lowercased without added underscores
+     (e.g., `WorktreeSetupResult` → `test_worktreesetupresult.py`).
+3. **Each test file tests exactly one symbol (function or class).** If a source file has ten
+   public symbols, it will have ten corresponding test files inside its folder.
 4. Every directory in the hierarchy **must** contain an `__init__.py` file so pytest can
    resolve imports correctly.
 
@@ -44,6 +54,21 @@ To run the validator locally:
 ```bash
 python scripts/validate_test_structure.py
 ```
+
+## Top-Level Source Files
+
+Source files directly inside `agentic_devtools/` (e.g., `state.py`, `background_tasks.py`)
+map to `tests/unit/{source_file_name}/test_{function_name}.py`. The `module_path` part is
+simply empty.
+
+| Source | Test |
+|--------|------|
+| `agentic_devtools/state.py` → `get_workflow_state()` | `tests/unit/state/test_get_workflow_state.py` |
+| `agentic_devtools/background_tasks.py` → `run_function_in_background()` | `tests/unit/background_tasks/test_run_function_in_background.py` |
+
+> **Do NOT** create proxy/stub source files (e.g., `agentic_devtools/root/state.py`) just to
+> add a path component. The validator supports 2-component minimum paths, so top-level
+> source files are handled correctly without any workaround.
 
 ## Linting Requirements
 

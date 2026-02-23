@@ -1,6 +1,4 @@
-"""
-Tests for review_prompts module.
-"""
+"""Tests for generate_review_prompts function."""
 
 
 class TestGenerateReviewPrompts:

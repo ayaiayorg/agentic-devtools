@@ -1,6 +1,4 @@
-"""
-Tests for review_jira module.
-"""
+"""Tests for fetch_jira_issue function."""
 
 import os
 from unittest.mock import MagicMock, patch

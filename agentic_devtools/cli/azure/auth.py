@@ -54,9 +54,7 @@ def is_aza_account(account_name: str) -> bool:
     if not account_name:
         return False
     # AZA accounts have '.aza' in the username before the domain
-    return (
-        ".aza@" in account_name.lower() or ".aza" in account_name.lower().split("@")[0]
-    )
+    return ".aza@" in account_name.lower() or ".aza" in account_name.lower().split("@")[0]
 
 
 def detect_account_type(account_name: str) -> AzureAccount:
@@ -86,9 +84,7 @@ def switch_azure_account(target_account: AzureAccount) -> bool:
     Returns:
         True if switch was successful.
     """
-    account_desc = (
-        "AZA (elevated access)" if target_account == AzureAccount.AZA else "normal"
-    )
+    account_desc = "AZA (elevated access)" if target_account == AzureAccount.AZA else "normal"
     print(f"\nSwitching to {account_desc} Azure account...")
     print("A browser window will open for authentication.\n")
 
@@ -121,9 +117,7 @@ def switch_azure_account(target_account: AzureAccount) -> bool:
     return True
 
 
-def ensure_azure_account(
-    required_account: AzureAccount, auto_switch: bool = True
-) -> bool:
+def ensure_azure_account(required_account: AzureAccount, auto_switch: bool = True) -> bool:
     """
     Ensure the correct Azure account is active.
 
@@ -148,14 +142,10 @@ def ensure_azure_account(
         return True
 
     # Wrong account type
-    required_desc = (
-        "AZA (elevated access)" if required_account == AzureAccount.AZA else "normal"
-    )
+    required_desc = "AZA (elevated access)" if required_account == AzureAccount.AZA else "normal"
     current_desc = "AZA" if current_type == AzureAccount.AZA else "normal"
 
-    print(
-        f"\nAccount mismatch: Need {required_desc} account, but logged in with {current_desc} ({current[0]})"
-    )
+    print(f"\nAccount mismatch: Need {required_desc} account, but logged in with {current_desc} ({current[0]})")
 
     if auto_switch:
         return switch_azure_account(required_account)

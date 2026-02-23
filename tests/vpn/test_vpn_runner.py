@@ -2,9 +2,7 @@
 Tests for VPN command runner module.
 """
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from agentic_devtools.cli.vpn.runner import (
     VpnRequirement,
@@ -38,9 +36,7 @@ class TestDetectVpnRequirementFromCommand:
 
     def test_jira_url(self):
         """Test detection for Jira URLs."""
-        result = _detect_vpn_requirement_from_command(
-            "curl https://jira.swica.ch/rest/api/2/issue/DP-123"
-        )
+        result = _detect_vpn_requirement_from_command("curl https://jira.swica.ch/rest/api/2/issue/DP-123")
         assert result == VpnRequirement.REQUIRE_VPN
 
     def test_esb_url(self):
