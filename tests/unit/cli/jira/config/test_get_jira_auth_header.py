@@ -104,4 +104,3 @@ class TestJiraAuth:
             with pytest.raises(ValueError) as exc_info:
                 jira.get_jira_auth_header()
             assert "oauth" in str(exc_info.value)
-

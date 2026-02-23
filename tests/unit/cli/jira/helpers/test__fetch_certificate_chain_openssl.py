@@ -63,4 +63,3 @@ MIIFakeIntermediateCert456
             result = jira_helpers._fetch_certificate_chain_openssl("jira.swica.ch")
 
         assert result is None
-

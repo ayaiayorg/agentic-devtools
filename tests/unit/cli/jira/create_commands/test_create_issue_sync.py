@@ -120,7 +120,6 @@ class TestCreateIssueSyncWithMock:
         assert payload["fields"]["parent"]["key"] == "DFLY-5678"
 
 
-
 class TestCreateIssueSyncEdgeCases:
     """Edge case tests for create_issue_sync."""
 
@@ -153,4 +152,3 @@ class TestCreateIssueSyncEdgeCases:
         call_args = mock_requests_module.post.call_args
         payload = call_args[1]["json"]
         assert "parent" not in payload["fields"]
-

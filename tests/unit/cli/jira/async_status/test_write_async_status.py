@@ -98,4 +98,3 @@ class TestWriteAsyncStatus:
 
         content = json.loads(result_path.read_text(encoding="utf-8"))
         assert content["message"] == "Größe Übung Äpfel and 日本語"
-

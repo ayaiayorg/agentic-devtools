@@ -87,7 +87,6 @@ class TestAddCommentDryRun:
         assert exc_info.value.code == 1
 
 
-
 class TestAddCommentWithMock:
     """Tests for add_comment with mocked API calls."""
 
@@ -137,4 +136,3 @@ class TestAddCommentWithMock:
             with pytest.raises(SystemExit) as exc_info:
                 jira.add_comment()
             assert exc_info.value.code == 1
-

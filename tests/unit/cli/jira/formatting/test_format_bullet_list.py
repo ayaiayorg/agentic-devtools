@@ -2,7 +2,6 @@
 Tests for Jira formatting utilities.
 """
 
-
 from agdt_ai_helpers.cli import jira
 
 
@@ -70,4 +69,3 @@ class TestFormatBulletList:
         """Test all empty items with placeholder returns placeholder."""
         result = jira.format_bullet_list(["", "  "], "No items")
         assert result == "* No items"
-

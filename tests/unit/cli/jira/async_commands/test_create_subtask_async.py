@@ -71,4 +71,3 @@ class TestCreateSubtaskAsync:
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
         assert "DFLY-123" in captured.out
-

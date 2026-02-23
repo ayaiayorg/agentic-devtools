@@ -174,4 +174,3 @@ class TestGetSslVerify:
                             jira_helpers._get_ssl_verify()
 
         mock_ensure.assert_called_once_with("jira.local:8080")
-

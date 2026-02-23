@@ -67,4 +67,3 @@ class TestRoleCommandsAsync:
 
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
-

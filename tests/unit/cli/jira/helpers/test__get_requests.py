@@ -26,4 +26,3 @@ class TestGetRequests:
         error = ImportError(expected_msg)
         assert "requests library required" in str(error)
         assert "pip install requests" in str(error)
-

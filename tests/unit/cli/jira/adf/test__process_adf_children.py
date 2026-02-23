@@ -33,4 +33,3 @@ class TestProcessAdfChildren:
         result = jira._process_adf_children(node)
         assert "Hello" in result
         assert "World" in result
-

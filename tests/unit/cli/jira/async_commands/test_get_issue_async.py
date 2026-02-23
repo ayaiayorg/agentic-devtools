@@ -68,4 +68,3 @@ class TestGetIssueAsync:
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
         assert "DFLY-456" in captured.out
-

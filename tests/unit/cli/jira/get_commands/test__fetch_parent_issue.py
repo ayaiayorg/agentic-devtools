@@ -87,4 +87,3 @@ class TestFetchParentIssue:
         assert result is None
         captured = capsys.readouterr()
         assert "Warning: Could not fetch parent issue DFLY-1234" in captured.err
-

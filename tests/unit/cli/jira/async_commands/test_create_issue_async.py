@@ -70,4 +70,3 @@ class TestCreateIssueAsync:
 
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
-

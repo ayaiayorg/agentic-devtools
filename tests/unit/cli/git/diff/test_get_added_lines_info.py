@@ -36,10 +36,7 @@ class TestGetAddedLinesInfo:
         """Should detect binary files with realistic diff --git header."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = (
-            "diff --git a/image.png b/image.png\n"
-            "Binary files a/image.png and b/image.png differ"
-        )
+        mock_result.stdout = "diff --git a/image.png b/image.png\nBinary files a/image.png and b/image.png differ"
 
         with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
             result = get_added_lines_info("main", "feature", "image.png")

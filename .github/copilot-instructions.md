@@ -887,11 +887,13 @@ The file is listed in `.gitignore`. **Do not** `git add`, edit, or commit it.
 - To bump the package version, create a new Git tag — see [RELEASING.md](../RELEASING.md).
 - If you see it modified in `git status`, discard it: `git checkout -- agentic_devtools/_version.py`
 
-> **⚠️ Important for AI agents using `report_progress`:** Even though `_version.py` is in
-> `.gitignore`, the file is still **tracked** in git (it was committed historically). This means
-> `git add .` (as called internally by `report_progress`) **will pick up local changes** to this
-> file and include them in the commit. Before calling `report_progress`, always run:
-> `git checkout -- agentic_devtools/_version.py` to discard any local modifications.
+> **ℹ️ Note:** `agdt-git-save-work` runs `git add .` and then automatically unstages
+> `agentic_devtools/_version.py` before creating a commit, so commits made via
+> `agdt-git-save-work` will not include this file. The Copilot setup workflow also marks this
+> path with `git update-index --skip-worktree`, which keeps `_version.py` changes out of
+> `git add .` for all tools — including `report_progress` — in agent sessions. If you bypass
+> both and run raw `git add .` / `git commit` yourself, ensure `agentic_devtools/_version.py`
+> is not staged before committing.
 
 ### Identifying auto-generated files in the future
 

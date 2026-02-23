@@ -193,7 +193,6 @@ class TestConvertAdfToText:
         assert "  •" in result  # Should have indentation
 
 
-
 class TestConvertAdfEdgeCases:
     """Edge case tests for ADF conversion."""
 
@@ -288,4 +287,3 @@ class TestConvertAdfEdgeCases:
     def test_convert_float_input(self):
         """Test float input returns empty string (fallback case)."""
         assert jira._convert_adf_to_text(3.14) == ""
-

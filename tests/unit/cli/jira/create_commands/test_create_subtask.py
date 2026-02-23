@@ -130,7 +130,6 @@ class TestCreateSubtaskDryRun:
         assert exc_info.value.code == 1
 
 
-
 class TestCreateSubtaskWithMock:
     """Tests for create_subtask with mocked API calls."""
 
@@ -169,4 +168,3 @@ class TestCreateSubtaskWithMock:
             with pytest.raises(SystemExit) as exc_info:
                 jira.create_subtask()
             assert exc_info.value.code == 1
-

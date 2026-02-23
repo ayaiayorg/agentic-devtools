@@ -12,20 +12,37 @@ from typing import Optional
 
 from .core import get_current_branch, run_git, temp_message_file
 
+# Auto-generated files that must never be staged or committed.
+# After `git add .`, these are unstaged via `git reset HEAD <file>`.
+STAGE_EXCLUDE_FILES = [
+    "agentic_devtools/_version.py",
+]
+
 
 def stage_changes(dry_run: bool) -> None:
     """
-    Stage all changes (git add .).
+    Stage all changes (git add .), then unstage any auto-generated files.
+
+    Auto-generated files listed in STAGE_EXCLUDE_FILES are always unstaged
+    after the initial `git add .` so they are never included in commits.
 
     Args:
         dry_run: If True, only print what would happen
     """
     if dry_run:
         print("[DRY RUN] Would stage all changes (git add .)")
+        for excluded in STAGE_EXCLUDE_FILES:
+            print(f"[DRY RUN] Would unstage auto-generated file: {excluded}")
         return
 
     print("Staging all changes...")
     run_git("add", ".")
+
+    for excluded in STAGE_EXCLUDE_FILES:
+        result = run_git("reset", "HEAD", "--", excluded, check=False)
+        if result.returncode == 0 and result.stdout.strip():
+            print(f"Unstaged auto-generated file: {excluded}")
+
     print("Changes staged.")
 
 

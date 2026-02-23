@@ -40,4 +40,3 @@ class TestJiraStateHelpers:
         loaded = state.load_state()
         assert loaded["other_key"] == "other_value"
         assert loaded["jira"]["summary"] == "My Summary"
-

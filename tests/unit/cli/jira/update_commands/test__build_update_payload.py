@@ -106,4 +106,3 @@ class TestBuildUpdatePayload:
             "update": {"labels": [{"add": "new-label"}]},
         }
         assert payload == expected
-

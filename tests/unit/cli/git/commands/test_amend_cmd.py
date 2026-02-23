@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 
 from agentic_devtools import state
-from agentic_devtools.cli.git import commands
+from agentic_devtools.cli.git import commands, operations
 
 
 class TestAmendCommand:
@@ -13,15 +13,19 @@ class TestAmendCommand:
         """Test full amend workflow."""
         state.set_value("commit_message", "Updated commit")
 
-        mock_run_safe.side_effect = [
-            MagicMock(returncode=0, stdout="", stderr=""),  # add
-            MagicMock(returncode=0, stdout="", stderr=""),  # amend
-            MagicMock(returncode=0, stdout="", stderr=""),  # push
-        ]
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # amend
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
 
         commands.amend_cmd()
 
-        assert mock_run_safe.call_count == 3
+        assert mock_run_safe.call_count == 3 + n
 
     def test_amend_cmd_skip_stage(self, temp_state_dir, clear_state_before, mock_run_safe, capsys):
         """Test amend with skip_stage."""
@@ -46,7 +50,9 @@ class TestAmendCommand:
 
         commands.amend_cmd()
 
-        assert mock_run_safe.call_count == 2
+        call_args_strings = [" ".join(str(a) for a in call.args[0]) for call in mock_run_safe.call_args_list]
+        assert any("amend" in args for args in call_args_strings)
+        assert not any("push" in args for args in call_args_strings)
         captured = capsys.readouterr()
         assert "Skipping push" in captured.out
 

@@ -59,4 +59,3 @@ class TestRoleCommandsAsync:
         with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 get_project_role_details_async()
-
