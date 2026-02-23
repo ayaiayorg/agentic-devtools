@@ -85,7 +85,7 @@ Follow these steps whenever you add a new function or class to a source file:
    from agentic_devtools.cli.git.core import get_current_branch
 
 
-   def test_returns_branch_name(tmp_path):
+   def test_returns_branch_name():
        # arrange / act / assert
        ...
    ```
@@ -124,7 +124,6 @@ agdt-task-wait
 # (see examples above), and reserve agdt-test-file for modules that still have
 # a matching legacy flat test file (tests/test_<module>.py). If no such file
 # exists the command will fail with "Test file not found".
-agdt-task-wait
 ```
 
 ## Enforcement
