@@ -166,7 +166,7 @@ def _execute_command(command: str, shell: bool) -> Tuple[int, str, str]:
 
     try:
         if shell:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B602 - shell=True is explicitly requested by the caller for shell-dependent commands
                 command,
                 shell=True,
                 capture_output=True,

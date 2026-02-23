@@ -188,7 +188,7 @@ def update_issue() -> None:
     print(f"Updating {issue_key}...")
 
     try:
-        response = requests.put(url, headers=headers, json=payload, verify=_get_ssl_verify())
+        response = requests.put(url, headers=headers, json=payload, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
 
         # Jira returns 204 No Content on success

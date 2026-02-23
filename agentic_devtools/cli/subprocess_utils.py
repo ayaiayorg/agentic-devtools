@@ -73,7 +73,7 @@ def run_safe(
         errors = "replace"
 
     try:
-        return subprocess.run(
+        return subprocess.run(  # nosec B602 - shell=True only enabled on Windows for .cmd/.bat scripts; args is always a list
             args,
             capture_output=capture_output,
             text=text,

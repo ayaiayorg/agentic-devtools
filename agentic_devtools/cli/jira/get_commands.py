@@ -19,7 +19,7 @@ def _fetch_remote_links(requests, base_url: str, issue_key: str, headers: dict) 
     """Fetch remote links (including PRs) for an issue."""
     url = f"{base_url}/rest/api/2/issue/{issue_key}/remotelink"
     try:
-        response = requests.get(url, headers=headers, verify=_get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
         result = response.json()
         # Ensure we return a list (API returns array of remote links)
@@ -45,7 +45,7 @@ def _fetch_parent_issue(requests, base_url: str, parent_key: str, headers: dict)
     fields = "summary,description,comment,labels,issuetype,parent,customfield_10008"
     url = f"{base_url}/rest/api/2/issue/{parent_key}?fields={fields}&comment.maxResults=50"
     try:
-        response = requests.get(url, headers=headers, verify=_get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -69,7 +69,7 @@ def _fetch_epic(requests, base_url: str, epic_key: str, headers: dict) -> dict |
     fields = "summary,description,comment,labels,issuetype,customfield_10008"
     url = f"{base_url}/rest/api/2/issue/{epic_key}?fields={fields}&comment.maxResults=50"
     try:
-        response = requests.get(url, headers=headers, verify=_get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -127,7 +127,7 @@ def get_issue() -> None:
     print(f"Fetching {issue_key}...")
 
     try:
-        response = requests.get(url, headers=headers, verify=_get_ssl_verify())
+        response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
 
         issue = response.json()

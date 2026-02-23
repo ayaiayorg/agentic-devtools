@@ -432,7 +432,7 @@ def open_vscode_workspace(worktree_path: str) -> bool:
         if platform.system() == "Windows" and hasattr(subprocess, "DETACHED_PROCESS"):
             # On Windows, 'code' is a .cmd batch file, so we need shell=True
             # to find it via PATH. We also use creationflags to detach the process.
-            subprocess.Popen(
+            subprocess.Popen(  # nosec B602 - shell=True required on Windows to find 'code.cmd' via PATH; args is a fixed list
                 ["code", target],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
