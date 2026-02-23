@@ -6,6 +6,7 @@ and open VS Code workspaces for workflow execution.
 It also includes placeholder issue creation for create workflows.
 """
 
+import json
 import os
 import platform
 import subprocess
@@ -456,6 +457,103 @@ def open_vscode_workspace(worktree_path: str) -> bool:
         return False
 
 
+def _detect_git_root() -> str:
+    """
+    Detect the Git for Windows installation root directory.
+
+    Attempts to find the Git executable using ``where.exe`` and derives the
+    installation root from its path.  Falls back to
+    ``C:\\Program Files\\Git`` if detection fails.
+
+    Returns:
+        Absolute path to the Git installation root directory.
+    """
+    from pathlib import PureWindowsPath
+
+    fallback = r"C:\Program Files\Git"
+    try:
+        result = subprocess.run(
+            ["where.exe", "git"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            stdout_stripped = result.stdout.strip()
+            if stdout_stripped:
+                git_exe = stdout_stripped.splitlines()[0]
+                git_path = PureWindowsPath(git_exe)
+                # git.exe lives in <root>\cmd\git.exe or <root>\bin\git.exe
+                if git_path.parent.name.lower() in ("cmd", "bin"):
+                    return str(git_path.parent.parent)
+    except (FileNotFoundError, OSError):
+        pass
+    return fallback
+
+
+def inject_git_path_settings(worktree_path: str) -> None:
+    """
+    Inject ``.vscode/settings.json`` into the worktree with Git for Windows PATH entries.
+
+    VS Code terminal sessions opened in a fresh worktree window on Windows may
+    not inherit the full PATH that includes Git for Windows' internal binary
+    directories (``cmd`` and ``usr\\bin``).  Without those directories, ``git
+    push`` and other operations that shell out to credential helpers or internal
+    utilities fail silently with exit code 128.
+
+    This function creates or merges into ``.vscode/settings.json`` a
+    ``terminal.integrated.env.windows`` entry that appends both
+    ``<git_root>\\cmd`` and ``<git_root>\\usr\\bin`` to PATH.
+
+    This function is a no-op on non-Windows platforms.
+
+    Args:
+        worktree_path: Path to the worktree directory.
+    """
+    if platform.system() != "Windows":
+        return
+
+    git_root = _detect_git_root()
+    # Use explicit backslash joining so paths are correct Windows paths
+    # regardless of the host OS (e.g. when tests run on Linux).
+    git_cmd_dir = git_root + "\\cmd"
+    git_usr_bin_dir = git_root + "\\usr\\bin"
+
+    vscode_dir = os.path.join(worktree_path, ".vscode")
+    settings_path = os.path.join(vscode_dir, "settings.json")
+
+    settings: dict = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, encoding="utf-8") as fh:
+                settings = json.load(fh)
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"Warning: could not read {settings_path}: {exc}", file=sys.stderr)
+            settings = {}
+
+    env_windows: dict = settings.setdefault("terminal.integrated.env.windows", {})
+    existing_path: str = env_windows.get("PATH", "${env:PATH}")
+    # Split PATH into segments and compare case-insensitively to avoid both
+    # false positives from substring matches and missed entries on the
+    # case-insensitive Windows filesystem.
+    path_segments = {seg.casefold() for seg in existing_path.split(";") if seg}
+    missing_dirs = [d for d in (git_cmd_dir, git_usr_bin_dir) if d.casefold() not in path_segments]
+    if missing_dirs:
+        env_windows["PATH"] = existing_path + ";" + ";".join(missing_dirs)
+
+    try:
+        os.makedirs(vscode_dir, exist_ok=True)
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump(settings, fh, indent=2)
+            fh.write("\n")
+        if missing_dirs:
+            print(f"Injected Git PATH settings into {settings_path}")
+        else:
+            print(f"Git PATH settings already configured in {settings_path}")
+    except OSError as exc:
+        print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
+
+
 def setup_worktree_environment(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -469,7 +567,8 @@ def setup_worktree_environment(
     This is the main entry point for setting up a new development environment
     for an issue. It:
     1. Creates a git worktree for the issue
-    2. Opens VS Code with the workspace file
+    2. Injects ``.vscode/settings.json`` with Git for Windows PATH entries (Windows only)
+    3. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "DFLY-1234")
@@ -495,7 +594,10 @@ def setup_worktree_environment(
     if not result.success:
         return result
 
-    # Step 2: Open VS Code
+    # Step 2: Inject VS Code settings for Windows Git PATH
+    inject_git_path_settings(result.worktree_path)
+
+    # Step 3: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
