@@ -125,6 +125,11 @@ agentic_devtools/
 │   │   ├── core.py      # State helpers, git execution, temp files
 │   │   ├── operations.py # Individual git operations
 │   │   └── commands.py  # CLI entry points
+│   ├── github/          # GitHub issue creation commands (package)
+│   │   ├── __init__.py  # Command exports
+│   │   ├── state_helpers.py  # issue.* namespace helpers
+│   │   ├── issue_commands.py # Synchronous issue creation commands
+│   │   └── async_commands.py # Background/async command wrappers + CLI entry points
 │   ├── jira/            # Jira commands (package)
 │   │   ├── __init__.py  # Command exports
 │   │   ├── config.py    # Jira configuration and auth
@@ -155,6 +160,10 @@ agentic_devtools/
 | `git/core.py` | State helpers, git command execution, temp file handling |
 | `git/operations.py` | Individual git operations (stage, commit, push, etc.) and smart amend detection |
 | `git/commands.py` | CLI entry points: `agdt-git-save-work` (auto-detects amend), `agdt-git-stage`, `agdt-git-push`, etc. |
+| `github/__init__.py` | Re-exports public API for `agdt-create-agdt-*` commands |
+| `github/state_helpers.py` | `get_issue_value()` and `set_issue_value()` for the `issue.*` state namespace |
+| `github/issue_commands.py` | Sync implementations: `create_agdt_issue`, `create_agdt_bug_issue`, `create_agdt_feature_issue`, `create_agdt_documentation_issue`, `create_agdt_task_issue` |
+| `github/async_commands.py` | Async wrappers (background tasks) and argparse CLI entry points for all `agdt-create-agdt-*` commands |
 | `prompts/loader.py` | Template loading, variable extraction, validation, substitution, and output saving |
 | `cli/workflows/base.py` | Base workflow utilities: `validate_required_state`, `initiate_workflow`, `advance_workflow_step` |
 | `cli/workflows/commands.py` | Workflow initiation CLI commands for each workflow type |
