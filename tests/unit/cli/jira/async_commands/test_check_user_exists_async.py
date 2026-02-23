@@ -2,40 +2,11 @@
 Tests for Jira async commands and write_async_status function.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from agdt_ai_helpers.cli.jira import async_status
 from agdt_ai_helpers.cli.jira.async_commands import (
     check_user_exists_async,
 )
-
-
-@pytest.fixture
-def temp_state_dir(tmp_path):
-    """Create a temporary directory for state files."""
-    # Patch where get_state_dir is used (in async_status module)
-    with patch.object(async_status, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
-
-
-@pytest.fixture
-def mock_background_and_state(tmp_path):
-    """Mock both background task infrastructure and Jira state."""
-    # Need to patch get_state_dir in both modules since task_state imports it directly
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
-        with patch("agdt_ai_helpers.task_state.get_state_dir", return_value=tmp_path):
-            # Patch subprocess.Popen only in the background_tasks module, not globally
-            # This prevents interference with subprocess.run usage in state.py
-            with patch("agdt_ai_helpers.background_tasks.subprocess.Popen") as mock_popen:
-                mock_process = MagicMock()
-                mock_process.pid = 12345
-                mock_popen.return_value = mock_process
-                yield {
-                    "state_dir": tmp_path,
-                    "mock_popen": mock_popen,
-                }
 
 
 def _get_script_from_call(mock_popen):

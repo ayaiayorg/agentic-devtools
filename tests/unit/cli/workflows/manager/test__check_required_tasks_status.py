@@ -4,17 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agentic_devtools import state
 from agentic_devtools.cli.workflows.manager import (
     _check_required_tasks_status,
 )
-
-
-@pytest.fixture
-def temp_state_dir(tmp_path):
-    """Use a temporary directory for state storage."""
-    with patch.object(state, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
 
 
 @pytest.fixture

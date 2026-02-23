@@ -887,6 +887,10 @@ commit it. Because it is untracked, `.gitignore` prevents `git add .` from ever 
 this applies to all tools including `report_progress` and the Copilot coding agent's own git
 operations.
 
+> **ℹ️ Note:** `agdt-git-save-work` also explicitly unstages `agentic_devtools/_version.py`
+> before creating a commit, so it is doubly protected. If you ever see it appearing in
+> `git status`, do **not** stage or commit it. For test-specific guidance see `tests/README.md`.
+
 - To bump the package version, create a new Git tag — see [RELEASING.md](../RELEASING.md).
 
 ### Identifying auto-generated files in the future
