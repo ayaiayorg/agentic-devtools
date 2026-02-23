@@ -3,17 +3,8 @@
 import sys
 from unittest.mock import patch
 
-import pytest
-
 from agentic_devtools import state
 from agentic_devtools.cli import state as cli_state
-
-
-@pytest.fixture
-def temp_state_dir(tmp_path):
-    """Create a temporary directory for state files."""
-    with patch.object(state, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
 
 
 def test_clear_workflow_cmd_no_active_workflow(temp_state_dir, capsys):

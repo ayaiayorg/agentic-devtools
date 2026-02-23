@@ -9,27 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers import state
 from agdt_ai_helpers.cli import jira
 from agdt_ai_helpers.cli.jira import (
     comment_commands,
     create_commands,
     get_commands,
 )
-
-
-@pytest.fixture
-def temp_state_dir(tmp_path):
-    """Create a temporary directory for state files."""
-    with patch.object(state, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
-
-
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state before each test."""
-    state.clear_state()
-    yield
 
 
 @pytest.fixture

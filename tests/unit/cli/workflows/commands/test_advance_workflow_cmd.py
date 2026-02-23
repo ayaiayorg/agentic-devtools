@@ -9,13 +9,6 @@ from agentic_devtools.prompts import loader
 
 
 @pytest.fixture
-def temp_state_dir(tmp_path):
-    """Create a temporary directory for state files."""
-    with patch.object(state, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
-
-
-@pytest.fixture
 def temp_prompts_dir(tmp_path):
     """Create a temporary prompts directory with test templates."""
     prompts_dir = tmp_path / "prompts"
