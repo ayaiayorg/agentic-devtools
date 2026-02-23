@@ -152,8 +152,8 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
 
     output_lines = result.stdout.split("\n")
 
-    # Check for binary file
-    if output_lines and output_lines[0].startswith("Binary files"):
+    # Check for binary file — the marker may appear after a "diff --git" header
+    if any(line.startswith("Binary files") for line in output_lines):
         return AddedLinesInfo(lines=[], is_binary=True)
 
     added_lines = []
