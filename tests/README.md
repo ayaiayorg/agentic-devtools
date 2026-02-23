@@ -21,7 +21,7 @@ The 1:1:1 policy enforces a strict, predictable mapping between source code and 
 ## Policy
 
 - **One folder per source file under test** — the test directory structure mirrors the source structure.
-- **One test file per function under test** — each test file covers exactly one function.
+- **One test file per symbol (function or class) under test** — each test file covers exactly one symbol.
 
 ## Directory Structure
 
@@ -118,7 +118,11 @@ agdt-test
 agdt-task-wait
 
 # Run tests for a specific source file with 100% coverage requirement
-agdt-test-file --source-file agentic_devtools/cli/git/core.py
+# NOTE: agdt-test-file infers a legacy tests/test_<module>.py path and does NOT
+# support the tests/unit/ 1:1:1 layout. Use agdt-test-pattern for 1:1:1 tests
+# (see examples above), and reserve agdt-test-file for modules that still have
+# a legacy flat test file.
+agdt-test-file --source-file agentic_devtools/state.py   # maps to tests/test_state.py
 agdt-task-wait
 ```
 
