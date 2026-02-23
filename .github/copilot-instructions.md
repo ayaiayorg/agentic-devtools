@@ -887,13 +887,17 @@ The file is listed in `.gitignore`. **Do not** `git add`, edit, or commit it.
 - To bump the package version, create a new Git tag — see [RELEASING.md](../RELEASING.md).
 - If you see it modified in `git status`, discard it: `git checkout -- agentic_devtools/_version.py`
 
-> **ℹ️ Note:** `agdt-git-save-work` runs `git add .` and then automatically unstages
-> `agentic_devtools/_version.py` before creating a commit, so commits made via
-> `agdt-git-save-work` will not include this file. The Copilot setup workflow also marks this
-> path with `git update-index --skip-worktree`, which keeps `_version.py` changes out of
-> `git add .` for all tools — including `report_progress` — in agent sessions. If you bypass
-> both and run raw `git add .` / `git commit` yourself, ensure `agentic_devtools/_version.py`
-> is not staged before committing.
+> **⚠️ Before every `report_progress` call:** run
+> `git checkout -- agentic_devtools/_version.py` to discard any local version change.
+> The `report_progress` tool runs `git add .` internally and **will stage and commit this file**
+> if it appears modified — even though it is listed in `.gitignore` — because Git still tracks it.
+> The Copilot setup workflow normally guards against this with
+> `git update-index --skip-worktree`, but that flag is session-scoped and may not be active.
+> Discarding the file manually before every `report_progress` call is the safest practice.
+>
+> **ℹ️ Note:** `agdt-git-save-work` automatically unstages `agentic_devtools/_version.py`
+> before creating a commit, so commits made via `agdt-git-save-work` are safe without the
+> manual discard step.
 
 ### Identifying auto-generated files in the future
 

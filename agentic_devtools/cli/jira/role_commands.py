@@ -40,7 +40,7 @@ def _check_user_exists(username: str, base_url: str, headers: dict, requests, ss
         Tuple of (exists: bool, display_name: str | None)
     """
     url = f"{base_url}/rest/api/2/user?username={username}"
-    response = requests.get(url, headers=headers, verify=ssl_verify)
+    response = requests.get(url, headers=headers, verify=ssl_verify, timeout=30)
 
     if response.status_code == 200:
         user_data = response.json()
@@ -188,7 +188,7 @@ def list_project_roles() -> None:
 
     url = f"{base_url}/rest/api/2/project/{project_id_or_key}/role"
 
-    response = requests.get(url, headers=headers, verify=ssl_verify)
+    response = requests.get(url, headers=headers, verify=ssl_verify, timeout=30)
 
     if response.status_code != 200:
         print(f"Error: Failed to get project roles. Status: {response.status_code}")
@@ -238,7 +238,7 @@ def get_project_role_details() -> None:
 
     url = f"{base_url}/rest/api/2/project/{project_id_or_key}/role/{role_id}"
 
-    response = requests.get(url, headers=headers, verify=ssl_verify)
+    response = requests.get(url, headers=headers, verify=ssl_verify, timeout=30)
 
     if response.status_code != 200:
         print(f"Error: Failed to get role details. Status: {response.status_code}")
@@ -333,7 +333,7 @@ def add_users_to_project_role() -> None:
     print(f"  Users: {', '.join(users)}")
     print()
 
-    response = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
+    response = requests.post(url, headers=headers, json=payload, verify=ssl_verify, timeout=30)
 
     if response.status_code == 200:
         print("✓ Successfully added users to project role!")
@@ -467,7 +467,7 @@ def add_users_to_project_role_batch() -> None:
     for user_info in existing_users:
         user = user_info["username"]
         payload = {"user": [user]}
-        response = requests.post(url, headers=headers, json=payload, verify=ssl_verify)
+        response = requests.post(url, headers=headers, json=payload, verify=ssl_verify, timeout=30)
 
         if response.status_code == 200:
             print(f"  ✓ {user}")
@@ -524,7 +524,7 @@ def find_role_id_by_name() -> None:
 
     url = f"{base_url}/rest/api/2/project/{project_id_or_key}/role"
 
-    response = requests.get(url, headers=headers, verify=ssl_verify)
+    response = requests.get(url, headers=headers, verify=ssl_verify, timeout=30)
 
     if response.status_code != 200:
         print(f"Error: Failed to get project roles. Status: {response.status_code}")

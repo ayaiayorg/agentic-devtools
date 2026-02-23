@@ -166,7 +166,7 @@ class SilentUndefined(Undefined):
 # - SilentUndefined makes missing variables render as empty strings
 _jinja_env = Environment(
     loader=BaseLoader(),
-    autoescape=False,  # We're generating markdown, not HTML
+    autoescape=False,  # nosec B701 - templates generate markdown, not HTML; autoescape is intentionally disabled
     keep_trailing_newline=True,
     undefined=SilentUndefined,
 )

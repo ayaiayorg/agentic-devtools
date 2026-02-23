@@ -34,7 +34,7 @@ def _get_user_details(username: str, base_url: str, headers: dict, requests, ssl
     Returns dict with: exists, active, displayName, emailAddress
     """
     url = f"{base_url}/rest/api/2/user?username={username}"
-    response = requests.get(url, headers=headers, verify=ssl_verify)
+    response = requests.get(url, headers=headers, verify=ssl_verify, timeout=30)
 
     if response.status_code == 200:
         user_data = response.json()
