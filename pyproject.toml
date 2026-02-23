@@ -124,6 +124,11 @@ agdt-get-next-workflow-prompt = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-checklist = "agentic_devtools.cli.runner:run_as_script"
 agdt-update-checklist = "agentic_devtools.cli.runner:run_as_script"
 agdt-show-checklist = "agentic_devtools.cli.runner:run_as_script"
+agdt-create-agdt-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-create-agdt-bug-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-create-agdt-feature-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-create-agdt-documentation-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-create-agdt-task-issue = "agentic_devtools.cli.runner:run_as_script"
 
 [tool.hatch.version]
 source = "vcs"
