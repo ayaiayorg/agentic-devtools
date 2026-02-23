@@ -916,6 +916,33 @@ if p.name not in {"__init__.py", "_version.py"} and "__pycache__" not in p.parts
 
 ## 11. 1:1:1 Test Structure
 
+All new tests **must** be placed under `tests/unit/` and follow the 1:1:1 policy.
+For the full reference, see [tests/README.md](../tests/README.md).
+
+### Policy Summary
+
+- **One folder per source file** — the test path mirrors the source path.
+- **One test file per symbol** — one function or class per test file.
+- **Every directory must contain `__init__.py`**.
+
+### Path Convention
+
+```text
+tests/unit/{module_path}/{source_file_name}/test_{symbol_name}.py
+```
+
+| Source symbol | Test file |
+|---|---|
+| `agentic_devtools/cli/git/core.py` → `get_current_branch()` | `tests/unit/cli/git/core/test_get_current_branch.py` |
+| `agentic_devtools/state.py` → `get_value()` | `tests/unit/state/test_get_value.py` |
+| `agentic_devtools/cli/workflows/worktree_setup.py` → `WorktreeSetupResult` | `tests/unit/cli/workflows/worktree_setup/test_worktreesetupresult.py` |
+
+Symbol naming rules:
+
+- **Functions**: exact snake\_case name (e.g., `get_current_branch` → `test_get_current_branch.py`).
+- **Classes / dataclasses / enums**: class name lowercased **without** added underscores
+  (e.g., `WorktreeSetupResult` → `test_worktreesetupresult.py`).
+
 ### Top-level source files (e.g., `state.py`, `background_tasks.py`)
 
 Source files directly in `agentic_devtools/` (with no subdirectory) map to:
@@ -935,6 +962,24 @@ under `tests/unit/`, so top-level source files are fully supported without any w
 > **⚠️ Do NOT create proxy/stub source files** (e.g., `agentic_devtools/root/state.py`) just to
 > add an extra path component. This approach pollutes the package with files that serve no
 > purpose beyond satisfying a validator that already handles the case natively.
+
+### How to Add a New Test
+
+1. Identify the source file, e.g. `agentic_devtools/cli/git/core.py`.
+2. Create `tests/unit/cli/git/core/` (and parent dirs if missing), each with `__init__.py`.
+3. Create `tests/unit/cli/git/core/test_<symbol>.py` for the function or class under test.
+4. Run the validator: `python scripts/validate_test_structure.py`
+
+See [tests/README.md](../tests/README.md) for complete step-by-step instructions and examples.
+
+### CI Enforcement
+
+`scripts/validate_test_structure.py` runs in CI and **fails the build** if any `tests/unit/`
+file violates the 1:1:1 rules. Run it locally before pushing:
+
+```bash
+python scripts/validate_test_structure.py
+```
 
 ## 12. Python Coding Patterns
 

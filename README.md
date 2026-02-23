@@ -645,17 +645,43 @@ note that the corporate network may still block external registries (npm, PyPI) 
 in that case, consider connecting to a different network (e.g., mobile hotspot)
 for external access.
 
+## For Developers: Test Organization
+
+All new unit tests follow the **1:1:1 policy** — one test file per function, mirroring the
+source structure under `tests/unit/`. See [tests/README.md](tests/README.md) for the full
+policy, rationale, and step-by-step guide.
+
+**Quick reference:**
+
+```text
+tests/unit/{module_path}/{source_file_name}/test_{symbol_name}.py
+```
+
+Examples:
+
+| Source | Test file |
+|--------|-----------|
+| `agentic_devtools/state.py` → `get_value()` | `tests/unit/state/test_get_value.py` |
+| `agentic_devtools/cli/git/core.py` → `get_current_branch()` | `tests/unit/cli/git/core/test_get_current_branch.py` |
+
+Run the structure validator before pushing:
+
+```bash
+python scripts/validate_test_structure.py
+```
+
 ## Environment Variables
 
-| Variable                    | Purpose
-| --------------------------- | ------------------------------------------------
-| `AZURE_DEV_OPS_COPILOT_PAT` | Azure DevOps PAT for API calls
-| `JIRA_COPILOT_PAT`          | Jira API token for authentication
-| `JIRA_BASE_URL`             | Override default Jira URL (default: jira.swica.c
-| `JIRA_SSL_VERIFY`           | Set to `0` to disable SSL verification
-| `JIRA_CA_BUNDLE`            | Path to custom CA bundle PEM file for Jira SSL  
-| `REQUESTS_CA_BUNDLE`        | Standard requests library CA bundle path (fallba
-| `AGDT_STATE_FILE`           | Override default state file path
+| Variable                         | Purpose                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| `AZURE_DEV_OPS_COPILOT_PAT`      | Azure DevOps PAT for API calls                                                      |
+| `JIRA_COPILOT_PAT`               | Jira API token for authentication                                                   |
+| `JIRA_BASE_URL`                  | Override default Jira URL (default: `https://jira.swica.ch`)                       |
+| `JIRA_SSL_VERIFY`                | Set to `0` to disable SSL verification                                              |
+| `JIRA_CA_BUNDLE`                 | Path to custom CA bundle PEM file for Jira SSL                                      |
+| `REQUESTS_CA_BUNDLE`             | Standard requests library CA bundle path (fallback)                                 |
+| `AGENTIC_DEVTOOLS_STATE_DIR`     | Override default state directory (e.g., `scripts/temp`)                             |
+| `DFLY_AI_HELPERS_STATE_DIR`      | Legacy state directory override (still honored for backward compatibility)          |
 
 ## State File Location
 

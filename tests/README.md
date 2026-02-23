@@ -3,6 +3,21 @@
 This document defines the strict 1:1:1 test organization policy for `agentic-devtools`.
 All new tests **must** follow this policy. No exceptions are allowed.
 
+## Rationale
+
+The 1:1:1 policy enforces a strict, predictable mapping between source code and tests:
+
+- **Discoverability**: Given any function, you can immediately find its tests and vice versa without
+  searching — just follow the path convention.
+- **Isolation**: Each test file has exactly one responsibility. Tests for `get_value()` never
+  interfere with tests for `set_value()`.
+- **Incremental coverage**: Adding tests for a new function means creating one new file in a
+  predictable location — no hunting for where tests "should go".
+- **CI enforcement**: The automated validator (`scripts/validate_test_structure.py`) makes the policy
+  machine-checkable. Violations fail the build immediately, before review.
+- **AI-agent friendly**: AI coding agents can deterministically locate and create test files without
+  ambiguity, reducing hallucination and incorrect file placement.
+
 ## Policy
 
 - **One folder per source file under test** — the test directory structure mirrors the source structure.
@@ -42,6 +57,70 @@ where `{symbol_name}` is:
    public symbols, it will have ten corresponding test files inside its folder.
 4. Every directory in the hierarchy **must** contain an `__init__.py` file so pytest can
    resolve imports correctly.
+
+## How to Add New Tests
+
+Follow these steps whenever you add a new function or class to a source file:
+
+1. **Identify the source file path**, e.g. `agentic_devtools/cli/git/core.py`.
+2. **Determine the test folder**: drop the `agentic_devtools/` prefix and strip the `.py`
+   extension → `tests/unit/cli/git/core/`.
+3. **Create the folder** (and any missing intermediate folders) plus an `__init__.py`
+   in every new directory:
+
+   ```bash
+   mkdir -p tests/unit/cli/git/core
+   touch tests/unit/cli/git/core/__init__.py
+   # Also ensure parent dirs have __init__.py:
+   touch tests/unit/cli/git/__init__.py tests/unit/cli/__init__.py tests/unit/__init__.py
+   ```
+
+4. **Create the test file** named `test_{symbol_name}.py`:
+   - Functions: `test_get_current_branch.py`
+   - Classes/dataclasses/enums: `test_worktreesetupresult.py` (lowercase, no added underscores)
+5. **Write your tests** in the new file. A minimal example:
+
+   ```python
+   from agentic_devtools.cli.git.core import get_current_branch
+
+
+   def test_returns_branch_name(tmp_path):
+       # arrange / act / assert
+       ...
+   ```
+
+6. **Run the validator** to confirm the structure is correct:
+
+   ```bash
+   python scripts/validate_test_structure.py
+   ```
+
+7. **Run only the new test file** to confirm it passes:
+
+   ```bash
+   agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
+   ```
+
+## How to Run Specific Tests
+
+```bash
+# Run one test file
+agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
+
+# Run all tests for a source file's folder
+agdt-test-pattern tests/unit/cli/git/core/ -v
+
+# Run a specific test function
+agdt-test-pattern tests/unit/state/test_get_value.py::test_returns_default_when_missing -v
+
+# Run full test suite with coverage (background task, ~55 s)
+agdt-test
+agdt-task-wait
+
+# Run tests for a specific source file with 100% coverage requirement
+agdt-test-file --source-file agentic_devtools/cli/git/core.py
+agdt-task-wait
+```
 
 ## Enforcement
 
