@@ -17,8 +17,33 @@ from typing import Optional, Tuple
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
 
-# Name of the VS Code workspace file at repo root
-WORKSPACE_FILE = "agdt-platform-management.code-workspace"
+
+def find_workspace_file(directory: str) -> Optional[str]:
+    """
+    Find a VS Code workspace file in the given directory.
+
+    Searches for any file matching the ``*.code-workspace`` glob pattern
+    in the directory root.  Returns the full path to the first match, or
+    ``None`` if no workspace file is found.
+
+    Args:
+        directory: Path to the directory to search in.
+
+    Returns:
+        Full path to the workspace file, or None if not found.
+    """
+    try:
+        matches = sorted(
+            entry.path
+            for entry in os.scandir(directory)
+            if entry.is_file() and entry.name.endswith(".code-workspace")
+        )
+        return matches[0] if matches else None
+    except (FileNotFoundError, NotADirectoryError):
+        pass
+    except OSError as exc:
+        print(f"Warning: unexpected OS error scanning '{directory}': {exc}", file=sys.stderr)
+    return None
 
 
 def generate_workflow_branch_name(
@@ -381,8 +406,9 @@ def open_vscode_workspace(worktree_path: str) -> bool:
     """
     Open VS Code with the workspace file in the worktree.
 
-    This opens a new VS Code window with the agdt-platform-management.code-workspace
-    file from the worktree.
+    Searches for any ``*.code-workspace`` file in the worktree directory and
+    opens it in a new VS Code window.  If no workspace file is found, falls
+    back to opening VS Code at the worktree root directory.
 
     Args:
         worktree_path: Path to the worktree directory
@@ -390,13 +416,17 @@ def open_vscode_workspace(worktree_path: str) -> bool:
     Returns:
         True if VS Code was opened, False otherwise
     """
-    workspace_file = os.path.join(worktree_path, WORKSPACE_FILE)
+    workspace_file = find_workspace_file(worktree_path)
 
-    if not os.path.exists(workspace_file):
-        print(f"Warning: Workspace file not found at {workspace_file}", file=sys.stderr)
-        return False
+    if workspace_file is None:
+        print(
+            f"No .code-workspace file found in {worktree_path}, opening folder instead.",
+        )
+        target = worktree_path
+    else:
+        target = workspace_file
 
-    print(f"Opening VS Code workspace: {workspace_file}")
+    print(f"Opening VS Code: {target}")
 
     try:
         # Open VS Code in a new window (non-blocking)
@@ -405,7 +435,7 @@ def open_vscode_workspace(worktree_path: str) -> bool:
             # On Windows, 'code' is a .cmd batch file, so we need shell=True
             # to find it via PATH. We also use creationflags to detach the process.
             subprocess.Popen(
-                ["code", workspace_file],
+                ["code", target],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=True,
@@ -414,7 +444,7 @@ def open_vscode_workspace(worktree_path: str) -> bool:
         else:
             # On Unix-like systems, start_new_session works correctly
             subprocess.Popen(
-                ["code", workspace_file],
+                ["code", target],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
