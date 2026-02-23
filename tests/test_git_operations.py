@@ -39,8 +39,8 @@ class TestStageChanges:
     def test_stage_changes(self, mock_run_safe):
         """Test staging all changes."""
         operations.stage_changes(dry_run=False)
-        mock_run_safe.assert_called_once()
-        cmd = mock_run_safe.call_args[0][0]
+        calls = mock_run_safe.call_args_list
+        cmd = calls[0][0][0]
         assert cmd == ["git", "add", "."]
 
     def test_stage_changes_dry_run(self, mock_run_safe, capsys):

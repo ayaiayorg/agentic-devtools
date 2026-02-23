@@ -34,9 +34,7 @@ def find_workspace_file(directory: str) -> Optional[str]:
     """
     try:
         matches = sorted(
-            entry.path
-            for entry in os.scandir(directory)
-            if entry.is_file() and entry.name.endswith(".code-workspace")
+            entry.path for entry in os.scandir(directory) if entry.is_file() and entry.name.endswith(".code-workspace")
         )
         return matches[0] if matches else None
     except (FileNotFoundError, NotADirectoryError):

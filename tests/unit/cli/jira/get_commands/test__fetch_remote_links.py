@@ -98,4 +98,3 @@ class TestFetchRemoteLinks:
         )
 
         assert len(result) == 2
-

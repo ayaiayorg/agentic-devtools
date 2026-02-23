@@ -51,4 +51,3 @@ class TestFetchCertificateChainSsl:
                 result = jira_helpers._fetch_certificate_chain_ssl("jira.swica.ch")
 
         assert result is None
-

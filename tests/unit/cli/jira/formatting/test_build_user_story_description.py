@@ -81,4 +81,3 @@ class TestBuildUserStoryDescription:
                 additional_information=[],
             )
         assert "Additional Information" not in result
-

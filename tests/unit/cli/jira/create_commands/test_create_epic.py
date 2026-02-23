@@ -130,7 +130,6 @@ class TestCreateEpicDryRun:
         assert exc_info.value.code == 1
 
 
-
 class TestCreateEpicWithMock:
     """Tests for create_epic with mocked API calls."""
 
@@ -169,4 +168,3 @@ class TestCreateEpicWithMock:
             with pytest.raises(SystemExit) as exc_info:
                 jira.create_epic()
             assert exc_info.value.code == 1
-

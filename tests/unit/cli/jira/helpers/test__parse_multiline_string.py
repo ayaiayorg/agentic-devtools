@@ -48,4 +48,3 @@ class TestParseMultilineString:
     def test_parse_empty_list_returns_empty_list(self):
         """Test empty list returns empty list."""
         assert jira._parse_multiline_string([]) == []
-

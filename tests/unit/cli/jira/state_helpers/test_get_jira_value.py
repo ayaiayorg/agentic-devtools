@@ -44,4 +44,3 @@ class TestJiraStateHelpers:
     def test_namespace_constant_is_used(self):
         """Test that JIRA_STATE_NAMESPACE constant is defined and used."""
         assert jira.JIRA_STATE_NAMESPACE == "jira"
-

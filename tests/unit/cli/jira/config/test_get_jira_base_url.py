@@ -45,4 +45,3 @@ class TestJiraConfiguration:
         with patch.dict("os.environ", {"JIRA_BASE_URL": "https://env.jira.com"}):
             url = jira.get_jira_base_url()
             assert url == "https://state.jira.com"
-

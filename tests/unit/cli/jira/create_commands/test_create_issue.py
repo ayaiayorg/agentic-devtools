@@ -127,7 +127,6 @@ class TestCreateIssueDryRun:
         assert exc_info.value.code == 1
 
 
-
 class TestCreateIssueWithMock:
     """Tests for create_issue with mocked API calls."""
 
@@ -164,4 +163,3 @@ class TestCreateIssueWithMock:
             with pytest.raises(SystemExit) as exc_info:
                 jira.create_issue()
             assert exc_info.value.code == 1
-

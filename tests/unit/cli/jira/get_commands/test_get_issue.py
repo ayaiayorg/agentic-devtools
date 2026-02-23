@@ -56,9 +56,6 @@ def mock_requests_module():
                 yield mock_module
 
 
-
-
-
 class TestGetIssueDryRun:
     """Tests for get_issue command validation."""
 
@@ -67,7 +64,6 @@ class TestGetIssueDryRun:
         with pytest.raises(SystemExit) as exc_info:
             jira.get_issue()
         assert exc_info.value.code == 1
-
 
 
 class TestGetIssueWithMock:
@@ -487,7 +483,6 @@ class TestGetIssueWithMock:
         assert "Linked Pull Requests: none" in captured.out
 
 
-
 class TestGetIssueSubtaskParentDetection:
     """Tests for automatic subtask parent detection and retrieval."""
 
@@ -763,7 +758,6 @@ class TestGetIssueSubtaskParentDetection:
         assert "Detected subtask" not in captured.out
 
 
-
 class TestGetIssueEpicDetection:
     """Tests for automatic epic link detection in get_issue."""
 
@@ -947,7 +941,6 @@ class TestGetIssueEpicDetection:
         assert "Epic: DFLY-NOTEXIST (fetch failed)" in captured.out
 
 
-
 class TestGetIssueMetadataReferences:
     """Tests for metadata reference storage (not full JSON in state)."""
 
@@ -1048,4 +1041,3 @@ class TestGetIssueMetadataReferences:
         # Verify old parent_issue_key is NOT set (replaced by parent_issue_details)
         old_parent_key = state.get_value("jira.parent_issue_key")
         assert old_parent_key is None
-

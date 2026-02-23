@@ -34,4 +34,3 @@ class TestJiraAuth:
             assert "Authorization" in headers
             assert headers["Content-Type"] == "application/json"
             assert headers["Accept"] == "application/json"
-

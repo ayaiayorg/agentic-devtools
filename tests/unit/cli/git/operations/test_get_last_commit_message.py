@@ -28,9 +28,7 @@ class TestGetLastCommitMessage:
     @patch(_RUN_GIT)
     def test_returns_none_on_returncode_128(self, mock_run_git: MagicMock):
         """Returncode 128 (e.g. no commits yet) should return None."""
-        mock_run_git.return_value = CompletedProcess(
-            args=["git", "log"], returncode=128, stdout="", stderr=""
-        )
+        mock_run_git.return_value = CompletedProcess(args=["git", "log"], returncode=128, stdout="", stderr="")
         assert get_last_commit_message() is None
 
     # -- successful result → stripped stdout ----------------------------------
@@ -47,9 +45,7 @@ class TestGetLastCommitMessage:
     def test_returns_multiline_message_stripped(self, mock_run_git: MagicMock):
         """Multi-line commit messages should be preserved but outer whitespace stripped."""
         msg = "feat: add widget\n\nDetailed description of the change."
-        mock_run_git.return_value = CompletedProcess(
-            args=["git", "log"], returncode=0, stdout=msg + "\n", stderr=""
-        )
+        mock_run_git.return_value = CompletedProcess(args=["git", "log"], returncode=0, stdout=msg + "\n", stderr="")
         assert get_last_commit_message() == msg
 
     @patch(_RUN_GIT)
@@ -65,9 +61,7 @@ class TestGetLastCommitMessage:
     @patch(_RUN_GIT)
     def test_returns_empty_string_for_empty_stdout(self, mock_run_git: MagicMock):
         """Empty stdout with returncode 0 should return empty string, not None."""
-        mock_run_git.return_value = CompletedProcess(
-            args=["git", "log"], returncode=0, stdout="", stderr=""
-        )
+        mock_run_git.return_value = CompletedProcess(args=["git", "log"], returncode=0, stdout="", stderr="")
         result = get_last_commit_message()
         assert result == ""
         assert result is not None
@@ -75,9 +69,7 @@ class TestGetLastCommitMessage:
     @patch(_RUN_GIT)
     def test_returns_empty_string_for_whitespace_only_stdout(self, mock_run_git: MagicMock):
         """Whitespace-only stdout with returncode 0 should return empty string."""
-        mock_run_git.return_value = CompletedProcess(
-            args=["git", "log"], returncode=0, stdout="   \n\n  ", stderr=""
-        )
+        mock_run_git.return_value = CompletedProcess(args=["git", "log"], returncode=0, stdout="   \n\n  ", stderr="")
         result = get_last_commit_message()
         assert result == ""
         assert result is not None
@@ -87,8 +79,6 @@ class TestGetLastCommitMessage:
     @patch(_RUN_GIT)
     def test_calls_run_git_with_correct_args(self, mock_run_git: MagicMock):
         """Should invoke run_git with log -1 --format=%B and check=False."""
-        mock_run_git.return_value = CompletedProcess(
-            args=["git", "log"], returncode=0, stdout="msg\n", stderr=""
-        )
+        mock_run_git.return_value = CompletedProcess(args=["git", "log"], returncode=0, stdout="msg\n", stderr="")
         get_last_commit_message()
         mock_run_git.assert_called_once_with("log", "-1", "--format=%B", check=False)

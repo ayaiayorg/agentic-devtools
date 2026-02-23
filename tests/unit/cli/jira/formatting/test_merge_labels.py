@@ -2,7 +2,6 @@
 Tests for Jira formatting utilities.
 """
 
-
 from agdt_ai_helpers.cli import jira
 
 
@@ -64,4 +63,3 @@ class TestMergeLabels:
         result = jira.merge_labels(custom_labels=["CreatedWithDflyAiHelpers"])
         count = sum(1 for label in result if label.lower() == "createdwithdflyaihelpers")
         assert count == 1
-

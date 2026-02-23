@@ -2,7 +2,6 @@
 Tests for Jira helper utilities.
 """
 
-
 from agdt_ai_helpers.cli.jira import helpers as jira_helpers
 
 
@@ -36,4 +35,3 @@ class TestCountCertificatesInPem:
             "-----BEGIN CERTIFICATE-----\ncert2\n-----END CERTIFICATE-----"
         )
         assert jira_helpers._count_certificates_in_pem(pem_content) == 2
-

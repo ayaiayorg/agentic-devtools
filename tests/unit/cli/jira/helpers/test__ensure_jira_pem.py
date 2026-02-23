@@ -135,4 +135,3 @@ class TestEnsureJiraPem:
         mock_ssl.assert_not_called()  # ssl fallback NOT called when openssl returns content
         mock_pem.write_text.assert_called_once_with(incomplete_chain, encoding="utf-8")
         assert result == str(mock_pem)
-

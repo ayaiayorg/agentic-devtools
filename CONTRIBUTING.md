@@ -173,30 +173,37 @@ control"_.
 - Version numbers are derived from Git tags — to bump the version, create a new Git tag
   (see [RELEASING.md](RELEASING.md)).
 
-> **⚠️ Important for AI agents using `report_progress`:** Even though `_version.py` is in
-> `.gitignore`, the file is still **tracked** in git. This means `git add .` (as called internally
-> by `report_progress`) **will pick up local changes** to this file. Before calling
-> `report_progress`, always run: `git checkout -- agentic_devtools/_version.py` to discard any
-> local modifications.
->
-> **Maintainer note:** Because the file was previously committed and tracked, `.gitignore` alone
-> is not enough to prevent accidental staging. Run the following **once** after merging to fully
-> untrack it:
->
-> ```bash
-> git rm --cached agentic_devtools/_version.py
-> git commit -m "chore: untrack auto-generated _version.py"
-> ```
+The `copilot-setup-steps.yml` workflow automatically runs:
 
-If you see a modified `_version.py` in `git status`, discard the change:
+```bash
+git update-index --skip-worktree agentic_devtools/_version.py
+```
+
+This tells git to ignore local changes to the file for all staging operations, so `git add .`
+(called by `report_progress` or any other tool) will never pick it up regardless of
+modifications made during a session. This step is guarded — it only runs while the file remains
+tracked in git (see the maintainer note below about eventually untracking it).
+
+**For human developers:** Run the same command once after cloning (while the file is tracked):
+
+```bash
+git update-index --skip-worktree agentic_devtools/_version.py
+```
+
+If you see a modified `_version.py` in `git status` and need to discard it manually:
 
 ```bash
 git checkout -- agentic_devtools/_version.py
 ```
 
-> **⚠️ AI AGENTS:** Run the command above **before** calling `report_progress` (or any other
-> commit/push tool). `report_progress` runs `git add .` which will include `_version.py` if it was
-> modified by a package install or build step during your session.
+> **Maintainer note:** Because the file was previously committed and tracked, `.gitignore` alone
+> is not enough to prevent accidental staging. Run the following **once** after merging to fully
+> untrack it (once untracked, the `skip-worktree` step and the one-liner above become unnecessary):
+>
+> ```bash
+> git rm --cached agentic_devtools/_version.py
+> git commit -m "chore: untrack auto-generated _version.py"
+> ```
 
 ## Submitting Changes
 

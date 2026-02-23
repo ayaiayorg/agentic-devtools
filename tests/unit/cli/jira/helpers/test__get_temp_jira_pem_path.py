@@ -17,4 +17,3 @@ class TestGetJiraPemPaths:
             mock_state_dir.return_value = Path("/mock/state/dir")
             result = jira_helpers._get_temp_jira_pem_path()
             assert result == Path("/mock/state/dir/jira_ca_bundle.pem")
-

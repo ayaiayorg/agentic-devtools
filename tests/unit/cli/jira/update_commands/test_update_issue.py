@@ -158,4 +158,3 @@ class TestUpdateIssue:
             with pytest.raises(SystemExit) as exc_info:
                 update_issue()
             assert exc_info.value.code == 1
-

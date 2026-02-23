@@ -91,4 +91,3 @@ class TestFetchEpic:
         assert result is None
         captured = capsys.readouterr()
         assert "Warning: Could not fetch epic DFLY-100" in captured.err
-

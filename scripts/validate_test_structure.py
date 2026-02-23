@@ -56,10 +56,7 @@ def validate() -> list[str]:
         expected_source = SOURCE_ROOT.joinpath(*module_path_parts) / f"{source_file_folder}.py"
         if not expected_source.exists():
             source_path_display = "/".join((*module_path_parts, f"{source_file_folder}.py"))
-            violations.append(
-                f"{rel}: no matching source file found at "
-                f"agentic_devtools/{source_path_display}"
-            )
+            violations.append(f"{rel}: no matching source file found at agentic_devtools/{source_path_display}")
 
         # Rule: every intermediate directory must have an __init__.py.
         current = UNIT_TESTS_DIR
