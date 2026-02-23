@@ -42,7 +42,7 @@ This installs agentic-devtools with all development tools including pytest, blac
 
 ### Test Organization Policy
 
-New unit tests must follow the **1:1:1 policy**: one test file per function, in a directory
+New unit tests must follow the **1:1:1 policy**: one test file per symbol (function or class), in a directory
 that mirrors the source structure. See [tests/README.md](tests/README.md) for the full policy,
 rationale, and how to add new tests.
 

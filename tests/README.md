@@ -7,16 +7,17 @@ All new tests **must** follow this policy. No exceptions are allowed.
 
 The 1:1:1 policy enforces a strict, predictable mapping between source code and tests:
 
-- **Discoverability**: Given any function, you can immediately find its tests and vice versa without
+- **Discoverability**: Given any symbol (function or class), you can immediately find its tests and vice versa without
   searching — just follow the path convention.
 - **Isolation**: Each test file has exactly one responsibility. Tests for `get_value()` never
   interfere with tests for `set_value()`.
-- **Incremental coverage**: Adding tests for a new function means creating one new file in a
+- **Incremental coverage**: Adding tests for a new symbol (function or class) means creating one new file in a
   predictable location — no hunting for where tests "should go".
-- **CI enforcement**: The automated validator (`scripts/validate_test_structure.py`) makes the policy
-  machine-checkable. Violations fail the build immediately, before review.
-- **AI-agent friendly**: AI coding agents can deterministically locate and create test files without
-  ambiguity, reducing hallucination and incorrect file placement.
+- **CI enforcement (structure only)**: The automated validator (`scripts/validate_test_structure.py`)
+  checks the folder↔source-file mapping and required `__init__.py` files. Structural violations fail the
+  build immediately, before review. It does **not** verify per-symbol coverage — that is enforced by convention and code review.
+- **AI-agent friendly**: AI coding agents can deterministically locate and create test files by following
+  the path convention, even though CI only validates directory structure.
 
 ## Policy
 
@@ -121,16 +122,17 @@ agdt-task-wait
 # NOTE: agdt-test-file infers a legacy tests/test_<module>.py path and does NOT
 # support the tests/unit/ 1:1:1 layout. Use agdt-test-pattern for 1:1:1 tests
 # (see examples above), and reserve agdt-test-file for modules that still have
-# a legacy flat test file.
-agdt-test-file --source-file agentic_devtools/state.py   # maps to tests/test_state.py
+# a matching legacy flat test file (tests/test_<module>.py). If no such file
+# exists the command will fail with "Test file not found".
 agdt-task-wait
 ```
 
 ## Enforcement
 
-A CI validation script (`scripts/validate_test_structure.py`) automatically checks that
-every file inside `tests/unit/` obeys the rules above. The script exits with a non-zero
-status if any violation is found, causing the CI build to fail.
+`scripts/validate_test_structure.py` runs in CI and **fails the build** when it finds structural
+issues in `tests/unit/`: incorrect source-file folder mapping, or missing `__init__.py` files.
+It does **not** verify that every symbol has a test file or that `test_<symbol>.py` corresponds
+to a real symbol — those parts of the policy are enforced by convention and code review.
 
 To run the validator locally:
 

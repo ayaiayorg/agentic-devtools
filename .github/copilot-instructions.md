@@ -974,8 +974,11 @@ See [tests/README.md](../tests/README.md) for complete step-by-step instructions
 
 ### CI Enforcement
 
-`scripts/validate_test_structure.py` runs in CI and **fails the build** if any `tests/unit/`
-file violates the 1:1:1 rules. Run it locally before pushing:
+`scripts/validate_test_structure.py` runs in CI and **fails the build** when it finds structural
+issues in `tests/unit/` (incorrect source-file folder mapping or missing `__init__.py` files).
+It does **not** verify that every symbol has a corresponding test file or that each
+`test_<symbol>.py` maps to a real symbol — those parts of the 1:1:1 pattern are enforced via
+convention and code review. Run it locally before pushing:
 
 ```bash
 python scripts/validate_test_structure.py

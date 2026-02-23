@@ -647,7 +647,7 @@ for external access.
 
 ## For Developers: Test Organization
 
-All new unit tests follow the **1:1:1 policy** — one test file per function, mirroring the
+All new unit tests follow the **1:1:1 policy** — one test file per symbol (function or class), mirroring the
 source structure under `tests/unit/`. See [tests/README.md](tests/README.md) for the full
 policy, rationale, and step-by-step guide.
 
