@@ -109,9 +109,9 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
    path, leading to a misleading test name and untested branch.
 
 7. **Remove unused fixture parameters:** Fixtures like `capsys` capture output but only add
-   overhead when the test body never calls them (e.g., `capsys.readouterr()`). Ruff (`ARG002`)
-   and code reviewers will flag unused parameters. Remove any fixture from the signature that
-   the test body does not use.
+   overhead when the test body never calls them (e.g., `capsys.readouterr()`). Code reviewers
+   will flag unused parameters. Remove any fixture from the signature that the test body does
+   not use.
 
 **Run these commands before every push to catch all issues:**
 
