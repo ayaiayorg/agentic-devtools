@@ -102,6 +102,17 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
    under `tests/unit/cli/azure_devops/review_helpers/`, **not** `review_prompts/`. Always
    check the `from ... import` statement to confirm the correct source module.
 
+6. **Always call `mkdir()` when a test needs an existing-but-empty directory:** When writing
+   tests for code that checks whether a directory exists, make sure to actually create the
+   directory with `tmp_path / "subdir"` followed by `.mkdir()`. Skipping the call means
+   the test exercises the *missing-directory* code path instead of the *empty-directory* code
+   path, leading to a misleading test name and untested branch.
+
+7. **Remove unused fixture parameters:** Fixtures like `capsys` capture output but only add
+   overhead when the test body never calls them (e.g., `capsys.readouterr()`). Code reviewers
+   will flag unused parameters. Remove any fixture from the signature that the test body does
+   not use.
+
 **Run these commands before every push to catch all issues:**
 
 ```bash
