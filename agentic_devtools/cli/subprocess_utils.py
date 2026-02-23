@@ -34,12 +34,20 @@ def run_safe(
     On Windows, shell=True is automatically enabled when args is a list to handle
     commands like 'az' which are batch scripts (az.cmd) that can't be found without shell.
 
+    ⚠️ Security: When passing user-controlled content (e.g., issue titles, PR bodies,
+    commit messages) as arguments, always pass shell=False explicitly. With shell=None
+    (the default), Windows will use shell=True for list args, causing cmd.exe to expand
+    %VAR% patterns inside the argument values and potentially leak environment variables
+    like %GITHUB_TOKEN%. Only use shell=True (or rely on the default) for commands that
+    are known .cmd/.bat batch scripts (e.g., 'az') that cannot be invoked without a shell.
+
     Args:
         args: Command and arguments to run.
         capture_output: Capture stdout and stderr.
         text: Return stdout/stderr as strings.
         check: Raise CalledProcessError on non-zero exit.
         shell: Run command through shell. On Windows, defaults to True for list args.
+               Pass shell=False explicitly when args contain user-controlled text.
         env: Environment variables for the subprocess.
         cwd: Working directory for the subprocess.
         timeout: Timeout in seconds.

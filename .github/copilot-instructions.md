@@ -146,9 +146,9 @@ agentic_devtools/
 |--------|---------------|
 | `azure_devops/config.py` | Constants (`DEFAULT_ORGANIZATION`, `APPROVAL_SENTINEL`, etc.) and `AzureDevOpsConfig` dataclass |
 | `azure_devops/auth.py` | `get_pat()` and `get_auth_headers()` for Azure DevOps authentication |
-| `azure_devops/helpers.py` | Pure utility functions: `build_thread_context`, `convert_to_pull_request_title`, `format_approval_content`, `verify_az_cli`, etc. |
-| `azure_devops/commands.py` | CLI entry points: `reply_to_pull_request_thread`, `add_pull_request_comment`, `create_pull_request`, `resolve_thread`, `get_pull_request_threads`, `approve_pull_request` |
-| `azure_devops/file_review_commands.py` | File-level review: `approve_file`, `request_changes`, `request_changes_with_suggestion`, `submit_file_review` - includes marking as reviewed and queue management |
+| `azure_devops/helpers.py` | Pure utility functions: `build_thread_context`, `convert_to_pull_request_title`, `format_approval_content`, etc. |
+| `azure_devops/commands.py` | CLI entry points: `reply_to_pull_request_thread`, `add_pull_request_comment`, `create_pull_request`, etc. |
+| `azure_devops/file_review_commands.py` | File-level review: `approve_file`, `request_changes`, `request_changes_with_suggestion`, `submit_file_review` |
 | `azure_devops/mark_reviewed.py` | Mark files as reviewed in Azure DevOps: updates Reviewers API and Contribution API for UI display |
 | `azure_devops/review_commands.py` | PR review workflow: `review_pull_request`, prompt generation, Jira integration |
 | `azure_devops/__init__.py` | Re-exports all public API for backward compatibility (`from agentic_devtools.cli.azure_devops import reply_to_pr_thread`) |
@@ -730,6 +730,30 @@ agdt-set pr_id 12345       # Same command pattern
 agdt-set thread_id 67890   # Same command pattern
 agdt-set content "text"    # Same command pattern
 ```
+
+### ⚠️ Security: `run_safe` and User-Controlled Content
+
+When calling `run_safe` with a list of arguments that includes
+**user-controlled text** (e.g., issue titles, PR body content,
+commit messages, file paths from state),
+always pass **`shell=False`** explicitly:
+
+```python
+# ✅ CORRECT — user-controlled text, shell=False prevents env-var expansion on Windows
+result = run_safe(["gh", "issue", "create", "--title", title, "--body", body],
+                  capture_output=True, text=True, shell=False)
+
+# ❌ DANGEROUS — default shell=None uses shell=True on Windows, allowing cmd.exe to
+#    expand %VARIABLE% patterns (e.g., %GITHUB_TOKEN%) in user-supplied text
+result = run_safe(["gh", "issue", "create", "--title", title, "--body", body],
+                  capture_output=True, text=True)
+```
+
+Only omit `shell=False` (or pass `shell=True` explicitly) for commands
+known to be **`.cmd`/`.bat` batch scripts** on Windows, such as `az`
+(Azure CLI) and `npm`. Proper executables like `gh`, `git`, `code`,
+`python`, etc. must always be called with `shell=False` when argument
+values contain user-supplied data.
 
 ## 6. Prompt Template System
 

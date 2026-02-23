@@ -264,6 +264,27 @@ COMMAND_MAP = {
         "agentic_devtools.cli.workflows",
         "setup_worktree_background_cmd",
     ),
+    # GitHub issue creation (agentic-devtools repository)
+    "agdt-create-agdt-issue": (
+        "agentic_devtools.cli.github",
+        "create_agdt_issue_async_cli",
+    ),
+    "agdt-create-agdt-bug-issue": (
+        "agentic_devtools.cli.github",
+        "create_agdt_bug_issue_async_cli",
+    ),
+    "agdt-create-agdt-feature-issue": (
+        "agentic_devtools.cli.github",
+        "create_agdt_feature_issue_async_cli",
+    ),
+    "agdt-create-agdt-documentation-issue": (
+        "agentic_devtools.cli.github",
+        "create_agdt_documentation_issue_async_cli",
+    ),
+    "agdt-create-agdt-task-issue": (
+        "agentic_devtools.cli.github",
+        "create_agdt_task_issue_async_cli",
+    ),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Azure context management
