@@ -50,6 +50,7 @@ def _make_valid_tree(unit_dir: Path, source_root: Path) -> Path:
 class TestValidateNoViolations:
     def test_empty_unit_dir_returns_no_violations(self, tmp_path, monkeypatch):
         unit_dir = tmp_path / "unit"
+        unit_dir.mkdir()
         source_root = tmp_path / "src"
         source_root.mkdir()
         monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
@@ -233,7 +234,7 @@ class TestMain:
 
         assert rc == 0
 
-    def test_exits_one_when_violations_exist(self, tmp_path, monkeypatch, capsys):
+    def test_exits_one_when_violations_exist(self, tmp_path, monkeypatch):
         unit_dir = tmp_path / "unit"
         unit_dir.mkdir()
         source_root = tmp_path / "src"
