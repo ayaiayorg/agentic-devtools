@@ -159,10 +159,10 @@ class BackgroundTask:
         if isinstance(status_value, str):
             try:
                 status = TaskStatus(status_value)
-            except ValueError:  # pragma: no cover
+            except ValueError:
                 status = TaskStatus.PENDING
         else:
-            status = status_value  # pragma: no cover
+            status = status_value
 
         return cls(
             id=data.get("id", str(uuid.uuid4())),

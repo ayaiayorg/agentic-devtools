@@ -116,14 +116,14 @@ class WorkflowDefinition:
 
     def get_next_step(self, current_step: str) -> Optional[str]:
         """Get the default next step from current step (for manual advancement)."""
-        for t in self.transitions:  # pragma: no cover
+        for t in self.transitions:
             if t.from_step == current_step and WorkflowEvent.MANUAL_ADVANCE in t.trigger_events:
                 return t.to_step
         # Fallback: find any transition from current step
-        for t in self.transitions:  # pragma: no cover
+        for t in self.transitions:
             if t.from_step == current_step:
                 return t.to_step
-        return None  # pragma: no cover
+        return None
 
 
 # =============================================================================

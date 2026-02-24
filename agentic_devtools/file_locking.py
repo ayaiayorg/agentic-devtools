@@ -52,7 +52,7 @@ def _unlock_file_unix(file_handle: IO) -> None:
     fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
 
 
-def _lock_file_windows(file_handle: IO, exclusive: bool = True, timeout: float = 5.0) -> None:  # pragma: no cover
+def _lock_file_windows(file_handle: IO, exclusive: bool = True, timeout: float = 5.0) -> None:
     """
     Lock a file on Windows systems using msvcrt.
 
@@ -81,7 +81,7 @@ def _lock_file_windows(file_handle: IO, exclusive: bool = True, timeout: float =
             time.sleep(0.01)  # 10ms retry interval
 
 
-def _unlock_file_windows(file_handle: IO) -> None:  # pragma: no cover
+def _unlock_file_windows(file_handle: IO) -> None:
     """Unlock a file on Windows systems."""
     import msvcrt
 
@@ -104,7 +104,7 @@ def lock_file(file_handle: IO, exclusive: bool = True, timeout: float = 5.0) -> 
     Raises:
         FileLockError: If lock cannot be acquired within timeout
     """
-    if sys.platform == "win32":  # pragma: no cover
+    if sys.platform == "win32":
         _lock_file_windows(file_handle, exclusive, timeout)
     else:
         _lock_file_unix(file_handle, exclusive, timeout)
@@ -117,7 +117,7 @@ def unlock_file(file_handle: IO) -> None:
     Args:
         file_handle: Open file handle to unlock
     """
-    if sys.platform == "win32":  # pragma: no cover
+    if sys.platform == "win32":
         _unlock_file_windows(file_handle)
     else:
         _unlock_file_unix(file_handle)

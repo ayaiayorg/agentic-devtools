@@ -160,10 +160,10 @@ def _infer_test_file_from_source(source_file: str) -> str | None:
     filename = Path(source_file).name
 
     if not filename.endswith(".py"):
-        return None  # pragma: no cover
+        return None
 
     # Special-case common modules without matching test file name
-    if filename == "commands.py" and "cli/release" in source_file.replace("\\", "/"):  # pragma: no cover
+    if filename == "commands.py" and "cli/release" in source_file.replace("\\", "/"):
         return "test_release_commands.py"
 
     # Strip .py and add test_ prefix

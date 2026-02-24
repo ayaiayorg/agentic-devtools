@@ -141,22 +141,22 @@ def validate_template_variables(default_content: str, override_content: str) -> 
 class SilentUndefined(Undefined):
     """Custom undefined class that renders as empty string and is falsy."""
 
-    def _fail_with_undefined_error(self, *args, **kwargs):  # pragma: no cover
+    def _fail_with_undefined_error(self, *args, **kwargs):
         return ""
 
-    def __str__(self) -> str:  # pragma: no cover
+    def __str__(self) -> str:
         return ""
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:
         return ""
 
-    def __bool__(self) -> bool:  # pragma: no cover
+    def __bool__(self) -> bool:
         return False
 
-    def __iter__(self):  # pragma: no cover
+    def __iter__(self):
         return iter([])
 
-    def __len__(self) -> int:  # pragma: no cover
+    def __len__(self) -> int:
         return 0
 
 
@@ -193,7 +193,7 @@ def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
     try:
         jinja_template = _jinja_env.from_string(template)
         return jinja_template.render(**variables)
-    except TemplateSyntaxError:  # pragma: no cover
+    except TemplateSyntaxError:
         # If Jinja2 can't parse it, fall back to simple regex substitution
         # This handles edge cases where templates might have literal {{ }} that aren't variables
         result = template
