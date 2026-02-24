@@ -1,6 +1,9 @@
 """Tests for agentic_devtools.config.load_repo_config."""
 
 import json
+import logging
+from pathlib import Path
+from unittest.mock import patch
 
 from agentic_devtools.config import load_repo_config
 
@@ -76,3 +79,16 @@ class TestLoadRepoConfig:
         """str(Path) is accepted as repo_path — just exercises the str() path."""
         result = load_repo_config(str(tmp_path))
         assert result == {}
+
+    def test_returns_empty_dict_and_logs_warning_on_oserror(self, tmp_path, caplog):
+        """Return {} and log a warning when reading the config file raises OSError."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        (github_dir / "agdt-config.json").write_text("{}", encoding="utf-8")
+
+        with patch.object(Path, "read_text", side_effect=OSError("I/O error")):
+            with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+                result = load_repo_config(str(tmp_path))
+
+        assert result == {}
+        assert any(record.levelno == logging.WARNING for record in caplog.records)

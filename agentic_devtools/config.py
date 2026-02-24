@@ -42,6 +42,9 @@ def load_repo_config(repo_path: str) -> dict:
     except json.JSONDecodeError as exc:
         logger.warning("Invalid JSON in %s: %s", config_path, exc)
         return {}
+    except OSError as exc:
+        logger.warning("Could not read %s: %s", config_path, exc)
+        return {}
 
 
 def load_review_focus_areas(repo_path: str) -> Optional[str]:
@@ -64,9 +67,26 @@ def load_review_focus_areas(repo_path: str) -> Optional[str]:
     if not focus_areas_file:
         return None
 
-    focus_path = Path(repo_path) / focus_areas_file
+    repo_root = Path(repo_path).resolve()
+    focus_path = (repo_root / focus_areas_file).resolve()
+
+    # Reject paths that escape the repository root (path traversal guard).
+    try:
+        focus_path.relative_to(repo_root)
+    except ValueError:
+        logger.warning(
+            "Configured focus-areas-file path %s escapes repository root %s; ignoring.",
+            focus_path,
+            repo_root,
+        )
+        return None
+
     if not focus_path.exists():
         logger.warning("focus-areas-file not found: %s", focus_path)
         return None
 
-    return focus_path.read_text(encoding="utf-8")
+    try:
+        return focus_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Could not read focus-areas-file %s: %s", focus_path, exc)
+        return None

@@ -2,6 +2,8 @@
 
 import json
 import logging
+from pathlib import Path
+from unittest.mock import patch
 
 from agentic_devtools.config import load_review_focus_areas
 
@@ -95,3 +97,45 @@ class TestLoadReviewFocusAreas:
         result = load_review_focus_areas(str(tmp_path))
 
         assert result is None
+
+    def test_returns_none_and_warns_on_path_traversal_relative(self, tmp_path, caplog):
+        """Return None and warn when focus-areas-file escapes repo root via ../."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        config = {"review": {"focus-areas-file": "../../etc/passwd"}}
+        (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = load_review_focus_areas(str(tmp_path))
+
+        assert result is None
+        assert any("escapes repository root" in record.message for record in caplog.records)
+
+    def test_returns_none_and_warns_on_absolute_path(self, tmp_path, caplog):
+        """Return None and warn when focus-areas-file is an absolute path outside the repo."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        config = {"review": {"focus-areas-file": "/etc/passwd"}}
+        (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = load_review_focus_areas(str(tmp_path))
+
+        assert result is None
+        assert any("escapes repository root" in record.message for record in caplog.records)
+
+    def test_returns_none_and_warns_on_oserror_reading_focus_file(self, tmp_path, caplog):
+        """Return None and log a warning when reading the focus areas file raises OSError."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        config = {"review": {"focus-areas-file": ".github/focus.md"}}
+        (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
+        (github_dir / "focus.md").write_text("# Focus", encoding="utf-8")
+
+        # First read_text call returns the config JSON; second (focus file) raises OSError.
+        with patch.object(Path, "read_text", side_effect=[json.dumps(config), OSError("Permission denied")]):
+            with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+                result = load_review_focus_areas(str(tmp_path))
+
+        assert result is None
+        assert any("Could not read focus-areas-file" in record.message for record in caplog.records)
