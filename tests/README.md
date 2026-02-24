@@ -257,6 +257,39 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
    will flag unused parameters. Remove any fixture from the signature that the test body does
    not use.
 
+8. **When writing a `temp_git_repo` fixture, always disable GPG signing:** Creating a
+   real commit inside a temporary repo will fail if the developer's or CI global Git config
+   has `commit.gpgsign=true`. Set `commit.gpgsign=false` in the temp repo **before** committing,
+   and pass `--no-verify` to skip commit hooks:
+
+   ```python
+   subprocess.run(["git", "config", "commit.gpgsign", "false"],
+                  cwd=repo_dir, check=True, capture_output=True)
+   subprocess.run(["git", "commit", "--no-verify", "-m", "Initial commit"],
+                  cwd=repo_dir, check=True, capture_output=True)
+   ```
+
+   The same pattern applies to any other fixture that creates a real git commit in a
+   temporary repository.
+
+9. **Always set `JIRA_SSL_VERIFY=0` in Jira mock environment fixtures:** Jira commands call
+   `_get_ssl_verify()` internally. Without `JIRA_SSL_VERIFY=0`, that function attempts to
+   run `openssl s_client` / open socket connections to fetch certificates before falling back
+   to `verify=False`, making tests slow and network-dependent. Always include it alongside
+   `JIRA_COPILOT_PAT` in any Jira environment fixture:
+
+   ```python
+   with patch.dict("os.environ", {"JIRA_COPILOT_PAT": "test-token", "JIRA_SSL_VERIFY": "0"}):
+       yield
+   ```
+
+10. **Patch `_get_requests` in every Jira module the test exercises:** The `_get_requests`
+    function is imported into `create_commands`, `comment_commands`, `get_commands`,
+    `update_commands`, and `role_commands`. A `mock_requests_module` fixture must patch the
+    function in all modules that will be called by the test, otherwise the real `requests`
+    library will be invoked. Use `patch.object(<module>, "_get_requests", return_value=mock)`
+    for each module.
+
 **Run these commands before every push to catch all issues:**
 
 ```bash
