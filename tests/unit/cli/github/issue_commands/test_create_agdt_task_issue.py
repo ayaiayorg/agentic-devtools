@@ -58,8 +58,9 @@ class TestCreateAgdtTaskIssue:
         mock_result.returncode = 0
         mock_result.stdout = "https://github.com/ayaiayorg/agentic-devtools/issues/4\n"
 
-        with patch.object(issue_commands, "run_safe", return_value=mock_result) as mock_run:
-            issue_commands.create_agdt_task_issue()
+        with patch.object(issue_commands, "_gh_supports_issue_type", return_value=True):
+            with patch.object(issue_commands, "run_safe", return_value=mock_result) as mock_run:
+                issue_commands.create_agdt_task_issue()
 
         call_args = mock_run.call_args[0][0]
         assert "--type" in call_args

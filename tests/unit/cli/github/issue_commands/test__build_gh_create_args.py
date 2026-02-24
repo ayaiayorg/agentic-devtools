@@ -1,5 +1,8 @@
 """Tests for _build_gh_create_args helper."""
 
+from unittest.mock import patch
+
+from agentic_devtools.cli.github import issue_commands
 from agentic_devtools.cli.github.issue_commands import AGDT_REPO, _build_gh_create_args
 
 
@@ -27,19 +30,27 @@ class TestBuildGhCreateArgs:
         assert args[label_indices[0] + 1] == "bug"
         assert args[label_indices[1] + 1] == "enhancement"
 
-    def test_issue_type_normalized(self):
-        """Issue type 'bug' is normalized to 'Bug'."""
-        args = _build_gh_create_args(title="T", body="B", issue_type="bug")
+    def test_issue_type_normalized_when_supported(self):
+        """Issue type 'bug' is normalized to 'Bug' when --type is supported."""
+        with patch.object(issue_commands, "_gh_supports_issue_type", return_value=True):
+            args = _build_gh_create_args(title="T", body="B", issue_type="bug")
         assert "--type" in args
         type_idx = args.index("--type")
         assert args[type_idx + 1] == "Bug"
 
-    def test_issue_type_passthrough_when_unknown(self):
-        """Unknown issue type is passed through as-is."""
-        args = _build_gh_create_args(title="T", body="B", issue_type="Custom")
+    def test_issue_type_passthrough_when_unknown_and_supported(self):
+        """Unknown issue type is passed through as-is when --type is supported."""
+        with patch.object(issue_commands, "_gh_supports_issue_type", return_value=True):
+            args = _build_gh_create_args(title="T", body="B", issue_type="Custom")
         assert "--type" in args
         type_idx = args.index("--type")
         assert args[type_idx + 1] == "Custom"
+
+    def test_issue_type_skipped_when_not_supported(self):
+        """--type flag is omitted when gh CLI does not support it."""
+        with patch.object(issue_commands, "_gh_supports_issue_type", return_value=False):
+            args = _build_gh_create_args(title="T", body="B", issue_type="Bug")
+        assert "--type" not in args
 
     def test_assignees_added(self):
         """Assignees are added as --assignee flags."""
