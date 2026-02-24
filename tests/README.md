@@ -156,14 +156,12 @@ agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
 agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
 # Expected: PASSED
 
-# Step 3 — REFACTOR: improve code quality, keep tests green
+# Step 3 — REFACTOR: improve code quality and re-run the test folder
+# NOTE: use agdt-test-pattern, NOT agdt-test-file — agdt-test-file only supports
+# legacy flat test files (tests/test_<module>.py) and will fail for 1:1:1 tests
 agdt-test-pattern tests/unit/cli/git/core/ -v
 
-# Step 4 — COVERAGE: verify 100% coverage for the source file
-agdt-test-file --source-file agentic_devtools/cli/git/core.py
-agdt-task-wait
-
-# Step 5 — FULL SUITE: run the complete suite after all items are done
+# Step 4 — FULL SUITE: run the complete suite after all items are done
 agdt-test
 agdt-task-wait
 ```

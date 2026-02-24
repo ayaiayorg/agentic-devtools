@@ -28,9 +28,10 @@ agdt-test-pattern tests/unit/<path>/test_<symbol>.py -v
 # Step 3 & 4: confirm test passes after implementation (GREEN)
 agdt-test-pattern tests/unit/<path>/test_<symbol>.py -v
 
-# Step 6: verify 100% coverage on the source file
-agdt-test-file --source-file agentic_devtools/<path>/<file>.py
-agdt-task-wait
+# Step 6: re-run all tests for the source file's test suite (REFACTOR)
+# NOTE: use agdt-test-pattern, NOT agdt-test-file — agdt-test-file only supports
+# legacy flat test files (tests/test_<module>.py) and will fail for 1:1:1 tests
+agdt-test-pattern tests/unit/<path>/ -v
 
 # After ALL checklist items are complete: run full suite
 agdt-test

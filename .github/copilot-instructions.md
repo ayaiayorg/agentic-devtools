@@ -1129,12 +1129,13 @@ agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
 
 #### Step 3 — REFACTOR: Improve without breaking tests
 
-Tidy the code while keeping tests green:
+Tidy the code while keeping tests green. Use `agdt-test-pattern` pointed at the
+1:1:1 test folder for the source file — **not** `agdt-test-file`, which only works
+with legacy flat test files and will fail for any file under `tests/unit/`:
 
 ```bash
-# Refactor and verify coverage:
-agdt-test-file --source-file agentic_devtools/cli/git/core.py
-agdt-task-wait
+# Refactor and re-run focused tests:
+agdt-test-pattern tests/unit/cli/git/core/ -v
 ```
 
 #### Step 4 — Full suite check

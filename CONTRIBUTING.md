@@ -124,9 +124,10 @@ agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
 agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
 # Expected: PASSED
 
-# 5. Refactor and verify coverage (REFACTOR)
-agdt-test-file --source-file agentic_devtools/cli/git/core.py
-agdt-task-wait
+# 5. Refactor and re-run focused tests (REFACTOR)
+# NOTE: use agdt-test-pattern, NOT agdt-test-file — agdt-test-file only supports
+# legacy flat test files (tests/test_<module>.py) and will fail for 1:1:1 tests
+agdt-test-pattern tests/unit/cli/git/core/ -v
 
 # 6. Run the full suite when all work is complete
 agdt-test
