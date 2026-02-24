@@ -107,7 +107,7 @@ Then re-run `bash scripts/run-pr-checks.sh` to verify everything passes.
 **Every pull request MUST contain exactly one commit.** This is a hard policy, not a guideline.
 
 - **NEVER use `git commit`** — always use `agdt-git-save-work`, which automatically amends when the branch has commits ahead of
-  `origin/main`. This enforces the single-commit policy: once you have one commit on the branch, all subsequent saves amend it.
+  `main` (or `origin/main` when available). This enforces the single-commit policy: once you have one commit on the branch, all subsequent saves amend it.
 - **NEVER create additional commits** on a feature branch — always amend and force-push
 - Adding a second commit to a PR branch is a **policy violation**
 

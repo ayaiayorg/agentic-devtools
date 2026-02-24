@@ -290,8 +290,8 @@ Example: `feature/DFLY-1234/add-webhook-support`
 
 - **NEVER create additional commits** on a feature branch — always amend and force-push
 - **NEVER use `git commit` directly** — always use `agdt-git-save-work`, which automatically
-  amends when the branch has commits ahead of `origin/main`. This enforces the single-commit
-  policy: once you have one commit on the branch, all subsequent saves amend it.
+  amends when the branch has commits ahead of `main` (`origin/main` if available). This enforces
+  the single-commit policy: once you have one commit on the branch, all subsequent saves amend it.
 - Adding a second commit to a PR branch is a **policy violation**
 - Commit messages must follow the convention described in [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md)
 
