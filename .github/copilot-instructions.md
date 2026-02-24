@@ -326,7 +326,7 @@ All action commands that mutate state or perform API calls spawn background task
 
 ```bash
 # Option A: With CLI parameters (explicit)
-agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feature(DFLY-1234): add new feature" --description "Description here"
+agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add new feature" --description "Description here"
 
 # Option B: Parameterless (uses current state)
 # Check current values: agdt-get source_branch, agdt-get title
@@ -1255,6 +1255,8 @@ body (optional bullet points)
 - Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Parent issue comes **first** in parent/child links (scope: `parent/child`, footer: `parent / child`).
 - Multiple unrelated issues: comma-separated, ascending order by number.
+- **Do NOT** use old Jira-style scopes like `feat(DFLY-1234):` — the scope must always be a GitHub issue markdown link `([#NNN](...))`.
+- Branch names follow the `type/ISSUE-KEY/description` convention (e.g. `feature/DFLY-1234/add-webhook`) — this is separate from the commit scope.
 
 ### Examples
 
@@ -1328,7 +1330,7 @@ agdt-git-save-work
 ### Create a Pull Request
 
 ```bash
-agdt-set source_branch feature/42/my-changes
+agdt-set source_branch feature/DFLY-1234/my-changes
 agdt-set title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): Add new feature"
 agdt-set description "This PR implements the new feature."
 agdt-create-pull-request
