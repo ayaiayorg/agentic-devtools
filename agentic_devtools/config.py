@@ -71,8 +71,27 @@ def load_review_focus_areas(repo_path: str) -> Optional[str]:
         Raw markdown string, or ``None`` when no focus areas are configured.
     """
     config = load_repo_config(repo_path)
-    focus_areas_file: Optional[str] = config.get("review", {}).get("focus-areas-file")
+
+    review_section = config.get("review")
+    if review_section is None:
+        return None
+    if not isinstance(review_section, dict):
+        logger.warning(
+            "Expected 'review' section in %s to be an object, got %s; ignoring.",
+            CONFIG_FILE,
+            type(review_section).__name__,
+        )
+        return None
+
+    focus_areas_file = review_section.get("focus-areas-file")
     if not focus_areas_file:
+        return None
+    if not isinstance(focus_areas_file, str):
+        logger.warning(
+            "Expected 'review.focus-areas-file' in %s to be a string, got %s; ignoring.",
+            CONFIG_FILE,
+            type(focus_areas_file).__name__,
+        )
         return None
 
     repo_root = Path(repo_path).resolve()

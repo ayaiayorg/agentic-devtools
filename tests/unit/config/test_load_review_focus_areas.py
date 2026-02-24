@@ -98,6 +98,32 @@ class TestLoadReviewFocusAreas:
 
         assert result is None
 
+    def test_returns_none_and_warns_when_review_section_is_not_a_dict(self, tmp_path, caplog):
+        """Return None and warn when the 'review' value is not an object."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        config = {"review": "not-a-dict"}
+        (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = load_review_focus_areas(str(tmp_path))
+
+        assert result is None
+        assert any("Expected 'review' section" in record.message for record in caplog.records)
+
+    def test_returns_none_and_warns_when_focus_areas_file_is_not_a_string(self, tmp_path, caplog):
+        """Return None and warn when 'review.focus-areas-file' is not a string."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        config = {"review": {"focus-areas-file": 42}}
+        (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = load_review_focus_areas(str(tmp_path))
+
+        assert result is None
+        assert any("Expected 'review.focus-areas-file'" in record.message for record in caplog.records)
+
     def test_returns_none_and_warns_on_path_traversal_relative(self, tmp_path, caplog):
         """Return None and warn when focus-areas-file escapes repo root via ../."""
         github_dir = tmp_path / ".github"
