@@ -572,6 +572,69 @@ def inject_git_path_settings(worktree_path: str) -> None:
         print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
 
 
+def run_worktree_setup_script(worktree_path: str) -> None:
+    """
+    Run the project-specific worktree setup script if it exists.
+
+    Looks for ``.agdt/agentic-devtools-worktree-setup.py`` in the worktree
+    root.  If found, executes it using the current Python interpreter with the
+    worktree root passed as the first argument and the worktree root set as the
+    working directory.  If the script is absent, returns silently.  Execution
+    errors are logged as warnings but do not raise.
+
+    Security: symlinks are rejected and the resolved script path must remain
+    inside the worktree root to guard against malicious repos using symlinks to
+    point the setup script at arbitrary files outside the worktree.
+
+    Args:
+        worktree_path: Path to the worktree directory.
+    """
+    worktree_root = Path(worktree_path).resolve()
+    script_path = worktree_root / ".agdt" / "agentic-devtools-worktree-setup.py"
+
+    if not (script_path.is_file() and os.access(str(script_path), os.R_OK)):
+        return
+
+    # Security: reject symlinks or scripts that resolve outside the worktree.
+    try:
+        if script_path.is_symlink():
+            print(
+                f"Warning: refusing to execute symlinked worktree setup script: {script_path}",
+                file=sys.stderr,
+            )
+            return
+
+        resolved_script_path = script_path.resolve()
+        try:
+            resolved_script_path.relative_to(worktree_root)
+        except ValueError:
+            print(
+                f"Warning: refusing to execute worktree setup script outside worktree: {resolved_script_path}",
+                file=sys.stderr,
+            )
+            return
+    except OSError as exc:
+        print(f"Warning: could not validate worktree setup script path: {exc}", file=sys.stderr)
+        return
+
+    print(f"Running worktree setup script: {resolved_script_path}")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(resolved_script_path), str(worktree_root)],
+            cwd=str(worktree_root),
+            check=False,
+        )
+        if result.returncode != 0:
+            print(
+                f"Warning: worktree setup script exited with code {result.returncode}",
+                file=sys.stderr,
+            )
+        else:
+            print("Worktree setup script completed successfully.")
+    except (FileNotFoundError, OSError) as exc:
+        print(f"Warning: could not run worktree setup script: {exc}", file=sys.stderr)
+
+
 def setup_worktree_environment(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -586,7 +649,8 @@ def setup_worktree_environment(
     for an issue. It:
     1. Creates a git worktree for the issue
     2. Injects ``.vscode/settings.json`` with Git for Windows PATH entries (Windows only)
-    3. Opens VS Code with the workspace file
+    3. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
+    4. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "DFLY-1234")
@@ -615,7 +679,10 @@ def setup_worktree_environment(
     # Step 2: Inject VS Code settings for Windows Git PATH
     inject_git_path_settings(result.worktree_path)
 
-    # Step 3: Open VS Code
+    # Step 3: Run project-specific worktree setup script if present
+    run_worktree_setup_script(result.worktree_path)
+
+    # Step 4: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
