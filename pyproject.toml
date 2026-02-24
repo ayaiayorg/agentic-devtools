@@ -143,7 +143,7 @@ packages = ["agentic_devtools", "agdt_ai_helpers"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=90"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=100"
 markers = [
     "windows_only: mark test to run only on Windows (msvcrt file locking)",
     "linux_only: mark test to run only on Linux/Unix (fcntl file locking)",

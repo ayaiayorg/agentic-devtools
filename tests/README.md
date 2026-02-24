@@ -263,15 +263,39 @@ def test_lock_file_windows_timeout(tmp_path):
 
 ### Coverage Exclusions
 
-Platform-specific code that cannot be exercised on the current CI platform is excluded
-from coverage using `# pragma: no cover`. This prevents misleading coverage gaps in
-reports that only reflect the CI platform (currently Linux):
+Coverage is enforced at **100%** (`--cov-fail-under=100`) in CI. All code must be either
+tested or explicitly excluded with `# pragma: no cover`.
+
+#### When to use `# pragma: no cover`
+
+Only use `# pragma: no cover` for code that **genuinely cannot be tested** in the CI
+environment. Valid reasons include:
+
+- **OS-specific code** that imports modules unavailable on the CI platform (e.g.,
+  `_lock_file_windows` importing `msvcrt`, which only exists on Windows).
+- **External infrastructure dependencies** that require real API endpoints (e.g.,
+  Azure DevOps API calls, Jira REST endpoints, VPN toggle operations).
+- **CLI argparse thin wrappers** that only parse arguments and delegate to tested
+  implementations.
+- **Signal/interrupt handlers** (e.g., `KeyboardInterrupt` catches).
+- **`ImportError` fallbacks** for optional modules.
+
+#### When NOT to use `# pragma: no cover`
+
+Do **not** use `# pragma: no cover` on:
+
+- **Deterministic logic** that can be exercised by setting state values, providing mock
+  inputs, or calling the function directly. For example, string coercion in
+  `get_pypi_dry_run()` is testable by calling `set_value("pypi.dry_run", "true")`.
+- **Pure functions** or **data transformations** — these should always be tested.
+- **Error paths** that can be triggered by mocking dependencies to raise exceptions.
+
+#### Platform-specific exclusion patterns
 
 - Private functions that import OS-specific modules (e.g., `_lock_file_windows`) carry
   `# pragma: no cover` on their `def` line to exclude the entire body.
-- Branches guarded by `if sys.platform == "win32":` carry `# pragma: no cover` on the
-  `if` line, so only the Windows-specific call is excluded while the `else` (Unix) branch
-  remains measured.
+- Branches guarded by `if sys.platform == "win32":` are automatically excluded via the
+  `exclude_also` pattern in `pyproject.toml` — no per-line pragma needed.
 
 ### CI Platform Matrix
 
