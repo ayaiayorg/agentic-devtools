@@ -102,6 +102,39 @@ ruff format .
 
 Then re-run `bash scripts/run-pr-checks.sh` to verify everything passes.
 
+### ⚠️ CRITICAL: Always Use agdt Commands
+
+**AI agents MUST prefer `agdt-*` CLI commands over raw equivalents wherever support exists.**
+
+Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
+
+- The **background task system** — raw `git` commands stall agents; `agdt-git-save-work` runs in the background
+- **Workflow integration** — `agdt-*` commands auto-advance workflow steps, update checklists, and manage state
+- **Auto-approval benefits** — the `agdt-set` / `agdt-<action>` pattern allows VS Code to approve once for all keys
+- **Dry-run safety** — `agdt-*` commands respect `dry_run` state; raw commands do not
+
+#### Command Mapping
+
+| Instead of... | Use... |
+|---------------|--------|
+| `git add . && git commit && git push` | `agdt-git-save-work` |
+| `git push --force` | `agdt-git-force-push` |
+| `git push -u origin <branch>` | `agdt-git-publish` |
+| `pytest ...` | `agdt-test`, `agdt-test-file`, `agdt-test-pattern`, `agdt-test-quick` |
+| Raw Azure DevOps REST API calls | `agdt-create-pull-request`, `agdt-add-pull-request-comment`, etc. |
+| Raw Jira REST API calls | `agdt-add-jira-comment`, `agdt-get-jira-issue`, etc. |
+| `gh issue create` (for this repo) | `agdt-create-agdt-feature-issue`, `agdt-create-agdt-bug-issue`, etc. |
+
+#### Exceptions — Raw Commands Still Required
+
+> ⚠️ No agdt equivalent yet. Switch to agdt command when support is added.
+
+| Raw command | Reason still needed |
+|-------------|---------------------|
+| `gh issue` / `gh pr` for repos other than agentic-devtools | No agdt support yet for general GitHub operations |
+| `gh pr review`, `gh pr comment` for external repos | No agdt support yet for general GitHub PR reviews |
+| Other `gh` operations not listed in the command mapping above | No agdt equivalent exists |
+
 ## 2. Package Structure
 
 ```text
