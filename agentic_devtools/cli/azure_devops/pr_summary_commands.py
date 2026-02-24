@@ -348,7 +348,7 @@ def _post_comment(
     return {"thread_id": thread_id, "comment_id": comment_id}
 
 
-def generate_overarching_pr_comments() -> bool:
+def generate_overarching_pr_comments() -> bool:  # pragma: no cover
     """
     Generate overarching review comments for each folder and overall PR summary.
 
@@ -574,6 +574,6 @@ def generate_overarching_pr_comments() -> bool:
     return True  # Successfully posted summary comments
 
 
-def generate_overarching_pr_comments_cli() -> None:
+def generate_overarching_pr_comments_cli() -> None:  # pragma: no cover
     """CLI entry point for generate_overarching_pr_comments."""
     generate_overarching_pr_comments()

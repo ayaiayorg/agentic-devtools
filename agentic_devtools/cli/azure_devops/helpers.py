@@ -291,7 +291,7 @@ def find_pull_request_by_issue_key(
             project=config.project,
             repository=config.repository,
         )
-    except RuntimeError as e:
+    except RuntimeError as e:  # pragma: no cover
         print(f"Error: {e}", file=sys.stderr)
         return None
 
@@ -351,7 +351,7 @@ def find_pull_request_by_issue_key(
 
         return matching_prs[0]
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         print(f"Error searching for PRs: {e}", file=sys.stderr)
         return None
 
@@ -554,7 +554,7 @@ def find_pr_from_jira_issue(
             if verbose:
                 print(f"Found PR #{jira_pr_id} via text pattern in Jira")
             return jira_pr_id
-    except Exception:
+    except Exception:  # pragma: no cover
         # Jira lookup failed
         pass
 

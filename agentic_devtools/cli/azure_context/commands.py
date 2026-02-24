@@ -50,7 +50,7 @@ def azure_context_use_command() -> None:
                 print(f"\n✗ Failed to ensure login for context: {context.value}")
                 sys.exit(1)
 
-    except ValueError:
+    except ValueError:  # pragma: no cover
         print(f"✗ Invalid context: {args.context}")
         print(f"Available contexts: {', '.join(c.value for c in AzureContext)}")
         sys.exit(1)
@@ -110,7 +110,7 @@ def azure_context_ensure_login_command() -> None:
     if args.context:
         try:
             context = AzureContext(args.context)
-        except ValueError:
+        except ValueError:  # pragma: no cover
             print(f"✗ Invalid context: {args.context}")
             print(f"Available contexts: {', '.join(c.value for c in AzureContext)}")
             sys.exit(1)

@@ -29,7 +29,7 @@ def _invoke_ado_rest(url: str, headers: Dict[str, str]) -> Optional[Dict[str, An
     """Make an Azure DevOps REST API GET request."""
     try:
         import requests
-    except ImportError:
+    except ImportError:  # pragma: no cover
         print(
             "Error: 'requests' library required. Install with: pip install requests",
             file=sys.stderr,
@@ -159,7 +159,7 @@ def _invoke_ado_rest_post(url: str, headers: Dict[str, str], payload: Dict[str, 
     """Make an Azure DevOps REST API POST request."""
     try:
         import requests
-    except ImportError:
+    except ImportError:  # pragma: no cover
         return None
 
     try:

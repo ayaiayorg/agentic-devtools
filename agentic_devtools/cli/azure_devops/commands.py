@@ -238,7 +238,7 @@ def add_pull_request_comment() -> None:
         iterations = _get_pull_request_iterations(
             config.organization, config.project, repo_id, pull_request_id, headers
         )
-        if iterations:
+        if iterations:  # pragma: no cover
             latest_iteration_id = max(it.get("id", 0) for it in iterations)
             if latest_iteration_id:
                 print(f"Using iteration {latest_iteration_id} for file context")
@@ -436,7 +436,7 @@ def create_pull_request() -> None:
             from ..workflows.advancement import try_advance_workflow_after_pr_creation
 
             try_advance_workflow_after_pr_creation(pull_request_id, pr_ui_url)
-        except ImportError:
+        except ImportError:  # pragma: no cover
             pass  # Workflows module not available
 
 

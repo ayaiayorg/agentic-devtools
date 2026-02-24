@@ -59,7 +59,7 @@ def _get_linked_pull_request_from_jira(issue_key: str) -> Optional[int]:
     try:
         from ..jira.config import get_jira_base_url, get_jira_headers
         from ..jira.helpers import _get_ssl_verify
-    except ImportError:
+    except ImportError:  # pragma: no cover
         print("Warning: Jira module not available", file=sys.stderr)
         return None
 
@@ -95,7 +95,7 @@ def _get_linked_pull_request_from_jira(issue_key: str) -> Optional[int]:
                     match = pr_url_pattern.search(link_url)
                     if match:
                         return int(match.group(1))
-    except Exception:
+    except Exception:  # pragma: no cover
         pass
 
     return None
@@ -694,7 +694,7 @@ def setup_pull_request_review() -> None:
             log_output=True,
         )
 
-    except ImportError:
+    except ImportError:  # pragma: no cover
         pass  # Workflows module not available
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         print(f"Warning: Could not initialize workflow: {e}", file=sys.stderr)

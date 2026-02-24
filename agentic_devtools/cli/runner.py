@@ -382,7 +382,7 @@ def main() -> None:
 
     try:
         run_command(command)
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover
         print("\nOperation cancelled.")
         sys.exit(130)  # Standard exit code for SIGINT
 

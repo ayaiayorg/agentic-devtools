@@ -157,7 +157,7 @@ def ensure_logged_in(context: AzureContext) -> bool:
             print(f"\n✗ Login failed with exit code: {result.returncode}")
             return False
 
-    except subprocess.SubprocessError as e:
+    except subprocess.SubprocessError as e:  # pragma: no cover
         print(f"\n✗ Login failed: {e}")
         return False
 

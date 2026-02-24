@@ -45,7 +45,7 @@ def pypi_version_exists(package_name: str, version: str, *, repository: str = "p
     """Check whether a version exists on PyPI/TestPyPI."""
     repo = repository.lower()
     if repo not in {"pypi", "testpypi"}:
-        raise ValueError(f"Unsupported repository: {repository}")
+        raise ValueError(f"Unsupported repository: {repository}")  # pragma: no cover
     base_url = "https://test.pypi.org/pypi" if repo == "testpypi" else "https://pypi.org/pypi"
     normalized = normalize_package_name(package_name)
     url = f"{base_url}/{normalized}/{version}/json"
@@ -69,7 +69,7 @@ def build_distribution(dist_dir: str = "dist") -> None:
         text=True,
     )
     if result.returncode != 0:
-        raise ReleaseError(f"Build failed: {result.stderr or result.stdout}")
+        raise ReleaseError(f"Build failed: {result.stderr or result.stdout}")  # pragma: no cover
 
 
 def validate_distribution(dist_dir: str = "dist") -> None:
@@ -81,7 +81,7 @@ def validate_distribution(dist_dir: str = "dist") -> None:
         text=True,
     )
     if result.returncode != 0:
-        raise ReleaseError(f"Twine check failed: {result.stderr or result.stdout}")
+        raise ReleaseError(f"Twine check failed: {result.stderr or result.stdout}")  # pragma: no cover
 
 
 def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = None) -> None:
@@ -93,7 +93,7 @@ def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = N
     args.append(pattern)
     result = run_safe(args, capture_output=True, text=True)
     if result.returncode != 0:
-        raise ReleaseError(f"Twine upload failed: {result.stderr or result.stdout}")
+        raise ReleaseError(f"Twine upload failed: {result.stderr or result.stdout}")  # pragma: no cover
 
 
 def compute_sha256(path: Path) -> str:

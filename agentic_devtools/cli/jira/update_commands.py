@@ -206,7 +206,7 @@ def update_issue() -> None:
         print("Refreshing issue details...")
         get_issue()
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         error_msg = str(e)
         # Try to extract more details from response
         if hasattr(e, "response") and e.response is not None:

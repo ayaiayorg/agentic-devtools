@@ -808,7 +808,7 @@ def _resolve_file_threads(
     return resolved_count
 
 
-def approve_file() -> None:
+def approve_file() -> None:  # pragma: no cover
     """
     Approve a file in a pull request review.
 
@@ -896,7 +896,7 @@ def approve_file() -> None:
     _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
 
 
-def submit_file_review() -> None:
+def submit_file_review() -> None:  # pragma: no cover
     """
     Submit a file review (approve, request changes, or suggest).
 

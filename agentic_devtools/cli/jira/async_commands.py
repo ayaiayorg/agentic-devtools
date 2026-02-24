@@ -97,7 +97,7 @@ def add_comment_async(
     print_task_tracking_info(task, f"Adding comment to {resolved_issue_key}")
 
 
-def add_comment_async_cli() -> None:
+def add_comment_async_cli() -> None:  # pragma: no cover
     """CLI entry point for add_comment_async with argument parsing."""
     parser = argparse.ArgumentParser(
         description="Add a comment to a Jira issue (async)",

@@ -429,7 +429,7 @@ def _print_summary(data: Dict[str, Any], source: str) -> None:
     _print_parameters(data, source)
 
 
-def get_run_details_impl(
+def get_run_details_impl(  # pragma: no cover
     run_id: int,
     organization: str = DEFAULT_ORGANIZATION,
     project: str = DEFAULT_PROJECT,

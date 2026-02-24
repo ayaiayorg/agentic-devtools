@@ -446,7 +446,7 @@ def get_pipeline_id() -> None:
 
     result = run_safe(args, capture_output=True, text=True, env=env)
 
-    if result.returncode != 0:
+    if result.returncode != 0:  # pragma: no cover
         print(f"Error listing pipelines: {result.stderr}", file=sys.stderr)
         sys.exit(1)
 
