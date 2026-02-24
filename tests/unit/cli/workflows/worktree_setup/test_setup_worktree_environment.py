@@ -66,3 +66,21 @@ class TestSetupWorktreeEnvironment:
         assert result.success is True
         assert result.vscode_opened is False
         mock_vscode.assert_not_called()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace", return_value=False)
+    @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
+    def test_vscode_opened_is_false_when_vscode_unavailable(self, mock_create, mock_vscode):
+        """Test that vscode_opened is False when VS Code is not available."""
+        mock_create.return_value = WorktreeSetupResult(
+            success=True,
+            worktree_path="/repos/DFLY-1234",
+            branch_name="feature/DFLY-1234/implementation",
+        )
+
+        result = setup_worktree_environment(
+            issue_key="DFLY-1234",
+            open_vscode=True,
+        )
+
+        assert result.success is True
+        assert result.vscode_opened is False

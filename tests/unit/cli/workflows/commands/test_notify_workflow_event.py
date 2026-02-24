@@ -128,9 +128,7 @@ class TestNoWorkflowActive:
 
         assert result.triggered is False
 
-    def test_returns_not_triggered_when_event_has_no_matching_transition(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_returns_not_triggered_when_event_has_no_matching_transition(self, temp_state_dir, clear_state_before):
         """Returns triggered=False when no transition matches the event + step combination."""
         state.set_workflow_state(
             name="work-on-jira-issue",
@@ -189,8 +187,7 @@ class TestContextUpdates:
     def test_events_log_capped_at_twenty_entries(self, temp_state_dir, clear_state_before):
         """Events log is limited to the 20 most recent entries."""
         existing_events = [
-            {"event": "jira_comment_added", "timestamp": "2026-01-01T00:00:00Z", "task_id": None}
-            for _ in range(25)
+            {"event": "jira_comment_added", "timestamp": "2026-01-01T00:00:00Z", "task_id": None} for _ in range(25)
         ]
         state.set_workflow_state(
             name="work-on-jira-issue",
@@ -290,9 +287,7 @@ class TestPullRequestReviewWorkflow:
 class TestWorkOnJiraIssueWorkflow:
     """Tests for notify_workflow_event with the work-on-jira-issue workflow."""
 
-    def test_jira_comment_added_advances_work_on_issue_from_planning(
-        self, temp_state_dir, clear_state_before, capsys
-    ):
+    def test_jira_comment_added_advances_work_on_issue_from_planning(self, temp_state_dir, clear_state_before, capsys):
         """JIRA_COMMENT_ADDED in planning step immediately advances to checklist-creation."""
         state.set_workflow_state(
             name="work-on-jira-issue",
