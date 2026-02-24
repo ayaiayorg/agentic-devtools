@@ -126,6 +126,56 @@ agdt-task-wait
 # exists the command will fail with "Test file not found".
 ```
 
+## TDD Workflow
+
+All implementation work **must** follow the red-green-refactor TDD cycle.
+Write tests **before** implementation code.
+
+### Cycle Overview
+
+```text
+RED   → Write a failing test that defines the desired behaviour
+GREEN → Write the minimal code to make the test pass
+REFACTOR → Tidy the code while keeping tests green
+```
+
+### Step-by-Step Example
+
+```bash
+# Step 1 — RED: create the test file first (no source changes yet)
+# Create tests/unit/cli/git/core/test_new_function.py
+
+# Confirm it fails:
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected: FAILED
+
+# Step 2 — GREEN: write minimal implementation in source file
+# Edit agentic_devtools/cli/git/core.py
+
+# Confirm tests pass:
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected: PASSED
+
+# Step 3 — REFACTOR: improve code quality, keep tests green
+agdt-test-pattern tests/unit/cli/git/core/ -v
+
+# Step 4 — COVERAGE: verify 100% coverage for the source file
+agdt-test-file --source-file agentic_devtools/cli/git/core.py
+agdt-task-wait
+
+# Step 5 — FULL SUITE: run the complete suite after all items are done
+agdt-test
+agdt-task-wait
+```
+
+### TDD Rules
+
+- **Never write implementation code before a failing test exists.** If you cannot
+  write a meaningful test first, reconsider the design.
+- **Keep each RED → GREEN cycle small** — one function or one behaviour at a time.
+- **Never skip the RED step.** A test that passes without any implementation means
+  it does not actually test anything useful.
+
 ## Enforcement
 
 `scripts/validate_test_structure.py` runs in CI and **fails the build** when it finds structural

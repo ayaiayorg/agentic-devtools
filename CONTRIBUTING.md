@@ -96,6 +96,50 @@ Run E2E tests with:
 pytest tests/test_e2e_*.py -v
 ```
 
+## TDD Workflow
+
+This project requires **Test-Driven Development (TDD)** for all implementation work.
+Write tests **before** implementation code. The red-green-refactor cycle is mandatory.
+
+### Red-Green-Refactor Cycle
+
+1. **RED** — Write a failing test that defines the expected behaviour. Run it to confirm it fails.
+2. **GREEN** — Write the minimal implementation to make the test pass. Run it to confirm it passes.
+3. **REFACTOR** — Improve code structure and clarity while keeping tests green.
+
+### TDD Example
+
+```bash
+# 1. Write the test first (no source changes yet)
+# Create tests/unit/cli/git/core/test_new_function.py
+
+# 2. Confirm the test fails (RED)
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected: FAILED
+
+# 3. Write minimal implementation
+# Edit agentic_devtools/cli/git/core.py
+
+# 4. Confirm tests pass (GREEN)
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected: PASSED
+
+# 5. Refactor and verify coverage (REFACTOR)
+agdt-test-file --source-file agentic_devtools/cli/git/core.py
+agdt-task-wait
+
+# 6. Run the full suite when all work is complete
+agdt-test
+agdt-task-wait
+```
+
+### Rules
+
+- Never write source code before a failing test exists.
+- Never skip the RED step — a test that passes without any implementation is not testing anything.
+- Keep each RED → GREEN cycle small: one function or behaviour at a time.
+- All new code must maintain 100% test coverage (enforced by CI).
+
 ## Code Quality
 
 We maintain high code quality standards using multiple tools. All code must pass these checks before being merged.

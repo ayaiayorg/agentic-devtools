@@ -8,21 +8,42 @@ You are implementing Jira issue **{{issue_key}}**: {{issue_summary}}
 
 ## Your Task
 
-Work through the checklist items above. For each item:
+Work through the checklist items above using the **TDD red-green-refactor cycle**.
+For each item:
 
-1. **Implement the change** - Follow existing patterns and conventions
-2. **Test your work** - Verify the item is truly complete
-3. **Mark it complete** - Use the `--completed` flag when committing
+1. **Write a failing test FIRST (RED)** — create the test file before any source changes
+2. **Confirm the test fails** — run it to verify it is actually testing new behaviour
+3. **Write minimal implementation (GREEN)** — add only what is needed to pass the test
+4. **Confirm the test passes** — run it again to verify
+5. **Refactor if needed (REFACTOR)** — improve code quality while keeping tests green
+6. **Check coverage** — ensure the source file maintains 100% coverage
+7. **Mark it complete** — use the `--completed` flag when committing
+
+### TDD Commands
+
+```bash
+# Step 1 & 2: confirm test fails (RED)
+agdt-test-pattern tests/unit/<path>/test_<symbol>.py -v
+
+# Step 3 & 4: confirm test passes after implementation (GREEN)
+agdt-test-pattern tests/unit/<path>/test_<symbol>.py -v
+
+# Step 6: verify 100% coverage on the source file
+agdt-test-file --source-file agentic_devtools/<path>/<file>.py
+agdt-task-wait
+
+# After ALL checklist items are complete: run full suite
+agdt-test
+agdt-task-wait
+```
 
 ## Key Guidelines
 
-- **Single commit per issue** - All work goes into one commit (use amend for
-
-  updates)
-  updates)
+- **Write tests before source code** — no exceptions
+- **Single commit per issue** - All work goes into one commit (use amend for updates)
 
 - **Follow existing patterns** - Match the codebase style and conventions
-- **Add/update tests** - Ensure test coverage for new code
+- **100% test coverage required** - Every new line of code must be covered
 - **Update documentation** - Keep README and instruction files current
 
 ## Committing Your Work

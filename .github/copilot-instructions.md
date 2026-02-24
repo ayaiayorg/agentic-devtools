@@ -1098,6 +1098,60 @@ agdt-task-wait                                          # Wait for completion (R
 Running synchronously causes AI agents to think something went wrong during the
 wait, leading to multiple restarts and wasted resources.
 
+### TDD Workflow (Required for All Implementation Work)
+
+**⚠️ AI AGENTS: Always follow the red-green-refactor TDD cycle. Write tests BEFORE
+implementation code.**
+
+For every new function, class, or behaviour change, follow this cycle:
+
+#### Step 1 — RED: Write a failing test first
+
+Create the test file following the 1:1:1 policy **before** touching source code:
+
+```bash
+# Create tests/unit/cli/git/core/test_new_function.py with expected behaviour
+# Then confirm the test fails (RED):
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected output: FAILED
+```
+
+#### Step 2 — GREEN: Write the minimal implementation
+
+Write only enough code to make the failing test pass:
+
+```bash
+# Edit agentic_devtools/cli/git/core.py with minimal implementation
+# Then confirm tests pass (GREEN):
+agdt-test-pattern tests/unit/cli/git/core/test_new_function.py -v
+# Expected output: PASSED
+```
+
+#### Step 3 — REFACTOR: Improve without breaking tests
+
+Tidy the code while keeping tests green:
+
+```bash
+# Refactor and verify coverage:
+agdt-test-file --source-file agentic_devtools/cli/git/core.py
+agdt-task-wait
+```
+
+#### Step 4 — Full suite check
+
+After all checklist items are complete, run the full test suite:
+
+```bash
+agdt-test
+agdt-task-wait
+```
+
+#### Why TDD?
+
+- Ensures tests reflect **intended** behaviour, not implementation accidents.
+- Forces minimal code — no speculative features that lack test coverage.
+- Aligns with the existing 100% coverage requirement already enforced in CI.
+
 ## 14. Pre-commit Hooks
 
 The repository has pre-commit hooks for linting Python files in `scripts/`. To enable:
