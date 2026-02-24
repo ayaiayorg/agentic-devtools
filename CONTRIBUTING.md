@@ -214,6 +214,7 @@ and dry-run safety.
 | Instead of... | Use... |
 |---------------|--------|
 | `git add . && git commit && git push` | `agdt-git-save-work` |
+| `git commit --amend` | `agdt-git-save-work` (auto-detects amend) |
 | `git push --force` | `agdt-git-force-push` |
 | `git push -u origin <branch>` | `agdt-git-publish` |
 | `pytest ...` | `agdt-test`, `agdt-test-file`, `agdt-test-pattern`, `agdt-test-quick` |
@@ -285,11 +286,17 @@ Example: `feature/DFLY-1234/add-webhook-support`
 
 ### Single-Commit Policy
 
-We follow a single-commit-per-PR policy:
+> **⚠️ HARD RULE — AI AGENTS AND CONTRIBUTORS: Every pull request MUST contain exactly one commit.**
 
-- Each PR should contain exactly one commit
+- **NEVER create additional commits** on a feature branch — always amend and force-push
+- **NEVER use `git commit` directly** — always use `agdt-git-save-work`, which automatically
+  amends when the branch has commits ahead of `main` (`origin/main` if available). This enforces
+  the single-commit policy: once you have one commit on the branch, all subsequent saves amend it.
+- Adding a second commit to a PR branch is a **policy violation**
 - Commit messages must follow the convention described in [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md)
-- When making updates to a PR, amend the existing commit and force-push
+
+When making updates to a PR, `agdt-git-save-work` auto-detects that an amend is needed and
+force-pushes. No manual `git commit --amend` or `git push --force` is required.
 
 The format requires a **mandatory** GitHub issue link as the scope and repeats it in the footer:
 
