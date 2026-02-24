@@ -326,7 +326,7 @@ All action commands that mutate state or perform API calls spawn background task
 
 ```bash
 # Option A: With CLI parameters (explicit)
-agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feature(DFLY-1234): add new feature" --description "Description here"
+agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add new feature" --description "Description here"
 
 # Option B: Parameterless (uses current state)
 # Check current values: agdt-get source_branch, agdt-get title
@@ -1231,7 +1231,58 @@ npm install -g cspell @cspell/dict-de-de @cspell/dict-python @cspell/dict-dotnet
 
 To add new words, edit `cspell.json` directly (keep alphabetically sorted). Multiple language dictionaries are enabled via imports in `cspell.json`.
 
-## 15. Common Workflows
+## 15. Commit Message Convention
+
+Every commit **must** follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org)
+with a mandatory GitHub issue link as the scope. See [COMMIT_CONVENTION.md](../COMMIT_CONVENTION.md)
+for the full specification.
+
+### Quick reference
+
+```text
+type([#NNN](https://github.com/ayaiayorg/agentic-devtools/issues/NNN)): summary
+
+body (optional bullet points)
+
+[#NNN](https://github.com/ayaiayorg/agentic-devtools/issues/NNN)
+```
+
+**Rules for AI agents:**
+
+- The scope is **never** optional — always include a GitHub issue markdown link.
+- The footer **must** repeat the same issue link(s) as the scope.
+- Breaking changes: use `!` after the scope closing `)` **and** prefix the footer with `BREAKING CHANGE:`.
+- Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Parent issue comes **first** in parent/child links (scope: `parent/child`, footer: `parent / child`).
+- Multiple unrelated issues: comma-separated, ascending order by number.
+- **Do NOT** use old Jira-style scopes like `feat(DFLY-1234):` — the scope must always be a GitHub issue markdown link `([#NNN](...))`.
+- Branch names follow the `type/ISSUE-KEY/description` convention (e.g. `feature/DFLY-1234/add-webhook`) — this is separate from the commit scope.
+
+### Examples
+
+Single issue:
+
+```text
+feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add webhook support
+
+- Implemented webhook handler
+- Added unit tests
+
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)
+```
+
+Parent + child issue:
+
+```text
+feat([#10](https://github.com/ayaiayorg/agentic-devtools/issues/10)/[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): implement sub-feature
+
+- Added endpoint
+- Wired up Jira notification
+
+[#10](https://github.com/ayaiayorg/agentic-devtools/issues/10) / [#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)
+```
+
+## 16. Common Workflows
 
 > **Note:** All action commands (those that mutate state or make API calls) spawn background tasks.
 > These return immediately. Use `agdt-task-status` or `agdt-task-wait` to monitor.
@@ -1240,12 +1291,12 @@ To add new words, edit `cspell.json` directly (keep alphabetically sorted). Mult
 
 ```bash
 # Option A: With CLI parameter (explicit)
-agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
+agdt-git-save-work --commit-message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): implement feature
 
 - Added new component
 - Updated tests
 
-[DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)"
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)"
 # Returns task ID immediately - use agdt-task-wait to block until complete
 
 # Option B: Parameterless (uses current state)
@@ -1262,13 +1313,13 @@ agdt-git-save-work
 
 ```bash
 # Option A: With CLI parameter (explicit)
-agdt-git-save-work --commit-message "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): implement feature
+agdt-git-save-work --commit-message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): implement feature
 
 - Added new component
 - Updated tests
 - Addressed PR feedback
 
-[DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)"
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)"
 # Automatically amends if already pushed a commit for this issue
 
 # Option B: Parameterless (uses current state)
@@ -1280,7 +1331,7 @@ agdt-git-save-work
 
 ```bash
 agdt-set source_branch feature/DFLY-1234/my-changes
-agdt-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): Add new feature"
+agdt-set title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): Add new feature"
 agdt-set description "This PR implements the new feature."
 agdt-create-pull-request
 ```
@@ -1515,7 +1566,7 @@ agdt-set jira.dry_run true
 agdt-add-jira-comment  # Previews without posting
 ```
 
-## 16. Output Files
+## 17. Output Files
 
 | File | Command | Content |
 |------|---------|---------|
@@ -1571,7 +1622,7 @@ The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
 - Recent tasks are automatically pruned when not running and finished more than 5 minutes ago
 - The `all-background-tasks.json` file keeps the complete history without pruning
 
-## 17. Instruction Maintenance
+## 18. Instruction Maintenance
 
 Update this file when:
 
