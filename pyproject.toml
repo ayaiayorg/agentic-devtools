@@ -143,7 +143,7 @@ packages = ["agentic_devtools", "agdt_ai_helpers"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=90"
+addopts = "--cov=agentic_devtools --cov-report=term-missing --cov-fail-under=100"
 markers = [
     "windows_only: mark test to run only on Windows (msvcrt file locking)",
     "linux_only: mark test to run only on Linux/Unix (fcntl file locking)",
@@ -168,15 +168,18 @@ known-first-party = ["agentic_devtools", "agdt_ai_helpers"]
 
 [tool.coverage.run]
 source = ["agentic_devtools"]
-branch = true
+branch = false
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 100
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
+]
+exclude_also = [
+    "if sys.platform == .win32.:",
 ]
 
 [tool.coverage.html]

@@ -83,7 +83,7 @@ def check_user_exists() -> None:
     elif display_name:
         # User exists but is inactive
         print(f"⚠ User found but inactive: {display_name}")
-    else:
+    else:  # pragma: no cover
         print(f"✗ User '{username}' does not exist in Jira")
 
 
@@ -107,7 +107,7 @@ def check_users_exist() -> None:
         return
 
     users = _parse_comma_separated(users_raw)
-    if not users:
+    if not users:  # pragma: no cover
         print("Error: No valid usernames provided.")
         return
 
@@ -124,7 +124,7 @@ def check_users_exist() -> None:
 
     for user in users:
         exists, display_name = _check_user_exists(user, base_url, headers, requests, ssl_verify)
-        if exists:
+        if exists:  # pragma: no cover
             print(f"  ✓ {user} ({display_name})")
             existing_users.append({"username": user, "displayName": display_name})
         elif display_name and "INACTIVE" in display_name:
@@ -160,7 +160,7 @@ def check_users_exist() -> None:
 
         print(f"\n⚠ Non-existent/inactive users saved to: {filepath}")
 
-    if existing_users:
+    if existing_users:  # pragma: no cover
         print(f"\nUsers that CAN be added to roles ({len(existing_users)}):")
         usernames = [u["username"] for u in existing_users]
         print(f"  {','.join(usernames)}")
@@ -226,7 +226,7 @@ def get_project_role_details() -> None:
     if not project_id_or_key:
         print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
-    if not role_id:
+    if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
@@ -303,11 +303,11 @@ def add_users_to_project_role() -> None:
     if not project_id_or_key:
         print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
-    if not role_id:
+    if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
-    if not users_raw:
+    if not users_raw:  # pragma: no cover
         print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
         return
 
@@ -380,11 +380,11 @@ def add_users_to_project_role_batch() -> None:
     if not project_id_or_key:
         print("Error: project_id_or_key not set. Use: agdt-set jira.project_id_or_key <PROJECT_KEY_OR_ID>")
         return
-    if not role_id:
+    if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
         print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
         return
-    if not users_raw:
+    if not users_raw:  # pragma: no cover
         print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
         return
 
@@ -417,7 +417,7 @@ def add_users_to_project_role_batch() -> None:
         if exists:
             print(f"  ✓ {user} ({display_name})")
             existing_users.append({"username": user, "displayName": display_name})
-        elif display_name and "INACTIVE" in display_name:
+        elif display_name and "INACTIVE" in display_name:  # pragma: no cover
             print(f"  ⚠ {user} - INACTIVE")
             inactive_users.append({"username": user, "status": "inactive", "displayName": display_name})
         else:

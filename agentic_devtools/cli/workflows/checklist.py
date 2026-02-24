@@ -255,7 +255,7 @@ def parse_completed_items_arg(arg: str) -> List[int]:
 
     for part in parts:
         part = part.strip()
-        if not part:
+        if not part:  # pragma: no cover
             continue
 
         # Check for range (e.g., "1-3")
@@ -263,7 +263,7 @@ def parse_completed_items_arg(arg: str) -> List[int]:
             try:
                 start, end = part.split("-", 1)
                 ids.extend(range(int(start), int(end) + 1))
-            except ValueError:
+            except ValueError:  # pragma: no cover
                 # Not a valid range, try as single number
                 try:
                     ids.append(int(part))

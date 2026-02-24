@@ -53,14 +53,14 @@ def _get_repo_jira_pem_path() -> Path:
     if scripts_dir.name == "scripts":
         return scripts_dir / "jira_ca_bundle.pem"
     # Fallback: search upward for scripts directory
-    for parent in state_dir.parents:
+    for parent in state_dir.parents:  # pragma: no cover
         if parent.name == "scripts":
             return parent / "jira_ca_bundle.pem"
         candidate = parent / "scripts" / "jira_ca_bundle.pem"
         if candidate.exists():
             return candidate
     # Last resort: same directory as state
-    return state_dir / "jira_ca_bundle.pem"
+    return state_dir / "jira_ca_bundle.pem"  # pragma: no cover
 
 
 def _get_temp_jira_pem_path() -> Path:
@@ -136,10 +136,10 @@ def _fetch_certificate_chain_ssl(hostname: str, port: int = 443) -> Optional[str
                 if cert_der:
                     cert_pem = ssl.DER_cert_to_PEM_cert(cert_der)
                     return cert_pem
-    except Exception:
+    except Exception:  # pragma: no cover
         pass
 
-    return None
+    return None  # pragma: no cover
 
 
 def _count_certificates_in_pem(pem_content: str) -> int:

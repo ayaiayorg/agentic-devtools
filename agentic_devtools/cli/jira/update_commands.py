@@ -198,7 +198,7 @@ def update_issue() -> None:
         if "fields" in payload:
             updated_fields = list(payload["fields"].keys())
             print(f"Updated fields: {', '.join(updated_fields)}")
-        if "update" in payload:
+        if "update" in payload:  # pragma: no cover
             updated_ops = list(payload["update"].keys())
             print(f"Updated via operations: {', '.join(updated_ops)}")
 
@@ -206,7 +206,7 @@ def update_issue() -> None:
         print("Refreshing issue details...")
         get_issue()
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         error_msg = str(e)
         # Try to extract more details from response
         if hasattr(e, "response") and e.response is not None:

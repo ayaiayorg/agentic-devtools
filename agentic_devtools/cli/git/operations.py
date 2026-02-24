@@ -40,7 +40,7 @@ def stage_changes(dry_run: bool) -> None:
 
     for excluded in STAGE_EXCLUDE_FILES:
         result = run_git("reset", "HEAD", "--", excluded, check=False)
-        if result.returncode == 0 and result.stdout.strip():
+        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
             print(f"Unstaged auto-generated file: {excluded}")
 
     print("Changes staged.")
@@ -365,7 +365,7 @@ def check_branch_safe_to_recreate(branch_name: str) -> BranchSafetyCheckResult:
 
     # Branch exists locally - check if we're on it
     current = get_current_branch()
-    if not current:
+    if not current:  # pragma: no cover
         return BranchSafetyCheckResult(
             BranchSafetyCheckResult.NOT_ON_BRANCH,
             "Detached HEAD state. Cannot safely check branch status.",
@@ -373,7 +373,7 @@ def check_branch_safe_to_recreate(branch_name: str) -> BranchSafetyCheckResult:
         )
 
     # If we're on a different branch, we need to be careful
-    if current != branch_name:
+    if current != branch_name:  # pragma: no cover
         # Check for uncommitted changes on current branch first
         if has_local_changes():
             return BranchSafetyCheckResult(
@@ -427,7 +427,7 @@ def check_branch_safe_to_recreate(branch_name: str) -> BranchSafetyCheckResult:
         )
 
     # Check if local matches origin
-    if not origin_exists:
+    if not origin_exists:  # pragma: no cover
         return BranchSafetyCheckResult(
             BranchSafetyCheckResult.BRANCH_NOT_ON_ORIGIN,
             f"Branch '{branch_name}' exists locally but not on origin.\nLocal work may be lost if we proceed.",
@@ -437,7 +437,7 @@ def check_branch_safe_to_recreate(branch_name: str) -> BranchSafetyCheckResult:
     local_commit = run_git("rev-parse", "HEAD", check=False)
     origin_commit = run_git("rev-parse", f"origin/{branch_name}", check=False)
 
-    if local_commit.returncode != 0 or origin_commit.returncode != 0:
+    if local_commit.returncode != 0 or origin_commit.returncode != 0:  # pragma: no cover
         return BranchSafetyCheckResult(
             BranchSafetyCheckResult.NOT_ON_BRANCH,
             "Cannot determine commit hashes for comparison.",

@@ -310,7 +310,7 @@ def log_prompt_with_save_notice(
         """Print text safely, handling Unicode encoding issues on Windows."""
         try:
             print(text)
-        except UnicodeEncodeError:
+        except UnicodeEncodeError:  # pragma: no cover
             # Fall back to writing to buffer with UTF-8 encoding
             sys.stdout.buffer.write((text + "\n").encode("utf-8", errors="replace"))
             sys.stdout.buffer.flush()

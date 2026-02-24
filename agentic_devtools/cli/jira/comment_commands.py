@@ -97,7 +97,7 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
             from ..workflows.advancement import try_advance_workflow_after_jira_comment
 
             try_advance_workflow_after_jira_comment()
-        except ImportError:
+        except ImportError:  # pragma: no cover
             pass  # Workflows module not available
 
     except Exception as e:
@@ -105,7 +105,7 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
         sys.exit(1)
 
 
-def add_comment_cli() -> None:
+def add_comment_cli() -> None:  # pragma: no cover
     """CLI entry point for add_comment with argument parsing."""
     parser = argparse.ArgumentParser(
         description="Add a comment to a Jira issue",

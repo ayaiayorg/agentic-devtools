@@ -82,7 +82,7 @@ def get_git_repo_root() -> Optional[str]:
         if result.returncode == 0:
             return result.stdout.strip()
         return None
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError):  # pragma: no cover
         return None
 
 

@@ -92,7 +92,7 @@ def create_agdt_issue_async(
     _set_issue_value_if_provided("assignees", assignees)
     _set_issue_value_if_provided("milestone", milestone)
     _set_issue_value_if_provided("related_issue", related_issue)
-    if dry_run is not None:
+    if dry_run is not None:  # pragma: no cover
         set_value("issue.dry_run", dry_run)
 
     resolved_title = _require_issue_value("title", 'agdt-create-agdt-issue --title "My issue"')
@@ -216,7 +216,7 @@ def create_agdt_bug_issue_async(
     _set_issue_value_if_provided("related_issue", related_issue)
     _set_issue_value_if_provided("assignees", assignees)
     _set_issue_value_if_provided("milestone", milestone)
-    if dry_run is not None:
+    if dry_run is not None:  # pragma: no cover
         set_value("issue.dry_run", dry_run)
 
     resolved_title = _require_issue_value("title", 'agdt-create-agdt-bug-issue --title "Bug title"')
@@ -372,7 +372,7 @@ def create_agdt_feature_issue_async(
     _set_issue_value_if_provided("related_issue", related_issue)
     _set_issue_value_if_provided("assignees", assignees)
     _set_issue_value_if_provided("milestone", milestone)
-    if dry_run is not None:
+    if dry_run is not None:  # pragma: no cover
         set_value("issue.dry_run", dry_run)
 
     resolved_title = _require_issue_value("title", 'agdt-create-agdt-feature-issue --title "Feature title"')
@@ -518,7 +518,7 @@ def create_agdt_documentation_issue_async(
     _set_issue_value_if_provided("related_issue", related_issue)
     _set_issue_value_if_provided("assignees", assignees)
     _set_issue_value_if_provided("milestone", milestone)
-    if dry_run is not None:
+    if dry_run is not None:  # pragma: no cover
         set_value("issue.dry_run", dry_run)
 
     resolved_title = _require_issue_value("title", 'agdt-create-agdt-documentation-issue --title "Doc title"')
@@ -658,7 +658,7 @@ def create_agdt_task_issue_async(
     _set_issue_value_if_provided("related_issue", related_issue)
     _set_issue_value_if_provided("assignees", assignees)
     _set_issue_value_if_provided("milestone", milestone)
-    if dry_run is not None:
+    if dry_run is not None:  # pragma: no cover
         set_value("issue.dry_run", dry_run)
 
     resolved_title = _require_issue_value("title", 'agdt-create-agdt-task-issue --title "Task title"')

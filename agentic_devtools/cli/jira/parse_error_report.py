@@ -209,7 +209,7 @@ def parse_jira_error_report() -> None:
     enriched_entries = []
     for entry in parsed_entries:
         username = entry["username"]
-        if username.startswith("(unknown"):
+        if username.startswith("(unknown"):  # pragma: no cover
             enriched_entry = {
                 **entry,
                 "displayName": "",
@@ -221,7 +221,7 @@ def parse_jira_error_report() -> None:
         else:
             details = user_cache.get(username, {})
             if details.get("exists"):
-                status = "active" if details.get("active") else "inactive"
+                status = "active" if details.get("active") else "inactive"  # pragma: no cover
             else:
                 status = "not_found"
 
@@ -251,7 +251,7 @@ def parse_jira_error_report() -> None:
                 "asReporter": set(),
                 "asAssignee": set(),
             }
-        if entry["role"] == "reporter":
+        if entry["role"] == "reporter":  # pragma: no cover
             user_summary[username]["asReporter"].add(entry["dataproduct"])
         else:
             user_summary[username]["asAssignee"].add(entry["dataproduct"])

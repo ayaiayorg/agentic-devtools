@@ -167,7 +167,7 @@ def _format_query(
     )
 
 
-def _run_app_insights_query(
+def _run_app_insights_query(  # pragma: no cover
     environment: str,
     query: str,
     dry_run: bool = False,
@@ -356,7 +356,7 @@ def _print_query_results(data: dict, format_type: str = "table") -> None:
             print()
 
 
-def query_app_insights() -> None:
+def query_app_insights() -> None:  # pragma: no cover
     """
     Query Application Insights with a custom KQL query.
 
@@ -398,7 +398,7 @@ def query_app_insights() -> None:
     _print_query_results(result, format_type="block")
 
 
-def query_fabric_dap_errors() -> None:
+def query_fabric_dap_errors() -> None:  # pragma: no cover
     """
     Query Fabric DAP error logs from Application Insights.
 
@@ -475,7 +475,7 @@ def query_fabric_dap_errors() -> None:
         _print_query_results(result, format_type="block")
 
 
-def query_fabric_dap_provisioning() -> None:
+def query_fabric_dap_provisioning() -> None:  # pragma: no cover
     """
     Query Fabric DAP provisioning flow logs from Application Insights.
 
@@ -522,7 +522,7 @@ def query_fabric_dap_provisioning() -> None:
     _query_fabric_dap_provisioning_sync()
 
 
-def _query_fabric_dap_provisioning_sync() -> int:
+def _query_fabric_dap_provisioning_sync() -> int:  # pragma: no cover
     """
     Internal: Run Fabric DAP provisioning query synchronously.
 
@@ -591,7 +591,7 @@ def _query_fabric_dap_provisioning_sync() -> int:
     return 0
 
 
-def query_fabric_dap_timeline() -> None:
+def query_fabric_dap_timeline() -> None:  # pragma: no cover
     """
     Query Fabric DAP provisioning timeline for performance analysis.
 
@@ -740,7 +740,7 @@ def _create_common_parser(description: str) -> argparse.ArgumentParser:
     return parser
 
 
-def query_app_insights_async() -> None:
+def query_app_insights_async() -> None:  # pragma: no cover
     """
     CLI entry point for running custom KQL queries against Application Insights.
 
@@ -803,7 +803,7 @@ def query_app_insights_async() -> None:
     query_app_insights()
 
 
-def query_fabric_dap_errors_async() -> None:
+def query_fabric_dap_errors_async() -> None:  # pragma: no cover
     """
     CLI entry point for querying Fabric DAP errors with optional arguments.
 
@@ -835,7 +835,7 @@ def query_fabric_dap_errors_async() -> None:
     query_fabric_dap_errors()
 
 
-def query_fabric_dap_provisioning_async() -> None:
+def query_fabric_dap_provisioning_async() -> None:  # pragma: no cover
     """
     CLI entry point for querying Fabric DAP provisioning logs with optional arguments.
 
@@ -876,7 +876,7 @@ def query_fabric_dap_provisioning_async() -> None:
     query_fabric_dap_provisioning()
 
 
-def query_fabric_dap_timeline_async() -> None:
+def query_fabric_dap_timeline_async() -> None:  # pragma: no cover
     """
     CLI entry point for querying Fabric DAP timeline with optional arguments.
 

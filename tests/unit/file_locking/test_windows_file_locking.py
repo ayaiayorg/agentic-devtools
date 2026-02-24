@@ -44,7 +44,6 @@ class TestWindowsFileLocking:
             _lock_file_windows(f, exclusive=False, timeout=1.0)
             _unlock_file_windows(f)
 
-    @pytest.mark.windows_only
     def test_lock_file_windows_timeout(self, tmp_path):
         """Test _lock_file_windows raises FileLockError on timeout."""
         from agentic_devtools.file_locking import _lock_file_windows
@@ -66,7 +65,6 @@ class TestWindowsFileLocking:
 
                 assert "Could not acquire lock" in str(exc_info.value)
 
-    @pytest.mark.windows_only
     def test_unlock_file_windows_ignores_errors(self, tmp_path):
         """Test _unlock_file_windows silently ignores unlock errors."""
         from agentic_devtools.file_locking import _unlock_file_windows
@@ -84,7 +82,6 @@ class TestWindowsFileLocking:
                 # Should not raise
                 _unlock_file_windows(f)
 
-    @pytest.mark.windows_only
     def test_lock_file_windows_retry_loop(self, tmp_path):
         """Test _lock_file_windows retries before timing out."""
         from agentic_devtools.file_locking import _lock_file_windows

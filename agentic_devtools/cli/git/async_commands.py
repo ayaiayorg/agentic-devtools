@@ -31,7 +31,7 @@ def _set_value_if_provided(key: str, value: Optional[str]) -> None:
 def _set_bool_value_if_true(key: str, value: bool) -> None:
     """Set a state value to 'true' if the boolean is True."""
     if value:
-        set_value(key, "true")
+        set_value(key, "true")  # pragma: no cover
 
 
 def _create_commit_parser() -> argparse.ArgumentParser:

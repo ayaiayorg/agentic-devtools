@@ -208,3 +208,99 @@ Tests outside `tests/unit/` (e.g., `tests/azure_devops/`, `tests/e2e_smoke/`, an
 flat `tests/test_*.py` files) were written before this policy was introduced. They are
 **not** validated by the 1:1:1 script and do not need to be migrated immediately.
 New test code, however, **must** be placed under `tests/unit/`.
+
+## Platform-Specific Tests
+
+Some modules contain code that only runs on a specific operating system (e.g., `fcntl`
+on Unix, `msvcrt` on Windows). Tests for this code use platform markers so they are
+automatically skipped on incompatible platforms.
+
+### Available Markers
+
+| Marker | Meaning |
+|--------|---------|
+| `@pytest.mark.linux_only` | Test runs only on Linux/macOS (skipped on Windows) |
+| `@pytest.mark.windows_only` | Test runs only on Windows (skipped on Linux/macOS) |
+
+These markers are processed in `tests/conftest.py` via `pytest_collection_modifyitems`,
+which adds `pytest.mark.skip` to incompatible tests at collection time.
+
+### Usage
+
+```python
+import pytest
+from agentic_devtools.file_locking import _lock_file_unix
+
+@pytest.mark.linux_only
+def test_lock_file_unix_exclusive(tmp_path):
+    """Test fcntl-based locking (Linux/macOS only)."""
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("content")
+    with open(test_file, "r+") as f:
+        _lock_file_unix(f, exclusive=True, timeout=1.0)
+```
+
+For tests that mock the OS-specific module entirely (e.g., replacing `msvcrt` in
+`sys.modules`), **no platform marker is needed** since the real module is never imported:
+
+```python
+import sys
+from unittest.mock import MagicMock, patch
+
+def test_lock_file_windows_timeout(tmp_path):
+    """Test msvcrt timeout path — works on any platform via sys.modules mock."""
+    from agentic_devtools.file_locking import _lock_file_windows, FileLockError
+
+    mock_msvcrt = MagicMock()
+    mock_msvcrt.LK_NBLCK = 2
+    mock_msvcrt.locking.side_effect = OSError("busy")
+
+    with patch.dict(sys.modules, {"msvcrt": mock_msvcrt}):
+        with open(tmp_path / "f.txt", "w+") as f:
+            with pytest.raises(FileLockError):
+                _lock_file_windows(f, timeout=0.05)
+```
+
+### Coverage Exclusions
+
+Coverage is enforced at **100%** (`--cov-fail-under=100`) in CI. All code must be either
+tested or explicitly excluded with `# pragma: no cover`.
+
+#### When to use `# pragma: no cover`
+
+Only use `# pragma: no cover` for code that **genuinely cannot be tested** in the CI
+environment. Valid reasons include:
+
+- **External infrastructure dependencies** that require real API endpoints (e.g.,
+  Azure DevOps API calls, Jira REST endpoints, VPN toggle operations).
+- **CLI argparse thin wrappers** that only parse arguments and delegate to tested
+  implementations.
+- **Signal/interrupt handlers** (e.g., `KeyboardInterrupt` catches).
+- **`ImportError` fallbacks** for optional modules.
+
+#### When NOT to use `# pragma: no cover`
+
+Do **not** use `# pragma: no cover` on:
+
+- **OS-specific code that can be mocked** — functions like `_lock_file_windows` that
+  import `msvcrt` are testable on any platform using `patch.dict(sys.modules, ...)`.
+  See the `TestWindowsFileLocking` examples above.
+- **Deterministic logic** that can be exercised by setting state values, providing mock
+  inputs, or calling the function directly. For example, string coercion in
+  `get_pypi_dry_run()` is testable by calling `set_value("pypi.dry_run", "true")`.
+- **Pure functions** or **data transformations** — these should always be tested.
+- **Error paths** that can be triggered by mocking dependencies to raise exceptions.
+- **Jinja2 / template engine internals** — custom `Undefined` subclasses and syntax
+  error fallbacks are straightforward to test directly.
+
+#### Platform-specific exclusion patterns
+
+- Branches guarded by `if sys.platform == "win32":` are automatically excluded via the
+  `exclude_also` pattern in `pyproject.toml` — no per-line pragma needed.
+
+### CI Platform Matrix
+
+The CI pipeline (`test.yml`) currently runs on **Ubuntu Linux** only. Windows CI support
+can be added when needed by expanding the `runs-on` matrix in `.github/workflows/test.yml`.
+Platform-specific tests are already properly skipped through marker-based collection hooks,
+so no additional CI changes are required for correct skip behaviour.

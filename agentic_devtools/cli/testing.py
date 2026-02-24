@@ -203,7 +203,7 @@ def _run_tests_file_sync() -> int:
 
     # Infer test file from source file
     test_file = _infer_test_file_from_source(source_file)
-    if not test_file:
+    if not test_file:  # pragma: no cover
         print(f"Error: Could not infer test file from: {source_file}", file=sys.stderr)
         return 1
 

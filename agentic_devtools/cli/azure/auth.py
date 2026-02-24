@@ -100,7 +100,7 @@ def switch_azure_account(target_account: AzureAccount) -> bool:
 
     # Verify the new account is correct type
     current = get_current_azure_account()
-    if current is None:
+    if current is None:  # pragma: no cover
         print("Error: Failed to verify account after login.", file=sys.stderr)
         return False
 

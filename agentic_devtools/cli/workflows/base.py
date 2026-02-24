@@ -179,10 +179,10 @@ def initiate_workflow(
             log_output=True,
         )
         return content
-    except TemplateValidationError as e:
+    except TemplateValidationError as e:  # pragma: no cover
         print(str(e), file=sys.stderr)
         sys.exit(1)
-    except FileNotFoundError as e:
+    except FileNotFoundError as e:  # pragma: no cover
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -235,6 +235,6 @@ def advance_workflow_step(
             log_output=True,
         )
         return content
-    except (TemplateValidationError, FileNotFoundError) as e:
+    except (TemplateValidationError, FileNotFoundError) as e:  # pragma: no cover
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)

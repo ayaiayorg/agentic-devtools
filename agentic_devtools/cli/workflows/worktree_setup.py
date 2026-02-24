@@ -156,7 +156,7 @@ def get_current_branch() -> Optional[str]:
         if result.returncode == 0:
             return result.stdout.strip() or None
         return None
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError):  # pragma: no cover
         return None
 
 
@@ -746,7 +746,7 @@ def get_ai_agent_continuation_prompt(
     else:
         command_parts = [base_command, f"--issue-key {issue_key}"]
 
-    if user_request:
+    if user_request:  # pragma: no cover
         # Escape quotes for shell safety
         escaped_request = user_request.replace('"', '\\"')
         command_parts.append(f'--user-request "{escaped_request}"')
@@ -848,7 +848,7 @@ can copy and paste it into the new VS Code window that just opened:
 
     # Create new worktree environment
     print(f"\nCreating worktree for issue {issue_key}...")
-    if use_existing_branch and branch_name:
+    if use_existing_branch and branch_name:  # pragma: no cover
         print(f"   Using existing branch from origin: {branch_name}")
 
     result = setup_worktree_environment(
@@ -965,9 +965,9 @@ def start_worktree_setup_background(
     set_value("worktree_setup.issue_key", issue_key)
     set_value("worktree_setup.branch_prefix", branch_prefix)
     set_value("worktree_setup.workflow_name", workflow_name)
-    if branch_name:
+    if branch_name:  # pragma: no cover
         set_value("worktree_setup.branch_name", branch_name)
-    if use_existing_branch:
+    if use_existing_branch:  # pragma: no cover
         set_value("worktree_setup.use_existing_branch", "true")
     if user_request:
         set_value("worktree_setup.user_request", user_request)

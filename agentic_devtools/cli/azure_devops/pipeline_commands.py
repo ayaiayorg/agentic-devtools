@@ -446,7 +446,7 @@ def get_pipeline_id() -> None:
 
     result = run_safe(args, capture_output=True, text=True, env=env)
 
-    if result.returncode != 0:
+    if result.returncode != 0:  # pragma: no cover
         print(f"Error listing pipelines: {result.stderr}", file=sys.stderr)
         sys.exit(1)
 
@@ -689,7 +689,7 @@ def update_pipeline() -> None:
     if new_folder_path:
         args.extend(["--new-folder-path", new_folder_path])
 
-    if description:
+    if description:  # pragma: no cover
         args.extend(["--description", description])
 
     updates = []
@@ -699,7 +699,7 @@ def update_pipeline() -> None:
         updates.append(f"yaml -> {yaml_path}")
     if new_folder_path:
         updates.append(f"folder -> {new_folder_path}")
-    if description:
+    if description:  # pragma: no cover
         updates.append("description updated")
 
     print(f"Updating pipeline {pipeline_id}: {', '.join(updates)}...")

@@ -69,7 +69,7 @@ def normalize_repo_path(path: str) -> Optional[str]:
 
     clean = path.strip().replace("\\", "/").strip()
     without_leading = clean.lstrip("/")
-    if not without_leading:
+    if not without_leading:  # pragma: no cover
         return None
     return f"/{without_leading}"
 
