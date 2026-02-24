@@ -201,3 +201,44 @@ class TestAddPullRequestCommentActualCall:
         body = call_args[1]["json"]
         content = body["comments"][0]["content"]
         assert azure_devops.APPROVAL_SENTINEL in content
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_comment_ignores_stale_path(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
+    ):
+        """Approval comments must not attach to a file even when path state is set."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 123}
+        mock_req_module.post.return_value = mock_response
+        mock_req_module.patch.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+        # Simulate stale path left behind by a previous file-review operation
+        state.set_value("path", "src/reviewed_file.py")
+        state.set_value("line", 10)
+
+        azure_devops.add_pull_request_comment()
+
+        call_args = mock_req_module.post.call_args
+        body = call_args[1]["json"]
+        assert "threadContext" not in body
+
+    def test_approval_dry_run_ignores_stale_path(self, temp_state_dir, clear_state_before, capsys):
+        """Dry-run approval must not mention file path even when path state is set."""
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+        state.set_value("path", "src/reviewed_file.py")
+        state.set_dry_run(True)
+
+        azure_devops.add_pull_request_comment()
+
+        captured = capsys.readouterr()
+        assert "src/reviewed_file.py" not in captured.out

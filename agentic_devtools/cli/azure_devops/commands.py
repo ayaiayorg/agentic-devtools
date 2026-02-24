@@ -201,10 +201,15 @@ def add_pull_request_comment() -> None:
     if is_approval:
         content = format_approval_content(content)
 
-    # Optional file context
-    path = get_value("path")
-    line = get_value("line")
-    end_line = get_value("end_line")
+    # Optional file context (ignored for approval comments so they post to the PR-level thread)
+    if is_approval:
+        path = None
+        line = None
+        end_line = None
+    else:
+        path = get_value("path")
+        line = get_value("line")
+        end_line = get_value("end_line")
 
     config = AzureDevOpsConfig.from_state()
 
