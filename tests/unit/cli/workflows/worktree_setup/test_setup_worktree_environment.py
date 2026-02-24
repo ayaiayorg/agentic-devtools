@@ -11,9 +11,10 @@ from agentic_devtools.cli.workflows.worktree_setup import (
 class TestSetupWorktreeEnvironment:
     """Tests for setup_worktree_environment function."""
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.run_worktree_setup_script")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_full_setup_success(self, mock_create, mock_vscode):
+    def test_full_setup_success(self, mock_create, mock_vscode, mock_script):
         """Test successful full environment setup."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
@@ -32,6 +33,7 @@ class TestSetupWorktreeEnvironment:
         assert result.worktree_path == "/repos/DFLY-1234"
         assert result.branch_name == "feature/DFLY-1234/implementation"
         assert result.vscode_opened is True
+        mock_script.assert_called_once_with("/repos/DFLY-1234")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
     def test_setup_fails_when_worktree_fails(self, mock_create):
@@ -48,9 +50,10 @@ class TestSetupWorktreeEnvironment:
         assert result.success is False
         assert "Git error" in result.error_message
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.run_worktree_setup_script")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_setup_without_vscode(self, mock_create, mock_vscode):
+    def test_setup_without_vscode(self, mock_create, mock_vscode, mock_script):
         """Test setup without opening VS Code."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
@@ -66,10 +69,12 @@ class TestSetupWorktreeEnvironment:
         assert result.success is True
         assert result.vscode_opened is False
         mock_vscode.assert_not_called()
+        mock_script.assert_called_once_with("/repos/DFLY-1234")
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.run_worktree_setup_script")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace", return_value=False)
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
-    def test_vscode_opened_is_false_when_vscode_unavailable(self, mock_create, mock_vscode):
+    def test_vscode_opened_is_false_when_vscode_unavailable(self, mock_create, mock_vscode, mock_script):
         """Test that vscode_opened is False when VS Code is not available."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,

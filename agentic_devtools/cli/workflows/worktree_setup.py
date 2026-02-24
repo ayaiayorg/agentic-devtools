@@ -572,6 +572,41 @@ def inject_git_path_settings(worktree_path: str) -> None:
         print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
 
 
+def run_worktree_setup_script(worktree_path: str) -> None:
+    """
+    Run the project-specific worktree setup script if it exists.
+
+    Looks for ``.agdt/agentic-devtools-worktree-setup.py`` in the worktree
+    root.  If found, executes it using the current Python interpreter with the
+    worktree root passed as the first argument and the worktree root set as the
+    working directory.  If the script is absent, returns silently.  Execution
+    errors are logged as warnings but do not raise.
+
+    Args:
+        worktree_path: Path to the worktree directory.
+    """
+    script_path = os.path.join(worktree_path, ".agdt", "agentic-devtools-worktree-setup.py")
+    if not os.path.exists(script_path):
+        return
+
+    print(f"Running worktree setup script: {script_path}")
+    try:
+        result = subprocess.run(
+            [sys.executable, script_path, worktree_path],
+            cwd=worktree_path,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(
+                f"Warning: worktree setup script exited with code {result.returncode}",
+                file=sys.stderr,
+            )
+        else:
+            print("Worktree setup script completed successfully.")
+    except (FileNotFoundError, OSError) as exc:
+        print(f"Warning: could not run worktree setup script: {exc}", file=sys.stderr)
+
+
 def setup_worktree_environment(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -586,7 +621,8 @@ def setup_worktree_environment(
     for an issue. It:
     1. Creates a git worktree for the issue
     2. Injects ``.vscode/settings.json`` with Git for Windows PATH entries (Windows only)
-    3. Opens VS Code with the workspace file
+    3. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
+    4. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "DFLY-1234")
@@ -615,7 +651,10 @@ def setup_worktree_environment(
     # Step 2: Inject VS Code settings for Windows Git PATH
     inject_git_path_settings(result.worktree_path)
 
-    # Step 3: Open VS Code
+    # Step 3: Run project-specific worktree setup script if present
+    run_worktree_setup_script(result.worktree_path)
+
+    # Step 4: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
