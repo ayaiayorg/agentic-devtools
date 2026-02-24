@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from agentic_devtools.cli.workflows.worktree_setup import run_worktree_setup_script
 
 
@@ -148,7 +150,10 @@ class TestRunWorktreeSetupScript:
         real_file = tmp_path / "real_setup.py"
         real_file.write_text("print('evil')", encoding="utf-8")
         symlink = script_dir / "agentic-devtools-worktree-setup.py"
-        symlink.symlink_to(real_file)
+        try:
+            symlink.symlink_to(real_file)
+        except OSError:
+            pytest.skip("Symlink creation not supported on this platform/configuration")
 
         with patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run") as mock_run:
             run_worktree_setup_script(str(tmp_path))
