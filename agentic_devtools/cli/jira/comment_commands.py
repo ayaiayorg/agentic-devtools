@@ -82,7 +82,7 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
     print(f"Adding comment to {resolved_issue_key}...")
 
     try:
-        response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify())
+        response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
 
         result = response.json()

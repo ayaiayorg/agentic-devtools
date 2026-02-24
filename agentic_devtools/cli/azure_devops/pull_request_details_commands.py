@@ -462,7 +462,6 @@ def get_pull_request_details() -> None:
         capture_output=True,
         text=True,
         env=env,
-        shell=True,
     )
 
     if result.returncode != 0:

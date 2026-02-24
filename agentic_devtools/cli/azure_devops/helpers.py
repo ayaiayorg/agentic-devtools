@@ -184,7 +184,7 @@ def build_thread_context(
 def verify_az_cli() -> None:
     """Verify Azure CLI and azure-devops extension are installed."""
     try:
-        run_safe(["az", "--version"], capture_output=True, check=True, shell=True)
+        run_safe(["az", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("Error: Azure CLI (az) is not installed or not in PATH.", file=sys.stderr)
         print(
@@ -206,7 +206,6 @@ def verify_az_cli() -> None:
         ],
         capture_output=True,
         text=True,
-        shell=True,
     )
     if not result.stdout.strip():
         print(

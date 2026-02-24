@@ -139,7 +139,7 @@ def reply_to_pull_request_thread() -> None:
     }
 
     print(f"Adding reply to thread {thread_id} on PR {pull_request_id}...")
-    response = requests.post(comment_url, headers=headers, json=comment_body)
+    response = requests.post(comment_url, headers=headers, json=comment_body, timeout=30)
     response.raise_for_status()
 
     result = response.json()
@@ -283,7 +283,7 @@ def add_pull_request_comment() -> None:
             }
 
     print(f"Adding comment to PR {pull_request_id}...")
-    response = requests.post(thread_url, headers=headers, json=thread_body)
+    response = requests.post(thread_url, headers=headers, json=thread_body, timeout=30)
     response.raise_for_status()
 
     result = response.json()
@@ -515,7 +515,7 @@ def get_pull_request_threads() -> None:
     threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
 
     print(f"Fetching threads for PR {pull_request_id}...")
-    response = requests.get(threads_url, headers=headers)
+    response = requests.get(threads_url, headers=headers, timeout=30)
     response.raise_for_status()
 
     data = response.json()
