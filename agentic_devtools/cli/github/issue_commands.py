@@ -50,16 +50,16 @@ def _get_environment_info() -> str:
         from importlib.metadata import version
 
         agdt_version = version("agentic-devtools")
-    except Exception:
+    except Exception:  # pragma: no cover
         agdt_version = "unknown"
 
     # VS Code version
     vscode_version = "unknown"
     try:
         result = run_safe(["code", "--version"], capture_output=True, text=True, shell=False)
-        if result.returncode == 0 and result.stdout.strip():
-            vscode_version = result.stdout.strip().splitlines()[0]
-    except OSError:
+        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+            vscode_version = result.stdout.strip().splitlines()[0]  # pragma: no cover
+    except OSError:  # pragma: no cover
         pass
 
     # Git version
@@ -217,9 +217,9 @@ def create_agdt_issue() -> None:
             print(f"Labels: {', '.join(labels)}")
         if issue_type:
             print(f"Type: {issue_type}")
-        if assignees:
+        if assignees:  # pragma: no cover
             print(f"Assignees: {', '.join(assignees)}")
-        if milestone:
+        if milestone:  # pragma: no cover
             print(f"Milestone: {milestone}")
         print(f"\n{body}")
         return

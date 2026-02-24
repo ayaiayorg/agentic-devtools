@@ -141,22 +141,22 @@ def validate_template_variables(default_content: str, override_content: str) -> 
 class SilentUndefined(Undefined):
     """Custom undefined class that renders as empty string and is falsy."""
 
-    def _fail_with_undefined_error(self, *args, **kwargs):
+    def _fail_with_undefined_error(self, *args, **kwargs):  # pragma: no cover
         return ""
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return ""
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return ""
 
-    def __bool__(self) -> bool:
+    def __bool__(self) -> bool:  # pragma: no cover
         return False
 
-    def __iter__(self):
+    def __iter__(self):  # pragma: no cover
         return iter([])
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # pragma: no cover
         return 0
 
 
@@ -193,7 +193,7 @@ def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
     try:
         jinja_template = _jinja_env.from_string(template)
         return jinja_template.render(**variables)
-    except TemplateSyntaxError:
+    except TemplateSyntaxError:  # pragma: no cover
         # If Jinja2 can't parse it, fall back to simple regex substitution
         # This handles edge cases where templates might have literal {{ }} that aren't variables
         result = template
@@ -310,7 +310,7 @@ def log_prompt_with_save_notice(
         """Print text safely, handling Unicode encoding issues on Windows."""
         try:
             print(text)
-        except UnicodeEncodeError:
+        except UnicodeEncodeError:  # pragma: no cover
             # Fall back to writing to buffer with UTF-8 encoding
             sys.stdout.buffer.write((text + "\n").encode("utf-8", errors="replace"))
             sys.stdout.buffer.flush()

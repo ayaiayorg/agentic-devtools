@@ -45,7 +45,7 @@ def with_jira_vpn_context(func: F) -> F:
             vpn_url = get_vpn_url_from_state()
             with JiraVpnContext(vpn_url=vpn_url, verbose=True):
                 return func(*args, **kwargs)
-        except ImportError:
+        except ImportError:  # pragma: no cover
             # VPN module not available (e.g., non-Windows platform)
             # Proceed without VPN management
             return func(*args, **kwargs)

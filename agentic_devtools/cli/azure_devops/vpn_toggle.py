@@ -599,7 +599,9 @@ def disconnect_vpn(
         print(f"  ... still connected ({elapsed:.1f}s)")
 
     # Timed out but command succeeded - proceed anyway
-    print(f"  ⚠️  VPN suspend command sent but adapter still shows connected after {max_wait_seconds}s")  # pragma: no cover
+    print(  # pragma: no cover
+        f"  ⚠️  VPN suspend command sent but adapter still shows connected after {max_wait_seconds}s"
+    )
     return True, "VPN suspend sent (connection status unclear)"  # pragma: no cover
 
 
@@ -642,7 +644,9 @@ def reconnect_vpn(
         print(f"  ... waiting for connection ({elapsed:.1f}s)")
 
     # Timed out but command succeeded - VPN may still be connecting
-    print(f"  ⚠️  VPN resume command sent but adapter not showing connected after {max_wait_seconds}s")  # pragma: no cover
+    print(  # pragma: no cover
+        f"  ⚠️  VPN resume command sent but adapter not showing connected after {max_wait_seconds}s"
+    )
     return True, "VPN resume sent (may still be connecting)"  # pragma: no cover
 
 

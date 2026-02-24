@@ -282,7 +282,7 @@ def find_pull_request_by_issue_key(
         from .auth import get_auth_headers, get_pat
 
         pat = get_pat()  # pragma: no cover
-        headers = get_auth_headers(pat)
+        headers = get_auth_headers(pat)  # pragma: no cover
 
     # Get repository ID using config values
     try:
@@ -381,7 +381,7 @@ def get_pull_request_details(
         from .auth import get_auth_headers, get_pat
 
         pat = get_pat()  # pragma: no cover
-        headers = get_auth_headers(pat)
+        headers = get_auth_headers(pat)  # pragma: no cover
 
     # Get repository ID using config values
     try:

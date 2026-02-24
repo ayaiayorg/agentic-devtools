@@ -87,3 +87,15 @@ class TestBuildValidateUpload:
         assert args[:3] == ["python", "-m", "twine"]
         assert "upload" in args
         assert "--repository" in args
+
+
+class TestComputeSha256:
+    def test_computes_hash(self, tmp_path: "Path") -> None:
+        from pathlib import Path
+        import hashlib
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_bytes(b"hello world")
+
+        expected = hashlib.sha256(b"hello world").hexdigest()
+        assert helpers.compute_sha256(test_file) == expected

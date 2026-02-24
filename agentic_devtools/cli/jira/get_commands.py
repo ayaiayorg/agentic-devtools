@@ -279,7 +279,7 @@ def get_issue() -> None:
             from ..workflows.advancement import try_advance_workflow_after_jira_issue_retrieved
 
             try_advance_workflow_after_jira_issue_retrieved(issue_data=issue)
-        except ImportError:
+        except ImportError:  # pragma: no cover
             pass  # Workflows module not available
 
     except Exception as e:

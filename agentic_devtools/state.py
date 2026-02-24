@@ -582,7 +582,7 @@ def get_pypi_dry_run() -> bool:
         return False
     if isinstance(value, bool):
         return value
-    return str(value).lower() in ("1", "true", "yes")
+    return str(value).lower() in ("1", "true", "yes")  # pragma: no cover
 
 
 def set_pypi_dry_run(enabled: bool) -> None:

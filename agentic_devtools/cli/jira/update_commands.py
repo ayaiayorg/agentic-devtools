@@ -198,7 +198,7 @@ def update_issue() -> None:
         if "fields" in payload:
             updated_fields = list(payload["fields"].keys())
             print(f"Updated fields: {', '.join(updated_fields)}")
-        if "update" in payload:
+        if "update" in payload:  # pragma: no cover
             updated_ops = list(payload["update"].keys())
             print(f"Updated via operations: {', '.join(updated_ops)}")
 

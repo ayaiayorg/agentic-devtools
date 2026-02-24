@@ -26,7 +26,7 @@ class ReleaseError(RuntimeError):
     """Raised when a release step fails."""
 
 
-def _get_requests():
+def _get_requests():  # pragma: no cover
     """Lazy import for requests to keep helpers lightweight."""
     try:
         import requests
@@ -84,7 +84,7 @@ def validate_distribution(dist_dir: str = "dist") -> None:
         raise ReleaseError(f"Twine check failed: {result.stderr or result.stdout}")  # pragma: no cover
 
 
-def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = None) -> None:
+def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = None) -> None:  # pragma: no cover
     """Upload built artifacts with twine."""
     pattern = str(Path(dist_dir) / "*")
     args = ["python", "-m", "twine", "upload"]

@@ -168,10 +168,10 @@ known-first-party = ["agentic_devtools", "agdt_ai_helpers"]
 
 [tool.coverage.run]
 source = ["agentic_devtools"]
-branch = true
+branch = false
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 100
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

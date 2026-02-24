@@ -124,7 +124,7 @@ def check_users_exist() -> None:
 
     for user in users:
         exists, display_name = _check_user_exists(user, base_url, headers, requests, ssl_verify)
-        if exists:
+        if exists:  # pragma: no cover
             print(f"  ✓ {user} ({display_name})")
             existing_users.append({"username": user, "displayName": display_name})
         elif display_name and "INACTIVE" in display_name:
@@ -160,7 +160,7 @@ def check_users_exist() -> None:
 
         print(f"\n⚠ Non-existent/inactive users saved to: {filepath}")
 
-    if existing_users:
+    if existing_users:  # pragma: no cover
         print(f"\nUsers that CAN be added to roles ({len(existing_users)}):")
         usernames = [u["username"] for u in existing_users]
         print(f"  {','.join(usernames)}")

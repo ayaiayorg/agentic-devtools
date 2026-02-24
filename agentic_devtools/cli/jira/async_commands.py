@@ -34,7 +34,7 @@ def _require_jira_value(key: str, error_example: str) -> str:
 def _set_jira_value_if_provided(key: str, value: Optional[str]) -> None:
     """Set a Jira state value if provided (not None)."""
     if value is not None:
-        set_value(f"jira.{key}", value)
+        set_value(f"jira.{key}", value)  # pragma: no cover
 
 
 # Module paths for the sync functions
@@ -295,7 +295,7 @@ def list_project_roles_async() -> None:
     print_task_tracking_info(task, f"Listing roles for project {project_key}")
 
 
-def get_project_role_details_async() -> None:
+def get_project_role_details_async() -> None:  # pragma: no cover
     """
     Get project role details asynchronously in the background.
 

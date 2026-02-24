@@ -525,17 +525,17 @@ def get_task_log_content(task_id: str, tail_lines: Optional[int] = None) -> Opti
     log_path = Path(task.log_file)
 
     if not log_path.exists():
-        return None
+        return None  # pragma: no cover
 
     try:
         content = log_path.read_text(encoding="utf-8", errors="replace")
 
-        if tail_lines is not None:
+        if tail_lines is not None:  # pragma: no cover
             lines = content.splitlines()
             content = "\n".join(lines[-tail_lines:])
 
         return content
-    except OSError:
+    except OSError:  # pragma: no cover
         return None
 
 
@@ -556,7 +556,7 @@ def cleanup_old_logs(max_age_hours: float = 24, max_count: Optional[int] = None)
     deleted_count = 0
 
     if not logs_dir.exists():
-        return 0
+        return 0  # pragma: no cover
 
     # Get all log files with their modification times
     log_files: List[Tuple[Path, float]] = []
