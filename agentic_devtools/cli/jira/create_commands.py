@@ -72,7 +72,7 @@ def create_issue_sync(
 
     payload = {"fields": fields}
 
-    response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify())
+    response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify(), timeout=30)
     response.raise_for_status()
 
     return response.json()
