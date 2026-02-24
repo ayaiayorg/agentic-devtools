@@ -1251,6 +1251,7 @@ body (optional bullet points)
 
 - The scope is **never** optional — always include a GitHub issue markdown link.
 - The footer **must** repeat the same issue link(s) as the scope.
+- Breaking changes: use `!` after the scope closing `)` **and** prefix the footer with `BREAKING CHANGE:`.
 - Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Parent issue comes **first** in parent/child links (scope: `parent/child`, footer: `parent / child`).
 - Multiple unrelated issues: comma-separated, ascending order by number.

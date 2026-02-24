@@ -36,15 +36,20 @@ feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)): add webh
 [#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)
 ```
 
-For breaking changes the footer begins with `BREAKING CHANGE:`:
+### 3. Breaking changes use both `!` after scope and `BREAKING CHANGE:` footer
+
+Use `!` immediately after the closing `)` of the scope, and start the footer with `BREAKING CHANGE:` followed by the issue link(s).
 
 ```text
-feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123))!: remove legacy API
+feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123))!: summary of issue
+
+- detail part 1
+- detail part 2
 
 BREAKING CHANGE: [#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)
 ```
 
-### 3. Parent/child issue ordering
+### 4. Parent/child issue ordering
 
 When a parent issue exists, it comes **first**, separated by `/`:
 
@@ -60,7 +65,7 @@ feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)/[#234](htt
 [#123](https://github.com/ayaiayorg/agentic-devtools/issues/123) / [#234](https://github.com/ayaiayorg/agentic-devtools/issues/234)
 ```
 
-### 4. Multiple issues (no parent-child relationship)
+### 5. Multiple issues (no parent-child relationship)
 
 Comma-separated, sorted in **ascending** order by issue number:
 
@@ -73,13 +78,13 @@ feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123), [#234](ht
 [#123](https://github.com/ayaiayorg/agentic-devtools/issues/123), [#234](https://github.com/ayaiayorg/agentic-devtools/issues/234)
 ```
 
-### 5. Ordering rules summary
+### 6. Ordering rules summary
 
 - Parent issues always come **before** child issues
 - Within the same level, lowest issue number comes **first** (ascending order)
 - These rules apply to both the scope and the footer
 
-### 6. Supported types
+### 7. Supported types
 
 | Type | Purpose |
 |------|---------|
