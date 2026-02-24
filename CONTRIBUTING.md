@@ -288,16 +288,22 @@ Example: `feature/DFLY-1234/add-webhook-support`
 We follow a single-commit-per-PR policy:
 
 - Each PR should contain exactly one commit
-- Commit messages should follow conventional commit format: `type(scope): description`
+- Commit messages must follow the convention described in [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md)
 - When making updates to a PR, amend the existing commit and force-push
 
-Example commit messages:
+The format requires a **mandatory** GitHub issue link as the scope and repeats it in the footer:
 
 ```text
-feature(DFLY-1234): add webhook support for Jira events
-fix(DFLY-5678): handle null values in PR thread API
-docs: update CONTRIBUTING.md with new guidelines
+feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add webhook support
+
+- Implemented webhook handler
+- Added tests
+
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)
 ```
+
+See [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md) for the full specification including
+parent/child issues, multiple issues, ordering rules, and supported types.
 
 ### Pull Request Process
 
