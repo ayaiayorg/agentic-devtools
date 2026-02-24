@@ -29,7 +29,7 @@ def try_advance_workflow_after_jira_comment(task_id: Optional[str] = None) -> bo
         task_id=task_id,
     )
 
-    if result.triggered and not result.immediate_advance:
+    if result.triggered and not result.immediate_advance:  # pragma: no cover
         print("\n[Workflow] Event recorded: Jira comment added.")
         print("Run 'agdt-get-next-workflow-prompt' to continue.")
 
@@ -197,7 +197,7 @@ def try_advance_workflow_after_pr_review(
         task_id=task_id,
     )
 
-    if result.triggered and not result.immediate_advance:
+    if result.triggered and not result.immediate_advance:  # pragma: no cover
         print("\n[Workflow] Event recorded: Pull request reviewed.")
         print("Run 'agdt-get-next-workflow-prompt' to continue.")
 

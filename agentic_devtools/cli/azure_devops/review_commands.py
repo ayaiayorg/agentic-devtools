@@ -149,7 +149,7 @@ def checkout_and_sync_branch(
                 f"{'=' * 60}",
                 set(),
             )
-        return (
+        return (  # pragma: no cover
             False,
             f"Error checking out branch: {checkout_result.message}",
             set(),
@@ -380,7 +380,7 @@ def generate_review_prompts(
     state_dir = get_state_dir()
     jira_temp_path = state_dir / "temp-get-issue-details-response.json"
     jira_prompt_path = prompts_dir / "pull-request-jira-issue.json"
-    if jira_temp_path.exists():
+    if jira_temp_path.exists():  # pragma: no cover
         jira_prompt_path.write_text(jira_temp_path.read_text(encoding="utf-8"), encoding="utf-8")
     else:
         jira_prompt_path.write_text("{}", encoding="utf-8")

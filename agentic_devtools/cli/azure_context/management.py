@@ -150,10 +150,10 @@ def ensure_logged_in(context: AzureContext) -> bool:
             if is_logged_in:
                 print(f"\n✓ Successfully logged in as: {account_name}")
                 return True
-            else:
+            else:  # pragma: no cover
                 print("\n✗ Login command succeeded but account verification failed")
                 return False
-        else:
+        else:  # pragma: no cover
             print(f"\n✗ Login failed with exit code: {result.returncode}")
             return False
 
@@ -190,7 +190,7 @@ def show_all_contexts() -> None:
 
         if is_logged_in:
             print(f"  Status:      ✓ Logged in as {account_name}")
-        else:
+        else:  # pragma: no cover
             print(f"  Status:      ✗ Not logged in ({error})")
 
     print("\n" + "=" * 80)

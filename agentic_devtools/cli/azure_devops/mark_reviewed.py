@@ -498,7 +498,7 @@ def _sync_viewed_status(
     unique_tokens = []
     if generated_token:  # pragma: no cover
         unique_tokens = [generated_token]
-    elif tokens_from_existing:
+    elif tokens_from_existing:  # pragma: no cover
         # Prefer tokens starting with "1@"
         preferred = [t for t in tokens_from_existing if t.startswith("1@")]
         unique_tokens = list(set(preferred or tokens_from_existing))

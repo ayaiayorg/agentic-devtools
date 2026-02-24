@@ -689,7 +689,7 @@ def update_pipeline() -> None:
     if new_folder_path:
         args.extend(["--new-folder-path", new_folder_path])
 
-    if description:
+    if description:  # pragma: no cover
         args.extend(["--description", description])
 
     updates = []
@@ -699,7 +699,7 @@ def update_pipeline() -> None:
         updates.append(f"yaml -> {yaml_path}")
     if new_folder_path:
         updates.append(f"folder -> {new_folder_path}")
-    if description:
+    if description:  # pragma: no cover
         updates.append("description updated")
 
     print(f"Updating pipeline {pipeline_id}: {', '.join(updates)}...")

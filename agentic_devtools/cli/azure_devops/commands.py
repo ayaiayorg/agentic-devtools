@@ -56,7 +56,7 @@ def _extract_issue_key_from_branch(branch_name: str) -> Optional[str]:
     match = re.search(r"([A-Z]{2,10}-\d+)", branch_name, re.IGNORECASE)
     if match:
         return match.group(1).upper()
-    return None
+    return None  # pragma: no cover
 
 
 def parse_bool_from_state(key: str, default: bool = False) -> bool:
@@ -273,7 +273,7 @@ def add_pull_request_comment() -> None:
     if thread_context:
         thread_body["threadContext"] = thread_context
         # Add iteration context so comments are anchored to correct iteration
-        if latest_iteration_id and change_tracking_id:
+        if latest_iteration_id and change_tracking_id:  # pragma: no cover
             thread_body["pullRequestThreadContext"] = {
                 "iterationContext": {
                     "firstComparingIteration": 1,

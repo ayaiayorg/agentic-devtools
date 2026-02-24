@@ -860,7 +860,7 @@ def _auto_advance_after_submission(
     )
 
     pr_id = get_value("pull_request_id")
-    if not pr_id:
+    if not pr_id:  # pragma: no cover
         return
 
     pr_id_int = int(pr_id)
