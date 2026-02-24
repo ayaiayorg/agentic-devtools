@@ -6,6 +6,7 @@ import pytest
 
 from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
+from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
 
 # Use string paths for patching to ensure we patch the right location
 COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
@@ -182,13 +183,17 @@ class TestAddPullRequestCommentActualCall:
     @patch(f"{COMMANDS_MODULE}.require_requests")
     @patch(f"{COMMANDS_MODULE}.get_repository_id")
     def test_approval_comment(self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before):
-        """Test approval comment includes sentinel."""
+        """Test approval comment includes sentinel when no summary thread exists."""
         mock_get_repo.return_value = "repo-guid-123"
         mock_req_module = MagicMock()
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"id": 123}
-        mock_req_module.post.return_value = mock_response
-        mock_req_module.patch.return_value = mock_response
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = {"id": 123}
+        mock_req_module.post.return_value = mock_post_response
+        mock_req_module.patch.return_value = mock_post_response
+        # No existing summary thread
+        mock_get_response = MagicMock()
+        mock_get_response.json.return_value = {"value": []}
+        mock_req_module.get.return_value = mock_get_response
         mock_requests.return_value = mock_req_module
 
         state.set_pull_request_id(12345)
@@ -197,8 +202,9 @@ class TestAddPullRequestCommentActualCall:
 
         azure_devops.add_pull_request_comment()
 
-        call_args = mock_req_module.post.call_args
-        body = call_args[1]["json"]
+        # Falls back to creating a new thread with sentinel
+        post_call = mock_req_module.post.call_args_list[-1]
+        body = post_call[1]["json"]
         content = body["comments"][0]["content"]
         assert azure_devops.APPROVAL_SENTINEL in content
 
@@ -211,10 +217,14 @@ class TestAddPullRequestCommentActualCall:
         """Approval comments must not attach to a file even when path state is set."""
         mock_get_repo.return_value = "repo-guid-123"
         mock_req_module = MagicMock()
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"id": 123}
-        mock_req_module.post.return_value = mock_response
-        mock_req_module.patch.return_value = mock_response
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = {"id": 123}
+        mock_req_module.post.return_value = mock_post_response
+        mock_req_module.patch.return_value = mock_post_response
+        # No existing summary thread
+        mock_get_response = MagicMock()
+        mock_get_response.json.return_value = {"value": []}
+        mock_req_module.get.return_value = mock_get_response
         mock_requests.return_value = mock_req_module
 
         state.set_pull_request_id(12345)
@@ -226,9 +236,120 @@ class TestAddPullRequestCommentActualCall:
 
         azure_devops.add_pull_request_comment()
 
-        call_args = mock_req_module.post.call_args
-        body = call_args[1]["json"]
+        # Falls back to new thread; no file context
+        post_call = mock_req_module.post.call_args_list[-1]
+        body = post_call[1]["json"]
         assert "threadContext" not in body
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_replies_to_existing_summary_thread(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
+    ):
+        """Approval posts as reply to the existing summary thread when one exists."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = {"id": 456}
+        mock_req_module.post.return_value = mock_post_response
+        # Existing summary thread
+        mock_get_response = MagicMock()
+        mock_get_response.json.return_value = {
+            "value": [
+                {
+                    "id": 99,
+                    "comments": [
+                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
+                    ],
+                }
+            ]
+        }
+        mock_req_module.get.return_value = mock_get_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+
+        azure_devops.add_pull_request_comment()
+
+        # Should reply to existing thread 99, not create a new thread
+        post_call = mock_req_module.post.call_args
+        url = post_call[0][0]
+        assert "/threads/99/comments" in url
+        body = post_call[1]["json"]
+        assert azure_devops.APPROVAL_SENTINEL in body["content"]
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_falls_back_when_no_summary_thread(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys
+    ):
+        """Approval creates new thread when no summary thread exists."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = {"id": 200}
+        mock_req_module.post.return_value = mock_post_response
+        mock_req_module.patch.return_value = mock_post_response
+        # No matching summary thread
+        mock_get_response = MagicMock()
+        mock_get_response.json.return_value = {
+            "value": [{"id": 50, "comments": [{"content": "Regular comment"}]}]
+        }
+        mock_req_module.get.return_value = mock_get_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+
+        azure_devops.add_pull_request_comment()
+
+        captured = capsys.readouterr()
+        assert "Comment added successfully" in captured.out
+        # Should create a new thread (URL should not contain /comments for reply)
+        post_call = mock_req_module.post.call_args
+        url = post_call[0][0]
+        assert "/comments" not in url
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_falls_back_when_summary_reply_fails(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys
+    ):
+        """Approval creates new thread when replying to summary thread fails."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        # First POST (reply to summary) raises, second POST (new thread) succeeds
+        mock_error_response = MagicMock()
+        mock_error_response.raise_for_status.side_effect = Exception("Thread deleted")
+        mock_ok_response = MagicMock()
+        mock_ok_response.json.return_value = {"id": 300}
+        mock_req_module.post.side_effect = [mock_error_response, mock_ok_response]
+        mock_req_module.patch.return_value = mock_ok_response
+        # Summary thread exists
+        mock_get_response = MagicMock()
+        mock_get_response.json.return_value = {
+            "value": [
+                {"id": 99, "comments": [{"content": "## Overall PR Review Summary\nApproved"}]}
+            ]
+        }
+        mock_req_module.get.return_value = mock_get_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+
+        azure_devops.add_pull_request_comment()
+
+        captured = capsys.readouterr()
+        # Should fall back to creating a new thread
+        assert "Comment added successfully" in captured.out
 
     def test_approval_dry_run_ignores_stale_path(self, temp_state_dir, clear_state_before, capsys):
         """Dry-run approval must not mention file path even when path state is set."""
@@ -242,3 +363,77 @@ class TestAddPullRequestCommentActualCall:
 
         captured = capsys.readouterr()
         assert "src/reviewed_file.py" not in captured.out
+
+    def test_approval_dry_run_mentions_summary_thread(self, temp_state_dir, clear_state_before, capsys):
+        """Dry-run approval mentions it will try to reply to summary thread."""
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_value("is_pull_request_approval", True)
+        state.set_dry_run(True)
+
+        azure_devops.add_pull_request_comment()
+
+        captured = capsys.readouterr()
+        assert "summary thread" in captured.out.lower()
+
+
+class TestFindSummaryThreadId:
+    """Tests for _find_summary_thread_id helper."""
+
+    def test_returns_thread_id_when_summary_exists(self):
+        """Returns the thread ID when an 'Overall PR Review Summary' thread is found."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {"id": 10, "comments": [{"content": "Some other thread"}]},
+                {
+                    "id": 42,
+                    "comments": [
+                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
+                    ],
+                },
+            ]
+        }
+        mock_requests.get.return_value = mock_response
+        config = MagicMock()
+        config.build_api_url.return_value = "https://example.com/threads"
+
+        result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
+        assert result == 42
+
+    def test_returns_none_when_no_summary_thread(self):
+        """Returns None when no summary thread exists."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [{"id": 10, "comments": [{"content": "Not a summary"}]}]
+        }
+        mock_requests.get.return_value = mock_response
+        config = MagicMock()
+        config.build_api_url.return_value = "https://example.com/threads"
+
+        result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
+        assert result is None
+
+    def test_returns_none_when_no_threads(self):
+        """Returns None when there are no threads at all."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"value": []}
+        mock_requests.get.return_value = mock_response
+        config = MagicMock()
+        config.build_api_url.return_value = "https://example.com/threads"
+
+        result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
+        assert result is None
+
+    def test_returns_none_on_api_error(self):
+        """Returns None when the API call fails."""
+        mock_requests = MagicMock()
+        mock_requests.get.side_effect = Exception("Network error")
+        config = MagicMock()
+        config.build_api_url.return_value = "https://example.com/threads"
+
+        result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
+        assert result is None

@@ -38,6 +38,28 @@ from .pull_request_details_commands import (
 )
 
 
+OVERALL_PR_SUMMARY_HEADING = "## Overall PR Review Summary"
+
+
+def _find_summary_thread_id(
+    requests, headers: Dict[str, str], config: AzureDevOpsConfig, repo_id: str, pull_request_id: int
+) -> Optional[int]:
+    """Find the thread ID of the 'Overall PR Review Summary' thread, if it exists."""
+    threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+    try:
+        response = requests.get(threads_url, headers=headers, timeout=30)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"Warning: Could not search for summary thread: {e}", file=sys.stderr)
+        return None
+    threads = response.json().get("value", [])
+    for thread in threads:
+        for comment in thread.get("comments", []):
+            if OVERALL_PR_SUMMARY_HEADING in (comment.get("content") or ""):
+                return thread.get("id")
+    return None
+
+
 def _extract_issue_key_from_branch(branch_name: str) -> Optional[str]:
     """
     Extract a Jira issue key from a branch name.
@@ -221,6 +243,7 @@ def add_pull_request_comment() -> None:
             print(f"[DRY RUN] File: {path}{line_info}{end_line_info}")
         if is_approval:
             print("[DRY RUN] Comment will include approval sentinel banner")
+            print("[DRY RUN] Will reply to existing summary thread if found, otherwise create new thread")
         if not leave_thread_active:
             print("[DRY RUN] Would also resolve the thread after posting")
         print(f"Content:\n{content}")
@@ -231,6 +254,26 @@ def add_pull_request_comment() -> None:
 
     print(f"Resolving repository ID for '{config.repository}'...")
     repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+    # For approval comments, try to reply to the existing summary thread
+    if is_approval:
+        summary_thread_id = _find_summary_thread_id(
+            requests, headers, config, repo_id, pull_request_id
+        )
+        if summary_thread_id:
+            try:
+                comment_url = config.build_api_url(
+                    repo_id, "pullRequests", pull_request_id, "threads", summary_thread_id, "comments"
+                )
+                comment_body = {"content": content, "commentType": "text"}
+                print(f"Posting approval to existing summary thread {summary_thread_id}...")
+                response = requests.post(comment_url, headers=headers, json=comment_body, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                print(f"Approval reply added (comment ID: {result.get('id')}, thread: {summary_thread_id})")
+                return
+            except Exception as e:
+                print(f"Warning: Could not reply to summary thread, creating new thread: {e}", file=sys.stderr)
 
     # Build thread context for file-level comments
     thread_context = build_thread_context(path, line, end_line)
