@@ -83,8 +83,8 @@ class TestGetWorkflowDefinition:
         assert transition is not None
         assert transition.to_step == "file-review"
 
-    def test_returns_empty_string_workflow_is_none(self):
-        """Returns None for an empty string workflow name."""
+    def test_returns_none_for_empty_workflow_name(self):
+        """Returns None when the workflow name is empty."""
         definition = get_workflow_definition("")
 
         assert definition is None
