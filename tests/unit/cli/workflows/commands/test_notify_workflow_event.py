@@ -199,12 +199,12 @@ class TestContextUpdates:
             context={"jira_issue_key": "DFLY-1850", "events_log": existing_events},
         )
 
-        # Trigger a non-advancing event that still logs (JIRA_COMMENT_ADDED -> checklist-creation)
+        # Trigger an advancing event to verify events_log is capped at 20 (JIRA_COMMENT_ADDED -> checklist-creation)
         notify_workflow_event(WorkflowEvent.JIRA_COMMENT_ADDED)
 
         workflow = state.get_workflow_state()
         events_log = workflow["context"].get("events_log", [])
-        assert len(events_log) <= 20
+        assert len(events_log) == 20
 
 
 class TestDeferredTransition:
@@ -285,6 +285,10 @@ class TestPullRequestReviewWorkflow:
         assert result.triggered is False
         workflow = state.get_workflow_state()
         assert workflow["step"] == "decision"
+
+
+class TestWorkOnJiraIssueWorkflow:
+    """Tests for notify_workflow_event with the work-on-jira-issue workflow."""
 
     def test_jira_comment_added_advances_work_on_issue_from_planning(
         self, temp_state_dir, clear_state_before, capsys
