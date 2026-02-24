@@ -41,10 +41,10 @@ feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)): add webh
 Use `!` immediately after the closing `)` of the scope, and start the footer with `BREAKING CHANGE:` followed by the issue link(s).
 
 ```text
-feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123))!: summary of issue
+feat([#123](https://github.com/ayaiayorg/agentic-devtools/issues/123))!: remove deprecated API endpoints
 
-- detail part 1
-- detail part 2
+- Detail part 1
+- Detail part 2
 
 BREAKING CHANGE: [#123](https://github.com/ayaiayorg/agentic-devtools/issues/123)
 ```
