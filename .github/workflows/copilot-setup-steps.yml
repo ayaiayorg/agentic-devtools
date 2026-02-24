@@ -27,7 +27,6 @@ jobs:
       - name: Install additional tools
         run: |
           npm install -g markdownlint-cli2
-          npm install -g @githubnext/copilot-cli
 
       - name: Verify setup
         run: |
@@ -35,5 +34,5 @@ jobs:
           ruff --version
           pytest --version
           markdownlint-cli2 --help > /dev/null 2>&1 && echo "markdownlint-cli2 OK"
-          which copilot && echo "copilot OK" || echo "copilot MISSING"
+          gh copilot --version && echo "gh copilot OK" || echo "gh copilot not available"
           echo "Setup complete — run 'bash scripts/run-pr-checks.sh' to verify all checks pass"

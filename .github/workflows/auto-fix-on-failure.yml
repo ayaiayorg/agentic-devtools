@@ -71,22 +71,17 @@ jobs:
               issue_number: pr.number
             });
 
-            const tier1Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-push -->')).length;
-            const tier2Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-copilot-cli -->')).length;
+            const tier1Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-tier1-attempt -->')).length;
             const exhaustionPosted = comments.some(c => c.body && c.body.includes('<!-- auto-fix-exhausted -->'));
 
             console.log(`Tier 1 (ruff) attempts so far: ${tier1Count}`);
-            console.log(`Tier 2 (Copilot CLI) attempts so far: ${tier2Count}`);
             console.log(`Exhaustion notice already posted: ${exhaustionPosted}`);
 
             const tier1Max = 3;
-            const tier2Max = 2;
 
             core.setOutput('tier1_count', tier1Count);
-            core.setOutput('tier2_count', tier2Count);
             core.setOutput('tier1_remaining', tier1Count < tier1Max ? 'true' : 'false');
-            core.setOutput('tier2_remaining', tier2Count < tier2Max ? 'true' : 'false');
-            core.setOutput('exhausted', (tier1Count >= tier1Max && tier2Count >= tier2Max) ? 'true' : 'false');
+            core.setOutput('exhausted', tier1Count >= tier1Max ? 'true' : 'false');
             core.setOutput('exhaustion_posted', exhaustionPosted ? 'true' : 'false');
 
       # ── Step 2: Tier 1 — ruff auto-fix (direct commit + push) ────────────
@@ -113,6 +108,24 @@ jobs:
             echo "ruff made changes"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Record Tier 1 attempt
+        if: steps.ruff-fix.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
+            const tier1Count = parseInt('${{ steps.check-retry.outputs.tier1_count }}', 10) + 1;
+            const workflowRun = context.payload.workflow_run;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: [
+                '<!-- auto-fix-tier1-attempt -->',
+                `<!-- Tier 1 attempt ${tier1Count} of 3 — triggered by ${workflowRun.html_url} -->`
+              ].join('\n')
+            });
 
       - name: Commit and push ruff fixes
         id: ruff-push
@@ -151,101 +164,7 @@ jobs:
               ].join('\n')
             });
 
-      # ── Step 3: Tier 2 — Copilot CLI headless fix ────────────────────────
-      # Security note: this step only runs for same-repo PRs (fork PRs have
-      # found_pr=false set in step 1). pip install -e ".[dev]" installs PR code,
-      # which carries the same trust level as what the test CI already executes.
-      - name: Tier 2 — Copilot CLI headless fix
-        id: copilot-fix
-        if: >
-          steps.check-retry.outputs.found_pr == 'true' &&
-          steps.ruff-push.outputs.pushed != 'true' &&
-          steps.check-retry.outputs.tier2_remaining == 'true'
-        # Required secrets:
-        #   COPILOT_AGENT_PAT — a GitHub personal access token used by Copilot CLI
-        #   and for authenticated git operations in this step.
-        #   Configure at: Settings → Secrets and variables → Actions → New repository secret
-        env:
-          COPILOT_AGENT_PAT: ${{ secrets.COPILOT_AGENT_PAT }}
-          GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
-        run: |
-          python -m pip install --quiet -e ".[dev]"
-          npm install -g @githubnext/copilot-cli 2>/dev/null || true
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Capture current errors to include in the prompt
-          RUFF_ERRORS=$(ruff check . 2>&1 || true)
-          PYTEST_ERRORS=$(python -m pytest --tb=short -q 2>&1 | tail -50 || true)
-          WORKFLOW_URL="${{ github.event.workflow_run.html_url }}"
-
-          # Write the prompt to a temp file to avoid quoting/special-character issues
-          PROMPT_FILE=$(mktemp)
-          trap 'rm -f "$PROMPT_FILE"' EXIT
-          {
-            printf 'CI checks failed on this pull request.\n'
-            printf 'Workflow run: %s\n\n' "${WORKFLOW_URL}"
-            printf 'Current ruff errors:\n%s\n\n' "${RUFF_ERRORS}"
-            printf 'Current pytest errors (last 50 lines):\n%s\n\n' "${PYTEST_ERRORS}"
-            printf 'Please fix the source code so all checks pass:\n'
-            printf '1. Run "bash scripts/run-pr-checks.sh" to see the exact errors\n'
-            printf '2. Fix the source code\n'
-            printf '3. Re-run "bash scripts/run-pr-checks.sh" to verify all checks pass\n'
-            printf '4. Commit and push directly to this branch using "git push origin HEAD"\n\n'
-            printf 'Do NOT create a new PR. Push directly to the current branch.\n'
-          } > "$PROMPT_FILE"
-
-          # Record commit SHA before Copilot runs so we can detect if it pushed
-          PRE_SHA=$(git rev-parse HEAD)
-
-          if command -v copilot >/dev/null 2>&1; then
-            timeout 30m copilot -p "$(cat "$PROMPT_FILE")" -s --no-ask-user --allow-all-tools || true
-          else
-            echo "Copilot CLI not available — skipping Tier 2 headless session"
-          fi
-
-          # Check if Copilot pushed new commits
-          POST_SHA=$(git rev-parse HEAD)
-          if [ "$PRE_SHA" != "$POST_SHA" ]; then
-            echo "pushed=true" >> "$GITHUB_OUTPUT"
-          # Safety net: if Copilot left uncommitted changes, commit and push them
-          elif ! git diff --quiet || ! git diff --cached --quiet; then
-            git add -A
-            git commit -m "chore: auto-fix via Copilot CLI"
-            git push origin HEAD
-            echo "pushed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Post Tier 2 comment
-        if: steps.copilot-fix.outputs.pushed == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
-            const tier2Count = parseInt('${{ steps.check-retry.outputs.tier2_count }}', 10) + 1;
-            const workflowRun = context.payload.workflow_run;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: [
-                '<!-- auto-fix-copilot-cli -->',
-                '## 🤖 Auto-Fix: Copilot CLI (Tier 2)',
-                '',
-                `**Attempt**: ${tier2Count} of 2`,
-                `**Triggered by**: [${workflowRun.name} #${workflowRun.run_number}](${workflowRun.html_url})`,
-                '',
-                'Ran the Copilot CLI in headless mode to diagnose and fix the failures. Changes pushed directly to this branch.',
-                '',
-                '---',
-                '_Automated fix by the auto-fix workflow._'
-              ].join('\n')
-            });
-
-      # ── Step 4: Exhaustion notice ─────────────────────────────────────────
+      # ── Step 3: Exhaustion notice ─────────────────────────────────────────
       - name: Post exhaustion notice
         if: >
           steps.check-retry.outputs.found_pr == 'true' &&
@@ -264,7 +183,7 @@ jobs:
                 '<!-- auto-fix-exhausted -->',
                 '## ⚠️ Auto-Fix Exhausted — Human Intervention Required',
                 '',
-                'Both auto-fix tiers have been exhausted (3 ruff attempts + 2 Copilot CLI attempts).',
+                'Auto-fix has been exhausted (3 ruff attempts).',
                 '',
                 '**A human review is now required.**',
                 '',
