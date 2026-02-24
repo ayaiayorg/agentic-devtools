@@ -34,6 +34,25 @@ def _check_gh_cli() -> None:
         sys.exit(1)
 
 
+def _gh_supports_issue_type() -> bool:
+    """
+    Detect whether the installed gh CLI supports the --type flag for issue create.
+
+    Returns:
+        True if '--type' appears in 'gh issue create --help' output, False otherwise.
+    """
+    try:
+        result = run_safe(
+            ["gh", "issue", "create", "--help"],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        return "--type" in result.stdout or "--type" in result.stderr
+    except OSError:
+        return False
+
+
 def _get_environment_info() -> str:
     """
     Collect environment information for bug reports.
@@ -119,7 +138,7 @@ def _build_gh_create_args(
         for label in labels:
             args += ["--label", label]
 
-    if issue_type:
+    if issue_type and _gh_supports_issue_type():
         normalized = issue_type.strip().lower()
         canonical = _ISSUE_TYPE_MAP.get(normalized, issue_type)
         args += ["--type", canonical]
