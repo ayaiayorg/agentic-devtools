@@ -2,6 +2,8 @@
 Shared fixtures for tests/unit/cli/git/.
 """
 
+import subprocess
+from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,3 +17,43 @@ def mock_run_safe():
     with patch.object(core, "run_safe") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         yield mock_run
+
+
+@pytest.fixture
+def temp_git_repo(tmp_path) -> Generator:
+    """Create a temporary git repository for testing git operations.
+
+    Sets up a minimal git repo with an initial commit so that git
+    commands can be exercised without touching the real repository.
+
+    Yields:
+        Path to the temporary git repository.
+    """
+    repo_dir = tmp_path / "test-repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    readme = repo_dir / "README.md"
+    readme.write_text("# Test Repository\n")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    yield repo_dir

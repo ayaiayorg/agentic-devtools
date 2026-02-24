@@ -2,7 +2,19 @@
 Shared fixtures for Azure DevOps tests.
 """
 
+from unittest.mock import patch
+
 import pytest
+
+
+@pytest.fixture
+def mock_azure_devops_env():
+    """Set up environment variables for Azure DevOps API calls."""
+    with patch.dict(
+        "os.environ",
+        {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"},
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)
