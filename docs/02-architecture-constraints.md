@@ -48,21 +48,21 @@ graph LR
     subgraph "agentic-devtools"
         Core[Core Package]
     end
-    
+
     subgraph "Python Ecosystem"
         Requests[requests]
         Jinja2[Jinja2]
         Pytest[pytest]
         Hatch[hatch-vcs]
     end
-    
+
     subgraph "External APIs"
         ADO_API[Azure DevOps REST API]
         Jira_API[Jira Cloud REST API]
         PyPI_API[PyPI Upload API]
         Azure_CLI[Azure CLI]
     end
-    
+
     Core --> Requests
     Core --> Jinja2
     Core --> Pytest

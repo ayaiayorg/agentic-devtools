@@ -9,11 +9,11 @@ graph TB
         Core[Core Infrastructure]
         Integrations[Service Integrations]
     end
-    
+
     CLI --> Core
     CLI --> Integrations
     Integrations --> Core
-    
+
     style CLI fill:#e1f5ff
     style Core fill:#fff4e1
     style Integrations fill:#f5e1ff
@@ -31,7 +31,7 @@ graph TB
         TaskCmd[tasks/<br/>Task monitoring]
         WorkflowCmd[workflows/<br/>Workflow orchestration]
     end
-    
+
     subgraph "Core Infrastructure"
         Runner[cli/runner.py<br/>Command routing]
         State[state.py<br/>State management]
@@ -39,23 +39,23 @@ graph TB
         TaskState[task_state.py<br/>Task tracking]
         Lock[file_locking.py<br/>Concurrency control]
     end
-    
+
     subgraph "Support"
         Prompts[prompts/<br/>Template system]
     end
-    
+
     StateCmd --> State
     GitCmd --> BG
     ADOCmd --> BG
     JiraCmd --> BG
     TaskCmd --> TaskState
     WorkflowCmd --> State
-    
+
     State --> Lock
     BG --> TaskState
     TaskState --> Lock
     WorkflowCmd --> Prompts
-    
+
     Runner --> StateCmd
     Runner --> GitCmd
     Runner --> ADOCmd
@@ -85,12 +85,12 @@ classDiagram
         +load_state() dict
         +save_state(data)
     }
-    
+
     class FileLock {
         <<context manager>>
         +locked_state_file(path, timeout)
     }
-    
+
     class WorkflowState {
         <<module functions>>
         +get_workflow_state() dict
@@ -99,7 +99,7 @@ classDiagram
         +update_workflow_context(**kwargs)
         +clear_workflow_state()
     }
-    
+
     State --> FileLock : uses
     WorkflowState --> State : extends
 ```
@@ -129,7 +129,7 @@ classDiagram
         +output_file: str
         +log_file: str
     }
-    
+
     class TaskFunctions {
         <<module functions>>
         +spawn_task(func, args) TaskID
@@ -141,7 +141,7 @@ classDiagram
         +get_task(task_id) Task
         +list_tasks() List~Task~
     }
-    
+
     TaskFunctions --> BackgroundTask : manages
 ```
 
@@ -182,7 +182,7 @@ graph TB
         ReviewCmds[review_commands.py<br/>PR review workflow]
         Mark[mark_reviewed.py<br/>Mark files reviewed]
     end
-    
+
     Commands --> Auth
     Commands --> Helpers
     FileReview --> Commands
@@ -190,7 +190,7 @@ graph TB
     ReviewCmds --> FileReview
     Mark --> Auth
     FileReview --> Mark
-    
+
     Auth --> Config
     Helpers --> Config
 ```
@@ -214,7 +214,7 @@ graph TB
         UpdateCmds[update_commands.py<br/>Issue updates]
         AsyncCmds[async_commands.py<br/>Background wrappers]
     end
-    
+
     Commands --> Config
     UpdateCmds --> Config
     AsyncCmds --> Commands
@@ -239,7 +239,7 @@ graph TB
         Operations[operations.py<br/>Git operations]
         Commands[commands.py<br/>CLI commands]
     end
-    
+
     Commands --> Operations
     Operations --> Core
 ```
@@ -262,11 +262,11 @@ graph TB
         Preflight[preflight.py<br/>Pre-flight checks]
         Advance[advancement.py<br/>Auto-advancement]
     end
-    
+
     subgraph "prompts/"
         Loader[loader.py<br/>Template loading]
     end
-    
+
     Cmds --> Base
     Preflight --> Base
     Advance --> Base
@@ -288,7 +288,7 @@ stateDiagram-v2
     [*] --> Active: initiate_workflow
     Active --> Active: update_workflow_step
     Active --> [*]: clear_workflow_state
-    
+
     state Active {
         [*] --> Step1
         Step1 --> Step2: advance_workflow
@@ -309,19 +309,19 @@ sequenceDiagram
     participant BG as Background Task
     participant API as External API
     participant File as Output File
-    
+
     User->>CLI: agdt-set jira.issue_key DFLY-1234
     CLI->>State: set_value("jira.issue_key", "DFLY-1234")
     State-->>CLI: OK
     CLI-->>User: Value saved
-    
+
     User->>CLI: agdt-get-jira-issue
     CLI->>State: get_value("jira.issue_key")
     State-->>CLI: "DFLY-1234"
     CLI->>BG: Spawn background task
     BG-->>CLI: Task ID
     CLI-->>User: Task started: 550e8400-e29b-41d4-a716-446655440000
-    
+
     BG->>API: GET /issue/DFLY-1234
     API-->>BG: Issue data
     BG->>File: Write JSON
@@ -336,16 +336,16 @@ sequenceDiagram
     participant CLI
     participant State
     participant Prompt as Prompt Loader
-    
+
     Agent->>CLI: /agdt.work-on-jira-issue.initiate
     CLI->>State: set_workflow_state(...)
     CLI->>Prompt: load_template("initiate")
     Prompt-->>CLI: Prompt text
     CLI-->>Agent: Prompt for next step
-    
+
     Agent->>CLI: Execute commands from prompt
     CLI->>State: Update workflow context
-    
+
     Agent->>CLI: agdt-advance-workflow
     CLI->>State: update_workflow_step(next_step)
     CLI->>Prompt: load_template(next_step)

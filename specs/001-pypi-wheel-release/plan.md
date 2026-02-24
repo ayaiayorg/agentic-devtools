@@ -20,14 +20,14 @@ Versionsprüfung
 
 ## Technical Context
 
-**Language/Version**: Python >= 3.8  
+**Language/Version**: Python >= 3.8
 **Primary Dependencies**: requests, Jinja2 (bestehend), neu: build, twine (für
 Release-Flows)
-**Storage**: N/A (Artefakte in `dist/`, temporäre Dateien im Repo)  
-**Testing**: pytest über `agdt-test`/`agdt-test-file`  
-**Target Platform**: Cross-Platform CLI (Windows, Linux, macOS)  
-**Project Type**: single (Python package)  
-**Performance Goals**: N/A (CLI-Workflow)  
+**Storage**: N/A (Artefakte in `dist/`, temporäre Dateien im Repo)
+**Testing**: pytest über `agdt-test`/`agdt-test-file`
+**Target Platform**: Cross-Platform CLI (Windows, Linux, macOS)
+**Project Type**: single (Python package)
+**Performance Goals**: N/A (CLI-Workflow)
 **Constraints**: Auto-Approval Pattern, Background-Tasks, TDD-First, keine
 direkten `pytest`-Aufrufe
 **Scale/Scope**: Ein Release-Lauf pro Ausführung, lokales CLI-Workflow-Tool

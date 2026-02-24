@@ -5,33 +5,33 @@
 ```mermaid
 graph TB
     Quality[Quality Requirements]
-    
+
     Quality --> Usability
     Quality --> Reliability
     Quality --> Performance
     Quality --> Maintainability
     Quality --> Security
-    
+
     Usability --> U1[Auto-approvable commands]
     Usability --> U2[Clear error messages]
     Usability --> U3[Actionable output]
-    
+
     Reliability --> R1[95%+ test coverage]
     Reliability --> R2[Error handling]
     Reliability --> R3[State consistency]
-    
+
     Performance --> P1[Background tasks]
     Performance --> P2[Fast state operations]
     Performance --> P3[Non-blocking AI agents]
-    
+
     Maintainability --> M1[Modular structure]
     Maintainability --> M2[Type hints]
     Maintainability --> M3[Documentation]
-    
+
     Security --> S1[No secrets in code]
     Security --> S2[Environment variables]
     Security --> S3[Sanitized logs]
-    
+
     style Quality fill:#e1f5ff
     style Usability fill:#9f9
     style Reliability fill:#9f9
@@ -351,22 +351,22 @@ flowchart TD
     Lint --> Commit[Git Commit]
     Commit --> Push[Git Push]
     Push --> CI[CI Pipeline]
-    
+
     CI --> TestCI[Run Tests]
     CI --> LintCI[Run Linters]
     CI --> Coverage[Check Coverage]
-    
+
     TestCI -->|Pass| LintCI
     TestCI -->|Fail| Fix[Fix Tests]
-    
+
     LintCI -->|Pass| Coverage
     LintCI -->|Fail| Fix
-    
+
     Coverage -->|≥95%| Merge[Merge Allowed]
     Coverage -->|<95%| Fix
-    
+
     Fix --> Dev
-    
+
     style TestCI fill:#9f9
     style LintCI fill:#9f9
     style Coverage fill:#9f9

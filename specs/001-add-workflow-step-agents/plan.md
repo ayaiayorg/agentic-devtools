@@ -32,9 +32,9 @@ repository
 **Testing**: Manual smoke test in Copilot Chat; optional Python script to
 verify
 catalog completeness
-**Target Platform**: VS Code (any OS) with GitHub Copilot extension  
-**Project Type**: Single project (existing repository)  
-**Performance Goals**: N/A — static files, no runtime  
+**Target Platform**: VS Code (any OS) with GitHub Copilot extension
+**Project Type**: Single project (existing repository)
+**Performance Goals**: N/A — static files, no runtime
 **Constraints**: Agent files must be discoverable by VS Code within the
 `.github/agents/` directory
 **Scale/Scope**: 2 workflows × ~16 unique steps = ~30 agent+prompt file pairs +

@@ -310,7 +310,7 @@ Specifications drive test requirements:
 ```markdown
 ## Acceptance Scenarios
 
-1. **Given** 100 Jira issues exist, **When** export runs, 
+1. **Given** 100 Jira issues exist, **When** export runs,
    **Then** CSV contains 100 rows with correct data
 ```text
 

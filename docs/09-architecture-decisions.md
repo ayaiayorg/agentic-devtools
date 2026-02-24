@@ -98,14 +98,14 @@ sequenceDiagram
     participant CLI
     participant Spawner
     participant Process
-    
+
     CLI->>Spawner: Execute action
     Spawner->>Process: subprocess.Popen()
     Process-->>Spawner: PID
     Spawner-->>CLI: Task ID (immediate)
-    
+
     Note over Process: Runs in background
-    
+
     Process->>Process: Execute operation
     Process->>Process: Write logs
     Process->>Process: Update task state
@@ -239,7 +239,7 @@ def add_pull_request_comment_async_cli():
     parser.add_argument('--pull-request-id', type=int, help='PR ID to comment on')
     parser.add_argument('--content', help='Comment content')
     args = parser.parse_args()
-    
+
     # Implementation
     add_pull_request_comment_async(
         pull_request_id=args.pull_request_id,

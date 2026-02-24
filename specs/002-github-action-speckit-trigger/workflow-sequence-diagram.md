@@ -20,37 +20,37 @@ from GitHub issues, following the SDD pattern. This diagram shows:
 ```mermaid
 sequenceDiagram
     autonumber
-    
+
     actor User as Repository Maintainer
     participant GH as GitHub
     participant Action as SpecKit Action
     participant API as AI Provider<br/>(Claude/OpenAI)
     participant Repo as Repository
     participant Issue as Issue Thread
-    
+
     Note over User,Issue: Phase 1: Initiation
-    
+
     User->>GH: Create GitHub issue with feature request
     activate GH
     Note right of User: Issue contains:<br/>- Title<br/>- Description<br/>- Context
-    
+
     User->>Issue: Add "speckit" label to issue
     GH->>Action: Trigger workflow (issues.labeled event)
     deactivate GH
-    
+
     activate Action
     Note over Action: Workflow starts<br/>(within seconds)
-    
+
     Action->>Issue: Post "🚀 Started" comment
     Note right of Action: Quick acknowledgment<br/>(< 30 seconds target)
-    
+
     Action->>Issue: Replace "speckit" label with "speckit:processing"
-    
+
     Note over User,Issue: Phase 2: Validation & Setup
-    
+
     Action->>Repo: Checkout repository
     Action->>Repo: Check for existing spec (idempotency)
-    
+
     alt Specification already exists
         Action->>Issue: Post "ℹ️ Already Exists" comment
         Note right of Action: Prevents duplicates
@@ -59,33 +59,33 @@ sequenceDiagram
     else No existing specification
         Action->>Action: Sanitize issue title for branch name
         Note right of Action: Creates valid branch name<br/>from issue title
-        
+
         Action->>Action: Calculate next feature number
         Note right of Action: Finds highest number<br/>from branches & specs
-        
+
         Action->>Repo: Create spec directory<br/>specs/NNN-feature-name/
-        
+
         Note over User,Issue: Phase 3: AI Specification Generation
-        
+
         Action->>Action: Load spec template
         Note right of Action: From .specify/templates/<br/>
 spec-template.md
-        
+
         Action->>Action: Build AI prompt
         Note right of Action: Includes:<br/>- Issue details<br/>
 - Template structure<br/>- SDD guidelines
-        
+
         Action->>API: Request spec generation
         activate API
         Note right of API: Uses Claude Sonnet 4<br/>or GPT-4o
-        
+
         API->>API: Generate specification
         Note right of API: Creates:<br/>- User stories (P1-P3)<br/>
 - Requirements<br/>- Success criteria<br/>- Edge cases
-        
+
         API-->>Action: Return generated specification
         deactivate API
-        
+
         alt AI API succeeds
             Action->>Action: Validate generated content
         else AI API fails
@@ -93,57 +93,57 @@ spec-template.md
             Note right of Action: Fallback: Creates<br/>
 minimal spec with<br/>[NEEDS CLARIFICATION]<br/>markers
         end
-        
+
         Note over User,Issue: Phase 4: Artifact Creation
-        
+
         Action->>Repo: Write spec.md
         Note right of Action: specs/NNN-feature-name/<br/>spec.md
-        
+
         Action->>Repo: Create requirements checklist
         Note right of Action: specs/NNN-feature-name/<br/>
 checklists/<br/>requirements.md
-        
+
         Action->>Repo: Create feature branch
         Note right of Action: Branch: NNN-feature-name
-        
+
         Action->>Repo: Commit specification files
         Note right of Action: Commit message:<br/>
 "spec: Add specification<br/>for issue #N"
-        
+
         Action->>Repo: Push feature branch
-        
+
         Note over User,Issue: Phase 5: Pull Request Creation
-        
+
         Action->>GH: Create Pull Request
         activate GH
         Note right of Action: PR contains:<br/>- Spec files<br/>
 - Checklist<br/>- Link to issue
-        
+
         GH->>GH: Generate PR number
         GH-->>Action: Return PR URL
         deactivate GH
-        
+
         Action->>GH: Apply labels to PR
         Note right of Action: Labels:<br/>- From original issue<br/>- speckit:spec
-        
+
         Note over User,Issue: Phase 6: Completion & Feedback
-        
+
         Action->>Issue: Post "✅ Success" comment
         Note right of Action: Includes:<br/>- Branch name<br/>
 - Spec file path<br/>- PR link<br/>- Next steps
-        
+
         Action->>Issue: Update labels
         Note right of Action: Remove: speckit:processing<br/>Add: speckit:completed
-        
+
         deactivate Action
-        
+
         GH-->>User: Notification (Issue & PR)
-        
+
         Note over User,Issue: Phase 7: Review & Iteration
-        
+
         User->>Repo: Review generated spec.md
         User->>Repo: Review requirements checklist
-        
+
         alt Clarifications needed
             User->>Issue: Comment with questions
             User->>Repo: Update spec manually
@@ -155,15 +155,15 @@ checklists/<br/>requirements.md
             Note right of User: Spec merged to main
         end
     end
-    
+
     Note over User,Issue: Phase 8: Next Steps (Manual)
-    
+
     User->>User: Run /speckit.plan command
     Note right of User: AI creates implementation<br/>plan with technical details
-    
-    User->>User: Run /speckit.tasks command  
+
+    User->>User: Run /speckit.tasks command
     Note right of User: AI generates task<br/>breakdown organized<br/>by user stories
-    
+
     User->>User: Run /speckit.implement command
     Note right of User: AI executes tasks<br/>following the plan
 

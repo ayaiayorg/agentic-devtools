@@ -14,11 +14,11 @@ graph TB
         Workflow[workflow Key]
         Namespaced[Namespaced Keys]
     end
-    
+
     Root --> Regular
     Root --> Workflow
     Regular --> Namespaced
-    
+
     Namespaced --> Jira[jira.*]
     Namespaced --> FileReview[file_review.*]
     Namespaced --> Background[background.*]
@@ -74,20 +74,20 @@ flowchart TD
     Start[Command Start] --> Try[Try Block]
     Try --> Success[Execute Logic]
     Success --> Return0[Return 0]
-    
+
     Try --> Error[Exception]
     Error --> Type{Exception Type}
-    
+
     Type -->|ValidationError| Val[Format validation message]
     Type -->|APIError| API[Format API error]
     Type -->|StateError| State[Format state error]
     Type -->|Unknown| Gen[Generic error]
-    
+
     Val --> Log[Log to stderr]
     API --> Log
     State --> Log
     Gen --> Log
-    
+
     Log --> Update{Background task?}
     Update -->|Yes| UpdateTask[Update task state]
     Update -->|No| Return1[Return non-zero]
@@ -118,11 +118,11 @@ graph LR
     Console[Console Output] --> User[User Messages]
     Files[Log Files] --> Debug[Debug Info]
     Files --> Errors[Error Details]
-    
+
     User --> Success[✓ Success messages]
     User --> Actions[→ Action descriptions]
     User --> Info[ℹ Info messages]
-    
+
     Debug --> API[API requests]
     Debug --> State[State changes]
     Errors --> Stack[Stack traces]
@@ -153,24 +153,24 @@ graph TB
     subgraph "Sources"
         EnvVar[Environment Variables]
     end
-    
+
     subgraph "Never Stored"
         Code[Source Code ✗]
         State[State File ✗]
         Logs[Log Files ✗]
         Output[Output Files ✗]
     end
-    
+
     subgraph "Commands"
         CLI[agdt-* Commands]
     end
-    
+
     EnvVar -->|Read at runtime| CLI
     CLI -.->|NEVER write| Code
     CLI -.->|NEVER write| State
     CLI -.->|NEVER write| Logs
     CLI -.->|NEVER write| Output
-    
+
     style EnvVar fill:#9f9
     style Code fill:#f99
     style State fill:#f99
@@ -211,10 +211,10 @@ graph TB
         Integration[Integration Tests<br/>~25%]
         Unit[Unit Tests<br/>~70%]
     end
-    
+
     E2E --> Integration
     Integration --> Unit
-    
+
     style Unit fill:#9f9
     style Integration fill:#ff9
     style E2E fill:#f99
@@ -258,7 +258,7 @@ agdt-test-pattern tests/test_state.py::TestState::test_get_value -v
 graph LR
     Sync[Synchronous<br/>❌ Blocks agent] -->|Problem| Long[Long API calls<br/>30-60 seconds]
     Async[Asynchronous<br/>✓ Non-blocking] -->|Solution| BG[Background process<br/>Returns immediately]
-    
+
     style Sync fill:#f99
     style Async fill:#9f9
 ```
@@ -280,9 +280,9 @@ graph LR
 graph TB
     Generic[Generic Commands<br/>agdt-set, agdt-get] -->|Approve once| AllKeys[Use for all keys]
     Parameterless[Parameterless Actions<br/>agdt-add-jira-comment] -->|Approve once| Reuse[Reuse forever]
-    
+
     BadPattern[❌ Bad: agdt-comment --text "..."] -->|Must approve| EachTime[Each time with<br/>different text]
-    
+
     style Generic fill:#9f9
     style Parameterless fill:#9f9
     style BadPattern fill:#f99
@@ -379,11 +379,11 @@ dist/                      # Build artifacts
 graph TB
     Main[Main Worktree<br/>main branch] --> WT1[Worktree 1<br/>feature/DFLY-1234]
     Main --> WT2[Worktree 2<br/>feature/DFLY-5678]
-    
+
     Main -.->|Shared| Git[.git/]
     WT1 -.->|Shared| Git
     WT2 -.->|Shared| Git
-    
+
     Main -->|Isolated| State1[agdt-state.json]
     WT1 -->|Isolated| State2[agdt-state.json]
     WT2 -->|Isolated| State3[agdt-state.json]

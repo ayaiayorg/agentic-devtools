@@ -25,9 +25,9 @@
 graph LR
     State[State File Growth] -->|Grows over time| Cleanup[Auto-cleanup]
     Cleanup -->|Removes old| Maintain[Maintains size]
-    
+
     State -->|If corrupted| Backup[Restore from backup]
-    
+
     style State fill:#f99
     style Cleanup fill:#ff9
     style Maintain fill:#9f9
@@ -342,21 +342,21 @@ graph TB
         Jinja2[Jinja2]
         AzureMonitor[azure-monitor-query]
     end
-    
+
     subgraph "Risks"
         Requests -->|Security| CVE1[CVE vulnerability]
         Requests -->|Compatibility| Break1[Breaking change]
         Jinja2 -->|Security| CVE2[CVE vulnerability]
         Jinja2 -->|Compatibility| Break2[Breaking change]
     end
-    
+
     subgraph "Mitigation"
         CVE1 --> Monitor[Dependabot alerts]
         CVE2 --> Monitor
         Break1 --> Pin[Pin versions]
         Break2 --> Pin
     end
-    
+
     style CVE1 fill:#f99
     style CVE2 fill:#f99
     style Monitor fill:#9f9
@@ -387,15 +387,15 @@ graph TB
 ```mermaid
 flowchart TD
     Ops[Operational Risks]
-    
+
     Ops --> Loss[Data Loss]
     Ops --> Perf[Performance Degradation]
     Ops --> Access[Access Denied]
-    
+
     Loss -->|Backup| Backup[State backup strategy]
     Perf -->|Monitoring| Monitor[Task monitoring]
     Access -->|Docs| Docs[Clear credential docs]
-    
+
     style Loss fill:#f99
     style Perf fill:#ff9
     style Access fill:#ff9
@@ -432,12 +432,12 @@ gantt
     Error Recovery          :2026-01, 2026-02
     State Schema Versioning :2026-02, 2026-03
     Workflow Rollback       :2026-03, 2026-05
-    
+
     section Medium Priority
     Telemetry              :2026-06, 2026-07
     State Diff Command     :2026-02, 2026-02
     Offline Support        :2026-09, 2026-12
-    
+
     section Low Priority
     Configuration Options  :milestone, 2026-12, 0d
     State Backup          :milestone, 2026-12, 0d

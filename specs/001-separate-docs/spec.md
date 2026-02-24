@@ -1,8 +1,8 @@
 # Feature Specification: Separate AGDT and Specify Documentation
 
-**Feature Branch**: `001-separate-docs`  
-**Created**: 2026-02-03  
-**Status**: Draft  
+**Feature Branch**: `001-separate-docs`
+**Created**: 2026-02-03
+**Status**: Draft
 **Input**: User description: "Enhance the current documentation and separate the
 agdt docs from the specify docs. The specify docs are a tool that helps us to
 develop the agdt but should be a documentation for the developers of the agdt
@@ -52,7 +52,7 @@ and not for the end users"
   implement just ONE of them,
   you should still have a viable MVP (Minimum Viable Product) that delivers
   value.
-  
+
   Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most
   critical.
   Think of each story as a standalone slice of functionality that can be:

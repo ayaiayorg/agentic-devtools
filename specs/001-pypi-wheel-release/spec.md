@@ -1,8 +1,8 @@
 # Feature Specification: PyPI Wheel Release
 
-**Feature Branch**: `001-pypi-wheel-release`  
-**Created**: 2026-02-03  
-**Status**: Draft  
+**Feature Branch**: `001-pypi-wheel-release`
+**Created**: 2026-02-03
+**Status**: Draft
 **Input**: User description: "I wanna be able to build this python project to a
 wheel file, that can be deployed to pypi.org, this should include a test before
 it finally ships"

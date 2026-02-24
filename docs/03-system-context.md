@@ -10,15 +10,15 @@ C4Context
 
     Person(dev, "Developer", "Dragonfly platform developer")
     Person(ai, "AI Assistant", "GitHub Copilot Chat")
-    
+
     System(agdt, "agentic-devtools", "CLI package for AI workflow automation")
-    
+
     System_Ext(git, "Git/GitHub", "Version control")
     System_Ext(ado, "Azure DevOps", "Project management & CI/CD")
     System_Ext(jira, "Jira Cloud", "Issue tracking")
     System_Ext(pypi, "PyPI", "Python package index")
     System_Ext(azure, "Azure Cloud", "Cloud infrastructure")
-    
+
     Rel(dev, ai, "Uses")
     Rel(ai, agdt, "Executes commands")
     Rel(agdt, git, "Commits, pushes, branches")
@@ -111,13 +111,13 @@ sequenceDiagram
     participant CLI as agdt CLI
     participant State as State File
     participant API as External API
-    
+
     Dev->>Copilot: "@workspace work on DFLY-1234"
     Copilot->>CLI: agdt-set jira.issue_key DFLY-1234
     CLI->>State: Write state
     State-->>CLI: OK
     CLI-->>Copilot: State saved
-    
+
     Copilot->>CLI: agdt-get-jira-issue
     CLI->>State: Read state
     State-->>CLI: issue_key
@@ -125,7 +125,7 @@ sequenceDiagram
     API-->>CLI: Issue details
     CLI->>State: Save metadata
     CLI-->>Copilot: Issue details (formatted)
-    
+
     Copilot->>Dev: "Ready to work on issue..."
 ```
 
@@ -140,12 +140,12 @@ stateDiagram-v2
     Approved --> Executed: All future invocations
     Denied --> [*]
     Executed --> [*]
-    
+
     note right of ApprovalPrompt
         VS Code shows approval dialog
         once per unique command
     end note
-    
+
     note right of Approved
         Generic commands (agdt-set)
         work for all keys after
@@ -161,22 +161,22 @@ sequenceDiagram
     participant Cmd as Command
     participant BG as Background Task
     participant File as Output File
-    
+
     AI->>Cmd: Execute action command
     Cmd->>BG: Spawn background process
     BG-->>Cmd: Task ID
     Cmd-->>AI: Immediate return with task ID
-    
+
     Note over AI: AI continues with other work
-    
+
     AI->>Cmd: agdt-task-status
     Cmd->>BG: Check status
     BG-->>Cmd: Running/Complete/Failed
     Cmd-->>AI: Status info
-    
+
     BG->>File: Write results
     BG->>BG: Update task state
-    
+
     AI->>Cmd: agdt-task-wait
     Cmd->>BG: Poll until complete
     BG-->>Cmd: Complete
@@ -190,13 +190,13 @@ graph TB
     subgraph "Global Environment"
         Global[Global pip install]
     end
-    
+
     subgraph "Repository"
         Main[main worktree]
         WT1[worktree-1]
         WT2[worktree-2]
     end
-    
+
     Main -->|Uses| Global
     WT1 -->|Uses| Global
     WT2 -->|Uses| Global

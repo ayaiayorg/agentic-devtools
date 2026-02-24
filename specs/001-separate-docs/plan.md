@@ -24,13 +24,13 @@ cross‑references.
   the iteration process.
 -->
 
-**Language/Version**: Markdown (repository documentation)  
-**Primary Dependencies**: None  
-**Storage**: N/A  
-**Testing**: Developer review (heuristic, no automated tests)  
-**Target Platform**: GitHub repository documentation  
-**Project Type**: Documentation-only change  
-**Performance Goals**: N/A (documentation navigation)  
+**Language/Version**: Markdown (repository documentation)
+**Primary Dependencies**: None
+**Storage**: N/A
+**Testing**: Developer review (heuristic, no automated tests)
+**Target Platform**: GitHub repository documentation
+**Project Type**: Documentation-only change
+**Performance Goals**: N/A (documentation navigation)
 **Constraints**: README.md must not include Specify references; cross-links
 require audience labels
 **Scale/Scope**: Repository documentation only

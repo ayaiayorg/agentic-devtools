@@ -48,13 +48,13 @@ graph TB
         Dev[Developer]
         Copilot[GitHub Copilot]
     end
-    
+
     subgraph "agentic-devtools"
         CLI[CLI Commands]
         State[State Manager]
         BG[Background Tasks]
     end
-    
+
     subgraph "External Services"
         Git[Git/GitHub]
         ADO[Azure DevOps]
@@ -62,7 +62,7 @@ graph TB
         PyPI[PyPI]
         Azure[Azure Cloud]
     end
-    
+
     Dev -->|Uses| Copilot
     Copilot -->|Executes| CLI
     CLI --> State

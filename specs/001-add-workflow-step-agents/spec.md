@@ -1,8 +1,8 @@
 # Feature Specification: Workflow Step Chat Prompts
 
-**Feature Branch**: `001-add-workflow-step-agents`  
-**Created**: 2026-02-06  
-**Status**: Draft  
+**Feature Branch**: `001-add-workflow-step-agents`
+**Created**: 2026-02-06
+**Status**: Draft
 **Input**: User description: "for our agdt_devtools, i wanna add for each
 workflow step a agent within the agents and a prompt within prompts in the style
 of speckit, so our development team can start each workflow step out of the

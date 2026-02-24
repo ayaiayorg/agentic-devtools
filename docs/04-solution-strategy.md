@@ -24,22 +24,22 @@ classDiagram
         +validate_state()
         +handle_errors()
     }
-    
+
     class StateReader {
         +get_value(key)
         +load_state()
     }
-    
+
     class ActionCommand {
         +spawn_background_task()
         +return_task_id()
     }
-    
+
     class QueryCommand {
         +call_api()
         +write_output_file()
     }
-    
+
     Command <|-- ActionCommand
     Command <|-- QueryCommand
     ActionCommand --> StateReader
@@ -57,17 +57,17 @@ graph LR
         Cmd2[agdt-get]
         Cmd3[agdt-add-jira-comment]
     end
-    
+
     subgraph "State Layer"
         Lock[File Lock]
         State[JSON State]
         Lock --> State
     end
-    
+
     subgraph "Storage"
         File[agdt-state.json]
     end
-    
+
     Cmd1 --> Lock
     Cmd2 --> Lock
     Cmd3 --> Lock
@@ -85,15 +85,15 @@ sequenceDiagram
     participant Process
     participant State
     participant Output
-    
+
     CLI->>Spawner: Execute action
     Spawner->>Process: subprocess.Popen()
     Process-->>Spawner: PID
     Spawner->>State: Save task metadata
     Spawner-->>CLI: Task ID
-    
+
     Note over Process: Executes in background
-    
+
     Process->>Output: Write stdout/stderr
     Process->>State: Update status
     Process->>Output: Write result file
@@ -111,10 +111,10 @@ sequenceDiagram
 graph TD
     A[❌ Bad: 100 Commands] -->|Requires| B[100 Approvals]
     C[✅ Good: Generic Commands] -->|Requires| D[~10 Approvals]
-    
+
     B --> E[Bad UX]
     D --> F[Good UX]
-    
+
     style A fill:#f99
     style C fill:#9f9
 ```
@@ -157,31 +157,31 @@ graph TB
         Tasks[tasks/]
         Workflows[workflows/]
     end
-    
+
     subgraph "Core Layer"
         Runner[cli/runner.py]
         BG[background_tasks.py]
         TaskState[task_state.py]
         Lock[file_locking.py]
     end
-    
+
     subgraph "Data Layer"
         StateFile[agdt-state.json]
         OutputFiles[temp/*.json]
         Logs[logs/*.log]
     end
-    
+
     State --> Runner
     Git --> Runner
     ADO --> Runner
     Jira --> Runner
     Tasks --> TaskState
     Workflows --> State
-    
+
     Runner --> Lock
     BG --> TaskState
     TaskState --> Lock
-    
+
     Lock --> StateFile
     BG --> OutputFiles
     BG --> Logs
@@ -206,19 +206,19 @@ flowchart LR
         Helpers[Helper Functions]
         API[API Clients]
     end
-    
+
     subgraph "External Services"
         ADO_API[Azure DevOps API]
         Jira_API[Jira API]
         Git_CLI[Git CLI]
     end
-    
+
     CLI --> Helpers
     Helpers --> API
     API --> ADO_API
     API --> Jira_API
     API --> Git_CLI
-    
+
     style CLI fill:#e1f5ff
     style Helpers fill:#fff4e1
     style API fill:#f5e1ff
