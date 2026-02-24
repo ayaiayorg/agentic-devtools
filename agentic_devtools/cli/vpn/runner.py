@@ -89,7 +89,6 @@ def run_with_vpn_context(
         from ..azure_devops.vpn_toggle import (
             VpnToggleContext,
             get_vpn_url_from_state,
-            is_on_corporate_network,
         )
         from ..network.detection import NetworkContext, detect_network_context
 
@@ -135,7 +134,7 @@ def run_with_vpn_context(
                 # Not on VPN (or on corporate network) - run as-is
                 return _execute_command(command, shell)
 
-        else:
+        else:  # pragma: no cover
             # Unknown requirement - run as-is
             return _execute_command(command, shell)
 

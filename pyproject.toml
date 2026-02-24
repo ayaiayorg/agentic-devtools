@@ -178,6 +178,9 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
 ]
+exclude_also = [
+    "if sys.platform == .win32.:",
+]
 
 [tool.coverage.html]
 directory = "htmlcov"

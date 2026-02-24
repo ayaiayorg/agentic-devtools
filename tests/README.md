@@ -208,3 +208,74 @@ Tests outside `tests/unit/` (e.g., `tests/azure_devops/`, `tests/e2e_smoke/`, an
 flat `tests/test_*.py` files) were written before this policy was introduced. They are
 **not** validated by the 1:1:1 script and do not need to be migrated immediately.
 New test code, however, **must** be placed under `tests/unit/`.
+
+## Platform-Specific Tests
+
+Some modules contain code that only runs on a specific operating system (e.g., `fcntl`
+on Unix, `msvcrt` on Windows). Tests for this code use platform markers so they are
+automatically skipped on incompatible platforms.
+
+### Available Markers
+
+| Marker | Meaning |
+|--------|---------|
+| `@pytest.mark.linux_only` | Test runs only on Linux/macOS (skipped on Windows) |
+| `@pytest.mark.windows_only` | Test runs only on Windows (skipped on Linux/macOS) |
+
+These markers are processed in `tests/conftest.py` via `pytest_collection_modifyitems`,
+which adds `pytest.mark.skip` to incompatible tests at collection time.
+
+### Usage
+
+```python
+import pytest
+from agentic_devtools.file_locking import _lock_file_unix
+
+@pytest.mark.linux_only
+def test_lock_file_unix_exclusive(tmp_path):
+    """Test fcntl-based locking (Linux/macOS only)."""
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("content")
+    with open(test_file, "r+") as f:
+        _lock_file_unix(f, exclusive=True, timeout=1.0)
+```
+
+For tests that mock the OS-specific module entirely (e.g., replacing `msvcrt` in
+`sys.modules`), **no platform marker is needed** since the real module is never imported:
+
+```python
+import sys
+from unittest.mock import MagicMock, patch
+
+def test_lock_file_windows_timeout(tmp_path):
+    """Test msvcrt timeout path — works on any platform via sys.modules mock."""
+    from agentic_devtools.file_locking import _lock_file_windows, FileLockError
+
+    mock_msvcrt = MagicMock()
+    mock_msvcrt.LK_NBLCK = 2
+    mock_msvcrt.locking.side_effect = OSError("busy")
+
+    with patch.dict(sys.modules, {"msvcrt": mock_msvcrt}):
+        with open(tmp_path / "f.txt", "w+") as f:
+            with pytest.raises(FileLockError):
+                _lock_file_windows(f, timeout=0.05)
+```
+
+### Coverage Exclusions
+
+Platform-specific code that cannot be exercised on the current CI platform is excluded
+from coverage using `# pragma: no cover`. This prevents misleading coverage gaps in
+reports that only reflect the CI platform (currently Linux):
+
+- Private functions that import OS-specific modules (e.g., `_lock_file_windows`) carry
+  `# pragma: no cover` on their `def` line to exclude the entire body.
+- Branches guarded by `if sys.platform == "win32":` carry `# pragma: no cover` on the
+  `if` line, so only the Windows-specific call is excluded while the `else` (Unix) branch
+  remains measured.
+
+### CI Platform Matrix
+
+The CI pipeline (`test.yml`) currently runs on **Ubuntu Linux** only. Windows CI support
+can be added when needed by expanding the `runs-on` matrix in `.github/workflows/test.yml`.
+Platform-specific tests are already properly skipped through marker-based collection hooks,
+so no additional CI changes are required for correct skip behaviour.
