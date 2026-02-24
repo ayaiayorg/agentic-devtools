@@ -102,6 +102,30 @@ ruff format .
 
 Then re-run `bash scripts/run-pr-checks.sh` to verify everything passes.
 
+### ⚠️ CRITICAL: Single Commit Per PR
+
+**Every pull request MUST contain exactly one commit.** This is a hard policy, not a guideline.
+
+- **NEVER use `git commit`** — always use `agdt-git-save-work`, which automatically amends when the branch has commits ahead of
+  `origin/main`. This enforces the single-commit policy: once you have one commit on the branch, all subsequent saves amend it.
+- **NEVER create additional commits** on a feature branch — always amend and force-push
+- Adding a second commit to a PR branch is a **policy violation**
+
+```bash
+# Correct: amend existing commit (agdt-git-save-work auto-detects amend vs new commit)
+agdt-git-save-work
+
+# WRONG: never do this
+git commit -m "fix review feedback"   # ❌ creates a second commit (policy violation)
+git commit --amend                    # ❌ wrong tool (use agdt-git-save-work)
+```
+
+Why this matters:
+
+- **Clean git history** — one commit per PR = linear, readable history after squash-merge
+- **Atomic changes** — each PR represents a single logical change
+- **Easier reverts** — one commit = one revert if something goes wrong
+
 ### ⚠️ CRITICAL: Always Use agdt Commands
 
 **AI agents MUST prefer `agdt-*` CLI commands over raw equivalents wherever support exists.**
@@ -118,6 +142,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | Instead of... | Use... |
 |---------------|--------|
 | `git add . && git commit && git push` | `agdt-git-save-work` |
+| `git commit --amend` | `agdt-git-save-work` (auto-detects amend) |
 | `git push --force` | `agdt-git-force-push` |
 | `git push -u origin <branch>` | `agdt-git-publish` |
 | `pytest ...` | `agdt-test`, `agdt-test-file`, `agdt-test-pattern`, `agdt-test-quick` |
