@@ -822,6 +822,21 @@ known to be **`.cmd`/`.bat` batch scripts** on Windows, such as `az`
 `python`, etc. must always be called with `shell=False` when argument
 values contain user-supplied data.
 
+For **`.cmd`/`.bat` batch scripts** like `az`, rely on `run_safe`'s
+Windows-only default (`shell=None`) rather than passing `shell=True`
+explicitly. This way, Linux/macOS runs use `shell=False` (more secure),
+and Windows still gets `shell=True` automatically for batch scripts:
+
+```python
+# ✅ CORRECT — shell=None default: shell=True on Windows only, shell=False elsewhere
+result = run_safe(["az", "repos", "pr", "show", "--id", str(pr_id)],
+                  capture_output=True, text=True)
+
+# ❌ AVOID — forces shell=True on all platforms, expanding attack surface on Linux/macOS
+result = run_safe(["az", "repos", "pr", "show", "--id", str(pr_id)],
+                  capture_output=True, text=True, shell=True)
+```
+
 ## 6. Prompt Template System
 
 Workflow commands use a template system for generating prompts:

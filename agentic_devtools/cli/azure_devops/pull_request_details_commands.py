@@ -462,7 +462,6 @@ def get_pull_request_details() -> None:
         capture_output=True,
         text=True,
         env=env,
-        shell=True,  # nosec B604 - shell=True required to locate az CLI via PATH on all platforms
     )
 
     if result.returncode != 0:
