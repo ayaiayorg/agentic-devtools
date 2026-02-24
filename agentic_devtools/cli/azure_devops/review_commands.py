@@ -676,6 +676,11 @@ def setup_pull_request_review() -> None:
         print("WORKFLOW INITIALIZED: pull-request-review")
         print("=" * 60)
 
+        # Load repo-specific review focus areas (optional — None if not configured)
+        from ...config import load_review_focus_areas
+
+        repo_review_focus_areas = load_review_focus_areas(str(Path.cwd()))
+
         variables = {
             "pull_request_id": pull_request_id,
             "jira_issue_key": jira_issue_key or "",
@@ -684,6 +689,7 @@ def setup_pull_request_review() -> None:
             "source_branch": source_branch,
             "target_branch": target_branch,
             "file_count": file_count,
+            "repo_review_focus_areas": repo_review_focus_areas or "",
         }
 
         load_and_render_prompt(
