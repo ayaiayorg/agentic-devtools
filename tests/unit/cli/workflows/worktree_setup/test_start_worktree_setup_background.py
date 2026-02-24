@@ -114,3 +114,75 @@ class TestStartWorktreeSetupBackground:
             "branch_name": None,
             "use_existing_branch": False,
         }
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_stores_auto_execute_command_in_state_when_provided(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_command is stored in state as JSON when provided."""
+        mock_task = MagicMock()
+        mock_task.id = "task-cmd"
+        mock_run_background.return_value = mock_task
+
+        import json
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pr-id", "99"],
+        )
+
+        expected_json = json.dumps(["agdt-initiate-pull-request-review-workflow", "--pr-id", "99"])
+        mock_set_value.assert_any_call("worktree_setup.auto_execute_command", expected_json)
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_stores_auto_execute_timeout_when_non_default(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_timeout is stored in state when not the default."""
+        mock_task = MagicMock()
+        mock_task.id = "task-timeout"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            auto_execute_command=["cmd"],
+            auto_execute_timeout=120,
+        )
+
+        mock_set_value.assert_any_call("worktree_setup.auto_execute_timeout", "120")
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_does_not_store_auto_execute_command_when_none(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_command is not stored when None."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-cmd"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="work-on-jira-issue",
+            auto_execute_command=None,
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.auto_execute_command" not in stored_keys
+        assert "worktree_setup.auto_execute_timeout" not in stored_keys
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_does_not_store_timeout_when_default(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_timeout is not stored when using the default value."""
+        mock_task = MagicMock()
+        mock_task.id = "task-default-timeout"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="work-on-jira-issue",
+            auto_execute_command=["cmd"],
+            auto_execute_timeout=300,  # Default value
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.auto_execute_timeout" not in stored_keys
