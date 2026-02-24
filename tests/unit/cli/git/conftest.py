@@ -3,6 +3,7 @@ Shared fixtures for tests/unit/cli/git/.
 """
 
 import subprocess
+from pathlib import Path
 from typing import Generator
 from unittest.mock import MagicMock, patch
 
@@ -20,7 +21,7 @@ def mock_run_safe():
 
 
 @pytest.fixture
-def temp_git_repo(tmp_path) -> Generator:
+def temp_git_repo(tmp_path: Path) -> Generator[Path, None, None]:
     """Create a temporary git repository for testing git operations.
 
     Sets up a minimal git repo with an initial commit so that git
