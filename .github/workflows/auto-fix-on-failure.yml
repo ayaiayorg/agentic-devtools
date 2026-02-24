@@ -170,7 +170,6 @@ jobs:
           GH_TOKEN: ${{ secrets.COPILOT_AGENT_PAT }}
         run: |
           python -m pip install --quiet -e ".[dev]"
-          npm install -g @githubnext/copilot-cli 2>/dev/null || true
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -199,11 +198,8 @@ jobs:
           # Record commit SHA before Copilot runs so we can detect if it pushed
           PRE_SHA=$(git rev-parse HEAD)
 
-          if command -v copilot >/dev/null 2>&1; then
-            timeout 30m copilot -p "$(cat "$PROMPT_FILE")" -s --no-ask-user --allow-all-tools || true
-          else
-            echo "Copilot CLI not available — skipping Tier 2 headless session"
-          fi
+          # @githubnext/copilot-cli has been removed from npm; Tier 2 headless fix is unavailable
+          echo "Copilot CLI not available — skipping Tier 2 headless session"
 
           # Check if Copilot pushed new commits
           POST_SHA=$(git rev-parse HEAD)
