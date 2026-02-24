@@ -71,7 +71,7 @@ jobs:
               issue_number: pr.number
             });
 
-            const tier1Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-push -->')).length;
+            const tier1Count = comments.filter(c => c.body && c.body.includes('<!-- auto-fix-tier1-attempt -->')).length;
             const exhaustionPosted = comments.some(c => c.body && c.body.includes('<!-- auto-fix-exhausted -->'));
 
             console.log(`Tier 1 (ruff) attempts so far: ${tier1Count}`);
@@ -108,6 +108,24 @@ jobs:
             echo "ruff made changes"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Record Tier 1 attempt
+        if: steps.ruff-fix.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.check-retry.outputs.pr_number }}', 10);
+            const tier1Count = parseInt('${{ steps.check-retry.outputs.tier1_count }}', 10) + 1;
+            const workflowRun = context.payload.workflow_run;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: [
+                '<!-- auto-fix-tier1-attempt -->',
+                `<!-- Tier 1 attempt ${tier1Count} of 3 — triggered by ${workflowRun.html_url} -->`
+              ].join('\n')
+            });
 
       - name: Commit and push ruff fixes
         id: ruff-push
