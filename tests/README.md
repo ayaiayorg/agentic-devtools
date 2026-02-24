@@ -257,6 +257,21 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
    will flag unused parameters. Remove any fixture from the signature that the test body does
    not use.
 
+8. **When writing a `temp_git_repo` fixture, always disable GPG signing:** Creating a
+   real commit inside a temporary repo will fail if the developer's or CI global Git config
+   has `commit.gpgsign=true`. Set `commit.gpgsign=false` in the temp repo **before** committing,
+   and pass `--no-verify` to skip commit hooks:
+
+   ```python
+   subprocess.run(["git", "config", "commit.gpgsign", "false"],
+                  cwd=repo_dir, check=True, capture_output=True)
+   subprocess.run(["git", "commit", "--no-verify", "-m", "Initial commit"],
+                  cwd=repo_dir, check=True, capture_output=True)
+   ```
+
+   The same pattern applies to any other fixture that creates a real git commit in a
+   temporary repository.
+
 **Run these commands before every push to catch all issues:**
 
 ```bash

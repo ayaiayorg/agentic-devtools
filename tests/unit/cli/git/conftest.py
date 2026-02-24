@@ -45,12 +45,20 @@ def temp_git_repo(tmp_path) -> Generator:
         check=True,
         capture_output=True,
     )
+    # Disable GPG signing so the fixture works even when commit.gpgsign=true
+    # is set in the developer's or CI global Git config.
+    subprocess.run(
+        ["git", "config", "commit.gpgsign", "false"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
 
     readme = repo_dir / "README.md"
     readme.write_text("# Test Repository\n")
     subprocess.run(["git", "add", "."], cwd=repo_dir, check=True, capture_output=True)
     subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
+        ["git", "commit", "--no-verify", "-m", "Initial commit"],
         cwd=repo_dir,
         check=True,
         capture_output=True,

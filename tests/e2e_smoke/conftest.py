@@ -140,6 +140,14 @@ def temp_git_repo(tmp_path: Path) -> Generator[Path, None, None]:
         check=True,
         capture_output=True,
     )
+    # Disable GPG signing so the fixture works even when commit.gpgsign=true
+    # is set in the developer's or CI global Git config.
+    subprocess.run(
+        ["git", "config", "commit.gpgsign", "false"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
 
     # Create initial commit
     test_file = repo_dir / "README.md"
@@ -151,7 +159,7 @@ def temp_git_repo(tmp_path: Path) -> Generator[Path, None, None]:
         capture_output=True,
     )
     subprocess.run(
-        ["git", "commit", "-m", "Initial commit"],
+        ["git", "commit", "--no-verify", "-m", "Initial commit"],
         cwd=repo_dir,
         check=True,
         capture_output=True,
