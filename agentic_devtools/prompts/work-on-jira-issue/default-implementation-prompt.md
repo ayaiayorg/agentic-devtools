@@ -24,6 +24,24 @@ Work through the checklist items above. For each item:
 - **Follow existing patterns** - Match the codebase style and conventions
 - **Add/update tests** - Ensure test coverage for new code
 - **Update documentation** - Keep README and instruction files current
+- **Use `agdt-test` for testing** - Never run `pytest` directly (see Running Tests below)
+
+## Running Tests
+
+Always use `agdt-test` commands — never run `pytest` directly:
+
+```bash
+# Quick check (no coverage) — background task
+agdt-test-quick
+agdt-task-wait
+
+# Full suite with coverage — background task
+agdt-test
+agdt-task-wait
+
+# Specific test file or pattern — synchronous
+agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
+```
 
 ## Committing Your Work
 

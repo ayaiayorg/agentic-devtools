@@ -1,5 +1,20 @@
 # Test Organization Policy
 
+> **⚠️ AI AGENTS: ALWAYS use `agdt-test` commands — NEVER run `pytest` directly!**
+>
+> ```bash
+> agdt-test          # Full suite with coverage (background, ~55s)
+> agdt-task-wait     # Wait for completion (REQUIRED)
+>
+> agdt-test-quick    # Quick run without coverage (background)
+> agdt-task-wait
+>
+> agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v  # Specific test (synchronous)
+> ```
+>
+> Running `pytest` directly bypasses the background task system and workflow integration.
+> See [How to Run Specific Tests](#how-to-run-specific-tests) for the full command reference.
+
 This document defines the strict 1:1:1 test organization policy for `agentic-devtools`.
 All new tests **must** follow this policy. No exceptions are allowed.
 

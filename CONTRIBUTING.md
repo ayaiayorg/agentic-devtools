@@ -66,7 +66,7 @@ Run the complete test suite with coverage:
 pytest --cov=agentic_devtools --cov-report=term-missing
 ```
 
-**Note for AGDT contributors**: Use the `agdt-test` commands instead of running pytest directly:
+**⚠️ AI agents working on AGDT MUST use `agdt-test` commands — NEVER run pytest directly:**
 
 ```bash
 # Run full test suite with coverage (background task)
@@ -81,6 +81,9 @@ agdt-task-wait
 agdt-test-pattern tests/test_jira_helpers.py
 agdt-test-pattern tests/test_jira_helpers.py::TestClassName::test_method
 ```
+
+Running `pytest` directly bypasses the background task system and workflow integration.
+See `.github/copilot-instructions.md` for the full command mapping policy and rationale.
 
 ### E2E Smoke Tests
 
@@ -154,6 +157,34 @@ ruff check agentic_devtools tests
 # Lint markdown
 markdownlint-cli2 "**/*.md"
 ```
+
+## Using agdt Commands vs Raw Commands
+
+AI agents working on `agentic-devtools` **must** prefer `agdt-*` CLI commands over raw equivalents.
+Using raw commands bypasses the background task system, workflow integration, auto-approval benefits,
+and dry-run safety.
+
+### Command Mapping
+
+| Instead of... | Use... |
+|---------------|--------|
+| `git add . && git commit && git push` | `agdt-git-save-work` |
+| `git push --force` | `agdt-git-force-push` |
+| `git push -u origin <branch>` | `agdt-git-publish` |
+| `pytest ...` | `agdt-test`, `agdt-test-file`, `agdt-test-pattern`, `agdt-test-quick` |
+| Raw Azure DevOps REST API calls | `agdt-create-pull-request`, `agdt-add-pull-request-comment`, etc. |
+| Raw Jira REST API calls | `agdt-add-jira-comment`, `agdt-get-jira-issue`, etc. |
+| `gh issue create` (for this repo) | `agdt-create-agdt-feature-issue`, `agdt-create-agdt-bug-issue`, etc. |
+
+### Exceptions — Raw Commands Still Required
+
+> ⚠️ No agdt equivalent yet. Switch to agdt command when support is added.
+
+- `gh issue` / `gh pr` for repositories other than `agentic-devtools` — no agdt support yet
+- `gh pr review`, `gh pr comment` for external repos — no agdt support yet
+- Other `gh` operations not listed in the mapping above
+
+See `.github/copilot-instructions.md` for the full policy and background on why this matters.
 
 ## Spec-Driven Development
 
