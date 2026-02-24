@@ -9,6 +9,7 @@ It also includes placeholder issue creation for create workflows.
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -17,6 +18,15 @@ from typing import Optional, Tuple
 
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
+
+
+def is_vscode_available() -> bool:
+    """Check if VS Code CLI is available on PATH.
+
+    Returns:
+        True if the ``code`` command is found on PATH, False otherwise.
+    """
+    return shutil.which("code") is not None
 
 
 def find_workspace_file(directory: str) -> Optional[str]:
@@ -415,6 +425,10 @@ def open_vscode_workspace(worktree_path: str) -> bool:
     Returns:
         True if VS Code was opened, False otherwise
     """
+    if not is_vscode_available():
+        print("VS Code not found on PATH — skipping window opening", file=sys.stderr)
+        return False
+
     workspace_file = find_workspace_file(worktree_path)
 
     if workspace_file is None:
@@ -511,6 +525,10 @@ def inject_git_path_settings(worktree_path: str) -> None:
         worktree_path: Path to the worktree directory.
     """
     if platform.system() != "Windows":
+        return
+
+    if not is_vscode_available():
+        print("VS Code not found on PATH — skipping settings injection", file=sys.stderr)
         return
 
     git_root = _detect_git_root()

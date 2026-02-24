@@ -10,6 +10,7 @@ from agentic_devtools.cli.workflows.worktree_setup import (
 class TestOpenVscodeWorkspace:
     """Tests for open_vscode_workspace function."""
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.CREATE_NEW_PROCESS_GROUP", 0x200, create=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.DETACHED_PROCESS", 0x8, create=True)
@@ -18,7 +19,7 @@ class TestOpenVscodeWorkspace:
         "agentic_devtools.cli.workflows.worktree_setup.find_workspace_file",
         return_value="/repos/DFLY-1234/my-project.code-workspace",
     )
-    def test_opens_vscode_on_windows(self, mock_find, mock_platform, mock_popen):
+    def test_opens_vscode_on_windows(self, mock_find, mock_platform, mock_popen, mock_available):
         """Test opening VS Code on Windows uses shell=True and creationflags."""
         mock_platform.return_value = "Windows"
         mock_popen.return_value = MagicMock()
@@ -31,13 +32,14 @@ class TestOpenVscodeWorkspace:
         assert call_kwargs["shell"] is True
         assert call_kwargs["creationflags"] == 0x8 | 0x200
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
     @patch(
         "agentic_devtools.cli.workflows.worktree_setup.find_workspace_file",
         return_value="/repos/DFLY-1234/my-project.code-workspace",
     )
-    def test_opens_vscode_on_linux(self, mock_find, mock_platform, mock_popen):
+    def test_opens_vscode_on_linux(self, mock_find, mock_platform, mock_popen, mock_available):
         """Test opening VS Code on Linux."""
         mock_platform.return_value = "Linux"
         mock_popen.return_value = MagicMock()
@@ -47,13 +49,14 @@ class TestOpenVscodeWorkspace:
         assert result is True
         mock_popen.assert_called_once()
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
     @patch(
         "agentic_devtools.cli.workflows.worktree_setup.find_workspace_file",
         return_value="/repos/DFLY-1234/my-project.code-workspace",
     )
-    def test_opens_vscode_on_darwin(self, mock_find, mock_platform, mock_popen):
+    def test_opens_vscode_on_darwin(self, mock_find, mock_platform, mock_popen, mock_available):
         """Test opening VS Code on macOS."""
         mock_platform.return_value = "Darwin"
         mock_popen.return_value = MagicMock()
@@ -63,13 +66,14 @@ class TestOpenVscodeWorkspace:
         assert result is True
         mock_popen.assert_called_once()
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
     @patch(
         "agentic_devtools.cli.workflows.worktree_setup.find_workspace_file",
         return_value=None,
     )
-    def test_opens_folder_when_workspace_not_found(self, mock_find, mock_platform, mock_popen):
+    def test_opens_folder_when_workspace_not_found(self, mock_find, mock_platform, mock_popen, mock_available):
         """Test that VS Code opens at the worktree root when no workspace file exists."""
         mock_platform.return_value = "Linux"
         mock_popen.return_value = MagicMock()
@@ -81,13 +85,14 @@ class TestOpenVscodeWorkspace:
         call_args = mock_popen.call_args[0][0]
         assert "/repos/DFLY-1234" in call_args
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
     @patch(
         "agentic_devtools.cli.workflows.worktree_setup.find_workspace_file",
         return_value="/repos/DFLY-1234/my-project.code-workspace",
     )
-    def test_handles_popen_exception(self, mock_find, mock_platform, mock_popen):
+    def test_handles_popen_exception(self, mock_find, mock_platform, mock_popen, mock_available):
         """Test handling Popen exception."""
         mock_platform.return_value = "Windows"
         mock_popen.side_effect = OSError("code not found")
@@ -95,3 +100,12 @@ class TestOpenVscodeWorkspace:
         result = open_vscode_workspace("/repos/DFLY-1234")
 
         assert result is False
+
+    def test_returns_false_when_vscode_not_available(self, capsys):
+        """Test that False is returned gracefully when VS Code is not on PATH."""
+        with patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=False):
+            result = open_vscode_workspace("/repos/DFLY-1234")
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "VS Code not found on PATH" in captured.err
