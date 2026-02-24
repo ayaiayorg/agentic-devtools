@@ -30,6 +30,8 @@ class TestPerformAutoSetup:
             workflow_name="work-on-jira-issue",
             user_request=None,
             additional_params=None,
+            auto_execute_command=None,
+            auto_execute_timeout=300,
         )
         captured = capsys.readouterr()
         assert "task-12345" in captured.out
@@ -98,3 +100,24 @@ class TestPerformAutoSetup:
         assert "NEXT STEPS" in captured.out
         assert "agdt-task-log" in captured.out
         assert "agdt-task-wait" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_passes_auto_execute_command_to_background(self, mock_start_background, capsys):
+        """Test that auto_execute_command is passed through to the background task."""
+        mock_start_background.return_value = "task-exec"
+
+        perform_auto_setup(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pr-id", "99"],
+            auto_execute_timeout=120,
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_command"] == [
+            "agdt-initiate-pull-request-review-workflow",
+            "--pr-id",
+            "99",
+        ]
+        assert call_kwargs["auto_execute_timeout"] == 120

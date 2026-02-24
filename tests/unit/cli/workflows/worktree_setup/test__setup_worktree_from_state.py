@@ -20,6 +20,8 @@ class TestSetupWorktreeFromState:
             "worktree_setup.workflow_name": "pull-request-review",
             "worktree_setup.user_request": "Review this PR",
             "worktree_setup.additional_params": '{"pr_id": "123"}',
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -34,6 +36,8 @@ class TestSetupWorktreeFromState:
             workflow_name="pull-request-review",
             user_request="Review this PR",
             additional_params={"pr_id": "123"},
+            auto_execute_command=None,
+            auto_execute_timeout=300,
         )
 
     @patch("agentic_devtools.state.get_value")
@@ -58,6 +62,8 @@ class TestSetupWorktreeFromState:
             "worktree_setup.workflow_name": "work-on-jira-issue",
             "worktree_setup.user_request": None,
             "worktree_setup.additional_params": "invalid json {",
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -80,6 +86,8 @@ class TestSetupWorktreeFromState:
             "worktree_setup.workflow_name": None,  # Should default to "work-on-jira-issue"
             "worktree_setup.user_request": None,
             "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -94,4 +102,76 @@ class TestSetupWorktreeFromState:
             workflow_name="work-on-jira-issue",
             user_request=None,
             additional_params=None,
+            auto_execute_command=None,
+            auto_execute_timeout=300,
         )
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_reads_auto_execute_command_from_state(self, mock_get_value, mock_setup_sync):
+        """Test that auto_execute_command is read from state as JSON list."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.branch_prefix": "feature",
+            "worktree_setup.branch_name": None,
+            "worktree_setup.use_existing_branch": None,
+            "worktree_setup.workflow_name": "pull-request-review",
+            "worktree_setup.user_request": None,
+            "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": '["agdt-review", "--pr-id", "42"]',
+            "worktree_setup.auto_execute_timeout": "120",
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["auto_execute_command"] == ["agdt-review", "--pr-id", "42"]
+        assert call_kwargs["auto_execute_timeout"] == 120
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_handles_invalid_json_in_auto_execute_command(self, mock_get_value, mock_setup_sync):
+        """Test that invalid JSON in auto_execute_command is handled gracefully."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.branch_prefix": "feature",
+            "worktree_setup.branch_name": None,
+            "worktree_setup.use_existing_branch": None,
+            "worktree_setup.workflow_name": "work-on-jira-issue",
+            "worktree_setup.user_request": None,
+            "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": "not valid json [",
+            "worktree_setup.auto_execute_timeout": None,
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["auto_execute_command"] is None
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_handles_invalid_int_in_auto_execute_timeout(self, mock_get_value, mock_setup_sync):
+        """Test that invalid integer in auto_execute_timeout defaults to 300."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.branch_prefix": "feature",
+            "worktree_setup.branch_name": None,
+            "worktree_setup.use_existing_branch": None,
+            "worktree_setup.workflow_name": "work-on-jira-issue",
+            "worktree_setup.user_request": None,
+            "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": "not-a-number",
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 300

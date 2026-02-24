@@ -809,6 +809,47 @@ So work through the entire process to the best of your abilities knowing that a 
 will review it all thoroughly and provide feedback at that time if necessary."""
 
 
+def _run_auto_execute_command(
+    command: list[str],
+    worktree_path: str,
+    timeout: int,
+) -> int:
+    """
+    Execute a command inside a worktree and log the output.
+
+    Args:
+        command: The command and arguments to run.
+        worktree_path: The working directory for the command.
+        timeout: Maximum seconds to wait for the command.
+
+    Returns:
+        The process exit code, or -1 if the command could not be started or timed out.
+    """
+    print(f"\n--- Executing command in worktree: {' '.join(command)} ---")
+    try:
+        exec_result = subprocess.run(
+            command,
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            shell=False,  # Security: no shell expansion
+        )
+        if exec_result.stdout:
+            print(exec_result.stdout)
+        if exec_result.returncode != 0:
+            print(f"WARNING: Command exited with code {exec_result.returncode}")
+            if exec_result.stderr:
+                print(exec_result.stderr)
+        return exec_result.returncode
+    except subprocess.TimeoutExpired:
+        print(f"WARNING: Command timed out after {timeout} seconds")
+        return -1
+    except (FileNotFoundError, OSError) as e:
+        print(f"WARNING: Command failed to execute: {e}")
+        return -1
+
+
 def setup_worktree_in_background_sync(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -817,6 +858,8 @@ def setup_worktree_in_background_sync(
     workflow_name: str = "work-on-jira-issue",
     user_request: Optional[str] = None,
     additional_params: Optional[dict] = None,
+    auto_execute_command: Optional[list[str]] = None,
+    auto_execute_timeout: int = 300,
 ) -> None:
     """
     Perform worktree setup synchronously (called from background task).
@@ -835,7 +878,13 @@ def setup_worktree_in_background_sync(
         workflow_name: The workflow name for continuation prompt
         user_request: The user's explanation of what they want
         additional_params: Additional parameters for continuation command
+        auto_execute_command: Optional command to run inside the worktree after
+            creation. If the command fails, the error is logged but setup continues.
+        auto_execute_timeout: Timeout in seconds for the auto-execute command
+            (default: 300).
     """
+    from ...state import set_value
+
     print(f"\n{'=' * 80}")
     print("BACKGROUND WORKTREE SETUP")
     print("=" * 80)
@@ -849,6 +898,10 @@ def setup_worktree_in_background_sync(
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
+
+        if auto_execute_command:
+            exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
+            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
 
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
@@ -878,6 +931,10 @@ can copy and paste it into the new VS Code window that just opened:
     )
 
     if result.success:
+        if auto_execute_command:
+            exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
+            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
         print(f"   Branch: {result.branch_name}")
@@ -920,12 +977,28 @@ def _setup_worktree_from_state() -> None:
     workflow_name = get_value("worktree_setup.workflow_name") or "work-on-jira-issue"
     user_request = get_value("worktree_setup.user_request")
     additional_params_str = get_value("worktree_setup.additional_params")
+    auto_execute_command_str = get_value("worktree_setup.auto_execute_command")
+    auto_execute_timeout_str = get_value("worktree_setup.auto_execute_timeout")
 
     additional_params = None
     if additional_params_str:
         try:
             additional_params = json.loads(additional_params_str)
         except json.JSONDecodeError:
+            pass
+
+    auto_execute_command = None
+    if auto_execute_command_str:
+        try:
+            auto_execute_command = json.loads(auto_execute_command_str)
+        except json.JSONDecodeError:
+            pass
+
+    auto_execute_timeout = 300
+    if auto_execute_timeout_str:
+        try:
+            auto_execute_timeout = int(auto_execute_timeout_str)
+        except ValueError:
             pass
 
     if not issue_key:
@@ -940,6 +1013,8 @@ def _setup_worktree_from_state() -> None:
         workflow_name=workflow_name,
         user_request=user_request,
         additional_params=additional_params,
+        auto_execute_command=auto_execute_command,
+        auto_execute_timeout=auto_execute_timeout,
     )
 
 
@@ -951,6 +1026,8 @@ def start_worktree_setup_background(
     workflow_name: str = "work-on-jira-issue",
     user_request: Optional[str] = None,
     additional_params: Optional[dict] = None,
+    auto_execute_command: Optional[list[str]] = None,
+    auto_execute_timeout: int = 300,
 ) -> str:
     """
     Start worktree setup as a background task.
@@ -970,6 +1047,10 @@ def start_worktree_setup_background(
         workflow_name: The workflow name for continuation prompt
         user_request: The user's explanation of what they want
         additional_params: Additional parameters for continuation command
+        auto_execute_command: Optional command to run inside the worktree after
+            creation. Passed through to setup_worktree_in_background_sync.
+        auto_execute_timeout: Timeout in seconds for the auto-execute command
+            (default: 300).
 
     Returns:
         The background task ID for tracking progress
@@ -991,6 +1072,10 @@ def start_worktree_setup_background(
         set_value("worktree_setup.user_request", user_request)
     if additional_params:
         set_value("worktree_setup.additional_params", json.dumps(additional_params))
+    if auto_execute_command:
+        set_value("worktree_setup.auto_execute_command", json.dumps(auto_execute_command))
+    if auto_execute_timeout != 300:
+        set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
 
     # Build display name for the task
     display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"

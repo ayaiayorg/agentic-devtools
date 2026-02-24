@@ -244,6 +244,8 @@ def perform_auto_setup(
     use_existing_branch: bool = False,
     user_request: Optional[str] = None,
     additional_params: Optional[dict] = None,
+    auto_execute_command: Optional[list[str]] = None,
+    auto_execute_timeout: int = 300,
 ) -> bool:
     """
     Automatically set up a worktree environment for the issue as a background task.
@@ -269,6 +271,10 @@ def perform_auto_setup(
         user_request: The user's explanation of what they want (for create workflows)
         additional_params: Additional parameters to include in the continuation
             command (e.g., {"parent_key": "DFLY-1234", "pull_request_id": "12345"})
+        auto_execute_command: Optional command to run inside the worktree after
+            creation. Passed through to the background setup task.
+        auto_execute_timeout: Timeout in seconds for the auto-execute command
+            (default: 300).
 
     Returns:
         True if the background task was started, False otherwise
@@ -289,6 +295,8 @@ def perform_auto_setup(
             workflow_name=workflow_name,
             user_request=user_request,
             additional_params=additional_params,
+            auto_execute_command=auto_execute_command,
+            auto_execute_timeout=auto_execute_timeout,
         )
 
         print(f"\n✅ Background task started: {task_id}")
