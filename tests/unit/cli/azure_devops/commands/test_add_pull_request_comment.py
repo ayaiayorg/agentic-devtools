@@ -211,10 +211,38 @@ class TestAddPullRequestCommentActualCall:
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")
     @patch(f"{COMMANDS_MODULE}.get_repository_id")
-    def test_approval_comment_ignores_stale_path(
+    def test_file_level_approval_preserves_file_context(
         self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
     ):
-        """Approval comments must not attach to a file even when path state is set."""
+        """File-level approvals must retain file context when path and is_pull_request_approval are both set."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = {"id": 123}
+        mock_req_module.post.return_value = mock_post_response
+        mock_req_module.patch.return_value = mock_post_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "Approved file")
+        state.set_value("is_pull_request_approval", True)
+        state.set_value("path", "src/component.ts")
+        state.set_value("line", 42)
+
+        azure_devops.add_pull_request_comment()
+
+        call_args = mock_req_module.post.call_args
+        body = call_args[1]["json"]
+        assert "threadContext" in body
+        assert body["threadContext"]["filePath"] == "src/component.ts"
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approve_pull_request_clears_stale_path(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
+    ):
+        """approve_pull_request() clears stale path so approval posts as PR-level comment or summary reply."""
         mock_get_repo.return_value = "repo-guid-123"
         mock_req_module = MagicMock()
         mock_post_response = MagicMock()
@@ -229,14 +257,13 @@ class TestAddPullRequestCommentActualCall:
 
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM!")
-        state.set_value("is_pull_request_approval", True)
         # Simulate stale path left behind by a previous file-review operation
         state.set_value("path", "src/reviewed_file.py")
         state.set_value("line", 10)
 
-        azure_devops.add_pull_request_comment()
+        azure_devops.approve_pull_request()
 
-        # Falls back to new thread; no file context
+        # Falls back to new thread; no file context because approve_pull_request clears it
         post_call = mock_req_module.post.call_args_list[-1]
         body = post_call[1]["json"]
         assert "threadContext" not in body
@@ -310,10 +337,10 @@ class TestAddPullRequestCommentActualCall:
 
         captured = capsys.readouterr()
         assert "Comment added successfully" in captured.out
-        # Should create a new thread (URL should not contain /comments for reply)
+        # Should create a new thread endpoint (not a /comments reply endpoint)
         post_call = mock_req_module.post.call_args
         url = post_call[0][0]
-        assert "/comments" not in url
+        assert "/threads" in url and "/comments" not in url
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")
@@ -348,18 +375,19 @@ class TestAddPullRequestCommentActualCall:
         azure_devops.add_pull_request_comment()
 
         captured = capsys.readouterr()
+        # Should warn that replying to the summary thread failed
+        assert "could not reply to summary thread" in captured.err.lower()
         # Should fall back to creating a new thread
         assert "Comment added successfully" in captured.out
 
-    def test_approval_dry_run_ignores_stale_path(self, temp_state_dir, clear_state_before, capsys):
-        """Dry-run approval must not mention file path even when path state is set."""
+    def test_approve_pull_request_dry_run_clears_stale_path(self, temp_state_dir, clear_state_before, capsys):
+        """approve_pull_request() dry-run must not mention file path even when path state was set."""
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM!")
-        state.set_value("is_pull_request_approval", True)
         state.set_value("path", "src/reviewed_file.py")
         state.set_dry_run(True)
 
-        azure_devops.add_pull_request_comment()
+        azure_devops.approve_pull_request()
 
         captured = capsys.readouterr()
         assert "src/reviewed_file.py" not in captured.out
@@ -437,3 +465,25 @@ class TestFindSummaryThreadId:
 
         result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
         assert result is None
+
+    def test_warns_and_returns_none_when_thread_has_no_id(self, capsys):
+        """Returns None and logs warning when summary thread has no 'id' field."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {
+                    "comments": [
+                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
+                    ],
+                }
+            ]
+        }
+        mock_requests.get.return_value = mock_response
+        config = MagicMock()
+        config.build_api_url.return_value = "https://example.com/threads"
+
+        result = _find_summary_thread_id(mock_requests, {}, config, "repo-id", 123)
+        assert result is None
+        captured = capsys.readouterr()
+        assert "without an 'id' field" in captured.err
