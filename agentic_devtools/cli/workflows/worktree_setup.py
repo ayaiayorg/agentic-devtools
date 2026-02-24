@@ -582,18 +582,46 @@ def run_worktree_setup_script(worktree_path: str) -> None:
     working directory.  If the script is absent, returns silently.  Execution
     errors are logged as warnings but do not raise.
 
+    Security: symlinks are rejected and the resolved script path must remain
+    inside the worktree root to guard against malicious repos using symlinks to
+    point the setup script at arbitrary files outside the worktree.
+
     Args:
         worktree_path: Path to the worktree directory.
     """
-    script_path = os.path.join(worktree_path, ".agdt", "agentic-devtools-worktree-setup.py")
-    if not os.path.exists(script_path):
+    worktree_root = Path(worktree_path).resolve()
+    script_path = worktree_root / ".agdt" / "agentic-devtools-worktree-setup.py"
+
+    if not (script_path.is_file() and os.access(str(script_path), os.R_OK)):
         return
 
-    print(f"Running worktree setup script: {script_path}")
+    # Security: reject symlinks or scripts that resolve outside the worktree.
+    try:
+        if script_path.is_symlink():
+            print(
+                f"Warning: refusing to execute symlinked worktree setup script: {script_path}",
+                file=sys.stderr,
+            )
+            return
+
+        resolved_script_path = script_path.resolve()
+        try:
+            resolved_script_path.relative_to(worktree_root)
+        except ValueError:
+            print(
+                f"Warning: refusing to execute worktree setup script outside worktree: {resolved_script_path}",
+                file=sys.stderr,
+            )
+            return
+    except OSError as exc:
+        print(f"Warning: could not validate worktree setup script path: {exc}", file=sys.stderr)
+        return
+
+    print(f"Running worktree setup script: {resolved_script_path}")
     try:
         result = subprocess.run(
-            [sys.executable, script_path, worktree_path],
-            cwd=worktree_path,
+            [sys.executable, str(resolved_script_path), str(worktree_root)],
+            cwd=str(worktree_root),
             check=False,
         )
         if result.returncode != 0:
