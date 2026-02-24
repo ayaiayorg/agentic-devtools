@@ -64,8 +64,6 @@ class TestLoadRepoConfig:
 
     def test_logs_warning_for_invalid_json(self, tmp_path, caplog):
         """A warning is logged when the config contains invalid JSON."""
-        import logging
-
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         (github_dir / "agdt-config.json").write_text("{ bad", encoding="utf-8")
@@ -92,3 +90,18 @@ class TestLoadRepoConfig:
 
         assert result == {}
         assert any(record.levelno == logging.WARNING for record in caplog.records)
+
+    def test_returns_empty_dict_when_json_is_not_an_object(self, tmp_path, caplog):
+        """Return {} and log a warning when config JSON root is not an object."""
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+
+        for non_object in ["[]", '"a string"', "42", "true", "null"]:
+            (github_dir / "agdt-config.json").write_text(non_object, encoding="utf-8")
+            caplog.clear()
+            with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+                result = load_repo_config(str(tmp_path))
+            assert result == {}, f"expected {{}} for JSON input {non_object!r}"
+            assert any("Expected a JSON object" in record.message for record in caplog.records), (
+                f"expected warning for JSON input {non_object!r}"
+            )

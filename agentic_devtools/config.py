@@ -38,7 +38,15 @@ def load_repo_config(repo_path: str) -> dict:
 
     try:
         content = config_path.read_text(encoding="utf-8")
-        return json.loads(content)
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            logger.warning(
+                "Expected a JSON object in %s, got %s; ignoring.",
+                config_path,
+                type(parsed).__name__,
+            )
+            return {}
+        return parsed
     except json.JSONDecodeError as exc:
         logger.warning("Invalid JSON in %s: %s", config_path, exc)
         return {}
