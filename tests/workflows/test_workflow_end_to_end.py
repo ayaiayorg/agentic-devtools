@@ -19,18 +19,17 @@ Adding Tests for a New Workflow
    transitions via get_next_workflow_prompt (see TestWorkOnJiraIssueWorkflowEndToEnd).
 4. For simple workflows — test initiation sets the correct state and that
    notify_workflow_event returns triggered=False (see TestCreateJiraIssueWorkflowEndToEnd).
-5. Use the shared fixtures from conftest.py:
-   - temp_state_dir: isolated state file
-   - temp_output_dir: redirects file writes away from scripts/temp/
-   - clear_state_before: clears state before each test
-   - mock_jira_issue_response: sample Jira API payload
-   - mock_preflight_pass: preflight always passes
-   - mock_workflow_state_clearing: prevents clear_state at workflow start
+5. Use the shared fixtures from tests/workflows/conftest.py:
+   - temp_state_dir: isolated state file (scoped per test via tmp_path)
+   - temp_output_dir: redirects all prompt/temp file writes away from scripts/temp/
+   - clear_state_before: wipes state before each test (depends on temp_state_dir)
+   - mock_jira_issue_response: realistic Jira Story API payload
+   - mock_preflight_pass: preflight check always passes (correct worktree assumed)
+   - mock_workflow_state_clearing: no-op for clear_state — prefer passing values
+     via _argv instead (see "Notes on mock_workflow_state_clearing" in conftest.py)
 """
 
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from agentic_devtools import state
 from agentic_devtools.cli.workflows import advancement, commands
@@ -40,25 +39,6 @@ from agentic_devtools.cli.workflows.manager import (
     get_next_workflow_prompt,
     notify_workflow_event,
 )
-from agentic_devtools.prompts import loader
-
-
-@pytest.fixture
-def temp_output_dir(tmp_path):
-    """Create a temporary output directory to avoid writing to scripts/temp/ during tests."""
-    output_dir = tmp_path / "temp"
-    output_dir.mkdir()
-    with patch.object(loader, "get_temp_output_dir", return_value=output_dir), patch(
-        "agentic_devtools.cli.workflows.manager.get_temp_output_dir", return_value=output_dir
-    ):
-        yield output_dir
-
-
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state file before each test."""
-    state.clear_state()
-    yield
 
 
 class TestWorkOnJiraIssueWorkflowEndToEnd:
@@ -552,25 +532,15 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         """Test that initiating the workflow sets the expected state.
 
         Simulates an AI agent calling agdt-initiate-create-jira-issue-workflow
-        in continuation mode (an issue key already exists from the placeholder
-        creation step). Verifies that workflow state is written correctly.
+        in continuation mode. Values are passed via _argv (--project-key,
+        --issue-key) so the command parses and validates its own inputs —
+        representative of real CLI usage.
+
+        mock_workflow_state_clearing is still used here to prevent
+        clear_state_for_workflow_initiation() from deleting the test's temp
+        output directory (a fixture-isolation concern, not a state-hiding one).
         """
-        from agentic_devtools.prompts import loader as prompt_loader
-
-        state.set_value("jira.project_key", "DFLY")
-        state.set_value("jira.issue_key", "DFLY-1234")
-
-        # Create a minimal prompt template so initiate_workflow does not raise
-        prompts_dir = temp_output_dir.parent / "prompts"
-        prompts_dir.mkdir(exist_ok=True)
-        workflow_dir = prompts_dir / "create-jira-issue"
-        workflow_dir.mkdir(exist_ok=True)
-        (workflow_dir / "default-initiate-prompt.md").write_text(
-            "Create issue in {{jira_project_key}}", encoding="utf-8"
-        )
-
-        with patch.object(prompt_loader, "get_prompts_dir", return_value=prompts_dir):
-            commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234"])
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
 
         workflow = state.get_workflow_state()
         assert workflow is not None
@@ -619,7 +589,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         assert result.triggered is False
         assert state.get_workflow_state()["step"] == "initiate"
 
-    def test_context_contains_issue_data_after_initiation(
+    def test_jira_issue_retrieved_event_has_no_side_effects_on_simple_workflow(
         self,
         temp_state_dir,
         temp_output_dir,
@@ -628,39 +598,36 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         mock_workflow_state_clearing,
         mock_jira_issue_response,
     ):
-        """Test that workflow context stores issue data provided by the AI agent.
+        """Test that try_advance_workflow_after_jira_issue_retrieved has no side effects.
 
-        When the AI agent retrieves Jira issue details (simulated here via
-        mock_jira_issue_response) and calls try_advance_workflow_after_jira_issue_retrieved,
-        the context is updated with the issue summary and type even though no
-        step transition occurs for a simple workflow.
+        For simple (non-registry) workflows, notify_workflow_event() returns early
+        with triggered=False and never applies context_updates.  This test verifies
+        that after an AI agent calls the Jira retrieval advancement helper the
+        workflow step and context are completely unchanged.
+
+        mock_workflow_state_clearing is used to preserve the test's temp output
+        directory (a fixture-isolation concern, not a state-hiding one). Values
+        are provided via _argv so the command validates its own required inputs.
         """
         from agentic_devtools.cli.workflows.advancement import try_advance_workflow_after_jira_issue_retrieved
-        from agentic_devtools.prompts import loader as prompt_loader
 
-        state.set_value("jira.project_key", "DFLY")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
 
-        prompts_dir = temp_output_dir.parent / "prompts"
-        prompts_dir.mkdir(exist_ok=True)
-        workflow_dir = prompts_dir / "create-jira-issue"
-        workflow_dir.mkdir(exist_ok=True)
-        (workflow_dir / "default-initiate-prompt.md").write_text(
-            "Create issue in {{jira_project_key}}", encoding="utf-8"
-        )
+        # Capture state immediately after initiation
+        initial_workflow = state.get_workflow_state()
+        initial_step = initial_workflow["step"]
 
-        with patch.object(prompt_loader, "get_prompts_dir", return_value=prompts_dir):
-            commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234"])
-
-        # Simulate the AI agent retrieving the Jira issue details and passing
-        # the data through the advancement helper (returns False because the
-        # create-jira-issue workflow is not in the registry).
+        # Simulate the AI agent passing Jira issue data through the helper.
+        # For a simple (non-registry) workflow this must NOT trigger and must NOT
+        # apply context_updates — no side effects on workflow state.
         triggered = try_advance_workflow_after_jira_issue_retrieved(issue_data=mock_jira_issue_response)
         assert triggered is False
 
-        # The workflow state itself is unchanged (simple workflow, no registry transitions).
+        # Workflow state is completely unchanged: same step, no injected fields
         workflow = state.get_workflow_state()
-        assert workflow["step"] == "initiate"
+        assert workflow["step"] == initial_step
+        assert "issue_summary" not in workflow["context"]
+        assert "issue_type" not in workflow["context"]
 
 
 class TestMockAgentBehavior:
