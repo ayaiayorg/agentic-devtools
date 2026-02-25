@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.helpers import create_git_repo
+
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Generator[Path, None, None]:
@@ -114,55 +116,7 @@ def temp_git_repo(tmp_path: Path) -> Generator[Path, None, None]:
     Yields:
         Path to the temporary git repository
     """
-    import subprocess
-
     repo_dir = tmp_path / "test-repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
-
-    # Initialize git repo
-    subprocess.run(
-        ["git", "init"],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Configure git user
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-    # Disable GPG signing so the fixture works even when commit.gpgsign=true
-    # is set in the developer's or CI global Git config.
-    subprocess.run(
-        ["git", "config", "commit.gpgsign", "false"],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    # Create initial commit
-    test_file = repo_dir / "README.md"
-    test_file.write_text("# Test Repository\n")
-    subprocess.run(
-        ["git", "add", "."],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "commit", "--no-verify", "-m", "Initial commit"],
-        cwd=repo_dir,
-        check=True,
-        capture_output=True,
-    )
-
+    create_git_repo(repo_dir)
     yield repo_dir

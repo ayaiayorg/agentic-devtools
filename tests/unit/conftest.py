@@ -2,11 +2,12 @@
 Shared fixtures for all unit tests.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from agentic_devtools import state
+from tests.helpers import make_mock_popen
 
 
 @pytest.fixture
@@ -29,9 +30,7 @@ def mock_background_and_state(tmp_path):
     with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         with patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path):
             with patch("agentic_devtools.background_tasks.subprocess.Popen") as mock_popen:
-                mock_process = MagicMock()
-                mock_process.pid = 12345
-                mock_popen.return_value = mock_process
+                mock_popen.return_value = make_mock_popen()
                 yield {
                     "state_dir": tmp_path,
                     "mock_popen": mock_popen,
