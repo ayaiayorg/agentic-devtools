@@ -917,6 +917,117 @@ def _run_auto_execute_command(
         return -1
 
 
+def _wait_for_prompt_file(
+    prompt_path: Path,
+    timeout: float = 300,
+    poll_interval: float = 5.0,
+) -> bool:
+    """
+    Poll for a prompt file to appear on disk.
+
+    The file may be written by a background process started by the
+    auto-execute command, so we wait up to *timeout* seconds for it
+    to be created.
+
+    Args:
+        prompt_path: Absolute path to the expected prompt file.
+        timeout: Maximum seconds to wait (default: 300; accepts fractional seconds).
+        poll_interval: Seconds between checks (default: 5).
+
+    Returns:
+        True when the file exists; False if the timeout was reached.
+    """
+    import time
+
+    elapsed = 0.0
+    while elapsed < timeout:
+        if prompt_path.exists():
+            return True
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    return prompt_path.exists()
+
+
+def _start_copilot_session_for_pr_review(
+    worktree_path: str,
+    interactive: bool = True,
+) -> None:
+    """
+    Read the initiate prompt, load focus areas, compose the integrated
+    prompt, and start a ``gh copilot`` session.
+
+    The prompt file is expected at
+    ``{worktree_path}/scripts/temp/temp-pull-request-review-initiate-prompt.md``
+    (written by ``load_and_render_prompt()`` during the PR review setup).
+    Focus areas are loaded from ``{worktree_path}/.github/agdt-config.json``
+    if present.
+
+    In interactive mode the Copilot session inherits the terminal so the
+    user can interact with it; in non-interactive mode it runs in the
+    background (pipeline use-case).
+
+    When VS Code is not available the session is forced non-interactive
+    regardless of the *interactive* argument.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+    """
+    from ...config import load_review_focus_areas
+    from ..copilot.session import start_copilot_session
+
+    prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
+
+    print(f"\n--- Waiting for initiate prompt file: {prompt_file} ---")
+    if not _wait_for_prompt_file(prompt_file):
+        print("WARNING: Initiate prompt file not found after waiting. Skipping Copilot session.")
+        return
+
+    try:
+        initiate_prompt = prompt_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"WARNING: Could not read initiate prompt file: {exc}")
+        return
+
+    # Append repo-specific focus areas when available
+    focus_areas = load_review_focus_areas(worktree_path)
+    if focus_areas:
+        integrated_prompt = initiate_prompt + "\n\n" + focus_areas
+    else:
+        integrated_prompt = initiate_prompt
+
+    # Non-interactive mode when VS Code is not available (pipeline scenario),
+    # or when there is no TTY attached (e.g. running inside run_function_in_background
+    # where stdin/stdout are redirected to DEVNULL/log files).
+    has_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    effective_interactive = interactive and is_vscode_available() and has_tty
+
+    print(
+        f"\n--- Starting gh copilot session (mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"
+    )
+    # Ensure Copilot session state and artifacts (prompt file, log file, copilot.*
+    # state keys) are written under the target worktree, not the caller's CWD.
+    # start_copilot_session() resolves paths via get_state_dir() which is CWD-based;
+    # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path.
+    state_dir = Path(worktree_path) / "scripts" / "temp"
+    previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    previous_cwd = os.getcwd()
+    os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+    os.chdir(worktree_path)
+    try:
+        start_copilot_session(
+            prompt=integrated_prompt,
+            working_directory=worktree_path,
+            interactive=effective_interactive,
+        )
+    finally:
+        os.chdir(previous_cwd)
+        if previous_state_dir is None:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        else:
+            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+
+
 def setup_worktree_in_background_sync(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -927,12 +1038,19 @@ def setup_worktree_in_background_sync(
     additional_params: Optional[dict] = None,
     auto_execute_command: Optional[list[str]] = None,
     auto_execute_timeout: int = 300,
+    interactive: bool = True,
 ) -> None:
     """
     Perform worktree setup synchronously (called from background task).
 
     This function is designed to be called from a background task runner.
     It performs the full worktree setup and prints the continuation prompt.
+
+    For ``pull-request-review`` workflows with an ``auto_execute_command``,
+    the function additionally:
+    1. Waits for the review initiate prompt to be generated by the auto-execute.
+    2. Loads repo-specific focus areas from ``{worktree}/.github/agdt-config.json``.
+    3. Starts a ``gh copilot`` session with the integrated prompt.
 
     Args:
         issue_key: The Jira issue key
@@ -949,6 +1067,8 @@ def setup_worktree_in_background_sync(
             creation. If the command fails, the error is logged but setup continues.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
             (default: 300).
+        interactive: Whether to start the Copilot session interactively after
+            setup (default: True). Set to False for pipeline/non-interactive mode.
     """
     from ...state import set_value
 
@@ -969,6 +1089,9 @@ def setup_worktree_in_background_sync(
         if auto_execute_command:
             exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+
+            if workflow_name == "pull-request-review" and exit_code == 0:
+                _start_copilot_session_for_pr_review(existing_path, interactive=interactive)
 
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
@@ -1001,6 +1124,9 @@ can copy and paste it into the new VS Code window that just opened:
         if auto_execute_command:
             exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+
+            if workflow_name == "pull-request-review" and exit_code == 0:
+                _start_copilot_session_for_pr_review(result.worktree_path, interactive=interactive)
 
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
@@ -1046,6 +1172,7 @@ def _setup_worktree_from_state() -> None:
     additional_params_str = get_value("worktree_setup.additional_params")
     auto_execute_command_str = get_value("worktree_setup.auto_execute_command")
     auto_execute_timeout_str = get_value("worktree_setup.auto_execute_timeout")
+    interactive_str = get_value("worktree_setup.interactive")
 
     additional_params = None
     if additional_params_str:
@@ -1068,6 +1195,9 @@ def _setup_worktree_from_state() -> None:
         except ValueError:
             pass
 
+    # Default interactive to True; stored as "false" string to disable
+    interactive = interactive_str != "false"
+
     if not issue_key:
         raise ValueError("worktree_setup.issue_key not set in state")
 
@@ -1082,6 +1212,7 @@ def _setup_worktree_from_state() -> None:
         additional_params=additional_params,
         auto_execute_command=auto_execute_command,
         auto_execute_timeout=auto_execute_timeout,
+        interactive=interactive,
     )
 
 
@@ -1095,6 +1226,7 @@ def start_worktree_setup_background(
     additional_params: Optional[dict] = None,
     auto_execute_command: Optional[list[str]] = None,
     auto_execute_timeout: int = 300,
+    interactive: bool = True,
 ) -> str:
     """
     Start worktree setup as a background task.
@@ -1118,6 +1250,8 @@ def start_worktree_setup_background(
             creation. Passed through to setup_worktree_in_background_sync.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
             (default: 300).
+        interactive: Whether to start the Copilot session interactively after
+            setup (default: True). Set to False for pipeline/non-interactive mode.
 
     Returns:
         The background task ID for tracking progress
@@ -1143,6 +1277,7 @@ def start_worktree_setup_background(
         set_value("worktree_setup.auto_execute_command", json.dumps(auto_execute_command))
     if auto_execute_timeout != 300:
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
+    set_value("worktree_setup.interactive", "true" if interactive else "false")
 
     # Build display name for the task
     display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"

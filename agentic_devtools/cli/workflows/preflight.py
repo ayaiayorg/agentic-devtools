@@ -246,6 +246,7 @@ def perform_auto_setup(
     additional_params: Optional[dict] = None,
     auto_execute_command: Optional[list[str]] = None,
     auto_execute_timeout: int = 300,
+    interactive: bool = True,
 ) -> bool:
     """
     Automatically set up a worktree environment for the issue as a background task.
@@ -275,6 +276,8 @@ def perform_auto_setup(
             creation. Passed through to the background setup task.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
             (default: 300).
+        interactive: Whether to start the Copilot session interactively after
+            the worktree is ready (default: True). Set to False for pipeline mode.
 
     Returns:
         True if the background task was started, False otherwise
@@ -297,6 +300,7 @@ def perform_auto_setup(
             additional_params=additional_params,
             auto_execute_command=auto_execute_command,
             auto_execute_timeout=auto_execute_timeout,
+            interactive=interactive,
         )
 
         print(f"\n✅ Background task started: {task_id}")

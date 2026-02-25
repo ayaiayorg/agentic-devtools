@@ -328,3 +328,131 @@ class TestWorkflowCommands:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "Unable to determine source branch for PR #999" in captured.err
+
+
+class TestInitiatePRReviewWorkflowInteractive:
+    """Tests for the --interactive flag and auto_execute_command behaviour."""
+
+    def test_interactive_flag_false_parsed_from_cli(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that --interactive false disables interactive mode."""
+        state.set_value("pull_request_id", "123")
+        state.set_value("jira.issue_key", "DFLY-1234")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/DFLY-1234/test"
+
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=False,
+                    branch_valid=False,
+                    folder_name="wrong",
+                    branch_name="main",
+                    issue_key="DFLY-1234",
+                )
+
+                with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                    mock_setup.return_value = True
+                    commands.initiate_pull_request_review_workflow(_argv=["--interactive", "false"])
+
+        call_kwargs = mock_setup.call_args[1]
+        assert call_kwargs["interactive"] is False
+
+    def test_interactive_defaults_to_true(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that interactive defaults to True when not specified."""
+        state.set_value("pull_request_id", "456")
+        state.set_value("jira.issue_key", "DFLY-5678")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/DFLY-5678/test"
+
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=False,
+                    branch_valid=False,
+                    folder_name="wrong",
+                    branch_name="main",
+                    issue_key="DFLY-5678",
+                )
+
+                with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                    mock_setup.return_value = True
+                    commands.initiate_pull_request_review_workflow(_argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        assert call_kwargs["interactive"] is True
+
+    def test_auto_execute_command_passed_with_pr_id_and_issue_key(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes both PR ID and issue key when both are available."""
+        state.set_value("pull_request_id", "789")
+        state.set_value("jira.issue_key", "DFLY-9999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/DFLY-9999/impl"
+
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=False,
+                    branch_valid=False,
+                    folder_name="wrong",
+                    branch_name="main",
+                    issue_key="DFLY-9999",
+                )
+
+                with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                    mock_setup.return_value = True
+                    commands.initiate_pull_request_review_workflow(_argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        expected_cmd = [
+            "agdt-initiate-pull-request-review-workflow",
+            "--pull-request-id",
+            "789",
+            "--issue-key",
+            "DFLY-9999",
+        ]
+        assert call_kwargs["auto_execute_command"] == expected_cmd
+
+    def test_auto_execute_command_without_issue_key(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command omits --issue-key when no issue key is available."""
+        state.set_value("pull_request_id", "111")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+            mock_find.return_value = None  # No issue key
+
+            with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                mock_src.return_value = "feature/some-branch"
+
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=False,
+                        branch_valid=False,
+                        folder_name="wrong",
+                        branch_name="main",
+                        issue_key="PR111",
+                    )
+
+                    with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                        mock_setup.return_value = True
+                        commands.initiate_pull_request_review_workflow(_argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--pull-request-id" in auto_cmd
+        assert "111" in auto_cmd
+        assert "--issue-key" not in auto_cmd

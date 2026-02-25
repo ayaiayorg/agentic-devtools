@@ -32,6 +32,7 @@ class TestPerformAutoSetup:
             additional_params=None,
             auto_execute_command=None,
             auto_execute_timeout=300,
+            interactive=True,
         )
         captured = capsys.readouterr()
         assert "task-12345" in captured.out
@@ -121,3 +122,32 @@ class TestPerformAutoSetup:
             "99",
         ]
         assert call_kwargs["auto_execute_timeout"] == 120
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_passes_interactive_false_to_background(self, mock_start_background, capsys):
+        """Test that interactive=False is passed to the background task."""
+        mock_start_background.return_value = "task-pipeline"
+
+        perform_auto_setup(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            interactive=False,
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["interactive"] is False
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_passes_interactive_true_by_default(self, mock_start_background, capsys):
+        """Test that interactive defaults to True when not specified."""
+        mock_start_background.return_value = "task-default"
+
+        perform_auto_setup(
+            issue_key="DFLY-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["interactive"] is True
