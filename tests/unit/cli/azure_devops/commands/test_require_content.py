@@ -1,6 +1,5 @@
 """Tests for require_content function."""
 
-import sys
 from unittest.mock import patch
 
 import pytest

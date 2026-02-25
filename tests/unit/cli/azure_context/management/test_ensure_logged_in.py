@@ -23,8 +23,6 @@ class TestEnsureLoggedIn:
 
     def test_returns_false_when_not_logged_in_and_login_fails(self, capsys):
         """Should return False when not logged in and subsequent login fails."""
-        import subprocess
-
         with patch(
             "agentic_devtools.cli.azure_context.management.check_login_status",
             side_effect=[(False, None, "Not logged in"), (False, None, "Still not in")],

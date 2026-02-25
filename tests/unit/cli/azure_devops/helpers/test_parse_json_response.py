@@ -1,6 +1,5 @@
 """Tests for parse_json_response function."""
 
-import sys
 import pytest
 
 from agentic_devtools.cli.azure_devops.helpers import parse_json_response

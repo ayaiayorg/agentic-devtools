@@ -1,7 +1,8 @@
 """Tests for build_distribution function."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agentic_devtools.cli.release.helpers import ReleaseError, build_distribution
 

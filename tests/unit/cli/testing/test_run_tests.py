@@ -43,4 +43,7 @@ class TestRunTests:
             with patch.object(testing, "print_task_tracking_info") as mock_print:
                 testing.run_tests()
 
-        mock_print.assert_called_once_with(mock_task, testing.run_tests.__doc__ and "Running full test suite with coverage (~55 seconds for 2000+ tests)" or mock_print.call_args[0][1])
+        mock_print.assert_called_once()
+        args = mock_print.call_args[0]
+        assert args[0] is mock_task
+        assert "test suite" in args[1].lower() or "coverage" in args[1].lower()

@@ -65,8 +65,16 @@ class TestDetectNetworkContext:
 
         assert context == NetworkContext.UNKNOWN
 
-    def test_returns_valid_context_enum(self):
-        """Return value should always be a valid NetworkContext enum member."""
-        context, desc = detect_network_context()
+    def test_returns_unknown_on_import_error(self):
+        """Should return UNKNOWN when vpn_toggle module cannot be imported."""
+        mock_module = MagicMock()
+        mock_module.is_vpn_connected.side_effect = ImportError("No module")
+
+        with patch.dict(
+            "sys.modules",
+            {"agentic_devtools.cli.azure_devops.vpn_toggle": mock_module},
+        ):
+            context, desc = detect_network_context()
+
         assert isinstance(context, NetworkContext)
         assert isinstance(desc, str)

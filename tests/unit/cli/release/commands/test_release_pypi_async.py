@@ -1,6 +1,5 @@
 """Tests for release_pypi_async function."""
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest

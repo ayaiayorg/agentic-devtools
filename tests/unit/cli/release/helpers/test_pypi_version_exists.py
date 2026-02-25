@@ -1,7 +1,8 @@
 """Tests for pypi_version_exists function."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agentic_devtools.cli.release.helpers import ReleaseError, pypi_version_exists
 

@@ -25,15 +25,15 @@ class TestCheckUsersExist:
 
     def test_prints_checking_message_when_users_set(self, capsys):
         """Should print a checking message when users are provided."""
-        mock_requests = __import__("unittest.mock", fromlist=["MagicMock"]).MagicMock
-        mock_resp = mock_requests()
-        mock_resp.status_code = 404
+        from unittest.mock import MagicMock
+
+        mock_requests_obj = MagicMock()
 
         with patch(
             "agentic_devtools.cli.jira.role_commands.get_jira_value",
             return_value="user1,user2",
         ):
-            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests()):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests_obj):
                 with patch("agentic_devtools.cli.jira.role_commands.get_jira_base_url", return_value="http://jira"):
                     with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                         with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=False):

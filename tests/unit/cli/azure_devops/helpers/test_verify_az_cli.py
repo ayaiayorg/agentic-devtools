@@ -1,6 +1,5 @@
 """Tests for verify_az_cli function."""
 
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -30,8 +29,6 @@ class TestVerifyAzCli:
 
     def test_exits_when_az_not_installed(self):
         """Should raise SystemExit when az CLI is not found."""
-        import subprocess
-
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.run_safe",
             side_effect=FileNotFoundError("az not found"),
