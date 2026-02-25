@@ -10,6 +10,7 @@ import sys
 from typing import Any, Dict, Optional
 
 from ...state import (
+    delete_value,
     get_pull_request_id,
     get_thread_id,
     get_value,
@@ -36,6 +37,39 @@ from .pull_request_details_commands import (
     _get_pull_request_iterations,
     get_change_tracking_id_for_file,
 )
+
+
+OVERALL_PR_SUMMARY_HEADING = "## Overall PR Review Summary"
+
+
+def _find_summary_thread_id(
+    requests, headers: Dict[str, str], config: AzureDevOpsConfig, repo_id: str, pull_request_id: int
+) -> Optional[int]:
+    """Find the thread ID of the 'Overall PR Review Summary' thread, if it exists.
+
+    Returns the ID of the first matching thread. If multiple summary threads exist
+    (e.g., from duplicate summary runs), the first one found is used.
+    """
+    threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+    try:
+        response = requests.get(threads_url, headers=headers, timeout=30)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"Warning: Could not search for summary thread: {e}", file=sys.stderr)
+        return None
+    threads = response.json().get("value", [])
+    for thread in threads:
+        for comment in thread.get("comments", []):
+            if OVERALL_PR_SUMMARY_HEADING in (comment.get("content") or ""):
+                thread_id = thread.get("id")
+                if thread_id is None:
+                    print(
+                        "Warning: Found summary thread without an 'id' field; skipping.",
+                        file=sys.stderr,
+                    )
+                    break
+                return thread_id
+    return None
 
 
 def _extract_issue_key_from_branch(branch_name: str) -> Optional[str]:
@@ -201,7 +235,7 @@ def add_pull_request_comment() -> None:
     if is_approval:
         content = format_approval_content(content)
 
-    # Optional file context
+    # Optional file context (used for both regular and file-level approval comments)
     path = get_value("path")
     line = get_value("line")
     end_line = get_value("end_line")
@@ -216,6 +250,8 @@ def add_pull_request_comment() -> None:
             print(f"[DRY RUN] File: {path}{line_info}{end_line_info}")
         if is_approval:
             print("[DRY RUN] Comment will include approval sentinel banner")
+            if not path:
+                print("[DRY RUN] Will reply to existing summary thread if found, otherwise create new thread")
         if not leave_thread_active:
             print("[DRY RUN] Would also resolve the thread after posting")
         print(f"Content:\n{content}")
@@ -226,6 +262,26 @@ def add_pull_request_comment() -> None:
 
     print(f"Resolving repository ID for '{config.repository}'...")
     repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+    # For PR-level approval comments (no file path), try to reply to the existing summary thread
+    if is_approval and not path:
+        summary_thread_id = _find_summary_thread_id(
+            requests, headers, config, repo_id, pull_request_id
+        )
+        if summary_thread_id:
+            try:
+                comment_url = config.build_api_url(
+                    repo_id, "pullRequests", pull_request_id, "threads", summary_thread_id, "comments"
+                )
+                comment_body = {"content": content, "commentType": "text"}
+                print(f"Posting approval to existing summary thread {summary_thread_id}...")
+                response = requests.post(comment_url, headers=headers, json=comment_body, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                print(f"Approval reply added (comment ID: {result.get('id')}, thread: {summary_thread_id})")
+                return
+            except Exception as e:
+                print(f"Warning: Could not reply to summary thread, creating new thread: {e}", file=sys.stderr)
 
     # Build thread context for file-level comments
     thread_context = build_thread_context(path, line, end_line)
@@ -552,8 +608,12 @@ def approve_pull_request() -> None:
         agdt-set content "LGTM! All acceptance criteria met."
         agdt-approve-pull-request
     """
-    # Set approval mode and delegate to add_pull_request_comment
+    # Set approval mode and clear any stale file context from previous file-review
+    # operations, so the approval posts as a PR-level comment, not a file-level one.
     set_value("is_pull_request_approval", True)
+    delete_value("path")
+    delete_value("line")
+    delete_value("end_line")
     add_pull_request_comment()
 
 
