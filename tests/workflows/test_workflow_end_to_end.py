@@ -31,7 +31,9 @@ def temp_output_dir(tmp_path):
     """Create a temporary output directory to avoid writing to scripts/temp/ during tests."""
     output_dir = tmp_path / "temp"
     output_dir.mkdir()
-    with patch.object(loader, "get_temp_output_dir", return_value=output_dir):
+    with patch.object(loader, "get_temp_output_dir", return_value=output_dir), patch(
+        "agentic_devtools.cli.workflows.manager.get_temp_output_dir", return_value=output_dir
+    ):
         yield output_dir
 
 
@@ -185,9 +187,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert workflow["step"] == "completion"
         assert workflow["status"] == "completed"
 
-    def test_complete_workflow_planning_to_completion(
-        self, temp_state_dir, temp_output_dir, clear_state_before, capsys
-    ):
+    def test_complete_workflow_planning_to_completion(self, temp_state_dir, temp_output_dir, clear_state_before):
         """Test the full work-on-jira-issue workflow lifecycle from planning to completion.
 
         This exercises all steps in order:
@@ -383,7 +383,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
         captured = capsys.readouterr()
         assert "WORKFLOW ADVANCED" in captured.out
 
-    def test_complete_pull_request_review_workflow(self, temp_state_dir, temp_output_dir, clear_state_before, capsys):
+    def test_complete_pull_request_review_workflow(self, temp_state_dir, temp_output_dir, clear_state_before):
         """Test the full pull-request-review workflow lifecycle from initiate to completion.
 
         Exercises all steps in order:
