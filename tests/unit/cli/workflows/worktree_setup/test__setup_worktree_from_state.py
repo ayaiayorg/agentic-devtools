@@ -22,6 +22,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": '{"pr_id": "123"}',
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -38,6 +39,7 @@ class TestSetupWorktreeFromState:
             additional_params={"pr_id": "123"},
             auto_execute_command=None,
             auto_execute_timeout=300,
+            interactive=True,
         )
 
     @patch("agentic_devtools.state.get_value")
@@ -64,6 +66,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": "invalid json {",
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -88,6 +91,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": None,
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -104,6 +108,7 @@ class TestSetupWorktreeFromState:
             additional_params=None,
             auto_execute_command=None,
             auto_execute_timeout=300,
+            interactive=True,
         )
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
@@ -120,6 +125,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": None,
             "worktree_setup.auto_execute_command": '["agdt-review", "--pr-id", "42"]',
             "worktree_setup.auto_execute_timeout": "120",
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -144,6 +150,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": None,
             "worktree_setup.auto_execute_command": "not valid json [",
             "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -167,6 +174,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.additional_params": None,
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": "not-a-number",
+            "worktree_setup.interactive": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -175,3 +183,51 @@ class TestSetupWorktreeFromState:
 
         call_kwargs = mock_setup_sync.call_args[1]
         assert call_kwargs["auto_execute_timeout"] == 300
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_passes_interactive_false_when_stored(self, mock_get_value, mock_setup_sync):
+        """Test that interactive=False is passed when state stores 'false'."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.branch_prefix": "feature",
+            "worktree_setup.branch_name": None,
+            "worktree_setup.use_existing_branch": None,
+            "worktree_setup.workflow_name": "pull-request-review",
+            "worktree_setup.user_request": None,
+            "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": "false",
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["interactive"] is False
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_defaults_interactive_to_true_when_not_stored(self, mock_get_value, mock_setup_sync):
+        """Test that interactive defaults to True when not set in state."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.branch_prefix": "feature",
+            "worktree_setup.branch_name": None,
+            "worktree_setup.use_existing_branch": None,
+            "worktree_setup.workflow_name": "work-on-jira-issue",
+            "worktree_setup.user_request": None,
+            "worktree_setup.additional_params": None,
+            "worktree_setup.auto_execute_command": None,
+            "worktree_setup.auto_execute_timeout": None,
+            "worktree_setup.interactive": None,
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["interactive"] is True

@@ -29,6 +29,7 @@ from .preflight import check_worktree_and_branch
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -39,15 +40,19 @@ def initiate_pull_request_review_workflow(
     in the source branch name.
 
     If not in the correct worktree/branch context, automatically creates
-    a worktree, installs agentic-devtools, and opens VS Code.
+    a worktree, installs agentic-devtools, and opens VS Code, then starts
+    a gh copilot session with the integrated review prompt.
 
     Usage:
         agdt-initiate-pull-request-review-workflow --pull-request-id 12345
         agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
+        agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
 
     Args:
         pull_request_id: ID of the pull request to review.
         issue_key: Jira issue key to find the PR by branch name.
+        interactive: Whether to start the Copilot session interactively (default: True).
+            Set to False for pipeline/non-interactive mode.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Either pull_request_id or issue_key must be provided (via CLI or state).
@@ -61,32 +66,47 @@ def initiate_pull_request_review_workflow(
     from ..azure_devops.helpers import find_jira_issue_from_pr, find_pr_from_jira_issue, get_pull_request_source_branch
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments if not called programmatically
-    if pull_request_id is None and issue_key is None:
-        parser = argparse.ArgumentParser(
-            description="Initiate the pull request review workflow",
-            epilog="""
+    # Parse CLI arguments — always parse to pick up --interactive even when
+    # pull_request_id/issue_key are supplied programmatically.
+    parser = argparse.ArgumentParser(
+        description="Initiate the pull request review workflow",
+        epilog="""
 Examples:
   agdt-initiate-pull-request-review-workflow --pull-request-id 12345
   agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
   agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --issue-key DFLY-1234
-            """,
-        )
-        parser.add_argument(
-            "--pull-request-id",
-            "-p",
-            dest="pull_request_id",
-            help="ID of the pull request to review.",
-        )
-        parser.add_argument(
-            "--issue-key",
-            "-i",
-            dest="issue_key",
-            help="Jira issue key to find PR by branch name (e.g., DFLY-1234).",
-        )
-        args = parser.parse_args(_argv)
+  agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        dest="pull_request_id",
+        help="ID of the pull request to review.",
+    )
+    parser.add_argument(
+        "--issue-key",
+        "-i",
+        dest="issue_key",
+        help="Jira issue key to find PR by branch name (e.g., DFLY-1234).",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        help="Start Copilot session interactively (default: true). Pass 'false' for pipeline mode.",
+    )
+    args = parser.parse_args(_argv)
+
+    # CLI values override programmatic values only when not already set
+    if pull_request_id is None and args.pull_request_id:
         pull_request_id = args.pull_request_id
+    if issue_key is None and args.issue_key:
         issue_key = args.issue_key
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive.lower() not in ("false", "0", "no")
+    if interactive is None:
+        interactive = True
 
     # Set provided values in state (use set_value directly since we handle cross-lookup below)
     if pull_request_id:
@@ -173,6 +193,16 @@ Examples:
         for reason in preflight_result.failure_reasons:
             print(f"   - {reason}")
 
+        # Build the command to re-run inside the worktree so the full setup
+        # (fetch PR details, generate prompts, init workflow state) executes there.
+        auto_execute_command = [
+            "agdt-initiate-pull-request-review-workflow",
+            "--pull-request-id",
+            str(resolved_pr_id),
+        ]
+        if resolved_issue_key:
+            auto_execute_command.extend(["--issue-key", resolved_issue_key])
+
         # Automatically set up the environment with the PR's source branch
         if perform_auto_setup(
             worktree_identifier,
@@ -180,6 +210,8 @@ Examples:
             branch_name=source_branch,
             use_existing_branch=True if source_branch else False,
             additional_params={"pull_request_id": resolved_pr_id} if resolved_pr_id else None,
+            auto_execute_command=auto_execute_command,
+            interactive=interactive,
         ):
             # Setup successful - user should continue in new VS Code window
             print("\n" + "=" * 80)

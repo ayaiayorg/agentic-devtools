@@ -186,3 +186,36 @@ class TestStartWorktreeSetupBackground:
 
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
         assert "worktree_setup.auto_execute_timeout" not in stored_keys
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_stores_interactive_false_in_state(self, mock_run_background, mock_set_value):
+        """Test that interactive=False is stored in state."""
+        mock_task = MagicMock()
+        mock_task.id = "task-interactive"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            interactive=False,
+        )
+
+        mock_set_value.assert_any_call("worktree_setup.interactive", "false")
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_does_not_store_interactive_when_true(self, mock_run_background, mock_set_value):
+        """Test that interactive=True (default) is NOT stored — absence means True."""
+        mock_task = MagicMock()
+        mock_task.id = "task-interactive-default"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            interactive=True,
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.interactive" not in stored_keys
