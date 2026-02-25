@@ -679,7 +679,23 @@ def setup_pull_request_review() -> None:
         # Load repo-specific review focus areas (optional — None if not configured)
         from ...config import load_review_focus_areas
 
-        repo_review_focus_areas = load_review_focus_areas(str(Path.cwd()))
+        # Determine repository root for loading .github/agdt-config.json
+        try:
+            git_root_result = run_safe(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                shell=False,
+            )
+            if git_root_result.returncode == 0 and git_root_result.stdout:
+                repo_root = git_root_result.stdout.strip()
+            else:
+                repo_root = str(Path.cwd())
+        except Exception:
+            repo_root = str(Path.cwd())
+
+        repo_review_focus_areas = load_review_focus_areas(repo_root)
 
         variables = {
             "pull_request_id": pull_request_id,
