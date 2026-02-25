@@ -409,3 +409,73 @@ class TestSetupWorktreeInBackgroundSync:
         )
 
         mock_copilot.assert_called_once_with("/repos/DFLY-1234", interactive=False)
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review")
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_copilot_session_not_started_when_auto_execute_fails_new_worktree(
+        self,
+        mock_check_exists,
+        mock_setup,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_run_cmd,
+        mock_set_value,
+        mock_copilot,
+    ):
+        """Test that Copilot session is NOT started when auto_execute fails (new worktree)."""
+        mock_check_exists.return_value = None
+        mock_setup.return_value = WorktreeSetupResult(
+            success=True,
+            worktree_path="/repos/DFLY-1234",
+            branch_name="feature/DFLY-1234/review",
+        )
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_run_cmd.return_value = 1  # Non-zero exit code
+
+        setup_worktree_in_background_sync(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "99"],
+            interactive=True,
+        )
+
+        mock_copilot.assert_not_called()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review")
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_copilot_session_not_started_when_auto_execute_fails_existing_worktree(
+        self,
+        mock_check_exists,
+        mock_open_vscode,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_run_cmd,
+        mock_set_value,
+        mock_copilot,
+    ):
+        """Test that Copilot session is NOT started when auto_execute fails (existing worktree)."""
+        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_open_vscode.return_value = True
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_run_cmd.return_value = 1  # Non-zero exit code
+
+        setup_worktree_in_background_sync(
+            issue_key="DFLY-1234",
+            workflow_name="pull-request-review",
+            auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "42"],
+            interactive=True,
+        )
+
+        mock_copilot.assert_not_called()

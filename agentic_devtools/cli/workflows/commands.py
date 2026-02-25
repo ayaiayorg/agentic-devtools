@@ -96,7 +96,7 @@ Examples:
         default=None,
         help="Start Copilot session interactively (default: true). Pass 'false' for pipeline mode.",
     )
-    args = parser.parse_args(_argv)
+    args, _unknown = parser.parse_known_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:

@@ -957,7 +957,7 @@ def _start_copilot_session_for_pr_review(
     prompt, and start a ``gh copilot`` session.
 
     The prompt file is expected at
-    ``{temp_output_dir}/temp-pull-request-review-initiate-prompt.md``
+    ``{worktree_path}/scripts/temp/temp-pull-request-review-initiate-prompt.md``
     (written by ``load_and_render_prompt()`` during the PR review setup).
     Focus areas are loaded from ``{worktree_path}/.github/agdt-config.json``
     if present.
@@ -974,10 +974,9 @@ def _start_copilot_session_for_pr_review(
         interactive: Whether to start the Copilot session interactively.
     """
     from ...config import load_review_focus_areas
-    from ...state import get_state_dir
     from ..copilot.session import start_copilot_session
 
-    prompt_file = get_state_dir() / "temp-pull-request-review-initiate-prompt.md"
+    prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
 
     print(f"\n--- Waiting for initiate prompt file: {prompt_file} ---")
     if not _wait_for_prompt_file(prompt_file):
@@ -1072,7 +1071,7 @@ def setup_worktree_in_background_sync(
             exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
 
-            if workflow_name == "pull-request-review":
+            if workflow_name == "pull-request-review" and exit_code == 0:
                 _start_copilot_session_for_pr_review(existing_path, interactive=interactive)
 
         print("\n✅ Environment ready!")
@@ -1107,7 +1106,7 @@ can copy and paste it into the new VS Code window that just opened:
             exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
 
-            if workflow_name == "pull-request-review":
+            if workflow_name == "pull-request-review" and exit_code == 0:
                 _start_copilot_session_for_pr_review(result.worktree_path, interactive=interactive)
 
         print("\n✅ Environment setup complete!")
