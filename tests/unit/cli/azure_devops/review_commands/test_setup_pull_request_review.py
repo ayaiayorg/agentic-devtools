@@ -179,6 +179,44 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     setup_pull_request_review()
                                                     mock_load.assert_called_once_with(str(Path.cwd()))
 
+    def test_load_review_focus_areas_falls_back_to_cwd_when_run_safe_raises(self):
+        """Test that load_review_focus_areas falls back to cwd when run_safe raises an exception."""
+        pr_details = self._make_pr_details()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(pr_details)
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch("agentic_devtools.config.load_review_focus_areas") as mock_load:
+                                                mock_load.return_value = None
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    side_effect=OSError("git not found"),
+                                                ):
+                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                        setup_pull_request_review,
+                                                    )
+
+                                                    setup_pull_request_review()
+                                                    mock_load.assert_called_once_with(str(Path.cwd()))
+
 
 class TestSetupPullRequestReview:
     """Tests for setup_pull_request_review function."""

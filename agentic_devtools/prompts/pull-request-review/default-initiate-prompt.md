@@ -52,7 +52,7 @@ independent evaluation.
 
 ## Repo-Specific Review Focus Areas
 
-{{ repo_review_focus_areas }}
+{{repo_review_focus_areas}}
 {% endif %}
 
 ## Review Outcomes
