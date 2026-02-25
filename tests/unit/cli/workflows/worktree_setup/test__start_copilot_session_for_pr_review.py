@@ -12,10 +12,10 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_starts_interactive_session_when_vscode_available(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_focus,
         mock_vscode,
@@ -27,7 +27,7 @@ class TestStartCopilotSessionForPrReview:
         prompt_file = tmp_path / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Review prompt content", encoding="utf-8")
 
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = True
         mock_focus.return_value = None  # No focus areas
         mock_vscode.return_value = True
@@ -44,10 +44,10 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_forces_non_interactive_when_vscode_unavailable(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_focus,
         mock_vscode,
@@ -58,7 +58,7 @@ class TestStartCopilotSessionForPrReview:
         prompt_file = tmp_path / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Review prompt", encoding="utf-8")
 
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = True
         mock_focus.return_value = None
         mock_vscode.return_value = False  # VS Code not available
@@ -76,10 +76,10 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_appends_focus_areas_when_available(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_focus,
         mock_vscode,
@@ -90,7 +90,7 @@ class TestStartCopilotSessionForPrReview:
         prompt_file = tmp_path / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Base prompt", encoding="utf-8")
 
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = True
         mock_focus.return_value = "## Focus Areas\n- Security\n- Performance"
         mock_vscode.return_value = True
@@ -106,17 +106,17 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_skips_session_when_prompt_file_not_found(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_copilot,
         tmp_path,
         capsys,
     ):
         """Test that the Copilot session is skipped when the prompt file never appears."""
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = False  # File never appeared
 
         _start_copilot_session_for_pr_review("/repos/DFLY-1234")
@@ -129,10 +129,10 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_uses_worktree_path_for_focus_areas(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_focus,
         mock_vscode,
@@ -143,7 +143,7 @@ class TestStartCopilotSessionForPrReview:
         prompt_file = tmp_path / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Prompt", encoding="utf-8")
 
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = True
         mock_focus.return_value = None
         mock_vscode.return_value = True
@@ -154,10 +154,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    @patch("agentic_devtools.prompts.loader.get_temp_output_dir")
+    @patch("agentic_devtools.state.get_state_dir")
     def test_skips_session_when_prompt_file_unreadable(
         self,
-        mock_get_temp_dir,
+        mock_get_state_dir,
         mock_wait,
         mock_copilot,
         tmp_path,
@@ -168,7 +168,7 @@ class TestStartCopilotSessionForPrReview:
         bad_path = tmp_path / "temp-pull-request-review-initiate-prompt.md"
         bad_path.mkdir()  # Directory, not file — read_text raises IsADirectoryError (OSError)
 
-        mock_get_temp_dir.return_value = tmp_path
+        mock_get_state_dir.return_value = tmp_path
         mock_wait.return_value = True  # File "exists" (it's a dir)
 
         _start_copilot_session_for_pr_review("/repos/DFLY-1234")

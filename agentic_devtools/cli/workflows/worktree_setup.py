@@ -974,10 +974,10 @@ def _start_copilot_session_for_pr_review(
         interactive: Whether to start the Copilot session interactively.
     """
     from ...config import load_review_focus_areas
-    from ...prompts.loader import get_temp_output_dir
+    from ...state import get_state_dir
     from ..copilot.session import start_copilot_session
 
-    prompt_file = get_temp_output_dir() / "temp-pull-request-review-initiate-prompt.md"
+    prompt_file = get_state_dir() / "temp-pull-request-review-initiate-prompt.md"
 
     print(f"\n--- Waiting for initiate prompt file: {prompt_file} ---")
     if not _wait_for_prompt_file(prompt_file):
