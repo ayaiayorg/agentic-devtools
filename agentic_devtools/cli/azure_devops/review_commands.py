@@ -676,6 +676,27 @@ def setup_pull_request_review() -> None:
         print("WORKFLOW INITIALIZED: pull-request-review")
         print("=" * 60)
 
+        # Load repo-specific review focus areas (optional — None if not configured)
+        from ...config import load_review_focus_areas
+
+        # Determine repository root for loading .github/agdt-config.json
+        try:
+            git_root_result = run_safe(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                shell=False,
+            )
+            if git_root_result.returncode == 0 and git_root_result.stdout:
+                repo_root = git_root_result.stdout.strip()
+            else:
+                repo_root = str(Path.cwd())
+        except Exception:
+            repo_root = str(Path.cwd())
+
+        repo_review_focus_areas = load_review_focus_areas(repo_root)
+
         variables = {
             "pull_request_id": pull_request_id,
             "jira_issue_key": jira_issue_key or "",
@@ -684,6 +705,7 @@ def setup_pull_request_review() -> None:
             "source_branch": source_branch,
             "target_branch": target_branch,
             "file_count": file_count,
+            "repo_review_focus_areas": repo_review_focus_areas or "",
         }
 
         load_and_render_prompt(
