@@ -209,3 +209,37 @@ class TestStartCopilotSessionForPrReview:
         assert captured_state_dir == [expected_state_dir]
         # Env var must be restored (removed) after the call
         assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.config.load_review_focus_areas")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_restores_pre_existing_state_dir_env_after_session(
+        self,
+        mock_wait,
+        mock_focus,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that a pre-existing AGENTIC_DEVTOOLS_STATE_DIR is restored after the session."""
+        import os
+
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_focus.return_value = None
+        mock_vscode.return_value = True
+
+        # Set a pre-existing value
+        original_state_dir = "/original/state/dir"
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", original_state_dir)
+
+        _start_copilot_session_for_pr_review(str(tmp_path))
+
+        # The original value must be restored after the call
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_state_dir

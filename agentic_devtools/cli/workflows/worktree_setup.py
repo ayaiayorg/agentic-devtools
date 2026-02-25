@@ -919,7 +919,7 @@ def _run_auto_execute_command(
 
 def _wait_for_prompt_file(
     prompt_path: Path,
-    timeout: int = 300,
+    timeout: float = 300,
     poll_interval: float = 5.0,
 ) -> bool:
     """
@@ -931,7 +931,7 @@ def _wait_for_prompt_file(
 
     Args:
         prompt_path: Absolute path to the expected prompt file.
-        timeout: Maximum seconds to wait (default: 300).
+        timeout: Maximum seconds to wait (default: 300; accepts fractional seconds).
         poll_interval: Seconds between checks (default: 5).
 
     Returns:

@@ -53,7 +53,9 @@ def initiate_pull_request_review_workflow(
         issue_key: Jira issue key to find the PR by branch name.
         interactive: Whether to start the Copilot session interactively (default: True).
             Set to False for pipeline/non-interactive mode.
-        _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv
+            (this function always calls parse_known_args, so unknown flags are silently ignored,
+            but passing [] prevents any accidental parsing of the test runner's sys.argv).
 
     Either pull_request_id or issue_key must be provided (via CLI or state).
     """

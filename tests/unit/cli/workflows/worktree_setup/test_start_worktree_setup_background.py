@@ -205,7 +205,7 @@ class TestStartWorktreeSetupBackground:
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
-    def test_does_not_store_interactive_when_true(self, mock_run_background, mock_set_value):
+    def test_stores_interactive_true_to_override_prior_false(self, mock_run_background, mock_set_value):
         """Test that interactive=True is stored as 'true' to override any prior 'false' value."""
         mock_task = MagicMock()
         mock_task.id = "task-interactive-default"
