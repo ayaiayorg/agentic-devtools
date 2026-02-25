@@ -154,7 +154,7 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt_file: str) -> list:
+def _build_copilot_args(prompt_file: str) -> list[str]:
     """Build the ``gh copilot suggest`` argument list.
 
     The prompt is passed via the ``--file`` flag (when supported) so that
@@ -302,8 +302,8 @@ def start_copilot_session(
             mode=mode,
             prompt_file=prompt_file,
             start_time=start_time,
-            pid=process.pid,
-            process=None,  # process has already exited
+            pid=None,  # process has already exited; PID not meaningful
+            process=None,
         )
     else:
         # Non-interactive: run as background process, capture output to log file.

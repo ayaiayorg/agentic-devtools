@@ -124,6 +124,15 @@ class TestStartCopilotSessionInteractive:
         assert result.start_time
         assert "T" in result.start_time  # ISO-8601 datetime contains 'T'
 
+    def test_pid_is_none_for_interactive(self, temp_state, mock_available, mock_popen_interactive):
+        """pid is None for interactive sessions (process has exited when result is returned)."""
+        result = start_copilot_session(
+            prompt="Do something",
+            working_directory=str(temp_state),
+            interactive=True,
+        )
+        assert result.pid is None
+
     def test_popen_called_with_shell_false(self, temp_state, mock_available, mock_popen_interactive):
         """Popen is called with shell=False to prevent env-var expansion on Windows."""
         mock_popen, _ = mock_popen_interactive
