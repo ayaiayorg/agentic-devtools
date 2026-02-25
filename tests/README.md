@@ -298,12 +298,28 @@ ruff format tests/unit/         # fix formatting
 python scripts/validate_test_structure.py  # verify 1:1:1 structure
 ```
 
+## Integration and End-to-End Tests
+
+Integration or end-to-end tests that exercise **multiple functions, modules, or workflow steps**
+together cannot follow the 1:1:1 policy (they are not testing a single symbol). These tests
+must **not** be placed under `tests/unit/` — doing so will cause the structure validator to fail.
+
+Instead, place them in a dedicated top-level directory that reflects the area under test:
+
+| Directory | Use for |
+|-----------|---------|
+| `tests/workflows/` | End-to-end workflow lifecycle tests (e.g., planning → completion) |
+| `tests/azure_devops/` | Multi-function Azure DevOps integration tests |
+| `tests/e2e_smoke/` | Full smoke tests requiring live or mocked external services |
+
+Directories outside `tests/unit/` are **not** checked by the 1:1:1 validator.
+
 ## Existing Tests
 
-Tests outside `tests/unit/` (e.g., `tests/azure_devops/`, `tests/e2e_smoke/`, and the
-flat `tests/test_*.py` files) were written before this policy was introduced. They are
-**not** validated by the 1:1:1 script and do not need to be migrated immediately.
-New test code, however, **must** be placed under `tests/unit/`.
+Tests outside `tests/unit/` (e.g., `tests/azure_devops/`, `tests/e2e_smoke/`, `tests/workflows/`,
+and the flat `tests/test_*.py` files) are **not** validated by the 1:1:1 script.
+New **unit** tests must be placed under `tests/unit/`; new **integration** tests must be placed
+in the appropriate directory outside `tests/unit/` (see the table above).
 
 ## Platform-Specific Tests
 
