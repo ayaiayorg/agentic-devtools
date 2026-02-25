@@ -21,13 +21,14 @@ class TestEnsureLoggedIn:
         captured = capsys.readouterr()
         assert "user@company.com" in captured.out
 
-    def test_returns_false_when_not_logged_in_and_login_fails(self, capsys):
+    def test_returns_false_when_not_logged_in_and_login_fails(self, tmp_path, capsys):
         """Should return False when not logged in and subsequent login fails."""
-        with patch(
-            "agentic_devtools.cli.azure_context.management.check_login_status",
-            side_effect=[(False, None, "Not logged in"), (False, None, "Still not in")],
-        ):
-            with patch("subprocess.run", return_value=type("R", (), {"returncode": 1})()):
-                result = ensure_logged_in(AzureContext.DEVOPS)
+        with patch("agentic_devtools.cli.azure_context.config.Path.home", return_value=tmp_path):
+            with patch(
+                "agentic_devtools.cli.azure_context.management.check_login_status",
+                side_effect=[(False, None, "Not logged in"), (False, None, "Still not in")],
+            ):
+                with patch("subprocess.run", return_value=type("R", (), {"returncode": 1})()):
+                    result = ensure_logged_in(AzureContext.DEVOPS)
 
         assert result is False

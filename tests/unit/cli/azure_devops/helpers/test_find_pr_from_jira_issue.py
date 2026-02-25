@@ -20,7 +20,11 @@ class TestFindPrFromJiraIssue:
                 "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel",
                 return_value=None,
             ):
-                result = find_pr_from_jira_issue("DFLY-1234")
+                with patch(
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=None,
+                ):
+                    result = find_pr_from_jira_issue("DFLY-1234")
 
         assert result == 42
 
@@ -30,7 +34,15 @@ class TestFindPrFromJiraIssue:
             "agentic_devtools.cli.azure_devops.helpers.find_pull_request_by_issue_key",
             return_value=None,
         ):
-            result = find_pr_from_jira_issue("DFLY-9999")
+            with patch(
+                "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel",
+                return_value=None,
+            ):
+                with patch(
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=None,
+                ):
+                    result = find_pr_from_jira_issue("DFLY-9999")
 
         assert result is None
 
@@ -42,7 +54,14 @@ class TestFindPrFromJiraIssue:
             "agentic_devtools.cli.azure_devops.helpers.find_pull_request_by_issue_key",
             return_value=pr_data,
         ):
-            # Even if dev panel raises, ADO search should still work
-            result = find_pr_from_jira_issue("DFLY-1234")
+            with patch(
+                "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel",
+                side_effect=Exception("Jira connection failed"),
+            ):
+                with patch(
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=None,
+                ):
+                    result = find_pr_from_jira_issue("DFLY-1234")
 
         assert result == 55

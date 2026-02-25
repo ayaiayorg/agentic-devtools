@@ -11,24 +11,28 @@ class TestGetContextEnv:
 
     def test_returns_azure_config_dir_key(self, tmp_path):
         """Should return a dict containing AZURE_CONFIG_DIR key."""
-        result = get_context_env(AzureContext.DEVOPS)
+        with patch("agentic_devtools.cli.azure_context.config.Path.home", return_value=tmp_path):
+            result = get_context_env(AzureContext.DEVOPS)
 
         assert "AZURE_CONFIG_DIR" in result
 
     def test_azure_config_dir_contains_devops(self, tmp_path):
         """AZURE_CONFIG_DIR value should contain 'devops' for DEVOPS context."""
-        result = get_context_env(AzureContext.DEVOPS)
+        with patch("agentic_devtools.cli.azure_context.config.Path.home", return_value=tmp_path):
+            result = get_context_env(AzureContext.DEVOPS)
 
         assert "devops" in result["AZURE_CONFIG_DIR"]
 
     def test_azure_config_dir_contains_resources(self, tmp_path):
         """AZURE_CONFIG_DIR value should contain 'resources' for AZURE_RESOURCES context."""
-        result = get_context_env(AzureContext.AZURE_RESOURCES)
+        with patch("agentic_devtools.cli.azure_context.config.Path.home", return_value=tmp_path):
+            result = get_context_env(AzureContext.AZURE_RESOURCES)
 
         assert "resources" in result["AZURE_CONFIG_DIR"]
 
-    def test_returns_dict(self):
+    def test_returns_dict(self, tmp_path):
         """Return value should be a dictionary."""
-        result = get_context_env(AzureContext.DEVOPS)
+        with patch("agentic_devtools.cli.azure_context.config.Path.home", return_value=tmp_path):
+            result = get_context_env(AzureContext.DEVOPS)
 
         assert isinstance(result, dict)

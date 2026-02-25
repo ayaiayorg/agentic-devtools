@@ -1,5 +1,7 @@
 """Tests for with_jira_vpn_context decorator."""
 
+from unittest.mock import patch
+
 from agentic_devtools.cli.jira.vpn_wrapper import with_jira_vpn_context
 
 
@@ -26,6 +28,9 @@ class TestWithJiraVpnContext:
         def my_function():
             return "expected_value"
 
-        # On non-Windows the decorator just passes through
-        result = my_function()
+        # Force ImportError path inside the wrapper so it calls func directly
+        # without attempting real VPN subprocess calls
+        with patch.dict("sys.modules", {"agentic_devtools.cli.azure_devops.vpn_toggle": None}):
+            result = my_function()
+
         assert result == "expected_value"
