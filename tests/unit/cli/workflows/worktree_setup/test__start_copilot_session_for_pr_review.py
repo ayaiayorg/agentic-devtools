@@ -168,3 +168,44 @@ class TestStartCopilotSessionForPrReview:
         mock_copilot.assert_not_called()
         captured = capsys.readouterr()
         assert "Could not read initiate prompt file" in captured.out
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.config.load_review_focus_areas")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_sets_state_dir_env_and_restores_on_exit(
+        self,
+        mock_wait,
+        mock_focus,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that AGENTIC_DEVTOOLS_STATE_DIR is set to the worktree during the session."""
+        import os
+
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_focus.return_value = None
+        mock_vscode.return_value = True
+
+        captured_state_dir: list = []
+
+        def capture_env(**_kwargs):
+            captured_state_dir.append(os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR"))
+
+        mock_copilot.side_effect = capture_env
+
+        # Ensure the env var is NOT set before the call
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        _start_copilot_session_for_pr_review(str(tmp_path))
+
+        expected_state_dir = str(tmp_path / "scripts" / "temp")
+        assert captured_state_dir == [expected_state_dir]
+        # Env var must be restored (removed) after the call
+        assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ

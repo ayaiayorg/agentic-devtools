@@ -1002,11 +1002,27 @@ def _start_copilot_session_for_pr_review(
     print(
         f"\n--- Starting gh copilot session (mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"
     )
-    start_copilot_session(
-        prompt=integrated_prompt,
-        working_directory=worktree_path,
-        interactive=effective_interactive,
-    )
+    # Ensure Copilot session state and artifacts (prompt file, log file, copilot.*
+    # state keys) are written under the target worktree, not the caller's CWD.
+    # start_copilot_session() resolves paths via get_state_dir() which is CWD-based;
+    # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path.
+    state_dir = Path(worktree_path) / "scripts" / "temp"
+    previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    previous_cwd = os.getcwd()
+    os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+    os.chdir(worktree_path)
+    try:
+        start_copilot_session(
+            prompt=integrated_prompt,
+            working_directory=worktree_path,
+            interactive=effective_interactive,
+        )
+    finally:
+        os.chdir(previous_cwd)
+        if previous_state_dir is None:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        else:
+            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
 
 
 def setup_worktree_in_background_sync(
@@ -1258,8 +1274,7 @@ def start_worktree_setup_background(
         set_value("worktree_setup.auto_execute_command", json.dumps(auto_execute_command))
     if auto_execute_timeout != 300:
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
-    if not interactive:
-        set_value("worktree_setup.interactive", "false")
+    set_value("worktree_setup.interactive", "true" if interactive else "false")
 
     # Build display name for the task
     display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"
