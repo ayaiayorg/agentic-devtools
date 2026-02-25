@@ -5,7 +5,7 @@ Provides mock fixtures for Jira API interactions used across multiple
 test modules, eliminating duplication of fixture definitions.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +16,7 @@ from agdt_ai_helpers.cli.jira import (
     role_commands,
     update_commands,
 )
+from tests.helpers import make_mock_response
 
 
 @pytest.fixture
@@ -45,10 +46,10 @@ def mock_requests_module():
     role_commands) and returns a mock HTTP client pre-configured with a
     default success response.
     """
+    from unittest.mock import MagicMock
+
     mock_module = MagicMock()
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"key": "DFLY-9999", "id": "12345"}
-    mock_response.raise_for_status = MagicMock()
+    mock_response = make_mock_response()
     mock_module.post.return_value = mock_response
     mock_module.get.return_value = mock_response
     with patch.object(create_commands, "_get_requests", return_value=mock_module):
