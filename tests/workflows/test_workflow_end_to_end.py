@@ -40,9 +40,7 @@ def temp_output_dir(tmp_path):
 @pytest.fixture
 def clear_state_before(temp_state_dir):
     """Clear state file before each test."""
-    state_file = temp_state_dir / "agdt-state.json"
-    if state_file.exists():
-        state_file.unlink()
+    state.clear_state()
     yield
 
 
