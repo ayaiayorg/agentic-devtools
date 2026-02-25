@@ -996,8 +996,11 @@ def _start_copilot_session_for_pr_review(
     else:
         integrated_prompt = initiate_prompt
 
-    # Non-interactive mode when VS Code is not available (pipeline scenario)
-    effective_interactive = interactive and is_vscode_available()
+    # Non-interactive mode when VS Code is not available (pipeline scenario),
+    # or when there is no TTY attached (e.g. running inside run_function_in_background
+    # where stdin/stdout are redirected to DEVNULL/log files).
+    has_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    effective_interactive = interactive and is_vscode_available() and has_tty
 
     print(
         f"\n--- Starting gh copilot session (mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"

@@ -20,8 +20,11 @@ class TestStartCopilotSessionForPrReview:
         mock_copilot,
         tmp_path,
         capsys,
+        monkeypatch,
     ):
-        """Test that an interactive Copilot session is started when VS Code is available."""
+        """Test that an interactive Copilot session is started when VS Code is available and a TTY is attached."""
+        from unittest.mock import MagicMock
+
         prompt_dir = tmp_path / "scripts" / "temp"
         prompt_dir.mkdir(parents=True)
         prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
@@ -30,6 +33,14 @@ class TestStartCopilotSessionForPrReview:
         mock_wait.return_value = True
         mock_focus.return_value = None  # No focus areas
         mock_vscode.return_value = True
+
+        # Simulate a real TTY so effective_interactive stays True
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = True
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = True
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
 
         _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
 
@@ -243,3 +254,45 @@ class TestStartCopilotSessionForPrReview:
 
         # The original value must be restored after the call
         assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_state_dir
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.config.load_review_focus_areas")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_forces_non_interactive_when_no_tty(
+        self,
+        mock_wait,
+        mock_focus,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that the session is non-interactive when no TTY is attached (background task scenario)."""
+        from unittest.mock import MagicMock
+
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Review prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_focus.return_value = None
+        mock_vscode.return_value = True  # VS Code available, but no TTY
+
+        # Simulate no TTY (stdin/stdout are pipes, as in run_function_in_background)
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Must be non-interactive despite interactive=True and VS Code available
+        mock_copilot.assert_called_once_with(
+            prompt="# Review prompt",
+            working_directory=str(tmp_path),
+            interactive=False,
+        )

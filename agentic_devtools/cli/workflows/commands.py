@@ -57,7 +57,8 @@ def initiate_pull_request_review_workflow(
             (this function always calls parse_known_args, so unknown flags are silently ignored,
             but passing [] prevents any accidental parsing of the test runner's sys.argv).
 
-    Either pull_request_id or issue_key must be provided (via CLI or state).
+    Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
+    any existing state is cleared at the start of this command to ensure a fresh workflow.
     """
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
