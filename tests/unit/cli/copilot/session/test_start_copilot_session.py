@@ -124,6 +124,17 @@ class TestStartCopilotSessionInteractive:
         assert result.start_time
         assert "T" in result.start_time  # ISO-8601 datetime contains 'T'
 
+    def test_popen_called_with_shell_false(self, temp_state, mock_available, mock_popen_interactive):
+        """Popen is called with shell=False to prevent env-var expansion on Windows."""
+        mock_popen, _ = mock_popen_interactive
+        start_copilot_session(
+            prompt="Do something",
+            working_directory=str(temp_state),
+            interactive=True,
+        )
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs.get("shell") is False
+
     def test_popen_called_with_correct_args(self, temp_state, mock_available, mock_popen_interactive):
         """Popen is called with the gh copilot suggest --file <prompt_file> args."""
         mock_popen, _ = mock_popen_interactive
@@ -162,6 +173,17 @@ class TestStartCopilotSessionInteractive:
 
 class TestStartCopilotSessionNonInteractive:
     """Tests for start_copilot_session in non-interactive mode."""
+
+    def test_popen_called_with_shell_false(self, temp_state, mock_available, mock_popen_noninteractive):
+        """Popen is called with shell=False in non-interactive mode."""
+        mock_popen, _ = mock_popen_noninteractive
+        start_copilot_session(
+            prompt="Review the PR",
+            working_directory=str(temp_state),
+            interactive=False,
+        )
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs.get("shell") is False
 
     def test_mode_is_non_interactive(self, temp_state, mock_available, mock_popen_noninteractive):
         """Mode is set to 'non-interactive'."""

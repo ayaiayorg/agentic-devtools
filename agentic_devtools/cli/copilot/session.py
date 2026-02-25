@@ -36,6 +36,8 @@ from typing import Optional
 
 from agentic_devtools.state import get_state_dir, set_value
 
+from ..subprocess_utils import run_safe
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -98,11 +100,12 @@ def is_gh_copilot_available() -> bool:
     if not shutil.which("gh"):
         return False
     try:
-        result = subprocess.run(
+        result = run_safe(
             ["gh", "copilot", "--help"],
             capture_output=True,
             text=True,
             timeout=10,
+            shell=False,
         )
         return result.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
@@ -284,9 +287,14 @@ def start_copilot_session(
     if interactive:
         # Inherit stdio so the user can interact with the session.
         # This call blocks until the interactive session ends.
+        # shell=False is required: gh is a proper .exe (not a .cmd batch script),
+        # and the argument list contains a file path derived from user-supplied
+        # prompt content; shell=True on Windows would allow cmd.exe to expand
+        # %VAR% patterns inside those values.
         process = subprocess.Popen(
             args,
             cwd=working_directory,
+            shell=False,
         )
         process.wait()
         result = CopilotSessionResult(
@@ -302,15 +310,20 @@ def start_copilot_session(
         log_file_path = _get_log_file_path(session_id, start_time)
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(log_file_path, "w", encoding="utf-8") as log_fh:
-            process = subprocess.Popen(
-                args,
-                cwd=working_directory,
-                stdout=log_fh,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True if sys.platform != "win32" else False,
-            )
+        # Open without a context manager so the file handle stays open while the
+        # background process is still running; the OS will release it when the
+        # child process (which inherits the fd) eventually exits.
+        # shell=False: same reasoning as the interactive case above.
+        log_fh = open(log_file_path, "w", encoding="utf-8")  # noqa: WPS515
+        process = subprocess.Popen(
+            args,
+            cwd=working_directory,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True if sys.platform != "win32" else False,
+            shell=False,
+        )
 
         result = CopilotSessionResult(
             session_id=session_id,
