@@ -31,6 +31,7 @@ jobs:
       workflows: ${{ steps.filter.outputs.workflows }}
       core: ${{ steps.filter.outputs.core }}
       config: ${{ steps.filter.outputs.config }}
+      e2e_smoke: ${{ steps.filter.outputs.e2e_smoke }}
       has_modules: ${{ steps.has-modules.outputs.result }}
     steps:
       - uses: actions/checkout@v4
@@ -109,6 +110,8 @@ jobs:
               - 'scripts/validate_test_structure.py'
               - 'tests/conftest.py'
               - 'tests/helpers.py'
+            e2e_smoke:
+              - 'tests/e2e_smoke/**'
 
       - name: Check if any module changed
         id: has-modules
@@ -126,7 +129,8 @@ jobs:
                 "${{ steps.filter.outputs.speckit }}" == "true" || \
                 "${{ steps.filter.outputs.azure }}" == "true" || \
                 "${{ steps.filter.outputs.workflows }}" == "true" || \
-                "${{ steps.filter.outputs.core }}" == "true" ]]; then
+                "${{ steps.filter.outputs.core }}" == "true" || \
+                "${{ steps.filter.outputs.e2e_smoke }}" == "true" ]]; then
             echo "result=true" >> "$GITHUB_OUTPUT"
           else
             echo "result=false" >> "$GITHUB_OUTPUT"
@@ -264,6 +268,10 @@ jobs:
             COV_FLAGS+=(--cov=agentic_devtools.cli.state)
             COV_FLAGS+=(--cov=agentic_devtools.cli.subprocess_utils)
             COV_FLAGS+=(--cov=agentic_devtools.cli.testing)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.e2e_smoke }}" = "true" ]; then
+            add_path tests/e2e_smoke
           fi
 
           echo "Test paths: ${TEST_PATHS[*]}"
