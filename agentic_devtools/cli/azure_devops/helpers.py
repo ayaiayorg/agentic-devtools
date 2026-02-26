@@ -8,6 +8,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from typing import Any, Dict, List, Optional
 
 from ..subprocess_utils import run_safe
@@ -110,6 +111,111 @@ def resolve_thread_by_id(
     resolve_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id)
     response = requests_module.patch(resolve_url, headers=headers, json={"status": status})
     response.raise_for_status()
+
+
+_PATCH_MAX_RETRIES = 3
+
+
+def patch_comment(
+    requests_module,
+    headers: Dict[str, str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    pull_request_id: int,
+    thread_id: int,
+    comment_id: int,
+    new_content: str,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """
+    Edit an existing comment's content via PATCH.
+
+    Args:
+        requests_module: The requests module.
+        headers: Auth headers for API calls.
+        config: Azure DevOps configuration.
+        repo_id: Repository ID.
+        pull_request_id: Pull request ID.
+        thread_id: Thread ID containing the comment.
+        comment_id: Comment ID to edit.
+        new_content: New markdown content for the comment.
+        dry_run: If True, skip the API call and return {}.
+
+    Returns:
+        Parsed JSON response dict from the API, or {} in dry_run mode.
+    """
+    if dry_run:
+        print(f"[DRY RUN] Would patch comment {comment_id} on thread {thread_id}, PR {pull_request_id}")
+        return {}
+
+    url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id, "comments", comment_id)
+
+    for attempt in range(_PATCH_MAX_RETRIES):
+        response = requests_module.patch(url, headers=headers, json={"content": new_content}, timeout=30)
+        if response.status_code == 429 and attempt < _PATCH_MAX_RETRIES - 1:
+            retry_after_header = response.headers.get("Retry-After")
+            retry_after = 60
+            if retry_after_header is not None:
+                try:
+                    parsed = int(retry_after_header)
+                except (TypeError, ValueError):
+                    parsed = -1
+                if parsed >= 0:
+                    retry_after = parsed
+            time.sleep(retry_after)
+            continue
+        response.raise_for_status()
+        return response.json()
+
+
+def patch_thread_status(
+    requests_module,
+    headers: Dict[str, str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    pull_request_id: int,
+    thread_id: int,
+    status: str,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """
+    Change a pull request thread's status via PATCH.
+
+    Args:
+        requests_module: The requests module.
+        headers: Auth headers for API calls.
+        config: Azure DevOps configuration.
+        repo_id: Repository ID.
+        pull_request_id: Pull request ID.
+        thread_id: Thread ID to update.
+        status: New status value (e.g. "active" or "closed").
+        dry_run: If True, skip the API call and return {}.
+
+    Returns:
+        Parsed JSON response dict from the API, or {} in dry_run mode.
+    """
+    if dry_run:
+        print(f"[DRY RUN] Would set thread {thread_id} status to '{status}' on PR {pull_request_id}")
+        return {}
+
+    url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id)
+
+    for attempt in range(_PATCH_MAX_RETRIES):
+        response = requests_module.patch(url, headers=headers, json={"status": status}, timeout=30)
+        if response.status_code == 429 and attempt < _PATCH_MAX_RETRIES - 1:
+            header_value = response.headers.get("Retry-After")
+            retry_after = 60
+            if header_value is not None:
+                try:
+                    parsed = int(header_value)
+                except (TypeError, ValueError):
+                    parsed = -1
+                if parsed >= 0:
+                    retry_after = parsed
+            time.sleep(retry_after)
+            continue
+        response.raise_for_status()
+        return response.json()
 
 
 def convert_to_pull_request_title(title: str) -> str:
