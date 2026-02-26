@@ -96,6 +96,33 @@ if [[ -n "$ISSUE_BODY" ]]; then
 $ISSUE_BODY"
 fi
 
+# ---------------------------------------------------------------------------
+# Retry helper — exponential backoff for transient API errors
+# Usage: call_with_retry <max_attempts> <initial_delay_seconds> <command...>
+# ---------------------------------------------------------------------------
+call_with_retry() {
+    local max_attempts="${1:?}"
+    local delay="${2:?}"
+    shift 2
+
+    local attempt=1
+    while [[ $attempt -le $max_attempts ]]; do
+        if "$@"; then
+            return 0
+        fi
+        local exit_code=$?
+        if [[ $attempt -lt $max_attempts ]]; then
+            echo "Attempt $attempt/$max_attempts failed (exit $exit_code). Retrying in ${delay}s..." >&2
+            sleep "$delay"
+            delay=$(( delay * 2 ))  # double the wait each time
+        fi
+        attempt=$(( attempt + 1 ))
+    done
+
+    echo "All $max_attempts attempts failed." >&2
+    return 1
+}
+
 # Function to generate spec using Claude API
 generate_with_claude() {
     if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
@@ -140,30 +167,32 @@ Generate the specification now. Start with the header and metadata section."
     # Escape for JSON
     PROMPT_JSON=$(echo "$PROMPT" | jq -Rs .)
 
-    # Call Claude API
-    RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
-        -H "x-api-key: $ANTHROPIC_API_KEY" \
-        -H "anthropic-version: 2023-06-01" \
-        -H "content-type: application/json" \
-        -d "{
-            \"model\": \"claude-sonnet-4-20250514\",
-            \"max_tokens\": 8192,
-            \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_JSON}]
-        }" 2>&1) || {
-        echo "Error calling Claude API" >&2
-        return 1
+    # Inner function to perform a single Claude API call
+    _call_claude_api() {
+        local response
+        response=$(curl -s --fail -X POST "https://api.anthropic.com/v1/messages" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+                \"model\": \"claude-sonnet-4-20250514\",
+                \"max_tokens\": 8192,
+                \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_JSON}]
+            }" 2>&1) || {
+            echo "Error calling Claude API (HTTP failure)" >&2
+            return 1
+        }
+        CONTENT=$(echo "$response" | jq -r '.content[0].text // empty')
+        if [[ -z "$CONTENT" ]]; then
+            echo "Error: Empty response from Claude API" >&2
+            echo "Response: $response" >&2
+            return 1
+        fi
+        echo "$CONTENT"
     }
 
-    # Extract content from response
-    CONTENT=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
-
-    if [[ -z "$CONTENT" ]]; then
-        echo "Error: Empty response from Claude API" >&2
-        echo "Response: $RESPONSE" >&2
-        return 1
-    fi
-
-    echo "$CONTENT"
+    # Call with exponential backoff: max 3 attempts, starting at 5 seconds
+    call_with_retry 3 5 _call_claude_api
 }
 
 # Function to generate spec using OpenAI API
@@ -210,29 +239,31 @@ Generate the specification now. Start with the header and metadata section."
     # Escape for JSON
     PROMPT_JSON=$(echo "$PROMPT" | jq -Rs .)
 
-    # Call OpenAI API
-    RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
-        -H "Authorization: Bearer $OPENAI_API_KEY" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"model\": \"gpt-4o\",
-            \"max_tokens\": 8192,
-            \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_JSON}]
-        }" 2>&1) || {
-        echo "Error calling OpenAI API" >&2
-        return 1
+    # Inner function to perform a single OpenAI API call
+    _call_openai_api() {
+        local response
+        response=$(curl -s --fail -X POST "https://api.openai.com/v1/chat/completions" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"model\": \"gpt-4o\",
+                \"max_tokens\": 8192,
+                \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_JSON}]
+            }" 2>&1) || {
+            echo "Error calling OpenAI API (HTTP failure)" >&2
+            return 1
+        }
+        CONTENT=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+        if [[ -z "$CONTENT" ]]; then
+            echo "Error: Empty response from OpenAI API" >&2
+            echo "Response: $response" >&2
+            return 1
+        fi
+        echo "$CONTENT"
     }
 
-    # Extract content from response
-    CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
-
-    if [[ -z "$CONTENT" ]]; then
-        echo "Error: Empty response from OpenAI API" >&2
-        echo "Response: $RESPONSE" >&2
-        return 1
-    fi
-
-    echo "$CONTENT"
+    # Call with exponential backoff: max 3 attempts, starting at 5 seconds
+    call_with_retry 3 5 _call_openai_api
 }
 
 # Function to generate a basic spec without AI

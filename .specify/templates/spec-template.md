@@ -4,6 +4,7 @@
 **Created**: [DATE]  
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
+**Source Issue**: <!-- If generated from a GitHub issue: #N (URL) -->
 
 ## User Scenarios & Testing *(mandatory)*
 

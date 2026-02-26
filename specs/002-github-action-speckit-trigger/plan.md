@@ -10,10 +10,10 @@
 ## Summary
 
 Repository maintainers want to automatically trigger the Specification-Driven
-Development (SDD) process when a GitHub issue is assigned to a designated agent
-(e.g., `speckit-agent`). The solution involves creating a GitHub Actions
-workflow that listens for `issues.assigned` events, validates the assignee
-against a configurable list, extracts issue content, invokes the SpecKit
+Development (SDD) process when a specific label is added to a GitHub issue.
+The solution involves creating a GitHub Actions workflow that listens for
+`issues.labeled` events, validates the added label against a configurable
+trigger label (default: `speckit`), extracts issue content, invokes the SpecKit
 `/speckit.specify` process, and provides feedback via issue comments and
 optional PR creation.
 
@@ -98,7 +98,7 @@ specs/002-github-action-speckit-trigger/
 │   └── speckit-issue-trigger.yml    # Main workflow file (NEW)
 └── scripts/
     └── speckit-trigger/             # Helper scripts (NEW)
-        ├── validate-assignee.sh     # Check if assignee triggers SDD
+        ├── validate-label.sh        # Check if label triggers SDD
         ├── sanitize-branch-name.sh  # Convert issue title to valid branch name
         ├── post-issue-comment.sh    # Post status comments to issue
         └── generate-spec-from-issue.sh  # Invoke SpecKit specify process
@@ -112,20 +112,21 @@ testability and reusability. Scripts follow existing patterns in
 
 ### AD-001: Workflow Trigger Mechanism
 
-**Decision**: Use `issues.assigned` event with conditional assignee check in the
+**Decision**: Use `issues.labeled` event with a conditional label check in the
 workflow.
 
 **Rationale**:
 
-- GitHub Actions natively supports `issues.assigned` event type
-- Checking assignee in workflow (vs. repository dispatch) avoids external
-
+- GitHub Actions natively supports `issues.labeled` event type
+- Checking the label name in workflow (vs. repository dispatch) avoids external
   webhook setup
-  webhook setup
-
 - Allows filtering before any compute resources are used
+- Directly implements FR-001 and FR-002 as specified
 
 **Alternatives Considered**:
+
+- `issues.assigned` event: Does not match spec FR-001; wrong UX — triggering SDD
+  requires assigning a bot user rather than applying a semantic label
 
 - Repository dispatch with external webhook: More complex setup, requires
 
@@ -195,7 +196,7 @@ I'm creating a feature specification based on this issue.
 
 **Status**: In Progress
 **Branch**: `NNN-feature-name` (will be created)
-**Triggered by**: Assignment to @speckit-agent
+**Triggered by**: Label `speckit` added to this issue
 
 ---
 _This comment was posted by the SpecKit GitHub Action._
@@ -216,13 +217,13 @@ create PR using `gh` CLI.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    GitHub Issue Assigned Event                       │
+│                    GitHub Issue Labeled Event                        │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Step 1: Validate Assignee                                           │
-│  - Check if assignee matches configured speckit_assignees            │
+│  Step 1: Validate Label                                              │
+│  - Compare added label against configured SPECKIT_TRIGGER_LABEL      │
 │  - If no match → Exit silently                                       │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
@@ -230,7 +231,7 @@ create PR using `gh` CLI.
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Step 2: Post Acknowledgment Comment (< 30 seconds)                  │
 │  - "SpecKit: Specification Creation Started"                         │
-│  - Include triggered-by info and expected branch name                │
+│  - Include triggered-by label and expected branch name               │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -280,7 +281,7 @@ create PR using `gh` CLI.
 
 | Input | Type | Required | Default | Description |
 | ------- | ------ | ---------- | --------- | ------------- |
-| `speckit_assignees` | string | No | `speckit-agent` | Comma-separated GitHub usernames that trigger SDD |
+| `trigger_label` | string | No | `speckit` | Label name that triggers the SDD process (maps to `SPECKIT_TRIGGER_LABEL` repository variable) |
 | `create_pr` | boolean | No | `true` | Create a PR with the generated specification |
 | `create_branch` | boolean | No | `true` | Create a feature branch for the specification |
 | `spec_base_path` | string | No | `specs` | Base directory for specification files |
@@ -354,7 +355,7 @@ the existing release workflow.
 ## Next Steps
 
 1. Run `/speckit.tasks` to break down implementation into actionable tasks
-2. Implement workflow file with basic assignee validation (US1)
+2. Implement workflow file with basic label validation (US1)
 3. Add issue comment feedback (US3)
 4. Implement spec generation with AI provider (US1)
 5. Add PR creation capability (US4)

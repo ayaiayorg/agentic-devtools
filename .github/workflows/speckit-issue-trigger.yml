@@ -9,6 +9,19 @@ on:
         description: 'Issue number to process (for manual testing)'
         required: true
         type: number
+      trigger_label:
+        description: 'Label that triggers the SDD process (overrides SPECKIT_TRIGGER_LABEL variable)'
+        required: false
+        default: 'speckit'
+        type: string
+      ai_provider:
+        description: 'AI provider for spec generation (claude, openai)'
+        required: false
+        default: 'claude'
+        type: choice
+        options:
+          - claude
+          - openai
 
 # Prevent concurrent runs on the same issue
 concurrency:
@@ -17,8 +30,12 @@ concurrency:
 
 env:
   SPEC_BASE_PATH: specs
-  # The label that triggers the SDD process (configurable via repository variable)
-  TRIGGER_LABEL: ${{ vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
+  # The label that triggers the SDD process
+  # Priority: workflow_dispatch input > repository variable > default 'speckit'
+  TRIGGER_LABEL: ${{ inputs.trigger_label || vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
+  # AI provider for spec generation
+  # Priority: workflow_dispatch input > repository variable > default 'claude'
+  AI_PROVIDER: ${{ inputs.ai_provider || vars.SPECKIT_AI_PROVIDER || 'claude' }}
 
 jobs:
   validate-and-trigger:
@@ -49,10 +66,30 @@ jobs:
           echo "Issue Number: ${{ github.event.issue.number || inputs.issue_number }}"
           echo "Trigger Label: ${{ env.TRIGGER_LABEL }}"
 
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Label
+        id: validate-label
+        run: |
+          chmod +x .github/scripts/speckit-trigger/validate-label.sh
+          # For workflow_dispatch, skip label validation (label was provided manually)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "label_matches=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Manual dispatch — skipping label validation"
+          else
+            .github/scripts/speckit-trigger/validate-label.sh \
+              "${{ github.event.label.name }}" \
+              "${{ env.TRIGGER_LABEL }}" || true
+          fi
+
       # Step 1: Post acknowledgment comment immediately (< 30 seconds target)
       - name: Post Started Comment
         id: started-comment
-        if: vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        if: steps.validate-label.outputs.label_matches == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -98,14 +135,9 @@ jobs:
               console.log('Could not add processing label:', e.message);
             }
 
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Get Issue Details
         id: issue
+        if: steps.validate-label.outputs.label_matches == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -127,6 +159,7 @@ jobs:
 
       - name: Check Idempotency
         id: idempotency
+        if: steps.validate-label.outputs.label_matches == 'true'
         run: |
           chmod +x .github/scripts/speckit-trigger/check-idempotency.sh
           .github/scripts/speckit-trigger/check-idempotency.sh "${{ steps.issue.outputs.number }}"
@@ -168,14 +201,14 @@ jobs:
             } catch (e) {}
 
       - name: Sanitize Branch Name
-        if: steps.idempotency.outputs.skipped != 'true'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         id: sanitize
         run: |
           chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
           .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
 
       - name: Generate Specification
-        if: steps.idempotency.outputs.skipped != 'true'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         id: generate
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -183,7 +216,7 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
           ISSUE_URL: ${{ steps.issue.outputs.url }}
           SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
-          AI_PROVIDER: ${{ vars.SPECKIT_AI_PROVIDER || 'claude' }}
+          AI_PROVIDER: ${{ env.AI_PROVIDER }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -191,7 +224,7 @@ jobs:
           .github/scripts/speckit-trigger/generate-spec-from-issue.sh
 
       - name: Commit Specification
-        if: steps.idempotency.outputs.skipped != 'true'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -215,13 +248,13 @@ jobs:
           Relates to #${{ steps.issue.outputs.number }}"
 
       - name: Push Branch
-        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
         run: |
           BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
           git push -u origin "$BRANCH_NAME"
 
       - name: Create Pull Request
-        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_PR != 'false'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_PR != 'false'
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -235,7 +268,7 @@ jobs:
             "${{ steps.issue.outputs.labels }}"
 
       - name: Post Completed Comment
-        if: steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |

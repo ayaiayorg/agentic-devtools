@@ -22,12 +22,12 @@ implementation and testing of each story.
 
 **Purpose**: Project initialization and directory structure for the workflow
 
-- [ ] T001 Create helper scripts directory structure at
+- [x] T001 Create helper scripts directory structure at
     .github/scripts/speckit-trigger/
-- [ ] T002 [P] Create workflow file skeleton at
+- [x] T002 [P] Create workflow file skeleton at
     .github/workflows/speckit-issue-trigger.yml with event trigger and
     inputs
-- [ ] T003 [P] Add workflow documentation section to README.md explaining
+- [x] T003 [P] Add workflow documentation section to README.md explaining
     the SpecKit trigger feature
 
 ---
@@ -39,103 +39,102 @@ story can be implemented
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Implement assignee validation logic in
-    .github/scripts/speckit-trigger/validate-assignee.sh
-- [ ] T005 [P] Implement branch name sanitization in
+- [x] T004 Implement label validation logic in
+    .github/scripts/speckit-trigger/validate-label.sh
+- [x] T005 [P] Implement branch name sanitization in
     .github/scripts/speckit-trigger/sanitize-branch-name.sh
-- [ ] T006 [P] Implement issue comment posting helper in
+- [x] T006 [P] Implement issue comment posting helper in
     .github/scripts/speckit-trigger/post-issue-comment.sh
-- [ ] T007 Implement idempotency check (spec already exists) in
+- [x] T007 Implement idempotency check (spec already exists) in
     .github/scripts/speckit-trigger/check-idempotency.sh
-- [ ] T008 Create comment templates directory and markdown templates at
+- [x] T008 Create comment templates directory and markdown templates at
     .github/scripts/speckit-trigger/templates/
-- [ ] T009 [P] Add started.md comment template at
+- [x] T009 [P] Add started.md comment template at
     .github/scripts/speckit-trigger/templates/started.md
-- [ ] T010 [P] Add completed.md comment template at
+- [x] T010 [P] Add completed.md comment template at
     .github/scripts/speckit-trigger/templates/completed.md
-- [ ] T011 [P] Add failed.md comment template at
+- [x] T011 [P] Add failed.md comment template at
     .github/scripts/speckit-trigger/templates/failed.md
-- [ ] T012 [P] Add already-processed.md comment template at
+- [x] T012 [P] Add already-processed.md comment template at
     .github/scripts/speckit-trigger/templates/already-processed.md
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
 ---
 
-## Phase 3: User Story 1 - Trigger SDD on Issue Assignment (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Trigger SDD on Issue Label (Priority: P1) 🎯 MVP
 
-**Goal**: Automatically start the SDD process when an issue is assigned to
-the SpecKit agent
+**Goal**: Automatically start the SDD process when the trigger label is added
+to a GitHub issue
 
-**Independent Test**: Create a GitHub issue, assign it to `speckit-agent`,
-and verify that a spec.md is generated
+**Independent Test**: Create a GitHub issue, add the `speckit` label, and
+verify that a spec.md is generated
 
 ### Validation for User Story 1
 
-- [ ] T013 [US1] Validate workflow YAML syntax with `actionlint` or
+- [x] T013 [US1] Validate workflow YAML syntax with `actionlint` or
     GitHub's workflow validator
-- [ ] T014 [US1] Create test issue template for manual validation at
+- [x] T014 [US1] Create test issue template for manual validation at
     .github/ISSUE_TEMPLATE/speckit-test.md
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Add checkout step to workflow in
+- [x] T015 [US1] Add checkout step to workflow in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T016 [US1] Add assignee validation job/step using
-    validate-assignee.sh in .github/workflows/speckit-issue-trigger.yml
-- [ ] T017 [US1] Add job condition to skip workflow when assignee doesn't
+- [x] T016 [US1] Add label validation job/step using
+    validate-label.sh in .github/workflows/speckit-issue-trigger.yml
+- [x] T017 [US1] Add job condition to skip workflow when label doesn't
     match in .github/workflows/speckit-issue-trigger.yml
-- [ ] T018 [US1] Implement spec generation script at
+- [x] T018 [US1] Implement spec generation script at
     .github/scripts/speckit-trigger/generate-spec-from-issue.sh
-- [ ] T019 [US1] Integrate existing create-new-feature.sh script call in
+- [x] T019 [US1] Integrate existing create-new-feature.sh script call in
     generate-spec-from-issue.sh
-- [ ] T020 [US1] Add issue content extraction (title, body) to
+- [x] T020 [US1] Add issue content extraction (title, body) to
     generate-spec-from-issue.sh
-- [ ] T021 [US1] Add source issue reference injection to generated spec.md
+- [x] T021 [US1] Add source issue reference injection to generated spec.md
     in generate-spec-from-issue.sh
-- [ ] T022 [US1] Add spec generation step to workflow calling
+- [x] T022 [US1] Add spec generation step to workflow calling
     generate-spec-from-issue.sh in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T023 [US1] Add git commit step for generated spec files in
+- [x] T023 [US1] Add git commit step for generated spec files in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T024 [US1] Add error handling for spec generation failures in
+- [x] T024 [US1] Add error handling for spec generation failures in
     .github/workflows/speckit-issue-trigger.yml
 
-**Checkpoint**: US1 is independently testable - assigning an issue to
-speckit-agent creates a spec
+**Checkpoint**: US1 is independently testable - adding the `speckit` label to
+an issue creates a spec
 
 ---
 
-## Phase 4: User Story 2 - Configurable Agent Assignment (Priority: P2)
+## Phase 4: User Story 2 - Configurable Trigger Label (Priority: P2)
 
-**Goal**: Allow administrators to configure which GitHub users trigger the
-SDD process
+**Goal**: Allow administrators to configure which label triggers the SDD
+process via the `SPECKIT_TRIGGER_LABEL` repository variable
 
-**Independent Test**: Modify workflow input to use a different assignee
-and verify only that assignee triggers
+**Independent Test**: Set `SPECKIT_TRIGGER_LABEL` to a different label name
+and verify only that label triggers the workflow
 
 ### Validation for User Story 2
 
-- [ ] T025 [US2] Test workflow with single custom assignee
+- [x] T025 [US2] Test workflow with custom single-word trigger label
     configuration
-- [ ] T026 [US2] Test workflow with multiple assignees (comma-separated
-    list)
+- [x] T026 [US2] Test that default `speckit` label triggers when no custom
+    label is configured
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Add `speckit_assignees` input with default value to
+- [x] T027 [US2] Add `trigger_label` input with default value `speckit` to
     workflow inputs in .github/workflows/speckit-issue-trigger.yml
-- [ ] T028 [US2] Update validate-assignee.sh to accept assignee list as
+- [x] T028 [US2] Update validate-label.sh to accept trigger label as
     parameter
-- [ ] T029 [US2] Implement comma-separated assignee parsing in
-    validate-assignee.sh
-- [ ] T030 [US2] Pass workflow input to validation script in
+- [x] T029 [US2] Implement label comparison logic in validate-label.sh
+    (exact string match against `github.event.label.name`)
+- [x] T030 [US2] Pass workflow input to validation script in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T031 [US2] Document configuration options in README.md workflow
-    section
+- [x] T031 [US2] Document `SPECKIT_TRIGGER_LABEL` repository variable in
+    README.md workflow section
 
-**Checkpoint**: US2 complete - administrators can configure trigger
-assignees
+**Checkpoint**: US2 complete - administrators can configure the trigger label
 
 ---
 
@@ -149,29 +148,29 @@ completed, and failed states
 
 ### Validation for User Story 3
 
-- [ ] T032 [US3] Test "started" comment is posted within 30 seconds of
+- [x] T032 [US3] Test "started" comment is posted within 30 seconds of
     assignment
-- [ ] T033 [US3] Test "completed" comment includes link to spec file
-- [ ] T034 [US3] Test "failed" comment includes error details and
+- [x] T033 [US3] Test "completed" comment includes link to spec file
+- [x] T034 [US3] Test "failed" comment includes error details and
     resolution steps
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Add `comment_on_issue` input with default `true` to
+- [x] T035 [US3] Add `comment_on_issue` input with default `true` to
     workflow in .github/workflows/speckit-issue-trigger.yml
-- [ ] T036 [US3] Add "started" comment step using actions/github-script in
+- [x] T036 [US3] Add "started" comment step using actions/github-script in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T037 [US3] Place "started" comment as first step after assignee
+- [x] T037 [US3] Place "started" comment as first step after label
     validation for <30s response
-- [ ] T038 [US3] Add "completed" comment step with spec file link in
+- [x] T038 [US3] Add "completed" comment step with spec file link in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T039 [US3] Add "failed" comment step with error details in
+- [x] T039 [US3] Add "failed" comment step with error details in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T040 [US3] Add conditional logic to skip comments when
+- [x] T040 [US3] Add conditional logic to skip comments when
     `comment_on_issue` is false
-- [ ] T041 [US3] Add `speckit:processing` label during execution in
+- [x] T041 [US3] Add `speckit:processing` label during execution in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T042 [US3] Replace label with `speckit:completed` or
+- [x] T042 [US3] Replace label with `speckit:completed` or
     `speckit:failed` on finish
 
 **Checkpoint**: US3 complete - issue thread shows full status of spec
@@ -189,31 +188,31 @@ files and a PR is opened
 
 ### Validation for User Story 4
 
-- [ ] T043 [US4] Test branch creation with correct naming convention
+- [x] T043 [US4] Test branch creation with correct naming convention
     (NNN-feature-name)
-- [ ] T044 [US4] Test PR is created with structured description
-- [ ] T045 [US4] Test issue labels are copied to PR
+- [x] T044 [US4] Test PR is created with structured description
+- [x] T045 [US4] Test issue labels are copied to PR
 
 ### Implementation for User Story 4
 
-- [ ] T046 [US4] Add `create_branch` input with default `true` to workflow
+- [x] T046 [US4] Add `create_branch` input with default `true` to workflow
     in .github/workflows/speckit-issue-trigger.yml
-- [ ] T047 [US4] Add `create_pr` input with default `true` to workflow in
+- [x] T047 [US4] Add `create_pr` input with default `true` to workflow in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T048 [US4] Add `base_branch` input with default `main` to workflow
+- [x] T048 [US4] Add `base_branch` input with default `main` to workflow
     in .github/workflows/speckit-issue-trigger.yml
-- [ ] T049 [US4] Add branch push step using git push in
+- [x] T049 [US4] Add branch push step using git push in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T050 [US4] Implement PR creation script at
+- [x] T050 [US4] Implement PR creation script at
     .github/scripts/speckit-trigger/create-spec-pr.sh
-- [ ] T051 [US4] Add PR description template with spec summary and issue
+- [x] T051 [US4] Add PR description template with spec summary and issue
     link in create-spec-pr.sh
-- [ ] T052 [US4] Add label copying from issue to PR in create-spec-pr.sh
-- [ ] T053 [US4] Add PR creation step to workflow calling
+- [x] T052 [US4] Add label copying from issue to PR in create-spec-pr.sh
+- [x] T053 [US4] Add PR creation step to workflow calling
     create-spec-pr.sh
-- [ ] T054 [US4] Add conditional logic to skip branch/PR when inputs are
+- [x] T054 [US4] Add conditional logic to skip branch/PR when inputs are
     false
-- [ ] T055 [US4] Update "completed" comment to include PR link when PR is
+- [x] T055 [US4] Update "completed" comment to include PR link when PR is
     created
 
 **Checkpoint**: US4 complete - spec generation creates branch and PR
@@ -231,18 +230,18 @@ issue number and URL
 
 ### Validation for User Story 5
 
-- [ ] T056 [US5] Verify spec.md includes `Source Issue: #N` with correct
+- [x] T056 [US5] Verify spec.md includes `Source Issue: #N` with correct
     issue number
-- [ ] T057 [US5] Verify PR description includes `Relates to #N` linking
+- [x] T057 [US5] Verify PR description includes `Relates to #N` linking
 
 ### Implementation for User Story 5
 
-- [ ] T058 [US5] Add Source Issue metadata field to spec generation in
+- [x] T058 [US5] Add Source Issue metadata field to spec generation in
     generate-spec-from-issue.sh
-- [ ] T059 [US5] Include issue URL in Source Issue field format
-- [ ] T060 [US5] Add `Relates to #N` to PR description template in
+- [x] T059 [US5] Include issue URL in Source Issue field format
+- [x] T060 [US5] Add `Relates to #N` to PR description template in
     create-spec-pr.sh
-- [ ] T061 [US5] Update spec template header to include Source Issue
+- [x] T061 [US5] Update spec template header to include Source Issue
     placeholder
 
 **Checkpoint**: US5 complete - full traceability from issue to spec to
@@ -254,28 +253,28 @@ PR
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T062 [P] Add comprehensive workflow documentation to README.md
-- [ ] T063 [P] Create CONTRIBUTING.md section for SpecKit trigger usage
-- [ ] T064 Add retry logic with exponential backoff for AI API calls in
+- [x] T062 [P] Add comprehensive workflow documentation to README.md
+- [x] T063 [P] Create CONTRIBUTING.md section for SpecKit trigger usage
+- [x] T064 Add retry logic with exponential backoff for AI API calls in
     generate-spec-from-issue.sh
-- [ ] T065 [P] Add timeout handling (5 minute max) to workflow in
+- [x] T065 [P] Add timeout handling (5 minute max) to workflow in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T066 Add concurrency control to prevent parallel runs on same issue
+- [x] T066 Add concurrency control to prevent parallel runs on same issue
     in .github/workflows/speckit-issue-trigger.yml
-- [ ] T067 [P] Add workflow_dispatch trigger for manual testing in
+- [x] T067 [P] Add workflow_dispatch trigger for manual testing in
     .github/workflows/speckit-issue-trigger.yml
-- [ ] T068 Implement AI provider selection (claude/openai) in
+- [x] T068 Implement AI provider selection (claude/openai) in
     generate-spec-from-issue.sh
-- [ ] T069 [P] Add `ai_provider` input with default `claude` to workflow
+- [x] T069 [P] Add `ai_provider` input with default `claude` to workflow
     inputs
-- [ ] T070 [P] Document required repository secrets (ANTHROPIC_API_KEY,
+- [x] T070 [P] Document required repository secrets (ANTHROPIC_API_KEY,
     etc.) in README.md
-- [ ] T071 Add edge case handling for empty issue body in
+- [x] T071 Add edge case handling for empty issue body in
     generate-spec-from-issue.sh
-- [ ] T072 Add edge case handling for special characters in issue title in
+- [x] T072 Add edge case handling for special characters in issue title in
     sanitize-branch-name.sh
-- [ ] T073 [P] Create example workflow usage in docs or README.md
-- [ ] T074 Validate all scripts are executable (chmod +x) in workflow
+- [x] T073 [P] Create example workflow usage in docs or README.md
+- [x] T074 Validate all scripts are executable (chmod +x) in workflow
     setup step
 
 ---
@@ -290,7 +289,7 @@ PR
 - **User Stories (Phase 3-7)**: All depend on Foundational phase
   completion
   - US1 (P1): Core trigger functionality - MVP
-  - US2 (P2): Configurable assignees - builds on US1
+  - US2 (P2): Configurable trigger label - builds on US1
   - US3 (P2): Issue comments - builds on US1
   - US4 (P3): Branch/PR creation - builds on US1
   - US5 (P3): Issue linking - builds on US1, enhances US4
@@ -300,8 +299,8 @@ PR
 ### User Story Dependencies
 
 ```text
-US1 (P1: Core Trigger)
- ├── US2 (P2: Configurable Assignees) - enhances US1
+US1 (P1: Core Trigger — issues.labeled)
+ ├── US2 (P2: Configurable Trigger Label) - enhances US1
  ├── US3 (P2: Issue Comments) - enhances US1
  ├── US4 (P3: Branch/PR) - extends US1
  │    └── US5 (P3: Linking) - enhances US4
@@ -331,7 +330,7 @@ US1 (P1: Core Trigger)
 | File | Phase | Description |
 | ---- | ----- | ----------- |
 | `.github/workflows/speckit-issue-trigger.yml` | P1 | Workflow |
-| `.github/scripts/speckit-trigger/validate-assignee.sh` | P2 | Validation |
+| `.github/scripts/speckit-trigger/validate-label.sh` | P2 | Validation |
 | `.github/scripts/speckit-trigger/sanitize-branch-name.sh` | P2 | Sanitize |
 | `.github/scripts/speckit-trigger/post-issue-comment.sh` | P2 | Comment |
 | `.github/scripts/speckit-trigger/check-idempotency.sh` | P2 | Idempotency |
@@ -358,7 +357,7 @@ US1 (P1: Core Trigger)
 1. Complete Phase 1: Setup (T001-T003)
 2. Complete Phase 2: Foundational (T004-T012)
 3. Complete Phase 3: User Story 1 (T013-T024)
-4. **STOP and VALIDATE**: Test by assigning an issue to `speckit-agent`
+4. **STOP and VALIDATE**: Test by adding the `speckit` label to an issue
 5. Deploy MVP if ready
 
 ### Incremental Delivery

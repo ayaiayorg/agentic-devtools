@@ -285,6 +285,16 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github",
         "create_agdt_task_issue_async_cli",
     ),
+    # Speckit
+    "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
+    "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),
+    "agdt-speckit-tasks": ("agentic_devtools.cli.speckit", "speckit_tasks"),
+    "agdt-speckit-implement": ("agentic_devtools.cli.speckit", "speckit_implement"),
+    "agdt-speckit-clarify": ("agentic_devtools.cli.speckit", "speckit_clarify"),
+    "agdt-speckit-checklist": ("agentic_devtools.cli.speckit", "speckit_checklist"),
+    "agdt-speckit-analyze": ("agentic_devtools.cli.speckit", "speckit_analyze"),
+    "agdt-speckit-constitution": ("agentic_devtools.cli.speckit", "speckit_constitution"),
+    "agdt-speckit-taskstoissues": ("agentic_devtools.cli.speckit", "speckit_taskstoissues"),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Azure context management

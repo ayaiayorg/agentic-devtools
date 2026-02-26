@@ -398,6 +398,63 @@ agdt-set dry_run true
 agdt-git-save-work  # Previews commands without executing
 ```
 
+## Using the SpecKit Issue Trigger
+
+The repository includes a GitHub Actions workflow that automatically kicks off the
+Specification-Driven Development (SDD) process when a label is applied to a GitHub issue.
+
+### How It Works
+
+1. Create a GitHub issue describing the feature you want to build
+2. Apply the `speckit` label (or your configured `SPECKIT_TRIGGER_LABEL`) to the issue
+3. The `speckit-issue-trigger` workflow fires automatically:
+   - Posts a "Started" comment within ~30 seconds
+   - Generates a `spec.md` using the configured AI provider
+   - Creates a feature branch (`NNN-feature-name`) and commits the spec
+   - Opens a Pull Request and posts a "Completed" comment with links
+
+### Manual Trigger
+
+You can also run the workflow manually from the **Actions** tab:
+
+```bash
+gh workflow run speckit-issue-trigger.yml \
+  -f issue_number=42 \
+  -f trigger_label=speckit \
+  -f ai_provider=claude
+```
+
+### Repository Variables
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `SPECKIT_TRIGGER_LABEL` | `speckit` | Label that triggers the SDD workflow |
+| `SPECKIT_AI_PROVIDER` | `claude` | AI provider (`claude` or `openai`) |
+| `SPECKIT_COMMENT_ON_ISSUE` | `true` | Set to `false` to suppress issue comments |
+| `SPECKIT_CREATE_BRANCH` | `true` | Set to `false` to skip branch creation |
+| `SPECKIT_CREATE_PR` | `true` | Set to `false` to skip PR creation |
+
+### Required Secrets
+
+| Secret | When Required |
+| ------ | ------------- |
+| `ANTHROPIC_API_KEY` | When `SPECKIT_AI_PROVIDER=claude` |
+| `OPENAI_API_KEY` | When `SPECKIT_AI_PROVIDER=openai` |
+
+### Issue Labels Used
+
+| Label | Meaning |
+| ----- | ------- |
+| `speckit` | Add to trigger specification generation |
+| `speckit:processing` | Applied automatically during generation |
+| `speckit:completed` | Applied when spec is successfully created |
+| `speckit:failed` | Applied if generation fails |
+
+### Testing the Workflow
+
+Use the `.github/ISSUE_TEMPLATE/speckit-test.md` issue template to create a test issue
+and validate the full workflow end-to-end.
+
 ## Additional Resources
 
 - [README.md](README.md) - End-user documentation
