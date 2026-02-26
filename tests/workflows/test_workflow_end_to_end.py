@@ -9,11 +9,34 @@ These tests exercise multiple workflow steps in sequence to verify that:
 
 Unlike unit tests that isolate individual functions, these tests
 exercise complete workflows with real state management and template rendering.
+
+Adding Tests for a New Workflow
+--------------------------------
+1. Place the test class in this file (or a new file under tests/workflows/).
+2. Decide whether the workflow is "registered" (has event-driven transitions in
+   WORKFLOW_REGISTRY) or "simple" (single-step, just calls initiate_workflow).
+3. For registered workflows — test each event-driven transition and any deferred
+   transitions via get_next_workflow_prompt (see TestWorkOnJiraIssueWorkflowEndToEnd).
+4. For simple workflows — test initiation sets the correct state and that
+   notify_workflow_event returns triggered=False (see TestCreateJiraIssueWorkflowEndToEnd).
+5. Use the shared fixtures from tests/workflows/conftest.py:
+   - temp_state_dir: isolated state dir (tmp_path/state/); clear_state() only
+     wipes this subdir and never touches temp_output_dir or temp_prompts_dir
+   - temp_output_dir: redirects all prompt/temp file writes away from scripts/temp/
+   - clear_state_before: wipes state before each test (depends on temp_state_dir)
+   - mock_jira_issue_response: realistic Jira Story API payload
+   - mock_preflight_pass: preflight check always passes (correct worktree assumed)
+   - mock_workflow_state_clearing: no-op for clear_state — prefer passing values
+     via _argv instead (see "Notes on mock_workflow_state_clearing" in conftest.py)
+6. For tests that call advancement helpers that render prompts for the
+   pull-request-review workflow, patch get_queue_status to avoid reading
+   the real queue.json from scripts/temp/:
+       with patch("agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                  return_value=<queue_dict>):
+           result = advancement.try_advance_workflow_after_pr_review()
 """
 
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from agentic_devtools import state
 from agentic_devtools.cli.workflows import advancement, commands
@@ -23,25 +46,6 @@ from agentic_devtools.cli.workflows.manager import (
     get_next_workflow_prompt,
     notify_workflow_event,
 )
-from agentic_devtools.prompts import loader
-
-
-@pytest.fixture
-def temp_output_dir(tmp_path):
-    """Create a temporary output directory to avoid writing to scripts/temp/ during tests."""
-    output_dir = tmp_path / "temp"
-    output_dir.mkdir()
-    with patch.object(loader, "get_temp_output_dir", return_value=output_dir), patch(
-        "agentic_devtools.cli.workflows.manager.get_temp_output_dir", return_value=output_dir
-    ):
-        yield output_dir
-
-
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state file before each test."""
-    state.clear_state()
-    yield
 
 
 class TestWorkOnJiraIssueWorkflowEndToEnd:
@@ -513,3 +517,287 @@ class TestPullRequestReviewWorkflowEndToEnd:
         # Should not trigger any transition from the decision step
         assert result.triggered is False
         assert state.get_workflow_state()["step"] == "decision"
+
+
+class TestCreateJiraIssueWorkflowEndToEnd:
+    """End-to-end integration tests for the create-jira-issue workflow.
+
+    The create-jira-issue workflow is a "simple" workflow: it is NOT registered in
+    WORKFLOW_REGISTRY, so notify_workflow_event() always returns triggered=False and
+    no automatic step transitions occur. The AI agent calls initiate_workflow once,
+    reads the rendered prompt, then uses Jira API commands to populate the issue.
+    """
+
+    def test_initiation_sets_workflow_state(
+        self,
+        temp_state_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_preflight_pass,
+    ):
+        """Test that initiating the workflow sets the expected state.
+
+        Simulates an AI agent calling agdt-initiate-create-jira-issue-workflow
+        in continuation mode. Values are passed via _argv (--project-key,
+        --issue-key) so the command parses and validates its own inputs —
+        representative of real CLI usage. Because temp_state_dir patches
+        get_state_dir() to a dedicated subdir, clear_state_for_workflow_initiation()
+        does not wipe temp_output_dir, so no mock_workflow_state_clearing needed.
+        """
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["active"] == "create-jira-issue"
+        assert workflow["step"] == "initiate"
+        assert workflow["status"] == "initiated"
+
+    def test_no_auto_transitions_for_simple_workflow(self, temp_state_dir, temp_output_dir, clear_state_before):
+        """Test that JIRA_ISSUE_CREATED event does not trigger any transition.
+
+        Simple workflows (not in WORKFLOW_REGISTRY) do not participate in
+        event-driven advancement. Verifies the boundary between simple and
+        registered workflows so future additions know which pattern to use.
+        """
+        state.set_workflow_state(
+            name="create-jira-issue",
+            status="initiated",
+            step="initiate",
+            context={"jira_project_key": "DFLY"},
+        )
+
+        result = notify_workflow_event(WorkflowEvent.JIRA_ISSUE_CREATED)
+
+        assert result.triggered is False
+        # State must not have changed
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "initiate"
+        assert workflow["status"] == "initiated"
+
+    def test_no_auto_transitions_for_jira_issue_updated_event(
+        self, temp_state_dir, temp_output_dir, clear_state_before
+    ):
+        """Test that JIRA_ISSUE_UPDATED event also returns triggered=False.
+
+        Neither creation nor update events drive the simple workflow forward.
+        """
+        state.set_workflow_state(
+            name="create-jira-issue",
+            status="initiated",
+            step="initiate",
+            context={"jira_project_key": "DFLY"},
+        )
+
+        result = notify_workflow_event(WorkflowEvent.JIRA_ISSUE_UPDATED)
+
+        assert result.triggered is False
+        assert state.get_workflow_state()["step"] == "initiate"
+
+    def test_jira_issue_retrieved_event_has_no_side_effects_on_simple_workflow(
+        self,
+        temp_state_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_preflight_pass,
+        mock_jira_issue_response,
+    ):
+        """Test that try_advance_workflow_after_jira_issue_retrieved has no side effects.
+
+        For simple (non-registry) workflows, notify_workflow_event() returns early
+        with triggered=False and never applies context_updates.  This test verifies
+        that after an AI agent calls the Jira retrieval advancement helper the
+        workflow step and context are completely unchanged.
+
+        Values are provided via _argv so the command validates its own required inputs.
+        Because temp_state_dir patches get_state_dir() to a dedicated subdir,
+        clear_state_for_workflow_initiation() does not wipe temp_output_dir.
+        """
+        from agentic_devtools.cli.workflows.advancement import try_advance_workflow_after_jira_issue_retrieved
+
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
+
+        # Capture state immediately after initiation
+        initial_workflow = state.get_workflow_state()
+        initial_step = initial_workflow["step"]
+
+        # Simulate the AI agent passing Jira issue data through the helper.
+        # For a simple (non-registry) workflow this must NOT trigger and must NOT
+        # apply context_updates — no side effects on workflow state.
+        triggered = try_advance_workflow_after_jira_issue_retrieved(issue_data=mock_jira_issue_response)
+        assert triggered is False
+
+        # Workflow state is completely unchanged: same step, no injected fields
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == initial_step
+        assert "issue_summary" not in workflow["context"]
+        assert "issue_type" not in workflow["context"]
+
+
+class TestMockAgentBehavior:
+    """Tests that simulate end-to-end AI agent interactions across all major workflows.
+
+    Each test mimics the sequence of CLI commands an AI agent would issue when
+    working through a workflow. External services (Jira, ADO, Git) are replaced
+    with lightweight mocks so no real network calls are made.
+
+    These tests are the reference implementation for the acceptance criterion
+    "Tests verify CLI commands execute workflows properly".
+    """
+
+    def test_agent_works_through_jira_issue_planning_step(
+        self, temp_state_dir, temp_output_dir, clear_state_before, mock_jira_issue_response, capsys
+    ):
+        """Simulate an AI agent advancing from planning to checklist-creation.
+
+        Mimics the agent behavior:
+        1. Workflow is already at 'planning' (set up externally by initiation).
+        2. Agent posts a planning comment to Jira.
+        3. Advancement helper fires JIRA_COMMENT_ADDED → immediate transition.
+        4. Agent reads the new step via get_workflow_state().
+        """
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="planning",
+            context={
+                "jira_issue_key": "DFLY-1234",
+                "issue_summary": mock_jira_issue_response["fields"]["summary"],
+            },
+        )
+
+        # Step 1: agent posts Jira planning comment (advancement helper fires the event)
+        triggered = advancement.try_advance_workflow_after_jira_comment()
+        assert triggered is True
+
+        # Step 2: agent reads new workflow step
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "checklist-creation"
+        assert workflow["context"]["jira_issue_key"] == "DFLY-1234"
+
+        # The console output includes the WORKFLOW ADVANCED banner
+        captured = capsys.readouterr()
+        assert "WORKFLOW ADVANCED" in captured.out
+        assert "checklist-creation" in captured.out
+
+    def test_agent_resolves_pending_transition_by_polling(self, temp_state_dir, temp_output_dir, clear_state_before):
+        """Simulate an AI agent polling get_next_workflow_prompt after a deferred transition.
+
+        Mimics the agent behavior:
+        1. Agent saves work (git commit/push) — sets pending_transition.
+        2. Agent polls get_next_workflow_prompt until background tasks finish.
+        3. First poll: background task still running → WAITING.
+        4. Second poll: task complete → SUCCESS, workflow advances to pull-request.
+        """
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="commit",
+            context={"jira_issue_key": "DFLY-1234", "branch_name": "feature/DFLY-1234/test"},
+        )
+
+        # Agent fires commit event (creates pending_transition)
+        advancement.try_advance_workflow_after_commit(branch_name="feature/DFLY-1234/test")
+        assert state.get_workflow_state()["step"] == "commit"  # Still at commit
+
+        # First poll: background task is running → agent gets WAITING response
+        mock_running_task = MagicMock()
+        mock_running_task.id = "task-git-abc"
+        mock_running_task.command = "agdt-git-commit"
+        mock_running_task.status = MagicMock()
+        mock_running_task.status.value = "running"
+
+        with patch("agentic_devtools.cli.workflows.manager.get_active_tasks", return_value=[mock_running_task]):
+            first_poll = get_next_workflow_prompt()
+
+        assert first_poll.status == PromptStatus.WAITING
+        assert first_poll.step == "commit"
+        assert "task-git-abc" in first_poll.pending_task_ids
+
+        # Second poll: task finished → agent gets SUCCESS response with pull-request prompt
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Pull Request Step\n\nCreate your pull request.",
+        ):
+            second_poll = get_next_workflow_prompt()
+
+        assert second_poll.status == PromptStatus.SUCCESS
+        assert second_poll.step == "pull-request"
+        assert state.get_workflow_state()["step"] == "pull-request"
+
+    def test_agent_performs_pr_review_file_loop(self, temp_state_dir, temp_output_dir, clear_state_before):
+        """Simulate an AI agent reviewing multiple files in the PR review workflow.
+
+        Mimics the agent behavior:
+        1. Workflow is already at 'file-review'.
+        2. Agent reviews file 1 → PR_REVIEWED event → stays in file-review.
+        3. Agent reviews file 2 → PR_REVIEWED event → stays in file-review.
+        4. All files done → agent manually advances to summary.
+        """
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "456"},
+        )
+        state.set_value("pull_request_id", "456")
+
+        in_progress_queue = {
+            "all_complete": False,
+            "completed_count": 0,
+            "pending_count": 2,
+            "total_count": 2,
+            "current_file": "file1",
+            "prompt_file_path": "/dev/null",
+        }
+
+        # Agent reviews file 1
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=in_progress_queue,
+        ):
+            result1 = advancement.try_advance_workflow_after_pr_review()
+        assert result1 is True
+        assert state.get_workflow_state()["step"] == "file-review"
+
+        # Agent reviews file 2
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=in_progress_queue,
+        ):
+            result2 = advancement.try_advance_workflow_after_pr_review()
+        assert result2 is True
+        assert state.get_workflow_state()["step"] == "file-review"
+
+        # All files reviewed — agent advances to summary
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 2,
+            "pending_count": 0,
+            "total_count": 2,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ):
+            commands.advance_pull_request_review_workflow()
+
+        assert state.get_workflow_state()["step"] == "summary"
+
+    def test_agent_receives_no_workflow_response_when_inactive(
+        self, temp_state_dir, temp_output_dir, clear_state_before
+    ):
+        """Test that get_next_workflow_prompt returns NO_WORKFLOW when no workflow is active.
+
+        Simulates an AI agent calling the command without having initiated a workflow first.
+        The agent should receive a clear error message with instructions.
+        """
+        # No workflow is active (state is clean)
+        result = get_next_workflow_prompt()
+
+        assert result.status == PromptStatus.NO_WORKFLOW
+        assert "agdt-initiate" in result.content
