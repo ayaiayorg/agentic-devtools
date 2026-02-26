@@ -1487,11 +1487,14 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 4. If the context is wrong, **automatically creates a dedicated worktree**, opens VS Code, then re-runs the command inside the new worktree.
 5. Fetches full PR details (diff, threads, iterations) and Jira issue details.
 6. Generates per-file review prompts in `scripts/temp/pull-request-review/prompts/<pr_id>/`.
-7. Starts a `gh copilot` CLI session (interactive or background depending on `--interactive`).
+7. **When auto-setup ran (new worktree was created):** starts a `gh copilot` CLI session
+   (interactive or background depending on `--interactive`). When already in the correct
+   worktree context, the rendered initiate prompt is printed to the console for the agent
+   to use manually.
 
 #### `--interactive` Flag
 
-| Value | Behaviour |
+| Value | Behavior |
 |-------|-----------|
 | `true` (default) | Starts `gh copilot suggest` with an attached terminal — the reviewer interacts with it directly in VS Code. |
 | `false` | Starts `gh copilot suggest` as a detached background process, capturing output to `scripts/temp/background-tasks/logs/`. Use for Azure DevOps pipelines or other headless environments. |
@@ -1551,8 +1554,12 @@ For use in Azure DevOps pipelines (headless, no interactive terminal):
 When running in pipeline mode (`--interactive false`):
 
 - `gh copilot` output is captured to `scripts/temp/background-tasks/logs/copilot_session_*.log`.
-- Use `agdt-task-wait` to block until the background Copilot session completes.
-- The `worktree_setup.auto_execute_exit_code` state key records the exit code of the setup command.
+- The Copilot process runs as a direct child process (via `subprocess.Popen`), not as an
+  agdt background task, so there is no background task ID and `agdt-task-wait` is not
+  applicable. Monitor completion using the `copilot.pid` state key and/or by tailing the
+  Copilot session log file.
+- The `worktree_setup.auto_execute_exit_code` state key records the exit code of the
+  setup/auto-execute command, not the Copilot session itself.
 
 #### VS Code Graceful Degradation
 
@@ -1573,7 +1580,7 @@ State keys written to `agdt-state.json` after a session is started:
 | `copilot.mode` | string | `"interactive"` or `"non-interactive"` |
 | `copilot.prompt_file` | string | Absolute path to the temporary prompt file |
 | `copilot.start_time` | string | ISO-8601 UTC timestamp when the session was started |
-| `copilot.pid` | string | PID of background process (empty for interactive sessions) |
+| `copilot.pid` | `integer \| ""` | PID of background process (empty for interactive sessions) |
 
 Additional `worktree_setup` keys written during automated environment setup:
 
@@ -1583,7 +1590,7 @@ Additional `worktree_setup` keys written during automated environment setup:
 
 #### Target Repository Configuration (`.github/agdt-config.json`)
 
-Target repositories can place a `.github/agdt-config.json` file in their root to customise the review workflow. The file is **optional** — if absent, the review proceeds with defaults.
+Target repositories can place a `.github/agdt-config.json` file in their root to customize the review workflow. The file is **optional** — if absent, the review proceeds with defaults.
 
 **Schema:**
 
