@@ -15,6 +15,8 @@ permissions:
 jobs:
   copilot-review-gate:
     name: Copilot Review ✅
+    # pull_request_review does not support a branches filter, so guard at job level.
+    if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Check Copilot review
@@ -61,7 +63,7 @@ jobs:
             const latestReview = copilotReviews[copilotReviews.length - 1];
             const reviewBody = latestReview.body || '';
             core.info(`Latest Copilot review ID: ${latestReview.id}`);
-            core.info(`Review body: ${reviewBody}`);
+            core.info(`Review body length: ${reviewBody.length} characters`);
 
             // 6. Parse the review body for comment counts.
             let bodyCommentCount = null;
