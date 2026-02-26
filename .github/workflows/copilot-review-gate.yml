@@ -88,13 +88,17 @@ jobs:
               }
             }
 
-            // 8. Fetch review comments via API as a fallback.
-            const { data: reviewComments } = await github.rest.pulls.listCommentsForReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              review_id: latestReview.id,
-            });
+            // 8. Fetch review comments via API as a fallback (all pages).
+            const reviewComments = await github.paginate(
+              github.rest.pulls.listCommentsForReview,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                review_id: latestReview.id,
+                per_page: 100,
+              }
+            );
             const apiCommentCount = reviewComments.filter(
               c => c.user && c.user.login === copilotLogin
             ).length;
