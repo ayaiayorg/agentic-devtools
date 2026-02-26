@@ -23,7 +23,7 @@ The same agents work in two different environments:
 Type `/` in the Copilot Chat input field and VS Code will show all available
 agents. Each agent maps directly to a file in `.github/agents/`:
 
-```
+```text
 /agdt.work-on-jira-issue.initiate   →  .github/agents/agdt.work-on-jira-issue.initiate.agent.md
 /speckit.specify                    →  .github/agents/speckit.specify.agent.md
 ```
@@ -37,7 +37,7 @@ When you invoke a slash command:
 
 You can pass arguments after the command name:
 
-```
+```text
 /speckit.specify I want to add OAuth2 login for enterprise users
 ```
 
@@ -62,7 +62,7 @@ workflow. Run them in order for a new feature.
 
 ### Typical SDD flow
 
-```
+```text
 /speckit.specify Add a dark mode toggle to the settings page
         ↓
 /speckit.clarify          (optional — resolve ambiguities)
@@ -147,7 +147,7 @@ to invoke the same agents:
 
 Just describe what you want. The agent invokes the appropriate tool:
 
-```
+```text
 run speckit analyze
 run speckit specify — add OAuth2 login
 run the PR review initiate workflow
@@ -180,7 +180,7 @@ Each command prints the full agent prompt and saves it to
 
 ## Context Comparison
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │  VS Code Copilot Chat                                                │
 │                                                                      │
