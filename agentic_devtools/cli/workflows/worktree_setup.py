@@ -893,6 +893,19 @@ def _run_auto_execute_command(
         The process exit code, or -1 if the command could not be started or timed out.
     """
     print(f"\n--- Executing command in worktree: {' '.join(command)} ---")
+    # Inherit current environment and pin AGENTIC_DEVTOOLS_STATE_DIR to the
+    # target worktree's scripts/temp directory.  This propagates into any
+    # nested background tasks spawned by the auto-execute command so that
+    # prompt files and state are written to the correct worktree location
+    # instead of falling back to a Python-install-relative temp directory.
+    env = os.environ.copy()
+    state_dir = Path(worktree_path) / "scripts" / "temp"
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass  # Best-effort; env var still points to the correct path
+    env["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+
     try:
         exec_result = subprocess.run(
             command,
@@ -901,6 +914,7 @@ def _run_auto_execute_command(
             text=True,
             timeout=timeout,
             shell=False,  # Security: no shell expansion
+            env=env,
         )
         if exec_result.stdout:
             print(exec_result.stdout)
