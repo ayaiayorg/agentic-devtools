@@ -20,13 +20,20 @@ Adding Tests for a New Workflow
 4. For simple workflows — test initiation sets the correct state and that
    notify_workflow_event returns triggered=False (see TestCreateJiraIssueWorkflowEndToEnd).
 5. Use the shared fixtures from tests/workflows/conftest.py:
-   - temp_state_dir: isolated state file (scoped per test via tmp_path)
+   - temp_state_dir: isolated state dir (tmp_path/state/); clear_state() only
+     wipes this subdir and never touches temp_output_dir or temp_prompts_dir
    - temp_output_dir: redirects all prompt/temp file writes away from scripts/temp/
    - clear_state_before: wipes state before each test (depends on temp_state_dir)
    - mock_jira_issue_response: realistic Jira Story API payload
    - mock_preflight_pass: preflight check always passes (correct worktree assumed)
    - mock_workflow_state_clearing: no-op for clear_state — prefer passing values
      via _argv instead (see "Notes on mock_workflow_state_clearing" in conftest.py)
+6. For tests that call advancement helpers that render prompts for the
+   pull-request-review workflow, patch get_queue_status to avoid reading
+   the real queue.json from scripts/temp/:
+       with patch("agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                  return_value=<queue_dict>):
+           result = advancement.try_advance_workflow_after_pr_review()
 """
 
 from unittest.mock import MagicMock, patch
@@ -527,18 +534,15 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         temp_output_dir,
         clear_state_before,
         mock_preflight_pass,
-        mock_workflow_state_clearing,
     ):
         """Test that initiating the workflow sets the expected state.
 
         Simulates an AI agent calling agdt-initiate-create-jira-issue-workflow
         in continuation mode. Values are passed via _argv (--project-key,
         --issue-key) so the command parses and validates its own inputs —
-        representative of real CLI usage.
-
-        mock_workflow_state_clearing is still used here to prevent
-        clear_state_for_workflow_initiation() from deleting the test's temp
-        output directory (a fixture-isolation concern, not a state-hiding one).
+        representative of real CLI usage. Because temp_state_dir patches
+        get_state_dir() to a dedicated subdir, clear_state_for_workflow_initiation()
+        does not wipe temp_output_dir, so no mock_workflow_state_clearing needed.
         """
         commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
 
@@ -595,7 +599,6 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         temp_output_dir,
         clear_state_before,
         mock_preflight_pass,
-        mock_workflow_state_clearing,
         mock_jira_issue_response,
     ):
         """Test that try_advance_workflow_after_jira_issue_retrieved has no side effects.
@@ -605,9 +608,9 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         that after an AI agent calls the Jira retrieval advancement helper the
         workflow step and context are completely unchanged.
 
-        mock_workflow_state_clearing is used to preserve the test's temp output
-        directory (a fixture-isolation concern, not a state-hiding one). Values
-        are provided via _argv so the command validates its own required inputs.
+        Values are provided via _argv so the command validates its own required inputs.
+        Because temp_state_dir patches get_state_dir() to a dedicated subdir,
+        clear_state_for_workflow_initiation() does not wipe temp_output_dir.
         """
         from agentic_devtools.cli.workflows.advancement import try_advance_workflow_after_jira_issue_retrieved
 
@@ -741,13 +744,30 @@ class TestMockAgentBehavior:
         )
         state.set_value("pull_request_id", "456")
 
+        in_progress_queue = {
+            "all_complete": False,
+            "completed_count": 0,
+            "pending_count": 2,
+            "total_count": 2,
+            "current_file": "file1",
+            "prompt_file_path": "/dev/null",
+        }
+
         # Agent reviews file 1
-        result1 = advancement.try_advance_workflow_after_pr_review()
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=in_progress_queue,
+        ):
+            result1 = advancement.try_advance_workflow_after_pr_review()
         assert result1 is True
         assert state.get_workflow_state()["step"] == "file-review"
 
         # Agent reviews file 2
-        result2 = advancement.try_advance_workflow_after_pr_review()
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=in_progress_queue,
+        ):
+            result2 = advancement.try_advance_workflow_after_pr_review()
         assert result2 is True
         assert state.get_workflow_state()["step"] == "file-review"
 

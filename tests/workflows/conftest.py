@@ -9,8 +9,10 @@ These fixtures provide common mocks for AI agent behavior tests:
 Pattern for new workflow tests:
     def test_my_workflow(temp_state_dir, temp_output_dir, clear_state_before,
                          mock_preflight_pass):
-        # Pass all required values via _argv so state-clearing in the command
-        # does not wipe values you set before the call.
+        # Pass all required values via _argv so the command validates its own
+        # inputs. Because temp_state_dir patches get_state_dir() to a dedicated
+        # subdir, clear_state_for_workflow_initiation() no longer wipes
+        # temp_output_dir or temp_prompts_dir.
         commands.initiate_my_workflow(_argv=["--issue-key", "DFLY-1234",
                                              "--project-key", "DFLY"])
         workflow = state.get_workflow_state()
@@ -18,18 +20,11 @@ Pattern for new workflow tests:
 
 Notes on mock_workflow_state_clearing:
     This fixture disables the clear_state() call that every initiation command
-    makes at startup. Two valid use cases:
-
-    1. Fixture isolation: clear_state_for_workflow_initiation() calls
-       clear_temp_folder(), which deletes everything inside get_state_dir()
-       including the temp/ subdirectory created by temp_output_dir. Use this
-       fixture to prevent that deletion when the test also exercises prompt
-       saving (save_to_temp=True). Always pass required values via _argv in
-       combination with this fixture to keep the test representative.
-
-    2. Legacy tests: When a test must pre-set state values before calling the
-       command and _argv support is absent, this fixture prevents the pre-set
-       state from being wiped.
+    makes at startup. Now that temp_state_dir patches get_state_dir() to a
+    dedicated subdir (tmp_path/state/), clear_state() no longer wipes other
+    fixture directories. Use mock_workflow_state_clearing only for legacy tests
+    where a test must pre-set state values before calling the command and _argv
+    support is absent.
 """
 
 from unittest.mock import patch
@@ -42,9 +37,17 @@ from agentic_devtools.prompts import loader
 
 @pytest.fixture
 def temp_state_dir(tmp_path):
-    """Create a temporary directory for state files."""
-    with patch.object(state, "get_state_dir", return_value=tmp_path):
-        yield tmp_path
+    """Create an isolated temporary directory for state files.
+
+    Patches get_state_dir() to ``tmp_path / "state"`` (a dedicated subdirectory)
+    so that state.clear_state() only deletes state files and never touches sibling
+    directories like ``tmp_path / "temp"`` (from temp_output_dir) or
+    ``tmp_path / "prompts"`` (from temp_prompts_dir).
+    """
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    with patch.object(state, "get_state_dir", return_value=state_dir):
+        yield state_dir
 
 
 @pytest.fixture
@@ -159,12 +162,15 @@ def mock_workflow_state_clearing():
     """Mock clear_state_for_workflow_initiation to be a no-op.
 
     Workflow initiation commands clear all state at the start to ensure
-    a fresh workflow. This fixture prevents that clearing so tests can
-    set up state (e.g., jira.issue_key) before calling the command.
+    a fresh workflow. This fixture prevents that clearing.
 
-    Prefer passing required values via _argv instead of using this fixture —
-    that keeps tests more representative of real CLI usage. Only use this
-    fixture for edge cases where _argv support is absent.
+    Prefer passing required values via _argv instead of relying on this
+    fixture — that keeps tests more representative of real CLI usage.
+    Use only when _argv support is absent for the command under test.
+
+    Note: fixture isolation (preventing clear_state from wiping temp_output_dir)
+    is handled by temp_state_dir using a dedicated subdirectory. You should NOT
+    need this fixture for that purpose.
     """
     with patch(
         "agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation",
