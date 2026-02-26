@@ -7,7 +7,7 @@
     "tables": false
   },
   "MD041": {
-    "front_matter_title": ""
+    "front_matter_title": ".*"
   },
   "MD060": false,
   "MD036": false,

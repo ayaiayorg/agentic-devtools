@@ -1,9 +1,9 @@
 """Tests for resolve_thread_by_id function."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from agentic_devtools.cli.azure_devops.helpers import resolve_thread_by_id
 from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+from agentic_devtools.cli.azure_devops.helpers import resolve_thread_by_id
 
 
 class TestResolveThreadById:

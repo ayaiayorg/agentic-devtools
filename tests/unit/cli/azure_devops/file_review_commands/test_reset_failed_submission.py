@@ -1,7 +1,6 @@
 """Tests for reset_failed_submission function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.file_review_commands import reset_failed_submission
@@ -52,9 +51,7 @@ class TestResetFailedSubmission:
 
     def test_returns_true_when_file_not_in_queue_but_file_written(self, tmp_path):
         """Return value is True when queue was read successfully (even if no match found)."""
-        queue_data = {
-            "pending": [{"path": "src/b.ts", "status": "failed"}]
-        }
+        queue_data = {"pending": [{"path": "src/b.ts", "status": "failed"}]}
         queue_file = tmp_path / "queue.json"
         queue_file.write_text(json.dumps(queue_data))
 

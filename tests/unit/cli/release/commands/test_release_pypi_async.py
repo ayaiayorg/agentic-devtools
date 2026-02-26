@@ -28,9 +28,7 @@ class TestReleasePypiAsync:
                     "agentic_devtools.cli.release.commands.run_function_in_background",
                     return_value=mock_task,
                 ) as mock_bg:
-                    with patch(
-                        "agentic_devtools.cli.release.commands.print_task_tracking_info"
-                    ):
+                    with patch("agentic_devtools.cli.release.commands.print_task_tracking_info"):
                         release_pypi_async()
 
         mock_bg.assert_called_once()

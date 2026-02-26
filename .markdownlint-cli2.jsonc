@@ -11,9 +11,9 @@
       "tables": false
     },
     // MD041: First line in file should be top-level heading
-    // Agent files use YAML front matter, so they need front_matter_title support
+    // Files with YAML front matter are exempt (regex matches any front matter content)
     "MD041": {
-      "front_matter_title": ""
+      "front_matter_title": ".*"
     },
     // MD060: Table column style - disabled because table formatting is often
     // auto-generated and forcing alignment can make content harder to maintain
