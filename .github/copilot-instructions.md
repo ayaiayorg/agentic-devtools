@@ -1484,7 +1484,7 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 1. Resolves both the PR ID and Jira issue key (cross-lookup when only one is provided).
 2. Fetches the PR source branch from Azure DevOps.
 3. Validates the current worktree/branch context via pre-flight checks.
-4. If the context is wrong, **automatically creates a dedicated worktree**, opens VS Code, then re-runs the command inside the new worktree.
+4. If the context is wrong, **automatically creates a dedicated worktree**, attempts to open VS Code (when available), then re-runs the command inside the new worktree.
 5. Fetches full PR details (diff, threads, iterations) and Jira issue details.
 6. Generates per-file review prompts in `scripts/temp/pull-request-review/prompts/<pr_id>/`.
 7. **When auto-setup ran (new worktree was created):** starts a `gh copilot` CLI session
@@ -1494,8 +1494,8 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 
 #### `--interactive` Flag
 
-| Value | Behavior |
-|-------|-----------|
+| Value | Behavior (when a Copilot session is started) |
+|-------|----------------------------------------------|
 | `true` (default) | Starts `gh copilot suggest` with an attached terminal — the reviewer interacts with it directly in VS Code. |
 | `false` | Starts `gh copilot suggest` as a detached background process, capturing output to `scripts/temp/background-tasks/logs/`. Use for Azure DevOps pipelines or other headless environments. |
 
@@ -1541,10 +1541,7 @@ For use in Azure DevOps pipelines (headless, no interactive terminal):
 
 ```yaml
 # azure-pipelines.yml example
-- script: |
-    agdt-initiate-pull-request-review-workflow \
-      --pull-request-id $(System.PullRequest.PullRequestId) \
-      --interactive false
+- script: agdt-initiate-pull-request-review-workflow --pull-request-id $(System.PullRequest.PullRequestId) --interactive false
   displayName: 'Run automated PR review'
   env:
     AZURE_DEV_OPS_COPILOT_PAT: $(AzureDevOpsCopilotPat)
@@ -1561,14 +1558,20 @@ When running in pipeline mode (`--interactive false`):
 - The `worktree_setup.auto_execute_exit_code` state key records the exit code of the
   setup/auto-execute command, not the Copilot session itself.
 
-#### VS Code Graceful Degradation
+#### Copilot / VS Code Graceful Degradation
 
-When `gh copilot` is not available on the machine:
+When an interactive Copilot session cannot be started, the workflow falls back to a
+non-interactive mode:
 
-1. A warning is printed to stderr.
-2. The rendered prompt is written to `scripts/temp/copilot-session-<session_id>-prompt.md`.
-3. The session metadata is still persisted to state (`copilot.*` keys).
-4. The reviewer can open the prompt file and start a manual Copilot session.
+- If `gh copilot` is not available on the machine, a warning is printed to stderr.
+- If the VS Code `code` CLI is not available, or there is no attached TTY (for example,
+  in CI pipelines), interactive mode is automatically disabled and `copilot.mode` is set
+  to `"non-interactive"`.
+- In all of these cases, the rendered prompt is written to
+  `scripts/temp/copilot-session-<session_id>-prompt.md`, and the session metadata is still
+  persisted to state (`copilot.*` keys).
+- The reviewer can open the prompt file in VS Code (or any editor) and start a manual
+  Copilot session if desired.
 
 #### Copilot CLI Session Management
 
