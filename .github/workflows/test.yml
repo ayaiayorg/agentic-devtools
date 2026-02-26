@@ -165,11 +165,11 @@ jobs:
           COV_FLAGS=()
 
           add_path() { if [ -d "$1" ] || [ -f "$1" ]; then TEST_PATHS+=("$1"); fi; }
-          add_glob() { for f in $1; do [ -e "$f" ] && TEST_PATHS+=("$f"); done; }
+          add_glob() { shopt -s nullglob; for f in $1; do TEST_PATHS+=("$f"); done; shopt -u nullglob; }
 
           if [ "${{ needs.detect-changes.outputs.git }}" = "true" ]; then
             add_path tests/unit/cli/git
-            add_glob "tests/test_git_*.py"
+            add_glob tests/test_git_*.py
             COV_FLAGS+=(--cov=agentic_devtools/cli/git)
           fi
 
@@ -204,7 +204,7 @@ jobs:
 
           if [ "${{ needs.detect-changes.outputs.release }}" = "true" ]; then
             add_path tests/unit/cli/release
-            add_glob "tests/test_release_*.py"
+            add_glob tests/test_release_*.py
             COV_FLAGS+=(--cov=agentic_devtools/cli/release)
           fi
 

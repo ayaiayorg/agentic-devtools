@@ -1,6 +1,6 @@
 """Tests for ensure_azure_account function."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.azure.auth import ensure_azure_account
 from agentic_devtools.cli.azure.config import AzureAccount
