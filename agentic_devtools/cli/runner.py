@@ -297,6 +297,11 @@ COMMAND_MAP = {
     "agdt-speckit-taskstoissues": ("agentic_devtools.cli.speckit", "speckit_taskstoissues"),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
+    # Setup
+    "agdt-setup": ("agentic_devtools.cli.setup", "setup_cmd"),
+    "agdt-setup-copilot-cli": ("agentic_devtools.cli.setup", "setup_copilot_cli_cmd"),
+    "agdt-setup-gh-cli": ("agentic_devtools.cli.setup", "setup_gh_cli_cmd"),
+    "agdt-setup-check": ("agentic_devtools.cli.setup", "setup_check_cmd"),
     # Azure context management
     "agdt-azure-context-use": (
         "agentic_devtools.cli.azure_context.commands",

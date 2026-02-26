@@ -18,9 +18,7 @@ class TestVpnOffAsync:
             "agentic_devtools.background_tasks.run_function_in_background",
             return_value=mock_task,
         ) as mock_bg:
-            with patch(
-                "agentic_devtools.task_state.print_task_tracking_info"
-            ):
+            with patch("agentic_devtools.task_state.print_task_tracking_info"):
                 vpn_off_async()
 
         mock_bg.assert_called_once()
@@ -35,9 +33,7 @@ class TestVpnOffAsync:
             "agentic_devtools.background_tasks.run_function_in_background",
             return_value=mock_task,
         ) as mock_bg:
-            with patch(
-                "agentic_devtools.task_state.print_task_tracking_info"
-            ):
+            with patch("agentic_devtools.task_state.print_task_tracking_info"):
                 vpn_off_async()
 
         call_kwargs = mock_bg.call_args[1]

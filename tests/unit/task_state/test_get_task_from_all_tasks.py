@@ -1,7 +1,6 @@
 """Tests for get_task_from_all_tasks function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.task_state import BackgroundTask, get_task_from_all_tasks

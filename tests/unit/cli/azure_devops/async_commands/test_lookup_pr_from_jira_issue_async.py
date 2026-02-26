@@ -18,9 +18,7 @@ class TestLookupPrFromJiraIssueAsync:
                 "agentic_devtools.cli.azure_devops.async_commands.get_value",
                 return_value=None,
             ):
-                with patch(
-                    "agentic_devtools.cli.azure_devops.async_commands.set_value"
-                ) as mock_set:
+                with patch("agentic_devtools.cli.azure_devops.async_commands.set_value") as mock_set:
                     lookup_pr_from_jira_issue_async(issue_key="DFLY-1234")
 
         mock_set.assert_called_once_with("pull_request_id", "12345")

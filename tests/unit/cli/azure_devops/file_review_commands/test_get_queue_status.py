@@ -1,7 +1,6 @@
 """Tests for get_queue_status function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.file_review_commands import get_queue_status

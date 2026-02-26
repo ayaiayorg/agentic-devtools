@@ -307,3 +307,23 @@ class TestStartCopilotSessionFallback:
                 working_directory=str(temp_state),
             )
         assert Path(result.prompt_file).read_text(encoding="utf-8") == "Fallback prompt text"
+
+
+class TestStartCopilotSessionWithStandaloneBinary:
+    """Tests for start_copilot_session when the standalone copilot binary is available."""
+
+    def test_uses_standalone_binary_in_popen_args(self, temp_state, mock_available, mock_popen_interactive):
+        """When standalone copilot binary is found, Popen is called with it directly."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            result = start_copilot_session(
+                prompt="Use standalone",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert cmd[0] == "/usr/local/bin/copilot"
+        assert cmd[1] == "suggest"
+        assert cmd[2] == "--file"
+        assert cmd[3] == result.prompt_file

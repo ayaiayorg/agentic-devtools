@@ -9,11 +9,9 @@ arguments the user supplied on the CLI, then starts an interactive
 
 import re
 import sys
-from pathlib import Path
 from typing import Optional
 
 from ...state import _get_git_repo_root
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -1,7 +1,5 @@
 """Tests for wait_for_run_impl function."""
 
-from unittest.mock import MagicMock, patch
-
 from agentic_devtools.cli.azure_devops.run_details_commands import wait_for_run_impl
 
 

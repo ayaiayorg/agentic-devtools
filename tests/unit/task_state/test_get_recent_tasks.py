@@ -22,9 +22,7 @@ class TestGetRecentTasks:
         task = BackgroundTask.create(command="agdt-test")
 
         with patch("agentic_devtools.task_state.load_state") as mock_load:
-            mock_load.return_value = {
-                "background": {"recentTasks": [task.to_dict()]}
-            }
+            mock_load.return_value = {"background": {"recentTasks": [task.to_dict()]}}
 
             result = get_recent_tasks(use_locking=False)
 
@@ -38,9 +36,7 @@ class TestGetRecentTasks:
         task2 = BackgroundTask.create(command="agdt-test-quick")
 
         with patch("agentic_devtools.task_state.load_state") as mock_load:
-            mock_load.return_value = {
-                "background": {"recentTasks": [task1.to_dict(), task2.to_dict()]}
-            }
+            mock_load.return_value = {"background": {"recentTasks": [task1.to_dict(), task2.to_dict()]}}
 
             result = get_recent_tasks(use_locking=False)
 
@@ -57,11 +53,7 @@ class TestGetRecentTasks:
         pending = BackgroundTask.create(command="agdt-test-quick")
 
         with patch("agentic_devtools.task_state.load_state") as mock_load:
-            mock_load.return_value = {
-                "background": {
-                    "recentTasks": [finished.to_dict(), pending.to_dict()]
-                }
-            }
+            mock_load.return_value = {"background": {"recentTasks": [finished.to_dict(), pending.to_dict()]}}
 
             result = get_recent_tasks(use_locking=False)
 
