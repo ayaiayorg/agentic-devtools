@@ -634,7 +634,7 @@ These commands initiate a workflow, loading and rendering the appropriate prompt
 
 | Command | Purpose | Required Parameters |
 |---------|---------|---------------------|
-| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow | `--pull-request-id` or `--issue-key` |
+| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow | `--pull-request-id` or `--issue-key`; optional `--interactive false` for pipeline mode |
 | `agdt-initiate-work-on-jira-issue-workflow` | Start work on Jira issue | `--issue-key` |
 | `agdt-initiate-create-jira-issue-workflow` | Start create issue workflow | `--project-key` |
 | `agdt-initiate-create-jira-epic-workflow` | Start create epic workflow | `--project-key` |
@@ -1466,33 +1466,40 @@ agdt-reply-to-pull-request-thread  # Previews without API calls
 
 ### Pull Request Review Workflow
 
-The `agdt-review-pull-request` command orchestrates the entire PR review process:
+The end-to-end automated PR review is initiated with a **single command**:
 
 ```bash
-# Option 1: Start with Jira issue key
-agdt-set jira.issue_key DFLY-1840
-agdt-review-pull-request
+# Start with a PR ID (interactive mode — VS Code terminal)
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345
 
-# Option 2: Start with PR ID
-agdt-set pull_request_id 23523
-agdt-review-pull-request
+# Start with a Jira issue key (looks up the PR automatically)
+agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
 
-# Option 3: Pass parameters directly
-agdt-review-pull-request --pull-request-id 23523 --jira-issue-key DFLY-1840
-
-# Option 4: Include already-reviewed files
-agdt-review-pull-request --include-reviewed
+# Non-interactive / pipeline mode
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
 ```
 
-The command:
+**Automated flow:**
 
-1. **Resolves both PR ID and Jira issue key** from params, state, or derived sources:
-   - If Jira key provided but no PR ID → searches Jira for linked PRs
-   - If PR ID provided but no Jira key → extracts issue key from PR title
-2. **Fetches full PR details** (diff, threads, iterations)
-3. **Fetches Jira issue details** (if available)
-4. **Generates per-file review prompts** in `scripts/temp/pull-request-review/prompts/<pr_id>/`
-5. **Prints instructions** for the review workflow
+1. Resolves both the PR ID and Jira issue key (cross-lookup when only one is provided).
+2. Fetches the PR source branch from Azure DevOps.
+3. Validates the current worktree/branch context via pre-flight checks.
+4. If the context is wrong, **automatically creates a dedicated worktree**, attempts to open VS Code (when available), then re-runs the command inside the new worktree.
+5. Fetches full PR details (diff, threads, iterations) and Jira issue details.
+6. Generates per-file review prompts in `scripts/temp/pull-request-review/prompts/<pr_id>/`.
+7. **When auto-setup ran (new worktree was created):** starts a `gh copilot` CLI session
+   (interactive or background depending on `--interactive`). When already in the correct
+   worktree context, the rendered initiate prompt is printed to the console for the agent
+   to use manually.
+
+#### `--interactive` Flag
+
+| Value | Behavior (when a Copilot session is started) |
+|-------|----------------------------------------------|
+| `true` (default) | Starts `gh copilot suggest` with an attached terminal — the reviewer interacts with it directly in VS Code. |
+| `false` | Starts `gh copilot suggest` as a detached background process, capturing output to `scripts/temp/background-tasks/logs/`. Use for Azure DevOps pipelines or other headless environments. |
+
+If `gh copilot` is not installed, a warning is printed and the prompt file path is shown so the review can be started manually.
 
 #### Generated Review Artifacts
 
@@ -1506,7 +1513,7 @@ The command:
 
 #### File Review Commands
 
-After starting a review, use these commands for each file:
+After a review session is active, use these commands for each file:
 
 ```bash
 # Approve a file (no issues found)
@@ -1527,6 +1534,94 @@ const descriptiveVariableName = value;
 ```"
 agdt-request-changes-with-suggestion
 ```
+
+#### Pipeline Usage
+
+For use in Azure DevOps pipelines (headless, no interactive terminal):
+
+```yaml
+# azure-pipelines.yml example
+- script: agdt-initiate-pull-request-review-workflow --pull-request-id $(System.PullRequest.PullRequestId) --interactive false
+  displayName: 'Run automated PR review'
+  env:
+    AZURE_DEV_OPS_COPILOT_PAT: $(AzureDevOpsCopilotPat)
+    JIRA_COPILOT_PAT: $(JiraCopilotPat)
+```
+
+When running in pipeline mode (`--interactive false`):
+
+- `gh copilot` output is captured to `scripts/temp/background-tasks/logs/copilot_session_*.log`.
+- The Copilot process runs as a direct child process (via `subprocess.Popen`), not as an
+  agdt background task, so there is no background task ID and `agdt-task-wait` is not
+  applicable. Monitor completion using the `copilot.pid` state key and/or by tailing the
+  Copilot session log file.
+- The `worktree_setup.auto_execute_exit_code` state key records the exit code of the
+  setup/auto-execute command, not the Copilot session itself.
+
+#### Copilot / VS Code Graceful Degradation
+
+When an interactive Copilot session cannot be started, the workflow falls back to a
+non-interactive mode:
+
+- If `gh copilot` is not available on the machine, a warning is printed to stderr.
+- If the VS Code `code` CLI is not available, or there is no attached TTY (for example,
+  in CI pipelines), interactive mode is automatically disabled and `copilot.mode` is set
+  to `"non-interactive"`.
+- In all of these cases, the rendered prompt is written to
+  `scripts/temp/copilot-session-<session_id>-prompt.md`, and the session metadata is still
+  persisted to state (`copilot.*` keys).
+- The reviewer can open the prompt file in VS Code (or any editor) and start a manual
+  Copilot session if desired.
+
+#### Copilot CLI Session Management
+
+State keys written to `agdt-state.json` after a session is started:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `copilot.session_id` | string | UUID4 hex identifying the session |
+| `copilot.mode` | string | `"interactive"` or `"non-interactive"` |
+| `copilot.prompt_file` | string | Absolute path to the temporary prompt file |
+| `copilot.start_time` | string | ISO-8601 UTC timestamp when the session was started |
+| `copilot.pid` | `integer \| ""` | PID of background process (empty for interactive sessions) |
+
+Additional `worktree_setup` keys written during automated environment setup:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `worktree_setup.auto_execute_exit_code` | string | Exit code of the auto-executed setup command |
+
+#### Target Repository Configuration (`.github/agdt-config.json`)
+
+Target repositories can place a `.github/agdt-config.json` file in their root to customize the review workflow. The file is **optional** — if absent, the review proceeds with defaults.
+
+**Schema:**
+
+```json
+{
+  "review": {
+    "focus-areas-file": ".github/review-focus-areas.md"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `review.focus-areas-file` | string | Repo-root-relative path to a markdown file listing review focus areas. |
+
+**`.github/review-focus-areas.md` format:**
+
+Free-form markdown injected into the review prompt to guide the Copilot reviewer. Example:
+
+```markdown
+## Review Focus Areas
+
+- Ensure all public APIs have JSDoc/docstring documentation.
+- Validate that new database migrations are backward-compatible.
+- Check that error messages are user-friendly and don't leak internals.
+```
+
+Both files are optional and safe to omit; the review will still run without repo-specific guidance.
 
 ### Get Jira Issue Details
 
