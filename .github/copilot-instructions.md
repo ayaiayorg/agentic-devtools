@@ -1617,7 +1617,7 @@ Free-form markdown injected into the review prompt to guide the Copilot reviewer
 ## Review Focus Areas
 
 - Ensure all public APIs have JSDoc/docstring documentation.
-- Validate that new database migrations are backwards-compatible.
+- Validate that new database migrations are backward-compatible.
 - Check that error messages are user-friendly and don't leak internals.
 ```
 
