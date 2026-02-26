@@ -51,6 +51,9 @@ _LOG_DIR_NAME = "background-tasks/logs"
 # Prompt file naming pattern
 _PROMPT_FILE_PATTERN = "copilot-session-{session_id}-prompt.md"
 
+# Managed install path for the standalone copilot binary
+_MANAGED_COPILOT = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
+
 
 # ---------------------------------------------------------------------------
 # Public dataclass
@@ -86,17 +89,40 @@ class CopilotSessionResult:
 # ---------------------------------------------------------------------------
 
 
-def is_gh_copilot_available() -> bool:
-    """Return ``True`` if ``gh copilot`` can be invoked on this machine.
+def _get_copilot_binary() -> Optional[str]:
+    """Return the path to the copilot binary, or ``None`` if not found.
 
-    Performs two checks:
-    1. The ``gh`` binary is present on ``PATH`` (via :func:`shutil.which`).
-    2. ``gh copilot --help`` exits with return code 0, confirming that the
-       ``copilot`` extension is installed and responsive.
+    Checks (in order):
+    1. The standalone ``copilot`` binary on the system ``PATH``.
+    2. The managed install at ``~/.agdt/bin/copilot[.exe]``.
 
     Returns:
-        ``True`` when both checks pass; ``False`` otherwise.
+        Absolute path string when found, ``None`` otherwise.
     """
+    system_path = shutil.which("copilot")
+    if system_path:
+        return system_path
+    if _MANAGED_COPILOT.is_file():
+        return str(_MANAGED_COPILOT)
+    return None
+
+
+def is_gh_copilot_available() -> bool:
+    """Return ``True`` if a usable Copilot CLI can be invoked on this machine.
+
+    Checks (in order):
+    1. A standalone ``copilot`` binary (system PATH or ``~/.agdt/bin/``).
+    2. The ``gh copilot`` extension (legacy fallback): ``gh`` must be present
+       and ``gh copilot --help`` must exit with return code 0.
+
+    Returns:
+        ``True`` when at least one check passes; ``False`` otherwise.
+    """
+    # Prefer standalone copilot binary
+    if _get_copilot_binary() is not None:
+        return True
+
+    # Fallback: gh copilot extension
     if not shutil.which("gh"):
         return False
     try:
@@ -155,12 +181,13 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
 
 
 def _build_copilot_args(prompt_file: str) -> list[str]:
-    """Build the ``gh copilot suggest`` argument list.
+    """Build the copilot argument list.
 
-    The prompt is passed via the ``--file`` flag (when supported) so that
-    large prompts do not hit shell argument-length limits.  If a stable
-    ``--non-interactive`` or ``--agent-mode`` flag is introduced upstream
-    it should be appended here.
+    Uses the standalone ``copilot`` binary when available (preferred), falling
+    back to the ``gh copilot`` extension for backward compatibility.
+
+    The prompt is passed via the ``--file`` flag so that large prompts do not
+    hit shell argument-length limits.
 
     Args:
         prompt_file: Absolute path to the file containing the prompt.
@@ -168,6 +195,9 @@ def _build_copilot_args(prompt_file: str) -> list[str]:
     Returns:
         List of strings suitable for :func:`subprocess.Popen`.
     """
+    standalone = _get_copilot_binary()
+    if standalone:
+        return [standalone, "suggest", "--file", prompt_file]
     return ["gh", "copilot", "suggest", "--file", prompt_file]
 
 

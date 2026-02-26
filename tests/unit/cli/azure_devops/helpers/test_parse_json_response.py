@@ -16,7 +16,7 @@ class TestParseJsonResponse:
 
     def test_parses_json_array(self):
         """Should return a list when a JSON array is provided."""
-        result = parse_json_response('[1, 2, 3]', context="test")
+        result = parse_json_response("[1, 2, 3]", context="test")
 
         assert result == [1, 2, 3]
 

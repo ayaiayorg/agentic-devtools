@@ -92,7 +92,7 @@ I've made the changes you suggested."
 
 # Execute action (parameterless - approve once)
 agdt-reply-to-pr-thread
-```text
+```
 
 ## Copilot Commands
 

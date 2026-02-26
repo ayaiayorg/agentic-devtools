@@ -38,7 +38,6 @@ from .pull_request_details_commands import (
     get_change_tracking_id_for_file,
 )
 
-
 OVERALL_PR_SUMMARY_HEADING = "## Overall PR Review Summary"
 
 
@@ -265,9 +264,7 @@ def add_pull_request_comment() -> None:
 
     # For PR-level approval comments (no file path), try to reply to the existing summary thread
     if is_approval and not path:
-        summary_thread_id = _find_summary_thread_id(
-            requests, headers, config, repo_id, pull_request_id
-        )
+        summary_thread_id = _find_summary_thread_id(requests, headers, config, repo_id, pull_request_id)
         if summary_thread_id:
             try:
                 comment_url = config.build_api_url(
