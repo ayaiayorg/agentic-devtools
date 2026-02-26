@@ -176,6 +176,8 @@ jobs:
           if [ "${{ needs.detect-changes.outputs.azure_devops }}" = "true" ]; then
             add_path tests/unit/cli/azure_devops
             add_path tests/azure_devops
+            add_path tests/test_file_review_commands.py
+            add_path tests/test_file_review_queue_management.py
             COV_FLAGS+=(--cov=agentic_devtools/cli/azure_devops)
           fi
 
