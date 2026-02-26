@@ -41,9 +41,7 @@ class TestSwitchContext:
 
     def test_calls_set_value_once(self):
         """Should call set_value exactly once."""
-        with patch(
-            "agentic_devtools.cli.azure_context.management.set_value"
-        ) as mock_set:
+        with patch("agentic_devtools.cli.azure_context.management.set_value") as mock_set:
             switch_context(AzureContext.DEVOPS)
 
         mock_set.assert_called_once()

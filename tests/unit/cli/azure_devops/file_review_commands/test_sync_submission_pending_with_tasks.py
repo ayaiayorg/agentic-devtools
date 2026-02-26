@@ -1,7 +1,6 @@
 """Tests for sync_submission_pending_with_tasks function."""
 
 import json
-
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.azure_devops.file_review_commands import sync_submission_pending_with_tasks

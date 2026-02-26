@@ -1,7 +1,6 @@
 """Tests for print_next_file_prompt function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.file_review_commands import print_next_file_prompt
@@ -23,9 +22,7 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"
-            ):
+            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
                 print_next_file_prompt(pull_request_id=42)
 
         captured = capsys.readouterr()

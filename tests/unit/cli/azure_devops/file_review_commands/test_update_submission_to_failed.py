@@ -1,7 +1,6 @@
 """Tests for update_submission_to_failed function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.file_review_commands import update_submission_to_failed

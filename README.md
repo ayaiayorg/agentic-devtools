@@ -30,7 +30,7 @@ pipx install .
 
 # For development (editable install)
 pipx install -e .
-```text
+```
 
 ### Option 2: Global pip install
 
@@ -48,7 +48,7 @@ pip install -e .
 
 # With dev dependencies
 pip install -e ".[dev]"
-```text
+```
 
 > **Note:** Avoid `pip install --user` as it places scripts in a directory that
 may not be on your PATH (`%APPDATA%\Python\PythonXXX\Scripts` on Windows).
@@ -60,7 +60,7 @@ After installation, verify the commands are available:
 ```bash
 agdt-set --help
 agdt-show
-```text
+```
 
 If commands are not found after installation:
 
@@ -92,7 +92,7 @@ I've made the changes you suggested."
 
 # Execute action (parameterless - approve once)
 agdt-reply-to-pr-thread
-```text
+```
 
 ## Copilot Commands
 
@@ -134,7 +134,7 @@ agdt-clear
 
 # Show all state
 agdt-show
-```text
+```
 
 ### Examples
 
@@ -157,7 +157,7 @@ I've addressed your concerns:
 
 # View current state
 agdt-show
-```text
+```
 
 ## Azure DevOps Commands
 
@@ -261,21 +261,21 @@ The Azure context system uses separate `AZURE_CONFIG_DIR` directories per accoun
 
 1. **Switch to a context** (one-time setup per context):
 
-```bash
-# Switch to DevOps context
-agdt-azure-context-use devops
+    ```bash
+    # Switch to DevOps context
+    agdt-azure-context-use devops
 
-# Switch to resources context
-agdt-azure-context-use resources
-```text
+    # Switch to resources context
+    agdt-azure-context-use resources
+    ```
 
 2. **Log in to each context** (one-time per context):
 
-```bash
-# After switching to a context, log in using Azure CLI
-az login
-# This login is stored in the context's isolated config directory
-```text
+    ```bash
+    # After switching to a context, log in using Azure CLI
+    az login
+    # This login is stored in the context's isolated config directory
+    ```
 
 ### Usage
 
@@ -283,9 +283,10 @@ az login
 
 ```bash
 agdt-azure-context-status
-```text
+```
 
 Output:
+
 ```text
 Azure CLI Contexts:
 ================================================================================
@@ -301,13 +302,13 @@ resources
   Status:      ✓ Logged in as user@company.com
 
 ================================================================================
-```text
+```
 
 **Check current active context:**
 
 ```bash
 agdt-azure-context-current
-```text
+```
 
 **Switch contexts:**
 
@@ -317,7 +318,7 @@ agdt-azure-context-use devops
 
 # Switch to resources context
 agdt-azure-context-use resources
-```text
+```
 
 **Ensure logged in (prompts if needed):**
 
@@ -327,11 +328,12 @@ agdt-azure-context-ensure-login
 
 # Ensure specific context is logged in
 agdt-azure-context-ensure-login devops
-```text
+```
 
 ### How It Works
 
 Each context uses its own isolated Azure CLI configuration directory:
+
 - `~/.azure-contexts/devops/` - DevOps context config and tokens
 - `~/.azure-contexts/resources/` - Resources context config and tokens
 
@@ -364,7 +366,7 @@ single-commit policy.
 # Option B: Parameterless (uses current state)
 # Current commit_message: run `agdt-get commit_message` to check
 agdt-git-save-work
-```text
+```
 
 ### Smart Commit (Auto-detects Amend)
 
@@ -381,7 +383,7 @@ agdt-git-save-work --commit-message "feature(DFLY-1234): refined implementation
 - Original changes
 - Additional updates"
 # Auto-detects and amends!
-```text
+```
 
 **Detection logic:**
 
@@ -398,7 +400,7 @@ agdt-git-stage       # Stage all changes (git add .)
 agdt-git-push        # Push changes (git push)
 agdt-git-force-push  # Force push with lease
 agdt-git-publish     # Push with upstream tracking
-```text
+```
 
 ### Git State Options
 
@@ -419,7 +421,7 @@ The package provides workflow commands for managing structured work processes.
 # Start work on a Jira issue
 agdt-set jira.issue_key "DFLY-1234"
 agdt-initiate-work-on-jira-issue-workflow
-```text
+```
 
 **Workflow Steps:**
 
@@ -448,7 +450,7 @@ agdt-show-checklist
 
 # Update during commit (auto-marks items and advances workflow)
 agdt-git-save-work --completed 1 2  # Marks items complete before committing
-```text
+```
 
 ### Workflow Navigation
 
@@ -461,7 +463,7 @@ agdt-advance-workflow
 
 # Clear workflow
 agdt-clear-workflow
-```text
+```
 
 ## PyPI Release Commands
 
@@ -482,7 +484,7 @@ agdt-set pypi.dry_run false
 
 # Release starten (parameterlos)
 agdt-release-pypi
-```text
+```
 
 ### Status prüfen
 
@@ -490,7 +492,7 @@ agdt-release-pypi
 agdt-task-status
 agdt-task-log
 agdt-task-wait
-```text
+```
 
 ## Jira Commands
 
@@ -502,7 +504,7 @@ All Jira commands use the `jira.*` namespace for state values. Set
 ```bash
 agdt-set jira.issue_key "DFLY-1234"
 agdt-get-jira-issue
-```text
+```
 
 ### Add Comment to Issue
 
@@ -516,7 +518,7 @@ agdt-add-jira-comment --jira-comment "Your comment text"
 # Current jira.issue_key: run `agdt-get jira.issue_key` to check
 # Current jira.comment: run `agdt-get jira.comment` to check
 agdt-add-jira-comment
-```text
+```
 
 ### Create Epic
 
@@ -533,7 +535,7 @@ agdt-create-epic
 agdt-set jira.acceptance_criteria "- Criterion 1
 - Criterion 2"
 agdt-create-epic
-```text
+```
 
 ### Create Issue (Task/Bug/Story)
 
@@ -548,7 +550,7 @@ agdt-set jira.role "developer"
 agdt-set jira.desired_outcome "complete task"
 agdt-set jira.benefit "value delivered"
 agdt-create-issue
-```text
+```
 
 ### Create Subtask
 
@@ -557,18 +559,19 @@ agdt-set jira.parent_key "DFLY-1234"
 agdt-set jira.summary "Subtask Title"
 agdt-set jira.description "Subtask description"
 agdt-create-subtask
-```text
+```
 
 ### Dry Run Mode for Jira
 
 ```bash
 agdt-set jira.dry_run true
 agdt-create-issue  # Previews payload without API call
-```text
+```
 
 ## VPN & Network Management
 
-The corporate VPN (Pulse Secure/Ivanti) creates a full tunnel that blocks public registries (npm, PyPI) while being required for internal resources (Jira, ESB). These commands provide intelligent VPN management so you don't need to manually connect/disconnect VPN when switching between tasks.
+The corporate VPN (Pulse Secure/Ivanti) creates a full tunnel that blocks public registries (npm, PyPI) while being required for internal resources
+(Jira, ESB). These commands provide intelligent VPN management so you don't need to manually connect/disconnect VPN when switching between tasks.
 
 ### Network Status
 
@@ -719,7 +722,7 @@ Unlike PowerShell, Python's CLI parsing handles special characters natively:
 ```bash
 # This just works!
 agdt-set content "Code with (parentheses) and [brackets]"
-```text
+```
 
 ### No Multi-line Builder Needed
 
@@ -729,7 +732,7 @@ Python preserves multiline strings from the shell:
 agdt-set content "Line 1
 Line 2
 Line 3"
-```text
+```
 
 ## GitHub Actions: SpecKit Issue Trigger
 
@@ -799,7 +802,7 @@ You can also trigger the workflow manually for testing:
 
 ```bash
 gh workflow run speckit-issue-trigger.yml -f issue_number=123
-```text
+```
 
 ### Labels
 

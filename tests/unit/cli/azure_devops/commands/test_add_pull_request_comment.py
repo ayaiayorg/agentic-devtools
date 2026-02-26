@@ -286,9 +286,7 @@ class TestAddPullRequestCommentActualCall:
             "value": [
                 {
                     "id": 99,
-                    "comments": [
-                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
-                    ],
+                    "comments": [{"content": "## Overall PR Review Summary\n\n*Status:* Approved"}],
                 }
             ]
         }
@@ -323,9 +321,7 @@ class TestAddPullRequestCommentActualCall:
         mock_req_module.patch.return_value = mock_post_response
         # No matching summary thread
         mock_get_response = MagicMock()
-        mock_get_response.json.return_value = {
-            "value": [{"id": 50, "comments": [{"content": "Regular comment"}]}]
-        }
+        mock_get_response.json.return_value = {"value": [{"id": 50, "comments": [{"content": "Regular comment"}]}]}
         mock_req_module.get.return_value = mock_get_response
         mock_requests.return_value = mock_req_module
 
@@ -361,9 +357,7 @@ class TestAddPullRequestCommentActualCall:
         # Summary thread exists
         mock_get_response = MagicMock()
         mock_get_response.json.return_value = {
-            "value": [
-                {"id": 99, "comments": [{"content": "## Overall PR Review Summary\nApproved"}]}
-            ]
+            "value": [{"id": 99, "comments": [{"content": "## Overall PR Review Summary\nApproved"}]}]
         }
         mock_req_module.get.return_value = mock_get_response
         mock_requests.return_value = mock_req_module
@@ -417,9 +411,7 @@ class TestFindSummaryThreadId:
                 {"id": 10, "comments": [{"content": "Some other thread"}]},
                 {
                     "id": 42,
-                    "comments": [
-                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
-                    ],
+                    "comments": [{"content": "## Overall PR Review Summary\n\n*Status:* Approved"}],
                 },
             ]
         }
@@ -434,9 +426,7 @@ class TestFindSummaryThreadId:
         """Returns None when no summary thread exists."""
         mock_requests = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "value": [{"id": 10, "comments": [{"content": "Not a summary"}]}]
-        }
+        mock_response.json.return_value = {"value": [{"id": 10, "comments": [{"content": "Not a summary"}]}]}
         mock_requests.get.return_value = mock_response
         config = MagicMock()
         config.build_api_url.return_value = "https://example.com/threads"
@@ -473,9 +463,7 @@ class TestFindSummaryThreadId:
         mock_response.json.return_value = {
             "value": [
                 {
-                    "comments": [
-                        {"content": "## Overall PR Review Summary\n\n*Status:* Approved"}
-                    ],
+                    "comments": [{"content": "## Overall PR Review Summary\n\n*Status:* Approved"}],
                 }
             ]
         }

@@ -10,9 +10,7 @@ class TestClearStateForWorkflowInitiation:
 
     def test_calls_clear_state(self, capsys):
         """Should call clear_state to remove all previous state."""
-        with patch(
-            "agentic_devtools.cli.workflows.base.clear_state"
-        ) as mock_clear:
+        with patch("agentic_devtools.cli.workflows.base.clear_state") as mock_clear:
             clear_state_for_workflow_initiation()
 
         mock_clear.assert_called_once()
