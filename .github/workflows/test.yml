@@ -12,86 +12,384 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test Python ${{ matrix.python-version }}
+  detect-changes:
+    name: Detect Changed Modules
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12']
-      fail-fast: false
-    
+    outputs:
+      git: ${{ steps.filter.outputs.git }}
+      azure_devops: ${{ steps.filter.outputs.azure_devops }}
+      azure_context: ${{ steps.filter.outputs.azure_context }}
+      jira: ${{ steps.filter.outputs.jira }}
+      vpn: ${{ steps.filter.outputs.vpn }}
+      network: ${{ steps.filter.outputs.network }}
+      release: ${{ steps.filter.outputs.release }}
+      tasks: ${{ steps.filter.outputs.tasks }}
+      github_module: ${{ steps.filter.outputs.github_module }}
+      copilot: ${{ steps.filter.outputs.copilot }}
+      speckit: ${{ steps.filter.outputs.speckit }}
+      azure: ${{ steps.filter.outputs.azure }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      core: ${{ steps.filter.outputs.core }}
+      config: ${{ steps.filter.outputs.config }}
+      has_modules: ${{ steps.has-modules.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            git:
+              - 'agentic_devtools/cli/git/**'
+              - 'tests/unit/cli/git/**'
+              - 'tests/test_git_*.py'
+            azure_devops:
+              - 'agentic_devtools/cli/azure_devops/**'
+              - 'tests/unit/cli/azure_devops/**'
+              - 'tests/azure_devops/**'
+            azure_context:
+              - 'agentic_devtools/cli/azure_context/**'
+              - 'tests/unit/cli/azure_context/**'
+              - 'tests/azure_context/**'
+            jira:
+              - 'agentic_devtools/cli/jira/**'
+              - 'tests/unit/cli/jira/**'
+            vpn:
+              - 'agentic_devtools/cli/vpn/**'
+              - 'tests/unit/cli/vpn/**'
+              - 'tests/vpn/**'
+            network:
+              - 'agentic_devtools/cli/network/**'
+              - 'tests/unit/cli/network/**'
+              - 'tests/network/**'
+            release:
+              - 'agentic_devtools/cli/release/**'
+              - 'tests/unit/cli/release/**'
+              - 'tests/test_release_*.py'
+            tasks:
+              - 'agentic_devtools/cli/tasks/**'
+              - 'tests/unit/cli/tasks/**'
+            github_module:
+              - 'agentic_devtools/cli/github/**'
+              - 'tests/unit/cli/github/**'
+            copilot:
+              - 'agentic_devtools/cli/copilot/**'
+              - 'tests/unit/cli/copilot/**'
+            speckit:
+              - 'agentic_devtools/cli/speckit/**'
+              - 'tests/unit/cli/speckit/**'
+            azure:
+              - 'agentic_devtools/cli/azure/**'
+              - 'tests/unit/cli/azure/**'
+            workflows:
+              - 'agentic_devtools/cli/workflows/**'
+              - 'tests/unit/cli/workflows/**'
+            core:
+              - 'agentic_devtools/*.py'
+              - 'agentic_devtools/cli/runner.py'
+              - 'agentic_devtools/cli/state.py'
+              - 'agentic_devtools/cli/subprocess_utils.py'
+              - 'agentic_devtools/cli/testing.py'
+              - 'tests/unit/state/**'
+              - 'tests/unit/background_tasks/**'
+              - 'tests/unit/config/**'
+              - 'tests/unit/file_locking/**'
+              - 'tests/unit/task_state/**'
+              - 'tests/unit/cli/runner/**'
+              - 'tests/unit/cli/state/**'
+              - 'tests/unit/cli/subprocess_utils/**'
+              - 'tests/unit/cli/testing/**'
+              - 'tests/test_validate_test_structure.py'
+              - 'tests/test_scaffold_tests.py'
+              - 'tests/test_version.py'
+              - 'tests/test_file_review_commands.py'
+              - 'tests/test_file_review_queue_management.py'
+            config:
+              - 'pyproject.toml'
+              - 'scripts/validate_test_structure.py'
+              - 'tests/conftest.py'
+              - 'tests/helpers.py'
+
+      - name: Check if any module changed
+        id: has-modules
+        run: |
+          if [[ "${{ steps.filter.outputs.git }}" == "true" || \
+                "${{ steps.filter.outputs.azure_devops }}" == "true" || \
+                "${{ steps.filter.outputs.azure_context }}" == "true" || \
+                "${{ steps.filter.outputs.jira }}" == "true" || \
+                "${{ steps.filter.outputs.vpn }}" == "true" || \
+                "${{ steps.filter.outputs.network }}" == "true" || \
+                "${{ steps.filter.outputs.release }}" == "true" || \
+                "${{ steps.filter.outputs.tasks }}" == "true" || \
+                "${{ steps.filter.outputs.github_module }}" == "true" || \
+                "${{ steps.filter.outputs.copilot }}" == "true" || \
+                "${{ steps.filter.outputs.speckit }}" == "true" || \
+                "${{ steps.filter.outputs.azure }}" == "true" || \
+                "${{ steps.filter.outputs.workflows }}" == "true" || \
+                "${{ steps.filter.outputs.core }}" == "true" ]]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test-smart:
+    name: Smart Tests (Changed Modules)
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.has_modules == 'true' && needs.detect-changes.outputs.config != 'true'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ matrix.python-version }}
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
           cache: 'pip'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      
+
+      - name: Validate 1:1:1 test structure
+        run: |
+          python scripts/validate_test_structure.py
+
+      - name: Run scoped tests with per-module coverage
+        run: |
+          set -e
+
+          TEST_PATHS=()
+          COV_FLAGS=()
+
+          add_path() { if [ -d "$1" ] || [ -f "$1" ]; then TEST_PATHS+=("$1"); fi; }
+          add_glob() { shopt -s nullglob; for f in $1; do TEST_PATHS+=("$f"); done; shopt -u nullglob; }
+
+          if [ "${{ needs.detect-changes.outputs.git }}" = "true" ]; then
+            add_path tests/unit/cli/git
+            add_glob tests/test_git_*.py
+            COV_FLAGS+=(--cov=agentic_devtools/cli/git)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.azure_devops }}" = "true" ]; then
+            add_path tests/unit/cli/azure_devops
+            add_path tests/azure_devops
+            COV_FLAGS+=(--cov=agentic_devtools/cli/azure_devops)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.azure_context }}" = "true" ]; then
+            add_path tests/unit/cli/azure_context
+            add_path tests/azure_context
+            COV_FLAGS+=(--cov=agentic_devtools/cli/azure_context)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.jira }}" = "true" ]; then
+            add_path tests/unit/cli/jira
+            COV_FLAGS+=(--cov=agentic_devtools/cli/jira)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.vpn }}" = "true" ]; then
+            add_path tests/unit/cli/vpn
+            add_path tests/vpn
+            COV_FLAGS+=(--cov=agentic_devtools/cli/vpn)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.network }}" = "true" ]; then
+            add_path tests/unit/cli/network
+            add_path tests/network
+            COV_FLAGS+=(--cov=agentic_devtools/cli/network)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.release }}" = "true" ]; then
+            add_path tests/unit/cli/release
+            add_glob tests/test_release_*.py
+            COV_FLAGS+=(--cov=agentic_devtools/cli/release)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.tasks }}" = "true" ]; then
+            add_path tests/unit/cli/tasks
+            COV_FLAGS+=(--cov=agentic_devtools/cli/tasks)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.github_module }}" = "true" ]; then
+            add_path tests/unit/cli/github
+            COV_FLAGS+=(--cov=agentic_devtools/cli/github)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.copilot }}" = "true" ]; then
+            add_path tests/unit/cli/copilot
+            COV_FLAGS+=(--cov=agentic_devtools/cli/copilot)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.speckit }}" = "true" ]; then
+            add_path tests/unit/cli/speckit
+            COV_FLAGS+=(--cov=agentic_devtools/cli/speckit)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.azure }}" = "true" ]; then
+            add_path tests/unit/cli/azure
+            COV_FLAGS+=(--cov=agentic_devtools/cli/azure)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.workflows }}" = "true" ]; then
+            add_path tests/unit/cli/workflows
+            COV_FLAGS+=(--cov=agentic_devtools/cli/workflows)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.core }}" = "true" ]; then
+            add_path tests/unit/state
+            add_path tests/unit/background_tasks
+            add_path tests/unit/config
+            add_path tests/unit/file_locking
+            add_path tests/unit/task_state
+            add_path tests/unit/cli/runner
+            add_path tests/unit/cli/state
+            add_path tests/unit/cli/subprocess_utils
+            add_path tests/unit/cli/testing
+            add_path tests/test_validate_test_structure.py
+            add_path tests/test_scaffold_tests.py
+            add_path tests/test_version.py
+            add_path tests/test_file_review_commands.py
+            add_path tests/test_file_review_queue_management.py
+            COV_FLAGS+=(--cov=agentic_devtools.state)
+            COV_FLAGS+=(--cov=agentic_devtools.background_tasks)
+            COV_FLAGS+=(--cov=agentic_devtools.config)
+            COV_FLAGS+=(--cov=agentic_devtools.file_locking)
+            COV_FLAGS+=(--cov=agentic_devtools.task_state)
+            COV_FLAGS+=(--cov=agentic_devtools.cli.runner)
+            COV_FLAGS+=(--cov=agentic_devtools.cli.state)
+            COV_FLAGS+=(--cov=agentic_devtools.cli.subprocess_utils)
+            COV_FLAGS+=(--cov=agentic_devtools.cli.testing)
+          fi
+
+          echo "Test paths: ${TEST_PATHS[*]}"
+          echo "Coverage flags: ${COV_FLAGS[*]}"
+
+          if [ ${#TEST_PATHS[@]} -eq 0 ]; then
+            echo "WARNING: No test paths found on disk for the detected changes — nothing to run."
+            exit 0
+          fi
+
+          # --override-ini=addopts= clears the global addopts from pyproject.toml (which sets
+          # --cov=agentic_devtools globally) so that only the scoped --cov flags above are used.
+          pytest "${TEST_PATHS[@]}" "${COV_FLAGS[@]}" \
+            --cov-report=term-missing \
+            --cov-fail-under=100 \
+            '--override-ini=addopts='
+
+  test-full:
+    name: Full Test Suite
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || needs.detect-changes.outputs.config == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
       - name: Validate 1:1:1 test structure
         run: |
           python scripts/validate_test_structure.py
 
       - name: Run tests with pytest
         run: |
-          pytest --cov=agentic_devtools --cov-report=term-missing --ignore=tests/workflows
-      
+          pytest --cov=agentic_devtools --cov-report=term-missing --cov-fail-under=100 --ignore=tests/workflows
+
       - name: Run E2E smoke tests
         run: |
           pytest tests/e2e_smoke/ -v --no-cov
-      
+
       - name: Upload coverage reports
-        if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
 
+  test-skipped:
+    name: Tests (Skipped — No Python Changes)
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'pull_request' &&
+      needs.detect-changes.outputs.has_modules != 'true' &&
+      needs.detect-changes.outputs.config != 'true'
+
+    steps:
+      - name: Skip tests
+        run: echo "No Python files changed — skipping tests."
+
   lint:
     name: Code Quality (Informational)
+    needs: detect-changes
     runs-on: ubuntu-latest
     continue-on-error: true
-    
+    if: >
+      github.event_name == 'push' ||
+      needs.detect-changes.outputs.has_modules == 'true' ||
+      needs.detect-changes.outputs.config == 'true'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      
+
       - name: Check code formatting with black
         run: |
           black --check .
         continue-on-error: true
-      
+
       - name: Check import sorting with isort
         run: |
           isort --check-only .
         continue-on-error: true
-      
+
       - name: Type checking with mypy
         run: |
           mypy .
         continue-on-error: true
-      
+
       - name: Lint with ruff
         run: |
           ruff check .
         continue-on-error: true
+
+  tests-gate:
+    name: Tests ✅
+    needs: [test-smart, test-full, test-skipped]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check downstream test job results
+        run: |
+          set -e
+          if [[ "${{ needs.test-smart.result }}" == "failure" || \
+                "${{ needs.test-full.result }}" == "failure" || \
+                "${{ needs.test-skipped.result }}" == "failure" ]]; then
+            echo "One or more test jobs failed"
+            exit 1
+          fi
+          echo "All test jobs passed or were skipped"

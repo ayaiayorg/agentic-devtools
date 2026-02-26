@@ -1,4 +1,5 @@
 name: Lint
+
 permissions:
   contents: read
 
@@ -8,8 +9,27 @@ on:
   pull_request:
 
 jobs:
-  markdownlint:
+  changes:
+    name: Detect Markdown Changes
     runs-on: ubuntu-latest
+    outputs:
+      markdown: ${{ steps.filter.outputs.markdown }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            markdown:
+              - '**/*.md'
+              - '.markdownlint*'
+
+  markdownlint:
+    name: Markdown Lint
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.markdown == 'true' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,3 +38,28 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v19
         with:
           globs: '**/*.md'
+
+  markdownlint-skipped:
+    name: Markdown Lint (Skipped — No Markdown Changes)
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.markdown != 'true' && github.event_name != 'push'
+    steps:
+      - name: Skip markdown lint
+        run: echo "No markdown files changed — skipping markdownlint."
+
+  lint-gate:
+    name: Markdown Lint ✅
+    needs: [markdownlint, markdownlint-skipped]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check downstream lint results
+        run: |
+          set -e
+          if [[ "${{ needs.markdownlint.result }}" == "failure" || \
+                "${{ needs.markdownlint-skipped.result }}" == "failure" ]]; then
+            echo "Markdown lint failed"
+            exit 1
+          fi
+          echo "Markdown lint passed or was skipped"

@@ -12,23 +12,40 @@ permissions:
   contents: read
 
 jobs:
-  workflow-tests:
-    name: Workflow Tests Python ${{ matrix.python-version }}
+  changes:
+    name: Detect Workflow Changes
     runs-on: ubuntu-latest
+    outputs:
+      workflow_files: ${{ steps.filter.outputs.workflow_files }}
+    steps:
+      - uses: actions/checkout@v4
 
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12']
-      fail-fast: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            workflow_files:
+              - 'agentic_devtools/cli/workflows/**'
+              - 'tests/workflows/**'
+              - 'agentic_devtools/prompts/**'
+              - 'agentic_devtools/state.py'
+              - 'agentic_devtools/background_tasks.py'
+              - 'pyproject.toml'
+
+  workflow-tests:
+    name: Workflow Tests
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.workflow_files == 'true' || github.event_name == 'push'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
           cache: 'pip'
 
       - name: Install dependencies
@@ -39,3 +56,28 @@ jobs:
       - name: Run workflow integration tests
         run: |
           pytest tests/workflows/ -v --override-ini="addopts="
+
+  workflow-tests-skipped:
+    name: Workflow Tests (Skipped — No Workflow Changes)
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.workflow_files != 'true' && github.event_name != 'push'
+    steps:
+      - name: Skip workflow tests
+        run: echo "No workflow-related files changed — skipping workflow integration tests."
+
+  workflow-tests-gate:
+    name: Workflow Tests ✅
+    needs: [workflow-tests, workflow-tests-skipped]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check downstream workflow test results
+        run: |
+          set -e
+          if [[ "${{ needs.workflow-tests.result }}" == "failure" || \
+                "${{ needs.workflow-tests-skipped.result }}" == "failure" ]]; then
+            echo "One or more workflow test jobs failed"
+            exit 1
+          fi
+          echo "All workflow test jobs passed or were skipped"

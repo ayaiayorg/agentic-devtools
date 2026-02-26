@@ -83,3 +83,14 @@ class TestPrintTaskTrackingInfo:
             assert "Other recent incomplete background tasks:" not in captured.out
             # Just shows simple dfly-task-wait instruction
             assert "agdt-task-wait" in captured.out
+
+    def test_none_action_description_uses_default(self, tmp_path, capsys):
+        """Test that passing None for action_description auto-generates from command name."""
+        from agentic_devtools.task_state import print_task_tracking_info
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            task = BackgroundTask.create(command="agdt-test-cmd")
+            print_task_tracking_info(task, None)
+
+            captured = capsys.readouterr()
+            assert "Running agdt-test-cmd command..." in captured.out
