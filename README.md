@@ -94,16 +94,28 @@ I've made the changes you suggested."
 agdt-reply-to-pr-thread
 ```text
 
-## Copilot Chat Commands
+## Copilot Commands
 
-Use the new Copilot Chat agents to start workflow steps from VS Code:
+Agents are available in two contexts:
 
-- Type `/agdt.` in Copilot Chat to browse available workflow step commands.
-- Example: `/agdt.work-on-jira-issue.planning` to start planning.
-- Example: `/agdt.pull-request-review.file-review` to review a PR file.
+**VS Code Copilot Chat** — type `/` to browse all commands:
 
-For the full workflow step list and usage details, see
-[specs/001-add-workflow-step-agents/quickstart.md](specs/001-add-workflow-step-agents/quickstart.md).
+```
+/speckit.specify Add a dark mode toggle    ← SDD: create spec
+/speckit.plan                              ← SDD: generate plan
+/speckit.implement                         ← SDD: execute tasks
+/agdt.work-on-jira-issue.initiate DFLY-1  ← Jira workflow (11 steps)
+/agdt.pull-request-review.initiate        ← PR review (5 steps)
+```
+
+**Terminal Copilot CLI** — ask naturally or use shell commands:
+
+```bash
+agdt-speckit-analyze      # renders + prints the speckit.analyze prompt
+agdt-speckit-specify "add dark mode"
+```
+
+📖 **Full reference**: [docs/copilot-commands.md](docs/copilot-commands.md)
 
 ## State Management Commands
 
