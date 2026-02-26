@@ -8,7 +8,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 **Automated PR Check Failure Fix**
 
-- Runs on: `workflow_run` completion for test and lint workflows
+- Runs on: `workflow_run` completion for test, workflow integration tests, and lint workflows
 - Trigger condition: Only when workflow fails and was triggered by a pull request
 - Purpose: Automatically tags `@copilot` to analyze and fix failing PR checks
 - Retry Limit: Calculates max retries as `number_of_failing_jobs × 3`
@@ -16,7 +16,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 **How it works**:
 
-1. **Failure Detection**: Triggered when "Python Tests and Linting" or "Lint" workflows fail on a PR
+1. **Failure Detection**: Triggered when "Python Tests and Linting", "Workflow Integration Tests", or "Lint" workflows fail on a PR
 2. **PR Lookup**: Finds the associated pull request from the workflow run's head branch
 3. **Retry Tracking**:
    - On first attempt: Counts failed jobs, calculates max retries (e.g., 2 failed jobs = 6 max retries)
@@ -43,6 +43,15 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - Scripts: Uses helper scripts in `.github/scripts/speckit-trigger/`
 - **Sequence Diagram**: See [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md) for complete visual documentation of the workflow
 
+### workflow-tests.yml
+
+**Workflow Integration Tests**
+
+- Runs on: Pull requests and pushes to main
+- Tests Python versions: 3.11, 3.12
+- Purpose: Runs the workflow integration tests in `tests/workflows/` as a dedicated pipeline,
+  separate from the unit tests and coverage enforcement in `test.yml`
+
 ### test.yml
 
 **Python Tests and Linting**
@@ -50,6 +59,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - Runs on: Pull requests and pushes to main
 - Tests Python versions: 3.11, 3.12
 - Includes: pytest with coverage, black, isort, mypy, ruff
+- Excludes: `tests/workflows/` (covered by `workflow-tests.yml`)
 - Purpose: Ensures code quality and test coverage
 
 ### lint.yml

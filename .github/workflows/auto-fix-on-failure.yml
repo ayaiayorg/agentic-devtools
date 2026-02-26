@@ -2,7 +2,7 @@ name: Auto-Fix on PR Check Failure
 
 on:
   workflow_run:
-    workflows: ["Python Tests and Linting", "Lint"]
+    workflows: ["Python Tests and Linting", "Workflow Integration Tests", "Lint"]
     types: [completed]
 
 permissions:
