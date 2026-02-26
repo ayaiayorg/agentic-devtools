@@ -21,6 +21,14 @@
     // MD036: Emphasis as heading - disable because we use emphasis for subheadings
     // in documentation which is acceptable for our style
     "MD036": false,
+    // MD024: Allow duplicate headings under different parent sections
+    "MD024": {
+      "siblings_only": true
+    },
+    // MD029: Ordered list item prefix - allow sequential numbering (1, 2, 3)
+    "MD029": {
+      "style": "ordered"
+    },
     // MD033: Inline HTML - allow common HTML elements used in markdown
     "MD033": {
       "allowed_elements": ["a", "img", "br", "details", "summary"]
@@ -32,5 +40,6 @@
   ],
   // GitHub issue templates use YAML front matter + ## headings (not # h1),
   // which conflicts with MD041. Exclude them from linting.
-  "ignores": [".github/ISSUE_TEMPLATE/**"]
+  // Agent files follow their own conventions and should not be linted.
+  "ignores": [".github/ISSUE_TEMPLATE/**", ".github/agents/**"]
 }
