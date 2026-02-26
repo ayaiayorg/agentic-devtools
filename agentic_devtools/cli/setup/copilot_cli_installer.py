@@ -6,11 +6,13 @@ into ``~/.agdt/bin/``.  Tracks the installed version in
 ``~/.agdt/copilot-cli-version.json`` so that re-runs are idempotent.
 """
 
+import io
 import json
 import platform
 import shutil
 import stat
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -89,7 +91,8 @@ def detect_platform_asset(assets: List[Dict[str, Any]]) -> str:
     - Linux aarch64 → ``copilot-linux-arm64``
     - macOS x86_64  → ``copilot-darwin-amd64``
     - macOS arm64   → ``copilot-darwin-arm64``
-    - Windows x86_64 → ``copilot-windows-amd64.exe``
+    - Windows x86_64 → ``copilot-win32-x64.zip``
+    - Windows arm64  → ``copilot-win32-arm64.zip``
 
     Args:
         assets: List of asset dicts from the GitHub API (each has at least
@@ -113,17 +116,16 @@ def detect_platform_asset(assets: List[Dict[str, Any]]) -> str:
         raise RuntimeError(f"Unsupported architecture: {machine}")
 
     # Map system to asset platform name
+    # Windows releases use "win32" prefix and "x64"/"arm64" arch naming in zip archives
     if system == "linux":
-        os_name = "linux"
+        target = f"copilot-linux-{arch}"
     elif system == "darwin":
-        os_name = "darwin"
+        target = f"copilot-darwin-{arch}"
     elif system == "windows":
-        os_name = "windows"
+        win_arch = "x64" if arch == "amd64" else arch
+        target = f"copilot-win32-{win_arch}.zip"
     else:
         raise RuntimeError(f"Unsupported operating system: {system}")
-
-    suffix = ".exe" if os_name == "windows" else ""
-    target = f"copilot-{os_name}-{arch}{suffix}"
 
     asset_names = [a["name"] for a in assets]
     if target not in asset_names:
@@ -137,10 +139,14 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
     Security: verifies that the download URL is on the ``github.com`` domain
     before fetching.
 
+    For zip archives (Windows), extracts the ``copilot.exe`` binary from the
+    archive.  For bare binaries (Linux/macOS), writes the download directly.
+
     Args:
         version: Version string to record in the version file.
         asset_url: Direct URL to the binary asset (must be on ``github.com``).
-        asset_name: Original asset filename (used in the version file).
+        asset_name: Original asset filename (used in the version file and to
+            determine whether extraction is needed).
 
     Returns:
         ``True`` on success, ``False`` on failure.
@@ -160,12 +166,35 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
     try:
         response = requests.get(asset_url, timeout=120, stream=True)
         response.raise_for_status()
-        with dest.open("wb") as fh:
-            for chunk in response.iter_content(chunk_size=65536):
-                fh.write(chunk)
+        asset_bytes = b"".join(response.iter_content(chunk_size=65536))
     except requests.RequestException as exc:
         print(f"  ✗ Download failed: {exc}", file=sys.stderr)
         return False
+
+    if asset_name.endswith(".zip"):
+        # Windows: extract copilot.exe from the zip archive
+        try:
+            with zipfile.ZipFile(io.BytesIO(asset_bytes)) as zf:
+                extracted = False
+                binary_basename = _BINARY_NAME.lower()
+                for name in zf.namelist():
+                    normalized = name.replace("\\", "/")
+                    if normalized.lower().endswith(binary_basename) or normalized.lower() == binary_basename:
+                        dest.write_bytes(zf.read(name))
+                        extracted = True
+                        break
+                if not extracted:
+                    print(
+                        f"  ✗ Could not find {_BINARY_NAME} inside archive '{asset_name}'",
+                        file=sys.stderr,
+                    )
+                    return False
+        except (zipfile.BadZipFile, KeyError, OSError) as exc:  # noqa: BLE001
+            print(f"  ✗ Extraction failed: {exc}", file=sys.stderr)
+            return False
+    else:
+        # Linux/macOS: the asset is the bare binary
+        dest.write_bytes(asset_bytes)
 
     # Make executable on Unix-like systems
     if sys.platform != "win32":
