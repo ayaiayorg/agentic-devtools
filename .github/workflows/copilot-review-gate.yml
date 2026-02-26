@@ -1,0 +1,130 @@
+name: Copilot Review Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  copilot-review-gate:
+    name: Copilot Review ✅
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Copilot review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 1. Determine PR number and head SHA from the event payload.
+            // Both pull_request and pull_request_review events include a pull_request object.
+            const prNumber = context.payload.pull_request.number;
+            // Always fetch the current PR state to get the latest head SHA,
+            // ensuring we check against the current commit even if the event payload is stale.
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            const headSha = pr.head.sha;
+            core.info(`PR #${prNumber}, head SHA: ${headSha}`);
+
+            // 2. Fetch all reviews for the PR.
+            const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            // 3. Filter to Copilot reviews on the latest commit.
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const copilotReviews = allReviews.filter(
+              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+            );
+
+            // 4. If no Copilot review found on the latest commit, fail.
+            if (copilotReviews.length === 0) {
+              core.setFailed(
+                `❌ No Copilot code review found for the latest commit (${headSha}).\n` +
+                `Request a review from Copilot or wait for the automatic review to complete.`
+              );
+              return;
+            }
+
+            // 5. Take the most recent Copilot review on the head commit.
+            const latestReview = copilotReviews[copilotReviews.length - 1];
+            const reviewBody = latestReview.body || '';
+            core.info(`Latest Copilot review ID: ${latestReview.id}`);
+            core.info(`Review body: ${reviewBody}`);
+
+            // 6. Parse the review body for comment counts.
+            let bodyCommentCount = null;
+            const noCommentsMatch = /generated no comments/i.test(reviewBody);
+            if (noCommentsMatch) {
+              bodyCommentCount = 0;
+            } else {
+              const generatedMatch = reviewBody.match(/generated (\d+) comment/i);
+              if (generatedMatch) {
+                bodyCommentCount = parseInt(generatedMatch[1], 10);
+              }
+            }
+
+            // 7. Parse for suppressed/low-confidence comments.
+            // Copilot uses patterns like "Comments suppressed due to low confidence (3)".
+            let suppressedCount = 0;
+            const suppressedMatch = reviewBody.match(/[Ss]uppressed[^.(]*\((\d+)\)/);
+            if (suppressedMatch) {
+              suppressedCount = parseInt(suppressedMatch[1], 10);
+            } else {
+              const lowConfidenceMatch = reviewBody.match(/[Ll]ow confidence[^.(]*\((\d+)\)/);
+              if (lowConfidenceMatch) {
+                suppressedCount = parseInt(lowConfidenceMatch[1], 10);
+              }
+            }
+
+            // 8. Fetch review comments via API as a fallback.
+            const { data: reviewComments } = await github.rest.pulls.listCommentsForReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              review_id: latestReview.id,
+            });
+            const apiCommentCount = reviewComments.filter(
+              c => c.user && c.user.login === copilotLogin
+            ).length;
+
+            // Determine the posted comment count.
+            let postedCommentCount;
+            if (bodyCommentCount === null) {
+              core.warning('Could not parse comment count from review body — falling back to API comment count.');
+              postedCommentCount = apiCommentCount;
+            } else {
+              if (bodyCommentCount !== apiCommentCount) {
+                core.warning(
+                  `Comment count mismatch: review body says ${bodyCommentCount}, API says ${apiCommentCount}. Using the higher value.`
+                );
+              }
+              postedCommentCount = Math.max(bodyCommentCount, apiCommentCount);
+            }
+
+            const totalComments = postedCommentCount + suppressedCount;
+
+            // 9. Decision.
+            if (totalComments === 0) {
+              core.info(
+                `✅ Copilot reviewed the latest commit and generated 0 comments (including 0 suppressed). All clear!`
+              );
+            } else {
+              core.setFailed(
+                `❌ Copilot review found issues on commit ${headSha}.\n` +
+                `- Comments posted: ${postedCommentCount}\n` +
+                `- Comments suppressed (low confidence): ${suppressedCount}\n` +
+                `Please address all Copilot feedback (including suppressed low-confidence comments), push a new commit, and wait for Copilot to re-review.`
+              );
+            }
