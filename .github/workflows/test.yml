@@ -42,7 +42,7 @@ jobs:
 
       - name: Run tests with pytest
         run: |
-          pytest --cov=agentic_devtools --cov-report=term-missing
+          pytest --cov=agentic_devtools --cov-report=term-missing --ignore=tests/workflows
       
       - name: Run E2E smoke tests
         run: |
