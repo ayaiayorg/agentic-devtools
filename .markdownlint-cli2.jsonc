@@ -30,5 +30,7 @@
   "globs": [
     "**/*.md"
   ],
-  "ignores": []
+  // GitHub issue templates use YAML front matter + ## headings (not # h1),
+  // which conflicts with MD041. Exclude them from linting.
+  "ignores": [".github/ISSUE_TEMPLATE/**"]
 }

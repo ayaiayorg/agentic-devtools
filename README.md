@@ -100,7 +100,7 @@ Agents are available in two contexts:
 
 **VS Code Copilot Chat** — type `/` to browse all commands:
 
-```
+```text
 /speckit.specify Add a dark mode toggle    ← SDD: create spec
 /speckit.plan                              ← SDD: generate plan
 /speckit.implement                         ← SDD: execute tasks

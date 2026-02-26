@@ -128,6 +128,24 @@ from .pr_summary_commands import (
 # Pull request details command exports
 from .pull_request_details_commands import get_pull_request_details
 
+# Review state exports
+from .review_state import (
+    FileEntry,
+    FolderEntry,
+    OverallSummary,
+    ReviewState,
+    ReviewStatus,
+    SuggestionEntry,
+    add_suggestion_to_file,
+    get_file_entry,
+    get_folder_entry,
+    get_review_state_file_path,
+    load_review_state,
+    normalize_file_path,
+    save_review_state,
+    update_file_status,
+)
+
 # Run details command exports
 from .run_details_commands import get_run_details, wait_for_run
 
@@ -231,4 +249,19 @@ __all__ = [
     "get_run_details",
     "wait_for_run",
     "wait_for_run_async",
+    # Review state
+    "ReviewStatus",
+    "SuggestionEntry",
+    "OverallSummary",
+    "FolderEntry",
+    "FileEntry",
+    "ReviewState",
+    "normalize_file_path",
+    "get_review_state_file_path",
+    "load_review_state",
+    "save_review_state",
+    "get_file_entry",
+    "get_folder_entry",
+    "update_file_status",
+    "add_suggestion_to_file",
 ]
