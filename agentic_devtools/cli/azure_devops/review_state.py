@@ -324,7 +324,7 @@ def update_file_status(
     Args:
         review_state: ReviewState object.
         file_path: File path to update.
-        status: New status value.
+        status: New status value (must be a valid ReviewStatus value).
         summary: Optional new summary text.
         suggestions: Optional new suggestions list (replaces existing).
 
@@ -333,7 +333,12 @@ def update_file_status(
 
     Raises:
         KeyError: If file not found in review state.
+        ValueError: If status is not a valid ReviewStatus value.
     """
+    valid_statuses = {s.value for s in ReviewStatus}
+    if status not in valid_statuses:
+        raise ValueError(f"Invalid status '{status}'. Must be one of: {sorted(valid_statuses)}")
+
     normalized = normalize_file_path(file_path)
     if normalized not in review_state.files:
         raise KeyError(f"File not found in review state: {normalized}")

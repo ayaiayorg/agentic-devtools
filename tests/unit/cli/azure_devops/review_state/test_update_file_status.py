@@ -6,6 +6,7 @@ from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     OverallSummary,
     ReviewState,
+    ReviewStatus,
     SuggestionEntry,
     update_file_status,
 )
@@ -110,3 +111,16 @@ class TestUpdateFileStatus:
         state = _make_state_with_file()
         result = update_file_status(state, "/src/app.py", "approved")
         assert result is state
+
+    def test_raises_value_error_for_invalid_status(self):
+        """Test that ValueError is raised for an invalid status value."""
+        state = _make_state_with_file()
+        with pytest.raises(ValueError, match="Invalid status 'bogus'"):
+            update_file_status(state, "/src/app.py", "bogus")
+
+    def test_accepts_all_valid_statuses(self):
+        """Test that all ReviewStatus enum values are accepted."""
+        for status in ReviewStatus:
+            state = _make_state_with_file()
+            result = update_file_status(state, "/src/app.py", status.value)
+            assert result.files["/src/app.py"].status == status.value
