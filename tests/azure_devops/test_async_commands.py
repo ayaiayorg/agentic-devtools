@@ -38,16 +38,20 @@ def mock_background_and_state(tmp_path):
     # Need to patch get_state_dir in both modules since task_state imports it directly
     with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         with patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path):
-            # Patch subprocess.Popen only in the background_tasks module, not globally
-            # This prevents interference with subprocess.run usage in state.py
-            with patch("agentic_devtools.background_tasks.subprocess.Popen") as mock_popen:
-                mock_process = MagicMock()
-                mock_process.pid = 12345
-                mock_popen.return_value = mock_popen
-                yield {
-                    "state_dir": tmp_path,
-                    "mock_popen": mock_popen,
-                }
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+                return_value=tmp_path,
+            ):
+                # Patch subprocess.Popen only in the background_tasks module, not globally
+                # This prevents interference with subprocess.run usage in state.py
+                with patch("agentic_devtools.background_tasks.subprocess.Popen") as mock_popen:
+                    mock_process = MagicMock()
+                    mock_process.pid = 12345
+                    mock_popen.return_value = mock_popen
+                    yield {
+                        "state_dir": tmp_path,
+                        "mock_popen": mock_popen,
+                    }
 
 
 def _get_script_from_call(mock_popen):
