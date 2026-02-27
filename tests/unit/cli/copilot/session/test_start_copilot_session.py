@@ -324,10 +324,10 @@ class TestStartCopilotSessionWithStandaloneBinary:
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
         assert cmd[0] == "/usr/local/bin/copilot"
-        assert cmd[1] == "suggest"
+        assert "suggest" not in cmd
         assert "--file" not in cmd
-        assert cmd[2] == "-i"
-        assert cmd[3] == "Use standalone"
+        assert cmd[1] == "-i"
+        assert cmd[2] == "Use standalone"
         assert result.prompt_file  # prompt file is still written to disk
 
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
@@ -345,9 +345,9 @@ class TestStartCopilotSessionWithStandaloneBinary:
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
         assert cmd[0] == "/usr/local/bin/copilot"
-        assert cmd[1] == "suggest"
-        assert cmd[2] == "-p"
-        assert cmd[3] == "Review PR"
+        assert "suggest" not in cmd
+        assert cmd[1] == "-p"
+        assert cmd[2] == "Review PR"
         assert result.prompt_file
 
 
