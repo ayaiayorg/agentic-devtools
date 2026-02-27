@@ -209,11 +209,12 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                 # .zip archive
                 with zipfile.ZipFile(archive_path) as zf:
                     extracted = False
-                    for name in zf.namelist():
+                    entries = zf.namelist()
+                    for name in entries:
                         normalized = name.replace("\\", "/")
                         if (
-                            normalized.endswith("/bin/gh")
-                            or normalized.endswith("/bin/gh.exe")
+                            normalized.endswith("/gh")
+                            or normalized.endswith("/gh.exe")
                             or normalized in ("gh", "gh.exe")
                         ):
                             data = zf.read(name)
@@ -223,6 +224,10 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                     if not extracted:
                         print(
                             f"  ✗ Could not find gh binary inside archive '{asset_name}'",
+                            file=sys.stderr,
+                        )
+                        print(
+                            f"  ✗ Archive contents: {entries}",
                             file=sys.stderr,
                         )
                         return False
