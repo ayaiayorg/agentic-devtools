@@ -36,4 +36,5 @@ class TestGetLatestReleaseInfoCopilot:
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/github/copilot-cli/releases/latest",
             timeout=30,
+            verify=True,
         )
