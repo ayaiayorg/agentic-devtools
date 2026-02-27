@@ -196,6 +196,8 @@ class TestDownloadAndInstallGh:
         assert result is True
         written = (tmp_path / "gh.exe").read_bytes()
         assert written == b"gh-windows-binary-flat"
+        version_data = json.loads(version_file.read_text(encoding="utf-8"))
+        assert version_data["version"] == "v2.87.3"
 
     def test_returns_false_on_tar_extraction_error(self, tmp_path, capsys):
         """Returns False when tar extraction raises an unexpected exception."""
