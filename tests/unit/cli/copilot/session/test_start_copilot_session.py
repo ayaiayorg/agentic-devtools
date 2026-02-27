@@ -326,8 +326,29 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert cmd[0] == "/usr/local/bin/copilot"
         assert cmd[1] == "suggest"
         assert "--file" not in cmd
-        assert cmd[2] == "Use standalone"
+        assert cmd[2] == "-i"
+        assert cmd[3] == "Use standalone"
         assert result.prompt_file  # prompt file is still written to disk
+
+    def test_standalone_binary_uses_prompt_flag_for_noninteractive(
+        self, temp_state, mock_available, mock_popen_noninteractive
+    ):
+        """When standalone copilot binary is used non-interactively, -p flag is passed."""
+        mock_popen, _ = mock_popen_noninteractive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            result = start_copilot_session(
+                prompt="Review PR",
+                working_directory=str(temp_state),
+                interactive=False,
+            )
+
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert cmd[0] == "/usr/local/bin/copilot"
+        assert cmd[1] == "suggest"
+        assert cmd[2] == "-p"
+        assert cmd[3] == "Review PR"
+        assert result.prompt_file
 
 
 class TestStartCopilotSessionLargePromptFallback:
