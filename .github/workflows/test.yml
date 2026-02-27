@@ -270,10 +270,6 @@ jobs:
             COV_FLAGS+=(--cov=agentic_devtools.cli.testing)
           fi
 
-          if [ "${{ needs.detect-changes.outputs.e2e_smoke }}" = "true" ]; then
-            add_path tests/e2e_smoke
-          fi
-
           echo "Test paths: ${TEST_PATHS[*]}"
           echo "Coverage flags: ${COV_FLAGS[*]}"
 
@@ -288,6 +284,11 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=100 \
             '--override-ini=addopts='
+
+      - name: Run E2E smoke tests
+        if: needs.detect-changes.outputs.e2e_smoke == 'true'
+        run: |
+          pytest tests/e2e_smoke/ -v --no-cov
 
   test-full:
     name: Full Test Suite
