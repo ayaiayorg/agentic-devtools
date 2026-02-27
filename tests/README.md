@@ -181,8 +181,9 @@ class TestGetCurrentBranch:
 
 ## Available Fixtures
 
-Fixtures are defined in `conftest.py` files at three levels.
-Use the narrowest-scoped fixture that satisfies your test's needs.
+This section documents the shared fixtures defined in the root- and unit-level `conftest.py` files,
+plus the most commonly used per-subpackage fixtures. Use the narrowest-scoped fixture that satisfies
+your test's needs.
 
 ### Root fixtures — `tests/conftest.py`
 
@@ -245,22 +246,21 @@ Use when the function under test calls `get_value()` or `set_value()`:
 
 ```python
 from agentic_devtools import state
-from agentic_devtools.cli.git import core
 
 
-class TestGetCommitMessage:
-    def test_returns_state_value(self, temp_state_dir):
+class TestGetValue:
+    def test_returns_stored_value(self, temp_state_dir):
         # Arrange — write the expected value into the temporary state store
         state.set_value("commit_message", "feat: add new feature")
 
         # Act
-        result = core.get_commit_message()
+        result = state.get_value("commit_message")
 
         # Assert
         assert result == "feat: add new feature"
 
     def test_returns_none_when_not_set(self, temp_state_dir):
-        result = core.get_commit_message()
+        result = state.get_value("nonexistent")
         assert result is None
 ```
 
@@ -275,21 +275,21 @@ from agentic_devtools import state
 from agentic_devtools.cli.tasks import commands
 
 
-class TestShowTasks:
-    def test_prints_task_list(self, mock_background_and_state, capsys):
+class TestListTasks:
+    def test_prints_no_tasks_message(self, mock_background_and_state, capsys):
         # Act
-        commands.show_tasks()
+        commands.list_tasks()
 
         # Assert — check what was printed
         captured = capsys.readouterr()
         assert "No background tasks found" in captured.out
 
-    def test_exits_on_missing_state(self, temp_state_dir, capsys):
+    def test_exits_on_missing_task_id(self, temp_state_dir, capsys):
         with pytest.raises(SystemExit) as exc_info:
-            commands.some_command()
+            commands.task_status()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "Missing required state key" in captured.out
+        assert "Error: No task ID specified." in captured.out
 ```
 
 ### Pattern 3 — Testing git operations
@@ -347,24 +347,32 @@ class TestCreateGitRepo:
 
 ### Pattern 4 — Testing commands that spawn background tasks
 
-Use `mock_background_and_state` to intercept `subprocess.Popen`.
-Verify that the task was registered and that the command returned a task ID:
+Use `mock_background_and_state` to intercept `subprocess.Popen` and verify
+both the spawned process and the background-task state. This pattern applies
+to any `*_async` CLI wrapper that calls `run_function_in_background`:
 
 ```python
 from agentic_devtools import state
-from agentic_devtools.cli.tasks import commands as task_cmds
+from agentic_devtools.cli.github import async_commands as gh_async
 
 
-class TestCleanTasks:
+class TestCreateAgdtIssueAsync:
     def test_spawns_background_task(self, mock_background_and_state):
+        # Arrange — set required state for the command
+        state.set_value("issue.title", "Test issue")
+        state.set_value("issue.description", "Details")
+
         # Act
-        task_cmds.clean_tasks()
+        gh_async.create_agdt_issue_async()
 
         # Assert — Popen was called once to spawn the background process
         mock_background_and_state["mock_popen"].assert_called_once()
 
     def test_task_id_stored_in_state(self, mock_background_and_state):
-        task_cmds.clean_tasks()
+        state.set_value("issue.title", "Test issue")
+        state.set_value("issue.description", "Details")
+
+        gh_async.create_agdt_issue_async()
 
         # The command should store the task ID in state so the agent can poll it
         task_id = state.get_value("background.task_id")
@@ -378,9 +386,10 @@ expected exceptions.  Always assert both the exception type and the exit code
 (or message) so the test is specific:
 
 ```python
+from unittest.mock import MagicMock
+
 import pytest
 import requests
-from unittest.mock import MagicMock
 
 from agentic_devtools import state
 from agentic_devtools.cli.jira import comment_commands
