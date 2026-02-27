@@ -78,6 +78,7 @@ def check_login_status(context: AzureContext) -> Tuple[bool, Optional[str], Opti
         - account_name: The logged-in account name (or None)
         - error_message: Error message if not logged in (or None)
     """
+    get_context_config(context)
     env = get_context_env(context)
 
     # Merge with current environment
