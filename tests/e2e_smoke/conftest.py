@@ -37,11 +37,9 @@ def temp_state_dir(tmp_path: Path) -> Generator[Path, None, None]:
     with patch.object(state, "get_state_dir", return_value=tmp_path):
         # Also patch it in the jira module
         try:
-            from agentic_devtools.cli import jira
-
             with patch("agentic_devtools.cli.jira.get_commands.get_state_dir", return_value=tmp_path):
                 yield tmp_path
-        except ImportError:
+        except (ImportError, AttributeError):
             yield tmp_path
 
 
