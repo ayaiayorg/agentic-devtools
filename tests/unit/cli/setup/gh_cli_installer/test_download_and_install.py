@@ -37,6 +37,14 @@ def _make_zip_bytes_backslash(binary_name: str, content: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _make_zip_bytes_flat(binary_name: str, content: bytes) -> bytes:
+    """Create an in-memory zip archive with a flat directory (no bin/ subdir)."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr(f"gh_2.87.3_windows_amd64/{binary_name}", content)
+    return buf.getvalue()
+
+
 def _make_mock_response(content: bytes) -> MagicMock:
     """Return a mock response that streams *content*."""
     mock_resp = MagicMock()
@@ -167,7 +175,29 @@ class TestDownloadAndInstallGh:
                             "gh_2.65.0_linux_amd64.zip",
                         )
         assert result is False
-        assert "Could not find" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "Could not find" in err
+        assert "Archive contents:" in err
+
+    def test_downloads_zip_flat_structure(self, tmp_path):
+        """Extracts gh.exe from a zip with a flat directory (no bin/ subdir) as in newer releases."""
+        zip_content = _make_zip_bytes_flat("gh.exe", b"gh-windows-binary-flat")
+        mock_resp = _make_mock_response(zip_content)
+        version_file = tmp_path / "v.json"
+        with patch.object(gh_cli_installer, "_INSTALL_DIR", tmp_path):
+            with patch.object(gh_cli_installer, "_VERSION_FILE", version_file):
+                with patch.object(gh_cli_installer, "_BINARY_NAME", "gh.exe"):
+                    with patch("requests.get", return_value=mock_resp):
+                        result = gh_cli_installer.download_and_install(
+                            "v2.87.3",
+                            "https://github.com/releases/gh.zip",
+                            "gh_2.87.3_windows_amd64.zip",
+                        )
+        assert result is True
+        written = (tmp_path / "gh.exe").read_bytes()
+        assert written == b"gh-windows-binary-flat"
+        version_data = json.loads(version_file.read_text(encoding="utf-8"))
+        assert version_data["version"] == "v2.87.3"
 
     def test_returns_false_on_tar_extraction_error(self, tmp_path, capsys):
         """Returns False when tar extraction raises an unexpected exception."""
