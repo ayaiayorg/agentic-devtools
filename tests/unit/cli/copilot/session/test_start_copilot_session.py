@@ -333,7 +333,7 @@ class TestStartCopilotSessionWithStandaloneBinary:
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
         self, temp_state, mock_available, mock_popen_noninteractive
     ):
-        """When standalone copilot binary is used non-interactively, -p flag and --allow-all-tools are passed."""
+        """When standalone copilot binary is used non-interactively, -p flag and --allow-all are passed."""
         mock_popen, _ = mock_popen_noninteractive
         with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
             result = start_copilot_session(
@@ -347,14 +347,14 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert cmd[0] == "/usr/local/bin/copilot"
         assert "suggest" not in cmd
         assert cmd[1] == "-p"
-        assert cmd[2] == "Review PR"
-        assert "--allow-all-tools" in cmd
+        assert "--allow-all" in cmd
+        assert "--allow-all-tools" not in cmd
         assert result.prompt_file
 
-    def test_standalone_binary_includes_allow_all_tools_only_for_noninteractive(
+    def test_standalone_binary_includes_allow_all_only_for_noninteractive(
         self, temp_state, mock_available, mock_popen_interactive
     ):
-        """--allow-all-tools is NOT included when the standalone binary runs interactively."""
+        """--allow-all is NOT included when the standalone binary runs interactively."""
         mock_popen, _ = mock_popen_interactive
         with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
             start_copilot_session(
@@ -364,7 +364,59 @@ class TestStartCopilotSessionWithStandaloneBinary:
             )
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
+        assert "--allow-all" not in cmd
         assert "--allow-all-tools" not in cmd
+
+    def test_noninteractive_passes_file_reference_not_full_prompt(
+        self, temp_state, mock_available, mock_popen_noninteractive
+    ):
+        """Non-interactive mode passes a file-reference instruction via -p, not the raw prompt text."""
+        mock_popen, _ = mock_popen_noninteractive
+        original_prompt = "Detailed multi-line\nprompt with special chars: $PATH & more"
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            start_copilot_session(
+                prompt=original_prompt,
+                working_directory=str(temp_state),
+                interactive=False,
+            )
+
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        # The -p argument must be a short file reference, not the original prompt
+        argv_p = cmd[2]
+        assert original_prompt not in argv_p
+        assert "Your task instructions are in this file:" in argv_p
+        assert "Read that file before doing anything else." in argv_p
+
+    def test_noninteractive_strips_node_options_from_env(self, temp_state, mock_available, mock_popen_noninteractive):
+        """NODE_OPTIONS is excluded from the subprocess environment for non-interactive sessions."""
+        mock_popen, _ = mock_popen_noninteractive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            with patch.dict("os.environ", {"NODE_OPTIONS": "--no-warnings"}, clear=False):
+                start_copilot_session(
+                    prompt="Review PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs.get("env", {})
+        assert "NODE_OPTIONS" not in env
+
+    def test_noninteractive_preserves_other_env_vars(self, temp_state, mock_available, mock_popen_noninteractive):
+        """Other environment variables are preserved in the subprocess environment."""
+        mock_popen, _ = mock_popen_noninteractive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            with patch.dict("os.environ", {"MY_CUSTOM_VAR": "my_value"}, clear=False):
+                start_copilot_session(
+                    prompt="Review PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs.get("env", {})
+        assert env.get("MY_CUSTOM_VAR") == "my_value"
 
 
 class TestStartCopilotSessionLargePromptFallback:
