@@ -1,27 +1,39 @@
 """
 GitHub Copilot CLI session management.
 
-Provides utilities for starting and managing ``gh copilot`` CLI sessions
+Provides utilities for starting and managing Copilot CLI sessions
 programmatically, supporting both interactive and non-interactive modes,
 with session ID tracking and state persistence.
 
+Binary variants
+---------------
+Two Copilot CLI variants are supported:
+
+* **Standalone binary** (preferred) – invoked as ``copilot -i <prompt>``
+  (interactive) or ``copilot -p <prompt>`` (non-interactive).  The
+  standalone binary has **no** ``suggest`` subcommand.
+* **``gh copilot`` extension** (fallback) – invoked as
+  ``gh copilot suggest <prompt>``.
+
+The ``_build_copilot_args`` helper selects the correct variant at runtime.
+
 Research notes
 --------------
-The ``gh copilot suggest`` command is the primary entry point for the
-``gh copilot`` extension.  As of early 2025, autonomous / non-interactive
-operation is not natively exposed through a stable flag.  The module
-therefore implements non-interactive mode by spawning the process with
-stdin/stdout captured to a log file, which is sufficient for pipeline use
-cases where no interactive terminal is available.  When a stable
+As of early 2025, autonomous / non-interactive operation is not natively
+exposed through a stable flag in either variant.  The module therefore
+implements non-interactive mode by spawning the process with stdin/stdout
+captured to a log file, which is sufficient for pipeline use cases where
+no interactive terminal is available.  When a stable
 ``--non-interactive`` or agent-mode flag is added upstream, the
 ``_build_copilot_args`` helper can be updated to include it without any
 other changes.
 
 Fallback behaviour
 ------------------
-When ``gh copilot`` is not installed or is not callable the session cannot
-be started.  The module logs a warning and prints the prompt to stdout so
-that the user or pipeline can invoke a session manually.
+When neither the standalone binary nor the ``gh copilot`` extension is
+available the session cannot be started.  The module logs a warning and
+prints the prompt to stdout so that the user or pipeline can invoke a
+session manually.
 """
 
 import shutil
@@ -55,9 +67,11 @@ _PROMPT_FILE_PATTERN = "copilot-session-{session_id}-prompt.md"
 _MANAGED_COPILOT = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
 
 # Maximum prompt length (in characters) that can safely be passed as a
-# positional argument to ``gh copilot suggest``.  Windows' CreateProcess
-# imposes a 32,767-character limit on the entire command line; we leave
-# headroom for the ``gh copilot suggest`` prefix and OS overhead.
+# CLI argument.  The standalone binary receives the prompt via ``-i`` or
+# ``-p``; the ``gh copilot`` extension receives it as a positional
+# argument to ``gh copilot suggest``.  Windows' CreateProcess imposes a
+# 32,767-character limit on the entire command line; we leave headroom
+# for the command prefix and OS overhead.
 _MAX_GH_COPILOT_ARGV_LENGTH = 30_000
 
 
@@ -270,7 +284,7 @@ def start_copilot_session(
       reuse.  The prompt is passed directly as a CLI argument to the
       Copilot process; when it exceeds safe argv-length limits it is
       printed to stdout instead.
-    - Starts ``copilot suggest <prompt>`` (standalone binary) or
+    - Starts ``copilot -i/-p <prompt>`` (standalone binary) or
       ``gh copilot suggest <prompt>`` (extension fallback).
 
       .. note::
