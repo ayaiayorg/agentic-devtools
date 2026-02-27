@@ -208,7 +208,8 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                 with zipfile.ZipFile(archive_path) as zf:
                     extracted = False
                     for name in zf.namelist():
-                        if name.endswith("/bin/gh") or name.endswith("/bin/gh.exe") or name in ("gh", "gh.exe"):
+                        normalized = name.replace("\\", "/")
+                        if normalized.endswith("/bin/gh") or normalized.endswith("/bin/gh.exe") or normalized in ("gh", "gh.exe"):
                             data = zf.read(name)
                             dest.write_bytes(data)
                             extracted = True

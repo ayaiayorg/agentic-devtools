@@ -12,7 +12,8 @@ _LINUX_AMD64_ASSETS = [
     {"name": "copilot-linux-arm64"},
     {"name": "copilot-darwin-amd64"},
     {"name": "copilot-darwin-arm64"},
-    {"name": "copilot-windows-amd64.exe"},
+    {"name": "copilot-win32-x64.zip"},
+    {"name": "copilot-win32-arm64.zip"},
 ]
 
 
@@ -48,11 +49,18 @@ class TestDetectPlatformAssetCopilot:
         assert result == "copilot-darwin-arm64"
 
     def test_windows_amd64(self):
-        """Selects copilot-windows-amd64.exe on Windows x86_64."""
+        """Selects copilot-win32-x64.zip on Windows x86_64."""
         with patch.object(platform, "system", return_value="Windows"):
             with patch.object(platform, "machine", return_value="x86_64"):
                 result = copilot_cli_installer.detect_platform_asset(_LINUX_AMD64_ASSETS)
-        assert result == "copilot-windows-amd64.exe"
+        assert result == "copilot-win32-x64.zip"
+
+    def test_windows_arm64(self):
+        """Selects copilot-win32-arm64.zip on Windows arm64."""
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(platform, "machine", return_value="arm64"):
+                result = copilot_cli_installer.detect_platform_asset(_LINUX_AMD64_ASSETS)
+        assert result == "copilot-win32-arm64.zip"
 
     def test_raises_on_unsupported_arch(self):
         """Raises RuntimeError for unsupported architecture."""
