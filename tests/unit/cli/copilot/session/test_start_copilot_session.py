@@ -325,8 +325,9 @@ class TestStartCopilotSessionWithStandaloneBinary:
         cmd = call_args[0][0]
         assert cmd[0] == "/usr/local/bin/copilot"
         assert cmd[1] == "suggest"
-        assert cmd[2] == "--file"
-        assert cmd[3] == result.prompt_file
+        assert "--file" not in cmd
+        assert cmd[2] == "Use standalone"
+        assert result.prompt_file  # prompt file is still written to disk
 
 
 class TestStartCopilotSessionLargePromptFallback:
@@ -374,22 +375,22 @@ class TestStartCopilotSessionLargePromptFallback:
 
         assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
 
-    def test_standalone_binary_handles_large_prompt_via_file(
+    def test_standalone_binary_also_falls_back_for_large_prompt(
         self, temp_state, mock_available, mock_popen_interactive
     ):
-        """Standalone binary uses --file for large prompts (no argv limit issue)."""
+        """Standalone binary also falls back for large prompts (no --file support)."""
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
-        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
             result = start_copilot_session(
                 prompt=large_prompt,
                 working_directory=str(temp_state),
                 interactive=True,
             )
 
-        call_args = mock_popen.call_args
-        cmd = call_args[0][0]
-        assert cmd[0] == "/usr/local/bin/copilot"
-        assert cmd[2] == "--file"
-        assert result.process is None  # Interactive session already exited
+        mock_popen.assert_not_called()
+        assert result.process is None
+        assert result.pid is None
+        assert any("too large" in str(warning.message) for warning in w)

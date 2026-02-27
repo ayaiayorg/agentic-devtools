@@ -186,33 +186,30 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, prompt_file: str) -> Optional[list[str]]:
+def _build_copilot_args(prompt: str) -> Optional[list[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
     back to the ``gh copilot`` extension for backward compatibility.
 
-    The standalone binary receives the prompt via ``--file`` to avoid shell
-    argument-length limits.  The ``gh copilot`` extension does **not** support
+    Neither the standalone binary nor the ``gh copilot`` extension supports
     ``--file``; the prompt text is passed as the positional ``[subject]``
-    argument instead.  When the prompt exceeds
-    :data:`_MAX_GH_COPILOT_ARGV_LENGTH` on the extension path, ``None`` is
-    returned so the caller can use a fallback.
+    argument for both paths.  When the prompt exceeds
+    :data:`_MAX_GH_COPILOT_ARGV_LENGTH`, ``None`` is returned so the caller
+    can use a fallback.
 
     Args:
-        prompt: The full prompt text (used as subject for ``gh copilot``).
-        prompt_file: Absolute path to the file containing the prompt (used
-            with the standalone binary).
+        prompt: The full prompt text to pass as the ``[subject]`` argument.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
-        when the prompt is too large for the ``gh copilot`` argv path.
+        when the prompt is too large for the argv path.
     """
-    standalone = _get_copilot_binary()
-    if standalone:
-        return [standalone, "suggest", "--file", prompt_file]
     if len(prompt) > _MAX_GH_COPILOT_ARGV_LENGTH:
         return None
+    standalone = _get_copilot_binary()
+    if standalone:
+        return [standalone, "suggest", prompt]
     return ["gh", "copilot", "suggest", prompt]
 
 
@@ -264,11 +261,19 @@ def start_copilot_session(
 
     Behaviour:
     - Generates (or reuses) a unique session ID.
-    - Writes *prompt* to a temporary file so that large prompts do not
-      exceed CLI argument-length limits.
-    - Starts ``copilot suggest --file <prompt_file>`` (standalone binary) or
-      ``gh copilot suggest <prompt>`` (extension fallback, which does not
-      support ``--file``).
+    - Writes *prompt* to a temporary file for persistence and manual
+      reuse.  The prompt is passed directly as a CLI argument to the
+      Copilot process; when it exceeds safe argv-length limits it is
+      printed to stdout instead.
+    - Starts ``copilot suggest <prompt>`` (standalone binary) or
+      ``gh copilot suggest <prompt>`` (extension fallback).
+
+      .. note::
+
+         The prompt text is visible in the child-process command line
+         (e.g. Task Manager / ``ps`` output).  Neither the standalone
+         binary nor the ``gh copilot`` extension currently supports
+         receiving the prompt via stdin or a file flag.
     - In **interactive** mode the child process inherits the current
       terminal (stdin / stdout / stderr), so the user can interact with
       it directly.  This call blocks until the interactive session ends.
@@ -328,7 +333,7 @@ def start_copilot_session(
         return result
 
     # --- Build command -------------------------------------------------------
-    args = _build_copilot_args(prompt, prompt_file)
+    args = _build_copilot_args(prompt)
 
     # When the prompt is too large for the gh copilot argv path (no
     # standalone binary available), fall back to printing the prompt.
