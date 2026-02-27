@@ -145,17 +145,17 @@ class TestStartCopilotSessionInteractive:
         assert call_kwargs.get("shell") is False
 
     def test_popen_called_with_correct_args(self, temp_state, mock_available, mock_popen_interactive):
-        """Popen is called with the gh copilot suggest --file <prompt_file> args."""
+        """Popen is called with gh copilot suggest <prompt> args when no standalone binary is available."""
         mock_popen, _ = mock_popen_interactive
-        result = start_copilot_session(
+        start_copilot_session(
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
         )
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        assert cmd[:4] == ["gh", "copilot", "suggest", "--file"]
-        assert cmd[4] == result.prompt_file
+        assert cmd[:3] == ["gh", "copilot", "suggest"]
+        assert cmd[3] == "Do something"
 
     def test_wait_is_called(self, temp_state, mock_available, mock_popen_interactive):
         """process.wait() is called for interactive mode."""
@@ -327,3 +327,69 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert cmd[1] == "suggest"
         assert cmd[2] == "--file"
         assert cmd[3] == result.prompt_file
+
+
+class TestStartCopilotSessionLargePromptFallback:
+    """Tests for start_copilot_session fallback when prompt exceeds argv limits."""
+
+    def test_falls_back_when_prompt_exceeds_argv_limit(self, temp_state, mock_available, capsys):
+        """Falls back to printing the prompt when it exceeds the argv length limit."""
+        large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = start_copilot_session(
+                prompt=large_prompt,
+                working_directory=str(temp_state),
+            )
+
+        assert result.process is None
+        assert result.pid is None
+        assert any("too large" in str(warning.message) for warning in w)
+
+    def test_prints_prompt_to_stdout_on_large_prompt(self, temp_state, mock_available, capsys):
+        """Prints the prompt to stdout when it exceeds the argv length limit."""
+        large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
+
+        with warnings.catch_warnings(record=True):
+            start_copilot_session(
+                prompt=large_prompt,
+                working_directory=str(temp_state),
+            )
+
+        captured = capsys.readouterr()
+        assert large_prompt in captured.out
+
+    def test_prompt_file_still_written_on_large_prompt(self, temp_state, mock_available):
+        """Prompt file is written even when falling back due to large prompt."""
+        from pathlib import Path
+
+        large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
+
+        with warnings.catch_warnings(record=True):
+            result = start_copilot_session(
+                prompt=large_prompt,
+                working_directory=str(temp_state),
+            )
+
+        assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
+
+    def test_standalone_binary_handles_large_prompt_via_file(
+        self, temp_state, mock_available, mock_popen_interactive
+    ):
+        """Standalone binary uses --file for large prompts (no argv limit issue)."""
+        mock_popen, _ = mock_popen_interactive
+        large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
+
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            result = start_copilot_session(
+                prompt=large_prompt,
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert cmd[0] == "/usr/local/bin/copilot"
+        assert cmd[2] == "--file"
+        assert result.process is None  # Interactive session already exited
