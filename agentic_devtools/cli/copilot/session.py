@@ -214,7 +214,7 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     standalone = _get_copilot_binary()
     if standalone:
         flag = "-i" if interactive else "-p"
-        return [standalone, "suggest", flag, prompt]
+        return [standalone, flag, prompt]
     return ["gh", "copilot", "suggest", prompt]
 
 
