@@ -8,10 +8,9 @@ and reviewer state from Azure DevOps.
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ...state import get_pull_request_id, is_dry_run
+from ...state import get_pull_request_id, get_state_dir, is_dry_run
 from ..git.diff import (
     get_added_lines_info,
     get_diff_entries,
@@ -412,8 +411,7 @@ def get_pull_request_details() -> None:
     pull_request_id = get_pull_request_id(required=True)
 
     # Determine output paths
-    scripts_dir = Path(__file__).parent.parent.parent.parent.parent  # Up to scripts/
-    temp_dir = scripts_dir / "temp"
+    temp_dir = get_state_dir()
     output_file = temp_dir / "temp-get-pull-request-details-response.json"
     prompts_root = temp_dir / "pull-request-review" / "prompts"
 

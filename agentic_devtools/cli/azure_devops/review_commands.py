@@ -188,8 +188,7 @@ def checkout_and_sync_branch(
 
     # Optionally save files_on_branch to JSON for async workflows
     if save_files_on_branch and pull_request_id:
-        scripts_dir = Path(__file__).parent.parent.parent.parent.parent
-        temp_dir = scripts_dir / "temp"
+        temp_dir = get_state_dir()
         prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
         prompts_dir.mkdir(parents=True, exist_ok=True)
         files_on_branch_path = prompts_dir / "files-on-branch.json"
@@ -332,8 +331,7 @@ def generate_review_prompts(
         normalize_repo_path,
     )
 
-    scripts_dir = Path(__file__).parent.parent.parent.parent.parent  # Up to scripts/
-    temp_dir = scripts_dir / "temp"
+    temp_dir = get_state_dir()
     prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -595,8 +593,7 @@ def setup_pull_request_review() -> None:
     get_pull_request_details()
 
     # Step 3: Load the PR details from the temp file
-    scripts_dir = Path(__file__).parent.parent.parent.parent.parent
-    temp_dir = scripts_dir / "temp"
+    temp_dir = get_state_dir()
     details_path = temp_dir / "temp-get-pull-request-details-response.json"
 
     if not details_path.exists():

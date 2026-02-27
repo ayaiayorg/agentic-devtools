@@ -39,13 +39,18 @@ def get_temp_output_dir() -> Path:
     """
     Get the temp directory for generated prompts.
 
+    Delegates to ``get_state_dir()`` so that the directory respects the
+    ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable.  This ensures that
+    when a command is executed inside a worktree via
+    ``_run_auto_execute_command``, prompt files are written to the worktree's
+    ``scripts/temp/`` rather than a path relative to the installed package.
+
     Returns:
         Path to scripts/temp/ directory
     """
-    # Navigate up from prompts/ to agentic_devtools/ to scripts/ to temp/
-    # agentic_devtools/prompts/loader.py -> agentic_devtools/ -> scripts/agentic_devtools/ -> scripts/ -> temp/
-    scripts_dir = Path(__file__).parent.parent.parent.parent
-    temp_dir = scripts_dir / "temp"
+    from ..state import get_state_dir
+
+    temp_dir = get_state_dir()
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
 
