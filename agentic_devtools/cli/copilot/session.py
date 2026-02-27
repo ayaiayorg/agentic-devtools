@@ -344,7 +344,7 @@ def start_copilot_session(
     # printing the prompt.  This applies regardless of binary variant.
     if args is None:
         warnings.warn(
-            "Prompt too large for gh copilot argv; printing prompt to stdout as fallback.",
+            "Prompt too large for copilot argv; printing prompt to stdout as fallback.",
             stacklevel=2,
         )
         _print_fallback_prompt(prompt)
