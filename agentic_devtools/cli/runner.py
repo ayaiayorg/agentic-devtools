@@ -302,6 +302,7 @@ COMMAND_MAP = {
     "agdt-setup-copilot-cli": ("agentic_devtools.cli.setup", "setup_copilot_cli_cmd"),
     "agdt-setup-gh-cli": ("agentic_devtools.cli.setup", "setup_gh_cli_cmd"),
     "agdt-setup-check": ("agentic_devtools.cli.setup", "setup_check_cmd"),
+    "agdt-setup-certs": ("agentic_devtools.cli.setup", "setup_certs_cmd"),
     # Azure context management
     "agdt-azure-context-use": (
         "agentic_devtools.cli.azure_context.commands",

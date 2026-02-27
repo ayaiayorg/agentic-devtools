@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from agentic_devtools.cli.cert_utils import get_ssl_verify as _get_ssl_verify
+from agentic_devtools.cli.cert_utils import ssl_request_with_retry as _ssl_request_with_retry
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -77,7 +77,7 @@ def get_latest_release_info() -> Dict[str, Any]:
     Raises:
         requests.RequestException: On network or HTTP errors.
     """
-    response = requests.get(_RELEASES_URL, timeout=30, verify=_get_ssl_verify("api.github.com"))
+    response = _ssl_request_with_retry(_RELEASES_URL, "api.github.com", timeout=30)
     response.raise_for_status()
     result: Dict[str, Any] = response.json()
     return result
@@ -174,7 +174,7 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
     import zipfile
 
     try:
-        response = requests.get(asset_url, timeout=120, stream=True, verify=_get_ssl_verify("github.com"))
+        response = _ssl_request_with_retry(asset_url, "github.com", timeout=120, stream=True)
         response.raise_for_status()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
