@@ -296,3 +296,48 @@ class TestStartCopilotSessionForPrReview:
             working_directory=str(tmp_path),
             interactive=False,
         )
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.config.load_review_focus_areas")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_forces_non_interactive_when_stdout_has_no_isatty(
+        self,
+        mock_wait,
+        mock_focus,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Test that the session is non-interactive when stdout has no isatty (LogWriter background task scenario)."""
+
+        class _NoIsattyWriter:
+            """Simulates LogWriter from run_function_in_background - no isatty attribute."""
+
+            def write(self, text: str) -> None:
+                pass
+
+            def flush(self) -> None:
+                pass
+
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Review prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_focus.return_value = None
+        mock_vscode.return_value = True  # VS Code available, but stdout is a LogWriter
+
+        monkeypatch.setattr("sys.stdout", _NoIsattyWriter())
+
+        # Must not raise AttributeError for missing isatty
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Must be non-interactive because stdout is not a TTY
+        mock_copilot.assert_called_once_with(
+            prompt="# Review prompt",
+            working_directory=str(tmp_path),
+            interactive=False,
+        )
