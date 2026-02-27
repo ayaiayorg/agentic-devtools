@@ -333,6 +333,8 @@ def main():
                     self.log.flush()
                 def flush(self):
                     self.log.flush()
+                def isatty(self):
+                    return False
 
             log_writer = LogWriter(log)
 
