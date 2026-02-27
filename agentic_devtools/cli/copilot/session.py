@@ -261,10 +261,19 @@ def start_copilot_session(
 
     Behaviour:
     - Generates (or reuses) a unique session ID.
-    - Writes *prompt* to a temporary file so that large prompts do not
-      exceed CLI argument-length limits.
+    - Writes *prompt* to a temporary file for persistence and manual
+      reuse.  The prompt is passed directly as a CLI argument to the
+      Copilot process; when it exceeds safe argv-length limits it is
+      printed to stdout instead.
     - Starts ``copilot suggest <prompt>`` (standalone binary) or
       ``gh copilot suggest <prompt>`` (extension fallback).
+
+      .. note::
+
+         The prompt text is visible in the child-process command line
+         (e.g. Task Manager / ``ps`` output).  Neither the standalone
+         binary nor the ``gh copilot`` extension currently supports
+         receiving the prompt via stdin or a file flag.
     - In **interactive** mode the child process inherits the current
       terminal (stdin / stdout / stderr), so the user can interact with
       it directly.  This call blocks until the interactive session ends.

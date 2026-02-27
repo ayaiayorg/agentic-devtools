@@ -382,14 +382,13 @@ class TestStartCopilotSessionLargePromptFallback:
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
-        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                result = start_copilot_session(
-                    prompt=large_prompt,
-                    working_directory=str(temp_state),
-                    interactive=True,
-                )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = start_copilot_session(
+                prompt=large_prompt,
+                working_directory=str(temp_state),
+                interactive=True,
+            )
 
         mock_popen.assert_not_called()
         assert result.process is None
