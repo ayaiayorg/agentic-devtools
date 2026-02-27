@@ -79,14 +79,13 @@ class TestAddCommentWithMock:
         assert "Comment added successfully" in captured.out
 
     def test_add_comment_with_explicit_params_stores_in_state(
-        self, temp_state_dir, clear_state_before, mock_jira_env, capsys
+        self, temp_state_dir, clear_state_before, mock_jira_env, mock_requests_module, capsys
     ):
         """Test add_comment stores explicit params in state."""
-        mock_module = MagicMock()
         mock_post_response = MagicMock()
         mock_post_response.json.return_value = {"id": "comment-456"}
         mock_post_response.raise_for_status = MagicMock()
-        mock_module.post.return_value = mock_post_response
+        mock_requests_module.post.return_value = mock_post_response
 
         mock_get_response = MagicMock()
         mock_get_response.json.return_value = {
@@ -100,12 +99,10 @@ class TestAddCommentWithMock:
             },
         }
         mock_get_response.raise_for_status = MagicMock()
-        mock_module.get.return_value = mock_get_response
+        mock_requests_module.get.return_value = mock_get_response
 
-        with patch.object(comment_commands, "_get_requests", return_value=mock_module):
-            with patch.object(get_commands, "_get_requests", return_value=mock_module):
-                with patch.object(get_commands, "get_state_dir", return_value=temp_state_dir):
-                    jira.add_comment(comment="Explicit comment", issue_key="DFLY-5678")
+        with patch.object(get_commands, "get_state_dir", return_value=temp_state_dir):
+            jira.add_comment(comment="Explicit comment", issue_key="DFLY-5678")
 
         assert jira.get_jira_value("issue_key") == "DFLY-5678"
         assert jira.get_jira_value("comment") == "Explicit comment"
