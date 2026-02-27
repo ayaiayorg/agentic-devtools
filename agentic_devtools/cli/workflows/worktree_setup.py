@@ -902,8 +902,8 @@ def _run_auto_execute_command(
     state_dir = Path(worktree_path) / "scripts" / "temp"
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        pass  # Best-effort; env var still points to the correct path
+    except OSError as e:
+        print(f"WARNING: Failed to create state directory {state_dir!s}: {e}")
     env["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
 
     try:

@@ -136,3 +136,21 @@ class TestRunAutoExecuteCommand:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["timeout"] == 60
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.Path")
+    def test_warns_when_state_dir_creation_fails(self, mock_path_cls, mock_run, capsys, tmp_path):
+        """Test that a warning is printed when scripts/temp directory creation fails."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        # Make the Path object's mkdir raise OSError
+        mock_state_dir = MagicMock()
+        mock_state_dir.__str__ = lambda self: "/worktree/scripts/temp"
+        mock_state_dir.__truediv__ = MagicMock(return_value=mock_state_dir)
+        mock_state_dir.mkdir.side_effect = OSError("Permission denied")
+        mock_path_cls.return_value = mock_state_dir
+
+        _run_auto_execute_command(["cmd"], "/worktree", 60)
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "Permission denied" in captured.out
