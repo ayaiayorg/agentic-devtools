@@ -213,9 +213,8 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                     for name in entries:
                         normalized = name.replace("\\", "/")
                         if (
-                            normalized.endswith("/gh")
-                            or normalized.endswith("/gh.exe")
-                            or normalized in ("gh", "gh.exe")
+                            normalized.endswith(f"/{gh_binary}")
+                            or normalized == gh_binary
                         ):
                             data = zf.read(name)
                             dest.write_bytes(data)
