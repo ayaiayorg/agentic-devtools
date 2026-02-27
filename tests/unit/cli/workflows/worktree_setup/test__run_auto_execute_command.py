@@ -1,8 +1,6 @@
 """Tests for RunAutoExecuteCommand."""
 
-import os
 import subprocess
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.workflows.worktree_setup import (
@@ -22,6 +20,7 @@ class TestRunAutoExecuteCommand:
         result = _run_auto_execute_command(["echo", "hello"], worktree, 300)
 
         assert result == 0
+        mock_run.assert_called_once()
         call_kwargs = mock_run.call_args[1]
         assert mock_run.call_args[0][0] == ["echo", "hello"]
         assert call_kwargs["cwd"] == worktree
