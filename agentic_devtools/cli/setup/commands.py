@@ -107,10 +107,8 @@ def setup_cmd() -> None:
         agdt-setup [--system-only]
 
     Options:
-        --system-only   Skip managed installs into ~/.agdt/bin/; verify system
-                        PATH binaries only.  Use this only when you explicitly
-                        want to rely on whatever versions are already installed
-                        on the system.
+        --system-only   Skip managed installs into ~/.agdt/bin/; only verify
+                        already-installed dependencies.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -121,7 +119,7 @@ def setup_cmd() -> None:
         "--system-only",
         action="store_true",
         default=False,
-        help="Skip managed installs; verify system PATH binaries only.",
+        help="Skip managed installs; only verify already-installed dependencies.",
     )
     args = parser.parse_args()
 
@@ -163,7 +161,7 @@ def setup_copilot_cli_cmd() -> None:
         agdt-setup-copilot-cli [--system-only]
 
     Options:
-        --system-only   Skip the managed install; use whatever is on the system PATH.
+        --system-only   Skip the managed install.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-copilot-cli",
@@ -174,7 +172,7 @@ def setup_copilot_cli_cmd() -> None:
         "--system-only",
         action="store_true",
         default=False,
-        help="Skip managed install; use system PATH binary if available.",
+        help="Skip managed install.",
     )
     args = parser.parse_args()
 
@@ -195,7 +193,7 @@ def setup_gh_cli_cmd() -> None:
         agdt-setup-gh-cli [--system-only]
 
     Options:
-        --system-only   Skip the managed install; use whatever is on the system PATH.
+        --system-only   Skip the managed install.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-gh-cli",
@@ -206,7 +204,7 @@ def setup_gh_cli_cmd() -> None:
         "--system-only",
         action="store_true",
         default=False,
-        help="Skip managed install; use system PATH binary if available.",
+        help="Skip managed install.",
     )
     args = parser.parse_args()
 
