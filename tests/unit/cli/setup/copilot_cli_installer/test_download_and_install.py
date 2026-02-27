@@ -153,3 +153,18 @@ class TestDownloadAndInstall:
                 )
         # objects.githubusercontent.com is not github.com, should fail
         assert result is False
+
+    def test_returns_false_on_corrupt_zip(self, tmp_path, capsys):
+        """Returns False and prints an error when the zip archive is corrupt."""
+        mock_resp = _make_mock_response(b"not-a-zip-file")
+        with patch.object(copilot_cli_installer, "_INSTALL_DIR", tmp_path):
+            with patch.object(copilot_cli_installer, "_VERSION_FILE", tmp_path / "v.json"):
+                with patch.object(copilot_cli_installer, "_BINARY_NAME", "copilot.exe"):
+                    with patch("requests.get", return_value=mock_resp):
+                        result = copilot_cli_installer.download_and_install(
+                            "v1.0.0",
+                            "https://github.com/releases/copilot-win32-x64.zip",
+                            "copilot-win32-x64.zip",
+                        )
+        assert result is False
+        assert "Extraction failed" in capsys.readouterr().err

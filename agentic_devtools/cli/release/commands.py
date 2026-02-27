@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.cli.release import helpers
@@ -22,7 +21,7 @@ from agentic_devtools.task_state import (
 )
 
 
-def _require_pypi_value(value: Optional[str], key: str, example: str) -> str:
+def _require_pypi_value(value: str | None, key: str, example: str) -> str:
     """Ensure required PyPI state value exists or exit."""
     if value:
         return value
@@ -58,7 +57,7 @@ def _run_tests_and_wait(timeout_seconds: int = 3600) -> int:
     raise helpers.ReleaseError("Test execution timed out.")
 
 
-def _normalize_repository(value: Optional[str]) -> str:
+def _normalize_repository(value: str | None) -> str:
     """Normalize repository setting and validate allowed values."""
     repo = (value or "pypi").lower()
     if repo not in {"pypi", "testpypi"}:
