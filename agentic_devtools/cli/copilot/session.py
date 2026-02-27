@@ -54,6 +54,12 @@ _PROMPT_FILE_PATTERN = "copilot-session-{session_id}-prompt.md"
 # Managed install path for the standalone copilot binary
 _MANAGED_COPILOT = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
 
+# Maximum prompt length (in characters) that can safely be passed as a
+# positional argument to ``gh copilot suggest``.  Windows' CreateProcess
+# imposes a 32,767-character limit on the entire command line; we leave
+# headroom for the ``gh copilot suggest`` prefix and OS overhead.
+_MAX_GH_COPILOT_ARGV_LENGTH = 30_000
+
 
 # ---------------------------------------------------------------------------
 # Public dataclass
@@ -180,7 +186,7 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, prompt_file: str) -> list[str]:
+def _build_copilot_args(prompt: str, prompt_file: str) -> Optional[list[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -189,7 +195,9 @@ def _build_copilot_args(prompt: str, prompt_file: str) -> list[str]:
     The standalone binary receives the prompt via ``--file`` to avoid shell
     argument-length limits.  The ``gh copilot`` extension does **not** support
     ``--file``; the prompt text is passed as the positional ``[subject]``
-    argument instead.
+    argument instead.  When the prompt exceeds
+    :data:`_MAX_GH_COPILOT_ARGV_LENGTH` on the extension path, ``None`` is
+    returned so the caller can use a fallback.
 
     Args:
         prompt: The full prompt text (used as subject for ``gh copilot``).
@@ -197,11 +205,14 @@ def _build_copilot_args(prompt: str, prompt_file: str) -> list[str]:
             with the standalone binary).
 
     Returns:
-        List of strings suitable for :func:`subprocess.Popen`.
+        List of strings suitable for :func:`subprocess.Popen`, or ``None``
+        when the prompt is too large for the ``gh copilot`` argv path.
     """
     standalone = _get_copilot_binary()
     if standalone:
         return [standalone, "suggest", "--file", prompt_file]
+    if len(prompt) > _MAX_GH_COPILOT_ARGV_LENGTH:
+        return None
     return ["gh", "copilot", "suggest", prompt]
 
 
@@ -318,6 +329,25 @@ def start_copilot_session(
 
     # --- Build command -------------------------------------------------------
     args = _build_copilot_args(prompt, prompt_file)
+
+    # When the prompt is too large for the gh copilot argv path (no
+    # standalone binary available), fall back to printing the prompt.
+    if args is None:
+        warnings.warn(
+            "Prompt too large for gh copilot argv; printing prompt to stdout as fallback.",
+            stacklevel=2,
+        )
+        _print_fallback_prompt(prompt)
+        result = CopilotSessionResult(
+            session_id=session_id,
+            mode=mode,
+            prompt_file=prompt_file,
+            start_time=start_time,
+            pid=None,
+            process=None,
+        )
+        _persist_session_state(result)
+        return result
 
     # --- Launch process -------------------------------------------------------
     if interactive:
