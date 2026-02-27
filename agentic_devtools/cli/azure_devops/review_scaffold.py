@@ -64,6 +64,8 @@ def _build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
         PR web URL string.
     """
     org = config.organization.rstrip("/")
+    if not org.startswith(("http://", "https://")):
+        org = f"https://dev.azure.com/{org.lstrip('/')}"
     return f"{org}/{config.project}/_git/{config.repository}/pullRequest/{pull_request_id}"
 
 
@@ -162,7 +164,9 @@ def scaffold_review_threads(
         dry_run: If True, print the plan without making API calls.
 
     Returns:
-        ReviewState with all thread IDs saved, or None if dry_run is True.
+        ReviewState with all thread IDs saved.  Returns the existing state
+        if scaffolding was already completed (idempotency check runs first).
+        Returns None only when ``dry_run=True`` *and* no prior scaffolding exists.
     """
     # Idempotency check: skip if review-state.json already exists
     try:

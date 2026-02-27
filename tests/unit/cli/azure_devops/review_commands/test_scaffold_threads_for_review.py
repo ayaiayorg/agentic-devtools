@@ -206,8 +206,8 @@ class TestScaffoldThreadsForReview:
             mock_config.repository = "test-repo"
             mock_config_cls.from_state.return_value = mock_config
 
-            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests"):
-                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests") as mock_require_requests:
+                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat") as mock_get_pat:
                     with patch("agentic_devtools.cli.azure_devops.review_commands.get_auth_headers"):
                         with patch("agentic_devtools.cli.azure_devops.review_commands.is_dry_run", return_value=True):
                             with patch(
@@ -222,6 +222,9 @@ class TestScaffoldThreadsForReview:
 
         call_kwargs = scaffold_mock.call_args[1]
         assert call_kwargs["dry_run"] is True
+        # In dry-run mode, PAT and requests should NOT be fetched
+        mock_require_requests.assert_not_called()
+        mock_get_pat.assert_not_called()
 
     def test_filters_out_files_with_empty_path(self):
         """Files with empty or missing path keys are excluded from scaffolding."""

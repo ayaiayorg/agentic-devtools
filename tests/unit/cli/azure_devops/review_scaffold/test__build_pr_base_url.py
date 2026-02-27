@@ -26,3 +26,15 @@ class TestBuildPrBaseUrl:
         config = _make_config(org="https://dev.azure.com/testorg/")
         result = _build_pr_base_url(config, 1)
         assert result == f"https://dev.azure.com/testorg/{_PROJECT}/_git/{_REPO}/pullRequest/1"
+
+    def test_normalizes_short_org_name(self):
+        """Normalizes a short org name to a full Azure DevOps URL."""
+        config = _make_config(org="myorg")
+        result = _build_pr_base_url(config, 7)
+        assert result == f"https://dev.azure.com/myorg/{_PROJECT}/_git/{_REPO}/pullRequest/7"
+
+    def test_normalizes_short_org_name_with_leading_slash(self):
+        """Strips leading slash from short org name during normalization."""
+        config = _make_config(org="/myorg")
+        result = _build_pr_base_url(config, 7)
+        assert result == f"https://dev.azure.com/myorg/{_PROJECT}/_git/{_REPO}/pullRequest/7"

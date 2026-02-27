@@ -591,8 +591,14 @@ def _scaffold_threads_for_review(
         latest_iteration_id = max((it.get("id", 0) for it in iterations), default=0)
 
         config = AzureDevOpsConfig.from_state()
-        requests_module = require_requests()
-        auth_headers = get_auth_headers(get_pat())
+        dry_run = is_dry_run()
+
+        if dry_run:
+            requests_module = None
+            auth_headers: dict = {}
+        else:
+            requests_module = require_requests()
+            auth_headers = get_auth_headers(get_pat())
 
         print(f"\nScaffolding review threads for PR {pull_request_id}...")
         scaffold_review_threads(
@@ -604,7 +610,7 @@ def _scaffold_threads_for_review(
             latest_iteration_id=latest_iteration_id,
             requests_module=requests_module,
             headers=auth_headers,
-            dry_run=is_dry_run(),
+            dry_run=dry_run,
         )
     except Exception as e:
         print(f"Warning: Scaffolding failed: {e}", file=sys.stderr)
