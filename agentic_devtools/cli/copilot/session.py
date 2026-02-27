@@ -19,14 +19,21 @@ The ``_build_copilot_args`` helper selects the correct variant at runtime.
 
 Research notes
 --------------
-The standalone binary requires ``--allow-all-tools`` when running in
-non-interactive mode; without it every tool invocation (including
-``agdt-*`` commands, Python, and pip) is rejected with "Permission
-denied and could not request permission from user".
-``_build_copilot_args`` therefore appends ``--allow-all-tools`` to the
-argument list for the standalone-binary non-interactive path.  The
-``gh copilot`` extension fallback does not support these flags and is
-left unchanged.
+The standalone binary requires ``--allow-all`` when running in
+non-interactive mode; without it shell-command tool invocations (including
+``agdt-*`` commands, ``python``, ``gh``, etc.) are rejected with "Permission
+denied and could not request permission from user".  ``--allow-all`` is
+equivalent to ``--allow-all-tools --allow-all-paths --allow-all-urls`` and
+grants the full set of permissions required for autonomous workflow execution.
+``_build_copilot_args`` therefore appends ``--allow-all`` to the argument
+list for the standalone-binary non-interactive path.  The ``gh copilot``
+extension fallback does not support these flags and is left unchanged.
+
+For non-interactive sessions the full prompt text is written to a file on
+disk, and a short file-reference instruction is passed via ``-p`` instead of
+the raw prompt content.  This avoids reliability issues with multiline /
+special-character content in Windows command-line argument passing and gives
+the agent an unambiguous first action (read the instruction file).
 
 Fallback behaviour
 ------------------
@@ -36,6 +43,7 @@ prints the prompt to stdout so that the user or pipeline can invoke a
 session manually.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -214,18 +222,19 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     ``None`` is returned so the caller can use a fallback.
 
     In non-interactive mode the standalone binary also receives
-    ``--allow-all-tools`` so that it can execute tools (``agdt-*``
-    commands, Python, etc.) without prompting for permission.  The
-    narrower ``--allow-all-tools`` is preferred over ``--allow-all`` to
-    avoid also granting path and URL permissions that are not needed.
-    Without this flag every tool invocation is rejected with
+    ``--allow-all`` so that it can execute shell commands (``agdt-*``,
+    ``python``, ``gh``, etc.) without prompting for permission.
+    ``--allow-all`` is equivalent to ``--allow-all-tools --allow-all-paths
+    --allow-all-urls``; ``--allow-all-tools`` alone is insufficient because
+    shell commands such as ``gh`` and ``python`` also require path and URL
+    permissions.  Without this flag every tool invocation is rejected with
     "Permission denied and could not request permission from user".
 
     Args:
         prompt: The full prompt text to pass to the copilot command.
         interactive: When ``True`` (default) the standalone binary receives
             ``-i``; when ``False`` it receives ``-p`` and
-            ``--allow-all-tools``.  Ignored for the ``gh copilot``
+            ``--allow-all``.  Ignored for the ``gh copilot``
             extension path which always uses a positional arg.
 
     Returns:
@@ -239,7 +248,7 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
         flag = "-i" if interactive else "-p"
         args = [standalone, flag, prompt]
         if not interactive:
-            args.append("--allow-all-tools")
+            args.append("--allow-all")
         return args
     return ["gh", "copilot", "suggest", prompt]
 
@@ -293,18 +302,16 @@ def start_copilot_session(
     Behaviour:
     - Generates (or reuses) a unique session ID.
     - Writes *prompt* to a temporary file for persistence and manual
-      reuse.  The prompt is passed directly as a CLI argument to the
-      Copilot process; when it exceeds safe argv-length limits it is
-      printed to stdout instead.
+      reuse.  In **interactive** mode the full prompt text is also passed
+      as a CLI argument to the Copilot process.  In **non-interactive**
+      mode a short file-reference instruction is passed via ``-p`` instead
+      of the raw prompt content; this avoids Windows command-line
+      reliability issues with multiline / special-character prompts and
+      ensures the agent reads the instruction file as its first action.
+      When the prompt exceeds safe argv-length limits it is printed to
+      stdout instead.
     - Starts ``copilot -i/-p <prompt>`` (standalone binary) or
       ``gh copilot suggest <prompt>`` (extension fallback).
-
-      .. note::
-
-         The prompt text is visible in the child-process command line
-         (e.g. Task Manager / ``ps`` output).  Neither the standalone
-         binary nor the ``gh copilot`` extension currently supports
-         receiving the prompt via stdin or a file flag.
     - In **interactive** mode the child process inherits the current
       terminal (stdin / stdout / stderr), so the user can interact with
       it directly.  This call blocks until the interactive session ends.
@@ -364,7 +371,17 @@ def start_copilot_session(
         return result
 
     # --- Build command -------------------------------------------------------
-    args = _build_copilot_args(prompt, interactive=interactive)
+    # For non-interactive mode, pass a short file-reference instruction via
+    # -p rather than the full prompt text.  The full prompt is already on
+    # disk at prompt_file; this avoids Windows command-line reliability
+    # issues with multiline / special-character content and ensures the
+    # agent reads the instruction file as its very first action.
+    argv_prompt = (
+        (f"Your task instructions are in this file: {prompt_file}. Read that file before doing anything else.")
+        if not interactive
+        else prompt
+    )
+    args = _build_copilot_args(argv_prompt, interactive=interactive)
 
     # When the prompt is too large for safe argv passing, fall back to
     # printing the prompt.  This applies regardless of binary variant.
@@ -417,6 +434,12 @@ def start_copilot_session(
         # child process (which inherits the fd) eventually exits.
         # shell=False: same reasoning as the interactive case above.
         log_fh = open(log_file_path, "w", encoding="utf-8")  # noqa: WPS515
+        # Strip NODE_OPTIONS from the subprocess environment: on some systems
+        # NODE_OPTIONS contains flags such as ``--no-warnings`` that are
+        # intended for the Node.js runtime but are forwarded as CLI arguments
+        # to the copilot binary, producing repeated
+        # "error: unknown option '--no-warnings'" entries in the session log.
+        env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
         process = subprocess.Popen(
             args,
             cwd=working_directory,
@@ -425,6 +448,7 @@ def start_copilot_session(
             stdin=subprocess.DEVNULL,
             start_new_session=True if sys.platform != "win32" else False,
             shell=False,
+            env=env,
         )
 
         result = CopilotSessionResult(
