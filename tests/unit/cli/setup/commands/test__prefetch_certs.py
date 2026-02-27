@@ -10,9 +10,7 @@ from agentic_devtools.cli.setup import commands
 @pytest.fixture(autouse=True)
 def mock_setup_network():
     """Override the conftest autouse mock to test _prefetch_certs directly."""
-    with patch("agentic_devtools.cli.setup.gh_cli_installer._get_ssl_verify", return_value=True):
-        with patch("agentic_devtools.cli.setup.copilot_cli_installer._get_ssl_verify", return_value=True):
-            yield
+    yield
 
 
 class TestPrefetchCerts:

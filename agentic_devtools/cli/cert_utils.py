@@ -14,8 +14,12 @@ import re
 import socket
 import ssl
 import subprocess
+import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
+
+if TYPE_CHECKING:
+    import requests
 
 from agentic_devtools.cli.subprocess_utils import run_safe
 
@@ -105,6 +109,7 @@ def count_certificates_in_pem(pem_content: str) -> int:
 def ensure_ca_bundle(
     hostname: str,
     cache_file: Optional[Path] = None,
+    force: bool = False,
 ) -> Optional[str]:
     """Ensure a CA bundle PEM file exists for *hostname* and return its path.
 
@@ -125,6 +130,7 @@ def ensure_ca_bundle(
         hostname: Server hostname to fetch certificates from.
         cache_file: Explicit path to store the PEM file.  Defaults to
             ``~/.agdt/certs/<hostname>.pem``.
+        force: When ``True``, delete any existing cached file and re-fetch.
 
     Returns:
         Absolute path to the cached PEM file, or ``None`` if fetching failed.
@@ -134,6 +140,13 @@ def ensure_ca_bundle(
         safe_name = re.sub(r"[^\w.\-]", "_", hostname)
         cache_file = _CERTS_DIR / f"{safe_name}.pem"
     cache_file = cache_file.expanduser().resolve()
+
+    # Remove stale cache when a forced re-fetch is requested.
+    if force and cache_file.exists():
+        try:
+            cache_file.unlink()
+        except OSError:
+            pass
 
     # Return cached file when it already contains at least one certificate.
     # We accept single-cert caches to avoid re-fetching on every call for
@@ -192,3 +205,79 @@ def get_ssl_verify(hostname: str) -> Union[bool, str]:
         return pem_path
 
     return True
+
+
+def _print_ssl_error_help(hostname: str) -> None:
+    """Print actionable SSL troubleshooting suggestions to stderr.
+
+    Args:
+        hostname: The hostname that failed SSL verification.
+    """
+    print(f"\n  ✗ SSL verification failed for {hostname}.", file=sys.stderr)
+    print("  This is common on corporate networks with custom CA certificates.", file=sys.stderr)
+    print("\n  Suggestions:", file=sys.stderr)
+    print("    1. Run `agdt-setup-certs` to refresh the CA certificate cache.", file=sys.stderr)
+    print("    2. Set REQUESTS_CA_BUNDLE=/path/to/corporate-ca.pem", file=sys.stderr)
+    print("    3. Use `agdt-setup --no-verify-ssl` to skip SSL verification (insecure).", file=sys.stderr)
+
+
+def ssl_request_with_retry(
+    url: str,
+    hostname: str,
+    *,
+    timeout: int = 30,
+    stream: bool = False,
+) -> "requests.Response":
+    """Make a GET request with automatic SSL retry for corporate networks.
+
+    Behaviour:
+    1. If the ``AGDT_NO_VERIFY_SSL`` environment variable is set, the request
+       is made with ``verify=False`` and a warning is printed.  No retry is
+       attempted.
+    2. Otherwise the first attempt uses :func:`get_ssl_verify` to pick the best
+       available CA bundle.
+    3. On :class:`requests.exceptions.SSLError` the cached CA bundle is
+       invalidated, a fresh bundle is fetched, and the request is retried once.
+    4. If the retry also fails, :func:`_print_ssl_error_help` prints actionable
+       suggestions before re-raising the exception.
+
+    Args:
+        url: The URL to request.
+        hostname: The target server hostname (used for CA bundle lookup).
+        timeout: Request timeout in seconds.
+        stream: Whether to stream the response.
+
+    Returns:
+        The :class:`requests.Response` object.
+
+    Raises:
+        requests.RequestException: On network errors after all retries.
+    """
+    import requests
+
+    # --no-verify-ssl override via environment variable.
+    # The user has explicitly opted in by setting AGDT_NO_VERIFY_SSL (via agdt-setup --no-verify-ssl)
+    # and is aware of the security implications (printed warning during setup).
+    if os.environ.get("AGDT_NO_VERIFY_SSL"):
+        print(
+            "  ⚠  SSL verification disabled (AGDT_NO_VERIFY_SSL). Use only on trusted networks.",
+            file=sys.stderr,
+        )
+        return requests.get(url, timeout=timeout, stream=stream, verify=False)  # noqa: S501
+
+    verify = get_ssl_verify(hostname)
+    try:
+        return requests.get(url, timeout=timeout, stream=stream, verify=verify)
+    except requests.exceptions.SSLError as ssl_error:
+        # Force-refetch the CA bundle and retry once.
+        # The refreshed bundle is typically written to the same cache path, so we
+        # always retry when a bundle is available (the file contents may have changed).
+        last_ssl_error = ssl_error
+        verify_retry = ensure_ca_bundle(hostname, force=True)
+        if verify_retry:
+            try:
+                return requests.get(url, timeout=timeout, stream=stream, verify=verify_retry)
+            except requests.exceptions.SSLError as retry_error:
+                last_ssl_error = retry_error
+        _print_ssl_error_help(hostname)
+        raise last_ssl_error

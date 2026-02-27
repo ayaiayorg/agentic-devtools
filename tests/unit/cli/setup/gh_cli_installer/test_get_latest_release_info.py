@@ -36,5 +36,6 @@ class TestGetLatestReleaseInfoGh:
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/cli/cli/releases/latest",
             timeout=30,
+            stream=False,
             verify=True,
         )

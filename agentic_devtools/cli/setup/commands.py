@@ -6,12 +6,14 @@ Entry points:
 - ``agdt-setup-copilot-cli`` — install only the Copilot CLI standalone binary
 - ``agdt-setup-gh-cli``     — install only the GitHub CLI
 - ``agdt-setup-check``      — verify all dependencies without installing anything
+- ``agdt-setup-certs``      — prefetch/refresh CA certificate bundles
 
 All install commands accept ``--system-only`` to skip managed installs and rely
 on whatever is available on the system ``PATH``.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -90,8 +92,6 @@ def _prefetch_certs() -> None:
 
 def _print_path_instructions_if_needed() -> None:
     """Print PATH setup instructions when ``~/.agdt/bin`` is not on the PATH."""
-    import os
-
     managed_bin = str(_MANAGED_BIN_DIR)
     path_entries = os.environ.get("PATH", "").split(os.pathsep)
     home = str(Path.home())
@@ -104,11 +104,13 @@ def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
     Usage:
-        agdt-setup [--system-only]
+        agdt-setup [--system-only] [--no-verify-ssl]
 
     Options:
         --system-only   Skip managed installs into ~/.agdt/bin/; only verify
                         already-installed dependencies.
+        --no-verify-ssl Disable SSL certificate verification (insecure; use
+                        only on trusted networks).
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -121,7 +123,17 @@ def setup_cmd() -> None:
         default=False,
         help="Skip managed installs; only verify already-installed dependencies.",
     )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_true",
+        default=False,
+        help="Disable SSL certificate verification (insecure; use only on trusted networks).",
+    )
     args = parser.parse_args()
+    if args.no_verify_ssl:
+        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
+        print()
 
     print(_BANNER)
     print()
@@ -158,10 +170,11 @@ def setup_copilot_cli_cmd() -> None:
     """Install the GitHub Copilot CLI standalone binary into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-copilot-cli [--system-only]
+        agdt-setup-copilot-cli [--system-only] [--no-verify-ssl]
 
     Options:
         --system-only   Skip the managed install.
+        --no-verify-ssl Disable SSL certificate verification.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-copilot-cli",
@@ -174,7 +187,16 @@ def setup_copilot_cli_cmd() -> None:
         default=False,
         help="Skip managed install.",
     )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_true",
+        default=False,
+        help="Disable SSL certificate verification (insecure; use only on trusted networks).",
+    )
     args = parser.parse_args()
+    if args.no_verify_ssl:
+        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
     if args.system_only:
         print("Skipping managed install of Copilot CLI (--system-only).")
@@ -190,10 +212,11 @@ def setup_gh_cli_cmd() -> None:
     """Install the GitHub CLI (``gh``) into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-gh-cli [--system-only]
+        agdt-setup-gh-cli [--system-only] [--no-verify-ssl]
 
     Options:
         --system-only   Skip the managed install.
+        --no-verify-ssl Disable SSL certificate verification.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-gh-cli",
@@ -206,7 +229,16 @@ def setup_gh_cli_cmd() -> None:
         default=False,
         help="Skip managed install.",
     )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_true",
+        default=False,
+        help="Disable SSL certificate verification (insecure; use only on trusted networks).",
+    )
     args = parser.parse_args()
+    if args.no_verify_ssl:
+        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
     if args.system_only:
         print("Skipping managed install of GitHub CLI (--system-only).")
@@ -216,6 +248,25 @@ def setup_gh_cli_cmd() -> None:
     if not ok:
         sys.exit(1)
     _print_path_instructions_if_needed()
+
+
+def setup_certs_cmd() -> None:
+    """Prefetch and refresh CA certificate bundles for all setup hosts.
+
+    Fetches the certificate chain for external hosts used during setup and
+    stores the PEM bundles in ``~/.agdt/certs/``.  Also writes an
+    ``~/.agdt/npmrc`` file that configures npm to use the cached CA bundle
+    for ``registry.npmjs.org``.
+
+    Run this command when you encounter SSL errors during setup on a
+    corporate network with a custom CA certificate.
+
+    Usage:
+        agdt-setup-certs
+    """
+    print("Refreshing CA certificate bundles...")
+    print()
+    _prefetch_certs()
 
 
 def setup_check_cmd() -> None:

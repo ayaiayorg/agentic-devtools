@@ -1,5 +1,6 @@
 """Tests for setup_copilot_cli_cmd."""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -39,3 +40,14 @@ class TestSetupCopilotCliCmd:
             commands.setup_copilot_cli_cmd()
         out = capsys.readouterr().out
         assert "--system-only" in out
+
+    def test_no_verify_ssl_sets_env_var(self, monkeypatch):
+        """Sets AGDT_NO_VERIFY_SSL when --no-verify-ssl is passed."""
+        monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
+        monkeypatch.setattr("sys.argv", ["agdt-setup-copilot-cli", "--no-verify-ssl"])
+
+        with patch.object(commands, "install_copilot_cli", return_value=True):
+            with patch.object(commands, "_print_path_instructions_if_needed"):
+                commands.setup_copilot_cli_cmd()
+
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
