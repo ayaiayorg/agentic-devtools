@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from ...state import get_pull_request_id, get_value, is_dry_run
+from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
 from .helpers import get_repository_id, require_requests
@@ -55,8 +55,7 @@ def _get_thread_file_path(thread: dict) -> Optional[str]:
 
 def _get_queue_path(pull_request_id: int) -> Path:
     """Get the path to the queue.json file for a pull request."""
-    scripts_dir = Path(__file__).parent.parent.parent.parent.parent  # Up to scripts/
-    return scripts_dir / "temp" / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
+    return get_state_dir() / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
 
 
 def mark_file_as_submission_pending(
