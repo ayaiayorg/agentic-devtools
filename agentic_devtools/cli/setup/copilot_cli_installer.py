@@ -179,7 +179,8 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                 binary_basename = _BINARY_NAME.lower()
                 for name in zf.namelist():
                     normalized = name.replace("\\", "/")
-                    if normalized.lower().endswith(binary_basename) or normalized.lower() == binary_basename:
+                    normalized_lower = normalized.lower()
+                    if normalized_lower == binary_basename or normalized_lower.endswith(f"/{binary_basename}"):
                         dest.write_bytes(zf.read(name))
                         extracted = True
                         break
