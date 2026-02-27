@@ -186,21 +186,24 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str) -> Optional[list[str]]:
+def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[list[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
     back to the ``gh copilot`` extension for backward compatibility.
 
     Neither the standalone binary nor the ``gh copilot`` extension supports
-    ``--file``.  The standalone binary requires ``-p``/``--prompt`` for
-    non-interactive use; the ``gh copilot`` extension accepts the prompt as a
-    positional ``[subject]`` argument.  When the prompt exceeds
-    :data:`_MAX_GH_COPILOT_ARGV_LENGTH`, ``None`` is returned so the caller
-    can use a fallback.
+    ``--file``.  The standalone binary accepts the prompt via ``-p``/``--prompt``
+    for non-interactive use and ``-i`` for interactive use, while the
+    ``gh copilot`` extension accepts the prompt as a positional ``[subject]``
+    argument.  When the prompt exceeds :data:`_MAX_GH_COPILOT_ARGV_LENGTH`,
+    ``None`` is returned so the caller can use a fallback.
 
     Args:
         prompt: The full prompt text to pass to the copilot command.
+        interactive: When ``True`` (default) the standalone binary receives
+            ``-i``; when ``False`` it receives ``-p``.  Ignored for the
+            ``gh copilot`` extension path which always uses a positional arg.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
@@ -210,7 +213,8 @@ def _build_copilot_args(prompt: str) -> Optional[list[str]]:
         return None
     standalone = _get_copilot_binary()
     if standalone:
-        return [standalone, "suggest", "-p", prompt]
+        flag = "-i" if interactive else "-p"
+        return [standalone, "suggest", flag, prompt]
     return ["gh", "copilot", "suggest", prompt]
 
 
@@ -334,7 +338,7 @@ def start_copilot_session(
         return result
 
     # --- Build command -------------------------------------------------------
-    args = _build_copilot_args(prompt)
+    args = _build_copilot_args(prompt, interactive=interactive)
 
     # When the prompt is too large for the gh copilot argv path (no
     # standalone binary available), fall back to printing the prompt.
