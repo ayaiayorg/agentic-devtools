@@ -117,6 +117,310 @@ Follow these steps whenever you add a new function or class to a source file:
    agdt-test-pattern tests/unit/cli/git/core/test_get_current_branch.py -v
    ```
 
+## Test Anatomy
+
+New test files in `tests/unit/` should follow the same internal structure.
+Use the following preferred structure as a template when writing a new test file:
+
+```python
+"""Tests for agentic_devtools.cli.git.core.get_current_branch."""
+
+# 1. Standard-library imports first
+from unittest.mock import MagicMock
+
+# 2. Third-party imports
+import pytest
+
+# 3. First-party imports (the symbol under test plus any helpers it needs)
+from agentic_devtools.cli.git import core
+
+
+class TestGetCurrentBranch:
+    """Tests for get_current_branch function.
+
+    One class per test file; the class name is Test + PascalCase symbol name.
+    """
+
+    # ── happy-path tests ──────────────────────────────────────────────────
+
+    def test_returns_branch_name(self, mock_run_safe):
+        """Test that the current branch name is returned."""
+        # Arrange
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="feature/my-branch\n", stderr="")
+
+        # Act
+        branch = core.get_current_branch()
+
+        # Assert
+        assert branch == "feature/my-branch"
+
+    # ── error-path tests ──────────────────────────────────────────────────
+
+    def test_detached_head_exits(self, mock_run_safe):
+        """Test that detached HEAD state causes SystemExit(1)."""
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="HEAD\n", stderr="")
+
+        with pytest.raises(SystemExit) as exc_info:
+            core.get_current_branch()
+
+        assert exc_info.value.code == 1
+```
+
+### Key conventions
+
+| Item | Convention |
+|------|-----------|
+| Module docstring | `"""Tests for {fully.qualified.module.symbol}."""` |
+| Class name | `Test` + PascalCase symbol name, e.g. `TestGetCurrentBranch` |
+| Class docstring | Short phrase describing what is being tested |
+| Test method name | `test_{behaviour_under_test}` — describe what the test verifies, not how |
+| Test method docstring | One sentence stating the expected outcome |
+| Arrange / Act / Assert | Three logical blocks; separate with a blank line when the body is non-trivial |
+| Imports | Use module-level imports; avoid `from x import y` inline inside test methods |
+
+## Available Fixtures
+
+This section catalogs the shared fixtures defined in the root- and unit-level `conftest.py` files,
+plus the most commonly used per-subpackage fixtures. Use the narrowest-scoped fixture that satisfies
+your test's needs.
+
+### Root fixtures — `tests/conftest.py`
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `mock_jira_vpn_context` | `function` (**autouse**) | Auto-mocks `JiraVpnContext` and `get_vpn_url_from_state` so no real VPN operations occur. Add `@pytest.mark.real_vpn` to opt out for tests that explicitly exercise VPN logic. |
+
+### Unit fixtures — `tests/unit/conftest.py`
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `temp_state_dir` | `function` | Patches `state.get_state_dir()` to return a fresh `tmp_path`. **Required for any test that reads or writes state.** |
+| `clear_state_before` | `function` | Depends on `temp_state_dir`; calls `state.clear_state()` before the test. Use this when a test writes state values and should start from a clean slate. |
+| `mock_background_and_state` | `function` | Patches both state directories *and* `subprocess.Popen` so background-task commands can be called without spawning a real process. Yields `{"state_dir": tmp_path, "mock_popen": mock_popen}`. |
+
+### Git fixtures — `tests/unit/cli/git/conftest.py`
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `mock_run_safe` | `function` | Patches `core.run_safe` with a `MagicMock` that returns `returncode=0, stdout="", stderr=""` by default. Use for tests that should not execute real git commands. |
+| `temp_git_repo` | `function` | Creates a real but temporary git repository (with an initial commit). Use for tests that must run git commands against an actual repo. |
+
+### Azure DevOps fixtures — `tests/unit/cli/azure_devops/conftest.py`
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `mock_azure_devops_env` | `function` | Sets `AZURE_DEV_OPS_COPILOT_PAT=test-pat` via `patch.dict`. Required for any test that calls an Azure DevOps helper that reads the PAT. |
+| `mock_git_remote_detection` | `function` (**autouse**) | Stubs `get_repository_name_from_git_remote` to return `None`. Prevents git remote inspection from interfering with mocks. Skip via `TestRepositoryDetection` class name. |
+
+### Jira fixtures — `tests/unit/cli/jira/conftest.py`
+
+| Fixture | Scope | Description |
+|---------|-------|-------------|
+| `mock_jira_env` | `function` | Sets `JIRA_COPILOT_PAT=test-token` and `JIRA_SSL_VERIFY=0`. **Always combine with `mock_requests_module`** when calling Jira commands in tests. |
+| `mock_requests_module` | `function` | Patches `_get_requests` in all Jira implementation modules (`create_commands`, `comment_commands`, `get_commands`, `update_commands`, `role_commands`) and returns a pre-configured `MagicMock` HTTP client. |
+
+### Helper factory functions — `tests/helpers.py`
+
+Import from `tests.helpers` when you need to construct common test objects:
+
+```python
+from tests.helpers import create_git_repo, make_mock_popen, make_mock_response, make_mock_task
+```
+
+| Function | Returns | When to use |
+|----------|---------|-------------|
+| `create_git_repo(repo_dir)` | `None` | Initialize a bare-minimum git repo with one commit inside a `tmp_path` subdirectory. |
+| `make_mock_popen(pid=12345)` | `MagicMock` | Create a fake `subprocess.Popen` return value with a fixed `.pid`. |
+| `make_mock_response(json_data=None, status_code=200)` | `MagicMock` | Create a fake HTTP response with `.json()`, `.status_code`, and a no-op `.raise_for_status()`. |
+| `make_mock_task(task_id=…, command=…)` | `MagicMock` | Create a fake `BackgroundTask` object with `.id` and `.command`. |
+
+## Common Test Patterns
+
+The following patterns cover the most frequently encountered testing scenarios.
+Copy the relevant pattern as a starting point, then adapt it to your symbol.
+
+### Pattern 1 — Testing a state-dependent function
+
+Use when the function under test calls `get_value()` or `set_value()`:
+
+```python
+from agentic_devtools import state
+
+
+class TestGetValue:
+    def test_returns_stored_value(self, temp_state_dir):
+        # Arrange — write the expected value into the temporary state store
+        state.set_value("commit_message", "feat: add new feature")
+
+        # Act
+        result = state.get_value("commit_message")
+
+        # Assert
+        assert result == "feat: add new feature"
+
+    def test_returns_none_when_not_set(self, temp_state_dir):
+        result = state.get_value("nonexistent")
+        assert result is None
+```
+
+### Pattern 2 — Testing CLI command output with `capsys`
+
+Use when the function under test prints to stdout or stderr:
+
+```python
+import pytest
+
+from agentic_devtools.cli.tasks import commands
+
+
+class TestListTasks:
+    def test_prints_no_tasks_message(self, mock_background_and_state, capsys):
+        # Act
+        commands.list_tasks()
+
+        # Assert — check what was printed
+        captured = capsys.readouterr()
+        assert "No background tasks found" in captured.out
+
+    def test_exits_on_missing_task_id(self, temp_state_dir, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            commands.task_status()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Error: No task ID specified." in captured.out
+```
+
+### Pattern 3 — Testing git operations
+
+Use `mock_run_safe` to intercept all git subprocess calls.
+Configure the mock's return value before the call under test:
+
+```python
+from unittest.mock import MagicMock
+
+import pytest
+
+from agentic_devtools.cli.git import core
+
+
+class TestGetCurrentBranch:
+    def test_returns_branch_name(self, mock_run_safe):
+        # Arrange — configure the fake git output
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout="feature/DFLY-1234/my-feature\n", stderr=""
+        )
+
+        # Act
+        branch = core.get_current_branch()
+
+        # Assert
+        assert branch == "feature/DFLY-1234/my-feature"
+
+    def test_git_failure_exits(self, mock_run_safe):
+        mock_run_safe.return_value = MagicMock(returncode=128, stdout="", stderr="fatal: not a git repo")
+
+        with pytest.raises(SystemExit):
+            core.get_current_branch()
+```
+
+Use `temp_git_repo` only when the test must exercise the git binary itself
+(e.g., tests for `create_git_repo` or integration scenarios):
+
+```python
+import subprocess
+
+from tests.helpers import create_git_repo
+
+
+class TestCreateGitRepo:
+    def test_initial_commit_exists(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        create_git_repo(repo)
+
+        result = subprocess.run(
+            ["git", "log", "--oneline"], cwd=repo, capture_output=True, text=True
+        )
+        assert "Initial commit" in result.stdout
+```
+
+### Pattern 4 — Testing commands that spawn background tasks
+
+Use `mock_background_and_state` to intercept `subprocess.Popen` and verify
+both the spawned process and the background-task state. This pattern applies
+to any `*_async` CLI wrapper that calls `run_function_in_background`:
+
+```python
+from agentic_devtools import state
+from agentic_devtools.cli.github import async_commands as gh_async
+
+
+class TestCreateAgdtIssueAsync:
+    def test_spawns_background_task(self, mock_background_and_state):
+        # Arrange — set required state for the command
+        state.set_value("issue.title", "Test issue")
+        state.set_value("issue.description", "Details")
+
+        # Act
+        gh_async.create_agdt_issue_async()
+
+        # Assert — Popen was called once to spawn the background process
+        mock_background_and_state["mock_popen"].assert_called_once()
+
+    def test_task_id_stored_in_state(self, mock_background_and_state):
+        state.set_value("issue.title", "Test issue")
+        state.set_value("issue.description", "Details")
+
+        gh_async.create_agdt_issue_async()
+
+        # The command should store the task ID in state so the agent can poll it
+        task_id = state.get_value("background.task_id")
+        assert task_id is not None
+```
+
+### Pattern 5 — Testing error paths
+
+Use `pytest.raises` for `SystemExit`, `KeyError`, `ValueError`, and other
+expected exceptions.  Always assert both the exception type and the exit code
+(or message) so the test is specific:
+
+```python
+from unittest.mock import MagicMock
+
+import pytest
+import requests
+
+from agentic_devtools import state
+from agentic_devtools.cli.jira import comment_commands
+
+
+class TestAddComment:
+    def test_missing_issue_key_exits(self, temp_state_dir, clear_state_before):
+        # Arrange — comment is set but issue_key is not
+        state.set_value("jira.comment", "Test comment")
+
+        # Act & Assert
+        with pytest.raises(SystemExit) as exc_info:
+            comment_commands.add_comment()
+
+        assert exc_info.value.code == 1
+
+    def test_api_error_is_handled(
+        self, temp_state_dir, clear_state_before, mock_jira_env, mock_requests_module
+    ):
+        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.comment", "Test comment")
+
+        # Configure the mock to simulate an HTTP error
+        mock_requests_module.post.return_value = MagicMock(
+            status_code=500,
+            raise_for_status=MagicMock(side_effect=requests.HTTPError("500 Server Error")),
+        )
+
+        with pytest.raises(SystemExit):
+            comment_commands.add_comment()
+```
+
 ## How to Run Specific Tests
 
 ```bash
