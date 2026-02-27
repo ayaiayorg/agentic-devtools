@@ -1519,16 +1519,14 @@ class TestGenerateReviewPromptsEdgeCases:
         from unittest.mock import patch
 
         # Create the temp file
-        scripts_dir = tmp_path / "scripts"
-        temp_dir = scripts_dir / "temp"
-        temp_dir.mkdir(parents=True)
+        temp_dir = tmp_path
+        temp_dir.mkdir(parents=True, exist_ok=True)
         details_path = temp_dir / "temp-get-pull-request-details-response.json"
         pr_details = {"files": [], "threads": []}
         with open(details_path, "w") as f:
             json.dump(pr_details, f)
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
-            mock_path.return_value.parent.parent.parent.parent.parent = scripts_dir
+        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir):
             from agdt_ai_helpers.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
@@ -1545,8 +1543,7 @@ class TestGenerateReviewPromptsEdgeCases:
         from unittest.mock import patch
 
         # Create the temp directory structure
-        scripts_dir = tmp_path / "scripts"
-        temp_dir = scripts_dir / "temp"
+        temp_dir = tmp_path
         prompts_dir = temp_dir / "pull-request-review" / "prompts" / "123"
         prompts_dir.mkdir(parents=True)
 
@@ -1563,8 +1560,7 @@ class TestGenerateReviewPromptsEdgeCases:
             "threads": [],
         }
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
-            mock_path.return_value.parent.parent.parent.parent.parent = scripts_dir
+        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir):
             from agdt_ai_helpers.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
@@ -1582,8 +1578,7 @@ class TestGenerateReviewPromptsEdgeCases:
         """Test raises FileNotFoundError when PR details file missing."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
-            mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
+        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=tmp_path):
             from agdt_ai_helpers.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
