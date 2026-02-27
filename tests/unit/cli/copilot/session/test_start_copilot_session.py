@@ -145,7 +145,7 @@ class TestStartCopilotSessionInteractive:
         assert call_kwargs.get("shell") is False
 
     def test_popen_called_with_correct_args(self, temp_state, mock_available, mock_popen_interactive):
-        """Popen is called with the gh copilot suggest --file <prompt_file> args."""
+        """Popen is called with gh copilot suggest <prompt> args when no standalone binary is available."""
         mock_popen, _ = mock_popen_interactive
         result = start_copilot_session(
             prompt="Do something",
@@ -154,8 +154,8 @@ class TestStartCopilotSessionInteractive:
         )
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        assert cmd[:4] == ["gh", "copilot", "suggest", "--file"]
-        assert cmd[4] == result.prompt_file
+        assert cmd[:3] == ["gh", "copilot", "suggest"]
+        assert cmd[3] == "Do something"
 
     def test_wait_is_called(self, temp_state, mock_available, mock_popen_interactive):
         """process.wait() is called for interactive mode."""

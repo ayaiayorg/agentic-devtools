@@ -180,17 +180,21 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt_file: str) -> list[str]:
+def _build_copilot_args(prompt: str, prompt_file: str) -> list[str]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
     back to the ``gh copilot`` extension for backward compatibility.
 
-    The prompt is passed via the ``--file`` flag so that large prompts do not
-    hit shell argument-length limits.
+    The standalone binary receives the prompt via ``--file`` to avoid shell
+    argument-length limits.  The ``gh copilot`` extension does **not** support
+    ``--file``; the prompt text is passed as the positional ``[subject]``
+    argument instead.
 
     Args:
-        prompt_file: Absolute path to the file containing the prompt.
+        prompt: The full prompt text (used as subject for ``gh copilot``).
+        prompt_file: Absolute path to the file containing the prompt (used
+            with the standalone binary).
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`.
@@ -198,7 +202,7 @@ def _build_copilot_args(prompt_file: str) -> list[str]:
     standalone = _get_copilot_binary()
     if standalone:
         return [standalone, "suggest", "--file", prompt_file]
-    return ["gh", "copilot", "suggest", "--file", prompt_file]
+    return ["gh", "copilot", "suggest", prompt]
 
 
 def _persist_session_state(result: CopilotSessionResult) -> None:
@@ -251,7 +255,9 @@ def start_copilot_session(
     - Generates (or reuses) a unique session ID.
     - Writes *prompt* to a temporary file so that large prompts do not
       exceed CLI argument-length limits.
-    - Starts ``gh copilot suggest --file <prompt_file>``.
+    - Starts ``copilot suggest --file <prompt_file>`` (standalone binary) or
+      ``gh copilot suggest <prompt>`` (extension fallback, which does not
+      support ``--file``).
     - In **interactive** mode the child process inherits the current
       terminal (stdin / stdout / stderr), so the user can interact with
       it directly.  This call blocks until the interactive session ends.
@@ -311,7 +317,7 @@ def start_copilot_session(
         return result
 
     # --- Build command -------------------------------------------------------
-    args = _build_copilot_args(prompt_file)
+    args = _build_copilot_args(prompt, prompt_file)
 
     # --- Launch process -------------------------------------------------------
     if interactive:
