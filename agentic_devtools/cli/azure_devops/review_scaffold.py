@@ -10,6 +10,7 @@ Total: N + F + 1 API calls (one-time upfront cost).
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
 from .review_state import (
@@ -66,7 +67,9 @@ def _build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
     org = config.organization.rstrip("/")
     if not org.startswith(("http://", "https://")):
         org = f"https://dev.azure.com/{org.lstrip('/')}"
-    return f"{org}/{config.project}/_git/{config.repository}/pullRequest/{pull_request_id}"
+    encoded_project = quote(config.project, safe="")
+    encoded_repo = quote(config.repository, safe="")
+    return f"{org}/{encoded_project}/_git/{encoded_repo}/pullRequest/{pull_request_id}"
 
 
 def _post_thread(

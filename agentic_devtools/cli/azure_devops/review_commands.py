@@ -622,8 +622,8 @@ def setup_pull_request_review() -> None:
 
     This is a streamlined version of review_pull_request that assumes the PR ID
     is already resolved and set in state. It performs the following steps:
-    1. Fetch PR details via get_pull_request_details
-    2. Optionally fetch Jira issue details
+    1. Optionally fetch Jira issue details
+    2. Fetch PR details via get_pull_request_details
     3. Checkout source branch and sync with main
     4. Generate review prompts and queue.json
     5. Scaffold review threads (file/folder/overall summary threads)
