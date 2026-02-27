@@ -340,8 +340,8 @@ def start_copilot_session(
     # --- Build command -------------------------------------------------------
     args = _build_copilot_args(prompt, interactive=interactive)
 
-    # When the prompt is too large for the gh copilot argv path (no
-    # standalone binary available), fall back to printing the prompt.
+    # When the prompt is too large for safe argv passing, fall back to
+    # printing the prompt.  This applies regardless of binary variant.
     if args is None:
         warnings.warn(
             "Prompt too large for gh copilot argv; printing prompt to stdout as fallback.",
