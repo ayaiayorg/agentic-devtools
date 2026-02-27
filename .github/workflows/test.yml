@@ -31,6 +31,7 @@ jobs:
       workflows: ${{ steps.filter.outputs.workflows }}
       core: ${{ steps.filter.outputs.core }}
       config: ${{ steps.filter.outputs.config }}
+      e2e_smoke: ${{ steps.filter.outputs.e2e_smoke }}
       has_modules: ${{ steps.has-modules.outputs.result }}
     steps:
       - uses: actions/checkout@v4
@@ -109,6 +110,8 @@ jobs:
               - 'scripts/validate_test_structure.py'
               - 'tests/conftest.py'
               - 'tests/helpers.py'
+            e2e_smoke:
+              - 'tests/e2e_smoke/**'
 
       - name: Check if any module changed
         id: has-modules
@@ -126,7 +129,8 @@ jobs:
                 "${{ steps.filter.outputs.speckit }}" == "true" || \
                 "${{ steps.filter.outputs.azure }}" == "true" || \
                 "${{ steps.filter.outputs.workflows }}" == "true" || \
-                "${{ steps.filter.outputs.core }}" == "true" ]]; then
+                "${{ steps.filter.outputs.core }}" == "true" || \
+                "${{ steps.filter.outputs.e2e_smoke }}" == "true" ]]; then
             echo "result=true" >> "$GITHUB_OUTPUT"
           else
             echo "result=false" >> "$GITHUB_OUTPUT"
@@ -280,6 +284,11 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=100 \
             '--override-ini=addopts='
+
+      - name: Run E2E smoke tests
+        if: needs.detect-changes.outputs.e2e_smoke == 'true'
+        run: |
+          pytest tests/e2e_smoke/ -v --no-cov
 
   test-full:
     name: Full Test Suite
