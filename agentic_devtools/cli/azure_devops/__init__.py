@@ -128,6 +128,15 @@ from .pr_summary_commands import (
 # Pull request details command exports
 from .pull_request_details_commands import get_pull_request_details
 
+# Status cascade exports
+from .status_cascade import (
+    PatchOperation,
+    cascade_status_update,
+    derive_folder_status,
+    derive_overall_status,
+    execute_cascade,
+)
+
 # Review state exports
 from .review_state import (
     FileEntry,
@@ -264,4 +273,10 @@ __all__ = [
     "get_folder_entry",
     "update_file_status",
     "add_suggestion_to_file",
+    # Status cascade
+    "PatchOperation",
+    "derive_folder_status",
+    "derive_overall_status",
+    "cascade_status_update",
+    "execute_cascade",
 ]
