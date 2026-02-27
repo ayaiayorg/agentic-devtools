@@ -119,15 +119,14 @@ Follow these steps whenever you add a new function or class to a source file:
 
 ## Test Anatomy
 
-Every test file in `tests/unit/` follows the same internal structure.
-Use this as a template when writing a new test file:
+New test files in `tests/unit/` should follow the same internal structure.
+Use the following preferred structure as a template when writing a new test file:
 
 ```python
 """Tests for agentic_devtools.cli.git.core.get_current_branch."""
 
 # 1. Standard-library imports first
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # 2. Third-party imports
 import pytest
@@ -181,7 +180,7 @@ class TestGetCurrentBranch:
 
 ## Available Fixtures
 
-This section documents the shared fixtures defined in the root- and unit-level `conftest.py` files,
+This section catalogs the shared fixtures defined in the root- and unit-level `conftest.py` files,
 plus the most commonly used per-subpackage fixtures. Use the narrowest-scoped fixture that satisfies
 your test's needs.
 
@@ -271,7 +270,6 @@ Use when the function under test prints to stdout or stderr:
 ```python
 import pytest
 
-from agentic_devtools import state
 from agentic_devtools.cli.tasks import commands
 
 
@@ -298,8 +296,9 @@ Use `mock_run_safe` to intercept all git subprocess calls.
 Configure the mock's return value before the call under test:
 
 ```python
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from agentic_devtools.cli.git import core
 
