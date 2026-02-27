@@ -326,7 +326,8 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert cmd[0] == "/usr/local/bin/copilot"
         assert cmd[1] == "suggest"
         assert "--file" not in cmd
-        assert cmd[2] == "Use standalone"
+        assert cmd[2] == "-p"
+        assert cmd[3] == "Use standalone"
         assert result.prompt_file  # prompt file is still written to disk
 
 

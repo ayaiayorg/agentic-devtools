@@ -193,13 +193,14 @@ def _build_copilot_args(prompt: str) -> Optional[list[str]]:
     back to the ``gh copilot`` extension for backward compatibility.
 
     Neither the standalone binary nor the ``gh copilot`` extension supports
-    ``--file``; the prompt text is passed as the positional ``[subject]``
-    argument for both paths.  When the prompt exceeds
+    ``--file``.  The standalone binary requires ``-p``/``--prompt`` for
+    non-interactive use; the ``gh copilot`` extension accepts the prompt as a
+    positional ``[subject]`` argument.  When the prompt exceeds
     :data:`_MAX_GH_COPILOT_ARGV_LENGTH`, ``None`` is returned so the caller
     can use a fallback.
 
     Args:
-        prompt: The full prompt text to pass as the ``[subject]`` argument.
+        prompt: The full prompt text to pass to the copilot command.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
@@ -209,7 +210,7 @@ def _build_copilot_args(prompt: str) -> Optional[list[str]]:
         return None
     standalone = _get_copilot_binary()
     if standalone:
-        return [standalone, "suggest", prompt]
+        return [standalone, "suggest", "-p", prompt]
     return ["gh", "copilot", "suggest", prompt]
 
 
