@@ -308,6 +308,25 @@ def _get_iteration_change_tracking_map(
     return result
 
 
+def _get_current_user_id(organization: str, headers: Dict[str, str]) -> Optional[str]:
+    """
+    Get the current authenticated user's ID from Azure DevOps.
+
+    Args:
+        organization: Azure DevOps organization URL
+        headers: Auth headers
+
+    Returns:
+        User ID string or None if unable to determine
+    """
+    url = f"{organization}/_apis/connectionData"
+    response = _invoke_ado_rest(url, headers)
+    if not response:
+        return None
+    authenticated_user = response.get("authenticatedUser", {})
+    return authenticated_user.get("id")
+
+
 def _get_reviewer_payload(
     organization: str,
     project: str,
@@ -316,6 +335,7 @@ def _get_reviewer_payload(
     project_id: Optional[str],
     iterations_payload: Optional[List[Dict[str, Any]]],
     headers: Dict[str, str],
+    pr_author_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Build the reviewer payload including reviewed files.
@@ -323,9 +343,31 @@ def _get_reviewer_payload(
     This fetches the viewed state from the Contribution API and correlates it
     with the latest iteration's change tracking info to determine which files
     have been reviewed on the current version.
+
+    Args:
+        organization: Azure DevOps organization URL
+        project: Project name
+        repo_id: Repository ID
+        pull_request_id: Pull request ID
+        project_id: Project ID for Contribution API
+        iterations_payload: List of PR iterations
+        headers: Auth headers
+        pr_author_id: Optional PR author's user ID. When provided and the current
+            authenticated user matches this ID, the viewed-files check is skipped.
+            This prevents the PR author's own file views from being misclassified
+            as reviewer-reviewed files.
     """
     if not repo_id:
         return None
+
+    # If the current user is the PR author, their "viewed" files are from
+    # writing the code — not from reviewing. Skip the viewed-files check so
+    # we don't incorrectly mark those files as already reviewed.
+    if pr_author_id:
+        current_user_id = _get_current_user_id(organization, headers)
+        if current_user_id and current_user_id.lower() == pr_author_id.lower():
+            print("Current user is the PR author; skipping viewed-files check to avoid false positives.")
+            return None
 
     # Get the latest iteration ID
     latest_iteration_id = None
@@ -544,6 +586,7 @@ def get_pull_request_details() -> None:
     # Fetch threads, iterations, reviewer data
     repo_id = pr_data.get("repository", {}).get("id")
     project_id = pr_data.get("repository", {}).get("project", {}).get("id")
+    pr_author_id = pr_data.get("createdBy", {}).get("id")
     threads_payload = None
     iterations_payload = None
     reviewer_payload = None
@@ -555,7 +598,8 @@ def get_pull_request_details() -> None:
         iterations_payload = _get_pull_request_iterations(
             config.organization, config.project, repo_id, pull_request_id, headers
         )
-        # Get reviewer payload with reviewed files info
+        # Get reviewer payload with reviewed files info.
+        # Pass pr_author_id so viewed-files from the PR author are not counted as reviews.
         reviewer_payload = _get_reviewer_payload(
             config.organization,
             config.project,
@@ -564,6 +608,7 @@ def get_pull_request_details() -> None:
             project_id,
             iterations_payload,
             headers,
+            pr_author_id=pr_author_id,
         )
 
     # Log reviewed files count if available

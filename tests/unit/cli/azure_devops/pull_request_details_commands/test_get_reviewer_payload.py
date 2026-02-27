@@ -305,3 +305,131 @@ class TestGetReviewerPayload:
         # Should still return result using fallback (all viewed files)
         assert result is not None
         assert "/file.py" in result["reviewedFiles"]
+
+    def test_returns_none_when_current_user_is_pr_author(self):
+        """Should return None when current user is the PR author (their views are not reviews)."""
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            return_value="author-user-id-abc",
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
+        ):
+            result = _get_reviewer_payload(
+                "https://dev.azure.com/org",
+                "project",
+                "repo-id",
+                123,
+                "project-id",
+                [{"id": 1}],
+                {},
+                pr_author_id="author-user-id-abc",
+            )
+
+        assert result is None
+
+    def test_returns_none_when_current_user_is_pr_author_case_insensitive(self):
+        """Should match pr_author_id case-insensitively."""
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            return_value="AUTHOR-USER-ID-ABC",
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
+        ):
+            result = _get_reviewer_payload(
+                "https://dev.azure.com/org",
+                "project",
+                "repo-id",
+                123,
+                "project-id",
+                [{"id": 1}],
+                {},
+                pr_author_id="author-user-id-abc",
+            )
+
+        assert result is None
+
+    def test_proceeds_normally_when_current_user_is_not_pr_author(self):
+        """Should return reviewer payload when current user differs from PR author."""
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            return_value="reviewer-user-id-xyz",
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
+        ):
+            result = _get_reviewer_payload(
+                "https://dev.azure.com/org",
+                "project",
+                "repo-id",
+                123,
+                "project-id",
+                [{"id": 1}],
+                {},
+                pr_author_id="author-user-id-abc",
+            )
+
+        assert result is not None
+        assert "/file.py" in result["reviewedFiles"]
+
+    def test_proceeds_normally_when_current_user_id_unavailable(self):
+        """Should proceed with normal behavior when current user ID cannot be fetched."""
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            return_value=None,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
+        ):
+            result = _get_reviewer_payload(
+                "https://dev.azure.com/org",
+                "project",
+                "repo-id",
+                123,
+                "project-id",
+                [{"id": 1}],
+                {},
+                pr_author_id="author-user-id-abc",
+            )
+
+        # When current user ID can't be fetched, proceed as normal (file is included)
+        assert result is not None
+        assert "/file.py" in result["reviewedFiles"]
+
+    def test_skips_current_user_check_when_no_pr_author_id(self):
+        """Should not call _get_current_user_id when pr_author_id is not provided."""
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+        ) as mock_get_user, patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
+        ):
+            result = _get_reviewer_payload(
+                "https://dev.azure.com/org",
+                "project",
+                "repo-id",
+                123,
+                "project-id",
+                [{"id": 1}],
+                {},
+                # pr_author_id not provided (default None)
+            )
+
+        mock_get_user.assert_not_called()
+        assert result is not None
