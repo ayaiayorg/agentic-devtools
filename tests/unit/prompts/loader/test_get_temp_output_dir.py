@@ -19,8 +19,8 @@ class TestGetTempOutputDir:
     def test_path_is_in_temp_directory(self, temp_state_dir):
         """Test that path is in temp directory."""
         result = loader.get_temp_output_dir()
-        # Should be scripts/temp/
-        assert "temp" in str(result)
+        # Should match the temp_state_dir provided by the fixture
+        assert result == temp_state_dir
 
     def test_respects_state_dir(self, tmp_path):
         """Test that get_temp_output_dir delegates to get_state_dir."""
