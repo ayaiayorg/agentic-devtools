@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from agentic_devtools.cli.cert_utils import get_ssl_verify as _get_ssl_verify
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -75,7 +77,7 @@ def get_latest_release_info() -> Dict[str, Any]:
     Raises:
         requests.RequestException: On network or HTTP errors.
     """
-    response = requests.get(_RELEASES_URL, timeout=30)
+    response = requests.get(_RELEASES_URL, timeout=30, verify=_get_ssl_verify("api.github.com"))
     response.raise_for_status()
     result: Dict[str, Any] = response.json()
     return result
@@ -172,7 +174,7 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
     import zipfile
 
     try:
-        response = requests.get(asset_url, timeout=120, stream=True)
+        response = requests.get(asset_url, timeout=120, stream=True, verify=_get_ssl_verify("github.com"))
         response.raise_for_status()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -209,7 +211,11 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                     extracted = False
                     for name in zf.namelist():
                         normalized = name.replace("\\", "/")
-                        if normalized.endswith("/bin/gh") or normalized.endswith("/bin/gh.exe") or normalized in ("gh", "gh.exe"):
+                        if (
+                            normalized.endswith("/bin/gh")
+                            or normalized.endswith("/bin/gh.exe")
+                            or normalized in ("gh", "gh.exe")
+                        ):
                             data = zf.read(name)
                             dest.write_bytes(data)
                             extracted = True

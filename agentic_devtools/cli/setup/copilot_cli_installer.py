@@ -20,6 +20,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from agentic_devtools.cli.cert_utils import get_ssl_verify as _get_ssl_verify
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -77,7 +79,7 @@ def get_latest_release_info() -> Dict[str, Any]:
     Raises:
         requests.RequestException: On network or HTTP errors.
     """
-    response = requests.get(_RELEASES_URL, timeout=30)
+    response = requests.get(_RELEASES_URL, timeout=30, verify=_get_ssl_verify("api.github.com"))
     response.raise_for_status()
     result: Dict[str, Any] = response.json()
     return result
@@ -164,7 +166,7 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
     dest = _INSTALL_DIR / _BINARY_NAME
 
     try:
-        response = requests.get(asset_url, timeout=120, stream=True)
+        response = requests.get(asset_url, timeout=120, stream=True, verify=_get_ssl_verify("github.com"))
         response.raise_for_status()
         asset_bytes = b"".join(response.iter_content(chunk_size=65536))
     except requests.RequestException as exc:

@@ -3,15 +3,19 @@ Jira utility helpers: request handling, SSL, parsing.
 """
 
 import os
-import re
-import socket
-import ssl
-import subprocess
 import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from agentic_devtools.cli.subprocess_utils import run_safe
+from agentic_devtools.cli.cert_utils import (
+    count_certificates_in_pem as _count_certificates_in_pem,
+)
+from agentic_devtools.cli.cert_utils import (
+    fetch_certificate_chain_openssl as _fetch_certificate_chain_openssl,
+)
+from agentic_devtools.cli.cert_utils import (
+    fetch_certificate_chain_ssl as _fetch_certificate_chain_ssl,
+)
 from agentic_devtools.state import get_state_dir
 
 
@@ -67,84 +71,6 @@ def _get_temp_jira_pem_path() -> Path:
     """Get the fallback path for auto-fetched Jira CA bundle (in temp dir)."""
     state_dir = get_state_dir()
     return state_dir / "jira_ca_bundle.pem"
-
-
-def _fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> Optional[str]:
-    """
-    Fetch the SSL certificate chain from a server using openssl command.
-
-    Args:
-        hostname: The server hostname
-        port: The server port (default 443)
-
-    Returns:
-        PEM-encoded certificate chain string, or None if failed
-    """
-    try:
-        # Use openssl s_client to get the full certificate chain
-        result = run_safe(
-            [
-                "openssl",
-                "s_client",
-                "-showcerts",
-                "-servername",
-                hostname,
-                "-connect",
-                f"{hostname}:{port}",
-            ],
-            input=b"",
-            capture_output=True,
-            timeout=10,
-        )
-
-        output = result.stdout.decode("utf-8", errors="ignore")
-
-        # Extract all certificates from the output
-        cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
-        certs = re.findall(cert_pattern, output, re.DOTALL)
-
-        if certs:
-            return "\n".join(certs)
-
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        pass
-
-    return None
-
-
-def _fetch_certificate_chain_ssl(hostname: str, port: int = 443) -> Optional[str]:
-    """
-    Fetch SSL certificate using Python's ssl module (fallback if openssl not available).
-
-    Note: This only gets the server certificate, not the full chain.
-
-    Args:
-        hostname: The server hostname
-        port: The server port (default 443)
-
-    Returns:
-        PEM-encoded certificate string, or None if failed
-    """
-    try:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-
-        with socket.create_connection((hostname, port), timeout=10) as sock:
-            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                cert_der = ssock.getpeercert(binary_form=True)
-                if cert_der:
-                    cert_pem = ssl.DER_cert_to_PEM_cert(cert_der)
-                    return cert_pem
-    except Exception:  # pragma: no cover
-        pass
-
-    return None  # pragma: no cover
-
-
-def _count_certificates_in_pem(pem_content: str) -> int:
-    """Count the number of certificates in a PEM file content."""
-    return pem_content.count("-----BEGIN CERTIFICATE-----")
 
 
 def _ensure_jira_pem(hostname: str = "jira.swica.ch") -> Optional[str]:

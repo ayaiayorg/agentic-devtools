@@ -1,0 +1,52 @@
+"""Tests for fetch_certificate_chain_ssl."""
+
+from unittest.mock import MagicMock, patch
+
+from agentic_devtools.cli import cert_utils
+
+
+class TestFetchCertificateChainSsl:
+    """Tests for fetch_certificate_chain_ssl."""
+
+    def test_returns_certificate_on_success(self):
+        """Returns PEM certificate when SSL connection succeeds."""
+        mock_cert_der = b"mock_der_certificate"
+        mock_cert_pem = "-----BEGIN CERTIFICATE-----\nmock\n-----END CERTIFICATE-----"
+
+        with patch("socket.create_connection") as mock_conn:
+            with patch("ssl.create_default_context") as mock_ctx:
+                with patch("ssl.DER_cert_to_PEM_cert") as mock_convert:
+                    mock_sock = MagicMock()
+                    mock_ssock = MagicMock()
+                    mock_ssock.getpeercert.return_value = mock_cert_der
+                    mock_sock.__enter__.return_value = mock_sock
+                    mock_ctx.return_value.wrap_socket.return_value.__enter__.return_value = mock_ssock
+                    mock_conn.return_value.__enter__.return_value = mock_sock
+                    mock_convert.return_value = mock_cert_pem
+
+                    result = cert_utils.fetch_certificate_chain_ssl("example.com")
+
+        assert result == mock_cert_pem
+
+    def test_returns_none_on_connection_error(self):
+        """Returns None when the connection fails."""
+        with patch("socket.create_connection") as mock_conn:
+            mock_conn.side_effect = ConnectionRefusedError()
+            result = cert_utils.fetch_certificate_chain_ssl("example.com")
+
+        assert result is None
+
+    def test_returns_none_when_no_cert_returned(self):
+        """Returns None when the SSL socket returns no certificate."""
+        with patch("socket.create_connection") as mock_conn:
+            with patch("ssl.create_default_context") as mock_ctx:
+                mock_sock = MagicMock()
+                mock_ssock = MagicMock()
+                mock_ssock.getpeercert.return_value = None
+                mock_sock.__enter__.return_value = mock_sock
+                mock_ctx.return_value.wrap_socket.return_value.__enter__.return_value = mock_ssock
+                mock_conn.return_value.__enter__.return_value = mock_sock
+
+                result = cert_utils.fetch_certificate_chain_ssl("example.com")
+
+        assert result is None
