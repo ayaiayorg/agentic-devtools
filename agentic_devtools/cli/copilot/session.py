@@ -19,14 +19,14 @@ The ``_build_copilot_args`` helper selects the correct variant at runtime.
 
 Research notes
 --------------
-As of early 2025, autonomous / non-interactive operation is not natively
-exposed through a stable flag in either variant.  The module therefore
-implements non-interactive mode by spawning the process with stdin/stdout
-captured to a log file, which is sufficient for pipeline use cases where
-no interactive terminal is available.  When a stable
-``--non-interactive`` or agent-mode flag is added upstream, the
-``_build_copilot_args`` helper can be updated to include it without any
-other changes.
+The standalone binary requires ``--allow-all-tools`` when running in
+non-interactive mode; without it every tool invocation (including
+``agdt-*`` commands, Python, and pip) is rejected with "Permission
+denied and could not request permission from user".
+``_build_copilot_args`` therefore appends ``--allow-all-tools`` to the
+argument list for the standalone-binary non-interactive path.  The
+``gh copilot`` extension fallback does not support these flags and is
+left unchanged.
 
 Fallback behaviour
 ------------------
@@ -213,11 +213,20 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     argument.  When the prompt exceeds :data:`_MAX_GH_COPILOT_ARGV_LENGTH`,
     ``None`` is returned so the caller can use a fallback.
 
+    In non-interactive mode the standalone binary also receives
+    ``--allow-all-tools`` so that it can execute tools (``agdt-*``
+    commands, Python, etc.) without prompting for permission.  The
+    narrower ``--allow-all-tools`` is preferred over ``--allow-all`` to
+    avoid also granting path and URL permissions that are not needed.
+    Without this flag every tool invocation is rejected with
+    "Permission denied and could not request permission from user".
+
     Args:
         prompt: The full prompt text to pass to the copilot command.
         interactive: When ``True`` (default) the standalone binary receives
-            ``-i``; when ``False`` it receives ``-p``.  Ignored for the
-            ``gh copilot`` extension path which always uses a positional arg.
+            ``-i``; when ``False`` it receives ``-p`` and
+            ``--allow-all-tools``.  Ignored for the ``gh copilot``
+            extension path which always uses a positional arg.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
@@ -228,7 +237,10 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     standalone = _get_copilot_binary()
     if standalone:
         flag = "-i" if interactive else "-p"
-        return [standalone, flag, prompt]
+        args = [standalone, flag, prompt]
+        if not interactive:
+            args.append("--allow-all-tools")
+        return args
     return ["gh", "copilot", "suggest", prompt]
 
 

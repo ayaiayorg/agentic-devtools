@@ -6,7 +6,6 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from agentic_devtools.cli.subprocess_utils import run_safe
 
@@ -84,7 +83,7 @@ def validate_distribution(dist_dir: str = "dist") -> None:
         raise ReleaseError(f"Twine check failed: {result.stderr or result.stdout}")  # pragma: no cover
 
 
-def upload_distribution(dist_dir: str = "dist", *, repository: Optional[str] = None) -> None:  # pragma: no cover
+def upload_distribution(dist_dir: str = "dist", *, repository: str | None = None) -> None:  # pragma: no cover
     """Upload built artifacts with twine."""
     pattern = str(Path(dist_dir) / "*")
     args = ["python", "-m", "twine", "upload"]

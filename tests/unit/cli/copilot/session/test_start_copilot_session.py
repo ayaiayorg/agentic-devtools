@@ -333,7 +333,7 @@ class TestStartCopilotSessionWithStandaloneBinary:
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
         self, temp_state, mock_available, mock_popen_noninteractive
     ):
-        """When standalone copilot binary is used non-interactively, -p flag is passed."""
+        """When standalone copilot binary is used non-interactively, -p flag and --allow-all-tools are passed."""
         mock_popen, _ = mock_popen_noninteractive
         with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
             result = start_copilot_session(
@@ -348,7 +348,23 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert "suggest" not in cmd
         assert cmd[1] == "-p"
         assert cmd[2] == "Review PR"
+        assert "--allow-all-tools" in cmd
         assert result.prompt_file
+
+    def test_standalone_binary_includes_allow_all_tools_only_for_noninteractive(
+        self, temp_state, mock_available, mock_popen_interactive
+    ):
+        """--allow-all-tools is NOT included when the standalone binary runs interactively."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            start_copilot_session(
+                prompt="Use standalone",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert "--allow-all-tools" not in cmd
 
 
 class TestStartCopilotSessionLargePromptFallback:
