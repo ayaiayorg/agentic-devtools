@@ -6,8 +6,12 @@ Entry points:
 - ``agdt-setup-copilot-cli`` — install only the Copilot CLI standalone binary
 - ``agdt-setup-gh-cli``     — install only the GitHub CLI
 - ``agdt-setup-check``      — verify all dependencies without installing anything
+
+All install commands accept ``--system-only`` to skip managed installs and rely
+on whatever is available on the system ``PATH``.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -100,17 +104,42 @@ def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
     Usage:
-        agdt-setup
+        agdt-setup [--system-only]
+
+    Options:
+        --system-only   Skip managed installs into ~/.agdt/bin/; verify system
+                        PATH binaries only.  Use this only when you explicitly
+                        want to rely on whatever versions are already installed
+                        on the system.
     """
+    parser = argparse.ArgumentParser(
+        prog="agdt-setup",
+        description="Full setup: install managed CLIs and verify all dependencies.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--system-only",
+        action="store_true",
+        default=False,
+        help="Skip managed installs; verify system PATH binaries only.",
+    )
+    args = parser.parse_args()
+
     print(_BANNER)
     print()
 
-    _prefetch_certs()
-    print()
+    if args.system_only:
+        print("Skipping managed installs (--system-only).")
+        print()
+        copilot_ok = True
+        gh_ok = True
+    else:
+        _prefetch_certs()
+        print()
 
-    copilot_ok = install_copilot_cli()
-    print()
-    gh_ok = install_gh_cli()
+        copilot_ok = install_copilot_cli()
+        print()
+        gh_ok = install_gh_cli()
 
     statuses = check_all_dependencies()
     print_dependency_report(statuses)
@@ -131,8 +160,28 @@ def setup_copilot_cli_cmd() -> None:
     """Install the GitHub Copilot CLI standalone binary into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-copilot-cli
+        agdt-setup-copilot-cli [--system-only]
+
+    Options:
+        --system-only   Skip the managed install; use whatever is on the system PATH.
     """
+    parser = argparse.ArgumentParser(
+        prog="agdt-setup-copilot-cli",
+        description="Install the GitHub Copilot CLI standalone binary into ~/.agdt/bin/.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--system-only",
+        action="store_true",
+        default=False,
+        help="Skip managed install; use system PATH binary if available.",
+    )
+    args = parser.parse_args()
+
+    if args.system_only:
+        print("Skipping managed install of Copilot CLI (--system-only).")
+        return
+
     ok = install_copilot_cli()
     if not ok:
         sys.exit(1)
@@ -143,8 +192,28 @@ def setup_gh_cli_cmd() -> None:
     """Install the GitHub CLI (``gh``) into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-gh-cli
+        agdt-setup-gh-cli [--system-only]
+
+    Options:
+        --system-only   Skip the managed install; use whatever is on the system PATH.
     """
+    parser = argparse.ArgumentParser(
+        prog="agdt-setup-gh-cli",
+        description="Install the GitHub CLI (gh) into ~/.agdt/bin/.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--system-only",
+        action="store_true",
+        default=False,
+        help="Skip managed install; use system PATH binary if available.",
+    )
+    args = parser.parse_args()
+
+    if args.system_only:
+        print("Skipping managed install of GitHub CLI (--system-only).")
+        return
+
     ok = install_gh_cli()
     if not ok:
         sys.exit(1)
