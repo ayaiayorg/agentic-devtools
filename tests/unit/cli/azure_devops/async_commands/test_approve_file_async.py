@@ -10,17 +10,17 @@ class TestApproveFileAsync:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "src/app/component.ts")
-        set_value("content", "LGTM")
+        set_value("file_review.summary", "LGTM")
         approve_file_async()
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
         script = get_script_from_call(mock_background_and_state["mock_popen"])
         assert_function_in_script(script, "agentic_devtools.cli.azure_devops.file_review_commands", "approve_file")
 
-    def test_accepts_cli_parameters(self, mock_background_and_state, capsys):
+    def test_accepts_summary_parameter(self, mock_background_and_state, capsys):
         approve_file_async(
             file_path="src/cli/test.ts",
-            content="Approved via CLI",
+            summary="Clean implementation.",
             pull_request_id=99999,
         )
         captured = capsys.readouterr()
@@ -28,5 +28,32 @@ class TestApproveFileAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.file_path") == "src/cli/test.ts"
-        assert get_value("content") == "Approved via CLI"
+        assert get_value("file_review.summary") == "Clean implementation."
         assert get_value("pull_request_id") == 99999
+
+    def test_accepts_content_parameter_with_deprecation_warning(self, mock_background_and_state, capsys):
+        approve_file_async(
+            file_path="src/cli/test.ts",
+            content="Approved via CLI",
+            pull_request_id=99999,
+        )
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert "deprecated" in captured.err
+        from agentic_devtools.state import get_value
+
+        assert get_value("file_review.summary") == "Approved via CLI"
+
+    def test_summary_takes_precedence_over_content(self, mock_background_and_state, capsys):
+        approve_file_async(
+            file_path="src/cli/test.ts",
+            summary="Summary wins",
+            content="Should be ignored",
+            pull_request_id=99999,
+        )
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert "deprecated" not in captured.err
+        from agentic_devtools.state import get_value
+
+        assert get_value("file_review.summary") == "Summary wins"

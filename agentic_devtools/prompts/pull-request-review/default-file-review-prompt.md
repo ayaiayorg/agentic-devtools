@@ -36,7 +36,7 @@ Choose one action (all parameters inline, no agdt-set required):
 ### ✅ Approve (no issues found)
 
 ```bash
-agdt-approve-file --file-path "{{current_file}}" --content "Looks good. Code follows conventions and no issues found."
+agdt-approve-file --file-path "{{current_file}}" --summary "Looks good. Code follows conventions and no issues found."
 ```
 
 ### ⚠️ Request Changes (issues found)

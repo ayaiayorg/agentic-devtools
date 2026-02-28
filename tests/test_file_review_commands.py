@@ -286,7 +286,7 @@ class TestApproveFile:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
-        set_value("content", "LGTM!")
+        set_value("file_review.summary", "LGTM!")
         set_value("dry_run", True)
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
@@ -301,7 +301,7 @@ class TestApproveFile:
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
-        set_value("content", "LGTM!")
+        set_value("file_review.summary", "LGTM!")
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
         set_value("ado.repository", "TestRepo")
@@ -310,7 +310,7 @@ class TestApproveFile:
             approve_file()
 
     def test_missing_content_exits(self, mock_state):
-        """Test that missing content causes exit."""
+        """Test that missing summary/content causes exit."""
         from agentic_devtools.cli.azure_devops.file_review_commands import approve_file
         from agentic_devtools.state import set_value
 

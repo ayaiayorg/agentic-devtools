@@ -366,7 +366,7 @@ class TestApproveFileAsync:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "src/app/component.ts")
-        set_value("content", "LGTM")
+        set_value("file_review.summary", "LGTM")
 
         approve_file_async()
 
@@ -380,7 +380,7 @@ class TestApproveFileAsync:
         """Test command accepts CLI parameters that override state."""
         approve_file_async(
             file_path="src/cli/test.ts",
-            content="Approved via CLI",
+            summary="Approved via CLI",
             pull_request_id=99999,
         )
 
@@ -391,7 +391,7 @@ class TestApproveFileAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.file_path") == "src/cli/test.ts"
-        assert get_value("content") == "Approved via CLI"
+        assert get_value("file_review.summary") == "Approved via CLI"
         assert get_value("pull_request_id") == 99999
 
 
@@ -677,7 +677,7 @@ class TestAsyncCliEntryPoints:
 
         monkeypatch.setattr(
             "sys.argv",
-            ["agdt-approve-file", "--file-path", "path/to/file.py", "--content", "LGTM"],
+            ["agdt-approve-file", "--file-path", "path/to/file.py", "--summary", "LGTM"],
         )
 
         approve_file_async_cli()
@@ -692,7 +692,7 @@ class TestAsyncCliEntryPoints:
 
         set_value("pull_request_id", "12345")
         set_value("file_review.file_path", "path/from/state.py")
-        set_value("content", "LGTM from state")
+        set_value("file_review.summary", "LGTM from state")
         monkeypatch.setattr("sys.argv", ["agdt-approve-file"])
 
         approve_file_async_cli()
