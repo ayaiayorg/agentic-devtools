@@ -659,7 +659,7 @@ def setup_pull_request_review() -> None:
     print(f"\nFetching pull request details for PR {pull_request_id}...")
     get_pull_request_details()
 
-    # Step 3: Load the PR details from the temp file
+    # Load the PR details from the temp file
     temp_dir = get_state_dir()
     details_path = temp_dir / "temp-get-pull-request-details-response.json"
 
@@ -670,7 +670,7 @@ def setup_pull_request_review() -> None:
     with open(details_path, encoding="utf-8") as f:
         pr_details = json.load(f)
 
-    # Step 4: Checkout source branch and sync with main
+    # Step 3: Checkout source branch and sync with main
     pr_info = pr_details.get("pullRequest", pr_details)
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
@@ -695,7 +695,7 @@ def setup_pull_request_review() -> None:
     else:
         print("Warning: Could not determine source branch from PR details", file=sys.stderr)
 
-    # Step 5: Generate review prompts
+    # Step 4: Generate review prompts
     print("\nGenerating file review prompts...")
     prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir = generate_review_prompts(
         pull_request_id,
@@ -704,15 +704,15 @@ def setup_pull_request_review() -> None:
         files_on_branch,
     )
 
-    # Step 6: Scaffold review threads (all file/folder/overall summary threads upfront)
+    # Step 5: Scaffold review threads (all file/folder/overall summary threads upfront)
     _scaffold_threads_for_review(pull_request_id, pr_details, pr_info, files_on_branch)
 
-    # Step 7: Print instructions
+    # Step 6: Print instructions
     print_review_instructions(
         pull_request_id, prompts_dir, prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count
     )
 
-    # Step 8: Initialize workflow with PR context
+    # Step 7: Initialize workflow with PR context
     try:
         from ...prompts.loader import load_and_render_prompt
         from ...state import set_workflow_state
