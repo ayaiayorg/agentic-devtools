@@ -468,14 +468,16 @@ def trigger_in_progress_for_file(
     config = AzureDevOpsConfig.from_state()
     base_url = _build_pr_base_url(config, pull_request_id)
 
+    # Use repoId already stored in review state (set during scaffolding)
+    # to avoid shelling out to `az repos show` on every prompt.
+    repo_id = review_state.repoId
+
     if dry_run:
         requests_module = None
         auth_headers: dict = {}
-        repo_id = ""
     else:
         requests_module = require_requests()
         auth_headers = get_auth_headers(get_pat())
-        repo_id = get_repository_id(config.organization, config.project, config.repository)
 
     # PATCH file summary comment content; file thread status stays "active" per spec
     file_content = render_file_summary(file_entry, file_entry.suggestions, base_url)
@@ -491,11 +493,15 @@ def trigger_in_progress_for_file(
         dry_run=dry_run,
     )
 
-    # Cascade folder and overall summary updates
-    ops = cascade_status_update(review_state, file_path, base_url)
-    execute_cascade(ops, requests_module, auth_headers, config, repo_id, pull_request_id, dry_run=dry_run)
-
-    save_review_state(review_state)
+    # Cascade folder and overall summary updates. Persist the updated
+    # review_state even if downstream cascade execution fails, so the
+    # local state reflects the already-PATCHed file comment.
+    try:
+        ops = cascade_status_update(review_state, file_path, base_url)
+        execute_cascade(ops, requests_module, auth_headers, config, repo_id, pull_request_id, dry_run=dry_run)
+    finally:
+        if not dry_run:
+            save_review_state(review_state)
 
 
 def print_next_file_prompt(pull_request_id: int) -> None:

@@ -94,12 +94,6 @@ def api_mocks():
                 return_value={},
             )
         )
-        stack.enter_context(
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_repository_id",
-                return_value="repo-id",
-            )
-        )
 
         yield {
             "config": mock_config,
@@ -179,6 +173,7 @@ class TestTriggerInProgressForFile:
         assert kwargs["thread_id"] == 10
         assert kwargs["comment_id"] == 20
         assert kwargs["pull_request_id"] == 42
+        assert kwargs["repo_id"] == "repo-guid"
         assert kwargs["dry_run"] is False
         assert "In Progress" in kwargs["new_content"]
 
@@ -253,8 +248,8 @@ class TestTriggerInProgressForFile:
         mock_execute.assert_called_once()
         assert mock_execute.call_args[1]["dry_run"] is True
 
-    def test_dry_run_saves_state(self):
-        """Should still save review state in dry-run mode."""
+    def test_dry_run_does_not_save_state(self):
+        """Should NOT persist review state in dry-run mode."""
         state = _make_review_state()
         mock_config = MagicMock()
         mock_config.organization = "https://dev.azure.com/org"
@@ -287,7 +282,7 @@ class TestTriggerInProgressForFile:
 
             trigger_in_progress_for_file(42, _FILE_PATH, dry_run=True)
 
-        mock_save.assert_called_once_with(state)
+        mock_save.assert_not_called()
 
     def test_normalizes_file_path_without_leading_slash(self):
         """Should normalize file path without leading slash to match state keys."""
@@ -324,4 +319,18 @@ class TestTriggerInProgressForFile:
             trigger_in_progress_for_file(42, "src/app.py", dry_run=True)
 
         # Should have updated the status correctly via normalized path
+        assert state.files[_FILE_PATH].status == ReviewStatus.IN_PROGRESS.value
+
+    def test_saves_state_even_when_cascade_fails(self, api_mocks):
+        """Should persist review state via try/finally even if execute_cascade raises."""
+        state = _make_review_state()
+        api_mocks["execute"].side_effect = RuntimeError("cascade API error")
+
+        with patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=state):
+            with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state") as mock_save:
+                with pytest.raises(RuntimeError, match="cascade API error"):
+                    trigger_in_progress_for_file(42, _FILE_PATH)
+
+        # State should still be saved despite the cascade failure
+        mock_save.assert_called_once_with(state)
         assert state.files[_FILE_PATH].status == ReviewStatus.IN_PROGRESS.value
