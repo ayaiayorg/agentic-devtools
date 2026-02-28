@@ -630,3 +630,28 @@ class TestRequestChangesPatchFlow:
 
         # save_review_state was called despite the cascade error
         mock_save.assert_called_once_with(review_state)
+
+    def test_save_review_state_called_even_when_patch_comment_raises(self, temp_state_dir, clear_state_before):
+        """save_review_state should be called even when patch_comment raises."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(1001, 2001)
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            # Override patch_comment to raise
+            stack.enter_context(
+                patch(
+                    f"{_MOD}.patch_comment",
+                    side_effect=RuntimeError("PATCH failed"),
+                )
+            )
+            self._setup_state(set_value)
+            with pytest.raises(RuntimeError, match="PATCH failed"):
+                request_changes()
+
+        # save_review_state was called despite the patch_comment error
+        mock_save.assert_called_once_with(review_state)

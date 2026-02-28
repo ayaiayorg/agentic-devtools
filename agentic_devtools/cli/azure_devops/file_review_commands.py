@@ -1454,7 +1454,11 @@ def request_changes() -> None:
                 )
             )
 
-        # Update file status to NEEDS_WORK with summary and suggestions
+        # Update file status to NEEDS_WORK with summary and suggestions.
+        # Once review_state is mutated, we must persist it even if a
+        # subsequent API call (patch_comment, patch_thread_status, cascade)
+        # fails — otherwise new suggestion thread IDs would be lost and
+        # could be duplicated on retry.
         update_file_status(
             review_state,
             file_path,
@@ -1464,45 +1468,43 @@ def request_changes() -> None:
         )
         file_entry = review_state.files[normalized]
 
-        # PATCH file summary comment with regenerated markdown
-        file_content = render_file_summary(file_entry, suggestion_entries, base_url)
-        patch_comment(
-            requests_module=requests,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            thread_id=file_entry.threadId,
-            comment_id=file_entry.commentId,
-            new_content=file_content,
-            dry_run=dry_run,
-        )
-
-        # PATCH file thread status to "active" (needs work)
-        patch_thread_status(
-            requests_module=requests,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            thread_id=file_entry.threadId,
-            status="active",
-            dry_run=dry_run,
-        )
-
-        # Mark file as reviewed in Azure DevOps
-        mark_file_reviewed(
-            file_path=file_path,
-            pull_request_id=pull_request_id,
-            config=config,
-            repo_id=repo_id,
-            dry_run=dry_run,
-        )
-
-        # Cascade folder and overall summary updates. Persist the updated
-        # review_state even if downstream cascade execution fails, so the
-        # local state reflects the already-PATCHed file comment.
         try:
+            # PATCH file summary comment with regenerated markdown
+            file_content = render_file_summary(file_entry, suggestion_entries, base_url)
+            patch_comment(
+                requests_module=requests,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                thread_id=file_entry.threadId,
+                comment_id=file_entry.commentId,
+                new_content=file_content,
+                dry_run=dry_run,
+            )
+
+            # PATCH file thread status to "active" (needs work)
+            patch_thread_status(
+                requests_module=requests,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                thread_id=file_entry.threadId,
+                status="active",
+                dry_run=dry_run,
+            )
+
+            # Mark file as reviewed in Azure DevOps
+            mark_file_reviewed(
+                file_path=file_path,
+                pull_request_id=pull_request_id,
+                config=config,
+                repo_id=repo_id,
+                dry_run=dry_run,
+            )
+
+            # Cascade folder and overall summary updates
             patch_operations = cascade_status_update(review_state, file_path, base_url)
             execute_cascade(
                 patch_operations=patch_operations,
