@@ -1454,14 +1454,14 @@ def request_changes() -> None:
                 response.raise_for_status()
                 result = response.json()
                 thread_id = result["id"]
-                comment_id_resp = result["comments"][0]["id"]
+                comment_id = result["comments"][0]["id"]
 
                 add_suggestion_to_file(
                     review_state,
                     file_path,
                     SuggestionEntry(
                         threadId=thread_id,
-                        commentId=comment_id_resp,
+                        commentId=comment_id,
                         line=line,
                         endLine=end_line,
                         severity=severity,
