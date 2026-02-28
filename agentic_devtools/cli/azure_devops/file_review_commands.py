@@ -1210,22 +1210,313 @@ def submit_file_review() -> None:  # pragma: no cover
 
 def request_changes() -> None:
     """
-    Request changes on a file in a pull request review.
+    Request changes on a file in a pull request review with multiple suggestions.
 
-    Wrapper around submit_file_review with outcome='Changes'.
+    When review-state.json exists (new PATCH flow):
+    1. Parses each suggestion from file_review.suggestions JSON array
+    2. POSTs a separate line-anchored thread for each suggestion
+    3. Stores suggestion thread IDs in review state
+    4. PATCHes the file summary comment with categorized suggestion links
+    5. Sets file thread status to "active" (needs work)
+    6. Marks the file as reviewed in Azure DevOps
+    7. Cascades folder and PR summary updates via PATCH
+    8. Saves updated review state
+    9. Updates the review queue and triggers workflow continuation
+
+    When review-state.json does not exist (legacy fallback):
+    1. Posts each suggestion as a separate review comment
+    2. Marks the file as reviewed and updates the queue
 
     State keys read:
         - pull_request_id (required): Pull request ID
-        - file_review.file_path (required): Path of file
-        - content (required): Change request comment
-        - line (required): Line number for comment
-        - end_line (optional): End line for multi-line comment
+        - file_review.file_path (required): Path of file to review
+        - file_review.summary (required): Summary of changes (overall assessment)
+        - file_review.suggestions (required): JSON array of suggestion objects.
+          Each object must have: content (str), line (int), severity (str: high/medium/low).
+          Optional fields: end_line (int), out_of_scope (bool), link_text (str).
         - dry_run: If true, only print what would be done
-    """
-    from ...state import set_value
 
-    set_value("file_review.outcome", "Changes")
-    submit_file_review()
+    Suggestion schema:
+        {
+            "content": str,         # Review comment text (required)
+            "line": int,            # Start line (required)
+            "end_line": int,        # End line (defaults to line)
+            "severity": str,        # "high" | "medium" | "low" (required)
+            "out_of_scope": bool,   # Default false
+            "link_text": str        # Custom link text. Default: "line X" or "lines X - Y"
+        }
+
+    Raises:
+        SystemExit: On validation or execution errors.
+    """
+    requests = require_requests()
+    config = AzureDevOpsConfig.from_state()
+    dry_run = is_dry_run()
+    pull_request_id = get_pull_request_id(required=True)
+
+    file_path = get_value("file_review.file_path")
+    if not file_path:
+        print("Error: 'file_review.file_path' is required.", file=sys.stderr)
+        print("Set it with: agdt-set file_review.file_path <path>", file=sys.stderr)
+        sys.exit(1)
+
+    summary = get_value("file_review.summary")
+    if not summary:
+        print("Error: 'file_review.summary' is required for request-changes.", file=sys.stderr)
+        print("Set it with: agdt-set file_review.summary '<overall assessment>'", file=sys.stderr)
+        sys.exit(1)
+
+    suggestions_raw = get_value("file_review.suggestions")
+    if not suggestions_raw:
+        print("Error: 'file_review.suggestions' is required.", file=sys.stderr)
+        print(
+            'Set it with: agdt-set file_review.suggestions \'[{"line":42,"severity":"high","content":"..."}]\'',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Parse suggestions JSON
+    try:
+        if isinstance(suggestions_raw, str):
+            suggestions_data = json.loads(suggestions_raw)
+        else:
+            suggestions_data = suggestions_raw
+        if not isinstance(suggestions_data, list):
+            raise ValueError("suggestions must be a JSON array")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"Error: 'file_review.suggestions' is not valid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not suggestions_data:
+        print("Error: 'file_review.suggestions' must contain at least one suggestion.", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate each suggestion object
+    valid_severities = ("high", "medium", "low")
+    for i, s in enumerate(suggestions_data):
+        if not isinstance(s, dict):
+            print(f"Error: Suggestion at index {i} is not an object.", file=sys.stderr)
+            sys.exit(1)
+        for required_field in ("content", "line", "severity"):
+            if required_field not in s:
+                print(f"Error: Suggestion at index {i} is missing required field '{required_field}'.", file=sys.stderr)
+                sys.exit(1)
+        for int_field in ("line", "end_line"):
+            if int_field in s:
+                try:
+                    int(s[int_field])
+                except (TypeError, ValueError):
+                    print(
+                        f"Error: Suggestion at index {i} field '{int_field}' must be an integer.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+        if s["severity"] not in valid_severities:
+            print(
+                f"Error: Suggestion at index {i} has invalid severity '{s['severity']}'. "
+                f"Must be one of: {', '.join(valid_severities)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    if dry_run:
+        print(f"DRY-RUN: Would request changes on '{file_path}' on PR {pull_request_id}")
+        print(f"  Organization: {config.organization}")
+        print(f"  Project: {config.project}")
+        print(f"  Repository: {config.repository}")
+        print(f"  Summary: {summary}")
+        print(f"  Suggestions ({len(suggestions_data)}):")
+        for i, s in enumerate(suggestions_data):
+            line = s["line"]
+            end_line = s.get("end_line", line)
+            severity = s["severity"]
+            scope_tag = " [out of scope]" if s.get("out_of_scope") else ""
+            range_str = f"lines {line}-{end_line}" if end_line != line else f"line {line}"
+            print(f"    {i + 1}. [{severity.upper()}]{scope_tag} {range_str}: {s['content'][:60]}")
+        return
+
+    pat = get_pat()
+    headers = get_auth_headers(pat)
+
+    # Try new PATCH flow (requires review-state.json)
+    try:
+        from .helpers import build_thread_context
+        from .review_scaffold import _build_pr_base_url
+        from .review_state import (
+            ReviewStatus,
+            SuggestionEntry,
+            load_review_state,
+            normalize_file_path,
+            save_review_state,
+            update_file_status,
+        )
+        from .review_templates import render_file_summary
+        from .status_cascade import cascade_status_update, execute_cascade
+
+        review_state = load_review_state(pull_request_id)
+        base_url = _build_pr_base_url(config, pull_request_id)
+
+        # Use repoId already stored in review state (set during scaffolding)
+        repo_id = review_state.repoId
+
+        # Verify file is tracked in review state
+        normalized = normalize_file_path(file_path)
+        if normalized not in review_state.files:
+            print(
+                f"Error: File {file_path!r} is not present in review-state.json "
+                f"for pull request {pull_request_id}. "
+                "Regenerate the review state (for example by re-running the review command) "
+                "before using this file-level command.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # POST a line-anchored thread for each suggestion
+        threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+        suggestion_entries = []
+        for s in suggestions_data:
+            line = int(s["line"])
+            end_line = int(s.get("end_line", line))
+            severity = s["severity"]
+            out_of_scope = bool(s.get("out_of_scope", False))
+            content = s["content"]
+
+            # Build link text: custom > "lines X - Y" > "line X"
+            if s.get("link_text"):
+                link_text = s["link_text"]
+            elif end_line != line:
+                link_text = f"lines {line} - {end_line}"
+            else:
+                link_text = f"line {line}"
+
+            # Build and POST line-anchored thread
+            thread_context = build_thread_context(normalized, line, end_line)
+            thread_body = {
+                "comments": [{"content": content, "commentType": "text"}],
+                "status": "active",
+                "threadContext": thread_context,
+            }
+            response = requests.post(threads_url, headers=headers, json=thread_body, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            thread_id = result["id"]
+            comment_id = result["comments"][0]["id"]
+
+            suggestion_entries.append(
+                SuggestionEntry(
+                    threadId=thread_id,
+                    commentId=comment_id,
+                    line=line,
+                    endLine=end_line,
+                    severity=severity,
+                    outOfScope=out_of_scope,
+                    linkText=link_text,
+                    content=content,
+                )
+            )
+
+        # Update file status to NEEDS_WORK with summary and suggestions
+        update_file_status(
+            review_state,
+            file_path,
+            ReviewStatus.NEEDS_WORK.value,
+            summary=summary,
+            suggestions=suggestion_entries,
+        )
+        file_entry = review_state.files[normalized]
+
+        # PATCH file summary comment with regenerated markdown
+        file_content = render_file_summary(file_entry, suggestion_entries, base_url)
+        patch_comment(
+            requests_module=requests,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_entry.threadId,
+            comment_id=file_entry.commentId,
+            new_content=file_content,
+            dry_run=dry_run,
+        )
+
+        # PATCH file thread status to "active" (needs work)
+        patch_thread_status(
+            requests_module=requests,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_entry.threadId,
+            status="active",
+            dry_run=dry_run,
+        )
+
+        # Mark file as reviewed in Azure DevOps
+        mark_file_reviewed(
+            file_path=file_path,
+            pull_request_id=pull_request_id,
+            config=config,
+            repo_id=repo_id,
+            dry_run=dry_run,
+        )
+
+        # Cascade folder and overall summary updates. Persist the updated
+        # review_state even if downstream cascade execution fails, so the
+        # local state reflects the already-PATCHed file comment.
+        try:
+            patch_operations = cascade_status_update(review_state, file_path, base_url)
+            execute_cascade(
+                patch_operations=patch_operations,
+                requests_module=requests,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                dry_run=dry_run,
+            )
+        finally:
+            save_review_state(review_state)
+
+    except FileNotFoundError:
+        # Legacy fallback: create new threads (no review-state.json available)
+        print("Note: No review-state.json found. Using legacy request-changes flow.")
+        from ...state import set_value
+        from .commands import add_pull_request_comment  # Avoid circular import
+
+        print(f"Resolving repository ID for '{config.repository}'...")
+        repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+        # Post each suggestion as a separate comment
+        for s in suggestions_data:
+            set_value("path", file_path)
+            set_value("content", s["content"])
+            set_value("line", s["line"])
+            set_value("end_line", s.get("end_line", s["line"]))
+            set_value("is_pull_request_approval", "false")
+            set_value("leave_thread_active", "true")
+            add_pull_request_comment()
+
+        # Mark file as reviewed in Azure DevOps
+        mark_file_reviewed(
+            file_path=file_path,
+            pull_request_id=pull_request_id,
+            config=config,
+            repo_id=repo_id,
+            dry_run=dry_run,
+        )
+
+    # Update the review queue
+    pending_count, completed_count = _update_queue_after_review(
+        pull_request_id=pull_request_id,
+        file_path=file_path,
+        outcome="Changes",
+        dry_run=dry_run,
+    )
+
+    print(f"Changes requested for '{file_path}' with {len(suggestions_data)} suggestion(s).")
+
+    # Trigger workflow continuation
+    _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
 
 
 def request_changes_with_suggestion() -> None:

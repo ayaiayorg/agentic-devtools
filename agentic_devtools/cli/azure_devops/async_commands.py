@@ -1025,51 +1025,59 @@ def submit_file_review_async() -> None:
 
 def request_changes_async(
     file_path: Optional[str] = None,
-    content: Optional[str] = None,
-    line: Optional[int] = None,
+    summary: Optional[str] = None,
+    suggestions: Optional[str] = None,
     pull_request_id: Optional[int] = None,
 ) -> None:
     """
     Request changes on a file asynchronously in the background.
+
+    Accepts multiple suggestions with severity, out-of-scope flag, and custom
+    link text. Each suggestion will create a separate line-anchored thread.
+    The file summary is PATCHed with categorized suggestion links.
 
     After spawning the background task, immediately marks the file as
     submission-pending and shows the next file to review.
 
     Args:
         file_path: Path of file (overrides state)
-        content: Change request content (overrides state)
-        line: Line number for comment (overrides state)
+        summary: Overall assessment of the file (overrides state)
+        suggestions: JSON array of suggestion objects (overrides state)
         pull_request_id: PR ID (overrides state)
 
     State keys (used as fallbacks):
         pull_request_id (required): PR ID
         file_review.file_path (required): Path of file
-        content (required): Change request content
-        line (required): Line number for comment
+        file_review.summary (required): Overall assessment
+        file_review.suggestions (required): JSON array of suggestion objects.
+          Each object must have: content (str), line (int), severity (str: high/medium/low).
+          Optional fields: end_line (int), out_of_scope (bool), link_text (str).
 
     Usage:
-        agdt-request-changes --file-path "src/app/component.ts" --content "Issue here" --line 42
+        agdt-request-changes \\
+          --file-path "src/app/component.ts" \\
+          --summary "Error handling issues found." \\
+          --suggestions '[{"line":42,"severity":"high","content":"Missing null check"}]'
 
         # Or using state:
         agdt-set pull_request_id 12345
         agdt-set file_review.file_path "src/app/component.ts"
-        agdt-set content "Please fix this issue..."
-        agdt-set line 42
+        agdt-set file_review.summary "Error handling issues found."
+        agdt-set file_review.suggestions '[{"line":42,"severity":"high","content":"Missing null check"}]'
         agdt-request-changes
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
-    _set_value_if_provided("content", content)
-    if line is not None:
-        set_value("line", line)
+    _set_value_if_provided("file_review.summary", summary)
+    _set_value_if_provided("file_review.suggestions", suggestions)
     if pull_request_id is not None:
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
     _require_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-request-changes --file-path "path/to/file"')
-    _require_value("content", 'agdt-request-changes --content "Issue description"')
-    _require_value("line", "agdt-request-changes --line 42")
+    _require_value("file_review.summary", 'agdt-request-changes --summary "Overall assessment"')
+    _require_value("file_review.suggestions", "agdt-request-changes --suggestions '[{\"line\":42,...}]'")
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -1089,13 +1097,15 @@ def request_changes_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  agdt-request-changes --file-path "src/app/component.ts" --content "Fix this" --line 42
-  agdt-request-changes -f "src/main.py" -c "Issue description" -l 100
+  agdt-request-changes \\
+    --file-path "src/app/component.ts" \\
+    --summary "Error handling issues found." \\
+    --suggestions '[{"line":42,"severity":"high","content":"Missing null check"}]'
 
   # Or using state:
   agdt-set file_review.file_path "src/app/component.ts"
-  agdt-set content "Please fix this issue..."
-  agdt-set line 42
+  agdt-set file_review.summary "Error handling issues found."
+  agdt-set file_review.suggestions '[{"line":42,"severity":"high","content":"Fix here"}]'
   agdt-request-changes
         """,
     )
@@ -1107,18 +1117,17 @@ Examples:
         help="Path of file (falls back to file_review.file_path state)",
     )
     parser.add_argument(
-        "--content",
-        "-c",
+        "--summary",
+        "-s",
         type=str,
         default=None,
-        help="Change request content (falls back to content state)",
+        help="Overall assessment of the file (falls back to file_review.summary state)",
     )
     parser.add_argument(
-        "--line",
-        "-l",
-        type=int,
+        "--suggestions",
+        type=str,
         default=None,
-        help="Line number for comment (falls back to line state)",
+        help="JSON array of suggestion objects (falls back to file_review.suggestions state)",
     )
     parser.add_argument(
         "--pull-request-id",
@@ -1130,8 +1139,8 @@ Examples:
     args = parser.parse_args()
     request_changes_async(
         file_path=args.file_path,
-        content=args.content,
-        line=args.line,
+        summary=args.summary,
+        suggestions=args.suggestions,
         pull_request_id=args.pull_request_id,
     )
 
