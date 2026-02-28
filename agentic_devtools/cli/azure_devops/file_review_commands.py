@@ -1249,6 +1249,7 @@ def request_changes() -> None:
         }
 
     Raises:
+        KeyError: If pull_request_id is not set in state.
         SystemExit: On validation or execution errors.
     """
     requests = require_requests()
@@ -1263,8 +1264,11 @@ def request_changes() -> None:
         sys.exit(1)
 
     summary = get_value("file_review.summary")
-    if not summary:
-        print("Error: 'file_review.summary' is required for request-changes.", file=sys.stderr)
+    if not isinstance(summary, str) or not summary.strip():
+        print(
+            "Error: 'file_review.summary' is required for request-changes and must be a non-empty string.",
+            file=sys.stderr,
+        )
         print("Set it with: agdt-set file_review.summary '<overall assessment>'", file=sys.stderr)
         sys.exit(1)
 
@@ -1361,7 +1365,7 @@ def request_changes() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        # Validate link_text is a string when present; treat null as absent
+        # Validate link_text is a non-empty string when present; treat null/blank as absent
         if "link_text" in s:
             if s["link_text"] is None:
                 del s["link_text"]
@@ -1371,6 +1375,8 @@ def request_changes() -> None:
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            elif not s["link_text"].strip():
+                del s["link_text"]
 
     if dry_run:
         print(f"DRY-RUN: Would request changes on '{file_path}' on PR {pull_request_id}")
