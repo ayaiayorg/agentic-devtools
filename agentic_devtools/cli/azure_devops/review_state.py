@@ -221,14 +221,15 @@ class ReviewState:
 
 def normalize_file_path(file_path: str) -> str:
     """
-    Normalize a file path to ensure it has a leading slash.
+    Normalize a file path to ensure it has a leading slash and forward slashes.
 
     Args:
         file_path: The file path to normalize.
 
     Returns:
-        Normalized path with leading slash.
+        Normalized path with leading slash and forward slashes.
     """
+    file_path = file_path.replace("\\", "/")
     if not file_path.startswith("/"):
         return "/" + file_path
     return file_path
