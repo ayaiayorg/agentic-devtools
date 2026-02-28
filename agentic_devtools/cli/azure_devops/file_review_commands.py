@@ -1234,17 +1234,18 @@ def request_changes() -> None:
         - file_review.summary (required): Summary of changes (overall assessment)
         - file_review.suggestions (required): JSON array of suggestion objects.
           Each object must have: content (str), line (int), severity (str: high/medium/low).
-          Optional fields: end_line (int), out_of_scope (bool), link_text (str).
+          Optional fields: end_line (int | None), out_of_scope (bool), link_text (str).
+          When end_line is null or omitted, it is treated as equal to line.
         - dry_run: If true, only print what would be done
 
     Suggestion schema:
         {
-            "content": str,         # Review comment text (required)
-            "line": int,            # Start line (required)
-            "end_line": int,        # End line (defaults to line)
-            "severity": str,        # "high" | "medium" | "low" (required)
-            "out_of_scope": bool,   # Default false
-            "link_text": str        # Custom link text. Default: "line X" or "lines X - Y"
+            "content": str,              # Review comment text (required)
+            "line": int,                 # Start line (required)
+            "end_line": int | None,      # Optional end line; when null/omitted, defaults to line
+            "severity": str,             # "high" | "medium" | "low" (required)
+            "out_of_scope": bool,        # Default false
+            "link_text": str             # Custom link text. Default: "line X" or "lines X - Y"
         }
 
     Raises:
@@ -1599,7 +1600,7 @@ def request_changes() -> None:
         dry_run=dry_run,
     )
 
-    print(f"Changes requested for '{file_path}' with {len(suggestions_data)} suggestion(s).")
+    print(f"Changes requested for '{file_path}'. Review suggestions have been posted where needed.")
 
     # Trigger workflow continuation
     _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
