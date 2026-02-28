@@ -341,12 +341,45 @@ class TestScaffoldReviewThreadsNormalFlow:
         assert "/src/app.ts" in folder.files
         assert "/src/utils.ts" in folder.files
 
-    def test_save_review_state_called_once(self):
-        """save_review_state is called exactly once with the completed ReviewState."""
+    def test_save_review_state_called_three_times(self):
+        """save_review_state is called 3 times: after files, after folders, and after overall."""
         files = ["/src/app.ts"]
         result, _, save_mock = self._run_scaffold(files)
 
-        save_mock.assert_called_once_with(result)
+        assert save_mock.call_count == 3
+        # Final call uses the completed ReviewState
+        save_mock.assert_called_with(result)
+
+    def test_incremental_save_after_files_has_zero_overall(self):
+        """First save (after file threads) has overallSummary.threadId == 0."""
+        files = ["/src/app.ts"]
+        _, _, save_mock = self._run_scaffold(files)
+
+        first_saved = save_mock.call_args_list[0][0][0]
+        assert first_saved.overallSummary.threadId == 0
+        assert first_saved.overallSummary.commentId == 0
+        # File entries are populated
+        assert "/src/app.ts" in first_saved.files
+        assert first_saved.files["/src/app.ts"].threadId != 0
+
+    def test_incremental_save_after_folders_has_zero_overall(self):
+        """Second save (after folder threads) has overallSummary.threadId == 0 but folders populated."""
+        files = ["/src/app.ts"]
+        _, _, save_mock = self._run_scaffold(files)
+
+        second_saved = save_mock.call_args_list[1][0][0]
+        assert second_saved.overallSummary.threadId == 0
+        assert "src" in second_saved.folders
+        assert second_saved.folders["src"].threadId != 0
+
+    def test_final_save_has_nonzero_overall(self):
+        """Third save (after overall thread) has non-zero overallSummary."""
+        files = ["/src/app.ts"]
+        _, _, save_mock = self._run_scaffold(files)
+
+        final_saved = save_mock.call_args_list[2][0][0]
+        assert final_saved.overallSummary.threadId != 0
+        assert final_saved.overallSummary.commentId != 0
 
     def test_root_level_file_assigned_to_root_folder(self):
         """Files at the repository root are assigned to the 'root' folder."""

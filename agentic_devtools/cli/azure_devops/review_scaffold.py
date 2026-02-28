@@ -194,6 +194,26 @@ def scaffold_review_threads(
     base_url = _build_pr_base_url(config, pull_request_id)
     scaffolded_utc = datetime.now(timezone.utc).isoformat()
 
+    # Helper to build and persist a ReviewState snapshot.
+    def _build_state(
+        file_entries: Dict[str, FileEntry],
+        folder_entries: Dict[str, FolderEntry],
+        overall_thread_id: int = 0,
+        overall_comment_id: int = 0,
+    ) -> ReviewState:
+        return ReviewState(
+            prId=pull_request_id,
+            repoId=repo_id,
+            repoName=repo_name,
+            project=config.project,
+            organization=config.organization,
+            latestIterationId=latest_iteration_id,
+            scaffoldedUtc=scaffolded_utc,
+            overallSummary=OverallSummary(threadId=overall_thread_id, commentId=overall_comment_id),
+            folders=folder_entries,
+            files=file_entries,
+        )
+
     # Step 1: Create file summary threads (anchored to file path, no line)
     file_entries: Dict[str, FileEntry] = {}
     for file_path in files:
@@ -220,6 +240,9 @@ def scaffold_review_threads(
             status=ReviewStatus.UNREVIEWED.value,
         )
 
+    # Persist after file threads so partial progress is not lost on failure
+    save_review_state(_build_state(file_entries, {}))
+
     # Step 2: Create folder summary threads (PR-level, no file context)
     folder_entries: Dict[str, FolderEntry] = {}
     for folder_name, folder_files in folders.items():
@@ -240,37 +263,18 @@ def scaffold_review_threads(
             files=folder_files,
         )
 
+    # Persist after folder threads so partial progress is not lost on failure
+    save_review_state(_build_state(file_entries, folder_entries))
+
     # Step 3: Create overall PR summary thread (PR-level, links to folder threads)
-    temp_state = ReviewState(
-        prId=pull_request_id,
-        repoId=repo_id,
-        repoName=repo_name,
-        project=config.project,
-        organization=config.organization,
-        latestIterationId=latest_iteration_id,
-        scaffoldedUtc=scaffolded_utc,
-        overallSummary=OverallSummary(threadId=0, commentId=0),
-        folders=folder_entries,
-        files=file_entries,
-    )
+    temp_state = _build_state(file_entries, folder_entries)
     overall_content = render_overall_summary(temp_state, base_url)
 
     print("Creating overall PR summary thread...")
     overall_thread_id, overall_comment_id = _post_thread(requests_module, headers, threads_url, overall_content)
 
     # Build final ReviewState and persist
-    review_state = ReviewState(
-        prId=pull_request_id,
-        repoId=repo_id,
-        repoName=repo_name,
-        project=config.project,
-        organization=config.organization,
-        latestIterationId=latest_iteration_id,
-        scaffoldedUtc=scaffolded_utc,
-        overallSummary=OverallSummary(threadId=overall_thread_id, commentId=overall_comment_id),
-        folders=folder_entries,
-        files=file_entries,
-    )
+    review_state = _build_state(file_entries, folder_entries, overall_thread_id, overall_comment_id)
 
     save_review_state(review_state)
     print(f"Scaffolding complete. Review state saved for PR {pull_request_id}.")
