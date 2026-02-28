@@ -149,7 +149,7 @@ class TestRequestChanges:
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "not valid JSON" in captured.err
+        assert "JSON array" in captured.err
 
     def test_empty_suggestions_array(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if suggestions array is empty."""
@@ -256,3 +256,118 @@ class TestRequestChanges:
         captured = capsys.readouterr()
         assert "severity" in captured.err
         assert "critical" in captured.err
+
+    def test_suggestion_content_not_string(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if content is not a string."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", json.dumps([{"line": 42, "severity": "high", "content": 123}]))
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "content" in captured.err
+        assert "non-empty string" in captured.err
+
+    def test_suggestion_content_empty(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if content is an empty string."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", json.dumps([{"line": 42, "severity": "high", "content": "  "}]))
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "content" in captured.err
+
+    def test_suggestion_line_less_than_one(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if line is less than 1."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", json.dumps([{"line": 0, "severity": "high", "content": "Fix"}]))
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "line" in captured.err
+        assert ">= 1" in captured.err
+
+    def test_suggestion_end_line_less_than_line(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if end_line is less than line."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": 50, "end_line": 10, "severity": "high", "content": "Fix"}]),
+        )
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "end_line" in captured.err
+
+    def test_suggestion_out_of_scope_not_bool(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if out_of_scope is a string instead of bool."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": 42, "severity": "low", "content": "Fix", "out_of_scope": "false"}]),
+        )
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "out_of_scope" in captured.err
+        assert "boolean" in captured.err
+
+    def test_suggestion_link_text_not_string(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if link_text is not a string."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": 42, "severity": "high", "content": "Fix", "link_text": 123}]),
+        )
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "link_text" in captured.err
+        assert "string" in captured.err

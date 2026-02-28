@@ -1276,15 +1276,17 @@ def request_changes() -> None:
         sys.exit(1)
 
     # Parse suggestions JSON
-    try:
-        if isinstance(suggestions_raw, str):
+    if isinstance(suggestions_raw, str):
+        try:
             suggestions_data = json.loads(suggestions_raw)
-        else:
-            suggestions_data = suggestions_raw
-        if not isinstance(suggestions_data, list):
-            raise ValueError("suggestions must be a JSON array")
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"Error: 'file_review.suggestions' is not valid JSON: {e}", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"Error: 'file_review.suggestions' is not valid JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        suggestions_data = suggestions_raw
+
+    if not isinstance(suggestions_data, list):
+        print("Error: 'file_review.suggestions' must be a JSON array (list) of suggestion objects.", file=sys.stderr)
         sys.exit(1)
 
     if not suggestions_data:
@@ -1301,20 +1303,56 @@ def request_changes() -> None:
             if required_field not in s:
                 print(f"Error: Suggestion at index {i} is missing required field '{required_field}'.", file=sys.stderr)
                 sys.exit(1)
+        # Validate content is a non-empty string
+        if not isinstance(s["content"], str) or not s["content"].strip():
+            print(f"Error: Suggestion at index {i} field 'content' must be a non-empty string.", file=sys.stderr)
+            sys.exit(1)
+        # Validate severity is a string with a known value
+        if not isinstance(s["severity"], str) or s["severity"] not in valid_severities:
+            print(
+                f"Error: Suggestion at index {i} has invalid severity {s['severity']!r}. "
+                f"Must be one of: {', '.join(valid_severities)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Validate line fields are integers >= 1
         for int_field in ("line", "end_line"):
             if int_field in s:
                 try:
-                    int(s[int_field])
+                    val = int(s[int_field])
                 except (TypeError, ValueError):
                     print(
                         f"Error: Suggestion at index {i} field '{int_field}' must be an integer.",
                         file=sys.stderr,
                     )
                     sys.exit(1)
-        if s["severity"] not in valid_severities:
+                if val < 1:
+                    print(
+                        f"Error: Suggestion at index {i} field '{int_field}' must be >= 1 (got {val}).",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+        # Validate end_line >= line when both present
+        line_val = int(s["line"])
+        end_line_val = int(s.get("end_line", line_val))
+        if end_line_val < line_val:
             print(
-                f"Error: Suggestion at index {i} has invalid severity '{s['severity']}'. "
-                f"Must be one of: {', '.join(valid_severities)}.",
+                f"Error: Suggestion at index {i} has end_line ({end_line_val}) < line ({line_val}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Validate out_of_scope is a bool (not a truthy string)
+        if "out_of_scope" in s and not isinstance(s["out_of_scope"], bool):
+            print(
+                f"Error: Suggestion at index {i} field 'out_of_scope' must be a boolean "
+                f"(got {s['out_of_scope']!r} of type {type(s['out_of_scope']).__name__}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Validate link_text is a string when present
+        if "link_text" in s and not isinstance(s["link_text"], str):
+            print(
+                f"Error: Suggestion at index {i} field 'link_text' must be a string.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -1330,7 +1368,7 @@ def request_changes() -> None:
             line = s["line"]
             end_line = s.get("end_line", line)
             severity = s["severity"]
-            scope_tag = " [out of scope]" if s.get("out_of_scope") else ""
+            scope_tag = " [out of scope]" if s.get("out_of_scope", False) else ""
             range_str = f"lines {line}-{end_line}" if end_line != line else f"line {line}"
             print(f"    {i + 1}. [{severity.upper()}]{scope_tag} {range_str}: {s['content'][:60]}")
         return
@@ -1378,7 +1416,7 @@ def request_changes() -> None:
             line = int(s["line"])
             end_line = int(s.get("end_line", line))
             severity = s["severity"]
-            out_of_scope = bool(s.get("out_of_scope", False))
+            out_of_scope = s.get("out_of_scope", False)
             content = s["content"]
 
             # Build link text: custom > "lines X - Y" > "line X"
@@ -1486,7 +1524,16 @@ def request_changes() -> None:
         print(f"Resolving repository ID for '{config.repository}'...")
         repo_id = get_repository_id(config.organization, config.project, config.repository)
 
-        # Post each suggestion as a separate comment
+        # Post file-level summary comment (no line anchor)
+        set_value("path", file_path)
+        set_value("content", summary)
+        set_value("line", None)
+        set_value("end_line", None)
+        set_value("is_pull_request_approval", "false")
+        set_value("leave_thread_active", "true")
+        add_pull_request_comment()
+
+        # Post each suggestion as a separate line-anchored comment
         for s in suggestions_data:
             set_value("path", file_path)
             set_value("content", s["content"])
