@@ -875,6 +875,7 @@ def _auto_advance_after_submission(
 def approve_file_async(
     file_path: Optional[str] = None,
     content: Optional[str] = None,
+    summary: Optional[str] = None,
     pull_request_id: Optional[int] = None,
 ) -> None:
     """
@@ -885,33 +886,54 @@ def approve_file_async(
 
     Args:
         file_path: Path of file to approve (overrides state)
-        content: Approval comment content (overrides state)
+        summary: Approval summary text (overrides state)
+        content: Deprecated. Use summary instead.
         pull_request_id: PR ID (overrides state)
 
     State keys (used as fallbacks):
         pull_request_id (required): PR ID
         file_review.file_path (required): Path of file to approve
-        content (required): Approval comment
+        file_review.summary (required): Approval summary text
 
     Usage:
-        agdt-approve-file --file-path "src/app/component.ts" --content "LGTM"
+        agdt-approve-file --file-path "src/app/component.ts" --summary "Clean implementation."
 
         # Or using state:
         agdt-set pull_request_id 12345
         agdt-set file_review.file_path "src/app/component.ts"
-        agdt-set content "LGTM"
+        agdt-set file_review.summary "Clean implementation."
         agdt-approve-file
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
-    _set_value_if_provided("content", content)
     if pull_request_id is not None:
         set_value("pull_request_id", pull_request_id)
+
+    # Handle summary / content (deprecated): summary takes precedence
+    if summary is not None:
+        _set_value_if_provided("file_review.summary", summary)
+    elif content is not None:
+        print(
+            "Warning: --content is deprecated for agdt-approve-file. Use --summary instead.",
+            file=sys.stderr,
+        )
+        _set_value_if_provided("file_review.summary", content)
+
+    # Deprecated state-key fallback: if file_review.summary is still empty
+    # but content exists in state, map it across with a deprecation warning.
+    if not get_value("file_review.summary"):
+        state_content = get_value("content")
+        if state_content:
+            print(
+                "Warning: 'content' state key is deprecated for agdt-approve-file. Use 'file_review.summary' instead.",
+                file=sys.stderr,
+            )
+            set_value("file_review.summary", state_content)
 
     # Validate required values
     _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
-    _require_value("content", 'agdt-approve-file --content "Approval comment"')
+    _require_value("file_review.summary", 'agdt-approve-file --summary "Approval summary"')
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -931,13 +953,13 @@ def approve_file_async_cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  agdt-approve-file --file-path "src/app/component.ts" --content "LGTM"
-  agdt-approve-file --pull-request-id 12345 --file-path "src/app/component.ts" --content "Approved"
+  agdt-approve-file --file-path "src/app/component.ts" --summary "Clean implementation."
+  agdt-approve-file --pull-request-id 12345 --file-path "src/app/component.ts" --summary "Approved"
 
   # Or using state:
   agdt-set pull_request_id 12345
   agdt-set file_review.file_path "src/app/component.ts"
-  agdt-set content "LGTM"
+  agdt-set file_review.summary "Clean implementation."
   agdt-approve-file
         """,
     )
@@ -949,11 +971,18 @@ Examples:
         help="Path of file to approve (falls back to file_review.file_path state)",
     )
     parser.add_argument(
+        "--summary",
+        "-s",
+        type=str,
+        default=None,
+        help="Approval summary text (falls back to file_review.summary state)",
+    )
+    parser.add_argument(
         "--content",
         "-c",
         type=str,
         default=None,
-        help="Approval comment content (falls back to content state)",
+        help="Deprecated: use --summary instead",
     )
     parser.add_argument(
         "--pull-request-id",
@@ -966,6 +995,7 @@ Examples:
     approve_file_async(
         file_path=args.file_path,
         content=args.content,
+        summary=args.summary,
         pull_request_id=args.pull_request_id,
     )
 

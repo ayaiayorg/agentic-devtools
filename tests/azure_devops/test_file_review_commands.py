@@ -21,7 +21,7 @@ class TestApproveFile:
 
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
-        set_value("content", "LGTM!")
+        set_value("file_review.summary", "LGTM!")
         set_value("dry_run", "true")
 
         approve_file()
@@ -33,12 +33,12 @@ class TestApproveFile:
         assert "23046" in captured.out
 
     def test_dry_run_shows_content(self, temp_state_dir, clear_state_before, capsys):
-        """Should show approval content in dry run."""
+        """Should show approval summary in dry run."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
-        set_value("content", "Great implementation!")
+        set_value("file_review.summary", "Great implementation!")
         set_value("dry_run", "true")
 
         approve_file()
@@ -51,7 +51,7 @@ class TestApproveFile:
         from agentic_devtools.state import set_value
 
         set_value("file_review.file_path", "/src/main.py")
-        set_value("content", "LGTM!")
+        set_value("file_review.summary", "LGTM!")
         set_value("dry_run", "true")
 
         with pytest.raises(KeyError, match="pull_request_id"):
@@ -62,7 +62,7 @@ class TestApproveFile:
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", "23046")
-        set_value("content", "LGTM!")
+        set_value("file_review.summary", "LGTM!")
         set_value("dry_run", "true")
 
         with pytest.raises(SystemExit) as exc_info:
@@ -73,7 +73,7 @@ class TestApproveFile:
         assert "file_review.file_path" in captured.err
 
     def test_missing_content(self, temp_state_dir, clear_state_before, capsys):
-        """Should fail if content is not set."""
+        """Should fail if neither file_review.summary nor content is set."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", "23046")

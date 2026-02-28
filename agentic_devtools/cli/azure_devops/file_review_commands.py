@@ -17,7 +17,7 @@ from typing import Optional
 from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import get_repository_id, patch_comment, require_requests
+from .helpers import get_repository_id, patch_comment, patch_thread_status, require_requests
 from .mark_reviewed import mark_file_reviewed
 
 
@@ -912,24 +912,30 @@ def approve_file() -> None:  # pragma: no cover
     """
     Approve a file in a pull request review.
 
-    This function:
+    When review-state.json exists (new PATCH flow):
+    1. Loads review state and updates file status to Approved
+    2. PATCHes the existing file summary comment with rendered markdown
+    3. PATCHes the file thread status to "closed"
+    4. Marks the file as reviewed in Azure DevOps
+    5. Cascades folder and PR summary updates via PATCH
+    6. Saves updated review state
+    7. Updates the review queue and triggers workflow continuation
+
+    When review-state.json does not exist (legacy fallback):
     1. Resolves any existing threads for the file
-    2. Posts an approval comment
-    3. Marks the file as reviewed in Azure DevOps
-    4. Updates the review queue
-    5. Triggers workflow continuation
+    2. Posts a new approval comment
+    3. Marks the file as reviewed and updates the queue
 
     State keys read:
         - pull_request_id (required): Pull request ID
         - file_review.file_path (required): Path of file to approve
-        - content (required): Approval comment content
+        - file_review.summary (required): Approval summary text
+        - content (deprecated): Falls back to file_review.summary with a warning
         - dry_run: If true, only print what would be done
 
     Raises:
         SystemExit: On validation or execution errors.
     """
-    from .commands import add_pull_request_comment  # Avoid circular import
-
     requests = require_requests()
     config = AzureDevOpsConfig.from_state()
     dry_run = is_dry_run()
@@ -941,10 +947,22 @@ def approve_file() -> None:  # pragma: no cover
         print("Set it with: agdt-set file_review.file_path <path>", file=sys.stderr)
         sys.exit(1)
 
-    content = get_value("content")
-    if not content:
-        print("Error: 'content' is required for approval comment.", file=sys.stderr)
-        print("Set it with: agdt-set content '<approval comment>'", file=sys.stderr)
+    # Support file_review.summary (new) with content as deprecated fallback
+    summary = get_value("file_review.summary")
+    if not summary:
+        content = get_value("content")
+        if content:
+            print(
+                "Warning: 'content' is deprecated for agdt-approve-file. Use 'file_review.summary' instead.",
+                file=sys.stderr,
+            )
+            summary = content
+    if not summary:
+        print(
+            "Error: 'file_review.summary' (or 'content', deprecated) is required for approval.",
+            file=sys.stderr,
+        )
+        print("Set it with: agdt-set file_review.summary '<approval summary>'", file=sys.stderr)
         sys.exit(1)
 
     if dry_run:
@@ -952,37 +970,129 @@ def approve_file() -> None:  # pragma: no cover
         print(f"  Organization: {config.organization}")
         print(f"  Project: {config.project}")
         print(f"  Repository: {config.repository}")
-        print(f"Content:\n{content}")
+        print(f"Summary:\n{summary}")
         return
 
     pat = get_pat()
     headers = get_auth_headers(pat)
 
-    print(f"Resolving repository ID for '{config.repository}'...")
-    repo_id = get_repository_id(config.organization, config.project, config.repository)
+    # Try new PATCH flow (requires review-state.json)
+    try:
+        from .review_scaffold import _build_pr_base_url
+        from .review_state import (
+            ReviewStatus,
+            load_review_state,
+            normalize_file_path,
+            save_review_state,
+            update_file_status,
+        )
+        from .review_templates import render_file_summary
+        from .status_cascade import cascade_status_update, execute_cascade
 
-    # Step 1: Resolve any existing threads for this file
-    _resolve_file_threads(requests, headers, config, repo_id, pull_request_id, file_path, dry_run)
+        review_state = load_review_state(pull_request_id)
+        base_url = _build_pr_base_url(config, pull_request_id)
 
-    # Step 2: Post approval comment
-    from ...state import set_value
+        # Use repoId already stored in review state (set during scaffolding)
+        # to avoid shelling out to `az repos show` on every approval.
+        repo_id = review_state.repoId
 
-    set_value("path", file_path)
-    set_value("is_pull_request_approval", "true")
-    set_value("leave_thread_active", "false")
+        # Update file status to Approved with summary text
+        normalized = normalize_file_path(file_path)
+        try:
+            update_file_status(review_state, file_path, ReviewStatus.APPROVED.value, summary=summary)
+            file_entry = review_state.files[normalized]
+        except KeyError:
+            print(
+                f"Error: File {file_path!r} is not present in review-state.json "
+                f"for pull request {pull_request_id}. "
+                "Regenerate the review state (for example by re-running the review command) "
+                "before using this file-level command.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
-    add_pull_request_comment()
+        # PATCH file summary comment with regenerated markdown
+        file_content = render_file_summary(file_entry, [], base_url)
+        patch_comment(
+            requests_module=requests,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_entry.threadId,
+            comment_id=file_entry.commentId,
+            new_content=file_content,
+            dry_run=dry_run,
+        )
 
-    # Step 3: Mark file as reviewed in Azure DevOps
-    mark_file_reviewed(
-        file_path=file_path,
-        pull_request_id=pull_request_id,
-        config=config,
-        repo_id=repo_id,
-        dry_run=dry_run,
-    )
+        # PATCH file thread status to closed
+        patch_thread_status(
+            requests_module=requests,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_entry.threadId,
+            status="closed",
+            dry_run=dry_run,
+        )
 
-    # Step 4: Update the review queue
+        # Mark file as reviewed in Azure DevOps
+        mark_file_reviewed(
+            file_path=file_path,
+            pull_request_id=pull_request_id,
+            config=config,
+            repo_id=repo_id,
+            dry_run=dry_run,
+        )
+
+        # Cascade folder and overall summary updates. Persist the updated
+        # review_state even if downstream cascade execution fails, so the
+        # local state reflects the already-PATCHed file comment.
+        try:
+            patch_operations = cascade_status_update(review_state, file_path, base_url)
+            execute_cascade(
+                patch_operations=patch_operations,
+                requests_module=requests,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                dry_run=dry_run,
+            )
+        finally:
+            save_review_state(review_state)
+
+    except FileNotFoundError:
+        # Legacy fallback: create new thread (no review-state.json available)
+        print("Note: No review-state.json found. Using legacy approval flow.")
+        from ...state import set_value
+        from .commands import add_pull_request_comment  # Avoid circular import
+
+        print(f"Resolving repository ID for '{config.repository}'...")
+        repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+        # Step 1: Resolve any existing threads for this file
+        _resolve_file_threads(requests, headers, config, repo_id, pull_request_id, file_path, dry_run)
+
+        # Step 2: Post approval comment
+        set_value("path", file_path)
+        set_value("content", summary)
+        set_value("is_pull_request_approval", "true")
+        set_value("leave_thread_active", "false")
+
+        add_pull_request_comment()
+
+        # Step 3: Mark file as reviewed in Azure DevOps
+        mark_file_reviewed(
+            file_path=file_path,
+            pull_request_id=pull_request_id,
+            config=config,
+            repo_id=repo_id,
+            dry_run=dry_run,
+        )
+
+    # Update the review queue
     pending_count, completed_count = _update_queue_after_review(
         pull_request_id=pull_request_id,
         file_path=file_path,
@@ -992,7 +1102,7 @@ def approve_file() -> None:  # pragma: no cover
 
     print(f"File '{file_path}' approved successfully.")
 
-    # Step 5: Trigger workflow continuation
+    # Trigger workflow continuation
     _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
 
 

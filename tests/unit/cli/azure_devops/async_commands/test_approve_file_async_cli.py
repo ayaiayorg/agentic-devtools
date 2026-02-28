@@ -21,8 +21,8 @@ class TestApproveFileAsyncCli:
                 "12345",
                 "--file-path",
                 "src/app/component.ts",
-                "--content",
-                "LGTM",
+                "--summary",
+                "Clean implementation.",
             ],
         ):
             approve_file_async_cli()
@@ -41,8 +41,8 @@ class TestApproveFileAsyncCli:
                 "12345",
                 "--file-path",
                 "src/app/component.ts",
-                "--content",
-                "LGTM",
+                "--summary",
+                "Clean implementation.",
             ],
         ):
             approve_file_async_cli()
@@ -53,3 +53,24 @@ class TestApproveFileAsyncCli:
             "agentic_devtools.cli.azure_devops.file_review_commands",
             "approve_file",
         )
+
+    def test_content_flag_shows_deprecation_warning(self, mock_background_and_state, capsys):
+        """Should show deprecation warning when --content is used instead of --summary."""
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "agdt-approve-file",
+                "--pull-request-id",
+                "12345",
+                "--file-path",
+                "src/app/component.ts",
+                "--content",
+                "LGTM",
+            ],
+        ):
+            approve_file_async_cli()
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert "deprecated" in captured.err
