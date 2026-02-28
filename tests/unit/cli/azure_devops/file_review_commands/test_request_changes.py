@@ -683,3 +683,42 @@ class TestRequestChangesPatchFlow:
         assert file_entry.suggestions[0].threadId == 1001
         assert file_entry.suggestions[0].commentId == 2001
         assert file_entry.suggestions[0].severity == "high"
+
+    def test_retry_skips_already_persisted_suggestions(self, temp_state_dir, clear_state_before):
+        """Retry should skip suggestions already persisted from a prior partial run."""
+        from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        # Only 1 POST expected — the second suggestion that wasn't persisted yet
+        mock_requests.post.return_value = _make_post_response(1002, 2002)
+
+        # Pre-populate the first suggestion as if it was persisted in a prior run
+        review_state = _make_review_state()
+        review_state.files["/src/main.py"].suggestions = [
+            SuggestionEntry(
+                threadId=1001,
+                commentId=2001,
+                line=10,
+                endLine=15,
+                severity="high",
+                outOfScope=False,
+                linkText="lines 10 - 15",
+                content="Critical issue",
+            ),
+        ]
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value, _SUGGESTIONS_MULTI)
+            request_changes()
+
+        # Only 1 POST — the first suggestion was skipped
+        assert mock_requests.post.call_count == 1
+
+        # Both suggestions should be in review_state (1 pre-existing + 1 new)
+        file_entry = review_state.files["/src/main.py"]
+        assert len(file_entry.suggestions) == 2
+        assert file_entry.suggestions[0].threadId == 1001  # pre-existing
+        assert file_entry.suggestions[1].threadId == 1002  # newly created

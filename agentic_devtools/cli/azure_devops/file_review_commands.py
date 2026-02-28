@@ -1411,22 +1411,40 @@ def request_changes() -> None:
             )
             sys.exit(1)
 
-        # Set file status to NEEDS_WORK upfront (with empty suggestions).
-        # This clears any stale suggestions from a prior run and mutates
-        # review_state, so the try/finally below ensures persistence even
-        # if a subsequent POST or PATCH call fails partway through.
+        # Set file status to NEEDS_WORK upfront (preserving existing suggestions
+        # so that threads created by a prior partial run are not lost).
+        # The try/finally below ensures persistence even if a subsequent
+        # POST or PATCH call fails partway through.
         update_file_status(
             review_state,
             file_path,
             ReviewStatus.NEEDS_WORK.value,
             summary=summary,
-            suggestions=[],
         )
+
+        # Snapshot existing suggestions for duplicate detection on retry.
+        existing = review_state.files[normalized].suggestions
+
+        def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+            """Check if a matching suggestion already exists from a prior run."""
+            for e in existing:
+                if (
+                    e.line == line
+                    and e.endLine == end_line
+                    and e.severity == severity
+                    and e.content == content
+                    and e.outOfScope == out_of_scope
+                    and e.linkText == link_text
+                ):
+                    return True
+            return False
 
         try:
             # POST a line-anchored thread for each suggestion, persisting
             # each thread ID incrementally into review_state so that partial
             # progress is saved even if a later POST fails.
+            # Suggestions already persisted from a prior run are skipped to
+            # make retries idempotent and avoid duplicate Azure DevOps threads.
             threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
             for s in suggestions_data:
                 line = s["line"]
@@ -1442,6 +1460,10 @@ def request_changes() -> None:
                     link_text = f"lines {line} - {end_line}"
                 else:
                     link_text = f"line {line}"
+
+                # Skip suggestions already persisted from a prior (partial) run
+                if _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+                    continue
 
                 # Build and POST line-anchored thread
                 thread_context = build_thread_context(normalized, line, end_line)
