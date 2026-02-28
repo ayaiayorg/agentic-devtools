@@ -1,8 +1,10 @@
 """
-Tests for file_review_commands module (dry-run and validation tests).
+Tests for file_review_commands module (dry-run, validation, and PATCH flow tests).
 """
 
 import json
+from contextlib import ExitStack
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,6 +19,9 @@ _SUGGESTIONS_MULTI = json.dumps(
         {"line": 99, "severity": "low", "out_of_scope": True, "link_text": "Rename file", "content": "Name convention"},
     ]
 )
+
+# Module path prefix for patching
+_MOD = "agentic_devtools.cli.azure_devops.file_review_commands"
 
 
 class TestRequestChanges:
@@ -407,3 +412,221 @@ class TestRequestChanges:
         captured = capsys.readouterr()
         assert "link_text" in captured.err
         assert "string" in captured.err
+
+
+# =============================================================================
+# PATCH flow tests (review-state.json present)
+# =============================================================================
+
+
+def _make_review_state(file_path="/src/main.py"):
+    """Create a minimal ReviewState with one tracked file."""
+    from agentic_devtools.cli.azure_devops.review_state import (
+        FileEntry,
+        FolderEntry,
+        OverallSummary,
+        ReviewState,
+    )
+
+    normalized = file_path if file_path.startswith("/") else f"/{file_path}"
+    return ReviewState(
+        prId=23046,
+        repoId="repo-guid-123",
+        repoName="my-repo",
+        project="my-project",
+        organization="my-org",
+        latestIterationId=1,
+        scaffoldedUtc="2026-01-01T00:00:00Z",
+        overallSummary=OverallSummary(threadId=100, commentId=200),
+        folders={
+            "/src": FolderEntry(threadId=300, commentId=400, files=[normalized]),
+        },
+        files={
+            normalized: FileEntry(
+                threadId=500,
+                commentId=600,
+                folder="/src",
+                fileName="main.py",
+            ),
+        },
+    )
+
+
+def _make_post_response(thread_id, comment_id):
+    """Create a mock response for requests.post (thread creation)."""
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"id": thread_id, "comments": [{"id": comment_id}]}
+    return resp
+
+
+def _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=None):
+    """Enter all mocks needed for the PATCH flow into an ExitStack.
+
+    Returns a dict with named handles to key mocks.
+    """
+    stack.enter_context(
+        patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=review_state,
+        )
+    )
+    if mock_save is None:
+        mock_save = MagicMock()
+    stack.enter_context(patch("agentic_devtools.cli.azure_devops.review_state.save_review_state", mock_save))
+    mock_render = stack.enter_context(
+        patch(
+            "agentic_devtools.cli.azure_devops.review_templates.render_file_summary",
+            return_value="## File Summary",
+        )
+    )
+    stack.enter_context(
+        patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullRequest/23046",
+        )
+    )
+    mock_cascade = stack.enter_context(
+        patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_status_update",
+            return_value=[],
+        )
+    )
+    mock_execute = stack.enter_context(patch("agentic_devtools.cli.azure_devops.status_cascade.execute_cascade"))
+    stack.enter_context(patch(f"{_MOD}.require_requests", return_value=mock_requests))
+    stack.enter_context(patch(f"{_MOD}.get_pat", return_value="fake-pat"))
+    stack.enter_context(patch(f"{_MOD}.get_auth_headers", return_value={"Authorization": "Basic xxx"}))
+    stack.enter_context(patch(f"{_MOD}.patch_comment"))
+    stack.enter_context(patch(f"{_MOD}.patch_thread_status"))
+    stack.enter_context(patch(f"{_MOD}.mark_file_reviewed"))
+    stack.enter_context(patch(f"{_MOD}._update_queue_after_review", return_value=(3, 1)))
+    stack.enter_context(patch(f"{_MOD}._trigger_workflow_continuation"))
+
+    return {
+        "save": mock_save,
+        "render": mock_render,
+        "cascade": mock_cascade,
+        "execute": mock_execute,
+    }
+
+
+class TestRequestChangesPatchFlow:
+    """Tests for the review-state.json PATCH flow in request_changes."""
+
+    def _setup_state(self, set_value, suggestions=None):
+        """Set up required state keys for a valid request_changes call."""
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Error handling risk.")
+        set_value("file_review.suggestions", suggestions or _SUGGESTIONS)
+
+    def test_one_post_per_suggestion(self, temp_state_dir, clear_state_before):
+        """Each suggestion should produce exactly one POST to create a thread."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.side_effect = [
+            _make_post_response(1001, 2001),
+            _make_post_response(1002, 2002),
+        ]
+
+        review_state = _make_review_state()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests)
+            self._setup_state(set_value, _SUGGESTIONS_MULTI)
+            request_changes()
+
+        # Two suggestions → two POST calls
+        assert mock_requests.post.call_count == 2
+        # Verify threadContext is set on each POST
+        for post_call in mock_requests.post.call_args_list:
+            body = post_call[1]["json"]
+            assert "threadContext" in body
+            assert body["status"] == "active"
+
+    def test_file_summary_patched(self, temp_state_dir, clear_state_before):
+        """File summary comment should be PATCHed with rendered markdown."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(1001, 2001)
+
+        review_state = _make_review_state()
+        with ExitStack() as stack:
+            handles = _enter_patch_flow_mocks(stack, review_state, mock_requests)
+            mock_patch_comment = stack.enter_context(patch(f"{_MOD}.patch_comment"))
+            self._setup_state(set_value)
+            request_changes()
+
+        # render_file_summary was called
+        handles["render"].assert_called_once()
+        # patch_comment was called with rendered content for the file thread
+        mock_patch_comment.assert_called_once()
+        pc_kwargs = mock_patch_comment.call_args[1]
+        assert pc_kwargs["new_content"] == "## File Summary"
+        assert pc_kwargs["thread_id"] == 500
+        assert pc_kwargs["comment_id"] == 600
+
+    def test_suggestions_persisted_in_review_state(self, temp_state_dir, clear_state_before):
+        """Suggestion thread IDs should be persisted into review_state.files[...].suggestions."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.side_effect = [
+            _make_post_response(1001, 2001),
+            _make_post_response(1002, 2002),
+        ]
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value, _SUGGESTIONS_MULTI)
+            request_changes()
+
+        # save_review_state was called
+        mock_save.assert_called_once_with(review_state)
+
+        # File entry should now have 2 suggestions with correct thread IDs
+        file_entry = review_state.files["/src/main.py"]
+        assert len(file_entry.suggestions) == 2
+        assert file_entry.suggestions[0].threadId == 1001
+        assert file_entry.suggestions[0].commentId == 2001
+        assert file_entry.suggestions[0].severity == "high"
+        assert file_entry.suggestions[1].threadId == 1002
+        assert file_entry.suggestions[1].commentId == 2002
+        assert file_entry.suggestions[1].severity == "low"
+        assert file_entry.suggestions[1].outOfScope is True
+
+    def test_save_review_state_called_even_when_cascade_raises(self, temp_state_dir, clear_state_before):
+        """save_review_state should be called even when cascade execution raises."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(1001, 2001)
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            # Override cascade to raise
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_status_update",
+                    return_value=[MagicMock()],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+                    side_effect=RuntimeError("Cascade failed"),
+                )
+            )
+            self._setup_state(set_value)
+            # The cascade error should propagate but save_review_state
+            # must still be called in the finally block
+            with pytest.raises(RuntimeError, match="Cascade failed"):
+                request_changes()
+
+        # save_review_state was called despite the cascade error
+        mock_save.assert_called_once_with(review_state)
