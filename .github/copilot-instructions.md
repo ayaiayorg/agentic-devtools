@@ -373,7 +373,7 @@ Query commands also spawn background tasks - results are written to output files
 | Command | Purpose | Required State / CLI Args |
 |---------|---------|---------------------------|
 | `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id or jira.issue_key |
-| `agdt-approve-file` | Approve a file during review | pull_request_id, file_review.file_path, content OR `--file-path`, `--content`, `--pull-request-id` |
+| `agdt-approve-file` | Approve a file during review | pull_request_id, file_review.file_path, file_review.summary OR `--file-path`, `--summary`, `--pull-request-id` |
 | `agdt-request-changes` | Request changes on a file | pull_request_id, file_review.file_path, file_review.summary, file_review.suggestions OR `--file-path`, `--summary`, `--suggestions`, `--pull-request-id` |
 | `agdt-request-changes-with-suggestion` | Request changes with code suggestion | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
 | `agdt-mark-file-reviewed` | Mark a file as reviewed (standalone) | pull_request_id, file_review.file_path |
@@ -385,7 +385,7 @@ File review commands accept optional CLI arguments that override state values:
 
 ```bash
 # Option A: With CLI parameters (explicit, self-documenting)
-agdt-approve-file --file-path "src/app/component.ts" --content "LGTM - clean implementation"
+agdt-approve-file --file-path "src/app/component.ts" --summary "LGTM - clean implementation"
 agdt-request-changes --file-path "src/app/service.ts" --summary "Missing null check" --suggestions '[{"line": 42, "severity": "high", "content": "Missing null check"}]'
 agdt-request-changes-with-suggestion --file-path "src/utils.ts" --content "```suggestion
 const value = x ?? defaultValue;
@@ -1519,12 +1519,12 @@ After a review session is active, use these commands for each file:
 # Approve a file (no issues found)
 agdt-set pull_request_id 23523
 agdt-set file_review.file_path "/path/to/file.ts"
-agdt-set content "LGTM - code follows conventions"
+agdt-set file_review.summary "LGTM - code follows conventions"
 agdt-approve-file
 
-# Request changes (with line number)
-agdt-set line 42
-agdt-set content "Consider using a more descriptive variable name"
+# Request changes (with suggestions)
+agdt-set file_review.summary "Error handling issues found."
+agdt-set file_review.suggestions '[{"line": 42, "severity": "high", "content": "Consider using a more descriptive variable name"}]'
 agdt-request-changes
 
 # Request changes with code suggestion

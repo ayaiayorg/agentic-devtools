@@ -1374,7 +1374,7 @@ def request_changes() -> None:
             end_line = s.get("end_line", line)
             severity = s["severity"]
             scope_tag = " [out of scope]" if s.get("out_of_scope", False) else ""
-            range_str = f"lines {line}-{end_line}" if end_line != line else f"line {line}"
+            range_str = f"lines {line} - {end_line}" if end_line != line else f"line {line}"
             print(f"    {i + 1}. [{severity.upper()}]{scope_tag} {range_str}: {s['content'][:60]}")
         return
 
