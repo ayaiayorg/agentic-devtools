@@ -17,7 +17,7 @@ from typing import Optional
 from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import get_repository_id, require_requests
+from .helpers import get_repository_id, patch_comment, require_requests
 from .mark_reviewed import mark_file_reviewed
 
 
@@ -414,6 +414,90 @@ def sync_submission_pending_with_tasks(pull_request_id: int) -> None:
             pass
 
 
+def trigger_in_progress_for_file(
+    pull_request_id: int,
+    file_path: str,
+    dry_run: bool = False,
+) -> None:
+    """
+    Trigger "In Progress" status for a file when its review prompt is served.
+
+    If the file's status in review-state.json is "unreviewed", this function:
+    1. Updates the file status to "in-progress"
+    2. PATCHes the file summary comment with the "In Progress" template
+    3. Recalculates folder status and PATCHes if changed
+    4. Recalculates overall PR status and PATCHes if changed
+    5. Saves updated review-state.json
+
+    If the file status is already "in-progress", "approved", or "needs-work" → no-op.
+
+    Args:
+        pull_request_id: PR ID
+        file_path: File path to trigger status for
+        dry_run: If True, skip API calls and print dry-run messages
+    """
+    from .review_scaffold import _build_pr_base_url
+    from .review_state import (
+        ReviewStatus,
+        load_review_state,
+        normalize_file_path,
+        save_review_state,
+        update_file_status,
+    )
+    from .review_templates import render_file_summary
+    from .status_cascade import cascade_status_update, execute_cascade
+
+    try:
+        review_state = load_review_state(pull_request_id)
+    except FileNotFoundError:
+        return  # No review state yet; skip
+
+    normalized = normalize_file_path(file_path)
+    file_entry = review_state.files.get(normalized)
+    if file_entry is None:
+        return  # File not in review state; skip
+
+    if file_entry.status != ReviewStatus.UNREVIEWED.value:
+        return  # No-op for non-unreviewed files
+
+    # Update file status to "in-progress"
+    update_file_status(review_state, file_path, ReviewStatus.IN_PROGRESS.value)
+    # Refresh local reference after in-place mutation
+    file_entry = review_state.files[normalized]
+
+    config = AzureDevOpsConfig.from_state()
+    base_url = _build_pr_base_url(config, pull_request_id)
+
+    if dry_run:
+        requests_module = None
+        auth_headers: dict = {}
+        repo_id = ""
+    else:
+        requests_module = require_requests()
+        auth_headers = get_auth_headers(get_pat())
+        repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+    # PATCH file summary comment content; file thread status stays "active" per spec
+    file_content = render_file_summary(file_entry, file_entry.suggestions, base_url)
+    patch_comment(
+        requests_module=requests_module,
+        headers=auth_headers,
+        config=config,
+        repo_id=repo_id,
+        pull_request_id=pull_request_id,
+        thread_id=file_entry.threadId,
+        comment_id=file_entry.commentId,
+        new_content=file_content,
+        dry_run=dry_run,
+    )
+
+    # Cascade folder and overall summary updates
+    ops = cascade_status_update(review_state, file_path, base_url)
+    execute_cascade(ops, requests_module, auth_headers, config, repo_id, pull_request_id, dry_run=dry_run)
+
+    save_review_state(review_state)
+
+
 def print_next_file_prompt(pull_request_id: int) -> None:
     """
     Print the prompt for the next file to review, checking for failures first.
@@ -454,6 +538,17 @@ def print_next_file_prompt(pull_request_id: int) -> None:
 
     # Get queue status
     status = get_queue_status(pull_request_id)
+
+    # Trigger "In Progress" when serving the next file's prompt
+    if not status["all_complete"] and status["current_file"]:
+        try:
+            trigger_in_progress_for_file(
+                pull_request_id=pull_request_id,
+                file_path=status["current_file"],
+                dry_run=is_dry_run(),
+            )
+        except Exception as e:
+            print(f"Warning: Could not trigger in-progress status: {e}", file=sys.stderr)
 
     print("")
     print("=" * 60)
