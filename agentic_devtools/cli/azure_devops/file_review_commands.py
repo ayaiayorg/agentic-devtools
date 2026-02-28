@@ -1547,30 +1547,33 @@ def request_changes() -> None:
     except FileNotFoundError:
         # Legacy fallback: create new threads (no review-state.json available)
         print("Note: No review-state.json found. Using legacy request-changes flow.")
-        from ...state import set_value
-        from .commands import add_pull_request_comment  # Avoid circular import
+        from .helpers import build_thread_context
 
         print(f"Resolving repository ID for '{config.repository}'...")
         repo_id = get_repository_id(config.organization, config.project, config.repository)
 
+        threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+
         # Post file-level summary comment (no line anchor)
-        set_value("path", file_path)
-        set_value("content", summary)
-        set_value("line", None)
-        set_value("end_line", None)
-        set_value("is_pull_request_approval", "false")
-        set_value("leave_thread_active", "true")
-        add_pull_request_comment()
+        summary_body = {
+            "comments": [{"content": summary, "commentType": "text"}],
+            "status": "active",
+        }
+        print(f"Posting file-level summary comment for '{file_path}'...")
+        resp = requests.post(threads_url, headers=headers, json=summary_body, timeout=30)
+        resp.raise_for_status()
 
         # Post each suggestion as a separate line-anchored comment
         for s in suggestions_data:
-            set_value("path", file_path)
-            set_value("content", s["content"])
-            set_value("line", s["line"])
-            set_value("end_line", s.get("end_line", s["line"]))
-            set_value("is_pull_request_approval", "false")
-            set_value("leave_thread_active", "true")
-            add_pull_request_comment()
+            thread_context = build_thread_context(file_path, s["line"], s.get("end_line", s["line"]))
+            thread_body = {
+                "comments": [{"content": s["content"], "commentType": "text"}],
+                "status": "active",
+            }
+            if thread_context:
+                thread_body["threadContext"] = thread_context
+            resp = requests.post(threads_url, headers=headers, json=thread_body, timeout=30)
+            resp.raise_for_status()
 
         # Mark file as reviewed in Azure DevOps
         mark_file_reviewed(
