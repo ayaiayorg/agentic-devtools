@@ -361,6 +361,8 @@ class TestScaffoldReviewThreadsNormalFlow:
         # File entries are populated
         assert "/src/app.ts" in first_saved.files
         assert first_saved.files["/src/app.ts"].threadId != 0
+        # Folder entries are not yet populated
+        assert len(first_saved.folders) == 0
 
     def test_incremental_save_after_folders_has_zero_overall(self):
         """Second save (after folder threads) has overallSummary.threadId == 0 but folders populated."""
@@ -371,6 +373,8 @@ class TestScaffoldReviewThreadsNormalFlow:
         assert second_saved.overallSummary.threadId == 0
         assert "src" in second_saved.folders
         assert second_saved.folders["src"].threadId != 0
+        # File entries from first phase are preserved
+        assert "/src/app.ts" in second_saved.files
 
     def test_final_save_has_nonzero_overall(self):
         """Third save (after overall thread) has non-zero overallSummary."""
