@@ -1361,13 +1361,16 @@ def request_changes() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        # Validate link_text is a string when present
-        if "link_text" in s and not isinstance(s["link_text"], str):
-            print(
-                f"Error: Suggestion at index {i} field 'link_text' must be a string.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        # Validate link_text is a string when present; treat null as absent
+        if "link_text" in s:
+            if s["link_text"] is None:
+                del s["link_text"]
+            elif not isinstance(s["link_text"], str):
+                print(
+                    f"Error: Suggestion at index {i} field 'link_text' must be a string.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
     if dry_run:
         print(f"DRY-RUN: Would request changes on '{file_path}' on PR {pull_request_id}")

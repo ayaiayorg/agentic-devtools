@@ -320,6 +320,25 @@ class TestRequestChanges:
         captured = capsys.readouterr()
         assert "must not be null" in captured.err
 
+    def test_suggestion_link_text_null_treated_as_absent(self, temp_state_dir, clear_state_before, capsys):
+        """Should accept link_text: null (None) and treat it as absent (use default link text)."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": 42, "severity": "high", "content": "Fix", "link_text": None}]),
+        )
+        set_value("dry_run", "true")
+
+        request_changes()
+
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "line 42" in captured.out
+
     def test_suggestion_invalid_severity(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if a suggestion has an invalid severity."""
         from agentic_devtools.state import set_value
