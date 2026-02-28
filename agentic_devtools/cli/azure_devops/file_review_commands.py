@@ -1384,6 +1384,7 @@ def request_changes() -> None:
         from .review_state import (
             ReviewStatus,
             SuggestionEntry,
+            add_suggestion_to_file,
             load_review_state,
             normalize_file_path,
             save_review_state,
@@ -1410,67 +1411,70 @@ def request_changes() -> None:
             )
             sys.exit(1)
 
-        # POST a line-anchored thread for each suggestion
-        threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
-        suggestion_entries = []
-        for s in suggestions_data:
-            line = s["line"]
-            end_line = s.get("end_line", line)
-            severity = s["severity"]
-            out_of_scope = s.get("out_of_scope", False)
-            content = s["content"]
-
-            # Build link text: custom > "lines X - Y" > "line X"
-            if s.get("link_text"):
-                link_text = s["link_text"]
-            elif end_line != line:
-                link_text = f"lines {line} - {end_line}"
-            else:
-                link_text = f"line {line}"
-
-            # Build and POST line-anchored thread
-            thread_context = build_thread_context(normalized, line, end_line)
-            thread_body = {
-                "comments": [{"content": content, "commentType": "text"}],
-                "status": "active",
-                "threadContext": thread_context,
-            }
-            response = requests.post(threads_url, headers=headers, json=thread_body, timeout=30)
-            response.raise_for_status()
-            result = response.json()
-            thread_id = result["id"]
-            comment_id = result["comments"][0]["id"]
-
-            suggestion_entries.append(
-                SuggestionEntry(
-                    threadId=thread_id,
-                    commentId=comment_id,
-                    line=line,
-                    endLine=end_line,
-                    severity=severity,
-                    outOfScope=out_of_scope,
-                    linkText=link_text,
-                    content=content,
-                )
-            )
-
-        # Update file status to NEEDS_WORK with summary and suggestions.
-        # Once review_state is mutated, we must persist it even if a
-        # subsequent API call (patch_comment, patch_thread_status, cascade)
-        # fails — otherwise new suggestion thread IDs would be lost and
-        # could be duplicated on retry.
+        # Set file status to NEEDS_WORK upfront (with empty suggestions).
+        # This clears any stale suggestions from a prior run and mutates
+        # review_state, so the try/finally below ensures persistence even
+        # if a subsequent POST or PATCH call fails partway through.
         update_file_status(
             review_state,
             file_path,
             ReviewStatus.NEEDS_WORK.value,
             summary=summary,
-            suggestions=suggestion_entries,
+            suggestions=[],
         )
-        file_entry = review_state.files[normalized]
 
         try:
+            # POST a line-anchored thread for each suggestion, persisting
+            # each thread ID incrementally into review_state so that partial
+            # progress is saved even if a later POST fails.
+            threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+            for s in suggestions_data:
+                line = s["line"]
+                end_line = s.get("end_line", line)
+                severity = s["severity"]
+                out_of_scope = s.get("out_of_scope", False)
+                content = s["content"]
+
+                # Build link text: custom > "lines X - Y" > "line X"
+                if s.get("link_text"):
+                    link_text = s["link_text"]
+                elif end_line != line:
+                    link_text = f"lines {line} - {end_line}"
+                else:
+                    link_text = f"line {line}"
+
+                # Build and POST line-anchored thread
+                thread_context = build_thread_context(normalized, line, end_line)
+                thread_body = {
+                    "comments": [{"content": content, "commentType": "text"}],
+                    "status": "active",
+                    "threadContext": thread_context,
+                }
+                response = requests.post(threads_url, headers=headers, json=thread_body, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                thread_id = result["id"]
+                comment_id_resp = result["comments"][0]["id"]
+
+                add_suggestion_to_file(
+                    review_state,
+                    file_path,
+                    SuggestionEntry(
+                        threadId=thread_id,
+                        commentId=comment_id_resp,
+                        line=line,
+                        endLine=end_line,
+                        severity=severity,
+                        outOfScope=out_of_scope,
+                        linkText=link_text,
+                        content=content,
+                    ),
+                )
+
+            file_entry = review_state.files[normalized]
+
             # PATCH file summary comment with regenerated markdown
-            file_content = render_file_summary(file_entry, suggestion_entries, base_url)
+            file_content = render_file_summary(file_entry, file_entry.suggestions, base_url)
             patch_comment(
                 requests_module=requests,
                 headers=headers,

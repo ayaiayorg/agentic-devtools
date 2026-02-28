@@ -655,3 +655,31 @@ class TestRequestChangesPatchFlow:
 
         # save_review_state was called despite the patch_comment error
         mock_save.assert_called_once_with(review_state)
+
+    def test_partial_post_failure_persists_created_threads(self, temp_state_dir, clear_state_before):
+        """If POST #1 succeeds but POST #2 fails, thread #1's ID is still persisted."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.side_effect = [
+            _make_post_response(1001, 2001),
+            RuntimeError("POST #2 failed"),
+        ]
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value, _SUGGESTIONS_MULTI)
+            with pytest.raises(RuntimeError, match="POST #2 failed"):
+                request_changes()
+
+        # save_review_state was called despite the partial failure
+        mock_save.assert_called_once_with(review_state)
+
+        # The first suggestion's thread ID should be persisted
+        file_entry = review_state.files["/src/main.py"]
+        assert len(file_entry.suggestions) == 1
+        assert file_entry.suggestions[0].threadId == 1001
+        assert file_entry.suggestions[0].commentId == 2001
+        assert file_entry.suggestions[0].severity == "high"
