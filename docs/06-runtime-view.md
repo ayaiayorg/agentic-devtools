@@ -150,8 +150,8 @@ sequenceDiagram
             CLI->>ADO: PUT mark file as reviewed
             CLI->>Queue: Remove from queue
         else Changes requested
-            Agent->>CLI: agdt-request-changes --line 42
-            CLI->>ADO: POST /pullrequests/123/threads (at line 42)
+            Agent->>CLI: agdt-request-changes --summary "..." --suggestions '[...]'
+            CLI->>ADO: POST /pullrequests/123/threads (per suggestion)
             CLI->>ADO: PUT mark file as reviewed
             CLI->>Queue: Remove from queue
         end

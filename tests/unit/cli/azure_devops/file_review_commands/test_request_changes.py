@@ -280,6 +280,26 @@ class TestRequestChanges:
         assert "line" in captured.err
         assert "integer" in captured.err
 
+    def test_suggestion_end_line_null_treated_as_absent(self, temp_state_dir, clear_state_before, capsys):
+        """Should accept end_line: null (None) and treat it the same as omitting end_line."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        # JSON null → Python None; should be treated as absent (default to line)
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": 42, "end_line": None, "severity": "high", "content": "Fix"}]),
+        )
+        set_value("dry_run", "true")
+
+        request_changes()
+
+        captured = capsys.readouterr()
+        assert "DRY-RUN" in captured.out
+        assert "line 42" in captured.out
+
     def test_suggestion_invalid_severity(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if a suggestion has an invalid severity."""
         from agentic_devtools.state import set_value

@@ -1320,6 +1320,10 @@ def request_changes() -> None:
         for int_field in ("line", "end_line"):
             if int_field in s:
                 val = s[int_field]
+                # Treat None the same as absent (end_line defaults to line)
+                if val is None:
+                    del s[int_field]
+                    continue
                 if isinstance(val, bool) or not isinstance(val, int):
                     print(
                         f"Error: Suggestion at index {i} field '{int_field}' must be an integer "
@@ -1554,18 +1558,21 @@ def request_changes() -> None:
 
         threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
 
-        # Post file-level summary comment (no line anchor)
-        summary_body = {
+        # Post file-level summary comment (no line anchor, but scoped to the file)
+        normalized_path = _normalize_repo_path(file_path)
+        summary_body: dict = {
             "comments": [{"content": summary, "commentType": "text"}],
             "status": "active",
         }
+        if normalized_path:
+            summary_body["threadContext"] = {"filePath": normalized_path}
         print(f"Posting file-level summary comment for '{file_path}'...")
         resp = requests.post(threads_url, headers=headers, json=summary_body, timeout=30)
         resp.raise_for_status()
 
         # Post each suggestion as a separate line-anchored comment
         for s in suggestions_data:
-            thread_context = build_thread_context(file_path, s["line"], s.get("end_line", s["line"]))
+            thread_context = build_thread_context(normalized_path, s["line"], s.get("end_line", s["line"]))
             thread_body = {
                 "comments": [{"content": s["content"], "commentType": "text"}],
                 "status": "active",
