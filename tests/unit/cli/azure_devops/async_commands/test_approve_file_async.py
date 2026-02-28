@@ -57,3 +57,19 @@ class TestApproveFileAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.summary") == "Summary wins"
+
+    def test_content_state_key_fallback_without_cli_args(self, mock_background_and_state, capsys):
+        """When no CLI args are given and only 'content' exists in state,
+        approve_file_async should fall back to it with a deprecation warning."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("file_review.file_path", "src/app/legacy.ts")
+        set_value("content", "Legacy LGTM")
+        approve_file_async()
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert "deprecated" in captured.err
+        from agentic_devtools.state import get_value
+
+        assert get_value("file_review.summary") == "Legacy LGTM"

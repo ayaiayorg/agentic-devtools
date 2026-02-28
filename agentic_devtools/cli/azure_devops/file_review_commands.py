@@ -976,9 +976,6 @@ def approve_file() -> None:  # pragma: no cover
     pat = get_pat()
     headers = get_auth_headers(pat)
 
-    print(f"Resolving repository ID for '{config.repository}'...")
-    repo_id = get_repository_id(config.organization, config.project, config.repository)
-
     # Try new PATCH flow (requires review-state.json)
     try:
         from .review_scaffold import _build_pr_base_url
@@ -995,11 +992,24 @@ def approve_file() -> None:  # pragma: no cover
         review_state = load_review_state(pull_request_id)
         base_url = _build_pr_base_url(config, pull_request_id)
 
-        # Update file status to Approved with summary text
-        update_file_status(review_state, file_path, ReviewStatus.APPROVED.value, summary=summary)
+        # Use repoId already stored in review state (set during scaffolding)
+        # to avoid shelling out to `az repos show` on every approval.
+        repo_id = review_state.repoId
 
+        # Update file status to Approved with summary text
         normalized = normalize_file_path(file_path)
-        file_entry = review_state.files[normalized]
+        try:
+            update_file_status(review_state, file_path, ReviewStatus.APPROVED.value, summary=summary)
+            file_entry = review_state.files[normalized]
+        except KeyError:
+            print(
+                f"Error: File {file_path!r} is not present in review-state.json "
+                f"for pull request {pull_request_id}. "
+                "Regenerate the review state (for example by re-running the review command) "
+                "before using this file-level command.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         # PATCH file summary comment with regenerated markdown
         file_content = render_file_summary(file_entry, [], base_url)
@@ -1036,26 +1046,31 @@ def approve_file() -> None:  # pragma: no cover
             dry_run=dry_run,
         )
 
-        # Cascade: update folder and overall PR summary via PATCH
-        patch_operations = cascade_status_update(review_state, file_path, base_url)
-        execute_cascade(
-            patch_operations=patch_operations,
-            requests_module=requests,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            dry_run=dry_run,
-        )
-
-        # Save updated review state
-        save_review_state(review_state)
+        # Cascade folder and overall summary updates. Persist the updated
+        # review_state even if downstream cascade execution fails, so the
+        # local state reflects the already-PATCHed file comment.
+        try:
+            patch_operations = cascade_status_update(review_state, file_path, base_url)
+            execute_cascade(
+                patch_operations=patch_operations,
+                requests_module=requests,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                dry_run=dry_run,
+            )
+        finally:
+            save_review_state(review_state)
 
     except FileNotFoundError:
         # Legacy fallback: create new thread (no review-state.json available)
         print("Note: No review-state.json found. Using legacy approval flow.")
         from ...state import set_value
         from .commands import add_pull_request_comment  # Avoid circular import
+
+        print(f"Resolving repository ID for '{config.repository}'...")
+        repo_id = get_repository_id(config.organization, config.project, config.repository)
 
         # Step 1: Resolve any existing threads for this file
         _resolve_file_threads(requests, headers, config, repo_id, pull_request_id, file_path, dry_run)

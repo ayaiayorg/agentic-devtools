@@ -919,6 +919,17 @@ def approve_file_async(
         )
         _set_value_if_provided("file_review.summary", content)
 
+    # Deprecated state-key fallback: if file_review.summary is still empty
+    # but content exists in state, map it across with a deprecation warning.
+    if not get_value("file_review.summary"):
+        state_content = get_value("content")
+        if state_content:
+            print(
+                "Warning: 'content' state key is deprecated for agdt-approve-file. Use 'file_review.summary' instead.",
+                file=sys.stderr,
+            )
+            set_value("file_review.summary", state_content)
+
     # Validate required values
     _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
