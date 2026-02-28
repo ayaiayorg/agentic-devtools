@@ -1224,8 +1224,9 @@ def request_changes() -> None:
     9. Updates the review queue and triggers workflow continuation
 
     When review-state.json does not exist (legacy fallback):
-    1. Posts each suggestion as a separate review comment
-    2. Marks the file as reviewed and updates the queue
+    1. Posts the file-level summary comment
+    2. Posts each suggestion as a separate line-anchored review comment
+    3. Marks the file as reviewed and updates the queue
 
     State keys read:
         - pull_request_id (required): Pull request ID
@@ -1315,14 +1316,14 @@ def request_changes() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        # Validate line fields are integers >= 1
+        # Validate line fields are true integers >= 1 (reject float, bool, etc.)
         for int_field in ("line", "end_line"):
             if int_field in s:
-                try:
-                    val = int(s[int_field])
-                except (TypeError, ValueError):
+                val = s[int_field]
+                if isinstance(val, bool) or not isinstance(val, int):
                     print(
-                        f"Error: Suggestion at index {i} field '{int_field}' must be an integer.",
+                        f"Error: Suggestion at index {i} field '{int_field}' must be an integer "
+                        f"(got {val!r} of type {type(val).__name__}).",
                         file=sys.stderr,
                     )
                     sys.exit(1)
@@ -1333,8 +1334,8 @@ def request_changes() -> None:
                     )
                     sys.exit(1)
         # Validate end_line >= line when both present
-        line_val = int(s["line"])
-        end_line_val = int(s.get("end_line", line_val))
+        line_val = s["line"]
+        end_line_val = s.get("end_line", line_val)
         if end_line_val < line_val:
             print(
                 f"Error: Suggestion at index {i} has end_line ({end_line_val}) < line ({line_val}).",
@@ -1413,8 +1414,8 @@ def request_changes() -> None:
         threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
         suggestion_entries = []
         for s in suggestions_data:
-            line = int(s["line"])
-            end_line = int(s.get("end_line", line))
+            line = s["line"]
+            end_line = s.get("end_line", line)
             severity = s["severity"]
             out_of_scope = s.get("out_of_scope", False)
             content = s["content"]

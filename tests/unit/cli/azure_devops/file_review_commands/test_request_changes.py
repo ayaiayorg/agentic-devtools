@@ -239,6 +239,42 @@ class TestRequestChanges:
         assert "line" in captured.err
         assert "integer" in captured.err
 
+    def test_suggestion_float_line_rejected(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if line is a float (e.g. 1.9) — must be a true integer."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", json.dumps([{"line": 1.9, "severity": "high", "content": "Fix"}]))
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "line" in captured.err
+        assert "integer" in captured.err
+
+    def test_suggestion_bool_line_rejected(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if line is a boolean (True → 1 coercion is not allowed)."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", json.dumps([{"line": True, "severity": "high", "content": "Fix"}]))
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "line" in captured.err
+        assert "integer" in captured.err
+
     def test_suggestion_invalid_severity(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if a suggestion has an invalid severity."""
         from agentic_devtools.state import set_value
