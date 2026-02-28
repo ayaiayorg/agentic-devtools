@@ -10,11 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
-from ...state import get_state_dir, get_value
+from ...state import get_state_dir, get_value, is_dry_run
 from ..subprocess_utils import run_safe
-from .auth import get_pat
+from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import verify_az_cli
+from .helpers import require_requests, verify_az_cli
 
 # Import helper modules
 
@@ -550,18 +550,85 @@ def print_review_instructions(
         print("Ready to begin review. Process the queue starting with the first pending file.")
 
 
+def _scaffold_threads_for_review(
+    pull_request_id: int,
+    pr_details: Dict[str, Any],
+    pr_info: Dict[str, Any],
+    files_on_branch: Optional[Set[str]],
+) -> None:
+    """Scaffold all review threads for a PR.
+
+    Creates file, folder, and overall summary threads upfront. Idempotent:
+    skips creation if review-state.json already exists. Errors are caught and
+    printed as warnings to avoid breaking the overall review setup flow.
+
+    Args:
+        pull_request_id: PR ID.
+        pr_details: Full PR details payload (from get_pull_request_details).
+        pr_info: PR metadata dict (pullRequest sub-key or top-level).
+        files_on_branch: Set of file paths on the source branch for filtering,
+            or None to include all PR files.
+    """
+    from .review_scaffold import scaffold_review_threads
+
+    try:
+        repo_id = pr_info.get("repository", {}).get("id")
+        if not repo_id:
+            print("Warning: Could not determine repo ID for scaffolding; skipping.", file=sys.stderr)
+            return
+
+        file_paths: list = [f.get("path", "") for f in pr_details.get("files", []) if f.get("path")]
+
+        if files_on_branch is not None:
+            branch_normalized = {_normalize_path_for_comparison(f) for f in files_on_branch}
+            file_paths = [fp for fp in file_paths if _normalize_path_for_comparison(fp) in branch_normalized]
+
+        if not file_paths:
+            print("No files to scaffold threads for; skipping.")
+            return
+
+        iterations = pr_details.get("iterations") or []
+        latest_iteration_id = max((it.get("id", 0) for it in iterations), default=0)
+
+        config = AzureDevOpsConfig.from_state()
+        dry_run = is_dry_run()
+
+        if dry_run:
+            requests_module = None
+            auth_headers: dict = {}
+        else:
+            requests_module = require_requests()
+            auth_headers = get_auth_headers(get_pat())
+
+        print(f"\nScaffolding review threads for PR {pull_request_id}...")
+        scaffold_review_threads(
+            pull_request_id=pull_request_id,
+            files=file_paths,
+            config=config,
+            repo_id=repo_id,
+            repo_name=config.repository,
+            latest_iteration_id=latest_iteration_id,
+            requests_module=requests_module,
+            headers=auth_headers,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        print(f"Warning: Scaffolding failed: {e}", file=sys.stderr)
+
+
 def setup_pull_request_review() -> None:
     """
     Set up a pull request review workflow (used by initiate_pull_request_review_workflow).
 
     This is a streamlined version of review_pull_request that assumes the PR ID
     is already resolved and set in state. It performs the following steps:
-    1. Fetch PR details via get_pull_request_details
-    2. Optionally fetch Jira issue details
+    1. Optionally fetch Jira issue details
+    2. Fetch PR details via get_pull_request_details
     3. Checkout source branch and sync with main
     4. Generate review prompts and queue.json
-    5. Print review instructions
-    6. Initialize workflow state
+    5. Scaffold review threads (file/folder/overall summary threads)
+    6. Print review instructions
+    7. Initialize workflow state
 
     State keys:
         pull_request_id (required): PR ID
@@ -592,7 +659,7 @@ def setup_pull_request_review() -> None:
     print(f"\nFetching pull request details for PR {pull_request_id}...")
     get_pull_request_details()
 
-    # Step 3: Load the PR details from the temp file
+    # Load the PR details from the temp file
     temp_dir = get_state_dir()
     details_path = temp_dir / "temp-get-pull-request-details-response.json"
 
@@ -603,7 +670,7 @@ def setup_pull_request_review() -> None:
     with open(details_path, encoding="utf-8") as f:
         pr_details = json.load(f)
 
-    # Step 4: Checkout source branch and sync with main
+    # Step 3: Checkout source branch and sync with main
     pr_info = pr_details.get("pullRequest", pr_details)
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
@@ -628,7 +695,7 @@ def setup_pull_request_review() -> None:
     else:
         print("Warning: Could not determine source branch from PR details", file=sys.stderr)
 
-    # Step 5: Generate review prompts
+    # Step 4: Generate review prompts
     print("\nGenerating file review prompts...")
     prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir = generate_review_prompts(
         pull_request_id,
@@ -636,6 +703,9 @@ def setup_pull_request_review() -> None:
         include_reviewed,
         files_on_branch,
     )
+
+    # Step 5: Scaffold review threads (all file/folder/overall summary threads upfront)
+    _scaffold_threads_for_review(pull_request_id, pr_details, pr_info, files_on_branch)
 
     # Step 6: Print instructions
     print_review_instructions(
