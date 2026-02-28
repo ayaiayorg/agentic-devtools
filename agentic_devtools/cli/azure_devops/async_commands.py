@@ -1051,7 +1051,7 @@ def request_changes_async(
         file_review.summary (required): Overall assessment
         file_review.suggestions (required): JSON array of suggestion objects.
           Each object must have: content (str), line (int), severity (str: high/medium/low).
-          Optional fields: end_line (int), out_of_scope (bool), link_text (str).
+          Optional fields: end_line (int | None), out_of_scope (bool), link_text (str | None).
 
     Usage:
         agdt-request-changes \\

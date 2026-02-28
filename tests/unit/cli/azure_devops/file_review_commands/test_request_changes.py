@@ -300,6 +300,26 @@ class TestRequestChanges:
         assert "DRY-RUN" in captured.out
         assert "line 42" in captured.out
 
+    def test_suggestion_line_null_rejected(self, temp_state_dir, clear_state_before, capsys):
+        """Should reject line: null with a clear error (unlike end_line which defaults to line)."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk found.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps([{"line": None, "severity": "high", "content": "Fix"}]),
+        )
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "must not be null" in captured.err
+
     def test_suggestion_invalid_severity(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if a suggestion has an invalid severity."""
         from agentic_devtools.state import set_value

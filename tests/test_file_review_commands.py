@@ -505,7 +505,7 @@ class TestRequestChanges:
         with pytest.raises(SystemExit):
             request_changes()
 
-    def test_missing_content_exits(self, mock_state):
+    def test_missing_summary_exits(self, mock_state):
         """Test that missing summary causes exit."""
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,
@@ -525,7 +525,7 @@ class TestRequestChanges:
         with pytest.raises(SystemExit):
             request_changes()
 
-    def test_missing_line_exits(self, mock_state):
+    def test_missing_suggestions_exits(self, mock_state):
         """Test that missing suggestions causes exit."""
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,

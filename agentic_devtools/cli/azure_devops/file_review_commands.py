@@ -1234,18 +1234,18 @@ def request_changes() -> None:
         - file_review.summary (required): Summary of changes (overall assessment)
         - file_review.suggestions (required): JSON array of suggestion objects.
           Each object must have: content (str), line (int), severity (str: high/medium/low).
-          Optional fields: end_line (int | None), out_of_scope (bool), link_text (str).
+          Optional fields: end_line (int | None), out_of_scope (bool), link_text (str | None).
           When end_line is null or omitted, it is treated as equal to line.
         - dry_run: If true, only print what would be done
 
     Suggestion schema:
         {
-            "content": str,              # Review comment text (required)
-            "line": int,                 # Start line (required)
-            "end_line": int | None,      # Optional end line; when null/omitted, defaults to line
-            "severity": str,             # "high" | "medium" | "low" (required)
-            "out_of_scope": bool,        # Default false
-            "link_text": str             # Custom link text. Default: "line X" or "lines X - Y"
+            "content": str,                 # Review comment text (required)
+            "line": int,                    # Start line (required)
+            "end_line": int | None,         # Optional end line; when null/omitted, defaults to line
+            "severity": str,                # "high" | "medium" | "low" (required)
+            "out_of_scope": bool,           # Default false
+            "link_text": str | None         # Optional; custom link text. Default: "line X" or "lines X - Y"
         }
 
     Raises:
@@ -1321,10 +1321,16 @@ def request_changes() -> None:
         for int_field in ("line", "end_line"):
             if int_field in s:
                 val = s[int_field]
-                # Treat None the same as absent (end_line defaults to line)
+                # Treat None as absent only for end_line; for line it is an error
                 if val is None:
-                    del s[int_field]
-                    continue
+                    if int_field == "end_line":
+                        del s[int_field]
+                        continue
+                    print(
+                        f"Error: Suggestion at index {i} field 'line' must not be null.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
                 if isinstance(val, bool) or not isinstance(val, int):
                     print(
                         f"Error: Suggestion at index {i} field '{int_field}' must be an integer "
