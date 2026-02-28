@@ -200,15 +200,18 @@ class TestRequestChanges:
 
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
-        set_value("content", "Please fix this")
-        set_value("line", "42")
+        set_value("file_review.summary", "Please fix this")
+        set_value(
+            "file_review.suggestions",
+            '[{"line": 42, "severity": "high", "content": "Fix this"}]',
+        )
         set_value("dry_run", "true")
 
         request_changes()
 
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
-        assert "Changes" in captured.out
+        assert "changes" in captured.out.lower()
 
 
 class TestRequestChangesWithSuggestion:

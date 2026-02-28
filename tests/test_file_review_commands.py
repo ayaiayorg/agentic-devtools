@@ -450,8 +450,11 @@ class TestRequestChanges:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
-        set_value("content", "Please fix this issue.")
-        set_value("line", 42)
+        set_value("file_review.summary", "Please fix this issue.")
+        set_value(
+            "file_review.suggestions",
+            '[{"line": 42, "severity": "high", "content": "Fix this"}]',
+        )
         set_value("dry_run", True)
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
@@ -469,9 +472,11 @@ class TestRequestChanges:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
-        set_value("content", "Please fix this issue.")
-        set_value("line", 42)
-        set_value("end_line", 50)
+        set_value("file_review.summary", "Please fix this issue.")
+        set_value(
+            "file_review.suggestions",
+            '[{"line": 42, "end_line": 50, "severity": "high", "content": "Fix this"}]',
+        )
         set_value("dry_run", True)
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
@@ -488,8 +493,11 @@ class TestRequestChanges:
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
-        set_value("content", "Please fix this.")
-        set_value("line", 42)
+        set_value("file_review.summary", "Please fix this.")
+        set_value(
+            "file_review.suggestions",
+            '[{"line": 42, "severity": "high", "content": "Fix this"}]',
+        )
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
         set_value("ado.repository", "TestRepo")
@@ -498,7 +506,7 @@ class TestRequestChanges:
             request_changes()
 
     def test_missing_content_exits(self, mock_state):
-        """Test that missing content causes exit."""
+        """Test that missing summary causes exit."""
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,
         )
@@ -506,7 +514,10 @@ class TestRequestChanges:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
-        set_value("line", 42)
+        set_value(
+            "file_review.suggestions",
+            '[{"line": 42, "severity": "high", "content": "Fix this"}]',
+        )
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
         set_value("ado.repository", "TestRepo")
@@ -515,7 +526,7 @@ class TestRequestChanges:
             request_changes()
 
     def test_missing_line_exits(self, mock_state):
-        """Test that missing line number causes exit."""
+        """Test that missing suggestions causes exit."""
         from agentic_devtools.cli.azure_devops.file_review_commands import (
             request_changes,
         )
@@ -523,7 +534,7 @@ class TestRequestChanges:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "/src/app.ts")
-        set_value("content", "Please fix this.")
+        set_value("file_review.summary", "Please fix this.")
         set_value("ado.organization", "https://dev.azure.com/test")
         set_value("ado.project", "TestProject")
         set_value("ado.repository", "TestRepo")
