@@ -152,8 +152,10 @@ def scaffold_review_threads(
       - F folder summary threads (PR-level, no file context)
       - 1 overall PR summary thread (PR-level, links to folder threads)
 
-    Idempotent: if review-state.json already exists for the PR, skips creation
-    and returns the existing state.
+    Idempotent: if a *complete* review-state.json already exists for the PR
+    (overallSummary.threadId != 0 and folders populated), skips creation and
+    returns the existing state.  An incomplete state file (left by a prior
+    partial failure) is detected and scaffolding is re-run from scratch.
 
     Args:
         pull_request_id: PR ID.
@@ -168,14 +170,22 @@ def scaffold_review_threads(
 
     Returns:
         ReviewState with all thread IDs saved.  Returns the existing state
-        if scaffolding was already completed (idempotency check runs first).
-        Returns None only when ``dry_run=True`` *and* no prior scaffolding exists.
+        if scaffolding was already completed (overallSummary.threadId != 0
+        and folders populated).  An incomplete state file triggers a full
+        re-scaffold.  Returns None only when ``dry_run=True`` *and* no
+        complete prior scaffolding exists.
     """
-    # Idempotency check: skip if review-state.json already exists
+    # Idempotency check: skip only if a *complete* review-state.json exists.
+    # Incremental persistence can leave a partial file (overallSummary.threadId == 0
+    # or empty folders) after a mid-scaffolding failure; we must not treat that as
+    # "done" — otherwise re-running would skip scaffolding permanently.
     try:
         existing_state = load_review_state(pull_request_id)
-        print(f"Scaffolding already exists for PR {pull_request_id}. Skipping.")
-        return existing_state
+        is_complete = existing_state.overallSummary.threadId != 0 and bool(existing_state.folders)
+        if is_complete:
+            print(f"Scaffolding already exists for PR {pull_request_id}. Skipping.")
+            return existing_state
+        print(f"Incomplete scaffolding detected for PR {pull_request_id}. Re-scaffolding from scratch.")
     except FileNotFoundError:
         pass
 

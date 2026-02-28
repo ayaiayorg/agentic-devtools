@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
 from agentic_devtools.cli.azure_devops.review_scaffold import scaffold_review_threads
 from agentic_devtools.cli.azure_devops.review_state import (
+    FolderEntry,
     OverallSummary,
     ReviewState,
     ReviewStatus,
@@ -46,7 +47,7 @@ class TestScaffoldReviewThreadsIdempotency:
     """Tests for idempotency in scaffold_review_threads."""
 
     def test_returns_existing_state_when_already_scaffolded(self, tmp_path):
-        """Returns existing ReviewState when review-state.json already exists."""
+        """Returns existing ReviewState when complete review-state.json exists."""
         existing = ReviewState(
             prId=_PR_ID,
             repoId=_REPO_ID,
@@ -56,6 +57,7 @@ class TestScaffoldReviewThreadsIdempotency:
             latestIterationId=3,
             scaffoldedUtc="2026-01-01T00:00:00+00:00",
             overallSummary=OverallSummary(threadId=999, commentId=888),
+            folders={"src": FolderEntry(threadId=100, commentId=101, files=["/src/app.ts"])},
         )
 
         with patch(
@@ -77,7 +79,7 @@ class TestScaffoldReviewThreadsIdempotency:
         assert result.overallSummary.threadId == 999
 
     def test_prints_skip_message_when_already_scaffolded(self, capsys, tmp_path):
-        """Prints skip message when scaffolding already exists."""
+        """Prints skip message when complete scaffolding already exists."""
         existing = ReviewState(
             prId=_PR_ID,
             repoId=_REPO_ID,
@@ -87,6 +89,7 @@ class TestScaffoldReviewThreadsIdempotency:
             latestIterationId=3,
             scaffoldedUtc="2026-01-01T00:00:00+00:00",
             overallSummary=OverallSummary(threadId=1, commentId=1),
+            folders={"src": FolderEntry(threadId=10, commentId=11, files=["/src/app.ts"])},
         )
 
         with patch(
@@ -106,6 +109,95 @@ class TestScaffoldReviewThreadsIdempotency:
 
         out = capsys.readouterr().out
         assert f"Scaffolding already exists for PR {_PR_ID}" in out
+
+    def test_rescaffolds_when_overall_thread_is_zero(self, capsys):
+        """Re-scaffolds when existing state has overallSummary.threadId == 0."""
+        incomplete = ReviewState(
+            prId=_PR_ID,
+            repoId=_REPO_ID,
+            repoName=_REPO,
+            project=_PROJECT,
+            organization=_ORG,
+            latestIterationId=3,
+            scaffoldedUtc="2026-01-01T00:00:00+00:00",
+            overallSummary=OverallSummary(threadId=0, commentId=0),
+            folders={"src": FolderEntry(threadId=10, commentId=11, files=["/src/app.ts"])},
+        )
+
+        id_gen = count(1)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i * 100, i * 100 + 1)
+
+        requests_mock = MagicMock()
+        requests_mock.post.side_effect = make_resp
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=incomplete,
+        ):
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                result = scaffold_review_threads(
+                    pull_request_id=_PR_ID,
+                    files=["/src/app.ts"],
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=3,
+                    requests_module=requests_mock,
+                    headers={},
+                )
+
+        # Should have created new threads (not returned incomplete state)
+        assert result.overallSummary.threadId != 0
+        out = capsys.readouterr().out
+        assert "Incomplete scaffolding detected" in out
+
+    def test_rescaffolds_when_folders_empty(self, capsys):
+        """Re-scaffolds when existing state has no folder entries."""
+        incomplete = ReviewState(
+            prId=_PR_ID,
+            repoId=_REPO_ID,
+            repoName=_REPO,
+            project=_PROJECT,
+            organization=_ORG,
+            latestIterationId=3,
+            scaffoldedUtc="2026-01-01T00:00:00+00:00",
+            overallSummary=OverallSummary(threadId=500, commentId=501),
+            folders={},
+        )
+
+        id_gen = count(1)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i * 100, i * 100 + 1)
+
+        requests_mock = MagicMock()
+        requests_mock.post.side_effect = make_resp
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=incomplete,
+        ):
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                result = scaffold_review_threads(
+                    pull_request_id=_PR_ID,
+                    files=["/src/app.ts"],
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=3,
+                    requests_module=requests_mock,
+                    headers={},
+                )
+
+        # Should have re-scaffolded with new threads
+        assert result.overallSummary.threadId != 0
+        assert "src" in result.folders
+        out = capsys.readouterr().out
+        assert "Incomplete scaffolding detected" in out
 
 
 # ---------------------------------------------------------------------------
