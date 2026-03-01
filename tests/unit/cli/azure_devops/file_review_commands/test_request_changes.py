@@ -90,6 +90,23 @@ class TestRequestChanges:
         captured = capsys.readouterr()
         assert "file_review.file_path" in captured.err
 
+    def test_file_path_whitespace_only_exits(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if file_review.file_path is whitespace only."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "   ")
+        set_value("file_review.summary", "Risk found.")
+        set_value("file_review.suggestions", _SUGGESTIONS)
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "non-empty string" in captured.err
+
     def test_missing_summary(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if file_review.summary is not set."""
         from agentic_devtools.state import set_value

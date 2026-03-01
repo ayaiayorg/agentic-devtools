@@ -1258,8 +1258,11 @@ def request_changes() -> None:
     pull_request_id = get_pull_request_id(required=True)
 
     file_path = get_value("file_review.file_path")
-    if not file_path:
-        print("Error: 'file_review.file_path' is required.", file=sys.stderr)
+    if not isinstance(file_path, str) or not file_path.strip():
+        print(
+            "Error: 'file_review.file_path' is required and must be a non-empty string.",
+            file=sys.stderr,
+        )
         print("Set it with: agdt-set file_review.file_path <path>", file=sys.stderr)
         sys.exit(1)
 
