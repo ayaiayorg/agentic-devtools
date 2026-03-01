@@ -10,31 +10,25 @@ All files in Pull Request **#{{pull_request_id}}** have been reviewed.
 
 ## Your Task
 
-Generate folder-by-folder summary comments for the PR.
+The PR summary is now generated automatically during `agdt-review-pull-request` scaffolding.
 
-The summary should:
+The summary:
 
-1. **Group findings by folder/area** for easy navigation
-2. **Highlight critical issues** that must be addressed
-3. **Note positive aspects** and good patterns observed
-4. **Provide actionable recommendations**
+1. **Groups findings by folder/area** for easy navigation
+2. **Highlights critical issues** that must be addressed
+3. **Notes positive aspects** and good patterns observed
+4. **Provides actionable recommendations**
 
 ## Next Action
 
-Generate the PR summary:
+Wait for the auto-generated summary to complete:
 
 ```bash
-agdt-generate-pr-summary
 agdt-task-wait
 ```
 
-This will:
-
-- Analyze all file reviews
-- Generate grouped summary comments
-- Post them to the PR
-- Auto-advance to the decision step
+This will wait for the summary to complete and then provide next steps.
 
 ---
 
-**Workflow Status**: File reviews complete. Ready to generate summary.
+**Workflow Status**: File reviews complete. Summary generation in progress.

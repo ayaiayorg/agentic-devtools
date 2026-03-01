@@ -10,6 +10,7 @@ not via CLI entry points.
 
 import argparse
 import sys
+import warnings
 from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
@@ -1458,6 +1459,10 @@ def generate_pr_summary_async() -> None:
     """
     Generate PR summary asynchronously in the background.
 
+    .. deprecated::
+        This command is deprecated. PR summaries are now generated automatically
+        during agdt-review-pull-request scaffolding.
+
     State keys:
         pull_request_id (required): PR ID
 
@@ -1465,6 +1470,16 @@ def generate_pr_summary_async() -> None:
         agdt-set pull_request_id 12345
         agdt-generate-pr-summary
     """
+    warnings.warn(
+        "agdt-generate-pr-summary is deprecated. "
+        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding.",
+        DeprecationWarning,
+        stacklevel=1,
+    )
+    print(
+        "WARNING: agdt-generate-pr-summary is deprecated. "
+        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
+    )
     task = run_function_in_background(
         _PR_SUMMARY_MODULE,
         "generate_overarching_pr_comments_cli",
