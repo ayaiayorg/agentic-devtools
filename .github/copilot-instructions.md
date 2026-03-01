@@ -345,7 +345,7 @@ All action commands that mutate state or perform API calls spawn background task
 | `agdt-run-e2e-tests` | Trigger E2E test pipeline | (pipeline params) |
 | `agdt-run-wb-patch` | Trigger workbench patch pipeline | (pipeline params) |
 | `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id, jira.issue_key |
-| `agdt-generate-pr-summary` | ~~Generate PR summary comments~~ (**Deprecated** — summaries are now generated automatically during `agdt-review-pull-request` scaffolding) | pull_request_id |
+| `agdt-generate-pr-summary` | ~~Generate PR summary comments~~ (**Deprecated** — summaries are now generated automatically by the PR review workflow after all file reviews complete, typically triggered via `agdt-task-wait`) | pull_request_id |
 
 **Create Pull Request CLI Parameter Support:**
 
@@ -401,7 +401,7 @@ All file review commands automatically:
 
 1. Post the review comment (runs as background task)
 2. Mark the file as reviewed in Azure DevOps (visible as "viewed" eye icon in PR UI)
-3. PATCH the hierarchical review threads in `review-state.json` (file, folder, and overall summary threads)
+3. Update the hierarchical review threads in Azure DevOps via PATCH requests (file, folder, and overall summary threads), then save the refreshed state to `review-state.json`
 4. Print next steps (continue with next file or advance to summary step)
 
 ### Git Workflow Actions (Background Tasks)

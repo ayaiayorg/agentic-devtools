@@ -8,23 +8,29 @@ All files in Pull Request **#{{pull_request_id}}** have been reviewed.
 - **Approvals**: {{approval_count}}
 - **Change Requests**: {{changes_count}}
 
-## Review Summary
+## Your Task
 
-The hierarchical PR review threads have been updated in real-time as each file was
-reviewed. The overall PR summary thread and all folder/file threads now reflect the
-current status.
+The PR summary is being generated automatically in the background. The workflow
+auto-started the summary task when all file reviews completed.
 
-No additional summary generation step is needed — all thread content has already been
-PATCHed to reflect the review findings.
+The summary:
+
+1. **Groups findings by folder/area** for easy navigation
+2. **Highlights critical issues** that must be addressed
+3. **Notes positive aspects** and good patterns observed
+4. **Provides actionable recommendations**
 
 ## Next Action
 
-Proceed to make the final PR decision:
+Wait for the summary background task to complete:
 
 ```bash
-agdt-advance-workflow decision
+agdt-task-wait
 ```
+
+This will wait for the summary to finish and then auto-advance the workflow to
+the next step.
 
 ---
 
-**Workflow Status**: File reviews complete. Ready for final decision.
+**Workflow Status**: File reviews complete. Summary generation in progress.
