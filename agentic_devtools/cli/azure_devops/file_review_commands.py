@@ -8,6 +8,7 @@ Each command:
 3. Updates the review queue and triggers workflow continuation
 """
 
+import copy
 import json
 import sys
 from datetime import datetime, timezone
@@ -1626,19 +1627,107 @@ def request_changes() -> None:
 
 def request_changes_with_suggestion() -> None:
     """
-    Request changes with a suggestion on a file in a pull request review.
+    Request changes with code suggestion(s) on a file in a pull request review.
 
-    Wrapper around submit_file_review with outcome='Suggest'.
+    Same flow as request_changes, with the addition of auto-wrapping each
+    suggestion's replacement_code in suggestion fences so the AI agent never
+    needs to generate fence syntax.
 
-    State keys read:
-        - pull_request_id (required): Pull request ID
-        - file_review.file_path (required): Path of file
-        - content (required): Suggestion comment (should include code suggestion)
-        - line (required): Line number for comment
-        - end_line (optional): End line for multi-line comment
-        - dry_run: If true, only print what would be done
+    State keys read: same as request_changes, but each suggestion in
+    file_review.suggestions requires a replacement_code field.
+
+    Suggestion schema:
+        {
+            "content": str,                 # Review comment text (required)
+            "line": int,                    # Start line (required)
+            "end_line": int | None,         # Optional end line; when null/omitted, defaults to line
+            "severity": str,                # "high" | "medium" | "low" (required)
+            "out_of_scope": bool,           # Default false
+            "link_text": str | None,        # Optional; custom link text
+            "replacement_code": str         # The replacement code (required)
+        }
+
+    The command automatically formats each suggestion thread's content as:
+
+        {content}
+
+        ```suggestion
+        {replacement_code}
+        ```
+
+    Raises:
+        KeyError: If pull_request_id is not set in state.
+        SystemExit: On validation or execution errors.
     """
     from ...state import set_value
 
-    set_value("file_review.outcome", "Suggest")
-    submit_file_review()
+    suggestions_raw = get_value("file_review.suggestions")
+
+    # Parse, validate replacement_code AND core schema fields up-front,
+    # then transform a deep copy before delegating to request_changes().
+    # Validation happens on the original data so that state is NOT mutated
+    # if any field is invalid — making retries safe.
+    if suggestions_raw:
+        if isinstance(suggestions_raw, str):
+            try:
+                suggestions_data = json.loads(suggestions_raw)
+            except json.JSONDecodeError:
+                suggestions_data = None  # let request_changes handle the JSON error
+        else:
+            suggestions_data = suggestions_raw
+
+        if isinstance(suggestions_data, list):
+            # --- Validate on original data (no mutation) ---
+            for i, s in enumerate(suggestions_data):
+                if not isinstance(s, dict):
+                    continue  # let request_changes report "not an object"
+                # Validate replacement_code presence and type
+                if "replacement_code" not in s:
+                    print(
+                        f"Error: Suggestion at index {i} is missing required field 'replacement_code'.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                rc = s["replacement_code"]
+                if not isinstance(rc, str) or not rc.strip():
+                    print(
+                        f"Error: Suggestion at index {i} field 'replacement_code' must be a non-empty string.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                # Validate core required fields up-front so that a downstream
+                # validation failure in request_changes() never occurs after
+                # replacement_code has been stripped from state.
+                for required_field in ("content", "line", "severity"):
+                    if required_field not in s:
+                        print(
+                            f"Error: Suggestion at index {i} is missing required field '{required_field}'.",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                if not isinstance(s["content"], str) or not s["content"].strip():
+                    print(
+                        f"Error: Suggestion at index {i} field 'content' must be a non-empty string.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+            # --- Transform a deep copy (original data untouched) ---
+            transformed = copy.deepcopy(suggestions_data)
+            for s in transformed:
+                if not isinstance(s, dict):
+                    continue
+                rc = s["replacement_code"]
+                s["content"] = f"{s['content']}\n\n```suggestion\n{rc}\n```"
+                del s["replacement_code"]
+
+            set_value("file_review.suggestions", transformed)
+
+    # Delegate to request_changes(); always restore original suggestions afterwards
+    # so that replacement_code is preserved in state for retries and dry_run does
+    # not leave mutated state behind.
+    try:
+        request_changes()
+    finally:
+        if suggestions_raw:
+            set_value("file_review.suggestions", suggestions_raw)
