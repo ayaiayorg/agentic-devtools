@@ -346,8 +346,10 @@ class TestStartCopilotSessionWithStandaloneBinary:
         cmd = call_args[0][0]
         assert cmd[0] == "/usr/local/bin/copilot"
         assert "suggest" not in cmd
-        assert cmd[1] == "-p"
-        assert "--allow-all" in cmd
+        # --allow-all must come before -p so argument parsers that stop
+        # processing flags after the first positional argument still see it.
+        assert cmd[1] == "--allow-all"
+        assert cmd[2] == "-p"
         assert "--allow-all-tools" not in cmd
         assert result.prompt_file
 
@@ -382,8 +384,10 @@ class TestStartCopilotSessionWithStandaloneBinary:
 
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        # The -p argument must be a short file reference, not the original prompt
-        argv_p = cmd[2]
+        # The -p argument must be a short file reference, not the original prompt.
+        # With --allow-all before -p, the layout is:
+        #   cmd[0]=binary, cmd[1]=--allow-all, cmd[2]=-p, cmd[3]=<file-ref instruction>
+        argv_p = cmd[3]
         assert original_prompt not in argv_p
         assert "Your task instructions are in this file:" in argv_p
         assert "Read that file before doing anything else." in argv_p

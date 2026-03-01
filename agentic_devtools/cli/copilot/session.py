@@ -246,9 +246,16 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     standalone = _get_copilot_binary()
     if standalone:
         flag = "-i" if interactive else "-p"
-        args = [standalone, flag, prompt]
+        # --allow-all must come before -p/-i so that argument parsers
+        # which stop processing flags after the first positional argument
+        # still recognise it.  Placing it after the prompt causes some
+        # copilot binary versions to silently ignore it, leaving shell
+        # commands (agdt-*, python, gh, etc.) blocked with "Permission
+        # denied and could not request permission from user".
+        args = [standalone]
         if not interactive:
             args.append("--allow-all")
+        args.extend([flag, prompt])
         return args
     return ["gh", "copilot", "suggest", prompt]
 
