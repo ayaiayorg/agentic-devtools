@@ -8,6 +8,7 @@ Each command:
 3. Updates the review queue and triggers workflow continuation
 """
 
+import copy
 import json
 import sys
 from datetime import datetime, timezone
@@ -1662,8 +1663,10 @@ def request_changes_with_suggestion() -> None:
 
     suggestions_raw = get_value("file_review.suggestions")
 
-    # Parse and validate replacement_code, then transform content before
-    # delegating to request_changes() for the full PATCH/legacy flow.
+    # Parse, validate replacement_code AND core schema fields up-front,
+    # then transform a deep copy before delegating to request_changes().
+    # Validation happens on the original data so that state is NOT mutated
+    # if any field is invalid — making retries safe.
     if suggestions_raw:
         if isinstance(suggestions_raw, str):
             try:
@@ -1674,9 +1677,11 @@ def request_changes_with_suggestion() -> None:
             suggestions_data = suggestions_raw
 
         if isinstance(suggestions_data, list):
+            # --- Validate on original data (no mutation) ---
             for i, s in enumerate(suggestions_data):
                 if not isinstance(s, dict):
                     continue  # let request_changes report "not an object"
+                # Validate replacement_code presence and type
                 if "replacement_code" not in s:
                     print(
                         f"Error: Suggestion at index {i} is missing required field 'replacement_code'.",
@@ -1690,12 +1695,32 @@ def request_changes_with_suggestion() -> None:
                         file=sys.stderr,
                     )
                     sys.exit(1)
-                # Auto-wrap content with suggestion fences
-                content = s.get("content")
-                if isinstance(content, str) and content.strip():
-                    s["content"] = f"{content}\n\n```suggestion\n{rc}\n```"
+                # Validate core required fields up-front so that a downstream
+                # validation failure in request_changes() never occurs after
+                # replacement_code has been stripped from state.
+                for required_field in ("content", "line", "severity"):
+                    if required_field not in s:
+                        print(
+                            f"Error: Suggestion at index {i} is missing required field '{required_field}'.",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                if not isinstance(s["content"], str) or not s["content"].strip():
+                    print(
+                        f"Error: Suggestion at index {i} field 'content' must be a non-empty string.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+            # --- Transform a deep copy (original data untouched) ---
+            transformed = copy.deepcopy(suggestions_data)
+            for s in transformed:
+                if not isinstance(s, dict):
+                    continue
+                rc = s["replacement_code"]
+                s["content"] = f"{s['content']}\n\n```suggestion\n{rc}\n```"
                 del s["replacement_code"]
 
-            set_value("file_review.suggestions", suggestions_data)
+            set_value("file_review.suggestions", transformed)
 
     request_changes()

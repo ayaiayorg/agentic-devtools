@@ -186,18 +186,15 @@ class TestRequestChangesWithSuggestion:
         with pytest.raises(KeyError, match="pull_request_id"):
             request_changes_with_suggestion()
 
-    def test_missing_content_with_replacement_code_delegates_error(self, temp_state_dir, clear_state_before, capsys):
-        """When content is absent but replacement_code is present, request_changes reports the error."""
-        from agentic_devtools.state import set_value
+    def test_missing_content_with_replacement_code_caught_upfront(self, temp_state_dir, clear_state_before, capsys):
+        """Missing content is caught up-front before replacement_code is stripped."""
+        from agentic_devtools.state import get_value, set_value
 
+        original_suggestions = json.dumps([{"line": 42, "severity": "high", "replacement_code": "x = 1;"}])
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
         set_value("file_review.summary", "Risk.")
-        # No 'content' field — replacement_code is valid but wrapping is skipped
-        set_value(
-            "file_review.suggestions",
-            json.dumps([{"line": 42, "severity": "high", "replacement_code": "x = 1;"}]),
-        )
+        set_value("file_review.suggestions", original_suggestions)
         set_value("dry_run", "true")
 
         with pytest.raises(SystemExit) as exc_info:
@@ -206,6 +203,35 @@ class TestRequestChangesWithSuggestion:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "content" in captured.err
+
+        # State should NOT have been mutated — replacement_code still present
+        stored = get_value("file_review.suggestions")
+        assert stored == original_suggestions
+
+    def test_empty_content_with_replacement_code_caught_upfront(self, temp_state_dir, clear_state_before, capsys):
+        """Empty content is caught up-front before replacement_code is stripped."""
+        from agentic_devtools.state import get_value, set_value
+
+        original_suggestions = json.dumps(
+            [{"line": 42, "severity": "high", "content": "  ", "replacement_code": "x = 1;"}]
+        )
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk.")
+        set_value("file_review.suggestions", original_suggestions)
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit) as exc_info:
+            request_changes_with_suggestion()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "content" in captured.err
+        assert "non-empty string" in captured.err
+
+        # State should NOT have been mutated
+        stored = get_value("file_review.suggestions")
+        assert stored == original_suggestions
 
     def test_missing_file_path(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if file_review.file_path is not set."""
@@ -308,6 +334,25 @@ class TestRequestChangesWithSuggestion:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "severity" in captured.err
+
+    def test_state_not_mutated_on_validation_failure(self, temp_state_dir, clear_state_before, capsys):
+        """State should be unchanged when validation fails, preserving replacement_code for retry."""
+        from agentic_devtools.state import get_value, set_value
+
+        original_suggestions = json.dumps(
+            [{"line": 42, "severity": "high", "content": "Fix", "replacement_code": "  "}]
+        )
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Risk.")
+        set_value("file_review.suggestions", original_suggestions)
+        set_value("dry_run", "true")
+
+        with pytest.raises(SystemExit):
+            request_changes_with_suggestion()
+
+        # State should NOT have been mutated — original JSON preserved
+        assert get_value("file_review.suggestions") == original_suggestions
 
     def test_auto_wrapping_delegates_to_request_changes(self, temp_state_dir, clear_state_before):
         """Auto-wrapped content should be passed to request_changes flow."""
