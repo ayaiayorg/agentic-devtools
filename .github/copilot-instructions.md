@@ -1614,9 +1614,9 @@ unreviewed → in-progress → approved
 #### Out-of-Scope Suggestions
 
 When a suggestion does not map to a specific line in the diff (e.g., an architectural
-concern or a comment on a non-changed line), set `"outOfScope": true` in the suggestion
-entry.  Out-of-scope suggestions are posted as PR-level comments rather than inline
-comments.
+concern or a comment on a non-changed line), set `"out_of_scope": true` in the suggestion
+entry. The `out_of_scope` flag is persisted on the suggestion entry for classification, but
+suggestions are still posted as line-anchored file threads (not PR-level comments).
 
 #### Re-Review Flow
 
