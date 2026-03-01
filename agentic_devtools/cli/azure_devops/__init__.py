@@ -137,6 +137,7 @@ from .review_state import (
     ReviewStatus,
     SuggestionEntry,
     add_suggestion_to_file,
+    clear_suggestions_for_re_review,
     get_file_entry,
     get_folder_entry,
     get_review_state_file_path,
@@ -273,6 +274,7 @@ __all__ = [
     "get_folder_entry",
     "update_file_status",
     "add_suggestion_to_file",
+    "clear_suggestions_for_re_review",
     # Status cascade
     "PatchOperation",
     "derive_folder_status",

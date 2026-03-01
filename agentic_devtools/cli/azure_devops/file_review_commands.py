@@ -982,6 +982,7 @@ def approve_file() -> None:  # pragma: no cover
         from .review_scaffold import _build_pr_base_url
         from .review_state import (
             ReviewStatus,
+            clear_suggestions_for_re_review,
             load_review_state,
             normalize_file_path,
             save_review_state,
@@ -997,8 +998,16 @@ def approve_file() -> None:  # pragma: no cover
         # to avoid shelling out to `az repos show` on every approval.
         repo_id = review_state.repoId
 
-        # Update file status to Approved with summary text
+        # Re-review detection: if the file already has a terminal status and
+        # previousSuggestions hasn't been set yet, this is a fresh re-review.
+        # Rotate old suggestions to the audit trail before approving.
         normalized = normalize_file_path(file_path)
+        try:
+            clear_suggestions_for_re_review(review_state, file_path)
+        except KeyError:
+            pass  # handled by the KeyError catch on update_file_status below
+
+        # Update file status to Approved with summary text
         try:
             update_file_status(review_state, file_path, ReviewStatus.APPROVED.value, summary=summary)
             file_entry = review_state.files[normalized]
@@ -1409,6 +1418,7 @@ def request_changes() -> None:
             ReviewStatus,
             SuggestionEntry,
             add_suggestion_to_file,
+            clear_suggestions_for_re_review,
             load_review_state,
             normalize_file_path,
             save_review_state,
@@ -1434,6 +1444,12 @@ def request_changes() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+
+        # Re-review detection: if the file already has a terminal status and
+        # previousSuggestions hasn't been set yet, this is the start of a fresh
+        # re-review (not a retry).  Rotate old suggestions to the audit trail
+        # so that new threads aren't wrongly skipped by _already_posted.
+        clear_suggestions_for_re_review(review_state, file_path)
 
         # Set file status to NEEDS_WORK upfront (preserving existing suggestions
         # so that threads created by a prior partial run are not lost).
