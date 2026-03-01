@@ -594,7 +594,7 @@ def generate_overarching_pr_comments_cli() -> None:
         stacklevel=1,
     )
     print(
-        "WARNING: This command is deprecated. "
+        "WARNING: agdt-generate-pr-summary is deprecated. "
         "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
     )
     generate_overarching_pr_comments()

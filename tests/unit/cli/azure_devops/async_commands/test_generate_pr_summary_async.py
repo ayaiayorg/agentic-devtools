@@ -8,7 +8,9 @@ from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_
 
 class TestGeneratePrSummaryAsync:
     def test_spawns_background_task(self, mock_background_and_state, capsys):
-        generate_pr_summary_async()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            generate_pr_summary_async()
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
         script = get_script_from_call(mock_background_and_state["mock_popen"])
@@ -25,6 +27,11 @@ class TestGeneratePrSummaryAsync:
         assert any("deprecated" in m.lower() for m in messages)
 
     def test_prints_deprecation_message(self, mock_background_and_state, capsys):
-        generate_pr_summary_async()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            generate_pr_summary_async()
         captured = capsys.readouterr()
-        assert "deprecated" in captured.out.lower()
+        dep_messages = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert dep_messages, "Expected at least one DeprecationWarning"
+        for message in dep_messages:
+            assert message in captured.out
