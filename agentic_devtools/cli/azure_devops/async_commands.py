@@ -43,6 +43,10 @@ _PIPELINE_MODULE = "agentic_devtools.cli.azure_devops.pipeline_commands"
 _REVIEW_MODULE = "agentic_devtools.cli.azure_devops.review_commands"
 _PR_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.pull_request_details_commands"
 _PR_SUMMARY_MODULE = "agentic_devtools.cli.azure_devops.pr_summary_commands"
+_PR_SUMMARY_DEPRECATION_MESSAGE = (
+    "agdt-generate-pr-summary is deprecated. "
+    "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
+)
 _RUN_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.run_details_commands"
 _MARK_REVIEWED_MODULE = "agentic_devtools.cli.azure_devops.mark_reviewed"
 
@@ -1471,15 +1475,11 @@ def generate_pr_summary_async() -> None:
         agdt-generate-pr-summary
     """
     warnings.warn(
-        "agdt-generate-pr-summary is deprecated. "
-        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding.",
+        _PR_SUMMARY_DEPRECATION_MESSAGE,
         DeprecationWarning,
         stacklevel=1,
     )
-    print(
-        "WARNING: agdt-generate-pr-summary is deprecated. "
-        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
-    )
+    print(f"WARNING: {_PR_SUMMARY_DEPRECATION_MESSAGE}")
     task = run_function_in_background(
         _PR_SUMMARY_MODULE,
         "generate_overarching_pr_comments_cli",

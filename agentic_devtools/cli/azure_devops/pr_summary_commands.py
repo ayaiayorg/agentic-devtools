@@ -12,7 +12,6 @@ This mirrors the generate-overarching-pr-comments.ps1 functionality.
 import json
 import sys
 import urllib.parse
-import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -585,16 +584,9 @@ def generate_overarching_pr_comments_cli() -> None:
 
     .. deprecated::
         This command is deprecated. PR summaries are now generated automatically
-        during agdt-review-pull-request scaffolding.
+        during agdt-review-pull-request scaffolding. The deprecation warning is
+        emitted by the user-facing wrapper (generate_pr_summary_async), not here,
+        because this function is also invoked as a background entry point by the
+        automated review workflow.
     """
-    warnings.warn(
-        "agdt-generate-pr-summary is deprecated. "
-        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding.",
-        DeprecationWarning,
-        stacklevel=1,
-    )
-    print(
-        "WARNING: agdt-generate-pr-summary is deprecated. "
-        "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
-    )
     generate_overarching_pr_comments()
