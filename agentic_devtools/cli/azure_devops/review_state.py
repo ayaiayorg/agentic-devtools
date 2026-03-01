@@ -136,6 +136,7 @@ class FileEntry:
     summary: Optional[str] = None
     changeTrackingId: Optional[int] = None
     suggestions: List[SuggestionEntry] = field(default_factory=list)
+    previousSuggestions: List[SuggestionEntry] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
@@ -148,12 +149,14 @@ class FileEntry:
             "summary": self.summary,
             "changeTrackingId": self.changeTrackingId,
             "suggestions": [s.to_dict() for s in self.suggestions],
+            "previousSuggestions": [s.to_dict() for s in self.previousSuggestions],
         }
 
     @classmethod
     def from_dict(cls, data: Dict) -> "FileEntry":
         """Deserialize from a dictionary."""
         suggestions = [SuggestionEntry.from_dict(s) for s in data.get("suggestions", [])]
+        previous = [SuggestionEntry.from_dict(s) for s in data.get("previousSuggestions", [])]
         return cls(
             threadId=data["threadId"],
             commentId=data["commentId"],
@@ -163,6 +166,7 @@ class FileEntry:
             summary=data.get("summary"),
             changeTrackingId=data.get("changeTrackingId"),
             suggestions=suggestions,
+            previousSuggestions=previous,
         )
 
 
@@ -378,4 +382,51 @@ def add_suggestion_to_file(
         raise KeyError(f"File not found in review state: {normalized}")
 
     review_state.files[normalized].suggestions.append(suggestion)
+    return review_state
+
+
+def clear_suggestions_for_re_review(
+    review_state: ReviewState,
+    file_path: str,
+) -> ReviewState:
+    """
+    Rotate current suggestions to previousSuggestions for a re-review.
+
+    When a file is being re-reviewed (status is already "approved" or "needs-work"),
+    the existing suggestions are moved to ``previousSuggestions`` as an audit trail
+    and ``suggestions`` is cleared so that new suggestion threads can be created
+    fresh.  Old threads in Azure DevOps are NOT resolved — only the local state
+    pointer is cleared.
+
+    The rotation only happens when ``previousSuggestions`` is empty, which means
+    it is a fresh re-review rather than a retry of an in-progress re-review:
+
+    - **Fresh re-review**: status is terminal, ``previousSuggestions`` is empty →
+      rotate ``suggestions`` → ``previousSuggestions``, clear ``suggestions``.
+    - **Retry of a re-review**: ``previousSuggestions`` is already populated →
+      no-op so that the ``_already_posted`` deduplication in ``request_changes``
+      can skip suggestions persisted in the earlier attempt.
+
+    Args:
+        review_state: ReviewState object (mutated in-place).
+        file_path: File path whose suggestions should be rotated.
+
+    Returns:
+        Updated ReviewState.
+
+    Raises:
+        KeyError: If file not found in review state.
+    """
+    normalized = normalize_file_path(file_path)
+    if normalized not in review_state.files:
+        raise KeyError(f"File not found in review state: {normalized}")
+
+    file_entry = review_state.files[normalized]
+    re_review_statuses = {ReviewStatus.APPROVED.value, ReviewStatus.NEEDS_WORK.value}
+
+    # Only rotate when entering a fresh re-review (no prior rotation yet)
+    if file_entry.status in re_review_statuses and not file_entry.previousSuggestions:
+        file_entry.previousSuggestions = list(file_entry.suggestions)
+        file_entry.suggestions = []
+
     return review_state

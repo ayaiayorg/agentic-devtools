@@ -892,6 +892,119 @@ class TestRequestChangesPatchFlow:
         captured = capsys.readouterr()
         assert "not present in review-state.json" in captured.err
 
+    def test_re_review_rotates_old_suggestions_to_previous(self, temp_state_dir, clear_state_before):
+        """Re-review: old suggestions from prior round rotated to previousSuggestions."""
+        from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(2001, 3001)
+
+        # File already at "needs-work" from a prior review round with one suggestion
+        review_state = _make_review_state()
+        old_suggestion = SuggestionEntry(
+            threadId=999,
+            commentId=998,
+            line=5,
+            endLine=5,
+            severity="medium",
+            outOfScope=False,
+            linkText="line 5",
+            content="Old finding from prior review",
+        )
+        review_state.files["/src/main.py"].status = "needs-work"
+        review_state.files["/src/main.py"].suggestions = [old_suggestion]
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value)
+            request_changes()
+
+        file_entry = review_state.files["/src/main.py"]
+        # Old suggestion moved to audit trail
+        assert len(file_entry.previousSuggestions) == 1
+        assert file_entry.previousSuggestions[0].threadId == 999
+        # New suggestion posted
+        assert len(file_entry.suggestions) == 1
+        assert file_entry.suggestions[0].threadId == 2001
+
+    def test_re_review_from_approved_clears_and_posts_new_suggestions(self, temp_state_dir, clear_state_before):
+        """Re-review from approved status: approved → needs-work transition works."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(5001, 6001)
+
+        # File was previously approved (no old suggestions)
+        review_state = _make_review_state()
+        review_state.files["/src/main.py"].status = "approved"
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value)
+            request_changes()
+
+        file_entry = review_state.files["/src/main.py"]
+        assert file_entry.status == "needs-work"
+        assert len(file_entry.suggestions) == 1
+        assert file_entry.suggestions[0].threadId == 5001
+        # Nothing to rotate from approved state
+        assert file_entry.previousSuggestions == []
+
+    def test_re_review_retry_does_not_re_rotate(self, temp_state_dir, clear_state_before):
+        """Retry of in-progress re-review: previousSuggestions already set → no re-rotation."""
+        from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        # Only 1 POST expected — the not-yet-posted suggestion
+        mock_requests.post.return_value = _make_post_response(1002, 2002)
+
+        review_state = _make_review_state()
+        # Simulate state after the first attempt of a re-review:
+        # - previousSuggestions: old suggestions from prior round
+        # - suggestions: partial result from the current round's first attempt
+        prior_suggestion = SuggestionEntry(
+            threadId=777,
+            commentId=778,
+            line=3,
+            endLine=3,
+            severity="low",
+            outOfScope=False,
+            linkText="line 3",
+            content="Old finding",
+        )
+        posted_new = SuggestionEntry(
+            threadId=1001,
+            commentId=2001,
+            line=10,
+            endLine=15,
+            severity="high",
+            outOfScope=False,
+            linkText="lines 10 - 15",
+            content="Critical issue",
+        )
+        review_state.files["/src/main.py"].status = "needs-work"
+        review_state.files["/src/main.py"].previousSuggestions = [prior_suggestion]
+        review_state.files["/src/main.py"].suggestions = [posted_new]
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value, _SUGGESTIONS_MULTI)
+            request_changes()
+
+        file_entry = review_state.files["/src/main.py"]
+        # Previous suggestions must remain unchanged (no re-rotation)
+        assert len(file_entry.previousSuggestions) == 1
+        assert file_entry.previousSuggestions[0].threadId == 777
+        # Both suggestions present: the pre-existing one + the newly posted one
+        assert len(file_entry.suggestions) == 2
+        assert file_entry.suggestions[0].threadId == 1001  # already existed, skipped POST
+        assert file_entry.suggestions[1].threadId == 1002  # newly posted
+
 
 class TestRequestChangesLegacyFallback:
     """Tests for the legacy fallback path (no review-state.json)."""
