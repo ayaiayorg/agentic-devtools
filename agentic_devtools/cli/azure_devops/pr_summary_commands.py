@@ -3,6 +3,10 @@ Pull Request Summary Commands.
 
 Generates overarching PR review comments after all files have been reviewed.
 This mirrors the generate-overarching-pr-comments.ps1 functionality.
+
+.. deprecated::
+    This module is deprecated. PR summaries are now generated automatically
+    during agdt-review-pull-request scaffolding.
 """
 
 import json
@@ -574,6 +578,15 @@ def generate_overarching_pr_comments() -> bool:  # pragma: no cover
     return True  # Successfully posted summary comments
 
 
-def generate_overarching_pr_comments_cli() -> None:  # pragma: no cover
-    """CLI entry point for generate_overarching_pr_comments."""
+def generate_overarching_pr_comments_cli() -> None:
+    """
+    CLI entry point for generate_overarching_pr_comments.
+
+    .. deprecated::
+        This command is deprecated. PR summaries are now generated automatically
+        during agdt-review-pull-request scaffolding. The deprecation warning is
+        emitted by the user-facing wrapper (generate_pr_summary_async), not here,
+        because this function is also invoked as a background entry point by the
+        automated review workflow.
+    """
     generate_overarching_pr_comments()
