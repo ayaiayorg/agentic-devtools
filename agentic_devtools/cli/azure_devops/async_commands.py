@@ -1217,7 +1217,7 @@ def request_changes_with_suggestion_async(
     print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
 
     # Auto-advance: mark as submission-pending and show next file
-    _auto_advance_after_submission(task.id, resolved_file_path, "Suggest")
+    _auto_advance_after_submission(task.id, resolved_file_path, "Changes")
 
 
 def request_changes_with_suggestion_async_cli() -> None:

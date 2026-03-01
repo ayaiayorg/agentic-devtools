@@ -175,16 +175,20 @@ class TestRequestChangesWithSuggestion:
         assert "index 1" in captured.err
 
     def test_missing_pull_request_id(self, temp_state_dir, clear_state_before, capsys):
-        """Should raise KeyError if pull_request_id is not set."""
-        from agentic_devtools.state import set_value
+        """Should raise KeyError if pull_request_id is not set, and restore state."""
+        from agentic_devtools.state import get_value, set_value
 
+        original_suggestions = _SUGGESTIONS
         set_value("file_review.file_path", "/src/main.py")
         set_value("file_review.summary", "Risk found.")
-        set_value("file_review.suggestions", _SUGGESTIONS)
+        set_value("file_review.suggestions", original_suggestions)
         set_value("dry_run", "true")
 
         with pytest.raises(KeyError, match="pull_request_id"):
             request_changes_with_suggestion()
+
+        # State should be restored — replacement_code preserved for retry
+        assert get_value("file_review.suggestions") == original_suggestions
 
     def test_missing_content_with_replacement_code_caught_upfront(self, temp_state_dir, clear_state_before, capsys):
         """Missing content is caught up-front before replacement_code is stripped."""
@@ -234,12 +238,13 @@ class TestRequestChangesWithSuggestion:
         assert stored == original_suggestions
 
     def test_missing_file_path(self, temp_state_dir, clear_state_before, capsys):
-        """Should exit if file_review.file_path is not set."""
-        from agentic_devtools.state import set_value
+        """Should exit if file_review.file_path is not set, and restore state."""
+        from agentic_devtools.state import get_value, set_value
 
+        original_suggestions = _SUGGESTIONS
         set_value("pull_request_id", "23046")
         set_value("file_review.summary", "Risk found.")
-        set_value("file_review.suggestions", _SUGGESTIONS)
+        set_value("file_review.suggestions", original_suggestions)
         set_value("dry_run", "true")
 
         with pytest.raises(SystemExit) as exc_info:
@@ -249,13 +254,17 @@ class TestRequestChangesWithSuggestion:
         captured = capsys.readouterr()
         assert "file_review.file_path" in captured.err
 
-    def test_missing_summary(self, temp_state_dir, clear_state_before, capsys):
-        """Should exit if file_review.summary is not set."""
-        from agentic_devtools.state import set_value
+        # State should be restored — replacement_code preserved for retry
+        assert get_value("file_review.suggestions") == original_suggestions
 
+    def test_missing_summary(self, temp_state_dir, clear_state_before, capsys):
+        """Should exit if file_review.summary is not set, and restore state."""
+        from agentic_devtools.state import get_value, set_value
+
+        original_suggestions = _SUGGESTIONS
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
-        set_value("file_review.suggestions", _SUGGESTIONS)
+        set_value("file_review.suggestions", original_suggestions)
         set_value("dry_run", "true")
 
         with pytest.raises(SystemExit) as exc_info:
@@ -264,6 +273,9 @@ class TestRequestChangesWithSuggestion:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "file_review.summary" in captured.err
+
+        # State should be restored — replacement_code preserved for retry
+        assert get_value("file_review.suggestions") == original_suggestions
 
     def test_missing_suggestions(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if file_review.suggestions is not set."""
@@ -316,16 +328,16 @@ class TestRequestChangesWithSuggestion:
         assert "severity" in captured.err
 
     def test_invalid_severity_exits(self, temp_state_dir, clear_state_before, capsys):
-        """Should exit if severity is invalid."""
-        from agentic_devtools.state import set_value
+        """Should exit if severity is invalid, and restore replacement_code in state."""
+        from agentic_devtools.state import get_value, set_value
 
+        original_suggestions = json.dumps(
+            [{"line": 42, "severity": "critical", "content": "Fix", "replacement_code": "x = 1;"}]
+        )
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
         set_value("file_review.summary", "Risk.")
-        set_value(
-            "file_review.suggestions",
-            json.dumps([{"line": 42, "severity": "critical", "content": "Fix", "replacement_code": "x = 1;"}]),
-        )
+        set_value("file_review.suggestions", original_suggestions)
         set_value("dry_run", "true")
 
         with pytest.raises(SystemExit) as exc_info:
@@ -334,6 +346,9 @@ class TestRequestChangesWithSuggestion:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "severity" in captured.err
+
+        # State should be restored — replacement_code preserved for retry
+        assert get_value("file_review.suggestions") == original_suggestions
 
     def test_state_not_mutated_on_validation_failure(self, temp_state_dir, clear_state_before, capsys):
         """State should be unchanged when validation fails, preserving replacement_code for retry."""
