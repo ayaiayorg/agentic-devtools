@@ -1723,11 +1723,11 @@ def request_changes_with_suggestion() -> None:
 
             set_value("file_review.suggestions", transformed)
 
-    # Delegate to request_changes(); restore original suggestions on failure
-    # so that replacement_code is preserved in state for retries.
+    # Delegate to request_changes(); always restore original suggestions afterwards
+    # so that replacement_code is preserved in state for retries and dry_run does
+    # not leave mutated state behind.
     try:
         request_changes()
-    except (SystemExit, KeyError):
+    finally:
         if suggestions_raw:
             set_value("file_review.suggestions", suggestions_raw)
-        raise

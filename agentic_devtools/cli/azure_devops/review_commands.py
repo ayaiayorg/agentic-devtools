@@ -510,26 +510,29 @@ def print_review_instructions(
     print("REVIEW COMMANDS")
     print("=" * 60)
     print("")
-    print("Set the file path and content first:")
+    print("Set the file path and review details first:")
     print(f"  agdt-set pull_request_id {pull_request_id}")
     print('  agdt-set file_review.file_path "/path/to/file.ts"')
-    print('  agdt-set content "Your review comment here"')
+    print('  agdt-set file_review.summary "Your review comment here"')
     print("")
     print("Then use one of these commands:")
     print("")
     print("• APPROVE (no issues found):")
     print("    agdt-approve-file")
     print("")
-    print("• REQUEST CHANGES (with optional line numbers):")
-    print("    agdt-set line 42")
-    print("    agdt-set end_line 45  # optional, for multi-line context")
+    print("• REQUEST CHANGES:")
+    print(
+        "    agdt-set file_review.suggestions "
+        """'[{"line": 42, "severity": "high", "content": "Issue description"}]'"""
+    )
     print("    agdt-request-changes")
     print("")
     print("• REQUEST CHANGES WITH CODE SUGGESTION:")
-    print("    agdt-set line 42")
-    print('    agdt-set content "```suggestion')
-    print("    // Your suggested code here")
-    print('    ```"')
+    print(
+        "    agdt-set file_review.suggestions "
+        """'[{"line": 42, "severity": "high", "content": "Issue description", """
+        """"replacement_code": "// Your suggested code here"}]'"""
+    )
     print("    agdt-request-changes-with-suggestion")
     print("")
     print("=" * 60)

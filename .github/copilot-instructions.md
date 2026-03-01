@@ -375,7 +375,7 @@ Query commands also spawn background tasks - results are written to output files
 | `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id or jira.issue_key |
 | `agdt-approve-file` | Approve a file during review | pull_request_id, file_review.file_path, file_review.summary OR `--file-path`, `--summary`, `--pull-request-id` |
 | `agdt-request-changes` | Request changes on a file | pull_request_id, file_review.file_path, file_review.summary, file_review.suggestions OR `--file-path`, `--summary`, `--suggestions`, `--pull-request-id` |
-| `agdt-request-changes-with-suggestion` | Request changes with code suggestion | pull_request_id, file_review.file_path, content, line OR `--file-path`, `--content`, `--line`, `--pull-request-id` |
+| `agdt-request-changes-with-suggestion` | Request changes with code suggestion | pull_request_id, file_review.file_path, file_review.summary, file_review.suggestions OR `--file-path`, `--summary`, `--suggestions`, `--pull-request-id` |
 | `agdt-mark-file-reviewed` | Mark a file as reviewed (standalone) | pull_request_id, file_review.file_path |
 | `agdt-submit-file-review` | Submit batched file review | pull_request_id |
 
@@ -387,9 +387,7 @@ File review commands accept optional CLI arguments that override state values:
 # Option A: With CLI parameters (explicit, self-documenting)
 agdt-approve-file --file-path "src/app/component.ts" --summary "LGTM - clean implementation"
 agdt-request-changes --file-path "src/app/service.ts" --summary "Missing null check" --suggestions '[{"line": 42, "severity": "high", "content": "Missing null check"}]'
-agdt-request-changes-with-suggestion --file-path "src/utils.ts" --content "```suggestion
-const value = x ?? defaultValue;
-```" --line 15
+agdt-request-changes-with-suggestion --file-path "src/utils.ts" --summary "Null handling needs improvement." --suggestions '[{"line": 15, "severity": "high", "content": "Use null-coalescing operator", "replacement_code": "const value = x ?? defaultValue;"}]'
 
 # Option B: Parameterless (uses current state)
 # Check current values: agdt-get file_review.file_path, agdt-get file_review.summary, agdt-get file_review.suggestions
@@ -1528,10 +1526,8 @@ agdt-set file_review.suggestions '[{"line": 42, "severity": "high", "content": "
 agdt-request-changes
 
 # Request changes with code suggestion
-agdt-set line 42
-agdt-set content "```suggestion
-const descriptiveVariableName = value;
-```"
+agdt-set file_review.summary "Naming issue found."
+agdt-set file_review.suggestions '[{"line": 42, "severity": "medium", "content": "Use a more descriptive variable name", "replacement_code": "const descriptiveVariableName = value;"}]'
 agdt-request-changes-with-suggestion
 ```
 

@@ -48,9 +48,7 @@ agdt-request-changes --file-path "{{current_file}}" --summary "Overall assessmen
 ### 💡 Request Changes with Code Suggestion
 
 ```bash
-agdt-request-changes-with-suggestion --file-path "{{current_file}}" --line <LINE_NUMBER> --content "\`\`\`suggestion
-// Your suggested replacement code
-\`\`\`"
+agdt-request-changes-with-suggestion --file-path "{{current_file}}" --summary "Overall assessment of issues found." --suggestions '[{"line": <LINE_NUMBER>, "severity": "high", "content": "Issue description", "replacement_code": "// Your suggested replacement code"}]'
 ```
 
 ## After Submitting

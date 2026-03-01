@@ -370,7 +370,7 @@ class TestRequestChangesWithSuggestion:
         assert get_value("file_review.suggestions") == original_suggestions
 
     def test_auto_wrapping_delegates_to_request_changes(self, temp_state_dir, clear_state_before):
-        """Auto-wrapped content should be passed to request_changes flow."""
+        """Auto-wrapped content should be passed to request_changes flow, but state is restored after."""
         from agentic_devtools.state import get_value, set_value
 
         self._setup_state(set_value)
@@ -378,14 +378,14 @@ class TestRequestChangesWithSuggestion:
 
         request_changes_with_suggestion()
 
-        # After the call, state should contain the transformed suggestions (no replacement_code)
+        # After the call, state should be restored to the original (with replacement_code)
+        # so that retries and dry_run don't leave mutated state behind.
         stored = get_value("file_review.suggestions")
         if isinstance(stored, str):
             stored = json.loads(stored)
         assert isinstance(stored, list)
-        assert "replacement_code" not in stored[0]
-        assert "```suggestion" in stored[0]["content"]
-        assert "var x = y?.Z;" in stored[0]["content"]
+        assert "replacement_code" in stored[0]
+        assert stored[0]["replacement_code"] == "var x = y?.Z;"
         assert "Use null-conditional" in stored[0]["content"]
 
     def test_non_dict_suggestion_delegates_to_request_changes(self, temp_state_dir, clear_state_before, capsys):
