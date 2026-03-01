@@ -421,8 +421,8 @@ class TestRequestChangesAsync:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "src/app/component.ts")
-        set_value("content", "Please fix this issue")
-        set_value("line", 42)
+        set_value("file_review.summary", "Error handling issues found.")
+        set_value("file_review.suggestions", '[{"line":42,"severity":"high","content":"Fix this"}]')
 
         request_changes_async()
 
@@ -436,8 +436,8 @@ class TestRequestChangesAsync:
         """Test command accepts CLI parameters that override state."""
         request_changes_async(
             file_path="src/cli/test.ts",
-            content="Issue via CLI",
-            line=100,
+            summary="Error handling issues found.",
+            suggestions='[{"line":100,"severity":"high","content":"Issue via CLI"}]',
             pull_request_id=99999,
         )
 
@@ -448,8 +448,8 @@ class TestRequestChangesAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.file_path") == "src/cli/test.ts"
-        assert get_value("content") == "Issue via CLI"
-        assert get_value("line") == 100
+        assert get_value("file_review.summary") == "Error handling issues found."
+        assert get_value("file_review.suggestions") == '[{"line":100,"severity":"high","content":"Issue via CLI"}]'
 
 
 class TestRequestChangesWithSuggestionAsync:
@@ -714,10 +714,10 @@ class TestAsyncCliEntryPoints:
                 "agdt-request-changes",
                 "--file-path",
                 "path/to/file.py",
-                "--content",
-                "Need changes here",
-                "--line",
-                "42",
+                "--summary",
+                "Error handling issues found.",
+                "--suggestions",
+                '[{"line":42,"severity":"high","content":"Need changes here"}]',
             ],
         )
 
@@ -733,8 +733,8 @@ class TestAsyncCliEntryPoints:
 
         set_value("pull_request_id", "12345")
         set_value("file_review.file_path", "path/from/state.py")
-        set_value("content", "Comment from state")
-        set_value("line", "42")
+        set_value("file_review.summary", "Error handling issues found.")
+        set_value("file_review.suggestions", '[{"line":42,"severity":"high","content":"Comment from state"}]')
         monkeypatch.setattr("sys.argv", ["agdt-request-changes"])
 
         request_changes_async_cli()

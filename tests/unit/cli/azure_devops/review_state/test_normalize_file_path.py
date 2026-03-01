@@ -26,7 +26,7 @@ class TestNormalizeFilePath:
         """Test that already-normalized deep path is unchanged."""
         assert normalize_file_path("/a/b/c/d.py") == "/a/b/c/d.py"
 
-    def test_windows_style_path_preserves_backslashes(self):
-        """Test that Windows-style paths preserve backslashes while adding leading slash."""
+    def test_windows_style_path_normalizes_backslashes(self):
+        """Test that Windows-style backslashes are replaced with forward slashes."""
         result = normalize_file_path("src\\app.py")
-        assert result == "/src\\app.py"
+        assert result == "/src/app.py"

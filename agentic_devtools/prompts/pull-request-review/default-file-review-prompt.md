@@ -42,7 +42,7 @@ agdt-approve-file --file-path "{{current_file}}" --summary "Looks good. Code fol
 ### ⚠️ Request Changes (issues found)
 
 ```bash
-agdt-request-changes --file-path "{{current_file}}" --line <LINE_NUMBER> --content "Issue description and required fix"
+agdt-request-changes --file-path "{{current_file}}" --summary "Overall assessment of issues found." --suggestions '[{"line": <LINE_NUMBER>, "severity": "high", "content": "Issue description and required fix"}]'
 ```
 
 ### 💡 Request Changes with Code Suggestion

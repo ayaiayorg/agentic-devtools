@@ -1,7 +1,11 @@
 """Tests for request_changes_async function."""
 
+import json
+
 from agentic_devtools.cli.azure_devops.async_commands import request_changes_async
 from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_in_script, get_script_from_call
+
+_SUGGESTIONS = json.dumps([{"line": 42, "severity": "high", "content": "Missing null check"}])
 
 
 class TestRequestChangesAsync:
@@ -10,8 +14,8 @@ class TestRequestChangesAsync:
 
         set_value("pull_request_id", 12345)
         set_value("file_review.file_path", "src/app/component.ts")
-        set_value("content", "Please fix this issue")
-        set_value("line", 42)
+        set_value("file_review.summary", "Error handling issues found.")
+        set_value("file_review.suggestions", _SUGGESTIONS)
         request_changes_async()
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
@@ -21,8 +25,8 @@ class TestRequestChangesAsync:
     def test_accepts_cli_parameters(self, mock_background_and_state, capsys):
         request_changes_async(
             file_path="src/cli/test.ts",
-            content="Issue via CLI",
-            line=100,
+            summary="Issues found.",
+            suggestions=_SUGGESTIONS,
             pull_request_id=99999,
         )
         captured = capsys.readouterr()
@@ -30,5 +34,5 @@ class TestRequestChangesAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.file_path") == "src/cli/test.ts"
-        assert get_value("content") == "Issue via CLI"
-        assert get_value("line") == 100
+        assert get_value("file_review.summary") == "Issues found."
+        assert get_value("file_review.suggestions") == _SUGGESTIONS

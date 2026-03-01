@@ -1,10 +1,13 @@
 """Tests for request_changes_async_cli function."""
 
+import json
 import sys
 from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.async_commands import request_changes_async_cli
 from tests.unit.cli.azure_devops.async_commands._helpers import assert_function_in_script, get_script_from_call
+
+_SUGGESTIONS = json.dumps([{"line": 42, "severity": "high", "content": "Fix this"}])
 
 
 class TestRequestChangesAsyncCli:
@@ -21,10 +24,10 @@ class TestRequestChangesAsyncCli:
                 "12345",
                 "--file-path",
                 "src/main.py",
-                "--content",
-                "Fix this",
-                "--line",
-                "42",
+                "--summary",
+                "Issues found.",
+                "--suggestions",
+                _SUGGESTIONS,
             ],
         ):
             request_changes_async_cli()
@@ -43,10 +46,10 @@ class TestRequestChangesAsyncCli:
                 "12345",
                 "--file-path",
                 "src/main.py",
-                "--content",
-                "Fix this",
-                "--line",
-                "42",
+                "--summary",
+                "Issues found.",
+                "--suggestions",
+                _SUGGESTIONS,
             ],
         ):
             request_changes_async_cli()
