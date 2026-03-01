@@ -1147,45 +1147,53 @@ Examples:
 
 def request_changes_with_suggestion_async(
     file_path: Optional[str] = None,
-    content: Optional[str] = None,
-    line: Optional[int] = None,
+    summary: Optional[str] = None,
+    suggestions: Optional[str] = None,
     pull_request_id: Optional[int] = None,
 ) -> None:
     """
-    Request changes with a code suggestion asynchronously in the background.
+    Request changes with code suggestion(s) asynchronously in the background.
+
+    Each suggestion must include a replacement_code field. The command auto-wraps
+    replacement_code in suggestion fences before posting.
 
     After spawning the background task, immediately marks the file as
     submission-pending and shows the next file to review.
 
     Args:
         file_path: Path of file (overrides state)
-        content: Change request with code suggestion (overrides state)
-        line: Line number for comment (overrides state)
+        summary: Overall assessment of the file (overrides state)
+        suggestions: JSON array of suggestion objects with replacement_code (overrides state)
         pull_request_id: PR ID (overrides state)
 
     State keys (used as fallbacks):
         pull_request_id (required): PR ID
         file_review.file_path (required): Path of file
-        content (required): Change request with suggestion
-        line (required): Line number for comment
+        file_review.summary (required): Overall assessment
+        file_review.suggestions (required): JSON array of suggestion objects.
+          Each object must have: content (str), line (int), severity (str: high/medium/low),
+          replacement_code (str). Optional: end_line (int | None), out_of_scope (bool),
+          link_text (str | None).
 
     Usage:
-        agdt-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
-        const x = 1;
-        ```" --line 42
+        agdt-request-changes-with-suggestion \\
+          --file-path "/mgmt-backend/SomeFile.cs" \\
+          --summary "Null handling needs improvement." \\
+          --suggestions '[{"line":42,"severity":"high","content":"Use null-conditional",
+                          "replacement_code":"var result = response?.Data ?? default;"}]'
 
         # Or using state:
         agdt-set pull_request_id 12345
-        agdt-set file_review.file_path "src/app/component.ts"
-        agdt-set content "Suggested change..."
-        agdt-set line 42
+        agdt-set file_review.file_path "/mgmt-backend/SomeFile.cs"
+        agdt-set file_review.summary "Null handling needs improvement."
+        agdt-set file_review.suggestions '[{"line":42,"content":"Use null-conditional",
+                                            "severity":"high","replacement_code":"..."}]'
         agdt-request-changes-with-suggestion
     """
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
-    _set_value_if_provided("content", content)
-    if line is not None:
-        set_value("line", line)
+    _set_value_if_provided("file_review.summary", summary)
+    _set_value_if_provided("file_review.suggestions", suggestions)
     if pull_request_id is not None:
         set_value("pull_request_id", pull_request_id)
 
@@ -1194,8 +1202,12 @@ def request_changes_with_suggestion_async(
     resolved_file_path = _require_value(
         "file_review.file_path", 'agdt-request-changes-with-suggestion --file-path "path/to/file"'
     )
-    _require_value("content", 'agdt-request-changes-with-suggestion --content "Suggestion"')
-    _require_value("line", "agdt-request-changes-with-suggestion --line 42")
+    _require_value("file_review.summary", 'agdt-request-changes-with-suggestion --summary "Overall assessment"')
+    _require_value(
+        "file_review.suggestions",
+        "agdt-request-changes-with-suggestion "
+        '--suggestions \'[{"line":42,"severity":"high","content":"...","replacement_code":"..."}]\'',
+    )
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -1211,18 +1223,21 @@ def request_changes_with_suggestion_async(
 def request_changes_with_suggestion_async_cli() -> None:
     """CLI entry point for request_changes_with_suggestion_async with argument parsing."""
     parser = argparse.ArgumentParser(
-        description="Request changes with code suggestion (async)",
+        description="Request changes with code suggestion(s) (async)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  agdt-request-changes-with-suggestion --file-path "src/app/component.ts" --content "```suggestion
-  const x = 1;
-  ```" --line 42
+  agdt-request-changes-with-suggestion \\
+    --file-path "/mgmt-backend/SomeFile.cs" \\
+    --summary "Null handling needs improvement." \\
+    --suggestions '[{"line":42,"severity":"high","content":"Use null-conditional",
+                    "replacement_code":"var result = response?.Data ?? default;"}]'
 
   # Or using state:
-  agdt-set file_review.file_path "src/app/component.ts"
-  agdt-set content "Suggested change..."
-  agdt-set line 42
+  agdt-set file_review.file_path "/mgmt-backend/SomeFile.cs"
+  agdt-set file_review.summary "Null handling needs improvement."
+  agdt-set file_review.suggestions '[{"line":42,"severity":"high",
+                                      "content":"...", "replacement_code":"..."}]'
   agdt-request-changes-with-suggestion
         """,
     )
@@ -1234,18 +1249,17 @@ Examples:
         help="Path of file (falls back to file_review.file_path state)",
     )
     parser.add_argument(
-        "--content",
-        "-c",
+        "--summary",
+        "-s",
         type=str,
         default=None,
-        help="Change request with code suggestion (falls back to content state)",
+        help="Overall assessment of the file (falls back to file_review.summary state)",
     )
     parser.add_argument(
-        "--line",
-        "-l",
-        type=int,
+        "--suggestions",
+        type=str,
         default=None,
-        help="Line number for comment (falls back to line state)",
+        help="JSON array of suggestion objects with replacement_code (falls back to file_review.suggestions state)",
     )
     parser.add_argument(
         "--pull-request-id",
@@ -1257,8 +1271,8 @@ Examples:
     args = parser.parse_args()
     request_changes_with_suggestion_async(
         file_path=args.file_path,
-        content=args.content,
-        line=args.line,
+        summary=args.summary,
+        suggestions=args.suggestions,
         pull_request_id=args.pull_request_id,
     )
 

@@ -218,17 +218,31 @@ class TestRequestChangesWithSuggestion:
     """Tests for request_changes_with_suggestion command."""
 
     def test_dry_run_output(self, temp_state_dir, clear_state_before, capsys):
-        """Should set outcome to Suggest."""
+        """Should show dry-run output with file path and suggestion details."""
+        import json
+
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", "23046")
         set_value("file_review.file_path", "/src/main.py")
-        set_value("content", "```suggestion\nreturn True\n```")
-        set_value("line", "42")
+        set_value("file_review.summary", "Null handling needs improvement.")
+        set_value(
+            "file_review.suggestions",
+            json.dumps(
+                [
+                    {
+                        "line": 42,
+                        "severity": "high",
+                        "content": "Use null-conditional",
+                        "replacement_code": "var x = y?.Z;",
+                    }
+                ]
+            ),
+        )
         set_value("dry_run", "true")
 
         request_changes_with_suggestion()
 
         captured = capsys.readouterr()
         assert "DRY-RUN" in captured.out
-        assert "Suggest" in captured.out
+        assert "/src/main.py" in captured.out
