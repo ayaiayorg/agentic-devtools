@@ -65,7 +65,7 @@ class TestClearSuggestionsForReReview:
         review_state.files["/src/main.py"].suggestions = [_make_suggestion(101)]
         clear_suggestions_for_re_review(review_state, "/src/main.py")
         assert len(review_state.files["/src/main.py"].suggestions) == 1
-        assert review_state.files["/src/main.py"].previousSuggestions == []
+        assert review_state.files["/src/main.py"].previousSuggestions is None
 
     def test_no_op_for_in_progress_file(self):
         """In-progress file: no rotation (not a terminal status)."""
@@ -73,7 +73,7 @@ class TestClearSuggestionsForReReview:
         review_state.files["/src/main.py"].suggestions = [_make_suggestion(102)]
         clear_suggestions_for_re_review(review_state, "/src/main.py")
         assert len(review_state.files["/src/main.py"].suggestions) == 1
-        assert review_state.files["/src/main.py"].previousSuggestions == []
+        assert review_state.files["/src/main.py"].previousSuggestions is None
 
     def test_rotates_suggestions_for_approved_file(self):
         """Approved file with suggestions: suggestions moved to previousSuggestions."""
@@ -101,15 +101,49 @@ class TestClearSuggestionsForReReview:
         assert file_entry.previousSuggestions[0].threadId == 301
 
     def test_rotates_empty_suggestions_for_terminal_file(self):
-        """Approved file with no suggestions: previousSuggestions stays empty after rotation."""
+        """Approved file with no suggestions: rotation sets previousSuggestions=[] (not None).
+
+        This is the key scenario for retry safety: after rotation,
+        previousSuggestions=[] is distinct from None, so a subsequent retry
+        will correctly skip rotation and preserve any partially-accumulated
+        new suggestions.
+        """
         review_state = _make_review_state(status="approved")
-        # suggestions is already empty; rotation still marks the re-review as initiated
         review_state.files["/src/main.py"].suggestions = []
 
         clear_suggestions_for_re_review(review_state, "/src/main.py")
 
         file_entry = review_state.files["/src/main.py"]
         assert file_entry.suggestions == []
+        # previousSuggestions is [] (not None) — marks rotation as complete
+        assert file_entry.previousSuggestions == []
+        assert file_entry.previousSuggestions is not None
+
+    def test_retry_safe_when_original_suggestions_were_empty(self):
+        """Retry after partial re-review on a file that had zero original suggestions.
+
+        Scenario:
+        1. File was "approved" with no suggestions (previousSuggestions=None).
+        2. Re-review started: clear_suggestions_for_re_review rotated [] → previousSuggestions=[].
+        3. update_file_status set status to "needs-work".
+        4. First suggestion was POSTed and appended to suggestions → [s1].
+        5. Second POST failed; state saved with suggestions=[s1], previousSuggestions=[].
+        6. On retry: clear_suggestions_for_re_review must NOT wipe suggestions=[s1]
+           because previousSuggestions is [] (not None) — rotation already happened.
+        """
+        review_state = _make_review_state(status="needs-work")
+        # Simulate the state after step 5: one suggestion partially posted,
+        # previousSuggestions=[] because the rotation already happened in step 2.
+        partially_posted = _make_suggestion(1001)
+        review_state.files["/src/main.py"].suggestions = [partially_posted]
+        review_state.files["/src/main.py"].previousSuggestions = []  # rotated (empty original)
+
+        clear_suggestions_for_re_review(review_state, "/src/main.py")
+
+        file_entry = review_state.files["/src/main.py"]
+        # Suggestions must NOT be wiped — they are from the current re-review attempt
+        assert len(file_entry.suggestions) == 1
+        assert file_entry.suggestions[0].threadId == 1001
         assert file_entry.previousSuggestions == []
 
     def test_no_op_when_previous_suggestions_already_set(self):

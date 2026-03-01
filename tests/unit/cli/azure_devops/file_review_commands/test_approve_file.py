@@ -221,13 +221,13 @@ class TestApproveFilePatchFlow:
         assert file_entry.suggestions == []
         assert file_entry.status == "approved"
 
-    def test_re_review_approved_to_approved_no_rotation_needed(self, temp_state_dir, clear_state_before):
-        """Re-approve an already-approved file: no suggestions to rotate."""
+    def test_re_review_approved_to_approved_rotates_empty_suggestions(self, temp_state_dir, clear_state_before):
+        """Re-approve an already-approved file with no suggestions: rotation sets previousSuggestions=[]."""
         from agentic_devtools.state import set_value
 
         review_state = _make_review_state()
         review_state.files["/src/main.py"].status = "approved"
-        # No suggestions on an approved file
+        # No suggestions on an approved file, previousSuggestions=None (default)
 
         mock_save = MagicMock()
         with ExitStack() as stack:
@@ -238,7 +238,9 @@ class TestApproveFilePatchFlow:
         file_entry = review_state.files["/src/main.py"]
         assert file_entry.status == "approved"
         assert file_entry.suggestions == []
+        # previousSuggestions=[] (not None) — rotation completed
         assert file_entry.previousSuggestions == []
+        assert file_entry.previousSuggestions is not None
 
     def test_re_review_retry_does_not_re_rotate(self, temp_state_dir, clear_state_before):
         """Retry of approve re-review: previousSuggestions already set → no re-rotation."""

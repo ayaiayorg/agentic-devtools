@@ -950,8 +950,9 @@ class TestRequestChangesPatchFlow:
         assert file_entry.status == "needs-work"
         assert len(file_entry.suggestions) == 1
         assert file_entry.suggestions[0].threadId == 5001
-        # Nothing to rotate from approved state
+        # Rotation fired (empty original), previousSuggestions=[] (not None)
         assert file_entry.previousSuggestions == []
+        assert file_entry.previousSuggestions is not None
 
     def test_re_review_retry_does_not_re_rotate(self, temp_state_dir, clear_state_before):
         """Retry of in-progress re-review: previousSuggestions already set → no re-rotation."""

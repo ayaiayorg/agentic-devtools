@@ -30,6 +30,7 @@ class TestFileEntry:
         assert f.summary is None
         assert f.changeTrackingId is None
         assert f.suggestions == []
+        assert f.previousSuggestions is None
 
     def test_creation_with_all_fields(self):
         """Test creation with all fields specified."""
@@ -71,7 +72,7 @@ class TestFileEntry:
             "summary": None,
             "changeTrackingId": 42,
             "suggestions": [],
-            "previousSuggestions": [],
+            "previousSuggestions": None,
         }
 
     def test_to_dict_with_suggestions(self):
@@ -168,17 +169,17 @@ class TestFileEntry:
         f1.suggestions.append(_make_suggestion())
         assert f2.suggestions == []
 
-    def test_previous_suggestions_default_is_empty(self):
-        """Test that previousSuggestions defaults to an empty list."""
+    def test_previous_suggestions_default_is_none(self):
+        """Test that previousSuggestions defaults to None (never rotated)."""
         f = FileEntry(threadId=1, commentId=2, folder="src", fileName="app.py")
-        assert f.previousSuggestions == []
+        assert f.previousSuggestions is None
 
-    def test_previous_suggestions_default_is_independent(self):
-        """Test that default previousSuggestions lists are independent per instance."""
+    def test_previous_suggestions_none_is_independent(self):
+        """Test that setting previousSuggestions on one instance doesn't affect another."""
         f1 = FileEntry(threadId=1, commentId=1, folder="a", fileName="b.py")
         f2 = FileEntry(threadId=2, commentId=2, folder="a", fileName="c.py")
-        f1.previousSuggestions.append(_make_suggestion())
-        assert f2.previousSuggestions == []
+        f1.previousSuggestions = [_make_suggestion()]
+        assert f2.previousSuggestions is None
 
     def test_to_dict_includes_previous_suggestions(self):
         """Test that to_dict serialises previousSuggestions."""
@@ -220,11 +221,11 @@ class TestFileEntry:
         assert len(f.previousSuggestions) == 1
         assert f.previousSuggestions[0].threadId == 50
 
-    def test_from_dict_missing_previous_suggestions_defaults_to_empty(self):
-        """Test that from_dict defaults previousSuggestions to [] when key absent (backward compat)."""
+    def test_from_dict_missing_previous_suggestions_defaults_to_none(self):
+        """Test that from_dict defaults previousSuggestions to None when key absent (backward compat)."""
         data = {"threadId": 1, "commentId": 2, "folder": "src", "fileName": "app.py"}
         f = FileEntry.from_dict(data)
-        assert f.previousSuggestions == []
+        assert f.previousSuggestions is None
 
     def test_roundtrip_with_previous_suggestions(self):
         """Test to_dict/from_dict round-trips previousSuggestions correctly."""
