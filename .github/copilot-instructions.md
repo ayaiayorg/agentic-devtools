@@ -345,7 +345,7 @@ All action commands that mutate state or perform API calls spawn background task
 | `agdt-run-e2e-tests` | Trigger E2E test pipeline | (pipeline params) |
 | `agdt-run-wb-patch` | Trigger workbench patch pipeline | (pipeline params) |
 | `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id, jira.issue_key |
-| `agdt-generate-pr-summary` | Generate PR summary comments | pull_request_id |
+| `agdt-generate-pr-summary` | ~~Generate PR summary comments~~ (**Deprecated** — summaries are now generated automatically by the PR review workflow after all file reviews complete, typically triggered via `agdt-task-wait`) | pull_request_id |
 
 **Create Pull Request CLI Parameter Support:**
 
@@ -401,8 +401,8 @@ All file review commands automatically:
 
 1. Post the review comment (runs as background task)
 2. Mark the file as reviewed in Azure DevOps (visible as "viewed" eye icon in PR UI)
-3. Update the review queue (`queue.json`)
-4. Print next steps (continue with next file or generate summary)
+3. Update the hierarchical review threads in Azure DevOps via PATCH requests (file, folder, and overall summary threads), then save the refreshed state to `review-state.json`
+4. Print next steps (continue with next file or advance to summary step)
 
 ### Git Workflow Actions (Background Tasks)
 
@@ -1503,6 +1503,7 @@ If `gh copilot` is not installed, a warning is printed and the prompt file path 
 
 | File | Purpose |
 |------|---------|
+| `review-state.json` | Hierarchical review state: PR, folder, and file thread IDs, statuses, and suggestions |
 | `queue.json` | Review queue manifest (pending/completed files) |
 | `pull-request-files.json` | Snapshot of all PR files |
 | `pull-request-threads.json` | Snapshot of existing comment threads |
@@ -1530,6 +1531,104 @@ agdt-set file_review.summary "Naming issue found."
 agdt-set file_review.suggestions '[{"line": 42, "severity": "medium", "content": "Use a more descriptive variable name", "replacement_code": "const descriptiveVariableName = value;"}]'
 agdt-request-changes-with-suggestion
 ```
+
+#### Hierarchical Review Thread Architecture
+
+`agdt-review-pull-request` scaffolds a three-level comment hierarchy in Azure DevOps **before**
+reviewing any files:
+
+1. **File threads** — one anchored comment per file (no line context); updated via PATCH
+   as each file is approved or has changes requested
+2. **Folder threads** — one PR-level thread per top-level folder grouping, with links to
+   each file thread; status cascades from file statuses
+3. **Overall PR summary thread** — a single top-level thread linking all folder threads;
+   status cascades from folder statuses
+
+All threads are created during scaffolding and updated in-place (PATCH) as files are
+reviewed.  No separate `agdt-generate-pr-summary` call is required.
+
+#### Review State File (`review-state.json`)
+
+Location: `scripts/temp/pull-request-review/prompts/{pr_id}/review-state.json`
+
+This file tracks all thread IDs, statuses, and suggestions for the entire review session:
+
+```json
+{
+  "prId": 12345,
+  "repoId": "<guid>",
+  "repoName": "my-repo",
+  "project": "MyProject",
+  "organization": "myorg",
+  "latestIterationId": 1,
+  "scaffoldedUtc": "2024-12-19T15:50:26+00:00",
+  "overallSummary": { "threadId": 1, "commentId": 1, "status": "in-progress" },
+  "folders": {
+    "src/app": { "threadId": 2, "commentId": 1, "status": "in-progress", "files": ["/src/app/component.ts"] }
+  },
+  "files": {
+    "/src/app/component.ts": {
+      "threadId": 3,
+      "commentId": 1,
+      "folder": "src/app",
+      "fileName": "component.ts",
+      "status": "approved",
+      "summary": "Clean implementation, no issues found.",
+      "suggestions": [],
+      "previousSuggestions": null
+    }
+  }
+}
+```
+
+#### Review Status State Machine
+
+Each file, folder, and the overall PR follow this status progression:
+
+```text
+unreviewed → in-progress → approved
+                        ↘ needs-work
+```
+
+- `unreviewed` — not yet started (initial state)
+- `in-progress` — review started but not all files in scope are complete
+- `approved` — all files approved (no blocking issues)
+- `needs-work` — at least one file has changes requested
+
+#### Status Derivation Rules
+
+| Level | Rule |
+|-------|------|
+| **File** | Set directly by `agdt-approve-file` (→ `approved`) or `agdt-request-changes` (→ `needs-work`) |
+| **Folder** | All files unreviewed → `unreviewed`; ≥1 started, not all done → `in-progress`; all done, all approved → `approved`; all done, any needs-work → `needs-work` |
+| **Overall PR** | Same rules as folder, applied to folder statuses |
+
+#### Suggestion Severity Levels
+
+| Severity | Meaning |
+|----------|---------|
+| `high` | Blocking — must be addressed before the PR can be approved |
+| `medium` | Should be addressed but not strictly blocking |
+| `low` | Nice-to-have improvement; can be deferred |
+
+#### Out-of-Scope Suggestions
+
+When a suggestion does not map to a specific line in the diff (e.g., an architectural
+concern or a comment on a non-changed line), set `"out_of_scope": true` in the suggestion
+entry. The `out_of_scope` flag is persisted on the suggestion entry for classification, but
+suggestions are still posted as line-anchored file threads (not PR-level comments).
+
+#### Re-Review Flow
+
+When an author addresses feedback and requests a re-review:
+
+1. File status is reset from the terminal state (`approved`/`needs-work`) to `in-progress`
+2. Existing `suggestions` are rotated to `previousSuggestions` as an audit trail
+3. New suggestions can be added from scratch for the fresh review
+
+The rotation fires **once** per re-review cycle (when `previousSuggestions is None`).
+Once rotated — even if the original suggestions list was empty — `previousSuggestions`
+is set to `[]` (not `null`), so retries are safe and will not re-trigger rotation.
 
 #### Pipeline Usage
 
@@ -1705,6 +1804,7 @@ agdt-add-jira-comment  # Previews without posting
 | `scripts/temp/temp-get-issue-details-response.json` | `agdt-get-jira-issue` | Full Jira API response |
 | `scripts/temp/temp-get-pull-request-details-response.json` | `agdt-get-pull-request-details` | Full PR details payload |
 | `scripts/temp/pull-request-review/prompts/<pr_id>/` | `agdt-review-pull-request` | Review prompts directory |
+| `scripts/temp/pull-request-review/prompts/<pr_id>/review-state.json` | `agdt-review-pull-request` | Hierarchical review state (thread IDs, statuses, suggestions) |
 | `scripts/temp/temp-<workflow>-<step>-prompt.md` | Workflow initiation commands | Rendered workflow prompts |
 
 ### Background Task Storage Structure

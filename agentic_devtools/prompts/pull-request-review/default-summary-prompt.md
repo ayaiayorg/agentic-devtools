@@ -10,7 +10,8 @@ All files in Pull Request **#{{pull_request_id}}** have been reviewed.
 
 ## Your Task
 
-The PR summary is now generated automatically during `agdt-review-pull-request` scaffolding.
+The PR summary is being generated automatically in the background. The workflow
+auto-started the summary task when all file reviews completed.
 
 The summary:
 
@@ -21,13 +22,14 @@ The summary:
 
 ## Next Action
 
-Wait for the auto-generated summary to complete:
+Wait for the summary background task to complete:
 
 ```bash
 agdt-task-wait
 ```
 
-This will wait for the summary to complete and then provide next steps.
+This will wait for the summary to finish and then auto-advance the workflow to
+the next step.
 
 ---
 
