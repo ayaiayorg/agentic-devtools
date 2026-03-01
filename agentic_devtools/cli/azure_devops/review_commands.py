@@ -528,11 +528,17 @@ def print_review_instructions(
     print("    agdt-request-changes")
     print("")
     print("• REQUEST CHANGES WITH CODE SUGGESTION:")
-    print(
-        "    agdt-set file_review.suggestions "
-        """'[{"line": 42, "severity": "high", "content": "Issue description", """
-        """"replacement_code": "// Your suggested code here"}]'"""
+    _suggestion_example = json.dumps(
+        [
+            {
+                "line": 42,
+                "severity": "high",
+                "content": "Issue description",
+                "replacement_code": "// Your suggested code here",
+            }
+        ]
     )
+    print(f"    agdt-set file_review.suggestions '{_suggestion_example}'")
     print("    agdt-request-changes-with-suggestion")
     print("")
     print("=" * 60)
