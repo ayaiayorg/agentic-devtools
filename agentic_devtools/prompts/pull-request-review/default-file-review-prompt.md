@@ -59,10 +59,9 @@ Run `agdt-task-wait` to:
 - Wait for the review to post
 - Complete the file review workflow and proceed to summary
 
-  {% else %}
-  {% else %}
-  **No wait required** - proceed directly to the next file after submitting.
-  {% endif %}
+{% else %}
+**No wait required** - proceed directly to the next file after submitting.
+{% endif %}
 
 ---
 
