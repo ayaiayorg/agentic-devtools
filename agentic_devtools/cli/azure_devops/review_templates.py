@@ -147,11 +147,13 @@ def render_folder_summary(
     approved: List[FileEntry] = []
     in_progress: List[FileEntry] = []
     unreviewed: List[FileEntry] = []
+    file_statuses: List[str] = []
 
     for file_path in folder_entry.files:
         fe = files.get(file_path)
         if fe is None:
             continue
+        file_statuses.append(fe.status)
         if fe.status == ReviewStatus.NEEDS_WORK.value:
             needs_work.append(fe)
         elif fe.status == ReviewStatus.APPROVED.value:
@@ -160,8 +162,6 @@ def render_folder_summary(
             in_progress.append(fe)
         else:
             unreviewed.append(fe)
-
-    file_statuses = [fe.status for fp in folder_entry.files for fe in [files.get(fp)] if fe is not None]
     folder_status = _STATUS_DISPLAY.get(
         compute_aggregate_status(file_statuses),
         "Unreviewed",
