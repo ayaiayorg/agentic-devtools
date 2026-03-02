@@ -115,3 +115,65 @@ class TestFindSummaryThreadId:
 
         assert result == 99
         mock_requests.get.assert_called_once()
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    def test_falls_back_on_corrupt_review_state_json(self, temp_state_dir, clear_state_before):
+        """Falls back to thread search when review-state.json is corrupt (ValueError/JSONDecodeError)."""
+        import json
+
+        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+
+        mock_config = MagicMock(spec=AzureDevOpsConfig)
+        mock_config.build_api_url.return_value = "https://api/threads"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {
+                    "id": 77,
+                    "comments": [{"content": "## Overall PR Review Summary\nCorrupt fallback."}],
+                }
+            ]
+        }
+        mock_requests = MagicMock()
+        mock_requests.get.return_value = mock_response
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=json.JSONDecodeError("corrupt", "", 0),
+        ):
+            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
+
+        assert result == 77
+        mock_requests.get.assert_called_once()
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    def test_falls_back_on_os_error_reading_review_state(self, temp_state_dir, clear_state_before):
+        """Falls back to thread search when review-state.json cannot be read (OSError)."""
+        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+
+        mock_config = MagicMock(spec=AzureDevOpsConfig)
+        mock_config.build_api_url.return_value = "https://api/threads"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {
+                    "id": 88,
+                    "comments": [{"content": "## Overall PR Review Summary\nOS error fallback."}],
+                }
+            ]
+        }
+        mock_requests = MagicMock()
+        mock_requests.get.return_value = mock_response
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=OSError("permission denied"),
+        ):
+            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
+
+        assert result == 88
+        mock_requests.get.assert_called_once()

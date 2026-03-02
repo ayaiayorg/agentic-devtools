@@ -561,7 +561,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
     Usage: agdt-advance-workflow <step>
 
-    Steps: file-review, summary, decision, completion
+    Steps: file-review, decision, completion
 
     Args:
         step: The step to advance to (optional, auto-detects next step if not provided)
@@ -603,13 +603,11 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
         if current_step == "initiate":
             step = "file-review"
         elif current_step == "file-review":
-            # If all files are complete, go to summary; otherwise stay in file-review
+            # If all files are complete, go to decision; otherwise stay in file-review
             if queue_status["all_complete"]:
-                step = "summary"
+                step = "decision"
             else:
                 step = "file-review"
-        elif current_step == "summary":  # pragma: no cover
-            step = "decision"
         elif current_step == "decision":  # pragma: no cover
             step = "completion"
         else:  # pragma: no cover
@@ -623,6 +621,22 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     source_branch = context.get("source_branch", "")
     target_branch = context.get("target_branch", "")
     file_count = context.get("file_count", queue_status["total_count"])
+
+    # Compute approval/changes counts from review-state if available
+    approval_count = 0
+    changes_count = 0
+    try:
+        from ..azure_devops.review_state import load_review_state
+
+        review_state = load_review_state(pr_id_int)
+        for file_entry in review_state.files.values():
+            if file_entry.status == "approved":
+                approval_count += 1
+            elif file_entry.status == "needs-work":
+                changes_count += 1
+    except Exception:
+        # Best-effort: if review-state is unavailable, counts default to 0
+        pass
 
     variables = {
         "pull_request_id": pull_request_id,
@@ -639,6 +653,9 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
         "current_file": queue_status["current_file"] or "",
         "prompt_file_path": queue_status["prompt_file_path"] or "",
         "all_complete": queue_status["all_complete"],
+        # Review status variables (for decision step)
+        "approval_count": approval_count,
+        "changes_count": changes_count,
     }
 
     advance_workflow_step(

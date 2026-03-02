@@ -505,8 +505,8 @@ def _try_advance_pr_review_to_decision() -> bool:
     4. No submissions are still pending
 
     If all conditions are met:
-    - Advances workflow to decision step
-    - Prints message with next steps (approve or request changes)
+    - Advances workflow to decision step via advance_workflow_step()
+    - Renders the decision prompt template (respects override templates)
 
     Returns:
         True if workflow was advanced to decision step
@@ -546,30 +546,49 @@ def _try_advance_pr_review_to_decision() -> bool:
     if queue_status.get("submission_pending_count", 0) > 0:
         return False
 
-    # All conditions met - advance workflow to decision step
-    from ..workflows.base import set_workflow_state
+    # All conditions met - advance workflow to decision step using the prompt template
+    from ..workflows.base import advance_workflow_step
 
     context = workflow.get("context", {})
-    set_workflow_state(
-        name="pull-request-review",
-        status="in-progress",
-        step="decision",
-        context=context,
-    )
 
-    # Print clear, unambiguous message for AI agent
+    # Compute approval/changes counts from review-state if available
+    approval_count = 0
+    changes_count = 0
+    try:
+        from ..azure_devops.review_state import load_review_state
+
+        review_state = load_review_state(pr_id)
+        for file_entry in review_state.files.values():
+            if file_entry.status == "approved":
+                approval_count += 1
+            elif file_entry.status == "needs-work":
+                changes_count += 1
+    except Exception:
+        # Best-effort: if review-state is unavailable, counts default to 0
+        pass
+
+    variables = {
+        "pull_request_id": pr_id_str,
+        "jira_issue_key": context.get("jira_issue_key") or get_value("jira.issue_key") or "",
+        "completed_count": queue_status.get("completed_count", 0),
+        "pending_count": queue_status.get("pending_count", 0),
+        "total_count": queue_status.get("total_count", 0),
+        "approval_count": approval_count,
+        "changes_count": changes_count,
+    }
+
     print()
     print("=" * 70)
     _safe_print("✅ ALL FILE REVIEWS COMPLETE")
     print("=" * 70)
     print()
-    print(f"All {queue_status.get('completed_count', 0)} file(s) reviewed and submitted.")
-    print("The PR review summary was already posted to Azure DevOps during scaffolding.")
-    print()
-    print("NEXT STEPS:")
-    print("  - To approve: agdt-set content 'Summary of why this PR is approved'")
-    print("                agdt-approve-pull-request")
-    print("  - To request changes: provide feedback using agdt-reply-to-pull-request-thread")
+
+    advance_workflow_step(
+        workflow_name="pull-request-review",
+        step_name="decision",
+        variables=variables,
+        status="in-progress",
+    )
 
     return True
 

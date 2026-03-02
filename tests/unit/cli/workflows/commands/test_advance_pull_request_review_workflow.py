@@ -1,6 +1,6 @@
 """Tests for AdvancePullRequestReviewWorkflow."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -103,10 +103,10 @@ class TestAdvancePullRequestReviewWorkflow:
         captured = capsys.readouterr()
         assert "Invalid pull_request_id" in captured.err
 
-    def test_advance_auto_detects_summary_when_all_files_complete(
+    def test_advance_auto_detects_decision_when_all_files_complete(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):
-        """Test advance auto-detects summary step when all files are complete."""
+        """Test advance auto-detects decision step when all files are complete."""
         state.set_workflow_state(
             name="pull-request-review",
             status="in-progress",
@@ -127,13 +127,17 @@ class TestAdvancePullRequestReviewWorkflow:
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
-            template_file = workflow_dir / "default-summary-prompt.md"
-            template_file.write_text("Summary for PR #{{pull_request_id}}", encoding="utf-8")
+            template_file = workflow_dir / "default-decision-prompt.md"
+            template_file.write_text(
+                "Decision for PR #{{pull_request_id}}\n"
+                "Files: {{completed_count}} Approvals: {{approval_count}} Changes: {{changes_count}}",
+                encoding="utf-8",
+            )
 
             commands.advance_pull_request_review_workflow()
 
         workflow = state.get_workflow_state()
-        assert workflow["step"] == "summary"
+        assert workflow["step"] == "decision"
 
     def test_advance_stays_on_file_review_when_files_pending(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
@@ -166,6 +170,56 @@ class TestAdvancePullRequestReviewWorkflow:
 
         workflow = state.get_workflow_state()
         assert workflow["step"] == "file-review"
+
+    def test_advance_to_decision_computes_approval_and_changes_counts(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test decision step receives approval_count and changes_count from review-state."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_file_approved = MagicMock()
+        mock_file_approved.status = "approved"
+        mock_file_needswork = MagicMock()
+        mock_file_needswork.status = "needs-work"
+        mock_review_state = MagicMock()
+        mock_review_state.files = {
+            "/src/a.py": mock_file_approved,
+            "/src/b.py": mock_file_approved,
+            "/src/c.py": mock_file_needswork,
+        }
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 3,
+                "pending_count": 0,
+                "total_count": 3,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-decision-prompt.md"
+            template_file.write_text(
+                "Approvals: {{approval_count}}, Changes: {{changes_count}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow()
+
+        captured = capsys.readouterr()
+        assert "Approvals: 2" in captured.out
+        assert "Changes: 1" in captured.out
 
     def test_advance_from_initiate_to_file_review(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys

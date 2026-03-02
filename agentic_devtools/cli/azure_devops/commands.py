@@ -58,7 +58,7 @@ def _find_summary_thread_id(
         review_state = load_review_state(pull_request_id)
         if review_state.overallSummary and review_state.overallSummary.threadId:
             return review_state.overallSummary.threadId
-    except (FileNotFoundError, KeyError, AttributeError):
+    except (FileNotFoundError, KeyError, AttributeError, OSError, ValueError):
         pass
 
     # Fallback: search all threads (may match stale threads from previous reviews)
