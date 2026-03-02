@@ -129,6 +129,7 @@ from .pull_request_details_commands import get_pull_request_details
 
 # Review state exports
 from .review_state import (
+    COMPLETE_STATUSES,
     FileEntry,
     FolderEntry,
     OverallSummary,
@@ -137,6 +138,7 @@ from .review_state import (
     SuggestionEntry,
     add_suggestion_to_file,
     clear_suggestions_for_re_review,
+    compute_aggregate_status,
     get_file_entry,
     get_folder_entry,
     get_review_state_file_path,
@@ -272,6 +274,8 @@ __all__ = [
     "update_file_status",
     "add_suggestion_to_file",
     "clear_suggestions_for_re_review",
+    "compute_aggregate_status",
+    "COMPLETE_STATUSES",
     # Status cascade
     "PatchOperation",
     "derive_folder_status",

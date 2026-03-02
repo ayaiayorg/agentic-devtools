@@ -25,6 +25,41 @@ class ReviewStatus(str, Enum):
     NEEDS_WORK = "needs-work"
 
 
+# Statuses that indicate a file/folder review is complete
+COMPLETE_STATUSES = frozenset({ReviewStatus.APPROVED.value, ReviewStatus.NEEDS_WORK.value})
+
+
+def compute_aggregate_status(statuses: List[str]) -> str:
+    """Compute an aggregate status from a list of child statuses.
+
+    This is the single source of truth for status derivation rules:
+    - No statuses or all unreviewed → unreviewed
+    - At least 1 started, not all complete → in-progress
+    - All complete, all Approved → approved
+    - All complete, any Needs Work → needs-work
+
+    Args:
+        statuses: List of status strings (ReviewStatus values).
+
+    Returns:
+        Derived aggregate status string.
+    """
+    if not statuses:
+        return ReviewStatus.UNREVIEWED.value
+
+    any_started = any(s != ReviewStatus.UNREVIEWED.value for s in statuses)
+    all_complete = all(s in COMPLETE_STATUSES for s in statuses)
+
+    if not any_started:
+        return ReviewStatus.UNREVIEWED.value
+    elif not all_complete:
+        return ReviewStatus.IN_PROGRESS.value
+    elif any(s == ReviewStatus.NEEDS_WORK.value for s in statuses):
+        return ReviewStatus.NEEDS_WORK.value
+    else:
+        return ReviewStatus.APPROVED.value
+
+
 @dataclass
 class SuggestionEntry:
     """A suggestion posted on a specific line/range of a file."""

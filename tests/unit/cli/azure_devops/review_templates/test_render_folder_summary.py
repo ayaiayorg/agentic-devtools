@@ -194,3 +194,26 @@ class TestRenderFolderSummary:
         assert "### Approved" in result
         assert "### In Progress" in result
         assert "### Unreviewed" in result
+        assert "*Status:* In Progress" in result
+
+    def test_some_approved_some_unreviewed_returns_in_progress(self):
+        """Test folder status is In Progress when some files approved and some unreviewed."""
+        paths = {
+            "/src/a.py": _make_file_entry("/src/a.py", status="approved"),
+            "/src/b.py": _make_file_entry("/src/b.py", status="unreviewed"),
+            "/src/c.py": _make_file_entry("/src/c.py", status="unreviewed"),
+        }
+        folder_entry = _make_folder_entry(files=list(paths.keys()))
+        result = render_folder_summary("src", folder_entry, paths, _BASE_URL)
+        assert "*Status:* In Progress" in result
+
+    def test_approved_and_in_progress_and_unreviewed_returns_in_progress(self):
+        """Test folder status is In Progress with mix of approved, in-progress, and unreviewed."""
+        paths = {
+            "/src/a.py": _make_file_entry("/src/a.py", status="approved"),
+            "/src/b.py": _make_file_entry("/src/b.py", status="in-progress"),
+            "/src/c.py": _make_file_entry("/src/c.py", status="unreviewed"),
+        }
+        folder_entry = _make_folder_entry(files=list(paths.keys()))
+        result = render_folder_summary("src", folder_entry, paths, _BASE_URL)
+        assert "*Status:* In Progress" in result
