@@ -1,12 +1,12 @@
 ---
-description: "PR Review - File Review: Review individual files (step 2 of 5)"
+description: "PR Review - File Review: Review individual files (step 2 of 4)"
 handoffs:
   - label: "Continue File Review"
     agent: "agdt.pull-request-review.file-review"
     prompt: "Review the next file."
-  - label: "Continue to Summary"
-    agent: "agdt.pull-request-review.summary"
-    prompt: "Generate the review summary."
+  - label: "Continue to Decision"
+    agent: "agdt.pull-request-review.decision"
+    prompt: "Approve or request changes."
 
 ---
 
@@ -52,4 +52,4 @@ File review feedback is recorded and the queue advances.
 
 ## Next Step
 
-Continue file review or move to summary.
+Continue file review or move to decision.

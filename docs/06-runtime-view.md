@@ -158,14 +158,9 @@ sequenceDiagram
     end
     
     Agent->>CLI: agdt-submit-file-review
-    CLI->>State: update_workflow_step("summary")
-    
-    Note over Agent: Step 3: Generate Summary
-    Agent->>CLI: agdt-generate-pr-summary
-    CLI->>ADO: POST /pullrequests/123/threads (summary)
     CLI->>State: update_workflow_step("decision")
     
-    Note over Agent: Step 4: Decision
+    Note over Agent: Step 3: Decision
     alt No blocking issues
         Agent->>CLI: agdt-approve-pull-request
         CLI->>ADO: POST /pullrequests/123/reviewers (approve)

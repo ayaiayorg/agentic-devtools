@@ -584,9 +584,7 @@ def generate_overarching_pr_comments_cli() -> None:
 
     .. deprecated::
         This command is deprecated. PR summaries are now generated automatically
-        during agdt-review-pull-request scaffolding. The deprecation warning is
-        emitted by the user-facing wrapper (generate_pr_summary_async), not here,
-        because this function is also invoked as a background entry point by the
-        automated review workflow.
+        during agdt-review-pull-request scaffolding. The entry point
+        (agdt-generate-pr-summary) has been removed.
     """
     generate_overarching_pr_comments()
