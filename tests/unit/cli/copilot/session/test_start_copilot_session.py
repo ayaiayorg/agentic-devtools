@@ -659,3 +659,25 @@ class TestStartCopilotSessionNonInteractiveTee:
         log_content = log_files[0].read_text(encoding="utf-8")
         assert "line before error" in log_content
         assert "line after error" in log_content
+
+    def test_tee_handles_none_pipe_gracefully(self, temp_state, mock_available):
+        """When process.stdout is None, the tee thread returns early and closes the log."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 7777
+        mock_proc.stdout = None  # Simulate None stdout pipe
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        # The log file should exist but be empty since pipe was None
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert log_content == ""
