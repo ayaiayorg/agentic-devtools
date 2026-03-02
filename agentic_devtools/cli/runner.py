@@ -115,10 +115,6 @@ COMMAND_MAP = {
         "agentic_devtools.cli.azure_devops",
         "mark_file_reviewed_async",
     ),
-    "agdt-generate-pr-summary": (
-        "agentic_devtools.cli.azure_devops",
-        "generate_pr_summary_async",
-    ),
     # Azure CLI (App Insights queries)
     "agdt-query-app-insights": (
         "agentic_devtools.cli.azure",

@@ -389,7 +389,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
         """Test the full pull-request-review workflow lifecycle from initiate to completion.
 
         Exercises all steps in order:
-        initiate -> file-review -> (file-review loop) -> summary -> decision -> completion
+        initiate -> file-review -> (file-review loop) -> decision -> completion
         """
         # Set state for the PR
         state.set_workflow_state(
@@ -432,15 +432,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
             "prompt_file_path": None,
         }
 
-        # file-review -> summary (all files reviewed, manual advance)
-        with patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value=complete_queue,
-        ):
-            commands.advance_pull_request_review_workflow()
-        assert state.get_workflow_state()["step"] == "summary"
-
-        # summary -> decision (manual advance)
+        # file-review -> decision (all files reviewed, manual advance)
         with patch(
             "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
             return_value=complete_queue,
@@ -471,19 +463,19 @@ class TestPullRequestReviewWorkflowEndToEnd:
         state.set_workflow_state(
             name="pull-request-review",
             status="in-progress",
-            step="summary",
+            step="file-review",
             context={
                 "pull_request_id": "123",
                 "pending_transition": {
                     "to_step": "decision",
-                    "required_tasks": ["agdt-generate-pr-summary"],
+                    "required_tasks": ["agdt-submit-file-review"],
                 },
             },
         )
 
         mock_task = MagicMock()
-        mock_task.id = "task-summary-xyz-456"
-        mock_task.command = "agdt-generate-pr-summary"
+        mock_task.id = "task-submit-xyz-456"
+        mock_task.command = "agdt-submit-file-review"
         mock_task.status = MagicMock()
         mock_task.status.value = "running"
 
@@ -494,10 +486,10 @@ class TestPullRequestReviewWorkflowEndToEnd:
             result = get_next_workflow_prompt()
 
         assert result.status == PromptStatus.WAITING
-        assert result.step == "summary"
-        assert "agdt-generate-pr-summary" in result.content
+        assert result.step == "file-review"
+        assert "agdt-submit-file-review" in result.content
         # Workflow should not have advanced
-        assert state.get_workflow_state()["step"] == "summary"
+        assert state.get_workflow_state()["step"] == "file-review"
 
     def test_no_effect_when_pr_reviewed_in_wrong_step(self, temp_state_dir, temp_output_dir, clear_state_before):
         """Test that PR_REVIEWED event has no effect when not in the file-review step.
@@ -734,7 +726,7 @@ class TestMockAgentBehavior:
         1. Workflow is already at 'file-review'.
         2. Agent reviews file 1 → PR_REVIEWED event → stays in file-review.
         3. Agent reviews file 2 → PR_REVIEWED event → stays in file-review.
-        4. All files done → agent manually advances to summary.
+        4. All files done → agent manually advances to decision.
         """
         state.set_workflow_state(
             name="pull-request-review",
@@ -771,7 +763,7 @@ class TestMockAgentBehavior:
         assert result2 is True
         assert state.get_workflow_state()["step"] == "file-review"
 
-        # All files reviewed — agent advances to summary
+        # All files reviewed — agent advances to decision
         complete_queue = {
             "all_complete": True,
             "completed_count": 2,
@@ -786,7 +778,7 @@ class TestMockAgentBehavior:
         ):
             commands.advance_pull_request_review_workflow()
 
-        assert state.get_workflow_state()["step"] == "summary"
+        assert state.get_workflow_state()["step"] == "decision"
 
     def test_agent_receives_no_workflow_response_when_inactive(
         self, temp_state_dir, temp_output_dir, clear_state_before

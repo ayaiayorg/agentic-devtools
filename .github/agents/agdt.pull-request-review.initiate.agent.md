@@ -1,5 +1,5 @@
 ---
-description: "PR Review - Initiate: Start a pull request review (step 1 of 5)"
+description: "PR Review - Initiate: Start a pull request review (step 1 of 4)"
 handoffs:
   - label: "Continue to File Review"
     agent: "agdt.pull-request-review.file-review"

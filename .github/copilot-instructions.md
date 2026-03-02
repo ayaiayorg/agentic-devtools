@@ -345,7 +345,6 @@ All action commands that mutate state or perform API calls spawn background task
 | `agdt-run-e2e-tests` | Trigger E2E test pipeline | (pipeline params) |
 | `agdt-run-wb-patch` | Trigger workbench patch pipeline | (pipeline params) |
 | `agdt-review-pull-request` | Start PR review workflow | (optional) pull_request_id, jira.issue_key |
-| `agdt-generate-pr-summary` | ~~Generate PR summary comments~~ (**Deprecated** — summaries are now generated automatically by the PR review workflow after all file reviews complete, typically triggered via `agdt-task-wait`) | pull_request_id |
 
 **Create Pull Request CLI Parameter Support:**
 
@@ -1545,7 +1544,7 @@ reviewing any files:
    status cascades from folder statuses
 
 All threads are created during scaffolding and updated in-place (PATCH) as files are
-reviewed.  No separate `agdt-generate-pr-summary` call is required.
+reviewed.
 
 #### Review State File (`review-state.json`)
 

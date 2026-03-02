@@ -14,7 +14,6 @@ from agentic_devtools.cli.azure_devops.async_commands import (
     approve_file_async,
     approve_pull_request_async,
     create_pull_request_async,
-    generate_pr_summary_async,
     get_pull_request_details_async,
     get_pull_request_threads_async,
     get_run_details_async,
@@ -527,27 +526,6 @@ class TestMarkFileReviewedAsync:
 
 
 # =============================================================================
-# Review Workflow Commands Tests
-# =============================================================================
-
-
-class TestGeneratePrSummaryAsync:
-    """Tests for generate_pr_summary_async command."""
-
-    def test_spawns_background_task(self, mock_background_and_state, capsys):
-        """Test command spawns a background task calling the correct function."""
-        generate_pr_summary_async()
-
-        captured = capsys.readouterr()
-        assert "Background task started" in captured.out
-
-        script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(
-            script, "agentic_devtools.cli.azure_devops.pr_summary_commands", "generate_overarching_pr_comments_cli"
-        )
-
-
-# =============================================================================
 # Integration Tests
 # =============================================================================
 
@@ -562,7 +540,6 @@ class TestAzureDevOpsAsyncIntegration:
             approve_file_async,
             approve_pull_request_async,
             create_pull_request_async,
-            generate_pr_summary_async,
             get_pull_request_details_async,
             get_pull_request_threads_async,
             get_run_details_async,
@@ -598,7 +575,6 @@ class TestAzureDevOpsAsyncIntegration:
         assert callable(request_changes_async)
         assert callable(request_changes_with_suggestion_async)
         assert callable(mark_file_reviewed_async)
-        assert callable(generate_pr_summary_async)
 
     def test_all_commands_print_tracking_info(self, mock_background_and_state, capsys):
         """Test all commands print task tracking instructions."""

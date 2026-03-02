@@ -44,11 +44,24 @@ OVERALL_PR_SUMMARY_HEADING = "## Overall PR Review Summary"
 def _find_summary_thread_id(
     requests, headers: Dict[str, str], config: AzureDevOpsConfig, repo_id: str, pull_request_id: int
 ) -> Optional[int]:
-    """Find the thread ID of the 'Overall PR Review Summary' thread, if it exists.
+    """Find the thread ID of the 'Overall PR Review Summary' thread.
 
-    Returns the ID of the first matching thread. If multiple summary threads exist
-    (e.g., from duplicate summary runs), the first one found is used.
+    Checks review-state.json first to get the current review's thread ID,
+    avoiding stale threads from previous reviews of the same PR.
+    Falls back to searching all PR threads when review-state.json is unavailable.
     """
+    # Prefer the thread ID recorded in review-state.json for this PR,
+    # which is guaranteed to belong to the current review session.
+    try:
+        from .review_state import load_review_state
+
+        review_state = load_review_state(pull_request_id)
+        if review_state.overallSummary and review_state.overallSummary.threadId:
+            return review_state.overallSummary.threadId
+    except (FileNotFoundError, KeyError, AttributeError, OSError, ValueError):
+        pass
+
+    # Fallback: search all threads (may match stale threads from previous reviews)
     threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
     try:
         response = requests.get(threads_url, headers=headers, timeout=30)

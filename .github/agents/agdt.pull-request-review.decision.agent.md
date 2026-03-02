@@ -1,5 +1,5 @@
 ---
-description: "PR Review - Decision: Approve or request changes (step 4 of 5)"
+description: "PR Review - Decision: Approve or request changes (step 3 of 4)"
 handoffs:
   - label: "Continue to Completion"
     agent: "agdt.pull-request-review.completion"

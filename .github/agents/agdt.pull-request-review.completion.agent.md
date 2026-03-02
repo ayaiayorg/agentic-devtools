@@ -1,5 +1,5 @@
 ---
-description: "PR Review - Completion: Finalize review (step 5 of 5)"
+description: "PR Review - Completion: Finalize review (step 4 of 4)"
 ---
 
 ## User Input

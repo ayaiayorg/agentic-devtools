@@ -231,19 +231,11 @@ PULL_REQUEST_REVIEW_WORKFLOW = WorkflowDefinition(
             trigger_events={WorkflowEvent.PR_REVIEWED},
             auto_advance=True,
         ),
-        # File review -> summary (when all files done)
+        # File review -> decision (when all files done)
         WorkflowTransition(
             from_step="file-review",
-            to_step="summary",
-            trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-        ),
-        # Summary -> decision (after summary generated)
-        WorkflowTransition(
-            from_step="summary",
             to_step="decision",
             trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-            required_tasks=["agdt-generate-pr-summary"],
-            auto_advance=True,
         ),
         # Decision -> completion (after approve/reject)
         WorkflowTransition(
