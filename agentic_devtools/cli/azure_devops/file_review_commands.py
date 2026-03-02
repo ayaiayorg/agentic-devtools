@@ -561,18 +561,30 @@ def print_next_file_prompt(pull_request_id: int) -> None:
     print("=" * 60)
 
     if status["all_complete"]:
-        # All files reviewed - workflow will advance to decision step
-        # when the task wait detects completion via _try_advance_pr_review_to_decision
-        print("ALL FILES REVIEWED - PENDING SUBMISSION COMPLETION")
-        print("=" * 60)
-        print("")
-        print(f"Total files reviewed: {status['completed_count']}")
-        print("")
-        print("Some file review submissions are still being processed in the background.")
-        print("")
-        print("YOUR ONLY ACTION: Run agdt-task-wait")
-        print("")
-        print("This will wait for submissions to complete and then provide next steps.")
+        if status.get("submission_pending_count", 0) > 0:
+            # All files reviewed but submissions still posting to Azure DevOps
+            print("ALL FILES REVIEWED - PENDING SUBMISSION COMPLETION")
+            print("=" * 60)
+            print("")
+            print(f"Total files reviewed: {status['completed_count']}")
+            print("")
+            print("Some file review submissions are still being processed in the background.")
+            print("")
+            print("YOUR ONLY ACTION: Run agdt-task-wait")
+            print("")
+            print("This will wait for submissions to complete and then provide next steps.")
+        else:
+            # All files reviewed and all submissions complete
+            print("ALL FILES REVIEWED - READY FOR DECISION")
+            print("=" * 60)
+            print("")
+            print(f"Total files reviewed: {status['completed_count']}")
+            print("")
+            print("All file review submissions have completed.")
+            print("")
+            print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
+            print("")
+            print("This will advance the workflow to the decision step.")
     else:
         # Count submission-pending files
         queue_path = _get_queue_path(pull_request_id)
