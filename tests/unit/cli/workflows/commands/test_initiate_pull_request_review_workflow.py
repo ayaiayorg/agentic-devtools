@@ -146,9 +146,10 @@ class TestInitiatePRReviewWorkflowBranches:
 
 @pytest.fixture
 def mock_copilot_session():
-    """Mock _start_copilot_session_for_pr_review to prevent actual session start in tests."""
+    """Mock Copilot session + background setup to prevent real subprocesses in tests."""
     with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review") as mock:
-        yield mock
+        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+            yield mock
 
 
 class TestWorkflowCommands:
@@ -164,7 +165,7 @@ class TestWorkflowCommands:
         mock_copilot_session,
         capsys,
     ):
-        """Test pull request review workflow command starts background task."""
+        """Test pull request review workflow command initiates PR review."""
         # Setup state
         state.set_value("pull_request_id", "123")
 
@@ -188,25 +189,11 @@ class TestWorkflowCommands:
                         issue_key=None,
                     )
 
-                    # Mock background task to avoid actual async operations
-                    with patch(
-                        "agentic_devtools.cli.azure_devops.async_commands.get_pull_request_details_async"
-                    ) as mock_async:
-                        mock_async.return_value = None
+                    # Execute command (setup_pull_request_review_async is mocked by fixture)
+                    commands.initiate_pull_request_review_workflow(_argv=[])
 
-                        # Execute command
-                        commands.initiate_pull_request_review_workflow(_argv=[])
-
-        # Verify: The new implementation starts a background task instead of
-        # immediately rendering the prompt. Workflow state is set by the background
-        # task (get_pull_request_details) after it completes.
         captured = capsys.readouterr()
         assert "Initiating pull request review for PR #123" in captured.out
-        assert "Background task started" in captured.out
-        assert "agdt-task-wait" in captured.out
-
-        task_id = state.get_value("background.task_id")
-        assert task_id is not None
 
     def test_pull_request_review_workflow_with_issue_key_from_jira(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, mock_copilot_session, capsys
@@ -236,22 +223,16 @@ class TestWorkflowCommands:
                     with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_auto_setup:
                         mock_auto_setup.return_value = True
 
-                        # Mock background task to avoid actual async operations
-                        with patch(
-                            "agentic_devtools.cli.azure_devops.async_commands.get_pull_request_details_async"
-                        ) as mock_async:
-                            mock_async.return_value = None
-
-                            # Execute command with issue key
-                            commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+                        # Execute command with issue key (setup_pull_request_review_async is mocked by fixture)
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         # Verify it found the PR and started the workflow
         captured = capsys.readouterr()
         assert "Found PR #456" in captured.out
         assert "Initiating pull request review for PR #456" in captured.out
 
-        # Verify state was updated (pull_request_id is stored as int by setup_pull_request_review_async)
-        assert state.get_value("pull_request_id") == 456
+        # Verify state was updated (stored as string by commands.py; setup_pull_request_review_async is mocked)
+        assert str(state.get_value("pull_request_id")) == "456"
         assert state.get_value("jira.issue_key") == "DFLY-1234"
 
     def test_pull_request_review_workflow_with_issue_key_fallback_to_azure_devops(
@@ -283,18 +264,13 @@ class TestWorkflowCommands:
                     with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_auto_setup:
                         mock_auto_setup.return_value = True
 
-                        # Mock background task to avoid actual async operations
-                        with patch(
-                            "agentic_devtools.cli.azure_devops.async_commands.get_pull_request_details_async"
-                        ) as mock_async:
-                            mock_async.return_value = None
-
-                            commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+                        # Execute (setup_pull_request_review_async is mocked by fixture)
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         captured = capsys.readouterr()
         # The unified helper now abstracts the Jira vs ADO fallback logic
         assert "Found PR #789" in captured.out
-        assert state.get_value("pull_request_id") == 789
+        assert str(state.get_value("pull_request_id")) == "789"
 
     def test_pull_request_review_workflow_with_issue_key_not_found(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
@@ -490,34 +466,36 @@ class TestInitiatePRReviewWorkflowCopilotSession:
                         branch_name=source_branch,
                         issue_key=issue_key,
                     )
-                    with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
-                        with patch(
-                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
-                        ) as mock_session:
-                            commands.initiate_pull_request_review_workflow(_argv=argv)
-                            return mock_session
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                            ) as mock_session:
+                                commands.initiate_pull_request_review_workflow(_argv=argv)
+                                return mock_session
 
     def test_copilot_session_started_when_preflight_passes(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
-        """_start_copilot_session_for_pr_review is called when preflight passes."""
-        import os
-
+        """_start_copilot_session_for_pr_review is called with the repo root (not cwd)."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
         mock_session.assert_called_once()
         call_kwargs = mock_session.call_args
-        assert call_kwargs[0][0] == os.getcwd()
+        assert call_kwargs[0][0] == "/fake/repo-root"
 
     def test_copilot_session_interactive_default_is_true(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=True by default."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
-        mock_session.assert_called_once_with(mock_session.call_args[0][0], interactive=True)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=False when --interactive false."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "false"])
-        mock_session.assert_called_once_with(mock_session.call_args[0][0], interactive=False)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)

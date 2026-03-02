@@ -24,7 +24,7 @@ from .base import (
     initiate_workflow,
     validate_required_state,
 )
-from .preflight import check_worktree_and_branch
+from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
 def initiate_pull_request_review_workflow(
@@ -243,7 +243,10 @@ Examples:
     # setup and the interactive session.
     from .worktree_setup import _start_copilot_session_for_pr_review
 
-    _start_copilot_session_for_pr_review(os.getcwd(), interactive=interactive)
+    # Use the git repo/worktree root (not cwd) so the prompt file is found
+    # even when the command is invoked from a subdirectory.
+    repo_root = get_git_repo_root() or os.getcwd()
+    _start_copilot_session_for_pr_review(repo_root, interactive=interactive)
 
 
 def initiate_work_on_jira_issue_workflow(

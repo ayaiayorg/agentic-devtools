@@ -469,19 +469,35 @@ def start_copilot_session(
         log_fh = open(log_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
         stdout_ref = sys.stdout
 
-        def _tee(pipe: IO[bytes], log_file: IO[str], stdout: IO[str]) -> None:
+        def _tee(pipe: Optional[IO[bytes]], log_file: IO[str], stdout: Optional[IO[str]]) -> None:
             """Read from *pipe* and mirror every line to *log_file* and *stdout*."""
             try:
+                if pipe is None:
+                    return
+
+                stdout_ok = stdout is not None
+
                 for raw_line in pipe:
                     line = raw_line.decode("utf-8", errors="replace")
                     log_file.write(line)
                     log_file.flush()
-                    stdout.write(line)
-                    stdout.flush()
+
+                    if stdout_ok:
+                        try:
+                            stdout.write(line)  # type: ignore[union-attr]
+                            stdout.flush()  # type: ignore[union-attr]
+                        except (OSError, ValueError):
+                            # stdout closed/not writable (common in some CI runners).
+                            # Stop mirroring but keep draining the pipe to the log.
+                            stdout_ok = False
             finally:
                 log_file.close()
 
-        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref), daemon=True)
+        # daemon=False: the non-daemon thread keeps the parent process alive
+        # until the subprocess finishes and its stdout pipe reaches EOF.  This
+        # prevents SIGPIPE / broken-pipe in the child and ensures CI/pipeline
+        # steps wait for the full Copilot session output.
+        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref), daemon=False)
         tee_thread.start()
 
         result = CopilotSessionResult(

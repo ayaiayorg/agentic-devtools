@@ -583,8 +583,8 @@ class TestStartCopilotSessionNonInteractiveTee:
         assert "log entry alpha" in log_content
         assert "log entry beta" in log_content
 
-    def test_tee_runs_in_daemon_thread(self, temp_state, mock_available):
-        """The tee thread is started as a daemon thread."""
+    def test_tee_runs_in_non_daemon_thread(self, temp_state, mock_available):
+        """The tee thread is non-daemon so the parent waits for the subprocess to finish."""
         mock_proc = self._make_mock_process(b"")
         captured_thread_kwargs: list = []
         with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
@@ -600,7 +600,7 @@ class TestStartCopilotSessionNonInteractiveTee:
 
         assert len(captured_thread_kwargs) == 1
         call_kwargs = captured_thread_kwargs[0][1]
-        assert call_kwargs.get("daemon") is True
+        assert call_kwargs.get("daemon") is False
         mock_thread_instance.start.assert_called_once()
 
     def test_log_file_directory_created(self, temp_state, mock_available):
@@ -632,3 +632,30 @@ class TestStartCopilotSessionNonInteractiveTee:
                 )
         call_kwargs = mock_popen.call_args[1]
         assert call_kwargs.get("stdout") == subprocess.PIPE
+
+    def test_tee_continues_logging_when_stdout_fails(self, temp_state, mock_available):
+        """Log file still receives all output when stdout raises OSError mid-stream."""
+        output = b"line before error\nline after error\n"
+        mock_proc = self._make_mock_process(output)
+
+        broken_stdout = MagicMock()
+        broken_stdout.write.side_effect = OSError("stdout closed")
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("agentic_devtools.cli.copilot.session.sys.stdout", broken_stdout):
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=self._sync_thread_side_effect,
+                ):
+                    start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "line before error" in log_content
+        assert "line after error" in log_content
