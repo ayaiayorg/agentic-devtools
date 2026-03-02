@@ -561,8 +561,8 @@ def print_next_file_prompt(pull_request_id: int) -> None:
     print("=" * 60)
 
     if status["all_complete"]:
-        # All files reviewed - summary will be triggered automatically
-        # when the task wait detects completion via _try_advance_pr_review_to_summary
+        # All files reviewed - workflow will advance to decision step
+        # when the task wait detects completion via _try_advance_pr_review_to_decision
         print("ALL FILES REVIEWED - PENDING SUBMISSION COMPLETION")
         print("=" * 60)
         print("")
@@ -570,13 +570,9 @@ def print_next_file_prompt(pull_request_id: int) -> None:
         print("")
         print("Some file review submissions are still being processed in the background.")
         print("")
-        print("IMPORTANT: The PR summary will be generated AUTOMATICALLY once all")
-        print("submissions complete. Do NOT manually trigger dfly-generate-pr-summary.")
-        print("")
         print("YOUR ONLY ACTION: Run agdt-task-wait")
         print("")
-        print("This will wait for submissions to complete, auto-trigger the summary,")
-        print("and provide next steps when everything is done.")
+        print("This will wait for submissions to complete and then provide next steps.")
     else:
         # Count submission-pending files
         queue_path = _get_queue_path(pull_request_id)

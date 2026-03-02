@@ -30,7 +30,6 @@ from .async_commands import (
     create_pipeline_async,
     create_pull_request_async,
     create_pull_request_async_cli,
-    generate_pr_summary_async,
     get_pipeline_id_async,
     get_pull_request_details_async,
     get_pull_request_threads_async,
@@ -253,8 +252,6 @@ __all__ = [
     # PR summary commands
     "generate_overarching_pr_comments",
     "generate_overarching_pr_comments_cli",
-    # PR summary commands (async)
-    "generate_pr_summary_async",
     # Run details commands
     "get_run_details",
     "wait_for_run",

@@ -179,6 +179,34 @@ class TestStartCopilotSessionInteractive:
         assert state.get_value("copilot.prompt_file") == result.prompt_file
         assert state.get_value("copilot.start_time") == result.start_time
 
+    def test_interactive_strips_node_options_from_env(self, temp_state, mock_available, mock_popen_interactive):
+        """NODE_OPTIONS is excluded from the subprocess environment for interactive sessions."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.dict("os.environ", {"NODE_OPTIONS": "--no-warnings"}, clear=False):
+            start_copilot_session(
+                prompt="Do something",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs.get("env", {})
+        assert "NODE_OPTIONS" not in env
+
+    def test_interactive_preserves_other_env_vars(self, temp_state, mock_available, mock_popen_interactive):
+        """Other environment variables are preserved in the interactive subprocess environment."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.dict("os.environ", {"MY_CUSTOM_VAR": "my_value"}, clear=False):
+            start_copilot_session(
+                prompt="Do something",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs.get("env", {})
+        assert env.get("MY_CUSTOM_VAR") == "my_value"
+
 
 class TestStartCopilotSessionNonInteractive:
     """Tests for start_copilot_session in non-interactive mode."""

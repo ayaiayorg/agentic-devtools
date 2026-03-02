@@ -494,26 +494,25 @@ def _get_task_elapsed_time(task: BackgroundTask) -> Optional[float]:
         return None
 
 
-def _try_advance_pr_review_to_summary() -> bool:
+def _try_advance_pr_review_to_decision() -> bool:
     """
-    Check if pull-request-review workflow should auto-advance to summary step.
+    Check if pull-request-review workflow should auto-advance to decision step.
 
     This function checks if:
     1. Current workflow is pull-request-review
     2. Current step is file-review
     3. All files have been reviewed (queue all_complete is True)
+    4. No submissions are still pending
 
     If all conditions are met:
-    - Advances workflow to summary step
-    - Triggers generate_pr_summary_async() as background task
-    - Sets background.task_id to the new summary task
-    - Prints message instructing AI to run agdt-task-wait
+    - Advances workflow to decision step
+    - Prints message with next steps (approve or request changes)
 
     Returns:
-        True if workflow was advanced and summary task started
+        True if workflow was advanced to decision step
         False if conditions not met or workflow not applicable
     """
-    from ...state import get_value, get_workflow_state, set_value
+    from ...state import get_value, get_workflow_state
 
     # Check if we're in pull-request-review workflow at file-review step
     workflow = get_workflow_state()
@@ -543,116 +542,34 @@ def _try_advance_pr_review_to_summary() -> bool:
     if not queue_status.get("all_complete", False):
         return False
 
-    # Also wait for all submissions to complete before generating summary
+    # Also wait for all submissions to complete
     if queue_status.get("submission_pending_count", 0) > 0:
         return False
 
-    # All conditions met - advance workflow to summary step
+    # All conditions met - advance workflow to decision step
     from ..workflows.base import set_workflow_state
 
     context = workflow.get("context", {})
     set_workflow_state(
         name="pull-request-review",
         status="in-progress",
-        step="summary",
+        step="decision",
         context=context,
     )
-
-    # Start summary generation as background task (without printing tracking info)
-    from ...background_tasks import run_function_in_background
-    from ...task_state import BackgroundTask
-
-    _PR_SUMMARY_MODULE = "agentic_devtools.cli.azure_devops.pr_summary_commands"
-    task: BackgroundTask = run_function_in_background(
-        _PR_SUMMARY_MODULE,
-        "generate_overarching_pr_comments_cli",
-        command_display_name="agdt-generate-pr-summary",
-    )
-
-    # Update background.task_id so next agdt-task-wait tracks this task
-    set_value("background.task_id", task.id)
 
     # Print clear, unambiguous message for AI agent
     print()
     print("=" * 70)
-    _safe_print("✅ ALL FILE REVIEWS COMPLETE - AUTO-GENERATING PR SUMMARY")
+    _safe_print("✅ ALL FILE REVIEWS COMPLETE")
     print("=" * 70)
     print()
-    print("PR summary generation has been AUTOMATICALLY started in the background.")
-    print(f"Task ID: {task.id}")
-    print()
-    print("IMPORTANT: The summary will be posted automatically. Do NOT manually")
-    print("trigger dfly-generate-pr-summary - it is already running.")
-    print()
-    _safe_print("📋 YOUR ONLY ACTION: Run agdt-task-wait")
-    print()
-    print("This will wait for the summary to complete and then provide next steps.")
-
-    return True
-
-
-def _try_complete_pr_review_workflow(task: BackgroundTask) -> bool:
-    """
-    Check if pull-request-review workflow should complete after summary generation.
-
-    This function checks if:
-    1. Current workflow is pull-request-review
-    2. Current step is summary
-    3. The completed task was dfly-generate-pr-summary
-
-    If all conditions are met:
-    - Advances workflow to completion step
-    - Prints completion message
-
-    Args:
-        task: The background task that just completed
-
-    Returns:
-        True if workflow was completed
-        False if conditions not met or workflow not applicable
-    """
-    from ...state import get_workflow_state
-
-    # Check if we're in pull-request-review workflow at summary step
-    workflow = get_workflow_state()
-    if not workflow:
-        return False
-
-    workflow_name = workflow.get("active", "")
-    current_step = workflow.get("step", "")
-
-    if workflow_name != "pull-request-review" or current_step != "summary":
-        return False
-
-    # Check if the completed task was the summary generation
-    if task.command != "agdt-generate-pr-summary":
-        return False
-
-    # All conditions met - advance workflow to completion
-    from ..workflows.base import set_workflow_state
-
-    context = workflow.get("context", {})
-    set_workflow_state(
-        name="pull-request-review",
-        status="completed",
-        step="completion",
-        context=context,
-    )
-
-    # Print completion message
-    print()
-    print("=" * 70)
-    _safe_print("✅ PR REVIEW WORKFLOW COMPLETE")
-    print("=" * 70)
-    print()
-    print("All file reviews have been submitted and summary comments posted.")
-    print("The pull-request-review workflow has completed successfully.")
+    print(f"All {queue_status.get('completed_count', 0)} file(s) reviewed and submitted.")
+    print("The PR review summary was already posted to Azure DevOps during scaffolding.")
     print()
     print("NEXT STEPS:")
-    print("  1. Review the PR summary comments that were posted")
-    print("  2. Make a final decision on the PR:")
-    print("     - To approve: agdt-approve-pull-request")
-    print("     - Or provide feedback and request changes as needed")
+    print("  - To approve: agdt-set content 'Summary of why this PR is approved'")
+    print("                agdt-approve-pull-request")
+    print("  - To request changes: provide feedback using agdt-reply-to-pull-request-thread")
 
     return True
 
@@ -742,14 +659,9 @@ def _handle_task_completed(task: BackgroundTask, task_id: str, timeout: float) -
         sys.exit(0)
 
     # All tasks succeeded - check for special workflow handling
-    # Check if we need to auto-advance pull-request-review workflow
-    if _try_advance_pr_review_to_summary():
-        # Successfully advanced and triggered summary - AI agent should run agdt-task-wait
-        sys.exit(0)  # pragma: no cover
-
-    # Check if pull-request-review workflow should complete after summary
-    if _try_complete_pr_review_workflow(task):
-        # Workflow completed successfully
+    # Check if we need to auto-advance pull-request-review workflow to decision step
+    if _try_advance_pr_review_to_decision():
+        # Successfully advanced to decision step
         sys.exit(0)  # pragma: no cover
 
     # Standard workflow progression

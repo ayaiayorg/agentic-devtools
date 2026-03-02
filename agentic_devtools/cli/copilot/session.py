@@ -417,10 +417,16 @@ def start_copilot_session(
         # and the argument list contains a file path derived from user-supplied
         # prompt content; shell=True on Windows would allow cmd.exe to expand
         # %VAR% patterns inside those values.
+        # Strip NODE_OPTIONS: on some systems it contains flags such as
+        # ``--no-warnings`` that are intended for Node.js but are forwarded as
+        # CLI arguments to the copilot binary, causing repeated
+        # "error: unknown option '--no-warnings'" messages.
+        env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
         process = subprocess.Popen(
             args,
             cwd=working_directory,
             shell=False,
+            env=env,
         )
         process.wait()
         result = CopilotSessionResult(

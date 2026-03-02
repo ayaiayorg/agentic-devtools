@@ -10,7 +10,6 @@ not via CLI entry points.
 
 import argparse
 import sys
-import warnings
 from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
@@ -42,11 +41,6 @@ _FILE_REVIEW_MODULE = "agentic_devtools.cli.azure_devops.file_review_commands"
 _PIPELINE_MODULE = "agentic_devtools.cli.azure_devops.pipeline_commands"
 _REVIEW_MODULE = "agentic_devtools.cli.azure_devops.review_commands"
 _PR_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.pull_request_details_commands"
-_PR_SUMMARY_MODULE = "agentic_devtools.cli.azure_devops.pr_summary_commands"
-_PR_SUMMARY_DEPRECATION_MESSAGE = (
-    "agdt-generate-pr-summary is deprecated. "
-    "PR summaries are now generated automatically during agdt-review-pull-request scaffolding."
-)
 _RUN_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.run_details_commands"
 _MARK_REVIEWED_MODULE = "agentic_devtools.cli.azure_devops.mark_reviewed"
 
@@ -1457,35 +1451,6 @@ def setup_pull_request_review_async(  # pragma: no cover
         command_display_name="setup-pull-request-review",
     )
     print_task_tracking_info(task, f"Setting up PR #{pr_id} review workflow")
-
-
-def generate_pr_summary_async() -> None:
-    """
-    Generate PR summary asynchronously in the background.
-
-    .. deprecated::
-        This command is deprecated. PR summaries are now generated automatically
-        during agdt-review-pull-request scaffolding.
-
-    State keys:
-        pull_request_id (required): PR ID
-
-    Usage:
-        agdt-set pull_request_id 12345
-        agdt-generate-pr-summary
-    """
-    warnings.warn(
-        _PR_SUMMARY_DEPRECATION_MESSAGE,
-        DeprecationWarning,
-        stacklevel=1,
-    )
-    print(f"WARNING: {_PR_SUMMARY_DEPRECATION_MESSAGE}")
-    task = run_function_in_background(
-        _PR_SUMMARY_MODULE,
-        "generate_overarching_pr_comments_cli",
-        command_display_name="agdt-generate-pr-summary",
-    )
-    print_task_tracking_info(task, "Generating PR summary")
 
 
 # =============================================================================
