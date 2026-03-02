@@ -11,7 +11,7 @@ from typing import Dict, List
 
 from .config import AzureDevOpsConfig
 from .helpers import patch_comment, patch_thread_status
-from .review_state import ReviewState, ReviewStatus, normalize_file_path
+from .review_state import ReviewState, ReviewStatus, compute_aggregate_status, normalize_file_path
 from .review_templates import render_folder_summary, render_overall_summary
 
 # Thread status mapping: review status → Azure DevOps thread status
@@ -21,9 +21,6 @@ _THREAD_STATUS_MAP: Dict[str, str] = {
     ReviewStatus.APPROVED.value: "closed",
     ReviewStatus.NEEDS_WORK.value: "active",
 }
-
-# Statuses that indicate a file/folder review is complete
-_COMPLETE_STATUSES = frozenset({ReviewStatus.APPROVED.value, ReviewStatus.NEEDS_WORK.value})
 
 
 @dataclass
@@ -61,20 +58,7 @@ def derive_folder_status(state: ReviewState, folder_name: str) -> str:
     folder = state.folders[folder_name]
     file_statuses = [state.files[fp].status for fp in folder.files if fp in state.files]
 
-    if not file_statuses:
-        return ReviewStatus.UNREVIEWED.value
-
-    any_started = any(s != ReviewStatus.UNREVIEWED.value for s in file_statuses)
-    all_complete = all(s in _COMPLETE_STATUSES for s in file_statuses)
-
-    if not any_started:
-        return ReviewStatus.UNREVIEWED.value
-    elif not all_complete:
-        return ReviewStatus.IN_PROGRESS.value
-    elif any(s == ReviewStatus.NEEDS_WORK.value for s in file_statuses):
-        return ReviewStatus.NEEDS_WORK.value
-    else:
-        return ReviewStatus.APPROVED.value
+    return compute_aggregate_status(file_statuses)
 
 
 def derive_overall_status(state: ReviewState) -> str:
@@ -94,20 +78,7 @@ def derive_overall_status(state: ReviewState) -> str:
     """
     folder_statuses = [f.status for f in state.folders.values()]
 
-    if not folder_statuses:
-        return ReviewStatus.UNREVIEWED.value
-
-    any_started = any(s != ReviewStatus.UNREVIEWED.value for s in folder_statuses)
-    all_complete = all(s in _COMPLETE_STATUSES for s in folder_statuses)
-
-    if not any_started:
-        return ReviewStatus.UNREVIEWED.value
-    elif not all_complete:
-        return ReviewStatus.IN_PROGRESS.value
-    elif any(s == ReviewStatus.NEEDS_WORK.value for s in folder_statuses):
-        return ReviewStatus.NEEDS_WORK.value
-    else:
-        return ReviewStatus.APPROVED.value
+    return compute_aggregate_status(folder_statuses)
 
 
 def cascade_status_update(

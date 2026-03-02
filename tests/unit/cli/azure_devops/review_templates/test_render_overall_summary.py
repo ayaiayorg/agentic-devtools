@@ -139,8 +139,8 @@ class TestRenderOverallSummary:
         assert "src" in result
         assert "lib" in result
 
-    def test_needs_work_takes_precedence_over_in_progress(self):
-        """Test Needs Work status takes precedence over In Progress."""
+    def test_needs_work_and_in_progress_returns_in_progress(self):
+        """Test In Progress status when some folders need work and some are in-progress."""
         state = _make_state(
             folders={
                 "a": _make_folder_entry(1, 2, "in-progress"),
@@ -148,7 +148,7 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* Needs Work" in result
+        assert "*Status:* In Progress" in result
 
     def test_in_progress_takes_precedence_over_approved(self):
         """Test In Progress status takes precedence over Approved."""
@@ -156,6 +156,17 @@ class TestRenderOverallSummary:
             folders={
                 "a": _make_folder_entry(1, 2, "approved"),
                 "b": _make_folder_entry(3, 4, "in-progress"),
+            }
+        )
+        result = render_overall_summary(state, _BASE_URL)
+        assert "*Status:* In Progress" in result
+
+    def test_some_approved_some_unreviewed_returns_in_progress(self):
+        """Test overall status is In Progress when some folders approved and some unreviewed."""
+        state = _make_state(
+            folders={
+                "src": _make_folder_entry(1, 2, "approved"),
+                "lib": _make_folder_entry(3, 4, "unreviewed"),
             }
         )
         result = render_overall_summary(state, _BASE_URL)

@@ -6,7 +6,14 @@ file summaries, folder summaries, and the overall PR summary at each status.
 
 from typing import Dict, List
 
-from .review_state import FileEntry, FolderEntry, ReviewState, ReviewStatus, SuggestionEntry
+from .review_state import (
+    FileEntry,
+    FolderEntry,
+    ReviewState,
+    ReviewStatus,
+    SuggestionEntry,
+    compute_aggregate_status,
+)
 
 _STATUS_DISPLAY: Dict[str, str] = {
     ReviewStatus.UNREVIEWED.value: "Unreviewed",
@@ -140,11 +147,13 @@ def render_folder_summary(
     approved: List[FileEntry] = []
     in_progress: List[FileEntry] = []
     unreviewed: List[FileEntry] = []
+    file_statuses: List[str] = []
 
     for file_path in folder_entry.files:
         fe = files.get(file_path)
         if fe is None:
             continue
+        file_statuses.append(fe.status)
         if fe.status == ReviewStatus.NEEDS_WORK.value:
             needs_work.append(fe)
         elif fe.status == ReviewStatus.APPROVED.value:
@@ -153,15 +162,10 @@ def render_folder_summary(
             in_progress.append(fe)
         else:
             unreviewed.append(fe)
-
-    if needs_work:
-        folder_status = "Needs Work"
-    elif in_progress:
-        folder_status = "In Progress"
-    elif approved:
-        folder_status = "Approved"
-    else:
-        folder_status = "Unreviewed"
+    folder_status = _STATUS_DISPLAY.get(
+        compute_aggregate_status(file_statuses),
+        "Unreviewed",
+    )
 
     lines: List[str] = [
         f"## Folder Review Summary: {folder_name}",
@@ -218,14 +222,11 @@ def render_overall_summary(state: ReviewState, base_url: str) -> str:
         else:
             unreviewed.append(folder_name)
 
-    if needs_work:
-        overall_status = "Needs Work"
-    elif in_progress:
-        overall_status = "In Progress"
-    elif approved:
-        overall_status = "Approved"
-    else:
-        overall_status = "Unreviewed"
+    folder_statuses = [fe.status for fe in state.folders.values()]
+    overall_status = _STATUS_DISPLAY.get(
+        compute_aggregate_status(folder_statuses),
+        "Unreviewed",
+    )
 
     lines: List[str] = [
         "## Overall PR Review Summary",
