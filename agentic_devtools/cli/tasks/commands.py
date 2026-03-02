@@ -563,8 +563,8 @@ def _try_advance_pr_review_to_decision() -> bool:
                 approval_count += 1
             elif file_entry.status == "needs-work":
                 changes_count += 1
-    except Exception:
-        # Best-effort: if review-state is unavailable, counts default to 0
+    except (FileNotFoundError, OSError, ValueError, AttributeError, KeyError):
+        # Best-effort: if review-state is unavailable or malformed, counts default to 0
         pass
 
     variables = {

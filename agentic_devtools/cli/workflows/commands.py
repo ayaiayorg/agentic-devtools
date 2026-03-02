@@ -603,8 +603,9 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
         if current_step == "initiate":
             step = "file-review"
         elif current_step == "file-review":
-            # If all files are complete, go to decision; otherwise stay in file-review
-            if queue_status["all_complete"]:
+            # If all files are complete and no submissions are still pending,
+            # go to decision; otherwise stay in file-review
+            if queue_status["all_complete"] and queue_status.get("submission_pending_count", 0) == 0:
                 step = "decision"
             else:
                 step = "file-review"
@@ -634,8 +635,8 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
                 approval_count += 1
             elif file_entry.status == "needs-work":
                 changes_count += 1
-    except Exception:
-        # Best-effort: if review-state is unavailable, counts default to 0
+    except (FileNotFoundError, OSError, ValueError, AttributeError, KeyError):
+        # Best-effort: if review-state is unavailable or malformed, counts default to 0
         pass
 
     variables = {

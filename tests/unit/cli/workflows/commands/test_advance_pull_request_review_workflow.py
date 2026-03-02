@@ -171,6 +171,39 @@ class TestAdvancePullRequestReviewWorkflow:
         workflow = state.get_workflow_state()
         assert workflow["step"] == "file-review"
 
+    def test_advance_stays_on_file_review_when_submissions_pending(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test advance stays on file-review when submissions are still pending."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "123"},
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 5,
+                "pending_count": 0,
+                "submission_pending_count": 2,
+                "total_count": 5,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-file-review-prompt.md"
+            template_file.write_text("File review for PR #{{pull_request_id}}", encoding="utf-8")
+
+            commands.advance_pull_request_review_workflow()
+
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "file-review"
+
     def test_advance_to_decision_computes_approval_and_changes_counts(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):
