@@ -470,7 +470,11 @@ def start_copilot_session(
         stdout_ref = sys.stdout
 
         def _tee(pipe: Optional[IO[bytes]], log_file: IO[str], stdout: Optional[IO[str]]) -> None:
-            """Read from *pipe* and mirror every line to *log_file* and *stdout*."""
+            """Read from *pipe* and mirror every line to *log_file* and *stdout*.
+
+            Handles *pipe* or *stdout* being ``None`` gracefully, and
+            continues draining to *log_file* if stdout writes fail.
+            """
             try:
                 if pipe is None:
                     return
