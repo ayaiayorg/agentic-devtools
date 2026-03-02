@@ -47,12 +47,13 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import uuid
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import IO, Optional
 
 from agentic_devtools.state import get_state_dir, set_value
 
@@ -438,15 +439,13 @@ def start_copilot_session(
             process=None,
         )
     else:
-        # Non-interactive: run as background process, capture output to log file.
+        # Non-interactive: run as background process, tee output to both the
+        # log file AND the current process's stdout so that CI/pipeline systems
+        # (e.g., Azure DevOps) capture the detailed Copilot output in their
+        # build logs in addition to the persistent log file.
         log_file_path = _get_log_file_path(session_id, start_time)
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Open without a context manager so the file handle stays open while the
-        # background process is still running; the OS will release it when the
-        # child process (which inherits the fd) eventually exits.
-        # shell=False: same reasoning as the interactive case above.
-        log_fh = open(log_file_path, "w", encoding="utf-8")  # noqa: WPS515
         # Strip NODE_OPTIONS from the subprocess environment: on some systems
         # NODE_OPTIONS contains flags such as ``--no-warnings`` that are
         # intended for the Node.js runtime but are forwarded as CLI arguments
@@ -456,13 +455,34 @@ def start_copilot_session(
         process = subprocess.Popen(
             args,
             cwd=working_directory,
-            stdout=log_fh,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
             start_new_session=True if sys.platform != "win32" else False,
             shell=False,
             env=env,
         )
+
+        # Open log file without a context manager; the tee thread closes it
+        # after the subprocess pipe reaches EOF.
+        # shell=False: same reasoning as the interactive case above.
+        log_fh = open(log_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
+        stdout_ref = sys.stdout
+
+        def _tee(pipe: IO[bytes], log_file: IO[str], stdout: IO[str]) -> None:
+            """Read from *pipe* and mirror every line to *log_file* and *stdout*."""
+            try:
+                for raw_line in pipe:
+                    line = raw_line.decode("utf-8", errors="replace")
+                    log_file.write(line)
+                    log_file.flush()
+                    stdout.write(line)
+                    stdout.flush()
+            finally:
+                log_file.close()
+
+        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref), daemon=True)
+        tee_thread.start()
 
         result = CopilotSessionResult(
             session_id=session_id,

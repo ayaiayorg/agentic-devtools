@@ -144,6 +144,13 @@ class TestInitiatePRReviewWorkflowBranches:
         assert "Unable to determine source branch" in captured.err
 
 
+@pytest.fixture
+def mock_copilot_session():
+    """Mock _start_copilot_session_for_pr_review to prevent actual session start in tests."""
+    with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review") as mock:
+        yield mock
+
+
 class TestWorkflowCommands:
     """Tests for individual workflow command functions."""
 
@@ -154,6 +161,7 @@ class TestWorkflowCommands:
         temp_output_dir,
         clear_state_before,
         mock_workflow_state_clearing,
+        mock_copilot_session,
         capsys,
     ):
         """Test pull request review workflow command starts background task."""
@@ -201,7 +209,7 @@ class TestWorkflowCommands:
         assert task_id is not None
 
     def test_pull_request_review_workflow_with_issue_key_from_jira(
-        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, mock_copilot_session, capsys
     ):
         """Test PR review workflow finds PR from Jira issue via unified helper."""
         # Mock the unified helper to return a PR ID (it internally checks Jira first)
@@ -247,7 +255,7 @@ class TestWorkflowCommands:
         assert state.get_value("jira.issue_key") == "DFLY-1234"
 
     def test_pull_request_review_workflow_with_issue_key_fallback_to_azure_devops(
-        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, mock_copilot_session, capsys
     ):
         """Test PR review workflow falls back to Azure DevOps search when Jira has no link."""
         # Mock the unified helper - it internally tries Jira first, then ADO
@@ -456,3 +464,60 @@ class TestInitiatePRReviewWorkflowInteractive:
         assert "--pull-request-id" in auto_cmd
         assert "111" in auto_cmd
         assert "--issue-key" not in auto_cmd
+
+
+class TestInitiatePRReviewWorkflowCopilotSession:
+    """Tests for the Copilot session started after preflight passes."""
+
+    def _run_with_preflight_passing(self, pr_id, source_branch, issue_key=None, argv=None):
+        """Helper: run initiate_pull_request_review_workflow with preflight passing."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("pull_request_id", pr_id)
+        if issue_key:
+            state.set_value("jira.issue_key", issue_key)
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = source_branch
+            with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+                mock_find.return_value = None
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name=source_branch,
+                        issue_key=issue_key,
+                    )
+                    with patch("agentic_devtools.cli.azure_devops.async_commands.get_pull_request_details_async"):
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                        ) as mock_session:
+                            commands.initiate_pull_request_review_workflow(_argv=argv)
+                            return mock_session
+
+    def test_copilot_session_started_when_preflight_passes(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_pr_review is called when preflight passes."""
+        import os
+
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
+        mock_session.assert_called_once()
+        call_kwargs = mock_session.call_args
+        assert call_kwargs[0][0] == os.getcwd()
+
+    def test_copilot_session_interactive_default_is_true(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_pr_review is called with interactive=True by default."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
+        mock_session.assert_called_once_with(mock_session.call_args[0][0], interactive=True)
+
+    def test_copilot_session_respects_interactive_false(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_pr_review is called with interactive=False when --interactive false."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "false"])
+        mock_session.assert_called_once_with(mock_session.call_args[0][0], interactive=False)

@@ -1,5 +1,6 @@
 """Tests for start_copilot_session."""
 
+import io
 import warnings
 from unittest.mock import MagicMock, patch
 
@@ -515,3 +516,112 @@ class TestStartCopilotSessionLargePromptFallback:
         assert result.process is None
         assert result.pid is None
         assert any("too large" in str(warning.message) for warning in w)
+
+
+class TestStartCopilotSessionNonInteractiveTee:
+    """Tests for the non-interactive tee behavior: output goes to log file AND stdout."""
+
+    def _make_mock_process(self, output_bytes: bytes) -> MagicMock:
+        """Return a mock Popen whose stdout yields the given bytes."""
+        proc = MagicMock()
+        proc.pid = 7777
+        proc.stdout = io.BytesIO(output_bytes)
+        return proc
+
+    def _sync_thread_side_effect(self, target, args=(), daemon=False, **kwargs):
+        """Return a thread substitute that runs *target* synchronously on start()."""
+
+        class _SyncThread:
+            def start(self):
+                target(*args)
+
+        return _SyncThread()
+
+    def test_output_teed_to_stdout(self, temp_state, mock_available, capsys):
+        """Non-interactive output is written to stdout (pipeline visibility)."""
+        output = b"copilot line one\ncopilot line two\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        captured = capsys.readouterr()
+        assert "copilot line one" in captured.out
+        assert "copilot line two" in captured.out
+
+    def test_output_written_to_log_file(self, temp_state, mock_available):
+        """Non-interactive output is written to the log file."""
+        output = b"log entry alpha\nlog entry beta\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "log entry alpha" in log_content
+        assert "log entry beta" in log_content
+
+    def test_tee_runs_in_daemon_thread(self, temp_state, mock_available):
+        """The tee thread is started as a daemon thread."""
+        mock_proc = self._make_mock_process(b"")
+        captured_thread_kwargs: list = []
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("agentic_devtools.cli.copilot.session.threading.Thread") as mock_thread_cls:
+                mock_thread_instance = MagicMock()
+                mock_thread_cls.return_value = mock_thread_instance
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+                captured_thread_kwargs.extend(mock_thread_cls.call_args_list)
+
+        assert len(captured_thread_kwargs) == 1
+        call_kwargs = captured_thread_kwargs[0][1]
+        assert call_kwargs.get("daemon") is True
+        mock_thread_instance.start.assert_called_once()
+
+    def test_log_file_directory_created(self, temp_state, mock_available):
+        """The log file parent directory is created when it does not exist."""
+        mock_proc = self._make_mock_process(b"")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("agentic_devtools.cli.copilot.session.threading.Thread") as mock_thread_cls:
+                mock_thread_cls.return_value = MagicMock()
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        assert log_dir.is_dir()
+
+    def test_popen_uses_pipe_for_stdout(self, temp_state, mock_available):
+        """Popen is called with stdout=PIPE in non-interactive mode for tee support."""
+        import subprocess
+
+        mock_proc = self._make_mock_process(b"")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc) as mock_popen:
+            with patch("agentic_devtools.cli.copilot.session.threading.Thread") as mock_thread_cls:
+                mock_thread_cls.return_value = MagicMock()
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs.get("stdout") == subprocess.PIPE
