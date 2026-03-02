@@ -10,11 +10,6 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.task_state import (
-    BackgroundTask,
-    add_task,
-)
-
 
 @pytest.fixture
 def mock_state_dir(tmp_path):

@@ -80,18 +80,14 @@ class TestFindSummaryThreadId:
             "agentic_devtools.cli.azure_devops.review_state.load_review_state",
             return_value=mock_review_state,
         ):
-            result = _find_summary_thread_id(
-                mock_requests, {}, mock_config, "repo-id", 25230
-            )
+            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
 
         assert result == 162564
         # Should NOT have made any HTTP requests
         mock_requests.get.assert_not_called()
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
-    def test_falls_back_to_thread_search_when_review_state_missing(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_falls_back_to_thread_search_when_review_state_missing(self, temp_state_dir, clear_state_before):
         """Falls back to searching PR threads when review-state.json does not exist."""
         from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
         from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
@@ -115,10 +111,7 @@ class TestFindSummaryThreadId:
             "agentic_devtools.cli.azure_devops.review_state.load_review_state",
             side_effect=FileNotFoundError("not found"),
         ):
-            result = _find_summary_thread_id(
-                mock_requests, {}, mock_config, "repo-id", 25230
-            )
+            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
 
         assert result == 99
         mock_requests.get.assert_called_once()
-
