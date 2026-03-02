@@ -598,6 +598,16 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     # Get queue status for file-review step
     queue_status = get_queue_status(pr_id_int)
 
+    _VALID_STEPS = {"file-review", "decision", "completion"}
+
+    if step is not None and step not in _VALID_STEPS:
+        print(
+            f"ERROR: Unknown step '{step}'. "
+            f"Valid steps: {', '.join(sorted(_VALID_STEPS))}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if step is None:
         # Auto-detect next step based on current step and queue status
         if current_step == "initiate":

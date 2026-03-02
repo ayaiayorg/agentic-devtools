@@ -285,3 +285,32 @@ class TestAdvancePullRequestReviewWorkflow:
 
         workflow = state.get_workflow_state()
         assert workflow["step"] == "file-review"
+
+    def test_advance_rejects_invalid_step(self, temp_state_dir, clear_state_before, capsys):
+        """Test advance rejects removed/unknown steps like 'summary'."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "123"},
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": False,
+                "completed_count": 0,
+                "pending_count": 5,
+                "total_count": 5,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                commands.advance_pull_request_review_workflow(step="summary")
+            assert exc_info.value.code == 1
+            captured = capsys.readouterr()
+            assert "Unknown step 'summary'" in captured.err
+            assert "completion" in captured.err
+            assert "decision" in captured.err
+            assert "file-review" in captured.err
