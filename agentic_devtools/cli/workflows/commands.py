@@ -14,6 +14,7 @@ The work-on-jira-issue workflow uses a state-machine approach with:
 - Automatic workflow advancement from commands
 """
 
+import os
 import sys
 from typing import List, Optional
 
@@ -23,7 +24,7 @@ from .base import (
     initiate_workflow,
     validate_required_state,
 )
-from .preflight import check_worktree_and_branch
+from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
 def initiate_pull_request_review_workflow(
@@ -235,6 +236,17 @@ Examples:
         pull_request_id=int(resolved_pr_id),
         jira_issue_key=resolved_issue_key,
     )
+
+    # Start a Copilot CLI session after the background setup completes.
+    # _start_copilot_session_for_pr_review waits for the prompt file written
+    # by the background task before launching the session, bridging the async
+    # setup and the interactive session.
+    from .worktree_setup import _start_copilot_session_for_pr_review
+
+    # Use the git repo/worktree root (not cwd) so the prompt file is found
+    # even when the command is invoked from a subdirectory.
+    repo_root = get_git_repo_root() or os.getcwd()
+    _start_copilot_session_for_pr_review(repo_root, interactive=interactive)
 
 
 def initiate_work_on_jira_issue_workflow(
@@ -602,8 +614,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
     if step is not None and step not in _VALID_STEPS:
         print(
-            f"ERROR: Unknown step '{step}'. "
-            f"Valid steps: {', '.join(sorted(_VALID_STEPS))}",
+            f"ERROR: Unknown step '{step}'. Valid steps: {', '.join(sorted(_VALID_STEPS))}",
             file=sys.stderr,
         )
         sys.exit(1)
