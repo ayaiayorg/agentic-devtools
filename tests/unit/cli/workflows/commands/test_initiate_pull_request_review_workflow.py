@@ -490,7 +490,7 @@ class TestInitiatePRReviewWorkflowCopilotSession:
                         branch_name=source_branch,
                         issue_key=issue_key,
                     )
-                    with patch("agentic_devtools.cli.azure_devops.async_commands.get_pull_request_details_async"):
+                    with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
                         with patch(
                             "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
                         ) as mock_session:

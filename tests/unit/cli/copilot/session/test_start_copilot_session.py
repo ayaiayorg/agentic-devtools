@@ -528,12 +528,19 @@ class TestStartCopilotSessionNonInteractiveTee:
         proc.stdout = io.BytesIO(output_bytes)
         return proc
 
-    def _sync_thread_side_effect(self, target, args=(), daemon=False, **kwargs):
-        """Return a thread substitute that runs *target* synchronously on start()."""
+    def _sync_thread_side_effect(self, **kwargs):
+        """Return a thread substitute that runs *target* synchronously on start().
+
+        Accepts ``**kwargs`` because ``threading.Thread(...)`` is called with
+        keyword arguments (``target=``, ``args=``, ``daemon=``).
+        """
+        target = kwargs.get("target")
+        thread_args = kwargs.get("args", ())
 
         class _SyncThread:
             def start(self):
-                target(*args)
+                if target is not None:
+                    target(*thread_args)
 
         return _SyncThread()
 
