@@ -1,13 +1,10 @@
 """
-Pull Request Summary Commands.
+Pull Request Summary Commands (deprecated).
 
-Generates overarching PR review comments after all files have been reviewed.
-This mirrors the generate-overarching-pr-comments.ps1 functionality.
-
-.. deprecated::
-    This module is deprecated. PR summaries are now generated automatically
-    during agdt-review-pull-request scaffolding. The legacy helper functions
-    and the ``_build_folder_comment`` flow have been removed.
+This module is retained only for backward compatibility. The legacy flow
+that generated overarching PR review comments has been removed. PR summaries
+are now produced automatically during ``agdt-review-pull-request`` scaffolding
+via ``review_templates.py`` and ``status_cascade.py``.
 """
 
 import sys
