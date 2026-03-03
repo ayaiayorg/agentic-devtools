@@ -308,8 +308,9 @@ def _inline_prompt(prompt_text: str, prompt_file_path: str) -> str:
 
     If the result exceeds :data:`_SAFE_ARGV_LENGTH`, the ``Repo-Specific
     Review Focus Areas`` content is truncated first (with ``...`` appended).
-    If that is insufficient or the section is absent, the end of the prompt
-    is truncated instead.  A :func:`warnings.warn` is emitted whenever
+    If that is insufficient or the section is absent, a short
+    file-reference-only prompt is returned instead so the backup path is
+    always preserved.  A :func:`warnings.warn` is emitted whenever
     truncation occurs.
     """
     suffix = f"   <br>   The full prompt is also saved at: {prompt_file_path}"
@@ -357,12 +358,13 @@ def _inline_prompt(prompt_text: str, prompt_file_path: str) -> str:
                 )
                 return stripped_line
 
-    # No focus areas section or still too long — truncate from end
+    # No focus areas section or still too long — fall back to a short
+    # file-reference-only prompt so the backup path is always preserved.
     warnings.warn(
-        "Prompt truncated: end of prompt trimmed to fit argv limit.",
+        "Prompt too large for inline use; falling back to file-reference-only prompt.",
         stacklevel=2,
     )
-    return single_line[: _SAFE_ARGV_LENGTH - 3] + "..."
+    return f"Prompt too large to pass inline safely. The full prompt is also saved at: {prompt_file_path}"
 
 
 # ---------------------------------------------------------------------------
@@ -385,8 +387,14 @@ def start_copilot_session(
       replaced with ``   <br>   ``) and passed as a CLI argument to the
       Copilot process in both interactive and non-interactive modes.
       A backup file reference is appended to the inlined prompt.
-      When the prompt exceeds safe argv-length limits it is printed to
-      stdout instead.
+    - If the inlined prompt exceeds the safe argv-length limit
+      (``_SAFE_ARGV_LENGTH``), the ``Repo-Specific Review Focus Areas``
+      section is truncated first.  If that is insufficient or absent,
+      a short file-reference-only prompt is used instead.  A warning is
+      emitted whenever truncation occurs.
+    - If ``_build_copilot_args`` still returns ``None`` (prompt exceeds
+      ``_MAX_GH_COPILOT_ARGV_LENGTH``), the full prompt is printed to
+      stdout as a fallback.
     - Starts ``copilot -i/-p <prompt>`` (standalone binary) or
       ``gh copilot suggest <prompt>`` (extension fallback).
     - In **interactive** mode the child process inherits the current

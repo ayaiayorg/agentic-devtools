@@ -460,14 +460,14 @@ class TestStartCopilotSessionWithStandaloneBinary:
 class TestStartCopilotSessionLargePromptFallback:
     """Tests for start_copilot_session with prompts that exceed safe argv limits.
 
-    With the _inline_prompt mechanism, large prompts are truncated to fit
-    within _SAFE_ARGV_LENGTH (29,900) before being passed to _build_copilot_args.
-    The fallback path (printing to stdout) is only triggered when gh copilot
-    is unavailable, not by prompt size alone.
+    With the _inline_prompt mechanism, large prompts without a Focus Areas
+    section fall back to a short file-reference-only prompt.  The stdout
+    fallback path is only triggered when gh copilot is unavailable or
+    _build_copilot_args returns None for other reasons.
     """
 
     def test_truncates_large_prompt_with_warning(self, temp_state, mock_available, mock_popen_interactive):
-        """Large prompts are truncated with a warning instead of falling back."""
+        """Large prompts fall back to a file-reference-only prompt with a warning."""
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
@@ -478,13 +478,14 @@ class TestStartCopilotSessionLargePromptFallback:
                 working_directory=str(temp_state),
             )
 
-        # Popen IS called (prompt was truncated to fit)
+        # Popen IS called (prompt was replaced with a short file-reference)
         mock_popen.assert_called_once()
         assert result.session_id
-        assert any("truncated" in str(warning.message).lower() for warning in w)
-        # Verify the truncated prompt fits within safe argv limit
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
+        # Verify the file-reference prompt preserves the backup path
         cmd = mock_popen.call_args[0][0]
         argv_prompt = cmd[-1]  # The prompt is the last argument
+        assert "The full prompt is also saved at:" in argv_prompt
         assert len(argv_prompt) <= session_module._SAFE_ARGV_LENGTH
 
     def test_prompt_file_still_written_on_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
@@ -503,7 +504,7 @@ class TestStartCopilotSessionLargePromptFallback:
         assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
 
     def test_standalone_binary_truncates_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
-        """Standalone binary also truncates large prompts instead of falling back."""
+        """Standalone binary also falls back to file-reference for large prompts."""
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
@@ -518,7 +519,7 @@ class TestStartCopilotSessionLargePromptFallback:
 
         mock_popen.assert_called_once()
         assert result.session_id
-        assert any("truncated" in str(warning.message).lower() for warning in w)
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
 
 
 class TestStartCopilotSessionNonInteractiveTee:
@@ -705,7 +706,7 @@ class TestInlinePrompt:
         assert "The full prompt is also saved at: /tmp/prompt.md" in result
 
     def test_truncation_emits_warning(self):
-        """When the prompt exceeds _SAFE_ARGV_LENGTH, a warning is emitted."""
+        """When the prompt exceeds _SAFE_ARGV_LENGTH with no focus areas, a file-reference fallback is used."""
         from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
 
         large_prompt = "x" * (_SAFE_ARGV_LENGTH + 1000)
@@ -713,7 +714,8 @@ class TestInlinePrompt:
             warnings.simplefilter("always")
             result = _inline_prompt(large_prompt, "/tmp/prompt.md")
         assert len(result) <= _SAFE_ARGV_LENGTH
-        assert any("truncated" in str(warning.message).lower() for warning in w)
+        assert "The full prompt is also saved at: /tmp/prompt.md" in result
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
 
     def test_truncation_of_focus_areas_section(self):
         """When prompt with focus areas exceeds the limit, focus areas are trimmed first."""
