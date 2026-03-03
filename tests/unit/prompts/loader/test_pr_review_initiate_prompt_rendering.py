@@ -21,6 +21,8 @@ class TestPrReviewInitiatePromptRendering:
             "jira_issue_key": "",
             "file_count": "3",
             "repo_review_focus_areas": "",
+            "pr_url": "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management/pullrequest/42",
+            "source_code_platform": "AzureDevOps",
         }
 
     def test_renders_without_focus_areas(self):
@@ -85,3 +87,32 @@ class TestPrReviewInitiatePromptRendering:
         result = self._render(**variables)
 
         assert "DFLY-1234" in result
+
+    def test_next_action_appears_before_pr_details(self):
+        """Next Action section appears before PR Details in the rendered output."""
+        result = self._render(**self._base_variables())
+
+        next_action_pos = result.find("## Next Action")
+        pr_details_pos = result.find("## PR Details")
+        assert next_action_pos != -1
+        assert pr_details_pos != -1
+        assert next_action_pos < pr_details_pos
+
+    def test_pr_url_rendered(self):
+        """PR URL value appears in the rendered output."""
+        result = self._render(**self._base_variables())
+
+        assert "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management/pullrequest/42" in result
+
+    def test_source_code_platform_rendered(self):
+        """Source Code Hosting Platform field and value appear in the rendered output."""
+        result = self._render(**self._base_variables())
+
+        assert "Source Code Hosting Platform" in result
+        assert "AzureDevOps" in result
+
+    def test_instructions_file_reference_present(self):
+        """Instructions file reference appears at the end of the rendered output."""
+        result = self._render(**self._base_variables())
+
+        assert "scripts/temp/temp-pull-request-review-initiate-prompt.md" in result

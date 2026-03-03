@@ -10,12 +10,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_starts_interactive_session_when_vscode_available(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -31,7 +29,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Review prompt content", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None  # No focus areas
         mock_vscode.return_value = True
 
         # Simulate a real TTY so effective_interactive stays True
@@ -52,12 +49,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_forces_non_interactive_when_vscode_unavailable(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -69,7 +64,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Review prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = False  # VS Code not available
 
         _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
@@ -83,31 +77,29 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_appends_focus_areas_when_available(
+    def test_does_not_append_focus_areas(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
     ):
-        """Test that focus areas are appended to the prompt when available."""
+        """Test that focus areas are NOT re-appended (they come from the template variable instead)."""
         prompt_dir = tmp_path / "scripts" / "temp"
         prompt_dir.mkdir(parents=True)
         prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Base prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = "## Focus Areas\n- Security\n- Performance"
         mock_vscode.return_value = True
 
         _start_copilot_session_for_pr_review(str(tmp_path), interactive=False)
 
-        expected_prompt = "# Base prompt\n\n## Focus Areas\n- Security\n- Performance"
+        # The prompt passed to start_copilot_session should be exactly the file content
+        # (no appended focus areas)
         mock_copilot.assert_called_once_with(
-            prompt=expected_prompt,
+            prompt="# Base prompt",
             working_directory=str(tmp_path),
             interactive=False,
         )
@@ -132,29 +124,28 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_uses_worktree_path_for_focus_areas(
+    def test_uses_worktree_path_for_prompt(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
     ):
-        """Test that focus areas are loaded from the worktree path."""
+        """Test that the prompt is loaded from the worktree path."""
         prompt_dir = tmp_path / "scripts" / "temp"
         prompt_dir.mkdir(parents=True)
         prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
         prompt_file.write_text("# Prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = True
 
         _start_copilot_session_for_pr_review(str(tmp_path))
 
-        mock_focus.assert_called_once_with(str(tmp_path))
+        mock_copilot.assert_called_once()
+        call_kwargs = mock_copilot.call_args[1]
+        assert call_kwargs["prompt"] == "# Prompt"
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
@@ -182,12 +173,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_sets_state_dir_env_and_restores_on_exit(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -202,7 +191,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = True
 
         captured_state_dir: list = []
@@ -223,12 +211,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_restores_pre_existing_state_dir_env_after_session(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -243,7 +229,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = True
 
         # Set a pre-existing value
@@ -257,12 +242,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_forces_non_interactive_when_no_tty(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -277,7 +260,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Review prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = True  # VS Code available, but no TTY
 
         # Simulate no TTY (stdin/stdout are pipes, as in run_function_in_background)
@@ -299,12 +281,10 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
-    @patch("agentic_devtools.config.load_review_focus_areas")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_forces_non_interactive_when_stdout_has_no_isatty(
         self,
         mock_wait,
-        mock_focus,
         mock_vscode,
         mock_copilot,
         tmp_path,
@@ -327,7 +307,6 @@ class TestStartCopilotSessionForPrReview:
         prompt_file.write_text("# Review prompt", encoding="utf-8")
 
         mock_wait.return_value = True
-        mock_focus.return_value = None
         mock_vscode.return_value = True  # VS Code available, but stdout is a LogWriter
 
         monkeypatch.setattr("sys.stdout", _NoIsattyWriter())

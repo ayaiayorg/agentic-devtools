@@ -146,7 +146,7 @@ class TestStartCopilotSessionInteractive:
         assert call_kwargs.get("shell") is False
 
     def test_popen_called_with_correct_args(self, temp_state, mock_available, mock_popen_interactive):
-        """Popen is called with gh copilot suggest <prompt> args when no standalone binary is available."""
+        """Popen is called with gh copilot suggest <inlined_prompt> args when no standalone binary is available."""
         mock_popen, _ = mock_popen_interactive
         start_copilot_session(
             prompt="Do something",
@@ -156,7 +156,9 @@ class TestStartCopilotSessionInteractive:
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
         assert cmd[:3] == ["gh", "copilot", "suggest"]
-        assert cmd[3] == "Do something"
+        # The prompt is inlined with <br> replacements
+        assert "Do something" in cmd[3]
+        assert "The full prompt is also saved at:" in cmd[3]
 
     def test_wait_is_called(self, temp_state, mock_available, mock_popen_interactive):
         """process.wait() is called for interactive mode."""
@@ -356,7 +358,9 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert "suggest" not in cmd
         assert "--file" not in cmd
         assert cmd[1] == "-i"
-        assert cmd[2] == "Use standalone"
+        # The prompt is inlined with <br> and backup reference
+        assert "Use standalone" in cmd[2]
+        assert "The full prompt is also saved at:" in cmd[2]
         assert result.prompt_file  # prompt file is still written to disk
 
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
@@ -398,10 +402,10 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert "--allow-all" not in cmd
         assert "--allow-all-tools" not in cmd
 
-    def test_noninteractive_passes_file_reference_not_full_prompt(
+    def test_noninteractive_passes_inlined_prompt_not_file_reference(
         self, temp_state, mock_available, mock_popen_noninteractive
     ):
-        """Non-interactive mode passes a file-reference instruction via -p, not the raw prompt text."""
+        """Non-interactive mode passes the inlined prompt with <br> replacements, not a file reference."""
         mock_popen, _ = mock_popen_noninteractive
         original_prompt = "Detailed multi-line\nprompt with special chars: $PATH & more"
         with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
@@ -413,13 +417,14 @@ class TestStartCopilotSessionWithStandaloneBinary:
 
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        # The -p argument must be a short file reference, not the original prompt.
+        # The -p argument must contain the inlined prompt with <br> replacements.
         # With --allow-all before -p, the layout is:
-        #   cmd[0]=binary, cmd[1]=--allow-all, cmd[2]=-p, cmd[3]=<file-ref instruction>
+        #   cmd[0]=binary, cmd[1]=--allow-all, cmd[2]=-p, cmd[3]=<inlined prompt>
         argv_p = cmd[3]
-        assert original_prompt not in argv_p
-        assert "Your task instructions are in this file:" in argv_p
-        assert "Read that file before doing anything else." in argv_p
+        assert "   <br>   " in argv_p
+        assert "Detailed multi-line" in argv_p
+        assert "prompt with special chars: $PATH & more" in argv_p
+        assert "The full prompt is also saved at:" in argv_p
 
     def test_noninteractive_strips_node_options_from_env(self, temp_state, mock_available, mock_popen_noninteractive):
         """NODE_OPTIONS is excluded from the subprocess environment for non-interactive sessions."""
@@ -453,10 +458,17 @@ class TestStartCopilotSessionWithStandaloneBinary:
 
 
 class TestStartCopilotSessionLargePromptFallback:
-    """Tests for start_copilot_session fallback when prompt exceeds argv limits."""
+    """Tests for start_copilot_session with prompts that exceed safe argv limits.
 
-    def test_falls_back_when_prompt_exceeds_argv_limit(self, temp_state, mock_available, capsys):
-        """Falls back to printing the prompt when it exceeds the argv length limit."""
+    With the _inline_prompt mechanism, large prompts without a Focus Areas
+    section fall back to a short file-reference-only prompt.  The stdout
+    fallback path is only triggered when gh copilot is unavailable or
+    _build_copilot_args returns None for other reasons.
+    """
+
+    def test_truncates_large_prompt_with_warning(self, temp_state, mock_available, mock_popen_interactive):
+        """Large prompts fall back to a file-reference-only prompt with a warning."""
+        mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
         with warnings.catch_warnings(record=True) as w:
@@ -466,27 +478,21 @@ class TestStartCopilotSessionLargePromptFallback:
                 working_directory=str(temp_state),
             )
 
-        assert result.process is None
-        assert result.pid is None
-        assert any("too large" in str(warning.message) for warning in w)
+        # Popen IS called (prompt was replaced with a short file-reference)
+        mock_popen.assert_called_once()
+        assert result.session_id
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
+        # Verify the file-reference prompt preserves the backup path
+        cmd = mock_popen.call_args[0][0]
+        argv_prompt = cmd[-1]  # The prompt is the last argument
+        assert "The full prompt is also saved at:" in argv_prompt
+        assert len(argv_prompt) <= session_module._SAFE_ARGV_LENGTH
 
-    def test_prints_prompt_to_stdout_on_large_prompt(self, temp_state, mock_available, capsys):
-        """Prints the prompt to stdout when it exceeds the argv length limit."""
-        large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
-
-        with warnings.catch_warnings(record=True):
-            start_copilot_session(
-                prompt=large_prompt,
-                working_directory=str(temp_state),
-            )
-
-        captured = capsys.readouterr()
-        assert large_prompt in captured.out
-
-    def test_prompt_file_still_written_on_large_prompt(self, temp_state, mock_available):
-        """Prompt file is written even when falling back due to large prompt."""
+    def test_prompt_file_still_written_on_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
+        """Prompt file is written with full original content even for large prompts."""
         from pathlib import Path
 
+        mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
         with warnings.catch_warnings(record=True):
@@ -497,25 +503,23 @@ class TestStartCopilotSessionLargePromptFallback:
 
         assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
 
-    def test_standalone_binary_also_falls_back_for_large_prompt(
-        self, temp_state, mock_available, mock_popen_interactive
-    ):
-        """Standalone binary also falls back for large prompts (no --file support)."""
+    def test_standalone_binary_truncates_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
+        """Standalone binary also falls back to file-reference for large prompts."""
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = start_copilot_session(
-                prompt=large_prompt,
-                working_directory=str(temp_state),
-                interactive=True,
-            )
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = start_copilot_session(
+                    prompt=large_prompt,
+                    working_directory=str(temp_state),
+                    interactive=True,
+                )
 
-        mock_popen.assert_not_called()
-        assert result.process is None
-        assert result.pid is None
-        assert any("too large" in str(warning.message) for warning in w)
+        mock_popen.assert_called_once()
+        assert result.session_id
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
 
 
 class TestStartCopilotSessionNonInteractiveTee:
@@ -681,3 +685,140 @@ class TestStartCopilotSessionNonInteractiveTee:
         assert len(log_files) == 1
         log_content = log_files[0].read_text(encoding="utf-8")
         assert log_content == ""
+
+
+class TestInlinePrompt:
+    """Tests for the _inline_prompt helper and its integration in start_copilot_session."""
+
+    def test_replaces_newlines_with_br(self):
+        """Newlines are replaced with '   <br>   ' in the inlined prompt."""
+        from agentic_devtools.cli.copilot.session import _inline_prompt
+
+        result = _inline_prompt("Line 1\nLine 2\nLine 3", "/tmp/prompt.md")
+        assert "   <br>   " in result
+        assert "Line 1   <br>   Line 2   <br>   Line 3" in result
+
+    def test_includes_backup_file_reference(self):
+        """The inlined prompt ends with a backup file reference."""
+        from agentic_devtools.cli.copilot.session import _inline_prompt
+
+        result = _inline_prompt("Hello", "/tmp/prompt.md")
+        assert "The full prompt is also saved at: /tmp/prompt.md" in result
+
+    def test_truncation_emits_warning(self):
+        """When the prompt exceeds _SAFE_ARGV_LENGTH with no focus areas, a file-reference fallback is used."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        large_prompt = "x" * (_SAFE_ARGV_LENGTH + 1000)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(large_prompt, "/tmp/prompt.md")
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        assert "The full prompt is also saved at: /tmp/prompt.md" in result
+        assert any("too large for inline" in str(warning.message).lower() for warning in w)
+
+    def test_truncation_of_focus_areas_section(self):
+        """When prompt with focus areas exceeds the limit, focus areas are trimmed first."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        # Build a prompt where the focus areas section makes it too long
+        prefix = "# Header\n\n## Repo-Specific Review Focus Areas\n"
+        focus_content = "x\n" * 5000  # Large focus areas
+        suffix_section = "\n## Review Outcomes\nSome outcomes here."
+        prompt = prefix + focus_content + suffix_section
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(prompt, "/tmp/prompt.md")
+
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        # The Review Outcomes section should still be present
+        assert "Review Outcomes" in result
+        assert any("truncated" in str(warning.message).lower() for warning in w)
+
+    def test_no_truncation_for_short_prompts(self):
+        """Short prompts are not truncated."""
+        from agentic_devtools.cli.copilot.session import _inline_prompt
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt("Short prompt", "/tmp/prompt.md")
+        assert "Short prompt" in result
+        assert not any("truncated" in str(warning.message).lower() for warning in w)
+
+    def test_partial_truncation_of_focus_areas(self):
+        """When focus areas are partially truncated to fit, partial content is kept."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        # Build a prompt where focus areas need partial truncation (not full removal).
+        # Key: use focus content with very few newlines so <br> expansion is minimal.
+        base_before = "# Header\n\n## Repo-Specific Review Focus Areas\n"
+        base_after = "\n## Review Outcomes\nOutcome text."
+        suffix = "   <br>   The full prompt is also saved at: /tmp/prompt.md"
+        stripped = base_before + "...\n" + base_after
+        stripped_inline_len = len(stripped.replace("\n", "   <br>   ") + suffix)
+        available = _SAFE_ARGV_LENGTH - stripped_inline_len
+
+        # Focus content: one long line of available-50 chars, then a newline,
+        # then more text.  This ensures last_newline trim produces a result
+        # that fits within the argv limit after <br> expansion.
+        focus_content = ("F" * (available - 50)) + "\n" + ("G" * 100) + "\n"
+        prompt = base_before + focus_content + base_after
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(prompt, "/tmp/prompt.md")
+
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        # The result should contain partial focus content (Fs, not Gs after the trim)
+        assert "FFF" in result
+        assert "Review Outcomes" in result
+        assert any("trimmed" in str(warning.message).lower() for warning in w)
+
+    def test_focus_areas_fully_removed_when_partial_insufficient(self):
+        """When partial truncation doesn't help, focus areas are fully removed."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        # Create a prompt where the base (without focus areas) is very close
+        # to the limit, so even partial focus areas don't fit.
+        base_before = "# Header\n\n## Repo-Specific Review Focus Areas\n"
+        base_after = "\n## Review Outcomes\n" + ("y" * (_SAFE_ARGV_LENGTH - 500))
+        focus_content = "focus\n" * 100
+        prompt = base_before + focus_content + base_after
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(prompt, "/tmp/prompt.md")
+
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        assert any("fully removed" in str(warning.message).lower() for warning in w)
+
+
+class TestBuildCopilotArgsLargePrompt:
+    """Tests for _build_copilot_args with prompts exceeding the argv limit."""
+
+    def test_returns_none_for_large_prompt(self):
+        """_build_copilot_args returns None when prompt exceeds _MAX_GH_COPILOT_ARGV_LENGTH."""
+        from agentic_devtools.cli.copilot.session import _MAX_GH_COPILOT_ARGV_LENGTH, _build_copilot_args
+
+        large = "x" * (_MAX_GH_COPILOT_ARGV_LENGTH + 1)
+        assert _build_copilot_args(large, interactive=True) is None
+
+
+class TestStartCopilotSessionArgsNoneFallback:
+    """Test the fallback path when _build_copilot_args returns None."""
+
+    def test_fallback_when_build_args_returns_none(self, temp_state, mock_available, capsys):
+        """Falls back to printing the prompt when _build_copilot_args returns None."""
+        with patch.object(session_module, "_build_copilot_args", return_value=None):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = start_copilot_session(
+                    prompt="Some prompt",
+                    working_directory=str(temp_state),
+                )
+        assert result.process is None
+        assert result.pid is None
+        assert any("too large" in str(warning.message) for warning in w)
+        captured = capsys.readouterr()
+        assert "Some prompt" in captured.out

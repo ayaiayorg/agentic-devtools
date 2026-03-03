@@ -83,6 +83,16 @@ _MANAGED_COPILOT = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platfor
 # for the command prefix and OS overhead.
 _MAX_GH_COPILOT_ARGV_LENGTH = 30_000
 
+# Safe length limit for the pre-processed inline prompt passed via argv.
+# Truncation is applied to the prompt content (before ``_build_copilot_args``
+# checks ``_MAX_GH_COPILOT_ARGV_LENGTH``) so that the final single-line
+# version produced by ``_inline_prompt`` (after ``\n`` → ``<br>`` replacement
+# and appending the backup file-reference suffix) still sits at least 100
+# characters below the hard cap.  This gap is a conservative safety margin
+# for the rest of the command line (flags, executable path, OS overhead) and
+# guards against minor miscounts in edge-case content.
+_SAFE_ARGV_LENGTH = 29_900
+
 
 # ---------------------------------------------------------------------------
 # Public dataclass
@@ -294,6 +304,70 @@ def _print_fallback_prompt(prompt: str) -> None:
     print(prompt)
 
 
+def _inline_prompt(prompt_text: str, prompt_file_path: str) -> str:
+    """Convert multi-line prompt to single-line with ``<br>`` separators and backup reference.
+
+    If the result exceeds :data:`_SAFE_ARGV_LENGTH`, the ``Repo-Specific
+    Review Focus Areas`` content is truncated first (with ``...`` appended).
+    If that is insufficient or the section is absent, a short
+    file-reference-only prompt is returned instead so the backup path is
+    always preserved.  A :func:`warnings.warn` is emitted whenever
+    truncation occurs.
+    """
+    suffix = f"   <br>   The full prompt is also saved at: {prompt_file_path}"
+    single_line = prompt_text.replace("\n", "   <br>   ") + suffix
+
+    if len(single_line) <= _SAFE_ARGV_LENGTH:
+        return single_line
+
+    # --- Truncation path: prefer trimming Repo-Specific Focus Areas ---
+    focus_marker = "## Repo-Specific Review Focus Areas"
+    next_section_prefix = "\n## "
+
+    focus_start = prompt_text.find(focus_marker)
+    if focus_start != -1:
+        content_start = prompt_text.find("\n", focus_start) + 1
+        next_section = prompt_text.find(next_section_prefix, content_start)
+        if next_section != -1:
+            before = prompt_text[:content_start]
+            after = prompt_text[next_section:]
+            # Try with focus areas fully removed first
+            stripped = before + "...\n" + after
+            stripped_line = stripped.replace("\n", "   <br>   ") + suffix
+            if len(stripped_line) <= _SAFE_ARGV_LENGTH:
+                # Partially include focus areas to use available space
+                focus_content = prompt_text[content_start:next_section]
+                overhead = len(stripped_line)
+                available = _SAFE_ARGV_LENGTH - overhead
+                if available > 0:
+                    keep = focus_content[:available]
+                    last_newline = keep.rfind("\n")
+                    if last_newline > 0:
+                        keep = keep[:last_newline]
+                    partial = before + keep + "\n...\n" + after
+                    partial_line = partial.replace("\n", "   <br>   ") + suffix
+                    if len(partial_line) <= _SAFE_ARGV_LENGTH:
+                        warnings.warn(
+                            "Prompt truncated: Repo-Specific Review Focus Areas was trimmed to fit argv limit.",
+                            stacklevel=2,
+                        )
+                        return partial_line
+                # Fall through to fully removed version
+                warnings.warn(
+                    "Prompt truncated: Repo-Specific Review Focus Areas fully removed to fit argv limit.",
+                    stacklevel=2,
+                )
+                return stripped_line
+
+    # No focus areas section or still too long — fall back to a short
+    # file-reference-only prompt so the backup path is always preserved.
+    warnings.warn(
+        "Prompt too large for inline use; falling back to file-reference-only prompt.",
+        stacklevel=2,
+    )
+    return f"Prompt too large to pass inline safely. The full prompt is also saved at: {prompt_file_path}"
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -310,14 +384,18 @@ def start_copilot_session(
     Behaviour:
     - Generates (or reuses) a unique session ID.
     - Writes *prompt* to a temporary file for persistence and manual
-      reuse.  In **interactive** mode the full prompt text is also passed
-      as a CLI argument to the Copilot process.  In **non-interactive**
-      mode a short file-reference instruction is passed via ``-p`` instead
-      of the raw prompt content; this avoids Windows command-line
-      reliability issues with multiline / special-character prompts and
-      ensures the agent reads the instruction file as its first action.
-      When the prompt exceeds safe argv-length limits it is printed to
-      stdout instead.
+      reuse.  The full prompt text is inlined as a single line (newlines
+      replaced with ``   <br>   ``) and passed as a CLI argument to the
+      Copilot process in both interactive and non-interactive modes.
+      A backup file reference is appended to the inlined prompt.
+    - If the inlined prompt exceeds the safe argv-length limit
+      (``_SAFE_ARGV_LENGTH``), the ``Repo-Specific Review Focus Areas``
+      section is truncated first.  If that is insufficient or absent,
+      a short file-reference-only prompt is used instead.  A warning is
+      emitted whenever truncation occurs.
+    - If ``_build_copilot_args`` still returns ``None`` (prompt exceeds
+      ``_MAX_GH_COPILOT_ARGV_LENGTH``), the full prompt is printed to
+      stdout as a fallback.
     - Starts ``copilot -i/-p <prompt>`` (standalone binary) or
       ``gh copilot suggest <prompt>`` (extension fallback).
     - In **interactive** mode the child process inherits the current
@@ -379,16 +457,10 @@ def start_copilot_session(
         return result
 
     # --- Build command -------------------------------------------------------
-    # For non-interactive mode, pass a short file-reference instruction via
-    # -p rather than the full prompt text.  The full prompt is already on
-    # disk at prompt_file; this avoids Windows command-line reliability
-    # issues with multiline / special-character content and ensures the
-    # agent reads the instruction file as its very first action.
-    argv_prompt = (
-        (f"Your task instructions are in this file: {prompt_file}. Read that file before doing anything else.")
-        if not interactive
-        else prompt
-    )
+    # Inline the full prompt as a single line (newlines replaced with <br>
+    # separators) for both interactive and non-interactive modes.  The file
+    # on disk still contains the multi-line version for manual reuse.
+    argv_prompt = _inline_prompt(prompt, prompt_file)
     args = _build_copilot_args(argv_prompt, interactive=interactive)
 
     # When the prompt is too large for safe argv passing, fall back to

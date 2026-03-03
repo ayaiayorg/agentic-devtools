@@ -42,6 +42,11 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_git_result.returncode = 0
         mock_git_result.stdout = "/repo/root\n"
 
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=self._default_get_value,
@@ -74,11 +79,15 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
                                                     return_value=mock_git_result,
                                                 ):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                        setup_pull_request_review,
-                                                    )
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                            setup_pull_request_review,
+                                                        )
 
-                                                    setup_pull_request_review()
+                                                        setup_pull_request_review()
 
         return captured_variables
 
@@ -95,6 +104,21 @@ class TestSetupPullRequestReviewFocusAreas:
 
         assert variables.get("repo_review_focus_areas") == ""
 
+    def test_pr_url_passed_to_prompt(self):
+        """Test that pr_url is passed to the prompt variables containing the PR ID."""
+        variables = self._run_setup(self._make_pr_details(), None)
+
+        pr_url = variables.get("pr_url")
+        assert pr_url is not None
+        assert "/pullrequest/" in pr_url
+        assert "123" in pr_url
+
+    def test_source_code_platform_passed_to_prompt(self):
+        """Test that source_code_platform is passed as AzureDevOps."""
+        variables = self._run_setup(self._make_pr_details(), None)
+
+        assert variables.get("source_code_platform") == "AzureDevOps"
+
     def test_load_review_focus_areas_called_with_git_root(self):
         """Test that load_review_focus_areas is called with the git repo root when available."""
         pr_details = self._make_pr_details()
@@ -102,6 +126,11 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_git_result = MagicMock()
         mock_git_result.returncode = 0
         mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
 
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
@@ -130,12 +159,16 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
                                                     return_value=mock_git_result,
                                                 ):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                        setup_pull_request_review,
-                                                    )
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                            setup_pull_request_review,
+                                                        )
 
-                                                    setup_pull_request_review()
-                                                    mock_load.assert_called_once_with("/repo/root")
+                                                        setup_pull_request_review()
+                                                        mock_load.assert_called_once_with("/repo/root")
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_git_fails(self):
         """Test that load_review_focus_areas falls back to cwd when git rev-parse fails."""
@@ -145,6 +178,11 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_git_result.returncode = 128
         mock_git_result.stdout = ""
 
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=self._default_get_value,
@@ -172,16 +210,25 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
                                                     return_value=mock_git_result,
                                                 ):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                        setup_pull_request_review,
-                                                    )
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                            setup_pull_request_review,
+                                                        )
 
-                                                    setup_pull_request_review()
-                                                    mock_load.assert_called_once_with(str(Path.cwd()))
+                                                        setup_pull_request_review()
+                                                        mock_load.assert_called_once_with(str(Path.cwd()))
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_run_safe_raises(self):
         """Test that load_review_focus_areas falls back to cwd when run_safe raises an exception."""
         pr_details = self._make_pr_details()
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
 
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
@@ -210,12 +257,16 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
                                                     side_effect=OSError("git not found"),
                                                 ):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                        setup_pull_request_review,
-                                                    )
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                            setup_pull_request_review,
+                                                        )
 
-                                                    setup_pull_request_review()
-                                                    mock_load.assert_called_once_with(str(Path.cwd()))
+                                                        setup_pull_request_review()
+                                                        mock_load.assert_called_once_with(str(Path.cwd()))
 
 
 class TestSetupPullRequestReview:

@@ -731,6 +731,11 @@ def setup_pull_request_review() -> None:
         target_branch = pr_info.get("targetRefName", "").replace("refs/heads/", "")
         file_count = prompts_generated
 
+        config = AzureDevOpsConfig.from_state()
+        pr_url = (
+            f"{config.organization.rstrip('/')}/{config.project}/_git/{config.repository}/pullrequest/{pull_request_id}"
+        )
+
         workflow_context = {
             "pull_request_id": pull_request_id,
             "jira_issue_key": jira_issue_key or "",
@@ -739,6 +744,8 @@ def setup_pull_request_review() -> None:
             "source_branch": source_branch,
             "target_branch": target_branch,
             "file_count": file_count,
+            "pr_url": pr_url,
+            "source_code_platform": "AzureDevOps",
         }
 
         set_workflow_state(
@@ -782,6 +789,8 @@ def setup_pull_request_review() -> None:
             "target_branch": target_branch,
             "file_count": file_count,
             "repo_review_focus_areas": repo_review_focus_areas or "",
+            "pr_url": pr_url,
+            "source_code_platform": "AzureDevOps",
         }
 
         load_and_render_prompt(
