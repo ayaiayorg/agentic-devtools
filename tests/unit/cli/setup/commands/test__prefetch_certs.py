@@ -121,7 +121,7 @@ class TestPrefetchCerts:
         assert "unified-ca-bundle.pem" in out
 
     def test_handles_exception_from_get_jira_base_url(self, capsys):
-        """Does not raise when get_jira_base_url() raises; prints warning to stderr."""
+        """Does not raise when get_jira_base_url() raises; prints progress to stdout."""
         with patch.object(commands, "_ensure_ca_bundle", return_value=None):
             with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
                 with patch(

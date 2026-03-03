@@ -17,7 +17,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import urlparse
 
 from agentic_devtools.cli.cert_utils import ensure_ca_bundle as _ensure_ca_bundle
@@ -52,7 +52,7 @@ _SETUP_HOSTS = (
 )
 
 
-def _build_unified_ca_bundle(per_host_pem_paths: list) -> Optional[Path]:
+def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
     """Build a unified CA bundle combining certifi's system CAs and fetched corporate CAs.
 
     Reads the system certifi CA bundle, appends all non-leaf certificates
@@ -64,7 +64,9 @@ def _build_unified_ca_bundle(per_host_pem_paths: list) -> Optional[Path]:
         per_host_pem_paths: List of paths to per-host PEM files.
 
     Returns:
-        Path to the unified bundle file, or ``None`` if certifi is unavailable.
+        Path to the unified bundle file, or ``None`` if certifi is unavailable
+        or if no additional corporate CA certificates are found in the provided
+        PEM files.
     """
     try:
         import certifi
@@ -77,7 +79,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: list) -> Optional[Path]:
     system_pem = Path(certifi.where()).read_text(encoding="utf-8", errors="ignore")
     system_certs = set(re.findall(cert_pattern, system_pem, re.DOTALL))
 
-    extra_certs: list = []
+    extra_certs: List[str] = []
     for pem_path in per_host_pem_paths:
         try:
             content = Path(pem_path).read_text(encoding="utf-8", errors="ignore")
@@ -124,7 +126,7 @@ def _prefetch_certs() -> None:
     print("Fetching CA certificates for external hosts...")
 
     # Determine Jira hostname dynamically
-    extra_hosts: list = []
+    extra_hosts: List[str] = []
     try:
         from ..jira.config import get_jira_base_url
 
@@ -137,7 +139,7 @@ def _prefetch_certs() -> None:
     except Exception as exc:  # noqa: BLE001
         print(f"  ⚠ Could not determine Jira hostname (skipping Jira cert): {exc}", file=sys.stderr)
 
-    all_pem_paths: list = []
+    all_pem_paths: List[str] = []
 
     # Fetch certs for fixed setup hosts
     for hostname in _SETUP_HOSTS:

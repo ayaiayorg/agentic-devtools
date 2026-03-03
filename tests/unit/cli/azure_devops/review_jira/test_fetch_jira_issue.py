@@ -50,6 +50,8 @@ class TestFetchJiraIssue:
 
         call_kwargs = mock_get.call_args.kwargs
         assert "verify" in call_kwargs
+        assert call_kwargs["verify"] is mock_ssl_verify.return_value
+        mock_ssl_verify.assert_called_once()
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
     def test_returns_none_on_error_status(self, mock_get, capsys):

@@ -138,6 +138,7 @@ class TestFetchDevelopmentPanelPrs:
 
         for call_obj in mock_get.call_args_list:
             assert "verify" in call_obj.kwargs
+            assert call_obj.kwargs["verify"] is mock_ssl_verify.return_value
 
         # _get_jira_ssl_verify must be called exactly once (not per request)
         mock_ssl_verify.assert_called_once()
