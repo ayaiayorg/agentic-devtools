@@ -733,8 +733,7 @@ def setup_pull_request_review() -> None:
 
         config = AzureDevOpsConfig.from_state()
         pr_url = (
-            f"{config.organization.rstrip('/')}/{config.project}"
-            f"/_git/{config.repository}/pullrequest/{pull_request_id}"
+            f"{config.organization.rstrip('/')}/{config.project}/_git/{config.repository}/pullrequest/{pull_request_id}"
         )
 
         workflow_context = {

@@ -498,9 +498,7 @@ class TestStartCopilotSessionLargePromptFallback:
 
         assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
 
-    def test_standalone_binary_truncates_large_prompt(
-        self, temp_state, mock_available, mock_popen_interactive
-    ):
+    def test_standalone_binary_truncates_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
         """Standalone binary also truncates large prompts instead of falling back."""
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
@@ -741,3 +739,80 @@ class TestInlinePrompt:
             result = _inline_prompt("Short prompt", "/tmp/prompt.md")
         assert "Short prompt" in result
         assert not any("truncated" in str(warning.message).lower() for warning in w)
+
+    def test_partial_truncation_of_focus_areas(self):
+        """When focus areas are partially truncated to fit, partial content is kept."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        # Build a prompt where focus areas need partial truncation (not full removal).
+        # Key: use focus content with very few newlines so <br> expansion is minimal.
+        base_before = "# Header\n\n## Repo-Specific Review Focus Areas\n"
+        base_after = "\n## Review Outcomes\nOutcome text."
+        suffix = "   <br>   The full prompt is also saved at: /tmp/prompt.md"
+        stripped = base_before + "...\n" + base_after
+        stripped_inline_len = len(stripped.replace("\n", "   <br>   ") + suffix)
+        available = _SAFE_ARGV_LENGTH - stripped_inline_len
+
+        # Focus content: one long line of available-50 chars, then a newline,
+        # then more text.  This ensures last_newline trim produces a result
+        # that fits within the argv limit after <br> expansion.
+        focus_content = ("F" * (available - 50)) + "\n" + ("G" * 100) + "\n"
+        prompt = base_before + focus_content + base_after
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(prompt, "/tmp/prompt.md")
+
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        # The result should contain partial focus content (Fs, not Gs after the trim)
+        assert "FFF" in result
+        assert "Review Outcomes" in result
+        assert any("trimmed" in str(warning.message).lower() for warning in w)
+
+    def test_focus_areas_fully_removed_when_partial_insufficient(self):
+        """When partial truncation doesn't help, focus areas are fully removed."""
+        from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
+
+        # Create a prompt where the base (without focus areas) is very close
+        # to the limit, so even partial focus areas don't fit.
+        base_before = "# Header\n\n## Repo-Specific Review Focus Areas\n"
+        base_after = "\n## Review Outcomes\n" + ("y" * (_SAFE_ARGV_LENGTH - 500))
+        focus_content = "focus\n" * 100
+        prompt = base_before + focus_content + base_after
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _inline_prompt(prompt, "/tmp/prompt.md")
+
+        assert len(result) <= _SAFE_ARGV_LENGTH
+        assert any("fully removed" in str(warning.message).lower() for warning in w)
+
+
+class TestBuildCopilotArgsLargePrompt:
+    """Tests for _build_copilot_args with prompts exceeding the argv limit."""
+
+    def test_returns_none_for_large_prompt(self):
+        """_build_copilot_args returns None when prompt exceeds _MAX_GH_COPILOT_ARGV_LENGTH."""
+        from agentic_devtools.cli.copilot.session import _MAX_GH_COPILOT_ARGV_LENGTH, _build_copilot_args
+
+        large = "x" * (_MAX_GH_COPILOT_ARGV_LENGTH + 1)
+        assert _build_copilot_args(large, interactive=True) is None
+
+
+class TestStartCopilotSessionArgsNoneFallback:
+    """Test the fallback path when _build_copilot_args returns None."""
+
+    def test_fallback_when_build_args_returns_none(self, temp_state, mock_available, capsys):
+        """Falls back to printing the prompt when _build_copilot_args returns None."""
+        with patch.object(session_module, "_build_copilot_args", return_value=None):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = start_copilot_session(
+                    prompt="Some prompt",
+                    working_directory=str(temp_state),
+                )
+        assert result.process is None
+        assert result.pid is None
+        assert any("too large" in str(warning.message) for warning in w)
+        captured = capsys.readouterr()
+        assert "Some prompt" in captured.out
