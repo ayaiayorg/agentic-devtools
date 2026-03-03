@@ -115,6 +115,30 @@ class TestFetchDevelopmentPanelPrs:
             captured = capsys.readouterr()
             assert "1 PR(s)" in captured.out
 
+    @patch("agentic_devtools.cli.azure_devops.review_jira._get_jira_ssl_verify", return_value=True)
+    @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
+    def test_passes_verify_to_requests_get(self, mock_get, mock_ssl_verify):
+        """Test that verify= is passed to all requests.get calls."""
+        from agentic_devtools.cli.azure_devops.review_jira import (
+            fetch_development_panel_prs,
+        )
+
+        issue_response = MagicMock()
+        issue_response.status_code = 200
+        issue_response.json.return_value = {"id": "12345"}
+
+        dev_response = MagicMock()
+        dev_response.status_code = 200
+        dev_response.json.return_value = {"detail": []}
+
+        mock_get.side_effect = [issue_response, dev_response]
+
+        with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
+            fetch_development_panel_prs("DFLY-1234")
+
+        for call_obj in mock_get.call_args_list:
+            assert "verify" in call_obj.kwargs
+
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_no_prs(self, mock_get):
         """Test that empty list is returned when no PRs exist."""
