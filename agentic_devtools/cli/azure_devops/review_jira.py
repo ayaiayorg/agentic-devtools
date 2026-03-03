@@ -6,7 +6,7 @@ Functions for fetching Jira issues and extracting linked PRs.
 
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -14,6 +14,25 @@ import requests
 JIRA_COPILOT_PAT_ENV = "JIRA_COPILOT_PAT"
 JIRA_BASE_URL_ENV = "JIRA_BASE_URL"
 JIRA_BASE_URL_DEFAULT = "https://jira.swica.ch"
+
+
+def _get_jira_ssl_verify() -> Union[bool, str]:
+    """Get SSL verification setting for Jira API calls.
+
+    Delegates to the Jira helpers module which handles the full priority chain
+    (env vars, state, repo-committed PEM, auto-fetch).  Falls back to ``True``
+    (system CA) if the helpers module is unavailable.
+
+    Returns:
+        Path to a CA bundle file, ``False`` to skip verification, or ``True``
+        to use the system CA bundle.
+    """
+    try:
+        from ..jira.helpers import _get_ssl_verify
+
+        return _get_ssl_verify()
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def get_jira_credentials() -> Tuple[Optional[str], str]:
@@ -53,6 +72,7 @@ def fetch_jira_issue(issue_key: str, verbose: bool = False) -> Optional[Dict]:
             url,
             headers={"Authorization": f"Bearer {pat}", "Accept": "application/json"},
             timeout=30,
+            verify=_get_jira_ssl_verify(),
         )
 
         if response.status_code == 200:
@@ -92,11 +112,15 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> List[D
     # First fetch the issue to get the ID
     issue_url = f"{base_url}/rest/api/2/issue/{issue_key}?fields=id"
 
+    # Compute SSL verify once to avoid repeated filesystem checks / cert auto-fetches
+    ssl_verify = _get_jira_ssl_verify()
+
     try:
         issue_response = requests.get(
             issue_url,
             headers={"Authorization": f"Bearer {pat}", "Accept": "application/json"},
             timeout=30,
+            verify=ssl_verify,
         )
 
         if issue_response.status_code != 200:
@@ -119,6 +143,7 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> List[D
             dev_url,
             headers={"Authorization": f"Bearer {pat}", "Accept": "application/json"},
             timeout=30,
+            verify=ssl_verify,
         )
 
         if dev_response.status_code != 200:

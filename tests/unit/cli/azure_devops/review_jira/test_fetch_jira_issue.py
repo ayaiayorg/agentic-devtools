@@ -34,6 +34,25 @@ class TestFetchJiraIssue:
             result = fetch_jira_issue("DFLY-1234")
             assert result == {"key": "DFLY-1234", "fields": {"summary": "Test"}}
 
+    @patch("agentic_devtools.cli.azure_devops.review_jira._get_jira_ssl_verify", return_value=True)
+    @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
+    def test_passes_verify_to_requests_get(self, mock_get, mock_ssl_verify):
+        """Test that verify= is passed to requests.get."""
+        from agentic_devtools.cli.azure_devops.review_jira import fetch_jira_issue
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"key": "DFLY-1234", "fields": {}}
+        mock_get.return_value = mock_response
+
+        with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
+            fetch_jira_issue("DFLY-1234")
+
+        call_kwargs = mock_get.call_args.kwargs
+        assert "verify" in call_kwargs
+        assert call_kwargs["verify"] is mock_ssl_verify.return_value
+        mock_ssl_verify.assert_called_once()
+
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
     def test_returns_none_on_error_status(self, mock_get, capsys):
         """Test that None is returned on error status."""
