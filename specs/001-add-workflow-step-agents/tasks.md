@@ -222,77 +222,72 @@ and receive step-specific guidance with CLI commands.
   .github/prompts/agdt.work-on-jira-issue.completion.prompt.md — agent:
   agdt.work-on-jira-issue.completion
 
-### pull-request-review agents (5 files)
+### pull-request-review agents (4 files)
 
 - [x] T026 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
-  Review – Initiate: Start a pull request review (step 1 of 5)"; required
+  Review – Initiate: Start a pull request review (step 1 of 4)"; required
   state:
-  pull_request_id OR jira.issue_key; CLI: agdt-review-pull-request; handoff →
-  file-review
+  pull_request_id OR jira.issue_key; CLI: agdt-initiate-pull-request-review-workflow; handoff →
+  pull-request-overview (via `agdt-advance-workflow pull-request-overview` before file review begins)
 
 - [x] T027 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.file-review.agent.md — description:
-  .github/agents/agdt.pull-request-review.file-review.agent.md — description:
-  "PR Review – File Review: Review individual files (step 2 of 5)"; required
+  "PR Review – File Review: Review individual files (step 2 of 4)"; required
   state: pull_request_id, file_review.file_path; CLI: agdt-approve-file,
-  agdt-request-changes; handoff → file-review OR summary
+  agdt-request-changes; handoff → file-review (next file) OR decision (when all files reviewed)
 
-- [x] T028 [P] [US1] Create agent at
+- [x] T028 [P] [US1] ~~Create agent at~~
 
-  .github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
+  ~~.github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
   Review – Summary: Generate review summary (step 3 of 5)"; required state:
-  pull_request_id; CLI: agdt-generate-pr-summary; handoff → decision
+  pull_request_id; CLI: agdt-generate-pr-summary; handoff → decision~~
+
+  **OBSOLETED**: The summary step was removed in favour of automatic scaffolding.
+  `review_scaffold.py` creates all summary threads upfront and `status_cascade.py`
+  keeps them up-to-date as each file is reviewed. The agent file was never created.
 
 - [x] T029 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
-  Review – Decision: Approve or request changes (step 4 of 5)"; required state:
+  Review – Decision: Approve or request changes (step 3 of 4)"; required state:
   pull_request_id; CLI: agdt-approve-pull-request; handoff → completion
 
 - [x] T030 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.completion.agent.md — description:
-  "PR
-  .github/agents/agdt.pull-request-review.completion.agent.md — description:
-  "PR
-  Review – Completion: Finalize review (step 5 of 5)"; required state:
+  "PR Review – Completion: Finalize review (step 4 of 4)"; required state:
   pull_request_id; CLI: agdt-add-jira-comment; no handoff
 
-### pull-request-review prompts (5 files)
+### pull-request-review prompts (4 files)
 
 - [x] T031 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.initiate.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.initiate.prompt.md — agent:
   agdt.pull-request-review.initiate
 
 - [x] T032 [P] [US1] Create prompt at
 
   .github/prompts/agdt.pull-request-review.file-review.prompt.md — agent:
-  .github/prompts/agdt.pull-request-review.file-review.prompt.md — agent:
   agdt.pull-request-review.file-review
 
-- [x] T033 [P] [US1] Create prompt at
+- [x] T033 [P] [US1] ~~Create prompt at~~
 
-  .github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
-  .github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
-  agdt.pull-request-review.summary
+  ~~.github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
+  agdt.pull-request-review.summary~~
+
+  **OBSOLETED**: The summary prompt was deleted; the summary step was removed in
+  favour of automatic scaffolding (see T028).
 
 - [x] T034 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.decision.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.decision.prompt.md — agent:
   agdt.pull-request-review.decision
 
 - [x] T035 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.completion.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.completion.prompt.md — agent:
   agdt.pull-request-review.completion
 

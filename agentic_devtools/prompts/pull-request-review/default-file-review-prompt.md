@@ -57,7 +57,7 @@ agdt-request-changes-with-suggestion --file-path "{{current_file}}" --summary "O
 Run `agdt-task-wait` to:
 
 - Wait for the review to post
-- Complete the file review workflow and proceed to summary
+- Complete the file review workflow and proceed to decision
 
 {% else %}
 **No wait required** - proceed directly to the next file after submitting.
