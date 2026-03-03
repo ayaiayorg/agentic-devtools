@@ -113,8 +113,9 @@ directly if needed.
 | 1 | `/agdt.pull-request-review.initiate` | Start a pull request review |
 | 2 | `agdt-advance-workflow pull-request-overview` | View PR details and review criteria |
 | 3 | `/agdt.pull-request-review.file-review` | Review individual files |
-| 4 | `/agdt.pull-request-review.decision` | Approve or request changes |
-| 5 | `/agdt.pull-request-review.completion` | Finalize review |
+| 4 | `/agdt.pull-request-review.summary` | Generate review summary |
+| 5 | `/agdt.pull-request-review.decision` | Approve or request changes |
+| 6 | `/agdt.pull-request-review.completion` | Finalize review |
 
 ---
 

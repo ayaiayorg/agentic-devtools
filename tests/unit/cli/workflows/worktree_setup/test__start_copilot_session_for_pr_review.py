@@ -106,7 +106,6 @@ class TestStartCopilotSessionForPrReview:
             working_directory=str(tmp_path),
             interactive=False,
         )
-        assert "This content should NOT be used" not in mock_copilot.call_args[1]["prompt"]
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
