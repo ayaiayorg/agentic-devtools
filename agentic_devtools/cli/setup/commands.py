@@ -141,9 +141,13 @@ def _prefetch_certs() -> None:
         from ..jira.config import get_jira_base_url
 
         jira_url = get_jira_base_url()
-        # Use urlparse to correctly strip port numbers (e.g. jira.example.com:8443)
+        # Use urlparse to correctly strip port numbers (e.g. jira.example.com:8443).
+        # Scheme-less URLs like "jira.example.com" need a "//" prefix so urlparse
+        # treats the first component as a network location rather than a path.
         parsed = urlparse(jira_url)
         jira_hostname = parsed.hostname
+        if not jira_hostname:
+            jira_hostname = urlparse("//" + jira_url).hostname
         if jira_hostname:
             extra_hosts.append(jira_hostname)
     except Exception as exc:  # noqa: BLE001
