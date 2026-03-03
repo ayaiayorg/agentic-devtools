@@ -64,9 +64,10 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
         per_host_pem_paths: List of paths to per-host PEM files.
 
     Returns:
-        Path to the unified bundle file, or ``None`` if certifi is unavailable
-        or if no additional corporate CA certificates are found in the provided
-        PEM files.
+        Path to the unified bundle file, or ``None`` if certifi is unavailable,
+        if no additional corporate CA certificates are found in the provided
+        PEM files, or if the certifi bundle cannot be read / the unified file
+        cannot be written.
     """
     try:
         import certifi
@@ -76,7 +77,12 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
     cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
 
     # Start with certifi system CAs
-    system_pem = Path(certifi.where()).read_text(encoding="utf-8", errors="ignore")
+    certifi_path = Path(certifi.where())
+    try:
+        system_pem = certifi_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError as exc:
+        print(f"  ⚠ Could not read certifi CA bundle {certifi_path}: {exc}", file=sys.stderr)
+        return None
     system_certs = set(re.findall(cert_pattern, system_pem, re.DOTALL))
 
     extra_certs: List[str] = []
@@ -101,8 +107,12 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
 
     unified_content = system_pem.rstrip("\n") + "\n" + "\n".join(extra_certs) + "\n"
     unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
-    unified_path.parent.mkdir(parents=True, exist_ok=True)
-    unified_path.write_text(unified_content, encoding="utf-8")
+    try:
+        unified_path.parent.mkdir(parents=True, exist_ok=True)
+        unified_path.write_text(unified_content, encoding="utf-8")
+    except OSError as exc:
+        print(f"  ⚠ Could not write unified CA bundle {unified_path}: {exc}", file=sys.stderr)
+        return None
     return unified_path
 
 

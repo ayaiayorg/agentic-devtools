@@ -139,3 +139,33 @@ class TestBuildUnifiedCaBundle:
         assert result is None
         err = capsys.readouterr().err
         assert "Could not read CA bundle" in err
+
+    def test_returns_none_when_certifi_bundle_unreadable(self, tmp_path, capsys):
+        """Returns None with warning when certifi bundle file cannot be read."""
+        bad_path = str(tmp_path / "nonexistent-cacert.pem")
+
+        with patch("certifi.where", return_value=bad_path):
+            result = _build_unified_ca_bundle([])
+
+        assert result is None
+        err = capsys.readouterr().err
+        assert "Could not read certifi CA bundle" in err
+
+    def test_returns_none_when_unified_bundle_write_fails(self, tmp_path, capsys):
+        """Returns None with warning when unified bundle cannot be written."""
+        certifi_pem_path = tmp_path / "cacert.pem"
+        certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
+
+        host_pem_path = tmp_path / "host.pem"
+        host_pem_path.write_text(
+            "\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8"
+        )
+
+        with patch("certifi.where", return_value=str(certifi_pem_path)):
+            with patch.object(Path, "home", return_value=tmp_path):
+                with patch.object(Path, "write_text", side_effect=OSError("disk full")):
+                    result = _build_unified_ca_bundle([str(host_pem_path)])
+
+        assert result is None
+        err = capsys.readouterr().err
+        assert "Could not write unified CA bundle" in err
