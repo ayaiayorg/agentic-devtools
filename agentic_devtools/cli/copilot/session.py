@@ -86,7 +86,10 @@ _MAX_GH_COPILOT_ARGV_LENGTH = 30_000
 # Safe length limit for the pre-processed inline prompt passed via argv.
 # Truncation is applied to the prompt content (before ``_build_copilot_args``
 # checks ``_MAX_GH_COPILOT_ARGV_LENGTH``) so that the final single-line
-# version with ``<br>`` replacements fits comfortably.
+# version with ``<br>`` replacements fits comfortably.  The 100-character gap
+# between this constant and ``_MAX_GH_COPILOT_ARGV_LENGTH`` provides headroom
+# for the ``<br>`` replacement overhead on any remaining newlines and the
+# backup file-reference suffix appended by ``_inline_prompt``.
 _SAFE_ARGV_LENGTH = 29_900
 
 

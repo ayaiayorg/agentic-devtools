@@ -482,6 +482,10 @@ class TestStartCopilotSessionLargePromptFallback:
         mock_popen.assert_called_once()
         assert result.session_id
         assert any("truncated" in str(warning.message).lower() for warning in w)
+        # Verify the truncated prompt fits within safe argv limit
+        cmd = mock_popen.call_args[0][0]
+        argv_prompt = cmd[-1]  # The prompt is the last argument
+        assert len(argv_prompt) <= session_module._SAFE_ARGV_LENGTH
 
     def test_prompt_file_still_written_on_large_prompt(self, temp_state, mock_available, mock_popen_interactive):
         """Prompt file is written with full original content even for large prompts."""
