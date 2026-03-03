@@ -3,9 +3,23 @@
 You are a senior software engineer and expert architect reviewing Pull Request
 **#{{pull_request_id}}**.
 
+## Next Action
+
+The PR details have been fetched. Advance to begin reviewing files:
+
+```bash
+agdt-advance-workflow file-review
+```
+
+---
+
+**Workflow Status**: PR details retrieved. Ready to begin file reviews.
+
 ## PR Details
 
 - **PR ID**: {{pull_request_id}}
+- **PR URL**: {{pr_url}}
+- **Source Code Hosting Platform**: {{source_code_platform}}
 - **Title**: {{pr_title}}
 - **Author**: {{pr_author}}
 - **Source Branch**: {{source_branch}}
@@ -73,14 +87,7 @@ Prioritize catching:
 
 {{file_count}} file(s) pending review.
 
-## Next Action
+## Instructions File Reference
 
-The PR details have been fetched. Advance to begin reviewing files:
-
-```bash
-agdt-advance-workflow file-review
-```
-
----
-
-**Workflow Status**: PR details retrieved. Ready to begin file reviews.
+The full prompt for this workflow step is saved at:
+scripts/temp/temp-pull-request-review-initiate-prompt.md

@@ -987,7 +987,6 @@ def _start_copilot_session_for_pr_review(
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
     """
-    from ...config import load_review_focus_areas
     from ..copilot.session import start_copilot_session
 
     prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
@@ -1003,12 +1002,7 @@ def _start_copilot_session_for_pr_review(
         print(f"WARNING: Could not read initiate prompt file: {exc}")
         return
 
-    # Append repo-specific focus areas when available
-    focus_areas = load_review_focus_areas(worktree_path)
-    if focus_areas:
-        integrated_prompt = initiate_prompt + "\n\n" + focus_areas
-    else:
-        integrated_prompt = initiate_prompt
+    integrated_prompt = initiate_prompt
 
     # Non-interactive mode when VS Code is not available (pipeline scenario),
     # or when there is no TTY attached (e.g. running inside run_function_in_background
