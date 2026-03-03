@@ -112,12 +112,15 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> List[D
     # First fetch the issue to get the ID
     issue_url = f"{base_url}/rest/api/2/issue/{issue_key}?fields=id"
 
+    # Compute SSL verify once to avoid repeated filesystem checks / cert auto-fetches
+    ssl_verify = _get_jira_ssl_verify()
+
     try:
         issue_response = requests.get(
             issue_url,
             headers={"Authorization": f"Bearer {pat}", "Accept": "application/json"},
             timeout=30,
-            verify=_get_jira_ssl_verify(),
+            verify=ssl_verify,
         )
 
         if issue_response.status_code != 200:
@@ -140,7 +143,7 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> List[D
             dev_url,
             headers={"Authorization": f"Bearer {pat}", "Accept": "application/json"},
             timeout=30,
-            verify=_get_jira_ssl_verify(),
+            verify=ssl_verify,
         )
 
         if dev_response.status_code != 200:

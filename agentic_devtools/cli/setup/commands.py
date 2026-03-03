@@ -18,6 +18,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from agentic_devtools.cli.cert_utils import ensure_ca_bundle as _ensure_ca_bundle
 
@@ -91,11 +92,10 @@ def _build_unified_ca_bundle(per_host_pem_paths: list) -> Optional[Path]:
                 extra_certs.append(cert)
 
     if not extra_certs:
-        # No additional corporate CAs found; unified bundle == certifi bundle
-        unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
-        unified_path.parent.mkdir(parents=True, exist_ok=True)
-        unified_path.write_text(system_pem, encoding="utf-8")
-        return unified_path
+        # No additional corporate CAs found — no point writing a copy of the
+        # system bundle.  Return None so the caller can skip the REQUESTS_CA_BUNDLE
+        # hint (pointing users at a file identical to certifi is misleading).
+        return None
 
     unified_content = system_pem.rstrip("\n") + "\n" + "\n".join(extra_certs) + "\n"
     unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
@@ -129,8 +129,11 @@ def _prefetch_certs() -> None:
         from ..jira.config import get_jira_base_url
 
         jira_url = get_jira_base_url()
-        jira_hostname = jira_url.replace("https://", "").replace("http://", "").split("/")[0]
-        extra_hosts.append(jira_hostname)
+        # Use urlparse to correctly strip port numbers (e.g. jira.example.com:8443)
+        parsed = urlparse(jira_url)
+        jira_hostname = parsed.hostname
+        if jira_hostname:
+            extra_hosts.append(jira_hostname)
     except Exception as exc:  # noqa: BLE001
         print(f"  ⚠ Could not determine Jira hostname (skipping Jira cert): {exc}", file=sys.stderr)
 

@@ -52,6 +52,26 @@ class TestPrefetchCerts:
         called_hostnames = [c.args[0] for c in mock_ensure.call_args_list]
         assert "jira.example.com" in called_hostnames
 
+    def test_strips_port_from_jira_hostname(self, capsys, tmp_path):
+        """Strips port from Jira URL so ensure_ca_bundle receives a clean hostname."""
+        pem_path = str(tmp_path / "cert.pem")
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path) as mock_ensure:
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                with patch("agentic_devtools.cli.setup.commands.Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    with patch(
+                        "agentic_devtools.cli.jira.config.get_jira_base_url",
+                        return_value="https://jira.example.com:8443",
+                    ):
+                        commands._prefetch_certs()
+
+        called_hostnames = [c.args[0] for c in mock_ensure.call_args_list]
+        # Must be the bare hostname without port
+        assert "jira.example.com" in called_hostnames
+        assert "jira.example.com:8443" not in called_hostnames
+
     def test_prints_warning_message_when_bundles_missing(self, capsys):
         """Prints warning messages when ensure_ca_bundle returns None."""
         with patch.object(commands, "_ensure_ca_bundle", return_value=None):

@@ -47,13 +47,17 @@ class TestBuildUnifiedCaBundle:
         assert result is None
 
     def test_creates_unified_bundle_at_expected_path(self, tmp_path):
-        """Creates unified-ca-bundle.pem under ~/.agdt/certs/."""
+        """Creates unified-ca-bundle.pem under ~/.agdt/certs/ when extra certs exist."""
         certifi_pem_path = tmp_path / "cacert.pem"
         certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
 
+        # Per-host PEM with leaf + intermediate so extra certs are found
+        host_pem_path = tmp_path / "host.pem"
+        host_pem_path.write_text("\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8")
+
         with patch("certifi.where", return_value=str(certifi_pem_path)):
             with patch.object(Path, "home", return_value=tmp_path):
-                result = _build_unified_ca_bundle([])
+                result = _build_unified_ca_bundle([str(host_pem_path)])
 
         assert result is not None
         # The unified bundle is written under ~/.agdt/certs/
@@ -104,8 +108,8 @@ class TestBuildUnifiedCaBundle:
         content = result.read_text(encoding="utf-8")
         assert content.count(_FAKE_CERT_INTERMEDIATE) == 1
 
-    def test_no_extra_certs_writes_certifi_bundle(self, tmp_path):
-        """When there are no new corporate certs, writes certifi bundle as-is."""
+    def test_returns_none_when_no_extra_certs(self, tmp_path):
+        """Returns None when no non-leaf certs are found (avoids misleading bundle)."""
         certifi_pem_path = tmp_path / "cacert.pem"
         certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
 
@@ -117,12 +121,10 @@ class TestBuildUnifiedCaBundle:
             with patch.object(Path, "home", return_value=tmp_path):
                 result = _build_unified_ca_bundle([str(host_pem)])
 
-        assert result is not None
-        content = result.read_text(encoding="utf-8")
-        assert _FAKE_CERT_A in content
+        assert result is None
 
     def test_skips_unreadable_pem_files(self, tmp_path, capsys):
-        """OSError when reading a per-host PEM file is silently skipped with a warning."""
+        """OSError when reading a per-host PEM file is skipped with a warning."""
         certifi_pem_path = tmp_path / "cacert.pem"
         certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
 
@@ -133,6 +135,7 @@ class TestBuildUnifiedCaBundle:
                 # Should not raise even though the file doesn't exist
                 result = _build_unified_ca_bundle([nonexistent_path])
 
-        assert result is not None
+        # No extra certs found, so returns None
+        assert result is None
         err = capsys.readouterr().err
         assert "Could not read CA bundle" in err

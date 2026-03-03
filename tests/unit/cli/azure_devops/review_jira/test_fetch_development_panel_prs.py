@@ -118,7 +118,7 @@ class TestFetchDevelopmentPanelPrs:
     @patch("agentic_devtools.cli.azure_devops.review_jira._get_jira_ssl_verify", return_value=True)
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
     def test_passes_verify_to_requests_get(self, mock_get, mock_ssl_verify):
-        """Test that verify= is passed to all requests.get calls."""
+        """Test that verify= is passed to all requests.get calls and SSL verify is computed once."""
         from agentic_devtools.cli.azure_devops.review_jira import (
             fetch_development_panel_prs,
         )
@@ -138,6 +138,9 @@ class TestFetchDevelopmentPanelPrs:
 
         for call_obj in mock_get.call_args_list:
             assert "verify" in call_obj.kwargs
+
+        # _get_jira_ssl_verify must be called exactly once (not per request)
+        mock_ssl_verify.assert_called_once()
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
     def test_returns_empty_list_when_no_prs(self, mock_get):
