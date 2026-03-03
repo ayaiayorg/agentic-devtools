@@ -1,14 +1,14 @@
-"""Tests for PR review initiate prompt rendering with repo_review_focus_areas."""
+"""Tests for PR review pull-request-overview prompt rendering with repo_review_focus_areas."""
 
 from agdt_ai_helpers.prompts import loader
 
 
-class TestPrReviewInitiatePromptRendering:
-    """Tests for the default-initiate-prompt.md template in pull-request-review workflow."""
+class TestPrReviewPullRequestOverviewPromptRendering:
+    """Tests for the default-pull-request-overview-prompt.md template in pull-request-review workflow."""
 
     def _render(self, **kwargs):
-        """Render the actual PR review initiate template with the given variables."""
-        template = loader.load_prompt_template("pull-request-review", "initiate")
+        """Render the actual PR review pull-request-overview template with the given variables."""
+        template = loader.load_prompt_template("pull-request-review", "pull-request-overview")
         return loader.substitute_variables(template, kwargs)
 
     def _base_variables(self):
@@ -98,6 +98,19 @@ class TestPrReviewInitiatePromptRendering:
         assert pr_details_pos != -1
         assert next_action_pos < pr_details_pos
 
+    def test_next_action_points_to_file_review(self):
+        """Next Action instructs the agent to advance to file-review step."""
+        result = self._render(**self._base_variables())
+
+        assert "agdt-advance-workflow file-review" in result
+
+    def test_important_warning_present(self):
+        """The important warning about not reviewing files manually is present."""
+        result = self._render(**self._base_variables())
+
+        assert "IMPORTANT" in result
+        assert "Do NOT review files manually" in result
+
     def test_pr_url_rendered(self):
         """PR URL value appears in the rendered output."""
         result = self._render(**self._base_variables())
@@ -115,4 +128,4 @@ class TestPrReviewInitiatePromptRendering:
         """Instructions file reference appears at the end of the rendered output."""
         result = self._render(**self._base_variables())
 
-        assert "scripts/temp/temp-pull-request-review-initiate-prompt.md" in result
+        assert "scripts/temp/temp-pull-request-review-pull-request-overview-prompt.md" in result

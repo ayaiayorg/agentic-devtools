@@ -2,7 +2,10 @@
 
 from unittest.mock import patch
 
-from agentic_devtools.cli.workflows.worktree_setup import _start_copilot_session_for_pr_review
+from agentic_devtools.cli.workflows.worktree_setup import (
+    COPILOT_SESSION_START_PROMPT,
+    _start_copilot_session_for_pr_review,
+)
 
 
 class TestStartCopilotSessionForPrReview:
@@ -42,7 +45,7 @@ class TestStartCopilotSessionForPrReview:
         _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
 
         mock_copilot.assert_called_once_with(
-            prompt="# Review prompt content",
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=True,
         )
@@ -70,7 +73,7 @@ class TestStartCopilotSessionForPrReview:
 
         # interactive=False because VS Code is unavailable
         mock_copilot.assert_called_once_with(
-            prompt="# Review prompt",
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
         )
@@ -78,31 +81,32 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_does_not_append_focus_areas(
+    def test_uses_static_prompt_not_file_content(
         self,
         mock_wait,
         mock_vscode,
         mock_copilot,
         tmp_path,
     ):
-        """Test that focus areas are NOT re-appended (they come from the template variable instead)."""
+        """Test that the static COPILOT_SESSION_START_PROMPT is used, not the rendered template file content."""
         prompt_dir = tmp_path / "scripts" / "temp"
         prompt_dir.mkdir(parents=True)
         prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
-        prompt_file.write_text("# Base prompt", encoding="utf-8")
+        prompt_file.write_text("# This content should NOT be used", encoding="utf-8")
 
         mock_wait.return_value = True
         mock_vscode.return_value = True
 
         _start_copilot_session_for_pr_review(str(tmp_path), interactive=False)
 
-        # The prompt passed to start_copilot_session should be exactly the file content
-        # (no appended focus areas)
+        # The prompt passed to start_copilot_session should be the static constant,
+        # not the file content
         mock_copilot.assert_called_once_with(
-            prompt="# Base prompt",
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
         )
+        assert "This content should NOT be used" not in mock_copilot.call_args[1]["prompt"]
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
@@ -125,14 +129,14 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_uses_worktree_path_for_prompt(
+    def test_uses_worktree_path_for_prompt_file_wait(
         self,
         mock_wait,
         mock_vscode,
         mock_copilot,
         tmp_path,
     ):
-        """Test that the prompt is loaded from the worktree path."""
+        """Test that the prompt file wait uses the worktree path."""
         prompt_dir = tmp_path / "scripts" / "temp"
         prompt_dir.mkdir(parents=True)
         prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
@@ -145,31 +149,7 @@ class TestStartCopilotSessionForPrReview:
 
         mock_copilot.assert_called_once()
         call_kwargs = mock_copilot.call_args[1]
-        assert call_kwargs["prompt"] == "# Prompt"
-
-    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
-    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_skips_session_when_prompt_file_unreadable(
-        self,
-        mock_wait,
-        mock_copilot,
-        tmp_path,
-        capsys,
-    ):
-        """Test that the session is skipped when the prompt file cannot be read."""
-        # Create a directory with the same name as the prompt file so read_text fails
-        prompt_dir = tmp_path / "scripts" / "temp"
-        prompt_dir.mkdir(parents=True)
-        bad_path = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
-        bad_path.mkdir()  # Directory, not file — read_text raises IsADirectoryError (OSError)
-
-        mock_wait.return_value = True  # File "exists" (it's a dir)
-
-        _start_copilot_session_for_pr_review(str(tmp_path))
-
-        mock_copilot.assert_not_called()
-        captured = capsys.readouterr()
-        assert "Could not read initiate prompt file" in captured.out
+        assert call_kwargs["prompt"] == COPILOT_SESSION_START_PROMPT
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
@@ -274,7 +254,7 @@ class TestStartCopilotSessionForPrReview:
 
         # Must be non-interactive despite interactive=True and VS Code available
         mock_copilot.assert_called_once_with(
-            prompt="# Review prompt",
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
         )
@@ -316,7 +296,24 @@ class TestStartCopilotSessionForPrReview:
 
         # Must be non-interactive because stdout is not a TTY
         mock_copilot.assert_called_once_with(
-            prompt="# Review prompt",
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
         )
+
+
+class TestCopilotSessionStartPrompt:
+    """Tests for the COPILOT_SESSION_START_PROMPT constant."""
+
+    def test_prompt_is_single_line(self):
+        """The session start prompt must have no newline characters."""
+        assert "\n" not in COPILOT_SESSION_START_PROMPT
+
+    def test_prompt_instructs_advance_to_pull_request_overview(self):
+        """The prompt must instruct the agent to run agdt-advance-workflow pull-request-overview."""
+        assert "agdt-advance-workflow pull-request-overview" in COPILOT_SESSION_START_PROMPT
+
+    def test_prompt_does_not_contain_template_variables(self):
+        """The prompt must be a static string with no template variables."""
+        assert "{{" not in COPILOT_SESSION_START_PROMPT
+        assert "}}" not in COPILOT_SESSION_START_PROMPT

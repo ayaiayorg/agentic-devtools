@@ -106,13 +106,13 @@ directly if needed.
 
 ---
 
-### Pull Request Review (5 steps)
+### Pull Request Review (6 steps)
 
 | Step | Command | Description |
 |------|---------|-------------|
 | 1 | `/agdt.pull-request-review.initiate` | Start a pull request review |
-| 2 | `/agdt.pull-request-review.file-review` | Review individual files |
-| 3 | `/agdt.pull-request-review.summary` | Generate review summary |
+| 2 | `agdt-advance-workflow pull-request-overview` | View PR details and review criteria |
+| 3 | `/agdt.pull-request-review.file-review` | Review individual files |
 | 4 | `/agdt.pull-request-review.decision` | Approve or request changes |
 | 5 | `/agdt.pull-request-review.completion` | Finalize review |
 

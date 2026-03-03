@@ -736,29 +736,6 @@ def setup_pull_request_review() -> None:
             f"{config.organization.rstrip('/')}/{config.project}/_git/{config.repository}/pullrequest/{pull_request_id}"
         )
 
-        workflow_context = {
-            "pull_request_id": pull_request_id,
-            "jira_issue_key": jira_issue_key or "",
-            "pr_title": pr_title,
-            "pr_author": pr_author,
-            "source_branch": source_branch,
-            "target_branch": target_branch,
-            "file_count": file_count,
-            "pr_url": pr_url,
-            "source_code_platform": "AzureDevOps",
-        }
-
-        set_workflow_state(
-            name="pull-request-review",
-            status="initiated",
-            step="initiate",
-            context=workflow_context,
-        )
-
-        print("\n" + "=" * 60)
-        print("WORKFLOW INITIALIZED: pull-request-review")
-        print("=" * 60)
-
         # Load repo-specific review focus areas (optional — None if not configured)
         from ...config import load_review_focus_areas
 
@@ -779,6 +756,30 @@ def setup_pull_request_review() -> None:
             repo_root = str(Path.cwd())
 
         repo_review_focus_areas = load_review_focus_areas(repo_root)
+
+        workflow_context = {
+            "pull_request_id": pull_request_id,
+            "jira_issue_key": jira_issue_key or "",
+            "pr_title": pr_title,
+            "pr_author": pr_author,
+            "source_branch": source_branch,
+            "target_branch": target_branch,
+            "file_count": file_count,
+            "pr_url": pr_url,
+            "source_code_platform": "AzureDevOps",
+            "repo_review_focus_areas": repo_review_focus_areas or "",
+        }
+
+        set_workflow_state(
+            name="pull-request-review",
+            status="initiated",
+            step="initiate",
+            context=workflow_context,
+        )
+
+        print("\n" + "=" * 60)
+        print("WORKFLOW INITIALIZED: pull-request-review")
+        print("=" * 60)
 
         variables = {
             "pull_request_id": pull_request_id,

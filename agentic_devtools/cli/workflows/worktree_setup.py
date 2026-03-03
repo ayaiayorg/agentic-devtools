@@ -19,6 +19,18 @@ from typing import Optional, Tuple
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
 
+# Static single-line prompt used when starting the Copilot CLI session for PR
+# review.  It contains *only* the instruction to run the first advance command
+# so the agent is forced into the workflow system before receiving any context.
+# MUST remain a single line (no ``\n``).  Use ``---`` as visual separators.
+COPILOT_SESSION_START_PROMPT = (
+    "You are a senior software engineer reviewing a Pull Request. "
+    "--- CRITICAL: Execute this command now: `agdt-advance-workflow pull-request-overview` "
+    "--- This command will provide you with all PR details, review criteria, and instructions. "
+    "Do NOT attempt to review any code or gather any information until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
 
 def is_vscode_available() -> bool:
     """Check if VS Code CLI is available on PATH.
@@ -967,14 +979,15 @@ def _start_copilot_session_for_pr_review(
     interactive: bool = True,
 ) -> None:
     """
-    Read the initiate prompt, load focus areas, compose the integrated
-    prompt, and start a ``gh copilot`` session.
+    Wait for the workflow setup to complete, then start a ``gh copilot``
+    session with a static single-line prompt that instructs the agent to
+    run ``agdt-advance-workflow pull-request-overview``.
 
-    The prompt file is expected at
-    ``{worktree_path}/scripts/temp/temp-pull-request-review-initiate-prompt.md``
-    (written by ``load_and_render_prompt()`` during the PR review setup).
-    Focus areas are loaded from ``{worktree_path}/.github/agdt-config.json``
-    if present.
+    The function still waits for the rendered initiate prompt file to
+    appear on disk (proving that the background setup has finished) but
+    does **not** read its content.  Instead it uses the constant
+    :data:`COPILOT_SESSION_START_PROMPT` so that the AI agent is forced
+    into the workflow step system before receiving any PR context.
 
     In interactive mode the Copilot session inherits the terminal so the
     user can interact with it; in non-interactive mode it runs in the
@@ -994,12 +1007,6 @@ def _start_copilot_session_for_pr_review(
     print(f"\n--- Waiting for initiate prompt file: {prompt_file} ---")
     if not _wait_for_prompt_file(prompt_file):
         print("WARNING: Initiate prompt file not found after waiting. Skipping Copilot session.")
-        return
-
-    try:
-        initiate_prompt = prompt_file.read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"WARNING: Could not read initiate prompt file: {exc}")
         return
 
     # Non-interactive mode when VS Code is not available (pipeline scenario),
@@ -1022,7 +1029,7 @@ def _start_copilot_session_for_pr_review(
     os.chdir(worktree_path)
     try:
         start_copilot_session(
-            prompt=initiate_prompt,
+            prompt=COPILOT_SESSION_START_PROMPT,
             working_directory=worktree_path,
             interactive=effective_interactive,
         )
