@@ -1002,8 +1002,6 @@ def _start_copilot_session_for_pr_review(
         print(f"WARNING: Could not read initiate prompt file: {exc}")
         return
 
-    integrated_prompt = initiate_prompt
-
     # Non-interactive mode when VS Code is not available (pipeline scenario),
     # or when there is no TTY attached (e.g. running inside run_function_in_background
     # where stdin/stdout are redirected to DEVNULL/log files).
@@ -1024,7 +1022,7 @@ def _start_copilot_session_for_pr_review(
     os.chdir(worktree_path)
     try:
         start_copilot_session(
-            prompt=integrated_prompt,
+            prompt=initiate_prompt,
             working_directory=worktree_path,
             interactive=effective_interactive,
         )
