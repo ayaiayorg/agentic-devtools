@@ -228,7 +228,7 @@ and receive step-specific guidance with CLI commands.
 
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
-  Review – Initiate: Start a pull request review (step 1 of 5)"; required
+  Review – Initiate: Start a pull request review (step 1 of 4)"; required
   state:
   pull_request_id OR jira.issue_key; CLI: agdt-review-pull-request; handoff →
   file-review
@@ -237,7 +237,7 @@ and receive step-specific guidance with CLI commands.
 
   .github/agents/agdt.pull-request-review.file-review.agent.md — description:
   .github/agents/agdt.pull-request-review.file-review.agent.md — description:
-  "PR Review – File Review: Review individual files (step 2 of 5)"; required
+  "PR Review – File Review: Review individual files (step 2 of 4)"; required
   state: pull_request_id, file_review.file_path; CLI: agdt-approve-file,
   agdt-request-changes; handoff → file-review (next file) OR decision (when all files reviewed)
 
@@ -255,7 +255,7 @@ and receive step-specific guidance with CLI commands.
 
   .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
   .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
-  Review – Decision: Approve or request changes (step 4 of 5)"; required state:
+  Review – Decision: Approve or request changes (step 3 of 4)"; required state:
   pull_request_id; CLI: agdt-approve-pull-request; handoff → completion
 
 - [x] T030 [P] [US1] Create agent at
@@ -264,7 +264,7 @@ and receive step-specific guidance with CLI commands.
   "PR
   .github/agents/agdt.pull-request-review.completion.agent.md — description:
   "PR
-  Review – Completion: Finalize review (step 5 of 5)"; required state:
+  Review – Completion: Finalize review (step 4 of 4)"; required state:
   pull_request_id; CLI: agdt-add-jira-comment; no handoff
 
 ### pull-request-review prompts (5 files)
