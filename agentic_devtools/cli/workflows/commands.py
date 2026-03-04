@@ -52,8 +52,8 @@ def initiate_pull_request_review_workflow(
     Args:
         pull_request_id: ID of the pull request to review.
         issue_key: Jira issue key to find the PR by branch name.
-        interactive: Whether to start the Copilot session interactively (default: True).
-            Set to False for pipeline/non-interactive mode.
+        interactive: Whether to start the Copilot session interactively (default: False).
+            Set to True for interactive mode.
         _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv
             (this function always calls parse_known_args, so unknown flags are silently ignored,
             but passing [] prevents any accidental parsing of the test runner's sys.argv).
@@ -98,7 +98,7 @@ Examples:
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: true). Pass 'false' for pipeline mode.",
+        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
     )
     args, _unknown = parser.parse_known_args(_argv)
 
@@ -110,7 +110,7 @@ Examples:
     if interactive is None and args.interactive is not None:
         interactive = args.interactive.lower() not in ("false", "0", "no")
     if interactive is None:
-        interactive = True
+        interactive = False
 
     # Set provided values in state (use set_value directly since we handle cross-lookup below)
     if pull_request_id:
@@ -206,6 +206,7 @@ Examples:
         ]
         if resolved_issue_key:
             auto_execute_command.extend(["--issue-key", resolved_issue_key])
+        auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
 
         # Automatically set up the environment with the PR's source branch
         if perform_auto_setup(
