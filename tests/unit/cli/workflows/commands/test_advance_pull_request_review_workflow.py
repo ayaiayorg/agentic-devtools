@@ -254,14 +254,53 @@ class TestAdvancePullRequestReviewWorkflow:
         assert "Approvals: 2" in captured.out
         assert "Changes: 1" in captured.out
 
-    def test_advance_from_initiate_to_file_review(
+    def test_advance_from_initiate_to_pull_request_overview(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):
-        """Test advance from initiate step goes to file-review."""
+        """Test advance from initiate step goes to pull-request-overview."""
         state.set_workflow_state(
             name="pull-request-review",
             status="in-progress",
             step="initiate",
+            context={
+                "pull_request_id": "123",
+                "pr_url": "https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+                "source_code_platform": "AzureDevOps",
+            },
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": False,
+                "completed_count": 0,
+                "pending_count": 5,
+                "total_count": 5,
+                "current_file": "src/file.py",
+                "prompt_file_path": "/tmp/prompt.md",
+            },
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-pull-request-overview-prompt.md"
+            template_file.write_text(
+                "Overview for PR #{{pull_request_id}} at {{pr_url}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow()
+
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "pull-request-overview"
+
+    def test_advance_from_pull_request_overview_to_file_review(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test advance from pull-request-overview step goes to file-review."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="pull-request-overview",
             context={"pull_request_id": "123"},
         )
 
@@ -314,3 +353,4 @@ class TestAdvancePullRequestReviewWorkflow:
             assert "completion" in captured.err
             assert "decision" in captured.err
             assert "file-review" in captured.err
+            assert "pull-request-overview" in captured.err

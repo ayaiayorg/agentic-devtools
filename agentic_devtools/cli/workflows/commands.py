@@ -573,7 +573,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
     Usage: agdt-advance-workflow <step>
 
-    Steps: file-review, decision, completion
+    Steps: pull-request-overview, file-review, decision, completion
 
     Args:
         step: The step to advance to (optional, auto-detects next step if not provided)
@@ -583,7 +583,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
     if not is_workflow_active("pull-request-review"):
         print("ERROR: pull-request-review workflow is not active.", file=sys.stderr)
-        print("Start it with: agdt-review-pull-request", file=sys.stderr)
+        print("Start it with: agdt-initiate-pull-request-review-workflow", file=sys.stderr)
         sys.exit(1)
 
     workflow = get_workflow_state()
@@ -610,7 +610,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     # Get queue status for file-review step
     queue_status = get_queue_status(pr_id_int)
 
-    _VALID_STEPS = {"file-review", "decision", "completion"}
+    _VALID_STEPS = {"pull-request-overview", "file-review", "decision", "completion"}
 
     if step is not None and step not in _VALID_STEPS:
         print(
@@ -622,6 +622,8 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     if step is None:
         # Auto-detect next step based on current step and queue status
         if current_step == "initiate":
+            step = "pull-request-overview"
+        elif current_step == "pull-request-overview":
             step = "file-review"
         elif current_step == "file-review":
             # If all files are complete and no submissions are still pending,
@@ -668,6 +670,10 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
         "source_branch": source_branch,
         "target_branch": target_branch,
         "file_count": file_count,
+        # PR context variables (for pull-request-overview step)
+        "pr_url": context.get("pr_url", ""),
+        "source_code_platform": context.get("source_code_platform", ""),
+        "repo_review_focus_areas": context.get("repo_review_focus_areas", ""),
         # Queue status variables (for file-review step)
         "completed_count": queue_status["completed_count"],
         "pending_count": queue_status["pending_count"],

@@ -389,7 +389,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
         """Test the full pull-request-review workflow lifecycle from initiate to completion.
 
         Exercises all steps in order:
-        initiate -> file-review -> (file-review loop) -> decision -> completion
+        initiate -> pull-request-overview -> file-review -> (file-review loop) -> decision -> completion
         """
         # Set state for the PR
         state.set_workflow_state(
@@ -409,7 +409,15 @@ class TestPullRequestReviewWorkflowEndToEnd:
             "prompt_file_path": "/tmp/prompt.md",
         }
 
-        # initiate -> file-review (manual advance)
+        # initiate -> pull-request-overview (auto-detect advance)
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=pending_queue,
+        ):
+            commands.advance_pull_request_review_workflow()
+        assert state.get_workflow_state()["step"] == "pull-request-overview"
+
+        # pull-request-overview -> file-review (auto-detect advance)
         with patch(
             "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
             return_value=pending_queue,

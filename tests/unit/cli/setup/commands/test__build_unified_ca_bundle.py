@@ -157,9 +157,7 @@ class TestBuildUnifiedCaBundle:
         certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
 
         host_pem_path = tmp_path / "host.pem"
-        host_pem_path.write_text(
-            "\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8"
-        )
+        host_pem_path.write_text("\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8")
 
         with patch("certifi.where", return_value=str(certifi_pem_path)):
             with patch.object(Path, "home", return_value=tmp_path):
