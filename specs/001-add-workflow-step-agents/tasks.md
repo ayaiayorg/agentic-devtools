@@ -222,11 +222,10 @@ and receive step-specific guidance with CLI commands.
   .github/prompts/agdt.work-on-jira-issue.completion.prompt.md — agent:
   agdt.work-on-jira-issue.completion
 
-### pull-request-review agents (5 files)
+### pull-request-review agents (4 files)
 
 - [x] T026 [P] [US1] Create agent at
 
-  .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
   Review – Initiate: Start a pull request review (step 1 of 4)"; required
   state:
@@ -235,7 +234,6 @@ and receive step-specific guidance with CLI commands.
 
 - [x] T027 [P] [US1] Create agent at
 
-  .github/agents/agdt.pull-request-review.file-review.agent.md — description:
   .github/agents/agdt.pull-request-review.file-review.agent.md — description:
   "PR Review – File Review: Review individual files (step 2 of 4)"; required
   state: pull_request_id, file_review.file_path; CLI: agdt-approve-file,
@@ -254,30 +252,24 @@ and receive step-specific guidance with CLI commands.
 - [x] T029 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.decision.agent.md — description: "PR
   Review – Decision: Approve or request changes (step 3 of 4)"; required state:
   pull_request_id; CLI: agdt-approve-pull-request; handoff → completion
 
 - [x] T030 [P] [US1] Create agent at
 
   .github/agents/agdt.pull-request-review.completion.agent.md — description:
-  "PR
-  .github/agents/agdt.pull-request-review.completion.agent.md — description:
-  "PR
-  Review – Completion: Finalize review (step 4 of 4)"; required state:
+  "PR Review – Completion: Finalize review (step 4 of 4)"; required state:
   pull_request_id; CLI: agdt-add-jira-comment; no handoff
 
-### pull-request-review prompts (5 files)
+### pull-request-review prompts (4 files)
 
 - [x] T031 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.initiate.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.initiate.prompt.md — agent:
   agdt.pull-request-review.initiate
 
 - [x] T032 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.file-review.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.file-review.prompt.md — agent:
   agdt.pull-request-review.file-review
 
@@ -292,12 +284,10 @@ and receive step-specific guidance with CLI commands.
 - [x] T034 [P] [US1] Create prompt at
 
   .github/prompts/agdt.pull-request-review.decision.prompt.md — agent:
-  .github/prompts/agdt.pull-request-review.decision.prompt.md — agent:
   agdt.pull-request-review.decision
 
 - [x] T035 [P] [US1] Create prompt at
 
-  .github/prompts/agdt.pull-request-review.completion.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.completion.prompt.md — agent:
   agdt.pull-request-review.completion
 
