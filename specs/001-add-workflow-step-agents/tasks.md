@@ -229,7 +229,7 @@ and receive step-specific guidance with CLI commands.
   .github/agents/agdt.pull-request-review.initiate.agent.md — description: "PR
   Review – Initiate: Start a pull request review (step 1 of 4)"; required
   state:
-  pull_request_id OR jira.issue_key; CLI: agdt-review-pull-request; handoff →
+  pull_request_id OR jira.issue_key; CLI: agdt-initiate-pull-request-review-workflow; handoff →
   file-review
 
 - [x] T027 [P] [US1] Create agent at
