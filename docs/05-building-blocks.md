@@ -277,7 +277,7 @@ graph TB
 **Workflow Types**:
 
 1. **work-on-jira-issue**: 11-step workflow from issue to PR
-2. **pull-request-review**: 5-step PR review workflow
+2. **pull-request-review**: 4-step PR review workflow
 3. **apply-pr-suggestions**: Apply review feedback
 4. **create-jira-issue/epic/subtask**: Jira item creation
 
