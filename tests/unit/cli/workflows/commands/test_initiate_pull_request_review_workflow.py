@@ -345,10 +345,10 @@ class TestInitiatePRReviewWorkflowInteractive:
         call_kwargs = mock_setup.call_args[1]
         assert call_kwargs["interactive"] is False
 
-    def test_interactive_defaults_to_true(
+    def test_interactive_defaults_to_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
-        """Test that interactive defaults to True when not specified."""
+        """Test that interactive defaults to False when not specified."""
         state.set_value("pull_request_id", "456")
         state.set_value("jira.issue_key", "DFLY-5678")
 
@@ -371,7 +371,7 @@ class TestInitiatePRReviewWorkflowInteractive:
                     commands.initiate_pull_request_review_workflow(_argv=[])
 
         call_kwargs = mock_setup.call_args[1]
-        assert call_kwargs["interactive"] is True
+        assert call_kwargs["interactive"] is False
 
     def test_auto_execute_command_passed_with_pr_id_and_issue_key(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
@@ -405,6 +405,8 @@ class TestInitiatePRReviewWorkflowInteractive:
             "789",
             "--issue-key",
             "DFLY-9999",
+            "--interactive",
+            "false",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 
@@ -440,6 +442,39 @@ class TestInitiatePRReviewWorkflowInteractive:
         assert "--pull-request-id" in auto_cmd
         assert "111" in auto_cmd
         assert "--issue-key" not in auto_cmd
+        assert "--interactive" in auto_cmd
+        assert "false" in auto_cmd
+
+    def test_auto_execute_command_includes_interactive_true(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes --interactive true when interactive is explicitly set."""
+        state.set_value("pull_request_id", "789")
+        state.set_value("jira.issue_key", "DFLY-9999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/DFLY-9999/impl"
+
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=False,
+                    branch_valid=False,
+                    folder_name="wrong",
+                    branch_name="main",
+                    issue_key="DFLY-9999",
+                )
+
+                with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                    mock_setup.return_value = True
+                    commands.initiate_pull_request_review_workflow(_argv=["--interactive", "true"])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--interactive" in auto_cmd
+        interactive_idx = auto_cmd.index("--interactive")
+        assert auto_cmd[interactive_idx + 1] == "true"
 
 
 class TestInitiatePRReviewWorkflowCopilotSession:
@@ -486,12 +521,12 @@ class TestInitiatePRReviewWorkflowCopilotSession:
         call_kwargs = mock_session.call_args
         assert call_kwargs[0][0] == "/fake/repo-root"
 
-    def test_copilot_session_interactive_default_is_true(
+    def test_copilot_session_interactive_default_is_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
-        """_start_copilot_session_for_pr_review is called with interactive=True by default."""
+        """_start_copilot_session_for_pr_review is called with interactive=False by default."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
@@ -499,3 +534,10 @@ class TestInitiatePRReviewWorkflowCopilotSession:
         """_start_copilot_session_for_pr_review is called with interactive=False when --interactive false."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "false"])
         mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+
+    def test_copilot_session_interactive_true_when_explicitly_set(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_pr_review is called with interactive=True when --interactive true."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "true"])
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)

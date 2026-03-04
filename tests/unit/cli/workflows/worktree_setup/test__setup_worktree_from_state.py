@@ -39,7 +39,7 @@ class TestSetupWorktreeFromState:
             additional_params={"pr_id": "123"},
             auto_execute_command=None,
             auto_execute_timeout=300,
-            interactive=True,
+            interactive=False,
         )
 
     @patch("agentic_devtools.state.get_value")
@@ -108,7 +108,7 @@ class TestSetupWorktreeFromState:
             additional_params=None,
             auto_execute_command=None,
             auto_execute_timeout=300,
-            interactive=True,
+            interactive=False,
         )
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
@@ -210,8 +210,8 @@ class TestSetupWorktreeFromState:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
     @patch("agentic_devtools.state.get_value")
-    def test_defaults_interactive_to_true_when_not_stored(self, mock_get_value, mock_setup_sync):
-        """Test that interactive defaults to True when not set in state."""
+    def test_defaults_interactive_to_false_when_not_stored(self, mock_get_value, mock_setup_sync):
+        """Test that interactive defaults to False when not set in state."""
         mock_get_value.side_effect = lambda key: {
             "worktree_setup.issue_key": "DFLY-1234",
             "worktree_setup.branch_prefix": "feature",
@@ -230,4 +230,4 @@ class TestSetupWorktreeFromState:
         _setup_worktree_from_state()
 
         call_kwargs = mock_setup_sync.call_args[1]
-        assert call_kwargs["interactive"] is True
+        assert call_kwargs["interactive"] is False

@@ -285,7 +285,7 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
-    def test_copilot_session_started_for_pr_review_workflow(
+    def test_copilot_session_not_started_for_pr_review_workflow_with_auto_execute(
         self,
         mock_check_exists,
         mock_setup,
@@ -295,7 +295,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_set_value,
         mock_copilot,
     ):
-        """Test that Copilot session is started for pull-request-review workflow with auto_execute."""
+        """Test that Copilot session is NOT started when auto_execute_command re-runs the workflow (new worktree)."""
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
@@ -313,7 +313,7 @@ class TestSetupWorktreeInBackgroundSync:
             interactive=True,
         )
 
-        mock_copilot.assert_called_once_with("/repos/DFLY-1234", interactive=True)
+        mock_copilot.assert_not_called()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
@@ -384,7 +384,7 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
-    def test_copilot_session_started_for_existing_pr_review_worktree(
+    def test_copilot_session_not_started_for_existing_pr_review_worktree_with_auto_execute(
         self,
         mock_check_exists,
         mock_open_vscode,
@@ -394,7 +394,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_set_value,
         mock_copilot,
     ):
-        """Test that Copilot session is started when worktree already exists for PR review."""
+        """Test that Copilot session is NOT started when auto_execute re-runs the workflow (existing worktree)."""
         mock_check_exists.return_value = "/repos/DFLY-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
@@ -408,7 +408,7 @@ class TestSetupWorktreeInBackgroundSync:
             interactive=False,
         )
 
-        mock_copilot.assert_called_once_with("/repos/DFLY-1234", interactive=False)
+        mock_copilot.assert_not_called()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review")
     @patch("agentic_devtools.state.set_value")
