@@ -116,7 +116,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
     return unified_path
 
 
-def _prefetch_certs() -> None:
+def _prefetch_certs() -> Optional[Path]:
     """Pre-fetch and cache corporate CA certificates for common setup hosts.
 
     Fetches the certificate chain for external hosts used during setup and
@@ -127,11 +127,16 @@ def _prefetch_certs() -> None:
     After fetching all per-host bundles a unified CA bundle is built at
     ``~/.agdt/certs/unified-ca-bundle.pem`` by combining the system certifi
     CA store with any extra intermediate/root CAs found in the per-host chains.
-    This single file can be pointed to by ``REQUESTS_CA_BUNDLE`` so that
-    all HTTPS calls (GitHub, Azure DevOps, Jira, etc.) work on corporate networks.
+    When the unified bundle is built and ``REQUESTS_CA_BUNDLE`` is not already
+    set by the user, it is set in ``os.environ`` so that all subsequent HTTPS
+    calls within the same process use it automatically.
 
     The cert cache only needs to be refreshed infrequently (e.g. yearly).
     To force a refresh, delete ``~/.agdt/certs/``.
+
+    Returns:
+        Path to the unified CA bundle file, or ``None`` if no unified bundle
+        was built (e.g. no corporate CAs found or certifi unavailable).
     """
     print("Fetching CA certificates for external hosts...")
 
@@ -193,8 +198,13 @@ def _prefetch_certs() -> None:
     # Build unified CA bundle combining certifi + fetched corporate CAs
     unified_path = _build_unified_ca_bundle(all_pem_paths)
 
-    # Print pip/requests CA instructions pointing at the unified bundle
+    # Wire the unified bundle into the running process so that all
+    # subsequent HTTPS calls (e.g. install_copilot_cli, install_gh_cli)
+    # use corporate CAs automatically.
     if unified_path:
+        if not os.environ.get("REQUESTS_CA_BUNDLE"):
+            os.environ["REQUESTS_CA_BUNDLE"] = str(unified_path)
+            print(f"  ✓ REQUESTS_CA_BUNDLE set for this session: {unified_path}")
         unified_str = str(unified_path)
         print("  ✓ Unified CA bundle written to ~/.agdt/certs/unified-ca-bundle.pem")
         print("  ℹ For pip/requests/az CLI (covers GitHub, Azure DevOps, Jira, etc.):")
@@ -202,6 +212,8 @@ def _prefetch_certs() -> None:
         print(f'    export REQUESTS_CA_BUNDLE="{unified_str}"')
         print("    # PowerShell:")
         print(f'    $env:REQUESTS_CA_BUNDLE = "{unified_str}"')
+
+    return unified_path
 
 
 def _print_path_instructions_if_needed() -> None:
@@ -316,6 +328,9 @@ def setup_copilot_cli_cmd() -> None:
         print("Skipping managed install of Copilot CLI (--system-only).")
         return
 
+    _prefetch_certs()
+    print()
+
     ok = install_copilot_cli()
     if not ok:
         sys.exit(1)
@@ -357,6 +372,9 @@ def setup_gh_cli_cmd() -> None:
     if args.system_only:
         print("Skipping managed install of GitHub CLI (--system-only).")
         return
+
+    _prefetch_certs()
+    print()
 
     ok = install_gh_cli()
     if not ok:
