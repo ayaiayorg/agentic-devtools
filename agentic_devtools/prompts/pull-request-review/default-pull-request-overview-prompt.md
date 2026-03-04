@@ -27,8 +27,11 @@ This command will load the first file for review with full diff context and revi
 - **Source Branch**: {{source_branch}}
 - **Target Branch**: {{target_branch}}
 
-  {% if jira_issue_key %}- **Jira Issue**: [{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})
-  {% endif %}
+{% if jira_issue_key %}
+
+- **Jira Issue**: [{{jira_issue_key}}](https://jira.swica.ch/browse/{{jira_issue_key}})
+
+{% endif %}
 
 ## Your Role
 

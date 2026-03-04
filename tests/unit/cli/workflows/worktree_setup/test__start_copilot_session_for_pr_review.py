@@ -126,6 +126,31 @@ class TestStartCopilotSessionForPrReview:
         assert "Skipping Copilot session" in captured.out
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_skips_session_when_prompt_path_is_directory(
+        self,
+        mock_wait,
+        mock_copilot,
+        tmp_path,
+        capsys,
+    ):
+        """Test that the Copilot session is skipped when the prompt path exists but is a directory."""
+        # Create a directory where the prompt file is expected
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file_path = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file_path.mkdir()  # Create as a directory, not a file
+
+        mock_wait.return_value = True  # exists() returns True for directories
+
+        _start_copilot_session_for_pr_review(str(tmp_path))
+
+        mock_copilot.assert_not_called()
+        captured = capsys.readouterr()
+        assert "not a regular file" in captured.out
+        assert "Skipping Copilot session" in captured.out
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_uses_worktree_path_for_prompt_file_wait(

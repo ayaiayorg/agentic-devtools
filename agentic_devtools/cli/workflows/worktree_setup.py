@@ -1008,6 +1008,9 @@ def _start_copilot_session_for_pr_review(
     if not _wait_for_prompt_file(prompt_file):
         print("WARNING: Initiate prompt file not found after waiting. Skipping Copilot session.")
         return
+    if not prompt_file.is_file():
+        print("WARNING: Initiate prompt path exists but is not a regular file. Skipping Copilot session.")
+        return
 
     # Non-interactive mode when VS Code is not available (pipeline scenario),
     # or when there is no TTY attached (e.g. running inside run_function_in_background

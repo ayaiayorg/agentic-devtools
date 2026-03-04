@@ -106,18 +106,17 @@ directly if needed.
 
 ---
 
-### Pull Request Review (4 steps)
+### Pull Request Review (5 steps)
 
 | Step | Command | Description |
 |------|---------|-------------|
 | 1 | `/agdt.pull-request-review.initiate` | Start a pull request review |
-| 2 | `/agdt.pull-request-review.file-review` | Review individual files |
-| 3 | `/agdt.pull-request-review.decision` | Approve or request changes |
-| 4 | `/agdt.pull-request-review.completion` | Finalize review |
+| 2 | CLI: `agdt-advance-workflow pull-request-overview` | Display PR details and review criteria |
+| 3 | `/agdt.pull-request-review.file-review` | Review individual files |
+| 4 | `/agdt.pull-request-review.decision` | Approve or request changes |
+| 5 | `/agdt.pull-request-review.completion` | Finalize review |
 
-> **Note:** Between steps 1 and 2, you'll be prompted to run a
-> `pull-request-overview` CLI command (`agdt-advance-workflow pull-request-overview`)
-> to display PR details and review criteria. It is not a Copilot Chat agent step.
+> **Note:** Step 2 is a CLI command, not a Copilot Chat agent step.
 
 ---
 
