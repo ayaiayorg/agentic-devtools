@@ -106,7 +106,7 @@ directly if needed.
 
 ---
 
-### Pull Request Review (6 steps)
+### Pull Request Review (5 steps)
 
 | Step | Command | Description |
 |------|---------|-------------|

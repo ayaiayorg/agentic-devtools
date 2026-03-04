@@ -241,12 +241,16 @@ and receive step-specific guidance with CLI commands.
   state: pull_request_id, file_review.file_path; CLI: agdt-approve-file,
   agdt-request-changes; handoff → file-review OR summary
 
-- [x] T028 [P] [US1] Create agent at
+- [x] T028 [P] [US1] ~~Create agent at~~
 
-  .github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
+  ~~.github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
   .github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
   Review – Summary: Generate review summary (step 3 of 5)"; required state:
-  pull_request_id; CLI: agdt-generate-pr-summary; handoff → decision
+  pull_request_id; CLI: agdt-generate-pr-summary; handoff → decision~~
+
+  **OBSOLETED**: The summary step was removed in favour of automatic scaffolding.
+  `review_scaffold.py` creates all summary threads upfront and `status_cascade.py`
+  keeps them up-to-date as each file is reviewed. The agent file was never created.
 
 - [x] T029 [P] [US1] Create agent at
 
@@ -278,11 +282,14 @@ and receive step-specific guidance with CLI commands.
   .github/prompts/agdt.pull-request-review.file-review.prompt.md — agent:
   agdt.pull-request-review.file-review
 
-- [x] T033 [P] [US1] Create prompt at
+- [x] T033 [P] [US1] ~~Create prompt at~~
 
+  ~~.github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
   .github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
-  .github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
-  agdt.pull-request-review.summary
+  agdt.pull-request-review.summary~~
+
+  **OBSOLETED**: The summary prompt was deleted; the summary step was removed in
+  favour of automatic scaffolding (see T028).
 
 - [x] T034 [P] [US1] Create prompt at
 

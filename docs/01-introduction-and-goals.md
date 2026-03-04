@@ -101,8 +101,7 @@ graph TB
 1. Fetch PR details and diff
 2. Review each file
 3. Post file-level comments
-4. Generate summary review
-5. Approve or request changes
+4. Approve or request changes
 
 ### UC3: Publish Release
 
