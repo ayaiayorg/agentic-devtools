@@ -239,12 +239,11 @@ and receive step-specific guidance with CLI commands.
   .github/agents/agdt.pull-request-review.file-review.agent.md — description:
   "PR Review – File Review: Review individual files (step 2 of 5)"; required
   state: pull_request_id, file_review.file_path; CLI: agdt-approve-file,
-  agdt-request-changes; handoff → file-review OR summary
+  agdt-request-changes; handoff → file-review (next file) OR decision (when all files reviewed)
 
 - [x] T028 [P] [US1] ~~Create agent at~~
 
   ~~.github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
-  .github/agents/agdt.pull-request-review.summary.agent.md — description: "PR
   Review – Summary: Generate review summary (step 3 of 5)"; required state:
   pull_request_id; CLI: agdt-generate-pr-summary; handoff → decision~~
 
@@ -285,7 +284,6 @@ and receive step-specific guidance with CLI commands.
 - [x] T033 [P] [US1] ~~Create prompt at~~
 
   ~~.github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
-  .github/prompts/agdt.pull-request-review.summary.prompt.md — agent:
   agdt.pull-request-review.summary~~
 
   **OBSOLETED**: The summary prompt was deleted; the summary step was removed in
