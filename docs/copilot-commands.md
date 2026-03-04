@@ -115,9 +115,9 @@ directly if needed.
 | 3 | `/agdt.pull-request-review.decision` | Approve or request changes |
 | 4 | `/agdt.pull-request-review.completion` | Finalize review |
 
-> **Note:** Between steps 1 and 2, a `pull-request-overview` CLI command
-> (`agdt-advance-workflow pull-request-overview`) runs automatically to display
-> PR details and review criteria. It is not a Copilot Chat agent step.
+> **Note:** Between steps 1 and 2, you'll be prompted to run a
+> `pull-request-overview` CLI command (`agdt-advance-workflow pull-request-overview`)
+> to display PR details and review criteria. It is not a Copilot Chat agent step.
 
 ---
 
