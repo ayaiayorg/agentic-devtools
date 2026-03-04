@@ -230,7 +230,7 @@ and receive step-specific guidance with CLI commands.
   Review – Initiate: Start a pull request review (step 1 of 4)"; required
   state:
   pull_request_id OR jira.issue_key; CLI: agdt-initiate-pull-request-review-workflow; handoff →
-  file-review
+  pull-request-overview (via `agdt-advance-workflow pull-request-overview` before file review begins)
 
 - [x] T027 [P] [US1] Create agent at
 
