@@ -127,8 +127,8 @@ def _build_files_tab_url(
 ) -> str:
     """Build an Azure DevOps PR files-tab URL.
 
-    Shared helper for file, folder, and PR-level URL builders.  Normalises
-    the organisation (strips trailing ``/``), the ``path`` (forward-slashes,
+    Shared helper for file, folder, and PR-level URL builders.  Normalizes
+    the organization (strips trailing ``/``), the ``path`` (forward-slashes,
     leading ``/``, URL-encoded), and the ``base`` (defaults to ``iteration - 1``).
 
     Args:
@@ -139,7 +139,7 @@ def _build_files_tab_url(
         iteration: Iteration ID to view.
         base: Base iteration for diff comparison.  Defaults to ``iteration - 1``.
         path: Optional file or folder path to include in the URL.  ``None`` omits
-              the ``path`` query parameter entirely.  Backslashes are normalised
+              the ``path`` query parameter entirely.  Backslashes are normalized
               to forward slashes and a leading ``/`` is ensured.
 
     Returns:
@@ -149,12 +149,12 @@ def _build_files_tab_url(
     effective_base = iteration - 1 if base is None else base
     url = f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}?_a=files&base={effective_base}&iteration={iteration}"
     if path is not None:
-        # Normalise separators and ensure leading slash
-        normalised = path.replace("\\", "/")
-        if not normalised.startswith("/"):
-            normalised = "/" + normalised
+        # Normalize separators and ensure leading slash
+        normalized = path.replace("\\", "/")
+        if not normalized.startswith("/"):
+            normalized = "/" + normalized
         # URL-encode the path, preserving '/' as a readable separator
-        url += f"&path={quote(normalised, safe='/')}"
+        url += f"&path={quote(normalized, safe='/')}"
     return url
 
 
@@ -175,7 +175,7 @@ def build_commit_file_url(
         repo_name: Repository name.
         pr_id: Pull request ID.
         file_path: Repository file path. A leading '/' is added if missing.
-            Backslashes are normalised to forward slashes.  Special characters
+            Backslashes are normalized to forward slashes.  Special characters
             are URL-encoded.
         iteration: Iteration ID to view.
         base: Base iteration for diff comparison. Defaults to ``iteration - 1``.
@@ -207,7 +207,7 @@ def build_commit_folder_url(
         repo_name: Repository name.
         pr_id: Pull request ID.
         folder_path: Folder path. A leading '/' is added if missing.
-            Backslashes are normalised to forward slashes.  Special characters
+            Backslashes are normalized to forward slashes.  Special characters
             are URL-encoded.
         iteration: Iteration ID to view.
         base: Base iteration for diff comparison. Defaults to ``iteration - 1``.
