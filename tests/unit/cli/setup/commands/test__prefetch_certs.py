@@ -224,12 +224,13 @@ class TestPrefetchCerts:
         unified_path = tmp_path / "unified-ca-bundle.pem"
         unified_path.write_text("cert\n", encoding="utf-8")
 
-        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
-            with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
-                with patch.object(commands, "Path") as mock_path_cls:
-                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
-                    mock_npmrc.parent = tmp_path
-                    result = commands._prefetch_certs()
+        with patch.dict(os.environ, {}, clear=False):
+            with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+                with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                    with patch.object(commands, "Path") as mock_path_cls:
+                        mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                        mock_npmrc.parent = tmp_path
+                        result = commands._prefetch_certs()
 
         assert result == unified_path
 
