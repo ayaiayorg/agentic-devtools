@@ -136,16 +136,21 @@ class TestGetSslVerify:
         """Falls through when unified bundle exists but cannot be read."""
         unified = tmp_path / "unified-ca-bundle.pem"
         unified.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
-        unified.chmod(0o000)
 
         pem_path = str(tmp_path / "example.com.pem")
 
-        try:
-            with patch.dict("os.environ", {}, clear=True):
-                with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
-                    with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+        # Simulate unreadable file via OSError instead of chmod (cross-platform).
+        original_read_text = type(unified).read_text
+
+        def _raise_on_unified(self, *args, **kwargs):
+            if self.name == "unified-ca-bundle.pem":
+                raise OSError("Permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+                    with patch.object(type(unified), "read_text", _raise_on_unified):
                         result = cert_utils.get_ssl_verify("example.com")
 
-            assert result == pem_path
-        finally:
-            unified.chmod(0o644)
+        assert result == pem_path
