@@ -25,6 +25,7 @@ from agentic_devtools.cli.cert_utils import ensure_ca_bundle as _ensure_ca_bundl
 from .copilot_cli_installer import install_copilot_cli
 from .dependency_checker import check_all_dependencies, print_dependency_report
 from .gh_cli_installer import install_gh_cli
+from .shell_profile import detect_shell_profile, detect_shell_type, persist_env_var, persist_path_entry
 
 _MANAGED_BIN_DIR = Path.home() / ".agdt" / "bin"
 
@@ -187,11 +188,11 @@ def _prefetch_certs() -> Optional[Path]:
         npmrc_path.write_text(f"cafile={npm_pem}\n", encoding="utf-8")
         print("  ✓ CA bundle cached for registry.npmjs.org")
         print("  ✓ npm CA config written to ~/.agdt/npmrc")
-        print("  ℹ To apply:")
-        print("    # bash/zsh:")
-        print('    export NPM_CONFIG_USERCONFIG="$HOME/.agdt/npmrc"')
-        print("    # PowerShell:")
-        print('    $env:NPM_CONFIG_USERCONFIG = "$env:USERPROFILE\\.agdt\\npmrc"')
+        # Set NPM_CONFIG_USERCONFIG for the current process
+        npmrc_str = str(npmrc_path)
+        if not os.environ.get("NPM_CONFIG_USERCONFIG"):
+            os.environ["NPM_CONFIG_USERCONFIG"] = npmrc_str
+            print(f"  ✓ NPM_CONFIG_USERCONFIG set for this session: {npmrc_str}")
     else:
         print("  ⚠ Could not cache CA bundle for registry.npmjs.org; will try system CA")
 
@@ -205,38 +206,213 @@ def _prefetch_certs() -> Optional[Path]:
         if not os.environ.get("REQUESTS_CA_BUNDLE"):
             os.environ["REQUESTS_CA_BUNDLE"] = str(unified_path)
             print(f"  ✓ REQUESTS_CA_BUNDLE set for this session: {unified_path}")
-        unified_str = str(unified_path)
+        if not os.environ.get("NODE_EXTRA_CA_CERTS"):
+            os.environ["NODE_EXTRA_CA_CERTS"] = str(unified_path)
+            print(f"  ✓ NODE_EXTRA_CA_CERTS set for this session: {unified_path}")
         print("  ✓ Unified CA bundle written to ~/.agdt/certs/unified-ca-bundle.pem")
-        print("  ℹ For pip/requests/az CLI (covers GitHub, Azure DevOps, Jira, etc.):")
-        print("    # bash/zsh:")
-        print(f'    export REQUESTS_CA_BUNDLE="{unified_str}"')
-        print("    # PowerShell:")
-        print(f'    $env:REQUESTS_CA_BUNDLE = "{unified_str}"')
 
     return unified_path
 
 
-def _print_path_instructions_if_needed() -> None:
-    """Print PATH setup instructions when ``~/.agdt/bin`` is not on the PATH."""
-    managed_bin = str(_MANAGED_BIN_DIR)
-    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+def _is_managed_bin_on_path() -> bool:
+    """Check if ``~/.agdt/bin`` is already on the ``PATH``."""
+    managed_bin = str(_MANAGED_BIN_DIR).rstrip(os.sep)
+    path_entries = [entry.rstrip(os.sep) for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
     home = str(Path.home())
-    normalised_path_entries = [p.replace("~", home).rstrip("/").rstrip("\\") for p in path_entries]
-    if managed_bin.rstrip("/").rstrip("\\") not in normalised_path_entries:
-        print(_PATH_INSTRUCTIONS)
+    normalised = [p.replace("~", home) for p in path_entries]
+    return managed_bin in normalised
+
+
+def _print_path_instructions_if_needed(*, persist_env: bool = False, overwrite_env: bool = False) -> None:
+    """Print PATH setup instructions when ``~/.agdt/bin`` is not on the PATH.
+
+    When *persist_env* is ``True``, attempts to persist the PATH entry to the
+    shell profile instead of just printing instructions.
+    """
+    if not _is_managed_bin_on_path():
+        if persist_env:
+            _persist_env_vars_to_profile(
+                npmrc_path=None,
+                unified_path=None,
+                persist_env=True,
+                overwrite_env=overwrite_env,
+                path_only=True,
+            )
+        else:
+            print(_PATH_INSTRUCTIONS)
+
+
+def _persist_env_vars_to_profile(
+    *,
+    npmrc_path: Optional[Path],
+    unified_path: Optional[Path],
+    persist_env: bool,
+    overwrite_env: bool,
+    path_only: bool = False,
+) -> None:
+    """Orchestrate persisting env vars to the user's shell profile.
+
+    When *persist_env* is ``False``, prints manual instructions instead.
+    When *path_only* is ``True``, only handles the ``PATH`` entry.
+
+    Args:
+        npmrc_path: Path to the ``~/.agdt/npmrc`` file (or ``None``).
+        unified_path: Path to the unified CA bundle (or ``None``).
+        persist_env: Whether to persist to the shell profile.
+        overwrite_env: Whether to replace existing lines.
+        path_only: Only persist/print ``PATH`` instructions.
+    """
+    managed_bin_str = str(_MANAGED_BIN_DIR)
+
+    # Check if PATH already contains the managed bin dir
+    managed_on_path = _is_managed_bin_on_path()
+
+    # Best-effort shell detection for manual instructions; ignore failures.
+    try:
+        shell_type_hint = detect_shell_type()
+    except Exception:  # noqa: BLE001
+        shell_type_hint = None
+
+    if not persist_env:
+        if path_only:
+            if not managed_on_path:
+                print(_PATH_INSTRUCTIONS)
+        else:
+            _print_manual_instructions(npmrc_path, unified_path, managed_on_path, shell_type_hint)
+        return
+
+    try:
+        profile_path = detect_shell_profile()
+        shell_type = detect_shell_type()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ⚠ Could not detect shell profile: {exc}", file=sys.stderr)
+        # Fall back to manual instructions
+        _persist_env_vars_to_profile(
+            npmrc_path=npmrc_path,
+            unified_path=unified_path,
+            persist_env=False,
+            overwrite_env=overwrite_env,
+            path_only=path_only,
+        )
+        return
+
+    if profile_path is None:
+        # Unknown shell — print manual instructions
+        if path_only:
+            if not managed_on_path:
+                print(_PATH_INSTRUCTIONS)
+        else:
+            _print_manual_instructions(npmrc_path, unified_path, managed_on_path, shell_type_hint)
+        return
+
+    if not path_only:
+        if npmrc_path:
+            _persist_single_var(profile_path, "NPM_CONFIG_USERCONFIG", str(npmrc_path), shell_type, overwrite_env)
+        if unified_path:
+            _persist_single_var(profile_path, "REQUESTS_CA_BUNDLE", str(unified_path), shell_type, overwrite_env)
+            _persist_single_var(profile_path, "NODE_EXTRA_CA_CERTS", str(unified_path), shell_type, overwrite_env)
+
+    # PATH entry
+    if not managed_on_path:
+        result = persist_path_entry(profile_path, managed_bin_str, shell_type, overwrite=overwrite_env)
+        if result:
+            print(f"  ✓ PATH entry persisted to {profile_path}")
+        else:
+            # Check if it was skipped (already exists) vs. failed
+            try:
+                if profile_path.exists() and managed_bin_str in profile_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ):
+                    print(f"  ℹ PATH entry already set in {profile_path} (use --overwrite-env to replace)")
+            except OSError:
+                pass  # persist_path_entry already printed a warning
+
+
+def _print_manual_instructions(
+    npmrc_path: Optional[Path],
+    unified_path: Optional[Path],
+    managed_on_path: bool,
+    shell_type: Optional[str],
+) -> None:
+    """Print shell-specific manual instructions for env var persistence."""
+    has_vars = bool(npmrc_path or unified_path or not managed_on_path)
+    if not has_vars:
+        return
+
+    if shell_type in ("bash", "zsh"):
+        instructions = ["\n  ℹ Add the following to your ~/.bashrc or ~/.zshrc:"]
+        if npmrc_path:
+            instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
+            instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
+        print("\n".join(instructions))
+    elif shell_type == "powershell":
+        instructions = ["\n  ℹ Add the following to your PowerShell $PROFILE:"]
+        if npmrc_path:
+            instructions.append(f'    $env:NPM_CONFIG_USERCONFIG = "{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    $env:REQUESTS_CA_BUNDLE = "{unified_path}"')
+            instructions.append(f'    $env:NODE_EXTRA_CA_CERTS = "{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    $env:PATH = "$env:USERPROFILE\\.agdt\\bin;$env:PATH"')
+        print("\n".join(instructions))
+    else:
+        # Unknown shell: show both bash/zsh and PowerShell examples
+        instructions = [
+            "\n  ℹ Add the following to your shell profile.",
+            "  Examples for bash/zsh and PowerShell:",
+        ]
+        if npmrc_path or unified_path or not managed_on_path:
+            instructions.append("    # bash / zsh:")
+        if npmrc_path:
+            instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
+            instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
+        if npmrc_path or unified_path or not managed_on_path:
+            instructions.append("    # PowerShell:")
+        if npmrc_path:
+            instructions.append(f'    $env:NPM_CONFIG_USERCONFIG = "{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    $env:REQUESTS_CA_BUNDLE = "{unified_path}"')
+            instructions.append(f'    $env:NODE_EXTRA_CA_CERTS = "{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    $env:PATH = "$env:USERPROFILE\\.agdt\\bin;$env:PATH"')
+        print("\n".join(instructions))
+
+
+def _persist_single_var(profile_path: Path, var_name: str, var_value: str, shell_type: str, overwrite: bool) -> None:
+    """Persist a single env var and print the appropriate message."""
+    result = persist_env_var(profile_path, var_name, var_value, shell_type, overwrite=overwrite)
+    if result:
+        print(f"  ✓ {var_name} persisted to {profile_path}")
+    else:
+        # Check if it was skipped (already exists) vs. failed
+        try:
+            if profile_path.exists() and var_name in profile_path.read_text(encoding="utf-8", errors="replace"):
+                print(f"  ℹ {var_name} already set in {profile_path} (use --overwrite-env to replace)")
+        except OSError:
+            pass  # persist_env_var already printed a warning
 
 
 def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
     Usage:
-        agdt-setup [--system-only] [--no-verify-ssl]
+        agdt-setup [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
 
     Options:
         --system-only   Skip managed installs into ~/.agdt/bin/; only verify
                         already-installed dependencies.
         --no-verify-ssl Disable SSL certificate verification (insecure; use
                         only on trusted networks).
+        --no-persist-env  Do not persist env vars to shell profile.
+        --overwrite-env   Overwrite existing env var lines in shell profile.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -255,6 +431,18 @@ def setup_cmd() -> None:
         default=False,
         help="Disable SSL certificate verification (insecure; use only on trusted networks).",
     )
+    parser.add_argument(
+        "--no-persist-env",
+        action="store_true",
+        default=False,
+        help="Do not persist environment variables to shell profile.",
+    )
+    parser.add_argument(
+        "--overwrite-env",
+        action="store_true",
+        default=False,
+        help="Overwrite existing environment variable lines in shell profile.",
+    )
     args = parser.parse_args()
     if args.no_verify_ssl:
         os.environ["AGDT_NO_VERIFY_SSL"] = "1"
@@ -264,13 +452,18 @@ def setup_cmd() -> None:
     print(_BANNER)
     print()
 
+    unified_path = None
+    npmrc_written = False
     if args.system_only:
         print("Skipping managed installs (--system-only).")
         print()
         copilot_ok = True
         gh_ok = True
     else:
-        _prefetch_certs()
+        unified_path = _prefetch_certs()
+        # Check if npmrc was written
+        npmrc_path = Path.home() / ".agdt" / "npmrc"
+        npmrc_written = npmrc_path.exists()
         print()
 
         copilot_ok = install_copilot_cli()
@@ -280,7 +473,13 @@ def setup_cmd() -> None:
     statuses = check_all_dependencies()
     print_dependency_report(statuses)
 
-    _print_path_instructions_if_needed()
+    persist_env = not args.no_persist_env and not args.system_only
+    _persist_env_vars_to_profile(
+        npmrc_path=Path.home() / ".agdt" / "npmrc" if npmrc_written else None,
+        unified_path=unified_path,
+        persist_env=persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
     any_required_missing = any(s.required and not s.found for s in statuses)
 
@@ -296,11 +495,13 @@ def setup_copilot_cli_cmd() -> None:
     """Install the GitHub Copilot CLI standalone binary into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-copilot-cli [--system-only] [--no-verify-ssl]
+        agdt-setup-copilot-cli [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
 
     Options:
         --system-only   Skip the managed install.
         --no-verify-ssl Disable SSL certificate verification.
+        --no-persist-env  Do not persist env vars to shell profile.
+        --overwrite-env   Overwrite existing env var lines in shell profile.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-copilot-cli",
@@ -319,6 +520,18 @@ def setup_copilot_cli_cmd() -> None:
         default=False,
         help="Disable SSL certificate verification (insecure; use only on trusted networks).",
     )
+    parser.add_argument(
+        "--no-persist-env",
+        action="store_true",
+        default=False,
+        help="Do not persist environment variables to shell profile.",
+    )
+    parser.add_argument(
+        "--overwrite-env",
+        action="store_true",
+        default=False,
+        help="Overwrite existing environment variable lines in shell profile.",
+    )
     args = parser.parse_args()
     if args.no_verify_ssl:
         os.environ["AGDT_NO_VERIFY_SSL"] = "1"
@@ -328,24 +541,33 @@ def setup_copilot_cli_cmd() -> None:
         print("Skipping managed install of Copilot CLI (--system-only).")
         return
 
-    _prefetch_certs()
+    unified_path = _prefetch_certs()
     print()
 
     ok = install_copilot_cli()
     if not ok:
         sys.exit(1)
-    _print_path_instructions_if_needed()
+
+    npmrc_path = Path.home() / ".agdt" / "npmrc"
+    _persist_env_vars_to_profile(
+        npmrc_path=npmrc_path if npmrc_path.exists() else None,
+        unified_path=unified_path,
+        persist_env=not args.no_persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
 
 def setup_gh_cli_cmd() -> None:
     """Install the GitHub CLI (``gh``) into ``~/.agdt/bin/``.
 
     Usage:
-        agdt-setup-gh-cli [--system-only] [--no-verify-ssl]
+        agdt-setup-gh-cli [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
 
     Options:
         --system-only   Skip the managed install.
         --no-verify-ssl Disable SSL certificate verification.
+        --no-persist-env  Do not persist env vars to shell profile.
+        --overwrite-env   Overwrite existing env var lines in shell profile.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup-gh-cli",
@@ -364,6 +586,18 @@ def setup_gh_cli_cmd() -> None:
         default=False,
         help="Disable SSL certificate verification (insecure; use only on trusted networks).",
     )
+    parser.add_argument(
+        "--no-persist-env",
+        action="store_true",
+        default=False,
+        help="Do not persist environment variables to shell profile.",
+    )
+    parser.add_argument(
+        "--overwrite-env",
+        action="store_true",
+        default=False,
+        help="Overwrite existing environment variable lines in shell profile.",
+    )
     args = parser.parse_args()
     if args.no_verify_ssl:
         os.environ["AGDT_NO_VERIFY_SSL"] = "1"
@@ -373,13 +607,20 @@ def setup_gh_cli_cmd() -> None:
         print("Skipping managed install of GitHub CLI (--system-only).")
         return
 
-    _prefetch_certs()
+    unified_path = _prefetch_certs()
     print()
 
     ok = install_gh_cli()
     if not ok:
         sys.exit(1)
-    _print_path_instructions_if_needed()
+
+    npmrc_path = Path.home() / ".agdt" / "npmrc"
+    _persist_env_vars_to_profile(
+        npmrc_path=npmrc_path if npmrc_path.exists() else None,
+        unified_path=unified_path,
+        persist_env=not args.no_persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
 
 def setup_certs_cmd() -> None:
@@ -394,11 +635,48 @@ def setup_certs_cmd() -> None:
     corporate network with a custom CA certificate.
 
     Usage:
-        agdt-setup-certs
+        agdt-setup-certs [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
     """
+    parser = argparse.ArgumentParser(
+        prog="agdt-setup-certs",
+        description="Prefetch and refresh CA certificate bundles for all setup hosts.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_true",
+        default=False,
+        help="Disable SSL certificate verification (insecure; use only on trusted networks).",
+    )
+    parser.add_argument(
+        "--no-persist-env",
+        action="store_true",
+        default=False,
+        help="Do not persist environment variables to shell profile.",
+    )
+    parser.add_argument(
+        "--overwrite-env",
+        action="store_true",
+        default=False,
+        help="Overwrite existing environment variable lines in shell profile.",
+    )
+    args = parser.parse_args()
+    if args.no_verify_ssl:
+        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
+
     print("Refreshing CA certificate bundles...")
     print()
-    _prefetch_certs()
+    unified_path = _prefetch_certs()
+
+    npmrc_path = Path.home() / ".agdt" / "npmrc"
+    npmrc_written = npmrc_path.exists()
+    _persist_env_vars_to_profile(
+        npmrc_path=npmrc_path if npmrc_written else None,
+        unified_path=unified_path,
+        persist_env=not args.no_persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
 
 def setup_check_cmd() -> None:

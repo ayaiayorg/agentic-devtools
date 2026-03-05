@@ -139,11 +139,13 @@ class TestPrefetchCerts:
         content = npmrc_path.read_text(encoding="utf-8")
         assert f"cafile={pem_path}" in content
 
-    def test_prints_unified_bundle_hint_when_built(self, capsys, tmp_path):
-        """Prints REQUESTS_CA_BUNDLE hint pointing at unified bundle when it is built."""
+    def test_prints_unified_bundle_hint_when_built(self, monkeypatch, capsys, tmp_path):
+        """Prints unified bundle success messages when the bundle is built."""
         pem_path = str(tmp_path / "some-host.pem")
         unified_path = tmp_path / "unified-ca-bundle.pem"
         unified_path.write_text("# placeholder\n", encoding="utf-8")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("NODE_EXTRA_CA_CERTS", raising=False)
 
         with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
             with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
@@ -153,10 +155,9 @@ class TestPrefetchCerts:
                     commands._prefetch_certs()
 
         out = capsys.readouterr().out
-        assert f'REQUESTS_CA_BUNDLE="{unified_path}"' in out
-        assert "bash/zsh" in out
-        assert "PowerShell" in out
-        assert "unified-ca-bundle.pem" in out
+        assert "Unified CA bundle written to ~/.agdt/certs/unified-ca-bundle.pem" in out
+        assert "REQUESTS_CA_BUNDLE set for this session" in out
+        assert "NODE_EXTRA_CA_CERTS set for this session" in out
 
     def test_handles_exception_from_get_jira_base_url(self, capsys):
         """Does not raise when get_jira_base_url() raises; prints progress to stdout."""
@@ -241,3 +242,73 @@ class TestPrefetchCerts:
                 result = commands._prefetch_certs()
 
         assert result is None
+
+    def test_sets_npm_config_userconfig_when_npmrc_written(self, monkeypatch, capsys, tmp_path):
+        """Sets NPM_CONFIG_USERCONFIG env var when npmrc is written and not already set."""
+        pem_path = str(tmp_path / "cert.pem")
+        monkeypatch.delenv("NPM_CONFIG_USERCONFIG", raising=False)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("NPM_CONFIG_USERCONFIG") is not None
+        out = capsys.readouterr().out
+        assert "NPM_CONFIG_USERCONFIG set for this session" in out
+
+    def test_does_not_overwrite_existing_npm_config_userconfig(self, monkeypatch, capsys, tmp_path):
+        """Does not overwrite NPM_CONFIG_USERCONFIG if already set by user."""
+        pem_path = str(tmp_path / "cert.pem")
+        user_npmrc = str(tmp_path / "user-npmrc")
+        monkeypatch.setenv("NPM_CONFIG_USERCONFIG", user_npmrc)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("NPM_CONFIG_USERCONFIG") == user_npmrc
+        out = capsys.readouterr().out
+        assert "NPM_CONFIG_USERCONFIG set for this session" not in out
+
+    def test_sets_node_extra_ca_certs_when_unified_built(self, monkeypatch, capsys, tmp_path):
+        """Sets NODE_EXTRA_CA_CERTS env var when unified bundle is built and not already set."""
+        pem_path = str(tmp_path / "cert.pem")
+        unified_path = tmp_path / "unified-ca-bundle.pem"
+        unified_path.write_text("cert\n", encoding="utf-8")
+        monkeypatch.delenv("NODE_EXTRA_CA_CERTS", raising=False)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("NODE_EXTRA_CA_CERTS") == str(unified_path)
+        out = capsys.readouterr().out
+        assert "NODE_EXTRA_CA_CERTS set for this session" in out
+
+    def test_does_not_overwrite_existing_node_extra_ca_certs(self, monkeypatch, capsys, tmp_path):
+        """Does not overwrite NODE_EXTRA_CA_CERTS if already set by user."""
+        pem_path = str(tmp_path / "cert.pem")
+        unified_path = tmp_path / "unified-ca-bundle.pem"
+        unified_path.write_text("cert\n", encoding="utf-8")
+        user_certs = str(tmp_path / "user-certs.pem")
+        monkeypatch.setenv("NODE_EXTRA_CA_CERTS", user_certs)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("NODE_EXTRA_CA_CERTS") == user_certs
+        out = capsys.readouterr().out
+        assert "NODE_EXTRA_CA_CERTS set for this session" not in out

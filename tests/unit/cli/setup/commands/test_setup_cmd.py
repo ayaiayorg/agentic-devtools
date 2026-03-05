@@ -36,7 +36,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 commands.setup_cmd()  # Should not raise
 
     def test_exits_one_when_copilot_install_fails(self, capsys):
@@ -46,7 +46,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli", return_value=False):
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 with pytest.raises(SystemExit) as exc_info:
                                     commands.setup_cmd()
         assert exc_info.value.code == 1
@@ -58,7 +58,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=False):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 with pytest.raises(SystemExit) as exc_info:
                                     commands.setup_cmd()
         assert exc_info.value.code == 1
@@ -70,7 +70,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(False)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 with pytest.raises(SystemExit) as exc_info:
                                     commands.setup_cmd()
         assert exc_info.value.code == 1
@@ -82,7 +82,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 commands.setup_cmd()
         out = capsys.readouterr().out
         assert "agentic-devtools Setup" in out
@@ -94,7 +94,7 @@ class TestSetupCmd:
                 with patch.object(commands, "install_copilot_cli") as mock_copilot:
                     with patch.object(commands, "install_gh_cli") as mock_gh:
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                            with patch.object(commands, "_print_path_instructions_if_needed"):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
                                 commands.setup_cmd()
         mock_certs.assert_not_called()
         mock_copilot.assert_not_called()
@@ -104,14 +104,14 @@ class TestSetupCmd:
         """With --system-only, exits 0 when required deps are present."""
         with patch("sys.argv", ["agdt-setup", "--system-only"]):
             with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                with patch.object(commands, "_print_path_instructions_if_needed"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
                     commands.setup_cmd()  # Should not raise
 
     def test_system_only_exits_one_when_required_dep_missing(self, capsys):
         """With --system-only, exits 1 when a required dependency (git) is missing."""
         with patch("sys.argv", ["agdt-setup", "--system-only"]):
             with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(False)):
-                with patch.object(commands, "_print_path_instructions_if_needed"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
                     with pytest.raises(SystemExit) as exc_info:
                         commands.setup_cmd()
         assert exc_info.value.code == 1
@@ -120,7 +120,7 @@ class TestSetupCmd:
         """With --system-only, prints a message indicating managed installs are skipped."""
         with patch("sys.argv", ["agdt-setup", "--system-only"]):
             with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                with patch.object(commands, "_print_path_instructions_if_needed"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
                     commands.setup_cmd()
         out = capsys.readouterr().out
         assert "--system-only" in out
@@ -133,7 +133,7 @@ class TestSetupCmd:
         with patch.object(commands, "install_copilot_cli", return_value=True):
             with patch.object(commands, "install_gh_cli", return_value=True):
                 with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_print_path_instructions_if_needed"):
+                    with patch.object(commands, "_persist_env_vars_to_profile"):
                         commands.setup_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
@@ -145,7 +145,7 @@ class TestSetupCmd:
         with patch.object(commands, "install_copilot_cli", return_value=True):
             with patch.object(commands, "install_gh_cli", return_value=True):
                 with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_print_path_instructions_if_needed"):
+                    with patch.object(commands, "_persist_env_vars_to_profile"):
                         commands.setup_cmd()
 
         out = capsys.readouterr().out
@@ -159,7 +159,35 @@ class TestSetupCmd:
         with patch.object(commands, "install_copilot_cli", return_value=True):
             with patch.object(commands, "install_gh_cli", return_value=True):
                 with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_print_path_instructions_if_needed"):
+                    with patch.object(commands, "_persist_env_vars_to_profile"):
                         commands.setup_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
+
+    def test_no_persist_env_flag_disables_persistence(self, monkeypatch):
+        """--no-persist-env flag disables env var persistence."""
+        monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-persist-env"])
+
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:
+                            commands.setup_cmd()
+
+        mock_persist.assert_called_once()
+        assert mock_persist.call_args.kwargs["persist_env"] is False
+
+    def test_overwrite_env_flag_accepted(self, monkeypatch):
+        """--overwrite-env flag is accepted and passed through."""
+        monkeypatch.setattr("sys.argv", ["agdt-setup", "--overwrite-env"])
+
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:
+                            commands.setup_cmd()
+
+        mock_persist.assert_called_once()
+        assert mock_persist.call_args.kwargs["overwrite_env"] is True
