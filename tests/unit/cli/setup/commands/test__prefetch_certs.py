@@ -139,11 +139,13 @@ class TestPrefetchCerts:
         content = npmrc_path.read_text(encoding="utf-8")
         assert f"cafile={pem_path}" in content
 
-    def test_prints_unified_bundle_hint_when_built(self, capsys, tmp_path):
-        """Prints unified bundle success message when it is built."""
+    def test_prints_unified_bundle_hint_when_built(self, monkeypatch, capsys, tmp_path):
+        """Prints unified bundle success messages when the bundle is built."""
         pem_path = str(tmp_path / "some-host.pem")
         unified_path = tmp_path / "unified-ca-bundle.pem"
         unified_path.write_text("# placeholder\n", encoding="utf-8")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("NODE_EXTRA_CA_CERTS", raising=False)
 
         with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
             with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
@@ -153,8 +155,9 @@ class TestPrefetchCerts:
                     commands._prefetch_certs()
 
         out = capsys.readouterr().out
-        assert "unified-ca-bundle.pem" in out
-        assert "REQUESTS_CA_BUNDLE set for this session" in out or "Unified CA bundle written" in out
+        assert "Unified CA bundle written to ~/.agdt/certs/unified-ca-bundle.pem" in out
+        assert "REQUESTS_CA_BUNDLE set for this session" in out
+        assert "NODE_EXTRA_CA_CERTS set for this session" in out
 
     def test_handles_exception_from_get_jira_base_url(self, capsys):
         """Does not raise when get_jira_base_url() raises; prints progress to stdout."""
