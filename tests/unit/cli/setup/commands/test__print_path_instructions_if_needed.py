@@ -32,3 +32,14 @@ class TestPrintPathInstructionsIfNeeded:
                 commands._print_path_instructions_if_needed()
         captured = capsys.readouterr()
         assert captured.out == ""
+
+    def test_calls_persist_when_persist_env_true(self, tmp_path, capsys):
+        """Calls _persist_env_vars_to_profile when persist_env=True."""
+        managed_bin = str(tmp_path / "bin")
+        fake_path = "/usr/bin:/usr/local/bin"
+        with patch.object(commands, "_MANAGED_BIN_DIR", Path(managed_bin)):
+            with patch.dict(os.environ, {"PATH": fake_path}):
+                with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:
+                    commands._print_path_instructions_if_needed(persist_env=True)
+        mock_persist.assert_called_once()
+        assert mock_persist.call_args.kwargs["path_only"] is True
