@@ -44,7 +44,33 @@ class TestDetectShellType:
             assert detect_shell_type() == "unknown"
 
     def test_returns_powershell_on_windows(self, monkeypatch):
-        """Returns 'powershell' on Windows regardless of $SHELL."""
+        """Returns 'powershell' on Windows when no $SHELL or MSYSTEM is set."""
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
         with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
             mock_sys.platform = "win32"
             assert detect_shell_type() == "powershell"
+
+    def test_returns_bash_on_windows_git_bash(self, monkeypatch):
+        """Returns 'bash' on Windows when $SHELL indicates Git Bash."""
+        monkeypatch.setenv("SHELL", "/usr/bin/bash")
+        monkeypatch.delenv("MSYSTEM", raising=False)
+        with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
+            mock_sys.platform = "win32"
+            assert detect_shell_type() == "bash"
+
+    def test_returns_bash_on_windows_msystem(self, monkeypatch):
+        """Returns 'bash' on Windows when MSYSTEM env (MSYS2) is set."""
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.setenv("MSYSTEM", "MINGW64")
+        with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
+            mock_sys.platform = "win32"
+            assert detect_shell_type() == "bash"
+
+    def test_returns_zsh_on_windows_when_shell_zsh(self, monkeypatch):
+        """Returns 'zsh' on Windows when $SHELL indicates zsh."""
+        monkeypatch.setenv("SHELL", "/usr/bin/zsh")
+        monkeypatch.delenv("MSYSTEM", raising=False)
+        with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
+            mock_sys.platform = "win32"
+            assert detect_shell_type() == "zsh"

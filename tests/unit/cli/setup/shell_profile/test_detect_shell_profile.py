@@ -54,6 +54,8 @@ class TestDetectShellProfile:
         ps_dir = tmp_path / "Documents" / "PowerShell"
         ps_dir.mkdir(parents=True)
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
         with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
             mock_sys.platform = "win32"
             result = detect_shell_profile()
@@ -64,6 +66,8 @@ class TestDetectShellProfile:
         ps_legacy_dir = tmp_path / "Documents" / "WindowsPowerShell"
         ps_legacy_dir.mkdir(parents=True)
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
         with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
             mock_sys.platform = "win32"
             result = detect_shell_profile()
@@ -72,6 +76,8 @@ class TestDetectShellProfile:
     def test_returns_none_on_windows_when_no_ps_dir(self, monkeypatch, tmp_path):
         """Returns None on Windows when neither PowerShell directory exists."""
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
         with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
             mock_sys.platform = "win32"
             result = detect_shell_profile()
@@ -80,6 +86,8 @@ class TestDetectShellProfile:
     def test_returns_none_on_windows_when_userprofile_empty(self, monkeypatch):
         """Returns None on Windows when USERPROFILE is empty."""
         monkeypatch.setenv("USERPROFILE", "")
+        monkeypatch.delenv("SHELL", raising=False)
+        monkeypatch.delenv("MSYSTEM", raising=False)
         with patch("agentic_devtools.cli.setup.shell_profile.sys") as mock_sys:
             mock_sys.platform = "win32"
             result = detect_shell_profile()

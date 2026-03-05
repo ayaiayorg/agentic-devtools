@@ -15,13 +15,49 @@ from pathlib import Path
 from typing import Optional
 
 
+def _escape_for_double_quotes_posix(value: str) -> str:
+    """Escape a value for safe inclusion inside POSIX double-quotes.
+
+    Escapes ``\\``, ``"``, ``$``, and backtick — the characters that are
+    special inside double-quoted strings in bash/zsh.
+    """
+    # Backslash must be escaped first to avoid double-escaping later replacements.
+    value = value.replace("\\", "\\\\")
+    value = value.replace('"', '\\"')
+    value = value.replace("$", "\\$")
+    value = value.replace("`", "\\`")
+    return value
+
+
+def _escape_for_double_quotes_powershell(value: str) -> str:
+    """Escape a value for safe inclusion inside PowerShell double-quotes.
+
+    In PowerShell double-quoted strings, backtick is the escape char and
+    ``"`` must be doubled or backtick-escaped.  ``$`` triggers variable
+    expansion and must be backtick-escaped.
+    """
+    value = value.replace("`", "``")
+    value = value.replace('"', '`"')
+    value = value.replace("$", "`$")
+    return value
+
+
 def detect_shell_type() -> str:
     """Detect the current shell type.
 
     Returns:
         One of ``"bash"``, ``"zsh"``, ``"powershell"``, or ``"unknown"``.
     """
+    # On Windows, check for Git Bash / MSYS2 environment before defaulting
+    # to PowerShell.  Git Bash sets $SHELL and/or MSYSTEM.
     if sys.platform == "win32":
+        shell = os.environ.get("SHELL", "")
+        if shell.endswith("bash"):
+            return "bash"
+        if shell.endswith("zsh"):
+            return "zsh"
+        if os.environ.get("MSYSTEM"):
+            return "bash"
         return "powershell"
 
     shell = os.environ.get("SHELL", "")
@@ -86,12 +122,16 @@ def persist_env_var(
         or on error.
     """
     try:
-        # Build the export line
+        # Build the export line with shell-appropriate escaping
         if shell_type in ("bash", "zsh"):
-            new_line = f'export {var_name}="{var_value}"'
-            pattern = re.compile(rf"^export\s+{re.escape(var_name)}=")
+            safe_value = _escape_for_double_quotes_posix(var_value)
+            new_line = f'export {var_name}="{safe_value}"'
+            # Match common assignment patterns:
+            #   export VAR=...  |  export VAR  |  VAR=...
+            pattern = re.compile(rf"^(?:export\s+{re.escape(var_name)}(?:\s*=.*)?|{re.escape(var_name)}\s*=)")
         else:  # powershell
-            new_line = f'$env:{var_name} = "{var_value}"'
+            safe_value = _escape_for_double_quotes_powershell(var_value)
+            new_line = f'$env:{var_name} = "{safe_value}"'
             pattern = re.compile(rf"^\$env:{re.escape(var_name)}\s*=")
 
         # Read existing content
@@ -138,26 +178,34 @@ def persist_path_entry(
     """Persist a PATH entry to a shell profile file.
 
     Appends an ``export PATH="<entry>:$PATH"`` (bash/zsh) or the equivalent
-    PowerShell ``$env:PATH`` prepend to the profile.  Idempotent: skips if
-    the path entry already appears in an existing PATH assignment line.
+    PowerShell ``$env:PATH`` prepend to the profile.  Idempotent for a given
+    ``path_entry``: if a PATH-assignment line that already contains
+    ``path_entry`` exists, it is left unchanged unless ``overwrite`` is
+    ``True``.
 
     Args:
         profile_path: Path to the shell profile file.
         path_entry: Directory to prepend to PATH.
         shell_type: One of ``"bash"``, ``"zsh"``, or ``"powershell"``.
-        overwrite: Replace existing PATH line if ``True``.
+        overwrite: If ``True`` and a PATH-assignment line already containing
+            ``path_entry`` exists, replace that line with the new
+            PATH-prepend line instead of leaving it unchanged.  When no such
+            line exists, a new line is appended regardless of this flag.
 
     Returns:
         ``True`` if the line was written (or replaced), ``False`` if skipped
         or on error.
     """
     try:
+        # Build new PATH-prepend line with shell-appropriate escaping
         if shell_type in ("bash", "zsh"):
-            new_line = f'export PATH="{path_entry}:$PATH"'
+            safe_entry = _escape_for_double_quotes_posix(path_entry)
+            new_line = f'export PATH="{safe_entry}:$PATH"'
             # Match lines like: export PATH=... or PATH=...
             path_line_re = re.compile(r"^\s*(?:export\s+)?PATH\s*=")
         else:  # powershell
-            new_line = f'$env:PATH = "{path_entry};$env:PATH"'
+            safe_entry = _escape_for_double_quotes_powershell(path_entry)
+            new_line = f'$env:PATH = "{safe_entry};$env:PATH"'
             path_line_re = re.compile(r"^\s*\$env:PATH\s*=", re.IGNORECASE)
 
         # Read existing content

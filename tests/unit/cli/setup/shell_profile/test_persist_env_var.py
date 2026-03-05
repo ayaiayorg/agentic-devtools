@@ -114,3 +114,59 @@ class TestPersistEnvVar:
         content = profile.read_text(encoding="utf-8")
         assert "old_value" not in content
         assert '$env:MY_VAR = "new_value"' in content
+
+    def test_detects_var_without_export_bash(self, tmp_path):
+        """Detects VAR=... (without export keyword) as existing for bash."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text('MY_VAR="/old/path"\n', encoding="utf-8")
+
+        result = persist_env_var(profile, "MY_VAR", "/new/path", "bash", overwrite=False)
+
+        assert result is False
+        content = profile.read_text(encoding="utf-8")
+        assert "/old/path" in content
+        assert "/new/path" not in content
+
+    def test_detects_export_var_without_equals(self, tmp_path):
+        """Detects 'export VAR' (no assignment) as existing for bash."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text("export MY_VAR\n", encoding="utf-8")
+
+        result = persist_env_var(profile, "MY_VAR", "/some/path", "bash", overwrite=False)
+
+        assert result is False
+
+    def test_replaces_var_without_export_with_overwrite(self, tmp_path):
+        """Replaces VAR=... line when overwrite=True for bash."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text('MY_VAR="/old/path"\n# after\n', encoding="utf-8")
+
+        result = persist_env_var(profile, "MY_VAR", "/new/path", "bash", overwrite=True)
+
+        assert result is True
+        content = profile.read_text(encoding="utf-8")
+        assert "/old/path" not in content
+        assert 'export MY_VAR="/new/path"' in content
+        assert "# after" in content
+
+    def test_escapes_special_chars_in_bash_value(self, tmp_path):
+        """Escapes double-quotes, backslashes, dollar signs, and backticks for bash."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text("", encoding="utf-8")
+
+        result = persist_env_var(profile, "MY_VAR", '/path/with"quotes$var`cmd`', "bash")
+
+        assert result is True
+        content = profile.read_text(encoding="utf-8")
+        assert 'export MY_VAR="/path/with\\"quotes\\$var\\`cmd\\`"' in content
+
+    def test_escapes_special_chars_in_powershell_value(self, tmp_path):
+        """Escapes double-quotes, dollar signs, and backticks for PowerShell."""
+        profile = tmp_path / "profile.ps1"
+        profile.write_text("", encoding="utf-8")
+
+        result = persist_env_var(profile, "MY_VAR", 'C:\\path"with$var`cmd`', "powershell")
+
+        assert result is True
+        content = profile.read_text(encoding="utf-8")
+        assert '$env:MY_VAR = "C:\\path`"with`$var``cmd``"' in content
