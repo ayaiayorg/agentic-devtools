@@ -116,3 +116,14 @@ class TestRenderAttributionLine:
             commit_url="https://example.com",
         )
         assert "**Claude Opus 4.6**" in result
+
+    def test_markdown_special_chars_in_model_name_are_escaped(self):
+        """Test that markdown-sensitive characters in model_name are backslash-escaped."""
+        result = render_attribution_line(
+            model_name="My*Model_v2",
+            commit_hash="abc1234",
+            commit_url="https://example.com",
+        )
+        assert r"My\*Model\_v2" in result
+        # The escaped name should still be inside bold markers
+        assert r"**My\*Model\_v2**" in result

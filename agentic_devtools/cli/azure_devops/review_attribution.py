@@ -16,8 +16,10 @@ GitHub PR UI.
 """
 
 import os
+import re
 import sys
 from typing import Optional
+from urllib.parse import quote
 
 # Short commit hash display length (standard Git short hash)
 SHORT_HASH_LENGTH = 7
@@ -114,6 +116,48 @@ def get_model_icon(model_name: Optional[str]) -> str:
     return _GENERIC_AI_ICON
 
 
+def _build_files_tab_url(
+    organization: str,
+    project: str,
+    repo_name: str,
+    pr_id: int,
+    iteration: int,
+    base: Optional[int] = None,
+    path: Optional[str] = None,
+) -> str:
+    """Build an Azure DevOps PR files-tab URL.
+
+    Shared helper for file, folder, and PR-level URL builders.  Normalises
+    the organisation (strips trailing ``/``), the ``path`` (forward-slashes,
+    leading ``/``, URL-encoded), and the ``base`` (defaults to ``iteration - 1``).
+
+    Args:
+        organization: Azure DevOps organization URL.
+        project: Project name.
+        repo_name: Repository name.
+        pr_id: Pull request ID.
+        iteration: Iteration ID to view.
+        base: Base iteration for diff comparison.  Defaults to ``iteration - 1``.
+        path: Optional file or folder path to include in the URL.  ``None`` omits
+              the ``path`` query parameter entirely.  Backslashes are normalised
+              to forward slashes and a leading ``/`` is ensured.
+
+    Returns:
+        Full URL string.
+    """
+    org = organization.rstrip("/")
+    effective_base = iteration - 1 if base is None else base
+    url = f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}?_a=files&base={effective_base}&iteration={iteration}"
+    if path is not None:
+        # Normalise separators and ensure leading slash
+        normalised = path.replace("\\", "/")
+        if not normalised.startswith("/"):
+            normalised = "/" + normalised
+        # URL-encode the path, preserving '/' as a readable separator
+        url += f"&path={quote(normalised, safe='/')}"
+    return url
+
+
 def build_commit_file_url(
     organization: str,
     project: str,
@@ -131,20 +175,15 @@ def build_commit_file_url(
         repo_name: Repository name.
         pr_id: Pull request ID.
         file_path: Repository file path. A leading '/' is added if missing.
+            Backslashes are normalised to forward slashes.  Special characters
+            are URL-encoded.
         iteration: Iteration ID to view.
         base: Base iteration for diff comparison. Defaults to ``iteration - 1``.
 
     Returns:
         URL string pointing to the file at the specified iteration.
     """
-    org = organization.rstrip("/")
-    if not file_path.startswith("/"):
-        file_path = "/" + file_path
-    effective_base = iteration - 1 if base is None else base
-    return (
-        f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}"
-        f"?_a=files&base={effective_base}&iteration={iteration}&path={file_path}"
-    )
+    return _build_files_tab_url(organization, project, repo_name, pr_id, iteration, base, path=file_path)
 
 
 def build_commit_folder_url(
@@ -168,20 +207,15 @@ def build_commit_folder_url(
         repo_name: Repository name.
         pr_id: Pull request ID.
         folder_path: Folder path. A leading '/' is added if missing.
+            Backslashes are normalised to forward slashes.  Special characters
+            are URL-encoded.
         iteration: Iteration ID to view.
         base: Base iteration for diff comparison. Defaults to ``iteration - 1``.
 
     Returns:
         URL string pointing to the PR files tab filtered to the folder path.
     """
-    org = organization.rstrip("/")
-    if not folder_path.startswith("/"):
-        folder_path = "/" + folder_path
-    effective_base = iteration - 1 if base is None else base
-    return (
-        f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}"
-        f"?_a=files&base={effective_base}&iteration={iteration}&path={folder_path}"
-    )
+    return _build_files_tab_url(organization, project, repo_name, pr_id, iteration, base, path=folder_path)
 
 
 def build_commit_pr_url(
@@ -205,9 +239,17 @@ def build_commit_pr_url(
     Returns:
         URL string pointing to the PR files tab at the specified iteration.
     """
-    org = organization.rstrip("/")
-    effective_base = iteration - 1 if base is None else base
-    return f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}?_a=files&base={effective_base}&iteration={iteration}"
+    return _build_files_tab_url(organization, project, repo_name, pr_id, iteration, base)
+
+
+# Regex matching markdown-sensitive characters that need escaping in inline text.
+# Covers: * _ ` [ ] ( )
+_MD_ESCAPE_RE = re.compile(r"([*_`\[\]()])")
+
+
+def _escape_markdown(text: str) -> str:
+    """Escape markdown-sensitive characters in *text* with a leading backslash."""
+    return _MD_ESCAPE_RE.sub(r"\\\1", text)
 
 
 def render_attribution_line(
@@ -243,8 +285,9 @@ def render_attribution_line(
         return ""
     family_icon = model_icon if model_icon is not None else get_model_icon(model_name)
     short_hash = commit_hash[:SHORT_HASH_LENGTH]
+    safe_model_name = _escape_markdown(model_name)
     if commit_url:
         commit_ref = f"[`{short_hash}`]({commit_url})"
     else:
         commit_ref = f"`{short_hash}`"
-    return f"{_GENERIC_AI_ICON} *Reviewed by* {family_icon} **{model_name}** *at commit:* {commit_ref}"
+    return f"{_GENERIC_AI_ICON} *Reviewed by* {family_icon} **{safe_model_name}** *at commit:* {commit_ref}"

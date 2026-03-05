@@ -98,3 +98,28 @@ class TestBuildCommitFileUrl:
             base=0,
         )
         assert "base=0" in url
+
+    def test_special_characters_in_path_are_url_encoded(self):
+        """Test that spaces, #, ? and other special chars in file path are URL-encoded."""
+        url = build_commit_file_url(
+            organization="https://dev.azure.com/myorg",
+            project="MyProject",
+            repo_name="my-repo",
+            pr_id=1,
+            file_path="/src/my file#2.py",
+            iteration=2,
+        )
+        assert "path=/src/my%20file%232.py" in url
+
+    def test_backslashes_normalized_to_forward_slashes(self):
+        """Test that backslashes in file path are replaced with forward slashes."""
+        url = build_commit_file_url(
+            organization="https://dev.azure.com/myorg",
+            project="MyProject",
+            repo_name="my-repo",
+            pr_id=1,
+            file_path="src\\utils\\app.py",
+            iteration=2,
+        )
+        assert "path=/src/utils/app.py" in url
+        assert "\\" not in url

@@ -98,3 +98,28 @@ class TestBuildCommitFolderUrl:
             base=0,
         )
         assert "base=0" in url
+
+    def test_special_characters_in_path_are_url_encoded(self):
+        """Test that spaces and special chars in folder path are URL-encoded."""
+        url = build_commit_folder_url(
+            organization="https://dev.azure.com/myorg",
+            project="MyProject",
+            repo_name="my-repo",
+            pr_id=1,
+            folder_path="/my folder#1",
+            iteration=2,
+        )
+        assert "path=/my%20folder%231" in url
+
+    def test_backslashes_normalized_to_forward_slashes(self):
+        """Test that backslashes in folder path are replaced with forward slashes."""
+        url = build_commit_folder_url(
+            organization="https://dev.azure.com/myorg",
+            project="MyProject",
+            repo_name="my-repo",
+            pr_id=1,
+            folder_path="src\\lib",
+            iteration=2,
+        )
+        assert "path=/src/lib" in url
+        assert "\\" not in url
