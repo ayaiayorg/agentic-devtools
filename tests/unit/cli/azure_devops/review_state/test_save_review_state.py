@@ -77,3 +77,25 @@ class TestSaveReviewState:
             restored = ReviewState.from_dict(data)
             assert restored.prId == 25365
             assert restored.repoName == "dfly-platform-management"
+
+    def test_commit_hash_serialized_when_set(self, tmp_path):
+        """Test that commitHash is included in the serialized JSON."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            state = _make_review_state()
+            state.commitHash = "abc1234def567890"
+            save_review_state(state)
+
+            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            data = json.loads(expected_path.read_text(encoding="utf-8"))
+            assert data["commitHash"] == "abc1234def567890"
+
+    def test_commit_hash_none_serialized_as_null(self, tmp_path):
+        """Test that commitHash is serialized as null when None."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            state = _make_review_state()
+            assert state.commitHash is None
+            save_review_state(state)
+
+            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            data = json.loads(expected_path.read_text(encoding="utf-8"))
+            assert data["commitHash"] is None

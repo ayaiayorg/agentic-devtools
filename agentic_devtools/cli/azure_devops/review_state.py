@@ -222,6 +222,7 @@ class ReviewState:
     overallSummary: OverallSummary
     folders: Dict[str, FolderEntry] = field(default_factory=dict)
     files: Dict[str, FileEntry] = field(default_factory=dict)
+    commitHash: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
@@ -236,6 +237,7 @@ class ReviewState:
             "overallSummary": self.overallSummary.to_dict(),
             "folders": {k: v.to_dict() for k, v in self.folders.items()},
             "files": {k: v.to_dict() for k, v in self.files.items()},
+            "commitHash": self.commitHash,
         }
 
     @classmethod
@@ -243,6 +245,8 @@ class ReviewState:
         """Deserialize from a dictionary.
 
         File dict keys are normalized to ensure leading slash consistency.
+        State files without a ``commitHash`` key are supported for backward
+        compatibility; the field defaults to ``None`` when absent.
         """
         overall_summary = OverallSummary.from_dict(data["overallSummary"])
         folders = {k: FolderEntry.from_dict(v) for k, v in data.get("folders", {}).items()}
@@ -258,6 +262,7 @@ class ReviewState:
             overallSummary=overall_summary,
             folders=folders,
             files=files,
+            commitHash=data.get("commitHash"),
         )
 
 

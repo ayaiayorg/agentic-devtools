@@ -43,10 +43,10 @@ class TestRenderFileSummary:
         assert "*Complete Path:* /src/app.py" in result
 
     def test_unreviewed_status_line(self):
-        """Test unreviewed status line reads Unreviewed."""
+        """Test unreviewed status line reads Unreviewed with emoji."""
         fe = _make_file_entry(status="unreviewed")
         result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Status:* Unreviewed" in result
+        assert "*Status:* ⏳ Unreviewed" in result
 
     def test_unreviewed_summary_placeholder(self):
         """Test unreviewed status shows awaiting review in summary section."""
@@ -63,10 +63,10 @@ class TestRenderFileSummary:
         assert lines[suggestions_idx + 1] == "Awaiting review..."
 
     def test_in_progress_status_line(self):
-        """Test in-progress status line reads In Progress."""
+        """Test in-progress status line reads In Progress with emoji."""
         fe = _make_file_entry(status="in-progress")
         result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_in_progress_summary_placeholder(self):
         """Test in-progress status shows review in progress in summary."""
@@ -83,10 +83,10 @@ class TestRenderFileSummary:
         assert lines[suggestions_idx + 1] == "Review in progress..."
 
     def test_approved_status_line(self):
-        """Test approved status line reads Approved."""
+        """Test approved status line reads Approved with emoji."""
         fe = _make_file_entry(status="approved", summary="Looks good")
         result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Status:* Approved" in result
+        assert "*Status:* ✅ Approved" in result
 
     def test_approved_shows_summary(self):
         """Test approved status renders file summary text."""
@@ -107,10 +107,10 @@ class TestRenderFileSummary:
         assert "Must Fix" not in result
 
     def test_needs_work_status_line(self):
-        """Test needs-work status line reads Needs Work."""
+        """Test needs-work status line reads Needs Work with emoji."""
         fe = _make_file_entry(status="needs-work", summary="Has issues")
         result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Status:* Needs Work" in result
+        assert "*Status:* 📝 Needs Work" in result
 
     def test_needs_work_shows_summary(self):
         """Test needs-work status renders file summary text."""
@@ -225,3 +225,50 @@ class TestRenderFileSummary:
         fe = _make_file_entry(status="unreviewed")
         result = render_file_summary(fe, [], _BASE_URL)
         assert "### Suggestions" in result
+
+    def test_attribution_line_present_when_model_and_hash_provided(self):
+        """Test attribution line is rendered when model_name and commit_hash are provided."""
+        fe = _make_file_entry(status="approved", summary="LGTM")
+        result = render_file_summary(
+            fe,
+            [],
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash="abc1234def",
+            commit_url="https://example.com/pr/1",
+        )
+        assert "🤖 *Reviewed by*" in result
+        assert "**Claude Opus 4.6**" in result
+        assert "[`abc1234`](https://example.com/pr/1)" in result
+
+    def test_attribution_line_absent_when_model_name_none(self):
+        """Test attribution line is omitted when model_name is None."""
+        fe = _make_file_entry(status="approved")
+        result = render_file_summary(
+            fe,
+            [],
+            _BASE_URL,
+            model_name=None,
+            commit_hash="abc1234",
+            commit_url="https://example.com",
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_attribution_line_absent_when_commit_hash_none(self):
+        """Test attribution line is omitted when commit_hash is None."""
+        fe = _make_file_entry(status="approved")
+        result = render_file_summary(
+            fe,
+            [],
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash=None,
+            commit_url="https://example.com",
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_no_attribution_when_no_attribution_params(self):
+        """Test backward compat: no attribution params → no attribution line."""
+        fe = _make_file_entry(status="unreviewed")
+        result = render_file_summary(fe, [], _BASE_URL)
+        assert "🤖 *Reviewed by*" not in result

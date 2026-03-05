@@ -48,31 +48,31 @@ class TestRenderFolderSummary:
         assert "## Folder Review Summary: src" in result
 
     def test_all_unreviewed_status(self):
-        """Test folder status is Unreviewed when all files are unreviewed."""
+        """Test folder status is Unreviewed with emoji when all files are unreviewed."""
         file_path = "/src/app.py"
         fe = _make_file_entry(file_path, status="unreviewed")
         folder_entry = _make_folder_entry(files=[file_path])
         result = render_folder_summary("src", folder_entry, {file_path: fe}, _BASE_URL)
-        assert "*Status:* Unreviewed" in result
+        assert "*Status:* ⏳ Unreviewed" in result
 
     def test_all_approved_status(self):
-        """Test folder status is Approved when all files are approved."""
+        """Test folder status is Approved with emoji when all files are approved."""
         file_path = "/src/app.py"
         fe = _make_file_entry(file_path, status="approved")
         folder_entry = _make_folder_entry(files=[file_path])
         result = render_folder_summary("src", folder_entry, {file_path: fe}, _BASE_URL)
-        assert "*Status:* Approved" in result
+        assert "*Status:* ✅ Approved" in result
 
     def test_all_in_progress_status(self):
-        """Test folder status is In Progress when all files are in-progress."""
+        """Test folder status is In Progress with emoji when all files are in-progress."""
         file_path = "/src/app.py"
         fe = _make_file_entry(file_path, status="in-progress")
         folder_entry = _make_folder_entry(files=[file_path])
         result = render_folder_summary("src", folder_entry, {file_path: fe}, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_needs_work_status_when_any_file_needs_work(self):
-        """Test folder status is Needs Work when any file needs work."""
+        """Test folder status is Needs Work with emoji when any file needs work."""
         p1 = "/src/app.py"
         p2 = "/src/utils.py"
         files = {
@@ -81,7 +81,7 @@ class TestRenderFolderSummary:
         }
         folder_entry = _make_folder_entry(files=[p1, p2])
         result = render_folder_summary("src", folder_entry, files, _BASE_URL)
-        assert "*Status:* Needs Work" in result
+        assert "*Status:* 📝 Needs Work" in result
 
     def test_needs_work_section_present(self):
         """Test that Needs Work section header is rendered."""
@@ -178,7 +178,7 @@ class TestRenderFolderSummary:
         folder_entry = _make_folder_entry(files=[])
         result = render_folder_summary("src", folder_entry, {}, _BASE_URL)
         assert "## Folder Review Summary: src" in result
-        assert "*Status:* Unreviewed" in result
+        assert "*Status:* ⏳ Unreviewed" in result
 
     def test_mixed_statuses_all_sections_present(self):
         """Test that all status sections are rendered when files have mixed statuses."""
@@ -194,7 +194,7 @@ class TestRenderFolderSummary:
         assert "### Approved" in result
         assert "### In Progress" in result
         assert "### Unreviewed" in result
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_some_approved_some_unreviewed_returns_in_progress(self):
         """Test folder status is In Progress when some files approved and some unreviewed."""
@@ -205,7 +205,7 @@ class TestRenderFolderSummary:
         }
         folder_entry = _make_folder_entry(files=list(paths.keys()))
         result = render_folder_summary("src", folder_entry, paths, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_approved_and_in_progress_and_unreviewed_returns_in_progress(self):
         """Test folder status is In Progress with mix of approved, in-progress, and unreviewed."""
@@ -216,4 +216,54 @@ class TestRenderFolderSummary:
         }
         folder_entry = _make_folder_entry(files=list(paths.keys()))
         result = render_folder_summary("src", folder_entry, paths, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
+
+    def test_attribution_line_present_when_model_and_hash_provided(self):
+        """Test attribution line is rendered when model_name and commit_hash are provided."""
+        file_path = "/src/app.py"
+        fe = _make_file_entry(file_path, status="approved")
+        folder_entry = _make_folder_entry(files=[file_path])
+        result = render_folder_summary(
+            "src",
+            folder_entry,
+            {file_path: fe},
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash="abc1234def",
+            commit_url="https://example.com/pr/1",
+        )
+        assert "🤖 *Reviewed by*" in result
+        assert "**Claude Opus 4.6**" in result
+        assert "[`abc1234`](https://example.com/pr/1)" in result
+
+    def test_attribution_line_absent_when_model_name_none(self):
+        """Test attribution line is omitted when model_name is None."""
+        folder_entry = _make_folder_entry(files=[])
+        result = render_folder_summary(
+            "src",
+            folder_entry,
+            {},
+            _BASE_URL,
+            model_name=None,
+            commit_hash="abc1234",
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_attribution_line_absent_when_commit_hash_none(self):
+        """Test attribution line is omitted when commit_hash is None."""
+        folder_entry = _make_folder_entry(files=[])
+        result = render_folder_summary(
+            "src",
+            folder_entry,
+            {},
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash=None,
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_no_attribution_when_no_attribution_params(self):
+        """Test backward compat: no attribution params → no attribution line."""
+        folder_entry = _make_folder_entry(files=[])
+        result = render_folder_summary("src", folder_entry, {}, _BASE_URL)
+        assert "🤖 *Reviewed by*" not in result
