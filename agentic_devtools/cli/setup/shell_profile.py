@@ -139,7 +139,7 @@ def persist_path_entry(
 
     Appends an ``export PATH="<entry>:$PATH"`` (bash/zsh) or the equivalent
     PowerShell ``$env:PATH`` prepend to the profile.  Idempotent: skips if
-    the path entry already appears in an existing PATH line.
+    the path entry already appears in an existing PATH assignment line.
 
     Args:
         profile_path: Path to the shell profile file.
@@ -154,8 +154,11 @@ def persist_path_entry(
     try:
         if shell_type in ("bash", "zsh"):
             new_line = f'export PATH="{path_entry}:$PATH"'
+            # Match lines like: export PATH=... or PATH=...
+            path_line_re = re.compile(r"^\s*(?:export\s+)?PATH\s*=")
         else:  # powershell
             new_line = f'$env:PATH = "{path_entry};$env:PATH"'
+            path_line_re = re.compile(r"^\s*\$env:PATH\s*=", re.IGNORECASE)
 
         # Read existing content
         profile_path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,23 +167,26 @@ def persist_path_entry(
         else:
             content = ""
 
-        # Check if the path entry is already referenced in a PATH line
-        if path_entry in content and not overwrite:
+        # Check only actual PATH assignment lines for the entry
+        lines = content.splitlines(keepends=True)
+        found_in_path_line = False
+        found_line_idx = None
+        for idx, line in enumerate(lines):
+            if path_line_re.match(line) and path_entry in line:
+                found_in_path_line = True
+                found_line_idx = idx
+                break
+
+        if found_in_path_line and not overwrite:
             return False
 
-        if path_entry in content and overwrite:
-            # Replace the line containing the path entry
-            new_lines = []
-            for line in content.splitlines(keepends=True):
-                if path_entry in line and ("PATH" in line):
-                    new_lines.append(new_line + "\n")
-                else:
-                    new_lines.append(line)
-            profile_path.write_text("".join(new_lines), encoding="utf-8")
+        if found_in_path_line and overwrite:
+            # Replace the matching PATH line in-place
+            lines[found_line_idx] = new_line + "\n"  # type: ignore[index]
+            profile_path.write_text("".join(lines), encoding="utf-8")
             return True
 
         # Append
-        lines = content.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):
             lines.append("\n")
         lines.append("# Added by agdt-setup\n")

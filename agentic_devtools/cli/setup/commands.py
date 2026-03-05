@@ -214,17 +214,22 @@ def _prefetch_certs() -> Optional[Path]:
     return unified_path
 
 
+def _is_managed_bin_on_path() -> bool:
+    """Check if ``~/.agdt/bin`` is already on the ``PATH``."""
+    managed_bin = str(_MANAGED_BIN_DIR).rstrip(os.sep)
+    path_entries = [entry.rstrip(os.sep) for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
+    home = str(Path.home())
+    normalised = [p.replace("~", home) for p in path_entries]
+    return managed_bin in normalised
+
+
 def _print_path_instructions_if_needed(*, persist_env: bool = False, overwrite_env: bool = False) -> None:
     """Print PATH setup instructions when ``~/.agdt/bin`` is not on the PATH.
 
     When *persist_env* is ``True``, attempts to persist the PATH entry to the
     shell profile instead of just printing instructions.
     """
-    managed_bin = str(_MANAGED_BIN_DIR)
-    path_entries = os.environ.get("PATH", "").split(os.pathsep)
-    home = str(Path.home())
-    normalised_path_entries = [p.replace("~", home).rstrip("/").rstrip("\\") for p in path_entries]
-    if managed_bin.rstrip("/").rstrip("\\") not in normalised_path_entries:
+    if not _is_managed_bin_on_path():
         if persist_env:
             _persist_env_vars_to_profile(
                 npmrc_path=None,
@@ -235,16 +240,6 @@ def _print_path_instructions_if_needed(*, persist_env: bool = False, overwrite_e
             )
         else:
             print(_PATH_INSTRUCTIONS)
-
-
-_MANUAL_INSTRUCTIONS = (
-    "\n"
-    "  ℹ Add the following to your ~/.bashrc, ~/.zshrc, or PowerShell $PROFILE:\n"
-    '    export NPM_CONFIG_USERCONFIG="$HOME/.agdt/npmrc"\n'
-    '    export REQUESTS_CA_BUNDLE="<unified-ca-bundle-path>"\n'
-    '    export NODE_EXTRA_CA_CERTS="<unified-ca-bundle-path>"\n'
-    '    export PATH="$HOME/.agdt/bin:$PATH"'
-)
 
 
 def _persist_env_vars_to_profile(
@@ -269,19 +264,21 @@ def _persist_env_vars_to_profile(
     """
     managed_bin_str = str(_MANAGED_BIN_DIR)
 
+    # Check if PATH already contains the managed bin dir
+    managed_on_path = _is_managed_bin_on_path()
+
+    # Best-effort shell detection for manual instructions; ignore failures.
+    try:
+        shell_type_hint = detect_shell_type()
+    except Exception:  # noqa: BLE001
+        shell_type_hint = None
+
     if not persist_env:
-        # Print improved manual instructions with specific profile file names
         if path_only:
-            print(_PATH_INSTRUCTIONS)
+            if not managed_on_path:
+                print(_PATH_INSTRUCTIONS)
         else:
-            instructions = ["\n  ℹ Add the following to your ~/.bashrc, ~/.zshrc, or PowerShell $PROFILE:"]
-            if npmrc_path:
-                instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
-            if unified_path:
-                instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
-                instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
-            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
-            print("\n".join(instructions))
+            _print_manual_instructions(npmrc_path, unified_path, managed_on_path, shell_type_hint)
         return
 
     try:
@@ -302,16 +299,10 @@ def _persist_env_vars_to_profile(
     if profile_path is None:
         # Unknown shell — print manual instructions
         if path_only:
-            print(_PATH_INSTRUCTIONS)
+            if not managed_on_path:
+                print(_PATH_INSTRUCTIONS)
         else:
-            instructions = ["\n  ℹ Add the following to your ~/.bashrc, ~/.zshrc, or PowerShell $PROFILE:"]
-            if npmrc_path:
-                instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
-            if unified_path:
-                instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
-                instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
-            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
-            print("\n".join(instructions))
+            _print_manual_instructions(npmrc_path, unified_path, managed_on_path, shell_type_hint)
         return
 
     if not path_only:
@@ -322,19 +313,77 @@ def _persist_env_vars_to_profile(
             _persist_single_var(profile_path, "NODE_EXTRA_CA_CERTS", str(unified_path), shell_type, overwrite_env)
 
     # PATH entry
-    managed_bin = str(_MANAGED_BIN_DIR)
-    path_entries = os.environ.get("PATH", "").split(os.pathsep)
-    home = str(Path.home())
-    normalised = [p.replace("~", home).rstrip("/").rstrip("\\") for p in path_entries]
-    if managed_bin.rstrip("/").rstrip("\\") not in normalised:
+    if not managed_on_path:
         result = persist_path_entry(profile_path, managed_bin_str, shell_type, overwrite=overwrite_env)
         if result:
             print(f"  ✓ PATH entry persisted to {profile_path}")
         else:
             # Check if it was skipped (already exists) vs. failed
-            if profile_path.exists() and managed_bin_str in profile_path.read_text(encoding="utf-8", errors="replace"):
-                print(f"  ℹ PATH entry already set in {profile_path} (use --overwrite-env to replace)")
-            # else: persist_path_entry already printed a warning
+            try:
+                if profile_path.exists() and managed_bin_str in profile_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ):
+                    print(f"  ℹ PATH entry already set in {profile_path} (use --overwrite-env to replace)")
+            except OSError:
+                pass  # persist_path_entry already printed a warning
+
+
+def _print_manual_instructions(
+    npmrc_path: Optional[Path],
+    unified_path: Optional[Path],
+    managed_on_path: bool,
+    shell_type: Optional[str],
+) -> None:
+    """Print shell-specific manual instructions for env var persistence."""
+    has_vars = bool(npmrc_path or unified_path or not managed_on_path)
+    if not has_vars:
+        return
+
+    if shell_type in ("bash", "zsh"):
+        instructions = ["\n  ℹ Add the following to your ~/.bashrc or ~/.zshrc:"]
+        if npmrc_path:
+            instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
+            instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
+        print("\n".join(instructions))
+    elif shell_type == "powershell":
+        instructions = ["\n  ℹ Add the following to your PowerShell $PROFILE:"]
+        if npmrc_path:
+            instructions.append(f'    $env:NPM_CONFIG_USERCONFIG = "{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    $env:REQUESTS_CA_BUNDLE = "{unified_path}"')
+            instructions.append(f'    $env:NODE_EXTRA_CA_CERTS = "{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    $env:PATH = "$env:USERPROFILE\\.agdt\\bin;$env:PATH"')
+        print("\n".join(instructions))
+    else:
+        # Unknown shell: show both bash/zsh and PowerShell examples
+        instructions = [
+            "\n  ℹ Add the following to your shell profile.",
+            "  Examples for bash/zsh and PowerShell:",
+        ]
+        if npmrc_path or unified_path or not managed_on_path:
+            instructions.append("    # bash / zsh:")
+        if npmrc_path:
+            instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    export REQUESTS_CA_BUNDLE="{unified_path}"')
+            instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
+        if npmrc_path or unified_path or not managed_on_path:
+            instructions.append("    # PowerShell:")
+        if npmrc_path:
+            instructions.append(f'    $env:NPM_CONFIG_USERCONFIG = "{npmrc_path}"')
+        if unified_path:
+            instructions.append(f'    $env:REQUESTS_CA_BUNDLE = "{unified_path}"')
+            instructions.append(f'    $env:NODE_EXTRA_CA_CERTS = "{unified_path}"')
+        if not managed_on_path:
+            instructions.append('    $env:PATH = "$env:USERPROFILE\\.agdt\\bin;$env:PATH"')
+        print("\n".join(instructions))
 
 
 def _persist_single_var(profile_path: Path, var_name: str, var_value: str, shell_type: str, overwrite: bool) -> None:
@@ -492,13 +541,20 @@ def setup_copilot_cli_cmd() -> None:
         print("Skipping managed install of Copilot CLI (--system-only).")
         return
 
-    _prefetch_certs()
+    unified_path = _prefetch_certs()
     print()
 
     ok = install_copilot_cli()
     if not ok:
         sys.exit(1)
-    _print_path_instructions_if_needed(persist_env=not args.no_persist_env, overwrite_env=args.overwrite_env)
+
+    npmrc_path = Path.home() / ".agdt" / "npmrc"
+    _persist_env_vars_to_profile(
+        npmrc_path=npmrc_path if npmrc_path.exists() else None,
+        unified_path=unified_path,
+        persist_env=not args.no_persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
 
 def setup_gh_cli_cmd() -> None:
@@ -551,13 +607,20 @@ def setup_gh_cli_cmd() -> None:
         print("Skipping managed install of GitHub CLI (--system-only).")
         return
 
-    _prefetch_certs()
+    unified_path = _prefetch_certs()
     print()
 
     ok = install_gh_cli()
     if not ok:
         sys.exit(1)
-    _print_path_instructions_if_needed(persist_env=not args.no_persist_env, overwrite_env=args.overwrite_env)
+
+    npmrc_path = Path.home() / ".agdt" / "npmrc"
+    _persist_env_vars_to_profile(
+        npmrc_path=npmrc_path if npmrc_path.exists() else None,
+        unified_path=unified_path,
+        persist_env=not args.no_persist_env,
+        overwrite_env=args.overwrite_env,
+    )
 
 
 def setup_certs_cmd() -> None:

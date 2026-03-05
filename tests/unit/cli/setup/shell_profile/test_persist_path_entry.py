@@ -90,3 +90,14 @@ class TestPersistPathEntry:
         assert profile.exists()
         content = profile.read_text(encoding="utf-8")
         assert 'export PATH="/home/user/.agdt/bin:$PATH"' in content
+
+    def test_does_not_match_path_in_comment(self, tmp_path):
+        """Does not skip when the path entry appears only in a comment, not a PATH line."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text("# /home/user/.agdt/bin is a managed dir\n", encoding="utf-8")
+
+        result = persist_path_entry(profile, "/home/user/.agdt/bin", "bash", overwrite=False)
+
+        assert result is True
+        content = profile.read_text(encoding="utf-8")
+        assert 'export PATH="/home/user/.agdt/bin:$PATH"' in content

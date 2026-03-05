@@ -15,14 +15,14 @@ class TestSetupCopilotCliCmd:
         """Completes normally (no exit) when install succeeds."""
         with patch("sys.argv", ["agdt-setup-copilot-cli"]):
             with patch.object(commands, "install_copilot_cli", return_value=True):
-                with patch.object(commands, "_print_path_instructions_if_needed"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
                     commands.setup_copilot_cli_cmd()  # Should not raise
 
     def test_exits_one_when_install_fails(self):
         """Exits 1 when install_copilot_cli returns False."""
         with patch("sys.argv", ["agdt-setup-copilot-cli"]):
             with patch.object(commands, "install_copilot_cli", return_value=False):
-                with patch.object(commands, "_print_path_instructions_if_needed"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
                     with pytest.raises(SystemExit) as exc_info:
                         commands.setup_copilot_cli_cmd()
         assert exc_info.value.code == 1
@@ -47,7 +47,7 @@ class TestSetupCopilotCliCmd:
         monkeypatch.setattr("sys.argv", ["agdt-setup-copilot-cli", "--no-verify-ssl"])
 
         with patch.object(commands, "install_copilot_cli", return_value=True):
-            with patch.object(commands, "_print_path_instructions_if_needed"):
+            with patch.object(commands, "_persist_env_vars_to_profile"):
                 commands.setup_copilot_cli_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
@@ -65,7 +65,7 @@ class TestSetupCopilotCliCmd:
                     "install_copilot_cli",
                     side_effect=lambda: (call_order.append("install"), True)[-1],
                 ):
-                    with patch.object(commands, "_print_path_instructions_if_needed"):
+                    with patch.object(commands, "_persist_env_vars_to_profile"):
                         commands.setup_copilot_cli_cmd()
 
         mock_prefetch.assert_called_once()
@@ -78,3 +78,24 @@ class TestSetupCopilotCliCmd:
                 commands.setup_copilot_cli_cmd()
 
         mock_prefetch.assert_not_called()
+
+    def test_calls_persist_env_vars_to_profile(self):
+        """Calls _persist_env_vars_to_profile with correct args after install."""
+        with patch("sys.argv", ["agdt-setup-copilot-cli"]):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:
+                    commands.setup_copilot_cli_cmd()
+
+        mock_persist.assert_called_once()
+        assert mock_persist.call_args.kwargs["persist_env"] is True
+
+    def test_no_persist_env_flag_disables_persistence(self, monkeypatch):
+        """--no-persist-env flag disables env var persistence."""
+        monkeypatch.setattr("sys.argv", ["agdt-setup-copilot-cli", "--no-persist-env"])
+
+        with patch.object(commands, "install_copilot_cli", return_value=True):
+            with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:
+                commands.setup_copilot_cli_cmd()
+
+        mock_persist.assert_called_once()
+        assert mock_persist.call_args.kwargs["persist_env"] is False
