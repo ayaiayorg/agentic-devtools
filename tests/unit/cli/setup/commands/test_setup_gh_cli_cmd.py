@@ -51,3 +51,30 @@ class TestSetupGhCliCmd:
                 commands.setup_gh_cli_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
+
+    def test_calls_prefetch_certs_before_install(self):
+        """Calls _prefetch_certs before install_gh_cli when not --system-only."""
+        call_order = []
+
+        with patch("sys.argv", ["agdt-setup-gh-cli"]):
+            with patch.object(
+                commands, "_prefetch_certs", side_effect=lambda: call_order.append("prefetch")
+            ) as mock_prefetch:
+                with patch.object(
+                    commands,
+                    "install_gh_cli",
+                    side_effect=lambda: (call_order.append("install"), True)[-1],
+                ):
+                    with patch.object(commands, "_print_path_instructions_if_needed"):
+                        commands.setup_gh_cli_cmd()
+
+        mock_prefetch.assert_called_once()
+        assert call_order == ["prefetch", "install"]
+
+    def test_skips_prefetch_with_system_only(self):
+        """Does not call _prefetch_certs when --system-only is passed."""
+        with patch("sys.argv", ["agdt-setup-gh-cli", "--system-only"]):
+            with patch.object(commands, "_prefetch_certs") as mock_prefetch:
+                commands.setup_gh_cli_cmd()
+
+        mock_prefetch.assert_not_called()

@@ -131,3 +131,51 @@ class TestSslRequestWithRetry:
         # Retry should happen because the file contents may have changed
         assert result is mock_response
         assert mock_get.call_count == 2
+
+    def test_prints_ca_bundle_path_on_success(self, capsys):
+        """Prints diagnostic CA bundle path to stderr on successful request."""
+        mock_response = MagicMock()
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "get_ssl_verify", return_value="/path/to/ca.pem"):
+                with patch("requests.get", return_value=mock_response):
+                    cert_utils.ssl_request_with_retry("https://example.com", "example.com")
+
+        err = capsys.readouterr().err
+        assert "ℹ Using CA bundle: /path/to/ca.pem" in err
+
+    def test_prints_ca_bundle_true_on_system_ca(self, capsys):
+        """Prints 'True' as CA bundle when using system CA store."""
+        mock_response = MagicMock()
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "get_ssl_verify", return_value=True):
+                with patch("requests.get", return_value=mock_response):
+                    cert_utils.ssl_request_with_retry("https://example.com", "example.com")
+
+        err = capsys.readouterr().err
+        assert "ℹ Using CA bundle: True" in err
+
+    def test_prints_ca_bundle_false_when_no_verify_ssl(self, capsys):
+        """Prints diagnostic message about disabled SSL when AGDT_NO_VERIFY_SSL is set."""
+        mock_response = MagicMock()
+        with patch.dict("os.environ", {"AGDT_NO_VERIFY_SSL": "1"}):
+            with patch("requests.get", return_value=mock_response):
+                cert_utils.ssl_request_with_retry("https://example.com", "example.com")
+
+        err = capsys.readouterr().err
+        assert "ℹ Using CA bundle: False (SSL verification disabled)" in err
+
+    def test_prints_retry_ca_bundle_path(self, capsys):
+        """Prints diagnostic CA bundle path for both initial and retry attempts."""
+        ssl_error = requests.exceptions.SSLError("cert verify failed")
+        mock_response = MagicMock()
+        fresh_pem = "/tmp/fresh.pem"
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "get_ssl_verify", return_value=True):
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=fresh_pem):
+                    with patch("requests.get", side_effect=[ssl_error, mock_response]):
+                        cert_utils.ssl_request_with_retry("https://example.com", "example.com")
+
+        err = capsys.readouterr().err
+        assert "ℹ Using CA bundle: True" in err
+        assert f"ℹ Using CA bundle: {fresh_pem}" in err

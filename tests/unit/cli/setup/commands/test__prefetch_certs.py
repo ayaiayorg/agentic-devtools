@@ -1,5 +1,6 @@
 """Tests for _prefetch_certs."""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -179,3 +180,64 @@ class TestPrefetchCerts:
 
         out = capsys.readouterr().out
         assert "REQUESTS_CA_BUNDLE" not in out
+
+    def test_sets_requests_ca_bundle_when_unified_built(self, monkeypatch, capsys, tmp_path):
+        """Sets REQUESTS_CA_BUNDLE env var when unified bundle is built and not already set."""
+        pem_path = str(tmp_path / "cert.pem")
+        unified_path = tmp_path / "unified-ca-bundle.pem"
+        unified_path.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("REQUESTS_CA_BUNDLE") == str(unified_path)
+        out = capsys.readouterr().out
+        assert "REQUESTS_CA_BUNDLE set for this session" in out
+
+    def test_does_not_overwrite_existing_requests_ca_bundle(self, monkeypatch, capsys, tmp_path):
+        """Does not overwrite REQUESTS_CA_BUNDLE if already set by user."""
+        pem_path = str(tmp_path / "cert.pem")
+        unified_path = tmp_path / "unified-ca-bundle.pem"
+        unified_path.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
+        user_bundle = str(tmp_path / "user-ca.pem")
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", user_bundle)
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                with patch.object(commands, "Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    commands._prefetch_certs()
+
+        assert os.environ.get("REQUESTS_CA_BUNDLE") == user_bundle
+        out = capsys.readouterr().out
+        assert "REQUESTS_CA_BUNDLE set for this session" not in out
+
+    def test_returns_unified_path_when_built(self, tmp_path):
+        """Returns the unified bundle path when _build_unified_ca_bundle succeeds."""
+        pem_path = str(tmp_path / "cert.pem")
+        unified_path = tmp_path / "unified-ca-bundle.pem"
+        unified_path.write_text("cert\n", encoding="utf-8")
+
+        with patch.dict(os.environ, {}, clear=False):
+            with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path):
+                with patch.object(commands, "_build_unified_ca_bundle", return_value=unified_path):
+                    with patch.object(commands, "Path") as mock_path_cls:
+                        mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                        mock_npmrc.parent = tmp_path
+                        result = commands._prefetch_certs()
+
+        assert result == unified_path
+
+    def test_returns_none_when_no_unified_bundle(self):
+        """Returns None when _build_unified_ca_bundle returns None."""
+        with patch.object(commands, "_ensure_ca_bundle", return_value=None):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                result = commands._prefetch_certs()
+
+        assert result is None

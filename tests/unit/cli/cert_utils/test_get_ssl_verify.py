@@ -24,7 +24,10 @@ class TestGetSslVerify:
         """Ignores REQUESTS_CA_BUNDLE when the file does not exist."""
         with patch.dict("os.environ", {"REQUESTS_CA_BUNDLE": "/nonexistent/ca.pem"}, clear=True):
             with patch.object(cert_utils, "ensure_ca_bundle", return_value=None):
-                result = cert_utils.get_ssl_verify("example.com")
+                with patch.object(cert_utils, "_CERTS_DIR") as mock_certs_dir:
+                    mock_unified = mock_certs_dir.__truediv__.return_value
+                    mock_unified.exists.return_value = False
+                    result = cert_utils.get_ssl_verify("example.com")
 
         assert result is True
 
@@ -33,16 +36,22 @@ class TestGetSslVerify:
         pem_path = str(tmp_path / "example.com.pem")
 
         with patch.dict("os.environ", {}, clear=True):
-            with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
-                result = cert_utils.get_ssl_verify("example.com")
+            with patch.object(cert_utils, "_CERTS_DIR") as mock_certs_dir:
+                mock_unified = mock_certs_dir.__truediv__.return_value
+                mock_unified.exists.return_value = False
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+                    result = cert_utils.get_ssl_verify("example.com")
 
         assert result == pem_path
 
     def test_returns_true_when_no_cert_available(self):
         """Returns True (system CA) when no CA bundle can be fetched."""
         with patch.dict("os.environ", {}, clear=True):
-            with patch.object(cert_utils, "ensure_ca_bundle", return_value=None):
-                result = cert_utils.get_ssl_verify("example.com")
+            with patch.object(cert_utils, "_CERTS_DIR") as mock_certs_dir:
+                mock_unified = mock_certs_dir.__truediv__.return_value
+                mock_unified.exists.return_value = False
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=None):
+                    result = cert_utils.get_ssl_verify("example.com")
 
         assert result is True
 
@@ -63,7 +72,85 @@ class TestGetSslVerify:
     def test_passes_hostname_to_ensure_ca_bundle(self, hostname):
         """Passes the correct hostname to ensure_ca_bundle."""
         with patch.dict("os.environ", {}, clear=True):
-            with patch.object(cert_utils, "ensure_ca_bundle", return_value=None) as mock_ensure:
-                cert_utils.get_ssl_verify(hostname)
+            with patch.object(cert_utils, "_CERTS_DIR") as mock_certs_dir:
+                mock_unified = mock_certs_dir.__truediv__.return_value
+                mock_unified.exists.return_value = False
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=None) as mock_ensure:
+                    cert_utils.get_ssl_verify(hostname)
 
         mock_ensure.assert_called_once_with(hostname)
+
+    def test_returns_unified_bundle_when_present(self, tmp_path):
+        """Returns unified bundle path when it exists and contains certificates."""
+        unified = tmp_path / "unified-ca-bundle.pem"
+        unified.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                with patch.object(cert_utils, "ensure_ca_bundle") as mock_ensure:
+                    result = cert_utils.get_ssl_verify("example.com")
+
+        assert result == str(unified)
+        mock_ensure.assert_not_called()
+
+    def test_skips_unified_bundle_when_env_var_set(self, tmp_path):
+        """REQUESTS_CA_BUNDLE env var takes precedence over unified bundle."""
+        env_ca = str(tmp_path / "env_ca.pem")
+        (tmp_path / "env_ca.pem").write_text("cert", encoding="utf-8")
+
+        unified = tmp_path / "unified-ca-bundle.pem"
+        unified.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
+
+        with patch.dict("os.environ", {"REQUESTS_CA_BUNDLE": env_ca}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                result = cert_utils.get_ssl_verify("example.com")
+
+        assert result == env_ca
+
+    def test_skips_unified_bundle_when_file_missing(self, tmp_path):
+        """Falls through to per-host lookup when unified bundle does not exist."""
+        pem_path = str(tmp_path / "example.com.pem")
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+                    result = cert_utils.get_ssl_verify("example.com")
+
+        assert result == pem_path
+
+    def test_skips_unified_bundle_when_empty(self, tmp_path):
+        """Falls through when unified bundle exists but contains no certificates."""
+        unified = tmp_path / "unified-ca-bundle.pem"
+        unified.write_text("# empty file\n", encoding="utf-8")
+
+        pem_path = str(tmp_path / "example.com.pem")
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+                    result = cert_utils.get_ssl_verify("example.com")
+
+        assert result == pem_path
+
+    def test_skips_unified_bundle_when_unreadable(self, tmp_path):
+        """Falls through when unified bundle exists but cannot be read."""
+        unified = tmp_path / "unified-ca-bundle.pem"
+        unified.write_text("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n", encoding="utf-8")
+
+        pem_path = str(tmp_path / "example.com.pem")
+
+        # Simulate unreadable file via OSError instead of chmod (cross-platform).
+        original_read_text = type(unified).read_text
+
+        def _raise_on_unified(self, *args, **kwargs):
+            if self.name == "unified-ca-bundle.pem":
+                raise OSError("Permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(cert_utils, "_CERTS_DIR", tmp_path):
+                with patch.object(cert_utils, "ensure_ca_bundle", return_value=pem_path):
+                    with patch.object(type(unified), "read_text", _raise_on_unified):
+                        result = cert_utils.get_ssl_verify("example.com")
+
+        assert result == pem_path

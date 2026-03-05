@@ -184,9 +184,11 @@ def get_ssl_verify(hostname: str) -> Union[bool, str]:
 
     Priority:
     1. ``REQUESTS_CA_BUNDLE`` environment variable (if set and file exists).
-    2. Cached CA bundle at ``~/.agdt/certs/<hostname>.pem``, fetched on
+    2. Unified CA bundle at ``~/.agdt/certs/unified-ca-bundle.pem`` (if it
+       exists and contains at least one certificate).
+    3. Cached CA bundle at ``~/.agdt/certs/<hostname>.pem``, fetched on
        demand if not present.
-    3. ``True`` — fall back to the system default CA bundle.
+    4. ``True`` — fall back to the system default CA bundle.
 
     Args:
         hostname: The target server hostname.
@@ -199,6 +201,16 @@ def get_ssl_verify(hostname: str) -> Union[bool, str]:
         normalized = os.path.abspath(os.path.expanduser(os.path.expandvars(ca_bundle)))
         if os.path.exists(normalized):
             return normalized
+
+    # Check for the unified CA bundle (built by _prefetch_certs / agdt-setup-certs)
+    unified_bundle = _CERTS_DIR / "unified-ca-bundle.pem"
+    if unified_bundle.exists():
+        try:
+            content = unified_bundle.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            content = ""
+        if count_certificates_in_pem(content) >= 1:
+            return str(unified_bundle)
 
     pem_path = ensure_ca_bundle(hostname)
     if pem_path:
@@ -263,10 +275,12 @@ def ssl_request_with_retry(
             "  ⚠  SSL verification disabled (AGDT_NO_VERIFY_SSL). Use only on trusted networks.",
             file=sys.stderr,
         )
+        print("  ℹ Using CA bundle: False (SSL verification disabled)", file=sys.stderr)
         return requests.get(url, timeout=timeout, stream=stream, verify=False)  # noqa: S501
 
     verify = get_ssl_verify(hostname)
     try:
+        print(f"  ℹ Using CA bundle: {verify}", file=sys.stderr)
         return requests.get(url, timeout=timeout, stream=stream, verify=verify)
     except requests.exceptions.SSLError as ssl_error:
         # Force-refetch the CA bundle and retry once.
@@ -276,6 +290,7 @@ def ssl_request_with_retry(
         verify_retry = ensure_ca_bundle(hostname, force=True)
         if verify_retry:
             try:
+                print(f"  ℹ Using CA bundle: {verify_retry}", file=sys.stderr)
                 return requests.get(url, timeout=timeout, stream=stream, verify=verify_retry)
             except requests.exceptions.SSLError as retry_error:
                 last_ssl_error = retry_error
