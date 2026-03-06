@@ -3,7 +3,7 @@
 from agentic_devtools.cli.azure_devops.review_attribution import get_model_icon
 
 
-class TestModelIconMapping:
+class TestGetModelIcon:
     """Tests for get_model_icon."""
 
     def test_claude_returns_brain_emoji(self):
