@@ -82,3 +82,33 @@ class TestLoadReviewState:
             with pytest.raises(FileNotFoundError) as exc_info:
                 load_review_state(99999)
         assert "99999" in str(exc_info.value)
+
+    def test_loads_state_with_commit_hash(self, tmp_path):
+        """Test that commitHash field is loaded when present in the state file."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 42
+            data = _minimal_state_data(pr_id)
+            data["commitHash"] = "abc1234def567890"
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
+
+            result = load_review_state(pr_id)
+
+        assert result.commitHash == "abc1234def567890"
+
+    def test_loads_state_without_commit_hash_defaults_to_none(self, tmp_path):
+        """Test that commitHash defaults to None when absent from the state file (backward compat)."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 43
+            data = _minimal_state_data(pr_id)
+            # Deliberately omit commitHash to simulate an old state file
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
+
+            result = load_review_state(pr_id)
+
+        assert result.commitHash is None

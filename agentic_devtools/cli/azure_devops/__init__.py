@@ -148,6 +148,18 @@ from .review_state import (
     update_file_status,
 )
 
+# Review attribution exports
+from .review_attribution import (
+    SHORT_HASH_LENGTH,
+    build_commit_file_url,
+    build_commit_folder_url,
+    build_commit_pr_url,
+    format_status,
+    get_model_icon,
+    render_attribution_line,
+    should_use_emoji,
+)
+
 # Run details command exports
 from .run_details_commands import get_run_details, wait_for_run
 
@@ -276,6 +288,15 @@ __all__ = [
     "clear_suggestions_for_re_review",
     "compute_aggregate_status",
     "COMPLETE_STATUSES",
+    # Review attribution
+    "SHORT_HASH_LENGTH",
+    "format_status",
+    "should_use_emoji",
+    "build_commit_file_url",
+    "build_commit_folder_url",
+    "build_commit_pr_url",
+    "get_model_icon",
+    "render_attribution_line",
     # Status cascade
     "PatchOperation",
     "derive_folder_status",

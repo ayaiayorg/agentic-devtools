@@ -4,8 +4,9 @@ Provides functions to generate and regenerate full markdown content for
 file summaries, folder summaries, and the overall PR summary at each status.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from .review_attribution import format_status, render_attribution_line
 from .review_state import (
     FileEntry,
     FolderEntry,
@@ -14,13 +15,6 @@ from .review_state import (
     SuggestionEntry,
     compute_aggregate_status,
 )
-
-_STATUS_DISPLAY: Dict[str, str] = {
-    ReviewStatus.UNREVIEWED.value: "Unreviewed",
-    ReviewStatus.IN_PROGRESS.value: "In Progress",
-    ReviewStatus.APPROVED.value: "Approved",
-    ReviewStatus.NEEDS_WORK.value: "Needs Work",
-}
 
 _SEVERITY_LABELS: Dict[str, str] = {
     "high": "Must Fix (High)",
@@ -64,24 +58,46 @@ def _format_severity_counts(suggestions: List[SuggestionEntry]) -> str:
     return ", ".join(parts)
 
 
-def render_file_summary(file_entry: FileEntry, suggestions: List[SuggestionEntry], base_url: str) -> str:
+def render_file_summary(
+    file_entry: FileEntry,
+    suggestions: List[SuggestionEntry],
+    base_url: str,
+    model_name: Optional[str] = None,
+    model_icon: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
+) -> str:
     """Render a file review summary in markdown format.
 
     Args:
         file_entry: FileEntry dataclass with file metadata and review status.
         suggestions: List of suggestions to render (used for needs-work status).
         base_url: PR root URL for building discussion links.
+        model_name: AI model identifier (e.g. "Claude Opus 4.6"). When provided
+            together with ``commit_hash``, an attribution line is prepended.
+        model_icon: Override for the model family icon. Auto-detected when None.
+        commit_hash: Commit hash reviewed. When provided together with
+            ``model_name``, an attribution line is prepended.
+        commit_url: URL to the file at the reviewed commit. Used in the
+            attribution line link.
 
     Returns:
         Markdown string for the file review summary.
     """
     complete_path = _file_display_path(file_entry)
     status = file_entry.status
-    status_display = _STATUS_DISPLAY.get(status, status)
+    status_display = format_status(status, use_emoji=True)
 
     lines: List[str] = [
         f"## File Review Summary: {file_entry.fileName}",
         "",
+    ]
+
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
+    if attribution:
+        lines += [attribution, ""]
+
+    lines += [
         f"*Complete Path:* {complete_path}",
         "",
         f"*Status:* {status_display}",
@@ -131,6 +147,10 @@ def render_folder_summary(
     folder_entry: FolderEntry,
     files: Dict[str, FileEntry],
     base_url: str,
+    model_name: Optional[str] = None,
+    model_icon: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
 ) -> str:
     """Render a folder review summary in markdown format.
 
@@ -139,6 +159,13 @@ def render_folder_summary(
         folder_entry: FolderEntry containing file paths and thread metadata.
         files: Mapping of file paths to FileEntry objects (from ReviewState.files).
         base_url: PR root URL for building discussion links.
+        model_name: AI model identifier. When provided together with
+            ``commit_hash``, an attribution line is prepended.
+        model_icon: Override for the model family icon. Auto-detected when None.
+        commit_hash: Commit hash reviewed. When provided together with
+            ``model_name``, an attribution line is prepended.
+        commit_url: URL to the folder at the reviewed commit. Used in the
+            attribution line link.
 
     Returns:
         Markdown string for the folder review summary.
@@ -162,14 +189,21 @@ def render_folder_summary(
             in_progress.append(fe)
         else:
             unreviewed.append(fe)
-    folder_status = _STATUS_DISPLAY.get(
+    folder_status = format_status(
         compute_aggregate_status(file_statuses),
-        "Unreviewed",
+        use_emoji=True,
     )
 
     lines: List[str] = [
         f"## Folder Review Summary: {folder_name}",
         "",
+    ]
+
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
+    if attribution:
+        lines += [attribution, ""]
+
+    lines += [
         f"*Status:* {folder_status}",
     ]
 
@@ -197,12 +231,26 @@ def render_folder_summary(
     return "\n".join(lines)
 
 
-def render_overall_summary(state: ReviewState, base_url: str) -> str:
+def render_overall_summary(
+    state: ReviewState,
+    base_url: str,
+    model_name: Optional[str] = None,
+    model_icon: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
+) -> str:
     """Render the overall PR review summary in markdown format.
 
     Args:
         state: Full ReviewState containing all folders and files.
         base_url: PR root URL for building discussion links.
+        model_name: AI model identifier. When provided together with
+            ``commit_hash``, an attribution line is prepended.
+        model_icon: Override for the model family icon. Auto-detected when None.
+        commit_hash: Commit hash reviewed. When provided together with
+            ``model_name``, an attribution line is prepended.
+        commit_url: URL to the PR files tab at the reviewed commit. Used in the
+            attribution line link.
 
     Returns:
         Markdown string for the overall PR review summary.
@@ -223,14 +271,21 @@ def render_overall_summary(state: ReviewState, base_url: str) -> str:
             unreviewed.append(folder_name)
 
     folder_statuses = [fe.status for fe in state.folders.values()]
-    overall_status = _STATUS_DISPLAY.get(
+    overall_status = format_status(
         compute_aggregate_status(folder_statuses),
-        "Unreviewed",
+        use_emoji=True,
     )
 
     lines: List[str] = [
         "## Overall PR Review Summary",
         "",
+    ]
+
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
+    if attribution:
+        lines += [attribution, ""]
+
+    lines += [
         f"*Status:* {overall_status}",
     ]
 

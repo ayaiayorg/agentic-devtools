@@ -39,13 +39,13 @@ class TestRenderOverallSummary:
         assert "## Overall PR Review Summary" in result
 
     def test_empty_folders_status_unreviewed(self):
-        """Test overall status is Unreviewed when there are no folders."""
+        """Test overall status is Unreviewed with emoji when there are no folders."""
         state = _make_state()
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* Unreviewed" in result
+        assert "*Status:* ⏳ Unreviewed" in result
 
     def test_all_approved_status(self):
-        """Test overall status is Approved when all folders are approved."""
+        """Test overall status is Approved with emoji when all folders are approved."""
         state = _make_state(
             folders={
                 "src": _make_folder_entry(1, 2, "approved"),
@@ -53,16 +53,16 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* Approved" in result
+        assert "*Status:* ✅ Approved" in result
 
     def test_all_in_progress_status(self):
-        """Test overall status is In Progress when all folders are in-progress."""
+        """Test overall status is In Progress with emoji when all folders are in-progress."""
         state = _make_state(folders={"src": _make_folder_entry(1, 2, "in-progress")})
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_needs_work_status_when_any_folder_needs_work(self):
-        """Test overall status is Needs Work when any folder needs work."""
+        """Test overall status is Needs Work with emoji when any folder needs work."""
         state = _make_state(
             folders={
                 "src": _make_folder_entry(1, 2, "approved"),
@@ -70,7 +70,7 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* Needs Work" in result
+        assert "*Status:* 📝 Needs Work" in result
 
     def test_needs_work_section_present(self):
         """Test Needs Work section header is rendered when folders need work."""
@@ -148,7 +148,7 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_in_progress_takes_precedence_over_approved(self):
         """Test In Progress status takes precedence over Approved."""
@@ -159,7 +159,7 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
 
     def test_some_approved_some_unreviewed_returns_in_progress(self):
         """Test overall status is In Progress when some folders approved and some unreviewed."""
@@ -170,4 +170,46 @@ class TestRenderOverallSummary:
             }
         )
         result = render_overall_summary(state, _BASE_URL)
-        assert "*Status:* In Progress" in result
+        assert "*Status:* 🔃 In Progress" in result
+
+    def test_attribution_line_present_when_model_and_hash_provided(self):
+        """Test attribution line is rendered when model_name and commit_hash are provided."""
+        state = _make_state()
+        result = render_overall_summary(
+            state,
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash="abc1234def",
+            commit_url="https://example.com/pr/42",
+        )
+        assert "🤖 *Reviewed by*" in result
+        assert "**Claude Opus 4.6**" in result
+        assert "[`abc1234`](https://example.com/pr/42)" in result
+
+    def test_attribution_line_absent_when_model_name_none(self):
+        """Test attribution line is omitted when model_name is None."""
+        state = _make_state()
+        result = render_overall_summary(
+            state,
+            _BASE_URL,
+            model_name=None,
+            commit_hash="abc1234",
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_attribution_line_absent_when_commit_hash_none(self):
+        """Test attribution line is omitted when commit_hash is None."""
+        state = _make_state()
+        result = render_overall_summary(
+            state,
+            _BASE_URL,
+            model_name="Claude Opus 4.6",
+            commit_hash=None,
+        )
+        assert "🤖 *Reviewed by*" not in result
+
+    def test_no_attribution_when_no_attribution_params(self):
+        """Test backward compat: no attribution params → no attribution line."""
+        state = _make_state()
+        result = render_overall_summary(state, _BASE_URL)
+        assert "🤖 *Reviewed by*" not in result

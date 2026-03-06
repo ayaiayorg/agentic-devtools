@@ -69,7 +69,7 @@ def _build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
         org = f"https://dev.azure.com/{org.lstrip('/')}"
     encoded_project = quote(config.project, safe="")
     encoded_repo = quote(config.repository, safe="")
-    return f"{org}/{encoded_project}/_git/{encoded_repo}/pullRequest/{pull_request_id}"
+    return f"{org}/{encoded_project}/_git/{encoded_repo}/pullrequest/{pull_request_id}"
 
 
 def _post_thread(
