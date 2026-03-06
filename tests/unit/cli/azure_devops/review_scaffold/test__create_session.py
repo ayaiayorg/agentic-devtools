@@ -52,3 +52,13 @@ class TestCreateSession:
         s1 = _create_session("gpt-5")
         s2 = _create_session("gpt-5")
         assert s1.sessionId != s2.sessionId
+
+    def test_commit_hash_stored(self):
+        """commit_hash is stored in the session."""
+        session = _create_session("gpt-5", commit_hash="abc123def")
+        assert session.commitHash == "abc123def"
+
+    def test_commit_hash_defaults_to_none(self):
+        """commit_hash defaults to None when not provided."""
+        session = _create_session("gpt-5")
+        assert session.commitHash is None

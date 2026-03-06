@@ -32,7 +32,7 @@ def _make_state(commit_hash="abc123", sessions=None, model_id="gpt-5"):
     )
 
 
-def _make_session(model_id="gpt-5", status="completed", started_hours_ago=0):
+def _make_session(model_id="gpt-5", status="completed", started_hours_ago=0, commit_hash="abc123"):
     """Create a ReviewSession with a given age."""
     now = datetime.now(timezone.utc)
     started = now - timedelta(hours=started_hours_ago)
@@ -42,6 +42,7 @@ def _make_session(model_id="gpt-5", status="completed", started_hours_ago=0):
         startedUtc=started.isoformat(),
         completedUtc=now.isoformat() if status == "completed" else None,
         status=status,
+        commitHash=commit_hash,
     )
 
 
@@ -149,6 +150,7 @@ class TestCheckSessionStatus:
             modelId="gpt-5",
             startedUtc="2026-01-01T00:00:00+00:00",
             status="failed",
+            commitHash="abc123",
         )
         other_session = _make_session(model_id="claude-4", status="completed")
         state = _make_state(sessions=[failed_session, other_session])
@@ -174,3 +176,37 @@ class TestCheckSessionStatus:
         state = _make_state(sessions=[s1, s2])
         result = _check_session_status(state, "abc123", "gpt-5", now=now)
         assert result == "resume_stale"
+
+    def test_old_sessions_from_prior_commit_do_not_trigger_different_model(self):
+        """Sessions from a prior commit for another model should not trigger 'different_model'.
+
+        After incremental re-scaffolding, old sessions remain in the list with
+        their original commitHash. A new model arriving for the current commit
+        should get 'first_review', not 'different_model'.
+        """
+        old_session = ReviewSession(
+            sessionId="old-sess",
+            modelId="claude-4",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+            commitHash="old_commit_aaa",
+        )
+        # State now has commitHash="abc123" (new commit), but old session is for "old_commit_aaa"
+        state = _make_state(commit_hash="abc123", sessions=[old_session])
+        result = _check_session_status(state, "abc123", "gemini-pro")
+        assert result == "first_review"
+
+    def test_current_commit_session_triggers_different_model(self):
+        """A session for the current commit from another model triggers 'different_model'."""
+        current_session = ReviewSession(
+            sessionId="cur-sess",
+            modelId="claude-4",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+            commitHash="abc123",
+        )
+        state = _make_state(commit_hash="abc123", sessions=[current_session])
+        result = _check_session_status(state, "abc123", "gemini-pro")
+        assert result == "different_model"

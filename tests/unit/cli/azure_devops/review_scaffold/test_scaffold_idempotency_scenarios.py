@@ -350,6 +350,7 @@ class TestScaffoldDifferentModel:
             startedUtc="2026-01-01T00:00:00+00:00",
             completedUtc="2026-01-01T01:00:00+00:00",
             status="completed",
+            commitHash="abc123",
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = _make_requests_mock()
@@ -385,6 +386,7 @@ class TestScaffoldDifferentModel:
             startedUtc="2026-01-01T00:00:00+00:00",
             completedUtc="2026-01-01T01:00:00+00:00",
             status="completed",
+            commitHash="abc123",
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = _make_requests_mock()
@@ -561,6 +563,7 @@ class TestScaffoldActivityLogExceptionHandling:
             startedUtc="2026-01-01T00:00:00+00:00",
             completedUtc="2026-01-01T01:00:00+00:00",
             status="completed",
+            commitHash="abc123",
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = MagicMock()

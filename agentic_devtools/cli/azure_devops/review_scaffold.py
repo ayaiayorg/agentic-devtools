@@ -383,8 +383,12 @@ def _check_session_status(
         if has_stale_in_progress:
             return "resume_stale"
 
-        # No active/completed sessions for this model — check if a different model has sessions
-        if any(s.modelId != model_id for s in existing_state.sessions):
+        # No active/completed sessions for this model — check if a different
+        # model has sessions *for the current commit*.  Sessions accumulate across
+        # commits (audit trail), so we must scope this check to avoid false
+        # positives from sessions created for prior commits.
+        current_hash = commit_hash or ""
+        if any(s.modelId != model_id and (s.commitHash or "") == current_hash for s in existing_state.sessions):
             return "different_model"
         return "first_review"
 
@@ -418,12 +422,14 @@ def _mark_stale_sessions_failed(
 
 def _create_session(
     model_id: str,
+    commit_hash: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> ReviewSession:
     """Create a new ReviewSession with in_progress status.
 
     Args:
         model_id: AI model identifier.
+        commit_hash: Commit hash this session is reviewing.
         now: Current time (injectable for testing).
 
     Returns:
@@ -436,6 +442,7 @@ def _create_session(
         modelId=model_id,
         startedUtc=now.isoformat(),
         status="in_progress",
+        commitHash=commit_hash,
     )
 
 
@@ -753,7 +760,7 @@ def scaffold_review_threads(
                     stale_id = s.sessionId
                     break
             print(f"Resuming stale review session for PR {pull_request_id} ({reviewed}/{total} files reviewed).")
-            new_session = _create_session(effective_model, now=now)
+            new_session = _create_session(effective_model, commit_hash=commit_hash, now=now)
             existing_state.sessions.append(new_session)
             if not dry_run:
                 save_review_state(existing_state)
@@ -785,7 +792,7 @@ def scaffold_review_threads(
 
         if status == "different_model":
             print(f"Additional reviewer ({effective_model}) joining review for PR {pull_request_id}.")
-            new_session = _create_session(effective_model, now=now)
+            new_session = _create_session(effective_model, commit_hash=commit_hash, now=now)
             existing_state.sessions.append(new_session)
             if not dry_run:
                 save_review_state(existing_state)
@@ -911,7 +918,7 @@ def _fresh_scaffold(
     scaffolded_utc = now.isoformat()
 
     # Create initial session
-    session = _create_session(model_id, now=now)
+    session = _create_session(model_id, commit_hash=commit_hash, now=now)
 
     def _build_state(
         file_entries: Dict[str, FileEntry],
@@ -1222,7 +1229,7 @@ def _incremental_rescaffold(
     existing_state.latestIterationId = latest_iteration_id
 
     # Create new session
-    session = _create_session(model_id, now=now)
+    session = _create_session(model_id, commit_hash=commit_hash, now=now)
     existing_state.sessions.append(session)
 
     save_review_state(existing_state)
