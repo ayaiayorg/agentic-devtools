@@ -11,11 +11,11 @@ class TestRenderAttributionLine:
         result = render_attribution_line(
             model_name="Claude Opus 4.6",
             commit_hash="abc1234def",
-            commit_url="https://dev.azure.com/org/proj/_git/repo/pullRequest/1?_a=files",
+            commit_url="https://dev.azure.com/org/proj/_git/repo/pullrequest/1?_a=files",
         )
         assert result == (
             "🤖 *Reviewed by* 🧠 **Claude Opus 4.6** *at commit:* "
-            "[`abc1234`](https://dev.azure.com/org/proj/_git/repo/pullRequest/1?_a=files)"
+            "[`abc1234`](https://dev.azure.com/org/proj/_git/repo/pullrequest/1?_a=files)"
         )
 
     def test_commit_hash_truncated_to_seven_chars(self):
