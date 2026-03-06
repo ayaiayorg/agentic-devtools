@@ -1,4 +1,4 @@
-"""Tests for get_model_icon function (model family icon mapping)."""
+"""Tests for get_model_icon function."""
 
 from agentic_devtools.cli.azure_devops.review_attribution import get_model_icon
 

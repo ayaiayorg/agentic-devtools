@@ -147,7 +147,13 @@ def _build_files_tab_url(
     """
     org = organization.rstrip("/")
     effective_base = iteration - 1 if base is None else base
-    url = f"{org}/{project}/_git/{repo_name}/pullrequest/{pr_id}?_a=files&base={effective_base}&iteration={iteration}"
+    # URL-encode project and repo_name for safety (consistent with review_scaffold.py)
+    encoded_project = quote(project, safe="")
+    encoded_repo = quote(repo_name, safe="")
+    url = (
+        f"{org}/{encoded_project}/_git/{encoded_repo}/pullrequest/{pr_id}"
+        f"?_a=files&base={effective_base}&iteration={iteration}"
+    )
     if path is not None:
         # Normalize separators and ensure leading slash
         normalized = path.replace("\\", "/")

@@ -123,3 +123,15 @@ class TestBuildCommitFileUrl:
         )
         assert "path=/src/utils/app.py" in url
         assert "\\" not in url
+
+    def test_project_and_repo_name_are_url_encoded(self):
+        """Test that project and repo_name with special chars are URL-encoded."""
+        url = build_commit_file_url(
+            organization="https://dev.azure.com/myorg",
+            project="My Project",
+            repo_name="my repo#1",
+            pr_id=1,
+            file_path="/file.py",
+            iteration=2,
+        )
+        assert "My%20Project/_git/my%20repo%231" in url
