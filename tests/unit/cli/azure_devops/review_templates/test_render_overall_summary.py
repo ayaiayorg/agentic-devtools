@@ -415,6 +415,9 @@ class TestRenderOverallSummary:
         assert "app.py" in result
         # Unknown status must still get the ⏳ emoji prefix (from section status)
         assert "⏳ [/src/app.py]" in result
+        # Overall status must also reflect the normalized status (unreviewed),
+        # not in-progress from the raw unknown value.
+        assert "*Status:* ⏳ Unreviewed" in result
 
     def test_files_sorted_by_display_path_within_folder(self):
         """Test that files within a folder are sorted by display path."""

@@ -185,15 +185,19 @@ def render_overall_summary(
         ReviewStatus.UNREVIEWED.value: {},
     }
 
+    known_statuses = set(status_folder_files.keys())
     for fe in state.files.values():
         # Normalize unknown statuses into the unreviewed bucket so every
         # file appears in a rendered section.
-        status = fe.status if fe.status in status_folder_files else ReviewStatus.UNREVIEWED.value
+        status = fe.status if fe.status in known_statuses else ReviewStatus.UNREVIEWED.value
         folder = fe.folder if fe.folder else "root"
         status_folder_files[status].setdefault(folder, []).append(fe)
 
-    # Overall status derived directly from file statuses
-    file_statuses_all = [f.status for f in state.files.values()]
+    # Overall status derived from file statuses, with the same unknown→unreviewed
+    # normalization so the header status matches the rendered sections.
+    file_statuses_all = [
+        f.status if f.status in known_statuses else ReviewStatus.UNREVIEWED.value for f in state.files.values()
+    ]
     overall_status = format_status(
         compute_aggregate_status(file_statuses_all),
         use_emoji=True,
