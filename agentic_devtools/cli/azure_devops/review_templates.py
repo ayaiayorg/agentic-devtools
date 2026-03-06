@@ -217,8 +217,8 @@ def render_overall_summary(
     # Status sections in display priority order
     sections = [
         (ReviewStatus.NEEDS_WORK.value, "📝 Needs Work"),
-        (ReviewStatus.IN_PROGRESS.value, "🔃 In Progress"),
         (ReviewStatus.APPROVED.value, "✅ Approved"),
+        (ReviewStatus.IN_PROGRESS.value, "🔃 In Progress"),
         (ReviewStatus.UNREVIEWED.value, "⏳ Unreviewed"),
     ]
 

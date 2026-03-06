@@ -51,7 +51,10 @@ def derive_overall_status(state: ReviewState) -> str:
     Returns:
         Derived status string (a ReviewStatus value).
     """
-    file_statuses = [f.status for f in state.files.values()]
+    # Normalize unknown statuses to 'unreviewed' so the derived status matches
+    # the rendering normalization in render_overall_summary().
+    known = {s.value for s in ReviewStatus}
+    file_statuses = [f.status if f.status in known else ReviewStatus.UNREVIEWED.value for f in state.files.values()]
 
     return compute_aggregate_status(file_statuses)
 
