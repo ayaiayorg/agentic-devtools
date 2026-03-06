@@ -17,7 +17,7 @@ re-scaffolding are also handled here.
 import sys
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
@@ -364,9 +364,7 @@ def _check_session_status(
     effective_new = commit_hash or ""
 
     if effective_old == effective_new:
-        matching_sessions = [
-            s for s in existing_state.sessions if s.modelId == model_id
-        ]
+        matching_sessions = [s for s in existing_state.sessions if s.modelId == model_id]
         for session in matching_sessions:
             if session.status == "completed":
                 return "already_reviewed"
@@ -401,11 +399,7 @@ def _mark_stale_sessions_failed(
     if now is None:
         now = datetime.now(timezone.utc)
     for session in existing_state.sessions:
-        if (
-            session.modelId == model_id
-            and session.status == "in_progress"
-            and existing_state.commitHash == commit_hash
-        ):
+        if session.modelId == model_id and session.status == "in_progress" and existing_state.commitHash == commit_hash:
             started = datetime.fromisoformat(session.startedUtc)
             if now - started >= STALE_SESSION_THRESHOLD:
                 session.status = "failed"
@@ -664,7 +658,6 @@ def scaffold_review_threads(
         # Complete state exists — use commit-hash-based idempotency
         status = _check_session_status(existing_state, commit_hash, effective_model, now=now)
         threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
-        base_url = _build_pr_base_url(config, pull_request_id)
         short_hash = (commit_hash or "unknown")[:7]
 
         if status == "already_reviewed":
@@ -672,13 +665,23 @@ def scaffold_review_threads(
             if not dry_run and existing_state.activityLogThreadId:
                 seq = len(existing_state.sessions) + 1
                 entry = _format_activity_log_entry(
-                    "✅", "Already Reviewed", now.isoformat(), effective_model, short_hash,
-                    "n/a", "Commit already reviewed by this model. No action taken.", seq,
+                    "✅",
+                    "Already Reviewed",
+                    now.isoformat(),
+                    effective_model,
+                    short_hash,
+                    "n/a",
+                    "Commit already reviewed by this model. No action taken.",
+                    seq,
                 )
                 try:
                     _post_activity_log_entry(
-                        requests_module, headers, threads_url,
-                        existing_state.activityLogThreadId, 1, entry,
+                        requests_module,
+                        headers,
+                        threads_url,
+                        existing_state.activityLogThreadId,
+                        1,
+                        entry,
                     )
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
@@ -704,13 +707,23 @@ def scaffold_review_threads(
                     f"(session `{active_id}` started at {active_start}). Aborting."
                 )
                 entry = _format_activity_log_entry(
-                    "⚠️", "In Progress", now.isoformat(), effective_model, short_hash,
-                    "n/a", detail, seq,
+                    "⚠️",
+                    "In Progress",
+                    now.isoformat(),
+                    effective_model,
+                    short_hash,
+                    "n/a",
+                    detail,
+                    seq,
                 )
                 try:
                     _post_activity_log_entry(
-                        requests_module, headers, threads_url,
-                        existing_state.activityLogThreadId, 1, entry,
+                        requests_module,
+                        headers,
+                        threads_url,
+                        existing_state.activityLogThreadId,
+                        1,
+                        entry,
                     )
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
@@ -732,18 +745,25 @@ def scaffold_review_threads(
                 save_review_state(existing_state)
                 if existing_state.activityLogThreadId:
                     seq = len(existing_state.sessions)
-                    detail = (
-                        f"Resuming incomplete review session `{stale_id}` "
-                        f"({reviewed}/{total} files reviewed)."
-                    )
+                    detail = f"Resuming incomplete review session `{stale_id}` ({reviewed}/{total} files reviewed)."
                     entry = _format_activity_log_entry(
-                        "🔄", "Resuming", now.isoformat(), effective_model, short_hash,
-                        new_session.sessionId, detail, seq,
+                        "🔄",
+                        "Resuming",
+                        now.isoformat(),
+                        effective_model,
+                        short_hash,
+                        new_session.sessionId,
+                        detail,
+                        seq,
                     )
                     try:
                         _post_activity_log_entry(
-                            requests_module, headers, threads_url,
-                            existing_state.activityLogThreadId, 1, entry,
+                            requests_module,
+                            headers,
+                            threads_url,
+                            existing_state.activityLogThreadId,
+                            1,
+                            entry,
                         )
                     except Exception as exc:
                         print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
@@ -758,13 +778,23 @@ def scaffold_review_threads(
                 if existing_state.activityLogThreadId:
                     seq = len(existing_state.sessions)
                     entry = _format_activity_log_entry(
-                        "🤝", "Additional Reviewer", now.isoformat(), effective_model, short_hash,
-                        new_session.sessionId, "Additional reviewer joining existing review for this commit.", seq,
+                        "🤝",
+                        "Additional Reviewer",
+                        now.isoformat(),
+                        effective_model,
+                        short_hash,
+                        new_session.sessionId,
+                        "Additional reviewer joining existing review for this commit.",
+                        seq,
                     )
                     try:
                         _post_activity_log_entry(
-                            requests_module, headers, threads_url,
-                            existing_state.activityLogThreadId, 1, entry,
+                            requests_module,
+                            headers,
+                            threads_url,
+                            existing_state.activityLogThreadId,
+                            1,
+                            entry,
                         )
                     except Exception as exc:
                         print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
@@ -901,7 +931,10 @@ def _fresh_scaffold(
         file_name = _get_file_name(file_path)
 
         temp_entry = FileEntry(
-            threadId=0, commentId=0, folder=folder, fileName=file_name,
+            threadId=0,
+            commentId=0,
+            folder=folder,
+            fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
         content = render_file_summary(temp_entry, [], base_url)
@@ -909,7 +942,10 @@ def _fresh_scaffold(
         print(f"Creating file summary thread for {normalized}...")
         thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=normalized)
         file_entries[normalized] = FileEntry(
-            threadId=thread_id, commentId=comment_id, folder=folder, fileName=file_name,
+            threadId=thread_id,
+            commentId=comment_id,
+            folder=folder,
+            fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
 
@@ -928,27 +964,40 @@ def _fresh_scaffold(
     overall_thread_id, overall_comment_id = _post_thread(requests_module, headers, threads_url, overall_content)
 
     # Step 4: Create activity log thread
-    activity_log_content = (
-        "## Review Activity Log\n\n*This thread tracks all review sessions for this PR.*\n"
-    )
+    activity_log_content = "## Review Activity Log\n\n*This thread tracks all review sessions for this PR.*\n"
     print("Creating Review Activity Log thread...")
     activity_log_thread_id, _ = _post_thread(requests_module, headers, threads_url, activity_log_content)
 
     # Build final state and persist
     review_state = _build_state(
-        file_entries, folder_groups, overall_thread_id, overall_comment_id, activity_log_thread_id,
+        file_entries,
+        folder_groups,
+        overall_thread_id,
+        overall_comment_id,
+        activity_log_thread_id,
     )
     save_review_state(review_state)
 
     # Post initial activity log entry
     short_hash = (commit_hash or "unknown")[:7]
     entry = _format_activity_log_entry(
-        "🆕", "New Review", now.isoformat(), model_id, short_hash,
-        session.sessionId, "Initial scaffolding and review started.", 1,
+        "🆕",
+        "New Review",
+        now.isoformat(),
+        model_id,
+        short_hash,
+        session.sessionId,
+        "Initial scaffolding and review started.",
+        1,
     )
     try:
         _post_activity_log_entry(
-            requests_module, headers, threads_url, activity_log_thread_id, 1, entry,
+            requests_module,
+            headers,
+            threads_url,
+            activity_log_thread_id,
+            1,
+            entry,
         )
     except Exception as exc:
         print(f"Warning: Could not post initial activity log entry: {exc}", file=sys.stderr)
@@ -996,7 +1045,6 @@ def _incremental_rescaffold(
         now = datetime.now(timezone.utc)
 
     old_commit_hash = existing_state.commitHash or ""
-    short_old_hash = old_commit_hash[:7] if old_commit_hash else "unknown"
     short_new_hash = (commit_hash or "unknown")[:7]
 
     threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
@@ -1005,8 +1053,15 @@ def _incremental_rescaffold(
     normalised_files = [normalize_file_path(f) for f in files]
 
     changes = detect_file_changes(
-        existing_state, normalised_files, config, repo_id, pull_request_id,
-        old_commit_hash, commit_hash or "", requests_module, headers,
+        existing_state,
+        normalised_files,
+        config,
+        repo_id,
+        pull_request_id,
+        old_commit_hash,
+        commit_hash or "",
+        requests_module,
+        headers,
     )
 
     n_new = len(changes.new_files)
@@ -1036,14 +1091,20 @@ def _incremental_rescaffold(
         folder = _get_folder_for_path(file_path)
         file_name = _get_file_name(file_path)
         temp_entry = FileEntry(
-            threadId=0, commentId=0, folder=folder, fileName=file_name,
+            threadId=0,
+            commentId=0,
+            folder=folder,
+            fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
         content = render_file_summary(temp_entry, [], base_url)
         print(f"Scaffolding new file thread for {file_path}...")
         thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=file_path)
         existing_state.files[file_path] = FileEntry(
-            threadId=thread_id, commentId=comment_id, folder=folder, fileName=file_name,
+            threadId=thread_id,
+            commentId=comment_id,
+            folder=folder,
+            fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
 
@@ -1051,16 +1112,23 @@ def _incremental_rescaffold(
     for file_path in changes.modified_files:
         fe = existing_state.files.get(file_path)
         if fe and fe.threadId:
-            historical_prefix = f"📋 Review from previous version (commit `{short_old_hash}`):\n\n"
             try:
                 _demote_main_comment(
-                    requests_module, headers, threads_url, fe.threadId, fe.commentId,
+                    requests_module,
+                    headers,
+                    threads_url,
+                    fe.threadId,
+                    fe.commentId,
                     render_file_summary(
                         FileEntry(
-                            threadId=fe.threadId, commentId=fe.commentId, folder=fe.folder,
-                            fileName=fe.fileName, status=ReviewStatus.UNREVIEWED.value,
+                            threadId=fe.threadId,
+                            commentId=fe.commentId,
+                            folder=fe.folder,
+                            fileName=fe.fileName,
+                            status=ReviewStatus.UNREVIEWED.value,
                         ),
-                        [], base_url,
+                        [],
+                        base_url,
                     ),
                 )
             except Exception as exc:
@@ -1078,7 +1146,12 @@ def _incremental_rescaffold(
             removed_msg = f"🗑️ File removed in commit `{short_new_hash}`"
             try:
                 _demote_main_comment(
-                    requests_module, headers, threads_url, fe.threadId, fe.commentId, removed_msg,
+                    requests_module,
+                    headers,
+                    threads_url,
+                    fe.threadId,
+                    fe.commentId,
+                    removed_msg,
                 )
             except Exception as exc:
                 print(f"Warning: Could not demote comment for deleted {file_path}: {exc}", file=sys.stderr)
@@ -1104,7 +1177,12 @@ def _incremental_rescaffold(
             new_summary = render_overall_summary(existing_state, base_url)
             try:
                 _demote_main_comment(
-                    requests_module, headers, threads_url, overall.threadId, overall.commentId, new_summary,
+                    requests_module,
+                    headers,
+                    threads_url,
+                    overall.threadId,
+                    overall.commentId,
+                    new_summary,
                 )
             except Exception as exc:
                 print(f"Warning: Could not update overall summary: {exc}", file=sys.stderr)
@@ -1115,7 +1193,12 @@ def _incremental_rescaffold(
             new_summary = render_overall_summary(existing_state, base_url)
             try:
                 _demote_main_comment(
-                    requests_module, headers, threads_url, overall.threadId, overall.commentId, new_summary,
+                    requests_module,
+                    headers,
+                    threads_url,
+                    overall.threadId,
+                    overall.commentId,
+                    new_summary,
                 )
             except Exception as exc:
                 print(f"Warning: Could not update overall summary: {exc}", file=sys.stderr)
@@ -1143,13 +1226,23 @@ def _incremental_rescaffold(
             )
             emoji, status_text = "🔀", "New Commit"
         entry = _format_activity_log_entry(
-            emoji, status_text, now.isoformat(), model_id, short_new_hash,
-            session.sessionId, detail, seq,
+            emoji,
+            status_text,
+            now.isoformat(),
+            model_id,
+            short_new_hash,
+            session.sessionId,
+            detail,
+            seq,
         )
         try:
             _post_activity_log_entry(
-                requests_module, headers, threads_url,
-                existing_state.activityLogThreadId, 1, entry,
+                requests_module,
+                headers,
+                threads_url,
+                existing_state.activityLogThreadId,
+                1,
+                entry,
             )
         except Exception as exc:
             print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
