@@ -69,10 +69,12 @@ class TestRenderOverallSummary:
 
     def test_all_approved_status(self):
         """Test overall status is Approved with emoji when all files are approved."""
-        state = _make_state({
-            "src": [("app.py", "approved")],
-            "lib": [("util.py", "approved")],
-        })
+        state = _make_state(
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "approved")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* ✅ Approved" in result
 
@@ -84,10 +86,12 @@ class TestRenderOverallSummary:
 
     def test_needs_work_status_when_any_file_needs_work(self):
         """Test overall status is Needs Work with emoji when any file needs work."""
-        state = _make_state({
-            "src": [("app.py", "approved")],
-            "lib": [("util.py", "needs-work")],
-        })
+        state = _make_state(
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "needs-work")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 📝 Needs Work" in result
 
@@ -131,12 +135,14 @@ class TestRenderOverallSummary:
 
     def test_mixed_statuses_all_sections_present(self):
         """Test all four section types appear with mixed folder statuses."""
-        state = _make_state({
-            "a": [("x.py", "needs-work")],
-            "b": [("y.py", "approved")],
-            "c": [("z.py", "in-progress")],
-            "d": [("w.py", "unreviewed")],
-        })
+        state = _make_state(
+            {
+                "a": [("x.py", "needs-work")],
+                "b": [("y.py", "approved")],
+                "c": [("z.py", "in-progress")],
+                "d": [("w.py", "unreviewed")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "### Needs Work" in result
         assert "### Approved" in result
@@ -145,38 +151,46 @@ class TestRenderOverallSummary:
 
     def test_multiple_folders_in_section(self):
         """Test multiple folders appear in the same section."""
-        state = _make_state({
-            "src": [("app.py", "approved")],
-            "lib": [("util.py", "approved")],
-        })
+        state = _make_state(
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "approved")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "src" in result
         assert "lib" in result
 
     def test_needs_work_and_in_progress_returns_in_progress(self):
         """Test In Progress status when some files need work and some are in-progress."""
-        state = _make_state({
-            "a": [("x.py", "in-progress")],
-            "b": [("y.py", "needs-work")],
-        })
+        state = _make_state(
+            {
+                "a": [("x.py", "in-progress")],
+                "b": [("y.py", "needs-work")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 🔃 In Progress" in result
 
     def test_in_progress_takes_precedence_over_approved(self):
         """Test In Progress status takes precedence over Approved."""
-        state = _make_state({
-            "a": [("x.py", "approved")],
-            "b": [("y.py", "in-progress")],
-        })
+        state = _make_state(
+            {
+                "a": [("x.py", "approved")],
+                "b": [("y.py", "in-progress")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 🔃 In Progress" in result
 
     def test_some_approved_some_unreviewed_returns_in_progress(self):
         """Test overall status is In Progress when some files approved and some unreviewed."""
-        state = _make_state({
-            "src": [("app.py", "approved")],
-            "lib": [("util.py", "unreviewed")],
-        })
+        state = _make_state(
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "unreviewed")],
+            }
+        )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 🔃 In Progress" in result
 

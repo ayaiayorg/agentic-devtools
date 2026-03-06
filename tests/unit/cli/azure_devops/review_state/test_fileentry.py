@@ -31,6 +31,7 @@ class TestFileEntry:
         assert f.changeTrackingId is None
         assert f.suggestions == []
         assert f.previousSuggestions is None
+        assert f.suggestionVerificationStatus is None
 
     def test_creation_with_all_fields(self):
         """Test creation with all fields specified."""
@@ -73,6 +74,7 @@ class TestFileEntry:
             "changeTrackingId": 42,
             "suggestions": [],
             "previousSuggestions": None,
+            "suggestionVerificationStatus": None,
         }
 
     def test_to_dict_with_suggestions(self):
@@ -243,3 +245,61 @@ class TestFileEntry:
         assert len(restored.previousSuggestions) == 1
         assert restored.previousSuggestions[0].threadId == 100
         assert restored.suggestions == []
+
+    def test_suggestion_verification_status_default_is_none(self):
+        """Test that suggestionVerificationStatus defaults to None."""
+        f = FileEntry(threadId=1, commentId=2, folder="src", fileName="app.py")
+        assert f.suggestionVerificationStatus is None
+
+    def test_suggestion_verification_status_creation(self):
+        """Test creation with explicit suggestionVerificationStatus."""
+        f = FileEntry(
+            threadId=1,
+            commentId=2,
+            folder="src",
+            fileName="app.py",
+            suggestionVerificationStatus="unaddressed",
+        )
+        assert f.suggestionVerificationStatus == "unaddressed"
+
+    def test_suggestion_verification_status_to_dict(self):
+        """Test that to_dict serialises suggestionVerificationStatus."""
+        f = FileEntry(
+            threadId=1,
+            commentId=2,
+            folder="src",
+            fileName="app.py",
+            suggestionVerificationStatus="pending_verification",
+        )
+        d = f.to_dict()
+        assert d["suggestionVerificationStatus"] == "pending_verification"
+
+    def test_suggestion_verification_status_from_dict(self):
+        """Test that from_dict reads suggestionVerificationStatus."""
+        data = {
+            "threadId": 1,
+            "commentId": 2,
+            "folder": "src",
+            "fileName": "app.py",
+            "suggestionVerificationStatus": "unaddressed",
+        }
+        f = FileEntry.from_dict(data)
+        assert f.suggestionVerificationStatus == "unaddressed"
+
+    def test_suggestion_verification_status_missing_defaults_to_none(self):
+        """Test that missing suggestionVerificationStatus defaults to None."""
+        data = {"threadId": 1, "commentId": 2, "folder": "src", "fileName": "app.py"}
+        f = FileEntry.from_dict(data)
+        assert f.suggestionVerificationStatus is None
+
+    def test_roundtrip_with_suggestion_verification_status(self):
+        """Test to_dict/from_dict round-trips suggestionVerificationStatus."""
+        original = FileEntry(
+            threadId=1,
+            commentId=2,
+            folder="src",
+            fileName="app.py",
+            suggestionVerificationStatus="pending_verification",
+        )
+        restored = FileEntry.from_dict(original.to_dict())
+        assert restored.suggestionVerificationStatus == "pending_verification"

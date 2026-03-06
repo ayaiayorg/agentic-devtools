@@ -12,11 +12,17 @@ class TestOverallSummary:
         assert s.threadId == 161000
         assert s.commentId == 1771800000
         assert s.status == ReviewStatus.UNREVIEWED
+        assert s.narrativeSummary is None
 
     def test_creation_with_status(self):
         """Test creation with explicit status."""
         s = OverallSummary(threadId=1, commentId=2, status="approved")
         assert s.status == "approved"
+
+    def test_creation_with_narrative_summary(self):
+        """Test creation with narrativeSummary."""
+        s = OverallSummary(threadId=1, commentId=2, narrativeSummary="Great PR overall")
+        assert s.narrativeSummary == "Great PR overall"
 
     def test_to_dict(self):
         """Test serialization to dictionary."""
@@ -26,7 +32,14 @@ class TestOverallSummary:
             "threadId": 161000,
             "commentId": 1771800000,
             "status": "in-progress",
+            "narrativeSummary": None,
         }
+
+    def test_to_dict_with_narrative_summary(self):
+        """Test serialization includes narrativeSummary."""
+        s = OverallSummary(threadId=1, commentId=2, narrativeSummary="Summary text")
+        d = s.to_dict()
+        assert d["narrativeSummary"] == "Summary text"
 
     def test_from_dict(self):
         """Test deserialization from dictionary."""
@@ -35,6 +48,13 @@ class TestOverallSummary:
         assert s.threadId == 161000
         assert s.commentId == 1771800000
         assert s.status == "approved"
+        assert s.narrativeSummary is None
+
+    def test_from_dict_with_narrative_summary(self):
+        """Test deserialization reads narrativeSummary."""
+        data = {"threadId": 1, "commentId": 2, "narrativeSummary": "Review narrative"}
+        s = OverallSummary.from_dict(data)
+        assert s.narrativeSummary == "Review narrative"
 
     def test_from_dict_defaults_status(self):
         """Test that missing status defaults to unreviewed."""
@@ -49,3 +69,9 @@ class TestOverallSummary:
         assert restored.threadId == 5
         assert restored.commentId == 10
         assert restored.status == "needs-work"
+
+    def test_roundtrip_with_narrative_summary(self):
+        """Test to_dict/from_dict round-trips narrativeSummary correctly."""
+        original = OverallSummary(threadId=5, commentId=10, narrativeSummary="Summary")
+        restored = OverallSummary.from_dict(original.to_dict())
+        assert restored.narrativeSummary == "Summary"

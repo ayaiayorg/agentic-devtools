@@ -384,10 +384,7 @@ def load_review_state(pr_id: int) -> ReviewState:
                 break
 
     if needs_migration:
-        print(
-            f"Incompatible review state format detected for PR {pr_id}. "
-            "Deleting and re-scaffolding."
-        )
+        print(f"Incompatible review state format detected for PR {pr_id}. Deleting and re-scaffolding.")
         file_path.unlink()
         raise FileNotFoundError(f"Review state not found for PR {pr_id}: {file_path}")
 

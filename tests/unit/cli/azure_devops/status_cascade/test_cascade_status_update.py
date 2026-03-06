@@ -57,9 +57,7 @@ def _make_state(
 def _add_file_to_state(state: ReviewState, folder: str, filename: str, status: str) -> None:
     """Add a file entry and its folder group to an existing ReviewState."""
     path = f"/{folder}/{filename}"
-    state.files[path] = FileEntry(
-        threadId=50, commentId=51, folder=folder, fileName=filename, status=status
-    )
+    state.files[path] = FileEntry(threadId=50, commentId=51, folder=folder, fileName=filename, status=status)
     state.folders[folder] = FolderGroup(files=[path])
 
 

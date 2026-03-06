@@ -127,6 +127,18 @@ from .pr_summary_commands import (
 # Pull request details command exports
 from .pull_request_details_commands import get_pull_request_details
 
+# Review attribution exports
+from .review_attribution import (
+    SHORT_HASH_LENGTH,
+    build_commit_file_url,
+    build_commit_folder_url,
+    build_commit_pr_url,
+    format_status,
+    get_model_icon,
+    render_attribution_line,
+    should_use_emoji,
+)
+
 # Review state exports
 from .review_state import (
     COMPLETE_STATUSES,
@@ -148,18 +160,6 @@ from .review_state import (
     normalize_file_path,
     save_review_state,
     update_file_status,
-)
-
-# Review attribution exports
-from .review_attribution import (
-    SHORT_HASH_LENGTH,
-    build_commit_file_url,
-    build_commit_folder_url,
-    build_commit_pr_url,
-    format_status,
-    get_model_icon,
-    render_attribution_line,
-    should_use_emoji,
 )
 
 # Run details command exports

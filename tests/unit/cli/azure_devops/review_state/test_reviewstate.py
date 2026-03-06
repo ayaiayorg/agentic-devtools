@@ -171,3 +171,112 @@ class TestReviewState:
         state = ReviewState.from_dict(data)
         assert "/src/app.py" in state.files
         assert "src/app.py" not in state.files
+
+    def test_new_fields_defaults(self):
+        """Test that new fields have correct default values."""
+        state = _make_review_state()
+        assert state.commitHash is None
+        assert state.modelId is None
+        assert state.activityLogThreadId == 0
+        assert state.sessions == []
+
+    def test_to_dict_includes_new_fields(self):
+        """Test that to_dict includes all new fields."""
+        state = _make_review_state(
+            commitHash="abc123",
+            modelId="claude-4",
+            activityLogThreadId=999,
+        )
+        d = state.to_dict()
+        assert d["commitHash"] == "abc123"
+        assert d["modelId"] == "claude-4"
+        assert d["activityLogThreadId"] == 999
+        assert d["sessions"] == []
+
+    def test_from_dict_reads_new_fields(self):
+        """Test that from_dict deserializes all new fields."""
+        from agentic_devtools.cli.azure_devops.review_state import ReviewSession
+
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "dfly-platform-management",
+            "project": "DragonflyMgmt",
+            "organization": "https://dev.azure.com/swica",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+            "commitHash": "deadbeef",
+            "modelId": "gpt-5",
+            "activityLogThreadId": 42,
+            "sessions": [
+                {
+                    "sessionId": "sess-1",
+                    "modelId": "gpt-5",
+                    "startedUtc": "2026-03-01T10:00:00Z",
+                    "status": "completed",
+                }
+            ],
+        }
+        state = ReviewState.from_dict(data)
+        assert state.commitHash == "deadbeef"
+        assert state.modelId == "gpt-5"
+        assert state.activityLogThreadId == 42
+        assert len(state.sessions) == 1
+        assert isinstance(state.sessions[0], ReviewSession)
+        assert state.sessions[0].sessionId == "sess-1"
+
+    def test_from_dict_defaults_for_missing_new_fields(self):
+        """Test that from_dict defaults new fields when missing."""
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "dfly-platform-management",
+            "project": "DragonflyMgmt",
+            "organization": "https://dev.azure.com/swica",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+        }
+        state = ReviewState.from_dict(data)
+        assert state.commitHash is None
+        assert state.modelId is None
+        assert state.activityLogThreadId == 0
+        assert state.sessions == []
+
+    def test_roundtrip_with_new_fields(self):
+        """Test to_dict/from_dict round-trips new fields correctly."""
+        from agentic_devtools.cli.azure_devops.review_state import ReviewSession
+
+        session = ReviewSession(
+            sessionId="sess-1",
+            modelId="claude-4",
+            startedUtc="2026-03-01T10:00:00Z",
+            completedUtc="2026-03-01T10:30:00Z",
+            status="completed",
+        )
+        original = _make_review_state(
+            commitHash="abc123",
+            modelId="claude-4",
+            activityLogThreadId=999,
+            sessions=[session],
+        )
+        restored = ReviewState.from_dict(original.to_dict())
+        assert restored.commitHash == "abc123"
+        assert restored.modelId == "claude-4"
+        assert restored.activityLogThreadId == 999
+        assert len(restored.sessions) == 1
+        assert restored.sessions[0].sessionId == "sess-1"
+
+    def test_sessions_default_is_independent(self):
+        """Test that default sessions lists are independent per instance."""
+        from agentic_devtools.cli.azure_devops.review_state import ReviewSession
+
+        s1 = _make_review_state()
+        s2 = _make_review_state()
+        s1.sessions.append(ReviewSession(sessionId="x", modelId="m", startedUtc="t"))
+        assert s2.sessions == []
