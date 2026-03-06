@@ -323,12 +323,12 @@ class TestScaffoldReviewThreadsNormalFlow:
         assert result.organization == _ORG
         assert result.latestIterationId == 5
 
-    def test_api_call_count_n_plus_one(self):
-        """Makes N (files) + 1 (overall) API calls (no folder threads)."""
-        # 3 files → 3 + 1 = 4 API calls
+    def test_api_call_count_n_plus_two_plus_reply(self):
+        """Makes N + 3 API POST calls: N files + 1 overall + 1 activity log + 1 demote reply."""
+        # 3 files → 3 + 1 + 1 + 1 = 6 API POST calls
         files = ["/src/a.ts", "/src/b.ts", "/utils/c.ts"]
         _, requests_mock, _ = self._run_scaffold(files)
-        assert requests_mock.post.call_count == 4
+        assert requests_mock.post.call_count == 6
 
     def test_file_threads_anchored_to_file_path(self):
         """File summary threads include threadContext with filePath."""
@@ -475,8 +475,8 @@ class TestScaffoldReviewThreadsNormalFlow:
         files = ["/src/a.ts", "/src/b.ts", "/src/c.ts"]
         _, requests_mock, _ = self._run_scaffold(files)
 
-        # 3 file threads + 1 overall = 4 API calls (no folder thread)
-        assert requests_mock.post.call_count == 4
+        # 3 file threads + 1 overall + 1 activity log + 1 demote reply = 6 POST calls
+        assert requests_mock.post.call_count == 6
 
     def test_scaffolded_utc_is_set(self):
         """ReviewState.scaffoldedUtc is a non-empty ISO timestamp."""
