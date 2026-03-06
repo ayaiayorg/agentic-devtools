@@ -57,8 +57,19 @@ def _make_state(
 def _add_file_to_state(state: ReviewState, folder: str, filename: str, status: str) -> None:
     """Add a file entry and its folder group to an existing ReviewState."""
     path = f"/{folder}/{filename}"
-    state.files[path] = FileEntry(threadId=50, commentId=51, folder=folder, fileName=filename, status=status)
-    state.folders[folder] = FolderGroup(files=[path])
+    state.files[path] = FileEntry(
+        threadId=50,
+        commentId=51,
+        folder=folder,
+        fileName=filename,
+        status=status,
+    )
+    existing_group = state.folders.get(folder)
+    if existing_group is None:
+        state.folders[folder] = FolderGroup(files=[path])
+    else:
+        if path not in existing_group.files:
+            existing_group.files.append(path)
 
 
 class TestCascadeStatusUpdate:
