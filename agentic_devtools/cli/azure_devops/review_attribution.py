@@ -260,9 +260,9 @@ def _escape_markdown(text: str) -> str:
 
 def render_attribution_line(
     model_name: Optional[str],
-    commit_hash: Optional[str],
-    commit_url: Optional[str],
     model_icon: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
 ) -> str:
     """Render the AI model attribution line for embedding in a review comment.
 

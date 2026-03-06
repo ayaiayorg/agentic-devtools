@@ -77,3 +77,18 @@ class TestBuildCommitPrUrl:
             base=0,
         )
         assert "base=0" in url
+
+    def test_project_and_repo_name_are_url_encoded(self):
+        """Test that project and repo_name with special characters are URL-encoded."""
+        url = build_commit_pr_url(
+            organization="https://dev.azure.com/myorg",
+            project="My Project#1",
+            repo_name="my repo#1",
+            pr_id=42,
+            iteration=3,
+            base=2,
+        )
+        assert url == (
+            "https://dev.azure.com/myorg/My%20Project%231/_git/my%20repo%231/pullrequest/42"
+            "?_a=files&base=2&iteration=3"
+        )

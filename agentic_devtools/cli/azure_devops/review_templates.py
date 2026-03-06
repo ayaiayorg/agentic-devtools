@@ -93,7 +93,7 @@ def render_file_summary(
         "",
     ]
 
-    attribution = render_attribution_line(model_name, commit_hash, commit_url, model_icon)
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
     if attribution:
         lines += [attribution, ""]
 
@@ -199,7 +199,7 @@ def render_folder_summary(
         "",
     ]
 
-    attribution = render_attribution_line(model_name, commit_hash, commit_url, model_icon)
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
     if attribution:
         lines += [attribution, ""]
 
@@ -281,7 +281,7 @@ def render_overall_summary(
         "",
     ]
 
-    attribution = render_attribution_line(model_name, commit_hash, commit_url, model_icon)
+    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
     if attribution:
         lines += [attribution, ""]
 
