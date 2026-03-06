@@ -215,7 +215,10 @@ def add_pull_request_comment() -> None:
     - path (optional): File path for file-level comment
     - line (optional): Line number for line-level comment
     - end_line (optional): End line for multi-line comment
-    - is_pull_request_approval (optional): Whether this is an approval comment (replies to summary thread)
+    - is_pull_request_approval (optional): Whether this is an approval comment.
+          When True and no ``path`` is provided, replies to the existing summary
+          thread instead of creating a new thread.  When ``path`` is set, a normal
+          file-level comment is created regardless of this flag.
     - leave_thread_active (optional): Whether to keep thread active (default: resolve after posting)
     - dry_run (optional): Preview without making API calls
 
