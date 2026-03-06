@@ -226,11 +226,13 @@ def render_overall_summary(
         for folder_name in sorted(folder_files.keys()):
             lines.append(f"- {folder_name}")
             for fe in sorted(folder_files[folder_name], key=_file_display_path):
-                file_emoji = _STATUS_EMOJI.get(fe.status, "")
+                # Use the section status for emoji so unknown statuses
+                # normalized into Unreviewed still get the ⏳ prefix.
+                file_emoji = _STATUS_EMOJI.get(status_val, "")
                 url = build_discussion_url(base_url, fe.threadId, fe.commentId)
                 display = _file_display_path(fe)
                 item = f"   - {file_emoji} [{display}]({url})"
-                if fe.status == ReviewStatus.NEEDS_WORK.value:
+                if status_val == ReviewStatus.NEEDS_WORK.value:
                     counts = _format_severity_counts(fe.suggestions)
                     if counts:
                         item += f" \u2014 {counts}"

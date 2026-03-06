@@ -413,6 +413,8 @@ class TestRenderOverallSummary:
         result = render_overall_summary(state, _BASE_URL)
         assert "### ⏳ Unreviewed" in result
         assert "app.py" in result
+        # Unknown status must still get the ⏳ emoji prefix (from section status)
+        assert "⏳ [/src/app.py]" in result
 
     def test_files_sorted_by_display_path_within_folder(self):
         """Test that files within a folder are sorted by display path."""
