@@ -1,7 +1,7 @@
 """Status derivation and cascade update logic for PR review state.
 
 Provides functions to:
-- Derive folder and overall PR status from file/folder statuses
+- Derive overall PR status directly from file statuses
 - Compute PATCH operations needed after a file status change
 - Execute those PATCH operations against the Azure DevOps API
 """
@@ -12,7 +12,7 @@ from typing import Dict, List
 from .config import AzureDevOpsConfig
 from .helpers import patch_comment, patch_thread_status
 from .review_state import ReviewState, ReviewStatus, compute_aggregate_status, normalize_file_path
-from .review_templates import render_folder_summary, render_overall_summary
+from .review_templates import render_overall_summary
 
 # Thread status mapping: review status → Azure DevOps thread status
 _THREAD_STATUS_MAP: Dict[str, str] = {
@@ -36,11 +36,10 @@ class PatchOperation:
 def derive_folder_status(state: ReviewState, folder_name: str) -> str:
     """Compute the derived status for a folder based on its file statuses.
 
-    Status Derivation Rules:
-    - No files or all files unreviewed → unreviewed
-    - At least 1 file started, not all complete → in-progress
-    - All files complete, all Approved → approved
-    - All files complete, any Needs Work → needs-work
+    .. deprecated::
+        Folder-level threads have been eliminated.  This function is retained
+        for backward compatibility but simply delegates to
+        ``compute_aggregate_status`` over the folder's file statuses.
 
     Args:
         state: Full ReviewState containing files.
@@ -62,23 +61,26 @@ def derive_folder_status(state: ReviewState, folder_name: str) -> str:
 
 
 def derive_overall_status(state: ReviewState) -> str:
-    """Compute the derived overall PR status based on folder statuses.
+    """Compute the derived overall PR status based on file statuses.
+
+    With the elimination of folder-level threads, the overall status is now
+    derived directly from file statuses rather than folder statuses.
 
     Status Derivation Rules:
-    - No folders or all folders unreviewed → unreviewed
-    - At least 1 folder started, not all complete → in-progress
-    - All folders complete, all Approved → approved
-    - All folders complete, any Needs Work → needs-work
+    - No files or all files unreviewed → unreviewed
+    - At least 1 file started, not all complete → in-progress
+    - All files complete, all Approved → approved
+    - All files complete, any Needs Work → needs-work
 
     Args:
-        state: Full ReviewState containing folders.
+        state: Full ReviewState containing files.
 
     Returns:
         Derived status string (a ReviewStatus value).
     """
-    folder_statuses = [f.status for f in state.folders.values()]
+    file_statuses = [f.status for f in state.files.values()]
 
-    return compute_aggregate_status(folder_statuses)
+    return compute_aggregate_status(file_statuses)
 
 
 def cascade_status_update(
@@ -86,14 +88,15 @@ def cascade_status_update(
     file_path: str,
     base_url: str,
 ) -> List[PatchOperation]:
-    """Compute all PATCH operations needed after a file's status has changed.
+    """Compute PATCH operations needed after a file's status has changed.
 
-    Updates the folder and overall summary statuses in the state object,
-    then returns the PATCH operations needed to sync Azure DevOps comments
-    and thread statuses.
+    Updates the overall summary status in the state object, then returns
+    the PATCH operation needed to sync the Azure DevOps overall summary
+    comment and thread status.  Folder-level threads have been eliminated
+    so only the overall summary is updated.
 
     Args:
-        state: Full ReviewState (mutated in-place with new folder/overall statuses).
+        state: Full ReviewState (mutated in-place with new overall status).
         file_path: Path of the file whose status has changed.
         base_url: PR root URL for generating markdown content.
 
@@ -102,40 +105,17 @@ def cascade_status_update(
 
     Raises:
         KeyError: If file_path is not found in review state.
-        KeyError: If the file's folder is not found in review state.
     """
     normalized = normalize_file_path(file_path)
     if normalized not in state.files:
         raise KeyError(f"File not found in review state: {normalized}")
 
-    file_entry = state.files[normalized]
-    folder_name = file_entry.folder
-
-    if folder_name not in state.folders:
-        raise KeyError(f"Folder not found in review state: {folder_name}")
-
-    # Derive and update folder status
-    new_folder_status = derive_folder_status(state, folder_name)
-    folder_entry = state.folders[folder_name]
-    folder_entry.status = new_folder_status
-
-    # Derive and update overall summary status
+    # Derive and update overall summary status directly from files
     new_overall_status = derive_overall_status(state)
     state.overallSummary.status = new_overall_status
 
-    # Build PATCH operations
+    # Build PATCH operations — only the overall summary thread
     ops: List[PatchOperation] = []
-
-    # Folder comment PATCH
-    folder_content = render_folder_summary(folder_name, folder_entry, state.files, base_url)
-    ops.append(
-        PatchOperation(
-            thread_id=folder_entry.threadId,
-            comment_id=folder_entry.commentId,
-            new_content=folder_content,
-            thread_status=_THREAD_STATUS_MAP[new_folder_status],
-        )
-    )
 
     # Overall summary comment PATCH
     overall_content = render_overall_summary(state, base_url)

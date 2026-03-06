@@ -567,7 +567,7 @@ def _scaffold_threads_for_review(
 ) -> None:
     """Scaffold all review threads for a PR.
 
-    Creates file, folder, and overall summary threads upfront. Idempotent:
+    Creates file and overall summary threads upfront. Idempotent:
     skips creation if review-state.json already exists. Errors are caught and
     printed as warnings to avoid breaking the overall review setup flow.
 
@@ -599,6 +599,12 @@ def _scaffold_threads_for_review(
         iterations = pr_details.get("iterations") or []
         latest_iteration_id = max((it.get("id", 0) for it in iterations), default=0)
 
+        # Extract commit hash from PR info
+        commit_hash = pr_info.get("lastMergeSourceCommit", {}).get("commitId")
+
+        # Resolve model_id: CLI --model-id > state key review.model_id > "unknown"
+        model_id = get_value("review.model_id") or "unknown"
+
         config = AzureDevOpsConfig.from_state()
         dry_run = is_dry_run()
 
@@ -620,6 +626,8 @@ def _scaffold_threads_for_review(
             requests_module=requests_module,
             headers=auth_headers,
             dry_run=dry_run,
+            commit_hash=commit_hash,
+            model_id=model_id,
         )
     except Exception as e:
         print(f"Warning: Scaffolding failed: {e}", file=sys.stderr)
@@ -635,7 +643,7 @@ def setup_pull_request_review() -> None:
     2. Fetch PR details via get_pull_request_details
     3. Checkout source branch and sync with main
     4. Generate review prompts and queue.json
-    5. Scaffold review threads (file/folder/overall summary threads)
+    5. Scaffold review threads (file/overall summary threads)
     6. Print review instructions
     7. Initialize workflow state
 
@@ -643,6 +651,7 @@ def setup_pull_request_review() -> None:
         pull_request_id (required): PR ID
         jira.issue_key (optional): Jira issue key
         include_reviewed (optional): Whether to include already-reviewed files
+        review.model_id (optional): AI model identifier for the reviewer
 
     This function is designed to be called in a background task from the
     workflow initiation command.

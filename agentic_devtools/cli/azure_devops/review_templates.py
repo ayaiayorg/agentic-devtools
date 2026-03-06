@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from .review_attribution import format_status, render_attribution_line
 from .review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     ReviewState,
     ReviewStatus,
     SuggestionEntry,
@@ -144,7 +144,7 @@ def render_file_summary(
 
 def render_folder_summary(
     folder_name: str,
-    folder_entry: FolderEntry,
+    folder_entry: FolderGroup,
     files: Dict[str, FileEntry],
     base_url: str,
     model_name: Optional[str] = None,
@@ -156,7 +156,7 @@ def render_folder_summary(
 
     Args:
         folder_name: Display name for the folder.
-        folder_entry: FolderEntry containing file paths and thread metadata.
+        folder_entry: FolderGroup containing file paths.
         files: Mapping of file paths to FileEntry objects (from ReviewState.files).
         base_url: PR root URL for building discussion links.
         model_name: AI model identifier. When provided together with
@@ -241,6 +241,10 @@ def render_overall_summary(
 ) -> str:
     """Render the overall PR review summary in markdown format.
 
+    With the elimination of folder-level threads, the overall status is
+    derived directly from file statuses.  Folders are rendered as
+    lightweight groupings listing their constituent files.
+
     Args:
         state: Full ReviewState containing all folders and files.
         base_url: PR root URL for building discussion links.
@@ -255,24 +259,27 @@ def render_overall_summary(
     Returns:
         Markdown string for the overall PR review summary.
     """
+    # Derive per-folder status from file statuses
     needs_work: List[str] = []
     approved: List[str] = []
     in_progress: List[str] = []
     unreviewed: List[str] = []
 
-    for folder_name, folder_entry in state.folders.items():
-        if folder_entry.status == ReviewStatus.NEEDS_WORK.value:
+    for folder_name, folder_group in state.folders.items():
+        file_statuses = [state.files[fp].status for fp in folder_group.files if fp in state.files]
+        folder_status = compute_aggregate_status(file_statuses)
+        if folder_status == ReviewStatus.NEEDS_WORK.value:
             needs_work.append(folder_name)
-        elif folder_entry.status == ReviewStatus.APPROVED.value:
+        elif folder_status == ReviewStatus.APPROVED.value:
             approved.append(folder_name)
-        elif folder_entry.status == ReviewStatus.IN_PROGRESS.value:
+        elif folder_status == ReviewStatus.IN_PROGRESS.value:
             in_progress.append(folder_name)
         else:
             unreviewed.append(folder_name)
 
-    folder_statuses = [fe.status for fe in state.folders.values()]
+    file_statuses_all = [f.status for f in state.files.values()]
     overall_status = format_status(
-        compute_aggregate_status(folder_statuses),
+        compute_aggregate_status(file_statuses_all),
         use_emoji=True,
     )
 
@@ -292,9 +299,7 @@ def render_overall_summary(
     def _append_folder_section(title: str, folder_names: List[str]) -> None:
         lines.extend(["", f"### {title}"])
         for fn in folder_names:
-            fe = state.folders[fn]
-            url = build_discussion_url(base_url, fe.threadId, fe.commentId)
-            lines.append(f"- [{fn}]({url})")
+            lines.append(f"- {fn}")
 
     if needs_work:
         _append_folder_section("Needs Work", needs_work)

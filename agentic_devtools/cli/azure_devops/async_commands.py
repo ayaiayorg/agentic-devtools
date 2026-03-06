@@ -1400,6 +1400,7 @@ def generate_review_prompts_async() -> None:  # pragma: no cover
 def setup_pull_request_review_async(  # pragma: no cover
     pull_request_id: Optional[int] = None,
     jira_issue_key: Optional[str] = None,
+    model_id: Optional[str] = None,
 ) -> None:
     """
     Set up a pull request review asynchronously in the background.
@@ -1415,10 +1416,13 @@ def setup_pull_request_review_async(  # pragma: no cover
     Args:
         pull_request_id: PR ID (uses state if not provided)
         jira_issue_key: Optional Jira issue key (uses state if not provided)
+        model_id: Optional AI model identifier for the reviewer (uses state
+            ``review.model_id`` if not provided, falls back to ``"unknown"``)
 
     State keys:
         pull_request_id (required): PR ID
         jira.issue_key (optional): Jira issue key
+        review.model_id (optional): AI model identifier
 
     Usage:
         agdt-set pull_request_id 12345
@@ -1438,6 +1442,13 @@ def setup_pull_request_review_async(  # pragma: no cover
     jira_key = jira_issue_key
     if jira_key is None:
         jira_key = get_value("jira.issue_key")
+
+    # Resolve model_id: CLI param > state key > "unknown"
+    resolved_model_id = model_id
+    if resolved_model_id is None:
+        resolved_model_id = get_value("review.model_id")
+    if resolved_model_id:
+        set_value("review.model_id", resolved_model_id)
 
     # Ensure values are in state for the background function
     set_value("pull_request_id", pr_id)
