@@ -186,9 +186,9 @@ def render_overall_summary(
     }
 
     for fe in state.files.values():
-        status = fe.status
-        if status not in status_folder_files:
-            status_folder_files[status] = {}
+        # Normalize unknown statuses into the unreviewed bucket so every
+        # file appears in a rendered section.
+        status = fe.status if fe.status in status_folder_files else ReviewStatus.UNREVIEWED.value
         folder = fe.folder if fe.folder else "root"
         status_folder_files[status].setdefault(folder, []).append(fe)
 
@@ -225,7 +225,7 @@ def render_overall_summary(
         lines.extend(["", f"### {section_title}"])
         for folder_name in sorted(folder_files.keys()):
             lines.append(f"- {folder_name}")
-            for fe in folder_files[folder_name]:
+            for fe in sorted(folder_files[folder_name], key=_file_display_path):
                 file_emoji = _STATUS_EMOJI.get(fe.status, "")
                 url = build_discussion_url(base_url, fe.threadId, fe.commentId)
                 display = _file_display_path(fe)

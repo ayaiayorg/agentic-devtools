@@ -388,8 +388,8 @@ class TestRenderOverallSummary:
         result = render_overall_summary(state, _BASE_URL)
         assert "🤖 *Reviewed by*" not in result
 
-    def test_unknown_status_creates_section(self):
-        """Test that a file with an unknown/custom status still renders without error."""
+    def test_unknown_status_bucketed_into_unreviewed(self):
+        """Test that a file with an unknown status is bucketed into Unreviewed."""
         files = {
             "/src/app.py": FileEntry(
                 threadId=10,
@@ -410,6 +410,23 @@ class TestRenderOverallSummary:
             overallSummary=OverallSummary(threadId=1, commentId=2),
             files=files,
         )
-        # Unknown status files do not appear in known sections but the function runs without error
         result = render_overall_summary(state, _BASE_URL)
-        assert "## Overall PR Review Summary" in result
+        assert "### ⏳ Unreviewed" in result
+        assert "app.py" in result
+
+    def test_files_sorted_by_display_path_within_folder(self):
+        """Test that files within a folder are sorted by display path."""
+        state = _make_state(
+            {
+                "src": [
+                    ("zebra.py", "approved"),
+                    ("alpha.py", "approved"),
+                    ("mango.py", "approved"),
+                ]
+            }
+        )
+        result = render_overall_summary(state, _BASE_URL)
+        alpha_pos = result.index("alpha.py")
+        mango_pos = result.index("mango.py")
+        zebra_pos = result.index("zebra.py")
+        assert alpha_pos < mango_pos < zebra_pos
