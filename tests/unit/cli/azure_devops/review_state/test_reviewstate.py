@@ -2,7 +2,7 @@
 
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
 )
@@ -52,7 +52,7 @@ class TestReviewState:
 
     def test_to_dict_with_folders_and_files(self):
         """Test serialization with folders and files."""
-        folder = FolderEntry(threadId=1, commentId=2, files=["/src/app.py"])
+        folder = FolderGroup(files=["/src/app.py"])
         file_entry = FileEntry(threadId=3, commentId=4, folder="src", fileName="app.py")
         state = _make_review_state(
             folders={"src": folder},
@@ -96,9 +96,6 @@ class TestReviewState:
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
             "folders": {
                 "mgmt-backend": {
-                    "threadId": 161001,
-                    "commentId": 1771800001,
-                    "status": "unreviewed",
                     "files": ["/mgmt-backend/SomeFile.cs"],
                 }
             },
@@ -117,13 +114,13 @@ class TestReviewState:
         }
         state = ReviewState.from_dict(data)
         assert "mgmt-backend" in state.folders
-        assert state.folders["mgmt-backend"].threadId == 161001
+        assert state.folders["mgmt-backend"].files == ["/mgmt-backend/SomeFile.cs"]
         assert "/mgmt-backend/SomeFile.cs" in state.files
         assert state.files["/mgmt-backend/SomeFile.cs"].fileName == "SomeFile.cs"
 
     def test_roundtrip(self):
         """Test to_dict/from_dict round-trips correctly."""
-        folder = FolderEntry(threadId=1, commentId=2, status="approved", files=["/src/app.py"])
+        folder = FolderGroup(files=["/src/app.py"])
         file_entry = FileEntry(threadId=3, commentId=4, folder="src", fileName="app.py", status="approved")
         original = _make_review_state(
             folders={"src": folder},
@@ -131,14 +128,14 @@ class TestReviewState:
         )
         restored = ReviewState.from_dict(original.to_dict())
         assert restored.prId == 25365
-        assert restored.folders["src"].status == "approved"
+        assert restored.folders["src"].files == ["/src/app.py"]
         assert restored.files["/src/app.py"].fileName == "app.py"
 
     def test_folders_default_is_independent(self):
         """Test that default folders dicts are independent per instance."""
         s1 = _make_review_state()
         s2 = _make_review_state()
-        s1.folders["test"] = FolderEntry(threadId=1, commentId=2)
+        s1.folders["test"] = FolderGroup()
         assert "test" not in s2.folders
 
     def test_files_default_is_independent(self):

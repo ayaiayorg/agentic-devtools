@@ -8,7 +8,7 @@ import pytest
 from agentic_devtools.cli.azure_devops.file_review_commands import trigger_in_progress_for_file
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
     ReviewStatus,
@@ -33,9 +33,7 @@ def _make_review_state(file_status: str = ReviewStatus.UNREVIEWED.value) -> Revi
         scaffoldedUtc="2026-01-01T00:00:00Z",
         overallSummary=OverallSummary(threadId=1, commentId=2),
         folders={
-            _FOLDER_NAME: FolderEntry(
-                threadId=3,
-                commentId=4,
+            _FOLDER_NAME: FolderGroup(
                 files=[_FILE_PATH],
             )
         },
