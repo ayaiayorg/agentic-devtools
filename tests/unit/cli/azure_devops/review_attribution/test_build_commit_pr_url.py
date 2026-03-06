@@ -16,7 +16,7 @@ class TestBuildCommitPrUrl:
             iteration=3,
             base=2,
         )
-        assert url == ("https://dev.azure.com/myorg/MyProject/_git/my-repo/pullrequest/42?_a=files&base=2&iteration=3")
+        assert url == ("https://dev.azure.com/myorg/MyProject/_git/my-repo/pullRequest/42?_a=files&base=2&iteration=3")
 
     def test_no_path_parameter_in_url(self):
         """Test that the URL does not include a 'path' query parameter."""
@@ -89,6 +89,6 @@ class TestBuildCommitPrUrl:
             base=2,
         )
         assert url == (
-            "https://dev.azure.com/myorg/My%20Project%231/_git/my%20repo%231/pullrequest/42"
+            "https://dev.azure.com/myorg/My%20Project%231/_git/my%20repo%231/pullRequest/42"
             "?_a=files&base=2&iteration=3"
         )

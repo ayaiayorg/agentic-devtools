@@ -151,7 +151,7 @@ def _build_files_tab_url(
     encoded_project = quote(project, safe="")
     encoded_repo = quote(repo_name, safe="")
     url = (
-        f"{org}/{encoded_project}/_git/{encoded_repo}/pullrequest/{pr_id}"
+        f"{org}/{encoded_project}/_git/{encoded_repo}/pullRequest/{pr_id}"
         f"?_a=files&base={effective_base}&iteration={iteration}"
     )
     if path is not None:

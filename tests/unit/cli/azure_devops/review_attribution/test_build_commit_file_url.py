@@ -18,7 +18,7 @@ class TestBuildCommitFileUrl:
             base=2,
         )
         assert url == (
-            "https://dev.azure.com/myorg/MyProject/_git/my-repo/pullrequest/42"
+            "https://dev.azure.com/myorg/MyProject/_git/my-repo/pullRequest/42"
             "?_a=files&base=2&iteration=3&path=/src/app.py"
         )
 
