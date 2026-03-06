@@ -602,7 +602,7 @@ def _scaffold_threads_for_review(
         # Extract commit hash from PR info
         commit_hash = pr_info.get("lastMergeSourceCommit", {}).get("commitId")
 
-        # Resolve model_id: CLI --model-id > state key review.model_id > "unknown"
+        # Resolve model_id from state; defaults to "unknown" if not set
         model_id = get_value("review.model_id") or "unknown"
 
         config = AzureDevOpsConfig.from_state()
