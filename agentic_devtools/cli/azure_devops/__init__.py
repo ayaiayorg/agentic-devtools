@@ -169,7 +169,6 @@ from .run_details_commands import get_run_details, wait_for_run
 from .status_cascade import (
     PatchOperation,
     cascade_status_update,
-    derive_folder_status,
     derive_overall_status,
     execute_cascade,
 )
@@ -303,7 +302,6 @@ __all__ = [
     "render_attribution_line",
     # Status cascade
     "PatchOperation",
-    "derive_folder_status",
     "derive_overall_status",
     "cascade_status_update",
     "execute_cascade",

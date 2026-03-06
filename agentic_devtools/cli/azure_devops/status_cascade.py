@@ -33,33 +33,6 @@ class PatchOperation:
     thread_status: str
 
 
-def derive_folder_status(state: ReviewState, folder_name: str) -> str:
-    """Compute the derived status for a folder based on its file statuses.
-
-    .. deprecated::
-        Folder-level threads have been eliminated.  This function is retained
-        for backward compatibility but simply delegates to
-        ``compute_aggregate_status`` over the folder's file statuses.
-
-    Args:
-        state: Full ReviewState containing files.
-        folder_name: Name of the folder to derive status for.
-
-    Returns:
-        Derived status string (a ReviewStatus value).
-
-    Raises:
-        KeyError: If folder_name is not found in review state.
-    """
-    if folder_name not in state.folders:
-        raise KeyError(f"Folder not found in review state: {folder_name}")
-
-    folder = state.folders[folder_name]
-    file_statuses = [state.files[fp].status for fp in folder.files if fp in state.files]
-
-    return compute_aggregate_status(file_statuses)
-
-
 def derive_overall_status(state: ReviewState) -> str:
     """Compute the derived overall PR status based on file statuses.
 
