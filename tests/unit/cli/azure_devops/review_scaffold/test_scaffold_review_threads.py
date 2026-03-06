@@ -250,6 +250,7 @@ class TestScaffoldReviewThreadsDryRun:
         assert "Would group files under folder: src" in out
         assert "Would group files under folder: utils" in out
         assert "Would create overall PR summary thread" in out
+        assert "Would create Review Activity Log thread" in out
 
 
 # ---------------------------------------------------------------------------

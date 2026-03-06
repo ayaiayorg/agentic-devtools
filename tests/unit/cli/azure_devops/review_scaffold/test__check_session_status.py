@@ -125,12 +125,52 @@ class TestCheckSessionStatus:
         assert result == "resume_stale"
 
     def test_completed_takes_priority_over_in_progress(self):
-        """When both completed and in-progress sessions exist, returns 'already_reviewed'."""
+        """When both completed and in-progress sessions exist, returns 'already_reviewed' regardless of order."""
         sessions = [
             _make_session(status="in_progress", started_hours_ago=0),
             _make_session(status="completed"),
         ]
-        # completed session is first in iteration, so it should return already_reviewed
-        state = _make_state(sessions=[sessions[1], sessions[0]])
+        # in_progress session is FIRST — completed should still take priority
+        state = _make_state(sessions=[sessions[0], sessions[1]])
         result = _check_session_status(state, "abc123", "gpt-5")
         assert result == "already_reviewed"
+
+    def test_failed_sessions_only_returns_first_review(self):
+        """When only failed sessions exist for this model, returns 'first_review' (not 'different_model')."""
+        session = _make_session(status="failed", started_hours_ago=3)
+        state = _make_state(sessions=[session])
+        result = _check_session_status(state, "abc123", "gpt-5")
+        assert result == "first_review"
+
+    def test_failed_sessions_with_other_model_returns_different_model(self):
+        """Failed sessions for this model + active session for another model returns 'different_model'."""
+        failed_session = ReviewSession(
+            sessionId="s1",
+            modelId="gpt-5",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            status="failed",
+        )
+        other_session = _make_session(model_id="claude-4", status="completed")
+        state = _make_state(sessions=[failed_session, other_session])
+        result = _check_session_status(state, "abc123", "gpt-5")
+        assert result == "different_model"
+
+    def test_multiple_stale_sessions_returns_resume_stale(self):
+        """Multiple stale in-progress sessions still returns 'resume_stale'."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        s1 = ReviewSession(
+            sessionId="s1",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+        )
+        s2 = ReviewSession(
+            sessionId="s2",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+        )
+        state = _make_state(sessions=[s1, s2])
+        result = _check_session_status(state, "abc123", "gpt-5", now=now)
+        assert result == "resume_stale"

@@ -5,7 +5,7 @@ For a PR with N files:
   - N file summary threads (anchored to file path, no line)
   - 1 overall PR summary thread (PR-level)
   - 1 Review Activity Log thread (PR-level, no file context)
-Total: N + 2 API calls (one-time upfront cost).
+Total: N + 3 API calls (one-time upfront cost).
 
 Folder-level threads have been eliminated; folders are now lightweight
 groupings within the overall PR summary comment.
@@ -365,16 +365,26 @@ def _check_session_status(
 
     if effective_old == effective_new:
         matching_sessions = [s for s in existing_state.sessions if s.modelId == model_id]
+
+        # First, prefer any completed session regardless of insertion order.
         for session in matching_sessions:
             if session.status == "completed":
                 return "already_reviewed"
+
+        # No completed session; next, look for in-progress sessions.
+        has_stale_in_progress = False
+        for session in matching_sessions:
             if session.status == "in_progress":
                 started = datetime.fromisoformat(session.startedUtc)
                 if now - started < STALE_SESSION_THRESHOLD:
                     return "in_progress"
-                return "resume_stale"
-        # No matching sessions for this model — check if different model has sessions
-        if existing_state.sessions:
+                has_stale_in_progress = True
+
+        if has_stale_in_progress:
+            return "resume_stale"
+
+        # No active/completed sessions for this model — check if a different model has sessions
+        if any(s.modelId != model_id for s in existing_state.sessions):
             return "different_model"
         return "first_review"
 
@@ -570,8 +580,10 @@ def _print_dry_run_plan(
 ) -> None:
     """Print the scaffolding plan without making API calls.
 
-    Folder-level threads have been eliminated; only file threads and
-    the overall PR summary thread are created (N + 1 API calls).
+    Folder-level threads have been eliminated; file threads, the overall
+    PR summary thread, and a Review Activity Log thread are created
+    (N + 2 thread-creation calls, plus 1 reply POST for the initial
+    activity log entry = N + 3 total API calls).
 
     Args:
         pull_request_id: Pull request ID.
@@ -585,7 +597,8 @@ def _print_dry_run_plan(
     for folder_name in folders:
         print(f"  [DRY RUN] Would group files under folder: {folder_name}")
     print("  [DRY RUN] Would create overall PR summary thread")
-    api_calls = len(files) + 1
+    print("  [DRY RUN] Would create Review Activity Log thread")
+    api_calls = len(files) + 3
     print(f"  [DRY RUN] Total API calls: {api_calls}")
 
 
@@ -638,9 +651,10 @@ def scaffold_review_threads(
 
     Returns:
         ReviewState with all thread IDs saved.  Returns the existing state
-        when scaffolding is skipped (already reviewed / in progress / different
-        model).  Returns None when ``dry_run=True`` or when the review is
-        aborted (in-progress session by another agent).
+        when scaffolding is skipped (already reviewed / different model).
+        Returns None when ``dry_run=True`` or when a recent review session
+        by the same model is already in progress (aborted to avoid
+        duplicate reviews).
     """
     effective_model = model_id or "unknown"
     now = datetime.now(timezone.utc)

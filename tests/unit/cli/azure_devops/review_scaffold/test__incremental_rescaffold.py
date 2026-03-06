@@ -104,7 +104,7 @@ class TestIncrementalRescaffold:
                 new_files=sorted(current_set - existing_files),
                 modified_files=sorted(existing_files & current_set & changed_set),
                 deleted_files=sorted(existing_files - current_set),
-                unchanged_files=sorted(existing_files & current_set - changed_set),
+                unchanged_files=sorted((existing_files & current_set) - changed_set),
             )
             mock_detect.return_value = result_obj
 
@@ -236,9 +236,195 @@ class TestIncrementalRescaffold:
         assert "utils" in result.folders
         assert "/utils/b.ts" in result.folders["utils"].files
 
+    def test_empty_folder_preserved_when_all_files_deleted(self):
+        """Folder group is preserved (empty) when all its files are deleted."""
+        existing = _make_existing_state(files=["/old/only.ts", "/src/a.ts"])
+        # All files in "old" folder are deleted, only /src/a.ts remains
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"])
+
+        assert "old" in result.folders
+        assert result.folders["old"].files == []
+
     def test_rebase_no_changes_updates_commit_hash(self):
         """Rebase with no file changes still updates the commit hash."""
         existing = _make_existing_state(files=["/src/a.ts"])
         result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"])
 
         assert result.commitHash == "new_hash"
+
+
+class TestIncrementalRescaffoldDryRun:
+    """Tests for dry-run mode in _incremental_rescaffold."""
+
+    def _run_dry(self, existing, files, change_result):
+        """Run _incremental_rescaffold in dry-run mode with given FileChangeResult."""
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            mock_detect.return_value = change_result
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                return _incremental_rescaffold(
+                    existing_state=existing,
+                    pull_request_id=_PR_ID,
+                    files=files,
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=5,
+                    requests_module=MagicMock(),
+                    headers={},
+                    dry_run=True,
+                    commit_hash="new_hash",
+                    model_id="gpt-5",
+                )
+
+    def test_prints_new_files(self, capsys):
+        """Dry-run mode prints new file entries."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        self._run_dry(
+            existing,
+            ["/src/a.ts", "/src/new.ts"],
+            FileChangeResult(new_files=["/src/new.ts"], unchanged_files=["/src/a.ts"]),
+        )
+        out = capsys.readouterr().out
+        assert "[DRY RUN] New file: /src/new.ts" in out
+
+    def test_prints_modified_files(self, capsys):
+        """Dry-run mode prints modified file entries."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        self._run_dry(existing, ["/src/a.ts"], FileChangeResult(modified_files=["/src/a.ts"]))
+        out = capsys.readouterr().out
+        assert "[DRY RUN] Modified file: /src/a.ts" in out
+
+    def test_prints_deleted_files(self, capsys):
+        """Dry-run mode prints deleted file entries."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        self._run_dry(existing, [], FileChangeResult(deleted_files=["/src/a.ts"]))
+        out = capsys.readouterr().out
+        assert "[DRY RUN] Deleted file: /src/a.ts" in out
+
+    def test_prints_unchanged_files(self, capsys):
+        """Dry-run mode prints unchanged file entries."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        self._run_dry(existing, ["/src/a.ts"], FileChangeResult(unchanged_files=["/src/a.ts"]))
+        out = capsys.readouterr().out
+        assert "[DRY RUN] Unchanged file: /src/a.ts" in out
+
+
+class TestIncrementalRescaffoldExceptionHandling:
+    """Tests for exception handling in _incremental_rescaffold."""
+
+    def _make_failing_requests_mock(self):
+        """Create a requests mock where GET always fails."""
+        requests_mock = MagicMock()
+        requests_mock.get.side_effect = Exception("Network error")
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 999, "comments": [{"id": 1}]}
+        requests_mock.post.return_value = post_resp
+        return requests_mock
+
+    def _run_with_failure(self, existing, files, change_result, requests_mock=None):
+        """Run _incremental_rescaffold with failing mocks."""
+        if requests_mock is None:
+            requests_mock = self._make_failing_requests_mock()
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            mock_detect.return_value = change_result
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                return _incremental_rescaffold(
+                    existing_state=existing,
+                    pull_request_id=_PR_ID,
+                    files=files,
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=5,
+                    requests_module=requests_mock,
+                    headers={},
+                    dry_run=False,
+                    commit_hash="new_hash",
+                    model_id="gpt-5",
+                )
+
+    def test_modified_file_demote_exception(self, capsys):
+        """Modified file demote failure is caught and logged."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result = self._run_with_failure(existing, ["/src/a.ts"], FileChangeResult(modified_files=["/src/a.ts"]))
+        err = capsys.readouterr().err
+        assert "Warning: Could not demote comment for /src/a.ts" in err
+        assert result.files["/src/a.ts"].status == ReviewStatus.UNREVIEWED.value
+
+    def test_deleted_file_demote_exception(self, capsys):
+        """Deleted file demote failure is caught and logged."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts", "/src/del.ts"])
+        result = self._run_with_failure(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(deleted_files=["/src/del.ts"], unchanged_files=["/src/a.ts"]),
+        )
+        err = capsys.readouterr().err
+        assert "Warning: Could not demote comment for deleted /src/del.ts" in err
+        assert result.files["/src/del.ts"].status == ReviewStatus.APPROVED.value
+
+    def test_overall_summary_exception(self, capsys):
+        """Overall summary update failure is caught and logged."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        requests_mock = MagicMock()
+        call_count = [0]
+
+        def get_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] > 1:
+                raise Exception("Summary error")
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json.return_value = {"comments": [{"id": 1, "content": "Old"}]}
+            return resp
+
+        requests_mock.get.side_effect = get_side_effect
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 999, "comments": [{"id": 1}]}
+        requests_mock.post.return_value = post_resp
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        result = self._run_with_failure(
+            existing, ["/src/a.ts"], FileChangeResult(modified_files=["/src/a.ts"]), requests_mock
+        )
+        err = capsys.readouterr().err
+        assert "Warning: Could not update overall summary" in err
+        assert result is not None
+
+    def test_rebase_summary_exception(self, capsys):
+        """Rebase summary update failure is caught and logged."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result = self._run_with_failure(existing, ["/src/a.ts"], FileChangeResult(unchanged_files=["/src/a.ts"]))
+        err = capsys.readouterr().err
+        assert "Warning: Could not update overall summary" in err
+        assert result is not None
+
+    def test_activity_log_exception(self, capsys):
+        """Activity log posting failure is caught and logged."""
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result = self._run_with_failure(existing, ["/src/a.ts"], FileChangeResult(unchanged_files=["/src/a.ts"]))
+        err = capsys.readouterr().err
+        assert "Warning: Could not" in err
+        assert result is not None

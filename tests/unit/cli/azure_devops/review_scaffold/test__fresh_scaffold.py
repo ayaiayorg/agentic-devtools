@@ -121,3 +121,40 @@ class TestFreshScaffold:
         result, _, _ = _run_fresh_scaffold(["/src/a.ts", "/utils/b.ts"])
         assert "src" in result.folders
         assert "utils" in result.folders
+
+    def test_activity_log_exception_handled(self, capsys):
+        """Activity log posting failure is caught and doesn't prevent scaffolding."""
+        requests_mock = MagicMock()
+        id_gen = count(1)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json.return_value = {"id": i * 100, "comments": [{"id": i * 100 + 1}]}
+            return resp
+
+        requests_mock.post.side_effect = make_resp
+        # GET fails → activity log entry posting will fail
+        requests_mock.get.side_effect = Exception("Activity log error")
+
+        save_mock = MagicMock()
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+            result = _fresh_scaffold(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=5,
+                requests_module=requests_mock,
+                headers={},
+                dry_run=False,
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        err = capsys.readouterr().err
+        assert "Warning: Could not post initial activity log entry" in err
+        assert result is not None
+        assert isinstance(result, ReviewState)
