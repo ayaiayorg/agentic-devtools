@@ -295,8 +295,9 @@ class ReviewState:
         """Deserialize from a dictionary.
 
         File dict keys are normalized to ensure leading slash consistency.
-        State files without a ``commitHash`` key are supported for backward
-        compatibility; the field defaults to ``None`` when absent.
+        Missing ``commitHash`` defaults to ``None`` for direct callers, but
+        ``load_review_state()`` enforces migration — it deletes state files
+        lacking ``commitHash`` and raises ``FileNotFoundError``.
         """
         overall_summary = OverallSummary.from_dict(data["overallSummary"])
         folders = {k: FolderGroup.from_dict(v) for k, v in data.get("folders", {}).items()}

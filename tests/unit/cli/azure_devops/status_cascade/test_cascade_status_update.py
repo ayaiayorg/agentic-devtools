@@ -132,7 +132,7 @@ class TestCascadeStatusUpdate:
 
         assert result[0].thread_status == "active"
 
-    def test_folder_content_contains_folder_name(self):
+    def test_overall_content_contains_folder_name(self):
         """Overall PatchOperation content should contain the folder name."""
         state = _make_state("src", {"app.py": "approved"})
 
