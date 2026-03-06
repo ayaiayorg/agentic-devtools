@@ -277,12 +277,12 @@ def render_attribution_line(
 
     Args:
         model_name: Model identifier (e.g. "Claude Opus 4.6"). None → empty string.
+        model_icon: Override the auto-detected model family icon. If None,
+                    the icon is looked up from ``get_model_icon(model_name)``.
         commit_hash: Commit hash (full or short). None → empty string.
         commit_url: URL linking to the reviewed code state. May be None when
                     commit_hash is also None; if commit_hash is provided but
                     commit_url is None the link falls back to bare hash text.
-        model_icon: Override the auto-detected model family icon. If None,
-                    the icon is looked up from ``get_model_icon(model_name)``.
 
     Returns:
         Rendered attribution markdown line, or empty string if incomplete.
