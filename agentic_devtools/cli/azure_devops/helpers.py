@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 
 from ..subprocess_utils import run_safe
 from .config import (
-    APPROVAL_SENTINEL,
     DEFAULT_ORGANIZATION,
     DEFAULT_PROJECT,
     DEFAULT_REPOSITORY,
@@ -239,22 +238,6 @@ def convert_to_pull_request_title(title: str) -> str:
     # Remove spaces around slash: text / text -> text/text
     result = re.sub(r"\s*/\s*", "/", result)
     return result
-
-
-def format_approval_content(content: str) -> str:
-    """
-    Wrap content with approval sentinel banners.
-
-    Args:
-        content: The comment content to wrap.
-
-    Returns:
-        Content wrapped with approval sentinels, or unchanged if already formatted.
-    """
-    trimmed = content.strip()
-    if trimmed.startswith(APPROVAL_SENTINEL) and trimmed.endswith(APPROVAL_SENTINEL):
-        return trimmed  # Already formatted
-    return f"{APPROVAL_SENTINEL}\n\n{trimmed}\n\n{APPROVAL_SENTINEL}\n\n"
 
 
 def build_thread_context(

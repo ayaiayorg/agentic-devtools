@@ -1,7 +1,7 @@
 """Markdown template engine for PR review summaries.
 
 Provides functions to generate and regenerate full markdown content for
-file summaries, folder summaries, and the overall PR summary at each status.
+file summaries and the overall PR summary at each status.
 """
 
 from typing import Dict, List, Optional
@@ -9,7 +9,6 @@ from typing import Dict, List, Optional
 from .review_attribution import format_status, render_attribution_line
 from .review_state import (
     FileEntry,
-    FolderGroup,
     ReviewState,
     ReviewStatus,
     SuggestionEntry,
@@ -23,6 +22,14 @@ _SEVERITY_LABELS: Dict[str, str] = {
 }
 
 _SEVERITY_ORDER: List[str] = ["high", "medium", "low"]
+
+# Emoji character for each file/folder status (used in nested file lists)
+_STATUS_EMOJI: Dict[str, str] = {
+    ReviewStatus.NEEDS_WORK.value: "📝",
+    ReviewStatus.APPROVED.value: "✅",
+    ReviewStatus.IN_PROGRESS.value: "🔃",
+    ReviewStatus.UNREVIEWED.value: "⏳",
+}
 
 
 def build_discussion_url(base_url: str, thread_id: int, comment_id: int) -> str:
@@ -142,95 +149,6 @@ def render_file_summary(
     return "\n".join(lines)
 
 
-def render_folder_summary(
-    folder_name: str,
-    folder_entry: FolderGroup,
-    files: Dict[str, FileEntry],
-    base_url: str,
-    model_name: Optional[str] = None,
-    model_icon: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    commit_url: Optional[str] = None,
-) -> str:
-    """Render a folder review summary in markdown format.
-
-    Args:
-        folder_name: Display name for the folder.
-        folder_entry: FolderGroup containing file paths.
-        files: Mapping of file paths to FileEntry objects (from ReviewState.files).
-        base_url: PR root URL for building discussion links.
-        model_name: AI model identifier. When provided together with
-            ``commit_hash``, an attribution line is prepended.
-        model_icon: Override for the model family icon. Auto-detected when None.
-        commit_hash: Commit hash reviewed. When provided together with
-            ``model_name``, an attribution line is prepended.
-        commit_url: URL to the folder at the reviewed commit. Used in the
-            attribution line link.
-
-    Returns:
-        Markdown string for the folder review summary.
-    """
-    needs_work: List[FileEntry] = []
-    approved: List[FileEntry] = []
-    in_progress: List[FileEntry] = []
-    unreviewed: List[FileEntry] = []
-    file_statuses: List[str] = []
-
-    for file_path in folder_entry.files:
-        fe = files.get(file_path)
-        if fe is None:
-            continue
-        file_statuses.append(fe.status)
-        if fe.status == ReviewStatus.NEEDS_WORK.value:
-            needs_work.append(fe)
-        elif fe.status == ReviewStatus.APPROVED.value:
-            approved.append(fe)
-        elif fe.status == ReviewStatus.IN_PROGRESS.value:
-            in_progress.append(fe)
-        else:
-            unreviewed.append(fe)
-    folder_status = format_status(
-        compute_aggregate_status(file_statuses),
-        use_emoji=True,
-    )
-
-    lines: List[str] = [
-        f"## Folder Review Summary: {folder_name}",
-        "",
-    ]
-
-    attribution = render_attribution_line(model_name, model_icon, commit_hash, commit_url)
-    if attribution:
-        lines += [attribution, ""]
-
-    lines += [
-        f"*Status:* {folder_status}",
-    ]
-
-    def _append_file_section(title: str, entries: List[FileEntry], show_severity: bool) -> None:
-        lines.extend(["", f"### {title}"])
-        for fe in entries:
-            url = build_discussion_url(base_url, fe.threadId, fe.commentId)
-            display = _file_display_path(fe)
-            item = f"[{display}]({url})"
-            if show_severity:
-                counts = _format_severity_counts(fe.suggestions)
-                if counts:
-                    item += f" \u2014 {counts}"
-            lines.append(f"- {item}")
-
-    if needs_work:
-        _append_file_section("Needs Work", needs_work, show_severity=True)
-    if approved:
-        _append_file_section("Approved", approved, show_severity=False)
-    if in_progress:
-        _append_file_section("In Progress", in_progress, show_severity=False)
-    if unreviewed:
-        _append_file_section("Unreviewed", unreviewed, show_severity=False)
-
-    return "\n".join(lines)
-
-
 def render_overall_summary(
     state: ReviewState,
     base_url: str,
@@ -241,9 +159,9 @@ def render_overall_summary(
 ) -> str:
     """Render the overall PR review summary in markdown format.
 
-    With the elimination of folder-level threads, the overall status is
-    derived directly from file statuses.  Folders are rendered as
-    lightweight groupings listing their constituent files.
+    Produces a nested file list grouped by folder within each status section.
+    Overall status is derived directly from file statuses. Folders are
+    lightweight groupings — no folder-level threads are created or linked.
 
     Args:
         state: Full ReviewState containing all folders and files.
@@ -259,25 +177,27 @@ def render_overall_summary(
     Returns:
         Markdown string for the overall PR review summary.
     """
-    # Derive per-folder status from file statuses
-    needs_work: List[str] = []
-    approved: List[str] = []
-    in_progress: List[str] = []
-    unreviewed: List[str] = []
+    # Build per-status, per-folder file groups: status → folder → [FileEntry]
+    status_folder_files: Dict[str, Dict[str, List[FileEntry]]] = {
+        ReviewStatus.NEEDS_WORK.value: {},
+        ReviewStatus.IN_PROGRESS.value: {},
+        ReviewStatus.APPROVED.value: {},
+        ReviewStatus.UNREVIEWED.value: {},
+    }
 
-    for folder_name, folder_group in state.folders.items():
-        file_statuses = [state.files[fp].status for fp in folder_group.files if fp in state.files]
-        folder_status = compute_aggregate_status(file_statuses)
-        if folder_status == ReviewStatus.NEEDS_WORK.value:
-            needs_work.append(folder_name)
-        elif folder_status == ReviewStatus.APPROVED.value:
-            approved.append(folder_name)
-        elif folder_status == ReviewStatus.IN_PROGRESS.value:
-            in_progress.append(folder_name)
-        else:
-            unreviewed.append(folder_name)
+    known_statuses = set(status_folder_files.keys())
+    for fe in state.files.values():
+        # Normalize unknown statuses into the unreviewed bucket so every
+        # file appears in a rendered section.
+        status = fe.status if fe.status in known_statuses else ReviewStatus.UNREVIEWED.value
+        folder = fe.folder if fe.folder else "root"
+        status_folder_files[status].setdefault(folder, []).append(fe)
 
-    file_statuses_all = [f.status for f in state.files.values()]
+    # Overall status derived from file statuses, with the same unknown→unreviewed
+    # normalization so the header status matches the rendered sections.
+    file_statuses_all = [
+        f.status if f.status in known_statuses else ReviewStatus.UNREVIEWED.value for f in state.files.values()
+    ]
     overall_status = format_status(
         compute_aggregate_status(file_statuses_all),
         use_emoji=True,
@@ -292,22 +212,39 @@ def render_overall_summary(
     if attribution:
         lines += [attribution, ""]
 
-    lines += [
-        f"*Status:* {overall_status}",
+    lines.append(f"*Status:* {overall_status}")
+
+    # Status sections in display priority order
+    sections = [
+        (ReviewStatus.NEEDS_WORK.value, "📝 Needs Work"),
+        (ReviewStatus.APPROVED.value, "✅ Approved"),
+        (ReviewStatus.IN_PROGRESS.value, "🔃 In Progress"),
+        (ReviewStatus.UNREVIEWED.value, "⏳ Unreviewed"),
     ]
 
-    def _append_folder_section(title: str, folder_names: List[str]) -> None:
-        lines.extend(["", f"### {title}"])
-        for fn in folder_names:
-            lines.append(f"- {fn}")
+    for status_val, section_title in sections:
+        folder_files = status_folder_files.get(status_val, {})
+        if not folder_files:
+            continue
+        lines.extend(["", f"### {section_title}"])
+        for folder_name in sorted(folder_files.keys()):
+            lines.append(f"- {folder_name}")
+            for fe in sorted(folder_files[folder_name], key=_file_display_path):
+                # Use the section status for emoji so unknown statuses
+                # normalized into Unreviewed still get the ⏳ prefix.
+                file_emoji = _STATUS_EMOJI.get(status_val, "")
+                url = build_discussion_url(base_url, fe.threadId, fe.commentId)
+                display = _file_display_path(fe)
+                item = f"   - {file_emoji} [{display}]({url})"
+                if status_val == ReviewStatus.NEEDS_WORK.value:
+                    counts = _format_severity_counts(fe.suggestions)
+                    if counts:
+                        item += f" \u2014 {counts}"
+                lines.append(item)
 
-    if needs_work:
-        _append_folder_section("Needs Work", needs_work)
-    if approved:
-        _append_folder_section("Approved", approved)
-    if in_progress:
-        _append_folder_section("In Progress", in_progress)
-    if unreviewed:
-        _append_folder_section("Unreviewed", unreviewed)
+    # Review Narrative section
+    lines.extend(["", "### Review Narrative", ""])
+    narrative = state.overallSummary.narrativeSummary
+    lines.append(narrative if narrative else "Awaiting review...")
 
     return "\n".join(lines)

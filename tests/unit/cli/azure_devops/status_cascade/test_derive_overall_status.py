@@ -167,3 +167,19 @@ class TestDeriveOverallStatus:
         result = derive_overall_status(state)
 
         assert result == "in-progress"
+
+    def test_unknown_status_normalized_to_unreviewed(self):
+        """Unknown file status is treated as unreviewed, not as 'started'."""
+        state = _make_state({"a/x.py": "custom-status"})
+
+        result = derive_overall_status(state)
+
+        assert result == "unreviewed"
+
+    def test_unknown_with_approved_gives_in_progress(self):
+        """Unknown status + approved → in-progress (unknown normalized to unreviewed)."""
+        state = _make_state({"a/x.py": "approved", "b/y.py": "bogus"})
+
+        result = derive_overall_status(state)
+
+        assert result == "in-progress"

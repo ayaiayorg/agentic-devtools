@@ -144,7 +144,7 @@ class TestAddPullRequestComment:
             azure_devops.add_pull_request_comment()
 
     def test_approval_mode_dry_run(self, temp_state_dir, clear_state_before, capsys):
-        """Test approval mode shows sentinel note."""
+        """Test approval mode shows summary thread note."""
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM!")
         state.set_value("is_pull_request_approval", True)
@@ -153,7 +153,7 @@ class TestAddPullRequestComment:
         azure_devops.add_pull_request_comment()
 
         captured = capsys.readouterr()
-        assert "approval" in captured.out.lower() or "sentinel" in captured.out.lower()
+        assert "summary thread" in captured.out.lower()
 
     def test_leave_thread_active_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test leave_thread_active mode shows in dry run."""

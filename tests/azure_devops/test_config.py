@@ -21,10 +21,6 @@ class TestConstants:
         """Test default repository."""
         assert azure_devops.DEFAULT_REPOSITORY == "dfly-platform-management"
 
-    def test_approval_sentinel(self):
-        """Test approval sentinel constant."""
-        assert azure_devops.APPROVAL_SENTINEL == "--- APPROVED ---"
-
     def test_api_version(self):
         """Test API version constant."""
         assert azure_devops.API_VERSION == "7.0"

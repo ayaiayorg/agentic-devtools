@@ -70,7 +70,7 @@ class TestAddPullRequestComment:
             azure_devops.add_pull_request_comment()
 
     def test_approval_mode_dry_run(self, temp_state_dir, clear_state_before, capsys):
-        """Test approval mode shows sentinel note."""
+        """Test approval mode shows summary thread note."""
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM!")
         state.set_value("is_pull_request_approval", True)
@@ -79,7 +79,7 @@ class TestAddPullRequestComment:
         azure_devops.add_pull_request_comment()
 
         captured = capsys.readouterr()
-        assert "approval" in captured.out.lower() or "sentinel" in captured.out.lower()
+        assert "summary thread" in captured.out.lower()
 
     def test_leave_thread_active_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test leave_thread_active mode shows in dry run."""
@@ -202,11 +202,11 @@ class TestAddPullRequestCommentActualCall:
 
         azure_devops.add_pull_request_comment()
 
-        # Falls back to creating a new thread with sentinel
+        # Falls back to creating a new thread (no sentinel wrapping)
         post_call = mock_req_module.post.call_args_list[-1]
         body = post_call[1]["json"]
         content = body["comments"][0]["content"]
-        assert azure_devops.APPROVAL_SENTINEL in content
+        assert "LGTM!" in content
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")
@@ -304,7 +304,7 @@ class TestAddPullRequestCommentActualCall:
         url = post_call[0][0]
         assert "/threads/99/comments" in url
         body = post_call[1]["json"]
-        assert azure_devops.APPROVAL_SENTINEL in body["content"]
+        assert "LGTM!" in body["content"]
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")

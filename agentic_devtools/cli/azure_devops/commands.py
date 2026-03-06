@@ -24,7 +24,6 @@ from .config import AzureDevOpsConfig
 from .helpers import (
     build_thread_context,
     convert_to_pull_request_title,
-    format_approval_content,
     get_repository_id,
     parse_bool_from_state_value,
     parse_json_response,
@@ -216,7 +215,10 @@ def add_pull_request_comment() -> None:
     - path (optional): File path for file-level comment
     - line (optional): Line number for line-level comment
     - end_line (optional): End line for multi-line comment
-    - is_pull_request_approval (optional): Whether this is an approval comment (adds sentinel banner)
+    - is_pull_request_approval (optional): Whether this is an approval comment.
+          When True and no ``path`` is provided, replies to the existing summary
+          thread instead of creating a new thread.  When ``path`` is set, a normal
+          file-level comment is created regardless of this flag.
     - leave_thread_active (optional): Whether to keep thread active (default: resolve after posting)
     - dry_run (optional): Preview without making API calls
 
@@ -243,10 +245,6 @@ def add_pull_request_comment() -> None:
     is_approval = parse_bool_from_state("is_pull_request_approval", default=False)
     leave_thread_active = parse_bool_from_state("leave_thread_active", default=False)
 
-    # Apply approval formatting if requested
-    if is_approval:
-        content = format_approval_content(content)
-
     # Optional file context (used for both regular and file-level approval comments)
     path = get_value("path")
     line = get_value("line")
@@ -261,7 +259,6 @@ def add_pull_request_comment() -> None:
             end_line_info = f"-{end_line}" if end_line else ""
             print(f"[DRY RUN] File: {path}{line_info}{end_line_info}")
         if is_approval:
-            print("[DRY RUN] Comment will include approval sentinel banner")
             if not path:
                 print("[DRY RUN] Will reply to existing summary thread if found, otherwise create new thread")
         if not leave_thread_active:
@@ -596,22 +593,16 @@ def get_pull_request_threads() -> None:
 
 def approve_pull_request() -> None:
     """
-    Approve a pull request with an approval sentinel comment.
+    Approve a pull request by posting an approval comment.
 
     This is a convenience wrapper around add_pull_request_comment that automatically
-    sets is_pull_request_approval=True and formats the content with approval sentinels.
+    sets is_pull_request_approval=True and posts the content as a reply to the
+    existing summary thread (when found), or as a new thread otherwise.
 
     Reads from state:
     - pull_request_id (required): Pull request ID
     - content (required): Approval comment content
     - dry_run (optional): Preview without making API calls
-
-    The approval sentinel format is:
-        --- APPROVED ---
-
-        <your content>
-
-        --- APPROVED ---
 
     Usage:
         agdt-set pull_request_id 23046

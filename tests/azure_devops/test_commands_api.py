@@ -140,7 +140,7 @@ class TestAddPullRequestCommentActualCall:
     @patch(f"{COMMANDS_MODULE}.require_requests")
     @patch(f"{COMMANDS_MODULE}.get_repository_id")
     def test_approval_comment(self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before):
-        """Test approval comment includes sentinel."""
+        """Test approval comment posts content without sentinel wrapping."""
         mock_get_repo.return_value = "repo-guid-123"
         mock_req_module = MagicMock()
         mock_response = MagicMock()
@@ -158,7 +158,7 @@ class TestAddPullRequestCommentActualCall:
         call_args = mock_req_module.post.call_args
         body = call_args[1]["json"]
         content = body["comments"][0]["content"]
-        assert azure_devops.APPROVAL_SENTINEL in content
+        assert "LGTM!" in content
 
 
 class TestResolveThreadActualCall:
@@ -352,11 +352,11 @@ class TestApprovePullRequestActualCall:
 
         azure_devops.approve_pull_request()
 
-        # Check that approval sentinel was added
+        # Check that content is posted (no sentinel wrapping)
         call_args = mock_req_module.post.call_args
         body = call_args[1]["json"]
         content = body["comments"][0]["content"]
-        assert azure_devops.APPROVAL_SENTINEL in content
+        assert "LGTM!" in content
 
 
 class TestMarkPullRequestDraftActualCall:

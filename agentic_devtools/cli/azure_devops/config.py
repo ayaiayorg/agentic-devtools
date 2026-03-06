@@ -33,7 +33,6 @@ from ...state import get_value
 DEFAULT_ORGANIZATION = "https://dev.azure.com/swica"
 DEFAULT_PROJECT = "DragonflyMgmt"
 DEFAULT_REPOSITORY = "dfly-platform-management"
-APPROVAL_SENTINEL = "--- APPROVED ---"
 API_VERSION = "7.0"
 
 
