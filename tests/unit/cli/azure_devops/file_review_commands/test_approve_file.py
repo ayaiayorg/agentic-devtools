@@ -18,7 +18,7 @@ def _make_review_state(file_path: str = "/src/main.py"):
     """Create a minimal ReviewState with one tracked file."""
     from agentic_devtools.cli.azure_devops.review_state import (
         FileEntry,
-        FolderEntry,
+        FolderGroup,
         OverallSummary,
         ReviewState,
     )
@@ -34,7 +34,7 @@ def _make_review_state(file_path: str = "/src/main.py"):
         scaffoldedUtc="2026-01-01T00:00:00Z",
         overallSummary=OverallSummary(threadId=100, commentId=200),
         folders={
-            "/src": FolderEntry(threadId=300, commentId=400, files=[normalized]),
+            "/src": FolderGroup(files=[normalized]),
         },
         files={
             normalized: FileEntry(

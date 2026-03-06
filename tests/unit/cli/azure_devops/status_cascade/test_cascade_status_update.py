@@ -4,7 +4,7 @@ import pytest
 
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
 )
@@ -35,10 +35,10 @@ def _make_state(
         )
         file_paths.append(path)
 
-    folders = {folder_name: FolderEntry(threadId=3, commentId=4, files=file_paths)}
+    folders = {folder_name: FolderGroup(files=file_paths)}
     if other_folders:
         for i, (fn, fs) in enumerate(other_folders.items()):
-            folders[fn] = FolderEntry(threadId=30 + i, commentId=40 + i, status=fs)
+            folders[fn] = FolderGroup(files=[])
 
     return ReviewState(
         prId=100,
@@ -54,6 +54,24 @@ def _make_state(
     )
 
 
+def _add_file_to_state(state: ReviewState, folder: str, filename: str, status: str) -> None:
+    """Add a file entry and its folder group to an existing ReviewState."""
+    path = f"/{folder}/{filename}"
+    state.files[path] = FileEntry(
+        threadId=50,
+        commentId=51,
+        folder=folder,
+        fileName=filename,
+        status=status,
+    )
+    existing_group = state.folders.get(folder)
+    if existing_group is None:
+        state.folders[folder] = FolderGroup(files=[path])
+    else:
+        if path not in existing_group.files:
+            existing_group.files.append(path)
+
+
 class TestCascadeStatusUpdate:
     """Tests for cascade_status_update function."""
 
@@ -66,43 +84,24 @@ class TestCascadeStatusUpdate:
         assert isinstance(result, list)
         assert all(isinstance(op, PatchOperation) for op in result)
 
-    def test_returns_two_operations(self):
-        """Should return exactly two PatchOperations (folder + overall)."""
+    def test_returns_one_operation(self):
+        """Should return exactly one PatchOperation (overall only)."""
         state = _make_state("src", {"app.py": "approved"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
-        assert len(result) == 2
+        assert len(result) == 1
 
-    def test_first_operation_targets_folder_thread(self):
-        """First PatchOperation should target the folder's thread."""
-        state = _make_state("src", {"app.py": "approved"})
-        folder_thread_id = state.folders["src"].threadId
-        folder_comment_id = state.folders["src"].commentId
-
-        result = cascade_status_update(state, "/src/app.py", _BASE_URL)
-
-        assert result[0].thread_id == folder_thread_id
-        assert result[0].comment_id == folder_comment_id
-
-    def test_second_operation_targets_overall_thread(self):
-        """Second PatchOperation should target the overall summary thread."""
+    def test_first_operation_targets_overall_thread(self):
+        """PatchOperation should target the overall summary thread."""
         state = _make_state("src", {"app.py": "approved"})
         overall_thread_id = state.overallSummary.threadId
         overall_comment_id = state.overallSummary.commentId
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
-        assert result[1].thread_id == overall_thread_id
-        assert result[1].comment_id == overall_comment_id
-
-    def test_updates_folder_status_in_state(self):
-        """Should update the folder's status in the state object."""
-        state = _make_state("src", {"app.py": "approved"})
-
-        cascade_status_update(state, "/src/app.py", _BASE_URL)
-
-        assert state.folders["src"].status == "approved"
+        assert result[0].thread_id == overall_thread_id
+        assert result[0].comment_id == overall_comment_id
 
     def test_updates_overall_status_in_state(self):
         """Should update the overall summary status in the state object."""
@@ -112,56 +111,40 @@ class TestCascadeStatusUpdate:
 
         assert state.overallSummary.status == "approved"
 
-    def test_approved_folder_gets_closed_thread_status(self):
-        """Approved folder → thread_status 'closed'."""
+    def test_approved_overall_gets_closed_thread_status(self):
+        """Approved overall → thread_status 'closed'."""
         state = _make_state("src", {"app.py": "approved"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
         assert result[0].thread_status == "closed"
 
-    def test_needs_work_folder_gets_active_thread_status(self):
-        """Needs-work folder → thread_status 'active'."""
+    def test_needs_work_overall_gets_active_thread_status(self):
+        """Needs-work overall → thread_status 'active'."""
         state = _make_state("src", {"app.py": "needs-work"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
         assert result[0].thread_status == "active"
 
-    def test_in_progress_folder_gets_active_thread_status(self):
-        """In-progress folder → thread_status 'active'."""
+    def test_in_progress_overall_gets_active_thread_status(self):
+        """In-progress overall → thread_status 'active'."""
         state = _make_state("src", {"app.py": "in-progress", "b.py": "unreviewed"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
         assert result[0].thread_status == "active"
 
-    def test_unreviewed_folder_gets_active_thread_status(self):
-        """Unreviewed folder → thread_status 'active'."""
+    def test_unreviewed_overall_gets_active_thread_status(self):
+        """Unreviewed overall → thread_status 'active'."""
         state = _make_state("src", {"app.py": "unreviewed"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
         assert result[0].thread_status == "active"
 
-    def test_approved_overall_gets_closed_thread_status(self):
-        """Approved overall → thread_status 'closed' for overall op."""
-        state = _make_state("src", {"app.py": "approved"})
-
-        result = cascade_status_update(state, "/src/app.py", _BASE_URL)
-
-        assert result[1].thread_status == "closed"
-
-    def test_needs_work_overall_gets_active_thread_status(self):
-        """Needs-work overall → thread_status 'active' for overall op."""
-        state = _make_state("src", {"app.py": "needs-work"})
-
-        result = cascade_status_update(state, "/src/app.py", _BASE_URL)
-
-        assert result[1].thread_status == "active"
-
-    def test_folder_content_contains_folder_name(self):
-        """Folder PatchOperation content should contain the folder name."""
+    def test_overall_content_contains_folder_name(self):
+        """Overall PatchOperation content should contain the folder name."""
         state = _make_state("src", {"app.py": "approved"})
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
@@ -174,7 +157,7 @@ class TestCascadeStatusUpdate:
 
         result = cascade_status_update(state, "/src/app.py", _BASE_URL)
 
-        assert "Overall PR Review Summary" in result[1].new_content
+        assert "Overall PR Review Summary" in result[0].new_content
 
     def test_normalizes_file_path_without_leading_slash(self):
         """Should normalize file path before looking up."""
@@ -182,7 +165,7 @@ class TestCascadeStatusUpdate:
 
         result = cascade_status_update(state, "src/app.py", _BASE_URL)
 
-        assert len(result) == 2
+        assert len(result) == 1
 
     def test_raises_key_error_for_missing_file(self):
         """Should raise KeyError when file path not found."""
@@ -191,8 +174,8 @@ class TestCascadeStatusUpdate:
         with pytest.raises(KeyError, match="missing.py"):
             cascade_status_update(state, "/src/missing.py", _BASE_URL)
 
-    def test_raises_key_error_for_missing_folder(self):
-        """Should raise KeyError when file's folder is not in folders dict."""
+    def test_file_with_missing_folder_still_works(self):
+        """Should not raise when file's folder is not in folders dict (cascade only needs files)."""
         files = {
             "/orphan/file.py": FileEntry(
                 threadId=10,
@@ -214,28 +197,30 @@ class TestCascadeStatusUpdate:
             files=files,
         )
 
-        with pytest.raises(KeyError, match="orphan"):
-            cascade_status_update(state, "/orphan/file.py", _BASE_URL)
+        result = cascade_status_update(state, "/orphan/file.py", _BASE_URL)
+        assert len(result) == 1
 
     def test_in_progress_overrides_overall_until_all_complete(self):
-        """In-progress folder overrides overall until all folders complete."""
+        """In-progress file overrides overall until all files complete."""
         state = _make_state(
             "src",
             {"app.py": "in-progress", "b.py": "unreviewed"},
             other_folders={"tests": "approved"},
         )
+        _add_file_to_state(state, "tests", "test.py", "approved")
 
         cascade_status_update(state, "/src/app.py", _BASE_URL)
 
         assert state.overallSummary.status == "in-progress"
 
     def test_all_complete_approved_overall_becomes_approved(self):
-        """All folders approved → overall becomes approved."""
+        """All files approved → overall becomes approved."""
         state = _make_state(
             "src",
             {"app.py": "approved"},
             other_folders={"tests": "approved"},
         )
+        _add_file_to_state(state, "tests", "test.py", "approved")
 
         cascade_status_update(state, "/src/app.py", _BASE_URL)
 
@@ -247,7 +232,5 @@ class TestCascadeStatusUpdate:
 
         result = cascade_status_update(state, "/src/only.py", _BASE_URL)
 
-        assert state.folders["src"].status == "needs-work"
         assert state.overallSummary.status == "needs-work"
         assert result[0].thread_status == "active"
-        assert result[1].thread_status == "active"

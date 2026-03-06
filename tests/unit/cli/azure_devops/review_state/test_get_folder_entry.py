@@ -1,7 +1,7 @@
 """Tests for get_folder_entry function."""
 
 from agentic_devtools.cli.azure_devops.review_state import (
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
     get_folder_entry,
@@ -9,7 +9,7 @@ from agentic_devtools.cli.azure_devops.review_state import (
 
 
 def _make_state_with_folder(folder_name: str = "src") -> ReviewState:
-    folder_entry = FolderEntry(threadId=1, commentId=2, files=["/src/app.py"])
+    folder_entry = FolderGroup(files=["/src/app.py"])
     return ReviewState(
         prId=100,
         repoId="repo-guid",
@@ -41,8 +41,8 @@ class TestGetFolderEntry:
 
     def test_returns_correct_entry_among_multiple(self):
         """Test that the correct entry is returned among multiple folders."""
-        folder_src = FolderEntry(threadId=1, commentId=2)
-        folder_lib = FolderEntry(threadId=3, commentId=4)
+        folder_src = FolderGroup(files=["/src/a.py"])
+        folder_lib = FolderGroup(files=["/lib/b.py"])
         state = ReviewState(
             prId=100,
             repoId="x",
@@ -56,7 +56,7 @@ class TestGetFolderEntry:
         )
         result = get_folder_entry(state, "lib")
         assert result is not None
-        assert result.threadId == 3
+        assert result.files == ["/lib/b.py"]
 
     def test_returns_none_on_empty_folders(self):
         """Test returns None when folders dict is empty."""

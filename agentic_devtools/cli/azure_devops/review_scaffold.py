@@ -1,11 +1,13 @@
 """Scaffolding for PR review threads.
 
 Creates all summary threads upfront before the agent begins reviewing files.
-For a PR with N files across F folders:
+For a PR with N files:
   - N file summary threads (anchored to file path, no line)
-  - F folder summary threads (PR-level, no file context)
   - 1 overall PR summary thread (PR-level)
-Total: N + F + 1 API calls (one-time upfront cost).
+Total: N + 1 API calls (one-time upfront cost).
+
+Folder-level threads have been eliminated; folders are now lightweight
+groupings within the overall PR summary comment.
 """
 
 from datetime import datetime, timezone
@@ -15,7 +17,7 @@ from urllib.parse import quote
 from .config import AzureDevOpsConfig
 from .review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
     ReviewStatus,
@@ -23,7 +25,7 @@ from .review_state import (
     normalize_file_path,
     save_review_state,
 )
-from .review_templates import render_file_summary, render_folder_summary, render_overall_summary
+from .review_templates import render_file_summary, render_overall_summary
 
 
 def _get_folder_for_path(file_path: str) -> str:
@@ -118,6 +120,9 @@ def _print_dry_run_plan(
 ) -> None:
     """Print the scaffolding plan without making API calls.
 
+    Folder-level threads have been eliminated; only file threads and
+    the overall PR summary thread are created (N + 1 API calls).
+
     Args:
         pull_request_id: Pull request ID.
         files: List of file paths.
@@ -128,9 +133,9 @@ def _print_dry_run_plan(
         normalized = normalize_file_path(file_path)
         print(f"  [DRY RUN] Would create file summary thread for {normalized}")
     for folder_name in folders:
-        print(f"  [DRY RUN] Would create folder summary thread for {folder_name}")
+        print(f"  [DRY RUN] Would group files under folder: {folder_name}")
     print("  [DRY RUN] Would create overall PR summary thread")
-    api_calls = len(files) + len(folders) + 1
+    api_calls = len(files) + 1
     print(f"  [DRY RUN] Total API calls: {api_calls}")
 
 
@@ -144,18 +149,22 @@ def scaffold_review_threads(
     requests_module: Any,
     headers: Dict[str, str],
     dry_run: bool = False,
+    commit_hash: Optional[str] = None,
+    model_id: Optional[str] = None,
 ) -> Optional[ReviewState]:
     """Create all summary threads upfront before reviewing files.
 
-    For a PR with N files across F folders, creates:
+    For a PR with N files, creates:
       - N file summary threads (anchored to file path, no line)
-      - F folder summary threads (PR-level, no file context)
-      - 1 overall PR summary thread (PR-level, links to folder threads)
+      - 1 overall PR summary thread (PR-level)
+
+    Folder-level threads have been eliminated; folders are now lightweight
+    groupings (``FolderGroup``) within the overall PR summary comment.
 
     Idempotent: if a *complete* review-state.json already exists for the PR
-    (overallSummary.threadId != 0 and folders populated), skips creation and
-    returns the existing state.  An incomplete state file (left by a prior
-    partial failure) is detected and scaffolding is re-run from scratch.
+    (overallSummary.threadId != 0), skips creation and returns the existing
+    state.  An incomplete state file (left by a prior partial failure) is
+    detected and scaffolding is re-run from scratch.
 
     Args:
         pull_request_id: PR ID.
@@ -167,21 +176,22 @@ def scaffold_review_threads(
         requests_module: Injected requests module (for testability).
         headers: Auth headers dict.
         dry_run: If True, print the plan without making API calls.
+        commit_hash: Commit hash (``lastMergeSourceCommit.commitId``) from
+            the Azure DevOps PR API.
+        model_id: AI model identifier that initiated scaffolding.
 
     Returns:
         ReviewState with all thread IDs saved.  Returns the existing state
-        if scaffolding was already completed (overallSummary.threadId != 0
-        and folders populated).  An incomplete state file triggers a full
-        re-scaffold.  Returns None only when ``dry_run=True`` *and* no
-        complete prior scaffolding exists.
+        if scaffolding was already completed (overallSummary.threadId != 0).
+        An incomplete state file triggers a full re-scaffold.  Returns None
+        only when ``dry_run=True`` *and* no complete prior scaffolding exists.
     """
     # Idempotency check: skip only if a *complete* review-state.json exists.
-    # Incremental persistence can leave a partial file (overallSummary.threadId == 0
-    # or empty folders) after a mid-scaffolding failure; we must not treat that as
-    # "done" — otherwise re-running would skip scaffolding permanently.
+    # Incremental persistence can leave a partial file (overallSummary.threadId == 0)
+    # after a mid-scaffolding failure; we must not treat that as "done".
     try:
         existing_state = load_review_state(pull_request_id)
-        is_complete = existing_state.overallSummary.threadId != 0 and bool(existing_state.folders)
+        is_complete = existing_state.overallSummary.threadId != 0
         if is_complete:
             print(f"Scaffolding already exists for PR {pull_request_id}. Skipping.")
             return existing_state
@@ -207,7 +217,7 @@ def scaffold_review_threads(
     # Helper to build and persist a ReviewState snapshot.
     def _build_state(
         file_entries: Dict[str, FileEntry],
-        folder_entries: Dict[str, FolderEntry],
+        folder_groups: Dict[str, FolderGroup],
         overall_thread_id: int = 0,
         overall_comment_id: int = 0,
     ) -> ReviewState:
@@ -220,8 +230,10 @@ def scaffold_review_threads(
             latestIterationId=latest_iteration_id,
             scaffoldedUtc=scaffolded_utc,
             overallSummary=OverallSummary(threadId=overall_thread_id, commentId=overall_comment_id),
-            folders=folder_entries,
+            folders=folder_groups,
             files=file_entries,
+            commitHash=commit_hash,
+            modelId=model_id,
         )
 
     # Step 1: Create file summary threads (anchored to file path, no line)
@@ -250,41 +262,23 @@ def scaffold_review_threads(
             status=ReviewStatus.UNREVIEWED.value,
         )
 
-    # Persist after file threads so partial progress is not lost on failure
-    save_review_state(_build_state(file_entries, {}))
-
-    # Step 2: Create folder summary threads (PR-level, no file context)
-    folder_entries: Dict[str, FolderEntry] = {}
+    # Step 2: Build lightweight folder groups (no API calls — no folder threads)
+    folder_groups: Dict[str, FolderGroup] = {}
     for folder_name, folder_files in folders.items():
-        temp_folder = FolderEntry(
-            threadId=0,
-            commentId=0,
-            status=ReviewStatus.UNREVIEWED.value,
-            files=folder_files,
-        )
-        content = render_folder_summary(folder_name, temp_folder, file_entries, base_url)
+        folder_groups[folder_name] = FolderGroup(files=folder_files)
 
-        print(f"Creating folder summary thread for {folder_name}...")
-        thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content)
-        folder_entries[folder_name] = FolderEntry(
-            threadId=thread_id,
-            commentId=comment_id,
-            status=ReviewStatus.UNREVIEWED.value,
-            files=folder_files,
-        )
+    # Persist after file threads so partial progress is not lost on failure
+    save_review_state(_build_state(file_entries, folder_groups))
 
-    # Persist after folder threads so partial progress is not lost on failure
-    save_review_state(_build_state(file_entries, folder_entries))
-
-    # Step 3: Create overall PR summary thread (PR-level, links to folder threads)
-    temp_state = _build_state(file_entries, folder_entries)
+    # Step 3: Create overall PR summary thread (PR-level)
+    temp_state = _build_state(file_entries, folder_groups)
     overall_content = render_overall_summary(temp_state, base_url)
 
     print("Creating overall PR summary thread...")
     overall_thread_id, overall_comment_id = _post_thread(requests_module, headers, threads_url, overall_content)
 
     # Build final ReviewState and persist
-    review_state = _build_state(file_entries, folder_entries, overall_thread_id, overall_comment_id)
+    review_state = _build_state(file_entries, folder_groups, overall_thread_id, overall_comment_id)
 
     save_review_state(review_state)
     print(f"Scaffolding complete. Review state saved for PR {pull_request_id}.")

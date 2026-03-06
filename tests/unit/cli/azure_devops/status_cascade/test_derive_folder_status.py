@@ -4,7 +4,7 @@ import pytest
 
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
 )
@@ -26,7 +26,7 @@ def _make_state(folder_name: str, file_statuses: list[str]) -> ReviewState:
         )
         file_paths.append(path)
 
-    folder = FolderEntry(threadId=1, commentId=2, files=file_paths)
+    folder = FolderGroup(files=file_paths)
     return ReviewState(
         prId=100,
         repoId="repo-guid",
@@ -150,7 +150,7 @@ class TestDeriveFolderStatus:
 
     def test_empty_folder_returns_unreviewed(self):
         """Empty folder (no files) → unreviewed."""
-        folder = FolderEntry(threadId=1, commentId=2, files=[])
+        folder = FolderGroup(files=[])
         state = ReviewState(
             prId=100,
             repoId="r",

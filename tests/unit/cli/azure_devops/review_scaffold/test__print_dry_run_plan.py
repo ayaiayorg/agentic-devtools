@@ -19,11 +19,11 @@ class TestPrintDryRunPlan:
         assert "Would create file summary thread for /src/a.ts" in out
         assert "Would create file summary thread for /src/b.ts" in out
 
-    def test_prints_folder_entries(self, capsys):
-        """Prints a line for each folder."""
+    def test_prints_folder_groupings(self, capsys):
+        """Prints a grouping line for each folder (no thread creation)."""
         _print_dry_run_plan(1, ["/src/a.ts"], {"src": ["/src/a.ts"]})
         out = capsys.readouterr().out
-        assert "Would create folder summary thread for src" in out
+        assert "Would group files under folder: src" in out
 
     def test_prints_overall_thread(self, capsys):
         """Prints a line for the overall PR summary thread."""
@@ -32,10 +32,10 @@ class TestPrintDryRunPlan:
         assert "Would create overall PR summary thread" in out
 
     def test_prints_total_api_calls(self, capsys):
-        """Prints total API call count (N files + F folders + 1 overall)."""
+        """Prints total API call count (N files + 1 overall, no folder threads)."""
         files = ["/a/x.ts", "/a/y.ts", "/b/z.ts"]
         folders = {"a": ["/a/x.ts", "/a/y.ts"], "b": ["/b/z.ts"]}
         _print_dry_run_plan(1, files, folders)
         out = capsys.readouterr().out
-        # 3 files + 2 folders + 1 overall = 6
-        assert "Total API calls: 6" in out
+        # 3 files + 1 overall = 4 (no folder threads)
+        assert "Total API calls: 4" in out

@@ -4,7 +4,7 @@ import pytest
 
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
-    FolderEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
     SuggestionEntry,
@@ -37,7 +37,7 @@ def _make_review_state(file_path: str = "/src/main.py", status: str = "unreviewe
         latestIterationId=1,
         scaffoldedUtc="2026-01-01T00:00:00Z",
         overallSummary=OverallSummary(threadId=1, commentId=2),
-        folders={"/src": FolderEntry(threadId=10, commentId=20, files=[normalized])},
+        folders={"/src": FolderGroup(files=[normalized])},
         files={
             normalized: FileEntry(
                 threadId=100,

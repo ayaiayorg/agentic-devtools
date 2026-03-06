@@ -108,6 +108,7 @@ class OverallSummary:
     threadId: int
     commentId: int
     status: str = ReviewStatus.UNREVIEWED.value
+    narrativeSummary: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
@@ -115,6 +116,7 @@ class OverallSummary:
             "threadId": self.threadId,
             "commentId": self.commentId,
             "status": self.status,
+            "narrativeSummary": self.narrativeSummary,
         }
 
     @classmethod
@@ -124,39 +126,42 @@ class OverallSummary:
             threadId=data["threadId"],
             commentId=data["commentId"],
             status=data.get("status", ReviewStatus.UNREVIEWED.value),
+            narrativeSummary=data.get("narrativeSummary"),
         )
 
 
 @dataclass
-class FolderEntry:
-    """Review state for a folder grouping."""
+class FolderGroup:
+    """Lightweight folder grouping — maps a folder name to its file paths.
 
-    threadId: int
-    commentId: int
-    status: str = ReviewStatus.UNREVIEWED.value
+    Unlike the former ``FolderEntry``, this class carries **no** Azure DevOps
+    thread metadata (threadId / commentId / status).  Folder-level threads
+    have been eliminated; folders are now lightweight groupings within the
+    PR summary comment.
+    """
+
     files: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
         return {
-            "threadId": self.threadId,
-            "commentId": self.commentId,
-            "status": self.status,
             "files": self.files,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "FolderEntry":
+    def from_dict(cls, data: Dict) -> "FolderGroup":
         """Deserialize from a dictionary.
 
         File paths in the files list are normalized to ensure leading slash.
         """
         return cls(
-            threadId=data["threadId"],
-            commentId=data["commentId"],
-            status=data.get("status", ReviewStatus.UNREVIEWED.value),
             files=[normalize_file_path(f) for f in data.get("files", [])],
         )
+
+
+# Keep backward-compatible alias so downstream code that still references the
+# old name does not break at import time.
+FolderEntry = FolderGroup
 
 
 @dataclass
@@ -172,6 +177,7 @@ class FileEntry:
     changeTrackingId: Optional[int] = None
     suggestions: List[SuggestionEntry] = field(default_factory=list)
     previousSuggestions: Optional[List[SuggestionEntry]] = None
+    suggestionVerificationStatus: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
@@ -187,6 +193,7 @@ class FileEntry:
             "previousSuggestions": (
                 [s.to_dict() for s in self.previousSuggestions] if self.previousSuggestions is not None else None
             ),
+            "suggestionVerificationStatus": self.suggestionVerificationStatus,
         }
 
     @classmethod
@@ -205,6 +212,43 @@ class FileEntry:
             changeTrackingId=data.get("changeTrackingId"),
             suggestions=suggestions,
             previousSuggestions=previous,
+            suggestionVerificationStatus=data.get("suggestionVerificationStatus"),
+        )
+
+
+@dataclass
+class ReviewSession:
+    """Tracks an individual review session.
+
+    Each session represents one AI agent reviewing the PR. Multiple sessions
+    can exist for multi-model reviews or re-reviews.
+    """
+
+    sessionId: str
+    modelId: str
+    startedUtc: str
+    completedUtc: Optional[str] = None
+    status: str = "pending"
+
+    def to_dict(self) -> Dict:
+        """Serialize to JSON-compatible dictionary."""
+        return {
+            "sessionId": self.sessionId,
+            "modelId": self.modelId,
+            "startedUtc": self.startedUtc,
+            "completedUtc": self.completedUtc,
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "ReviewSession":
+        """Deserialize from a dictionary."""
+        return cls(
+            sessionId=data["sessionId"],
+            modelId=data["modelId"],
+            startedUtc=data["startedUtc"],
+            completedUtc=data.get("completedUtc"),
+            status=data.get("status", "pending"),
         )
 
 
@@ -220,9 +264,12 @@ class ReviewState:
     latestIterationId: int
     scaffoldedUtc: str
     overallSummary: OverallSummary
-    folders: Dict[str, FolderEntry] = field(default_factory=dict)
+    folders: Dict[str, FolderGroup] = field(default_factory=dict)
     files: Dict[str, FileEntry] = field(default_factory=dict)
     commitHash: Optional[str] = None
+    modelId: Optional[str] = None
+    activityLogThreadId: int = 0
+    sessions: List[ReviewSession] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
@@ -238,6 +285,9 @@ class ReviewState:
             "folders": {k: v.to_dict() for k, v in self.folders.items()},
             "files": {k: v.to_dict() for k, v in self.files.items()},
             "commitHash": self.commitHash,
+            "modelId": self.modelId,
+            "activityLogThreadId": self.activityLogThreadId,
+            "sessions": [s.to_dict() for s in self.sessions],
         }
 
     @classmethod
@@ -245,12 +295,14 @@ class ReviewState:
         """Deserialize from a dictionary.
 
         File dict keys are normalized to ensure leading slash consistency.
-        State files without a ``commitHash`` key are supported for backward
-        compatibility; the field defaults to ``None`` when absent.
+        Missing ``commitHash`` defaults to ``None`` for direct callers, but
+        ``load_review_state()`` enforces migration — it deletes state files
+        lacking ``commitHash`` and raises ``FileNotFoundError``.
         """
         overall_summary = OverallSummary.from_dict(data["overallSummary"])
-        folders = {k: FolderEntry.from_dict(v) for k, v in data.get("folders", {}).items()}
+        folders = {k: FolderGroup.from_dict(v) for k, v in data.get("folders", {}).items()}
         files = {normalize_file_path(k): FileEntry.from_dict(v) for k, v in data.get("files", {}).items()}
+        sessions = [ReviewSession.from_dict(s) for s in data.get("sessions", [])]
         return cls(
             prId=data["prId"],
             repoId=data["repoId"],
@@ -263,6 +315,9 @@ class ReviewState:
             folders=folders,
             files=files,
             commitHash=data.get("commitHash"),
+            modelId=data.get("modelId"),
+            activityLogThreadId=data.get("activityLogThreadId", 0),
+            sessions=sessions,
         )
 
 
@@ -299,6 +354,11 @@ def load_review_state(pr_id: int) -> ReviewState:
     """
     Load review state from JSON file.
 
+    Implements migration detection: if the state file uses the old format
+    (``FolderEntry`` with ``threadId`` fields or missing ``commitHash``),
+    the file is deleted and ``FileNotFoundError`` is raised so the caller
+    proceeds with a fresh scaffolding run.
+
     Args:
         pr_id: Pull request ID.
 
@@ -306,7 +366,8 @@ def load_review_state(pr_id: int) -> ReviewState:
         ReviewState object.
 
     Raises:
-        FileNotFoundError: If review-state.json does not exist for this PR.
+        FileNotFoundError: If review-state.json does not exist for this PR,
+            or if an incompatible old-format file was detected and deleted.
     """
     file_path = get_review_state_file_path(pr_id)
     if not file_path.exists():
@@ -314,6 +375,20 @@ def load_review_state(pr_id: int) -> ReviewState:
 
     content = file_path.read_text(encoding="utf-8")
     data = json.loads(content)
+
+    # Migration detection: old format lacks commitHash or has FolderEntry with threadId
+    needs_migration = "commitHash" not in data
+    if not needs_migration:
+        for folder_data in data.get("folders", {}).values():
+            if isinstance(folder_data, dict) and folder_data.get("threadId", 0) != 0:
+                needs_migration = True
+                break
+
+    if needs_migration:
+        print(f"Incompatible review state format detected for PR {pr_id}. Deleting and re-scaffolding.")
+        file_path.unlink()
+        raise FileNotFoundError(f"Review state not found for PR {pr_id}: {file_path}")
+
     return ReviewState.from_dict(data)
 
 
@@ -345,7 +420,7 @@ def get_file_entry(review_state: ReviewState, file_path: str) -> Optional[FileEn
     return review_state.files.get(normalized)
 
 
-def get_folder_entry(review_state: ReviewState, folder_name: str) -> Optional[FolderEntry]:
+def get_folder_entry(review_state: ReviewState, folder_name: str) -> Optional[FolderGroup]:
     """
     Get a folder entry from review state by folder name.
 
@@ -354,7 +429,7 @@ def get_folder_entry(review_state: ReviewState, folder_name: str) -> Optional[Fo
         folder_name: Folder name.
 
     Returns:
-        FolderEntry if found, None otherwise.
+        FolderGroup if found, None otherwise.
     """
     return review_state.folders.get(folder_name)
 

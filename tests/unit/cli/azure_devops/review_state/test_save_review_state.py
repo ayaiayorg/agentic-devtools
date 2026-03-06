@@ -99,3 +99,28 @@ class TestSaveReviewState:
             expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["commitHash"] is None
+
+    def test_new_fields_serialized(self, tmp_path):
+        """Test that new fields (modelId, activityLogThreadId, sessions) are serialized."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            state = _make_review_state()
+            state.modelId = "claude-4"
+            state.activityLogThreadId = 999
+            save_review_state(state)
+
+            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            data = json.loads(expected_path.read_text(encoding="utf-8"))
+            assert data["modelId"] == "claude-4"
+            assert data["activityLogThreadId"] == 999
+            assert data["sessions"] == []
+
+    def test_narrative_summary_serialized(self, tmp_path):
+        """Test that narrativeSummary on OverallSummary is serialized."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            state = _make_review_state()
+            state.overallSummary.narrativeSummary = "Great PR"
+            save_review_state(state)
+
+            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            data = json.loads(expected_path.read_text(encoding="utf-8"))
+            assert data["overallSummary"]["narrativeSummary"] == "Great PR"

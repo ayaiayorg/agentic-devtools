@@ -21,6 +21,7 @@ def _minimal_state_data(pr_id: int = 25365) -> dict:
         "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
         "folders": {},
         "files": {},
+        "commitHash": "abc1234def567890",
     }
 
 
@@ -53,7 +54,7 @@ class TestLoadReviewState:
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             pr_id = 100
             data = _minimal_state_data(pr_id)
-            data["folders"] = {"src": {"threadId": 1, "commentId": 2, "status": "unreviewed", "files": ["/src/app.py"]}}
+            data["folders"] = {"src": {"files": ["/src/app.py"]}}
             data["files"] = {
                 "/src/app.py": {
                     "threadId": 3,
@@ -88,7 +89,7 @@ class TestLoadReviewState:
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             pr_id = 42
             data = _minimal_state_data(pr_id)
-            data["commitHash"] = "abc1234def567890"
+            data["commitHash"] = "deadbeef12345678"
 
             state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
             state_dir.mkdir(parents=True)
@@ -96,14 +97,50 @@ class TestLoadReviewState:
 
             result = load_review_state(pr_id)
 
-        assert result.commitHash == "abc1234def567890"
+        assert result.commitHash == "deadbeef12345678"
 
-    def test_loads_state_without_commit_hash_defaults_to_none(self, tmp_path):
-        """Test that commitHash defaults to None when absent from the state file (backward compat)."""
+    def test_migration_deletes_old_format_without_commit_hash(self, tmp_path):
+        """Test that old-format state without commitHash is deleted and raises FileNotFoundError."""
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             pr_id = 43
             data = _minimal_state_data(pr_id)
-            # Deliberately omit commitHash to simulate an old state file
+            del data["commitHash"]  # Simulate old format
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "review-state.json"
+            state_file.write_text(json.dumps(data), encoding="utf-8")
+
+            with pytest.raises(FileNotFoundError, match="43"):
+                load_review_state(pr_id)
+
+            # File should be deleted
+            assert not state_file.exists()
+
+    def test_migration_deletes_old_format_with_folder_thread_id(self, tmp_path):
+        """Test that old-format state with FolderEntry threadId is deleted."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 44
+            data = _minimal_state_data(pr_id)
+            # Has commitHash but also has old-style folder with threadId
+            data["folders"] = {"src": {"threadId": 100, "commentId": 200, "status": "unreviewed", "files": []}}
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "review-state.json"
+            state_file.write_text(json.dumps(data), encoding="utf-8")
+
+            with pytest.raises(FileNotFoundError, match="44"):
+                load_review_state(pr_id)
+
+            assert not state_file.exists()
+
+    def test_migration_allows_folder_with_zero_thread_id(self, tmp_path):
+        """Test that folder data with threadId=0 (legacy but not active) is not flagged."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 45
+            data = _minimal_state_data(pr_id)
+            data["folders"] = {"src": {"threadId": 0, "commentId": 0, "files": ["/src/app.py"]}}
 
             state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
             state_dir.mkdir(parents=True)
@@ -111,4 +148,48 @@ class TestLoadReviewState:
 
             result = load_review_state(pr_id)
 
-        assert result.commitHash is None
+        assert "src" in result.folders
+
+    def test_loads_new_fields(self, tmp_path):
+        """Test that new fields (modelId, activityLogThreadId, sessions) are loaded."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 46
+            data = _minimal_state_data(pr_id)
+            data["modelId"] = "claude-4"
+            data["activityLogThreadId"] = 999
+            data["sessions"] = [
+                {
+                    "sessionId": "sess-1",
+                    "modelId": "claude-4",
+                    "startedUtc": "2026-03-01T10:00:00Z",
+                    "status": "completed",
+                }
+            ]
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
+
+            result = load_review_state(pr_id)
+
+        assert result.modelId == "claude-4"
+        assert result.activityLogThreadId == 999
+        assert len(result.sessions) == 1
+        assert result.sessions[0].sessionId == "sess-1"
+
+    def test_loads_missing_new_fields_with_defaults(self, tmp_path):
+        """Test that missing new fields default correctly."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 47
+            data = _minimal_state_data(pr_id)
+            # Has commitHash but no modelId, activityLogThreadId, sessions
+
+            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir.mkdir(parents=True)
+            (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
+
+            result = load_review_state(pr_id)
+
+        assert result.modelId is None
+        assert result.activityLogThreadId == 0
+        assert result.sessions == []

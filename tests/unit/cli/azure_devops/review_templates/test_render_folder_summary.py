@@ -1,15 +1,13 @@
 """Tests for render_folder_summary function."""
 
-from agentic_devtools.cli.azure_devops.review_state import FileEntry, FolderEntry, SuggestionEntry
+from agentic_devtools.cli.azure_devops.review_state import FileEntry, FolderGroup, SuggestionEntry
 from agentic_devtools.cli.azure_devops.review_templates import render_folder_summary
 
 _BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullRequest/42"
 
 
-def _make_folder_entry(files=None, **kwargs) -> FolderEntry:
-    defaults = dict(threadId=1, commentId=2, status="unreviewed")
-    defaults.update(kwargs)
-    fe = FolderEntry(**defaults)
+def _make_folder_entry(files=None) -> FolderGroup:
+    fe = FolderGroup()
     if files is not None:
         fe.files = files
     return fe

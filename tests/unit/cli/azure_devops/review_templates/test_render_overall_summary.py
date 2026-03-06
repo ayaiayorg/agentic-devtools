@@ -1,7 +1,8 @@
 """Tests for render_overall_summary function."""
 
 from agentic_devtools.cli.azure_devops.review_state import (
-    FolderEntry,
+    FileEntry,
+    FolderGroup,
     OverallSummary,
     ReviewState,
 )
@@ -10,7 +11,33 @@ from agentic_devtools.cli.azure_devops.review_templates import render_overall_su
 _BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullRequest/42"
 
 
-def _make_state(folders=None) -> ReviewState:
+def _make_state(folder_file_statuses=None) -> ReviewState:
+    """Build ReviewState with folders containing files at given statuses.
+
+    ``folder_file_statuses`` maps folder names to lists of (file_name, status)
+    tuples.  Example::
+
+        {"src": [("app.py", "approved")], "lib": [("util.py", "needs-work")]}
+    """
+    folders: dict[str, FolderGroup] = {}
+    files: dict[str, FileEntry] = {}
+    counter = 0
+    if folder_file_statuses:
+        for folder_name, file_specs in folder_file_statuses.items():
+            file_paths = []
+            for fname, status in file_specs:
+                path = f"/{folder_name}/{fname}"
+                files[path] = FileEntry(
+                    threadId=10 + counter,
+                    commentId=20 + counter,
+                    folder=folder_name,
+                    fileName=fname,
+                    status=status,
+                )
+                file_paths.append(path)
+                counter += 1
+            folders[folder_name] = FolderGroup(files=file_paths)
+
     return ReviewState(
         prId=42,
         repoId="repo-guid",
@@ -20,13 +47,9 @@ def _make_state(folders=None) -> ReviewState:
         latestIterationId=1,
         scaffoldedUtc="2026-01-01T00:00:00Z",
         overallSummary=OverallSummary(threadId=1, commentId=2),
-        folders=folders or {},
-        files={},
+        folders=folders,
+        files=files,
     )
-
-
-def _make_folder_entry(thread_id: int, comment_id: int, status: str) -> FolderEntry:
-    return FolderEntry(threadId=thread_id, commentId=comment_id, status=status)
 
 
 class TestRenderOverallSummary:
@@ -45,28 +68,28 @@ class TestRenderOverallSummary:
         assert "*Status:* ⏳ Unreviewed" in result
 
     def test_all_approved_status(self):
-        """Test overall status is Approved with emoji when all folders are approved."""
+        """Test overall status is Approved with emoji when all files are approved."""
         state = _make_state(
-            folders={
-                "src": _make_folder_entry(1, 2, "approved"),
-                "lib": _make_folder_entry(3, 4, "approved"),
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "approved")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* ✅ Approved" in result
 
     def test_all_in_progress_status(self):
-        """Test overall status is In Progress with emoji when all folders are in-progress."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "in-progress")})
+        """Test overall status is In Progress with emoji when all files are in-progress."""
+        state = _make_state({"src": [("app.py", "in-progress")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 🔃 In Progress" in result
 
-    def test_needs_work_status_when_any_folder_needs_work(self):
-        """Test overall status is Needs Work with emoji when any folder needs work."""
+    def test_needs_work_status_when_any_file_needs_work(self):
+        """Test overall status is Needs Work with emoji when any file needs work."""
         state = _make_state(
-            folders={
-                "src": _make_folder_entry(1, 2, "approved"),
-                "lib": _make_folder_entry(3, 4, "needs-work"),
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "needs-work")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
@@ -74,51 +97,50 @@ class TestRenderOverallSummary:
 
     def test_needs_work_section_present(self):
         """Test Needs Work section header is rendered when folders need work."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "needs-work")})
+        state = _make_state({"src": [("app.py", "needs-work")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "### Needs Work" in result
 
     def test_approved_section_present(self):
         """Test Approved section header is rendered when folders are approved."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "approved")})
+        state = _make_state({"src": [("app.py", "approved")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "### Approved" in result
 
     def test_in_progress_section_present(self):
         """Test In Progress section header is rendered when folders are in-progress."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "in-progress")})
+        state = _make_state({"src": [("app.py", "in-progress")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "### In Progress" in result
 
     def test_unreviewed_section_present(self):
         """Test Unreviewed section header is rendered when folders are unreviewed."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "unreviewed")})
+        state = _make_state({"src": [("app.py", "unreviewed")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "### Unreviewed" in result
 
     def test_empty_section_omitted(self):
         """Test that empty categories are omitted from the output."""
-        state = _make_state(folders={"src": _make_folder_entry(1, 2, "approved")})
+        state = _make_state({"src": [("app.py", "approved")]})
         result = render_overall_summary(state, _BASE_URL)
         assert "### Needs Work" not in result
         assert "### In Progress" not in result
         assert "### Unreviewed" not in result
 
-    def test_folder_link_in_section(self):
-        """Test that each folder is rendered as a link to its thread."""
-        state = _make_state(folders={"src": _make_folder_entry(thread_id=77, comment_id=88, status="approved")})
+    def test_folder_name_in_section(self):
+        """Test that each folder is rendered as plain text in its section."""
+        state = _make_state({"src": [("app.py", "approved")]})
         result = render_overall_summary(state, _BASE_URL)
-        expected_url = f"{_BASE_URL}?discussionId=77&commentId=88"
-        assert f"[src]({expected_url})" in result
+        assert "- src" in result
 
     def test_mixed_statuses_all_sections_present(self):
         """Test all four section types appear with mixed folder statuses."""
         state = _make_state(
-            folders={
-                "a": _make_folder_entry(1, 2, "needs-work"),
-                "b": _make_folder_entry(3, 4, "approved"),
-                "c": _make_folder_entry(5, 6, "in-progress"),
-                "d": _make_folder_entry(7, 8, "unreviewed"),
+            {
+                "a": [("x.py", "needs-work")],
+                "b": [("y.py", "approved")],
+                "c": [("z.py", "in-progress")],
+                "d": [("w.py", "unreviewed")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
@@ -130,9 +152,9 @@ class TestRenderOverallSummary:
     def test_multiple_folders_in_section(self):
         """Test multiple folders appear in the same section."""
         state = _make_state(
-            folders={
-                "src": _make_folder_entry(1, 2, "approved"),
-                "lib": _make_folder_entry(3, 4, "approved"),
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "approved")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
@@ -140,11 +162,11 @@ class TestRenderOverallSummary:
         assert "lib" in result
 
     def test_needs_work_and_in_progress_returns_in_progress(self):
-        """Test In Progress status when some folders need work and some are in-progress."""
+        """Test In Progress status when some files need work and some are in-progress."""
         state = _make_state(
-            folders={
-                "a": _make_folder_entry(1, 2, "in-progress"),
-                "b": _make_folder_entry(3, 4, "needs-work"),
+            {
+                "a": [("x.py", "in-progress")],
+                "b": [("y.py", "needs-work")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
@@ -153,20 +175,20 @@ class TestRenderOverallSummary:
     def test_in_progress_takes_precedence_over_approved(self):
         """Test In Progress status takes precedence over Approved."""
         state = _make_state(
-            folders={
-                "a": _make_folder_entry(1, 2, "approved"),
-                "b": _make_folder_entry(3, 4, "in-progress"),
+            {
+                "a": [("x.py", "approved")],
+                "b": [("y.py", "in-progress")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
         assert "*Status:* 🔃 In Progress" in result
 
     def test_some_approved_some_unreviewed_returns_in_progress(self):
-        """Test overall status is In Progress when some folders approved and some unreviewed."""
+        """Test overall status is In Progress when some files approved and some unreviewed."""
         state = _make_state(
-            folders={
-                "src": _make_folder_entry(1, 2, "approved"),
-                "lib": _make_folder_entry(3, 4, "unreviewed"),
+            {
+                "src": [("app.py", "approved")],
+                "lib": [("util.py", "unreviewed")],
             }
         )
         result = render_overall_summary(state, _BASE_URL)
