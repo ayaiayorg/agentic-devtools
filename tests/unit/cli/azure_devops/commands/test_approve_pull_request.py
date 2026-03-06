@@ -53,11 +53,11 @@ class TestApprovePullRequestActualCall:
 
         azure_devops.approve_pull_request()
 
-        # Check that approval sentinel was added
+        # Check that content is posted (no sentinel wrapping)
         call_args = mock_req_module.post.call_args
         body = call_args[1]["json"]
         content = body["comments"][0]["content"]
-        assert azure_devops.APPROVAL_SENTINEL in content
+        assert "LGTM!" in content
 
 
 class TestFindSummaryThreadId:

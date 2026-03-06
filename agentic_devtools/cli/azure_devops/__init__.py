@@ -71,7 +71,6 @@ from .commands import (
 )
 from .config import (
     API_VERSION,
-    APPROVAL_SENTINEL,
     DEFAULT_ORGANIZATION,
     DEFAULT_PROJECT,
     DEFAULT_REPOSITORY,
@@ -93,7 +92,6 @@ from .helpers import (
     build_thread_context,
     convert_to_pull_request_title,
     find_pull_request_by_issue_key,
-    format_approval_content,
     get_pull_request_source_branch,
     get_repository_id,
     parse_bool_from_state_value,
@@ -178,7 +176,6 @@ __all__ = [
     "DEFAULT_ORGANIZATION",
     "DEFAULT_PROJECT",
     "DEFAULT_REPOSITORY",
-    "APPROVAL_SENTINEL",
     "API_VERSION",
     # Config
     "AzureDevOpsConfig",
@@ -192,7 +189,6 @@ __all__ = [
     "get_repository_id",
     "resolve_thread_by_id",
     "convert_to_pull_request_title",
-    "format_approval_content",
     "build_thread_context",
     "verify_az_cli",
     "parse_json_response",
