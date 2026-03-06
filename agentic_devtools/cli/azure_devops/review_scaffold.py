@@ -120,6 +120,9 @@ def _print_dry_run_plan(
 ) -> None:
     """Print the scaffolding plan without making API calls.
 
+    Folder-level threads have been eliminated; only file threads and
+    the overall PR summary thread are created (N + 1 API calls).
+
     Args:
         pull_request_id: Pull request ID.
         files: List of file paths.
@@ -130,9 +133,9 @@ def _print_dry_run_plan(
         normalized = normalize_file_path(file_path)
         print(f"  [DRY RUN] Would create file summary thread for {normalized}")
     for folder_name in folders:
-        print(f"  [DRY RUN] Would create folder summary thread for {folder_name}")
+        print(f"  [DRY RUN] Would group files under folder: {folder_name}")
     print("  [DRY RUN] Would create overall PR summary thread")
-    api_calls = len(files) + len(folders) + 1
+    api_calls = len(files) + 1
     print(f"  [DRY RUN] Total API calls: {api_calls}")
 
 

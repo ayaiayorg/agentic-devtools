@@ -73,7 +73,7 @@ class TestCascadeStatusUpdate:
         assert isinstance(result, list)
         assert all(isinstance(op, PatchOperation) for op in result)
 
-    def test_returns_two_operations(self):
+    def test_returns_one_operation(self):
         """Should return exactly one PatchOperation (overall only)."""
         state = _make_state("src", {"app.py": "approved"})
 

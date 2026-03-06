@@ -247,8 +247,8 @@ class TestScaffoldReviewThreadsDryRun:
         assert f"Scaffolding plan for PR {_PR_ID}" in out
         assert "Would create file summary thread for /src/app.ts" in out
         assert "Would create file summary thread for /utils/helpers.ts" in out
-        assert "Would create folder summary thread for src" in out
-        assert "Would create folder summary thread for utils" in out
+        assert "Would group files under folder: src" in out
+        assert "Would group files under folder: utils" in out
         assert "Would create overall PR summary thread" in out
 
 
