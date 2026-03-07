@@ -598,8 +598,8 @@ def _print_dry_run_plan(
 
     Folder-level threads have been eliminated; file threads, the overall
     PR summary thread, and a Review Activity Log thread are created
-    (N + 2 thread-creation calls, plus 1 reply POST for the initial
-    activity log entry = N + 3 total API calls).
+    (N + 3 thread-creation POST calls in total; additional non-POST calls
+    may be made when initializing the activity log).
 
     Args:
         pull_request_id: Pull request ID.
@@ -777,65 +777,67 @@ def scaffold_review_threads(
                     stale_id = s.sessionId
                     break
             print(f"Resuming stale review session for PR {pull_request_id} ({reviewed}/{total} files reviewed).")
+            if dry_run:
+                return existing_state
             new_session = _create_session(effective_model, commit_hash=commit_hash, now=now)
             existing_state.sessions.append(new_session)
-            if not dry_run:
-                save_review_state(existing_state)
-                if existing_state.activityLogThreadId:
-                    seq = len(existing_state.sessions)
-                    detail = f"Resuming incomplete review session `{stale_id}` ({reviewed}/{total} files reviewed)."
-                    entry = _format_activity_log_entry(
-                        "🔄",
-                        "Resuming",
-                        now.isoformat(),
-                        effective_model,
-                        short_hash,
-                        new_session.sessionId,
-                        detail,
-                        seq,
+            save_review_state(existing_state)
+            if existing_state.activityLogThreadId:
+                seq = len(existing_state.sessions)
+                detail = f"Resuming incomplete review session `{stale_id}` ({reviewed}/{total} files reviewed)."
+                entry = _format_activity_log_entry(
+                    "🔄",
+                    "Resuming",
+                    now.isoformat(),
+                    effective_model,
+                    short_hash,
+                    new_session.sessionId,
+                    detail,
+                    seq,
+                )
+                try:
+                    _post_activity_log_entry(
+                        requests_module,
+                        headers,
+                        threads_url,
+                        existing_state.activityLogThreadId,
+                        1,
+                        entry,
                     )
-                    try:
-                        _post_activity_log_entry(
-                            requests_module,
-                            headers,
-                            threads_url,
-                            existing_state.activityLogThreadId,
-                            1,
-                            entry,
-                        )
-                    except Exception as exc:
-                        print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
+                except Exception as exc:
+                    print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
             return existing_state
 
         if status == "different_model":
             print(f"Additional reviewer ({effective_model}) joining review for PR {pull_request_id}.")
+            if dry_run:
+                return existing_state
             new_session = _create_session(effective_model, commit_hash=commit_hash, now=now)
             existing_state.sessions.append(new_session)
-            if not dry_run:
-                save_review_state(existing_state)
-                if existing_state.activityLogThreadId:
-                    seq = len(existing_state.sessions)
-                    entry = _format_activity_log_entry(
-                        "🤝",
-                        "Additional Reviewer",
-                        now.isoformat(),
-                        effective_model,
-                        short_hash,
-                        new_session.sessionId,
-                        "Additional reviewer joining existing review for this commit.",
-                        seq,
+            save_review_state(existing_state)
+            if existing_state.activityLogThreadId:
+                seq = len(existing_state.sessions)
+                entry = _format_activity_log_entry(
+                    "🤝",
+                    "Additional Reviewer",
+                    now.isoformat(),
+                    effective_model,
+                    short_hash,
+                    new_session.sessionId,
+                    "Additional reviewer joining existing review for this commit.",
+                    seq,
+                )
+                try:
+                    _post_activity_log_entry(
+                        requests_module,
+                        headers,
+                        threads_url,
+                        existing_state.activityLogThreadId,
+                        1,
+                        entry,
                     )
-                    try:
-                        _post_activity_log_entry(
-                            requests_module,
-                            headers,
-                            threads_url,
-                            existing_state.activityLogThreadId,
-                            1,
-                            entry,
-                        )
-                    except Exception as exc:
-                        print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
+                except Exception as exc:
+                    print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
             return existing_state
 
         if status == "different_commit":

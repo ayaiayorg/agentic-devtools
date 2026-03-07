@@ -689,3 +689,82 @@ class TestScaffoldActivityLogExceptionHandling:
                 )
 
         assert result is state
+
+
+class TestDryRunDoesNotMutateSessions:
+    """Dry-run mode must not mutate existing_state.sessions."""
+
+    def test_resume_stale_dry_run_does_not_mutate_sessions(self):
+        """In dry-run mode, resume_stale path must not append a new session."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[session])
+        original_session_count = len(state.sessions)
+        requests_mock = _make_requests_mock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=state,
+        ):
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state") as save_mock:
+                result = scaffold_review_threads(
+                    pull_request_id=_PR_ID,
+                    files=["/src/a.ts"],
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=1,
+                    requests_module=requests_mock,
+                    headers={},
+                    commit_hash="abc123",
+                    model_id="gpt-5",
+                    dry_run=True,
+                )
+
+        assert result is state
+        assert len(state.sessions) == original_session_count
+        save_mock.assert_not_called()
+
+    def test_different_model_dry_run_does_not_mutate_sessions(self):
+        """In dry-run mode, different_model path must not append a new session."""
+        session = ReviewSession(
+            sessionId="s1",
+            modelId="claude-4",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[session])
+        original_session_count = len(state.sessions)
+        requests_mock = _make_requests_mock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=state,
+        ):
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state") as save_mock:
+                result = scaffold_review_threads(
+                    pull_request_id=_PR_ID,
+                    files=["/src/a.ts"],
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=1,
+                    requests_module=requests_mock,
+                    headers={},
+                    commit_hash="abc123",
+                    model_id="gpt-5",
+                    dry_run=True,
+                )
+
+        assert result is state
+        assert len(state.sessions) == original_session_count
+        save_mock.assert_not_called()
