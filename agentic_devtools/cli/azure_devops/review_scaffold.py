@@ -721,7 +721,11 @@ def scaffold_review_threads(
             # Find the active session for the warning message
             active_session = None
             for s in existing_state.sessions:
-                if s.modelId == effective_model and s.status == "in_progress":
+                if (
+                    s.modelId == effective_model
+                    and s.status == "in_progress"
+                    and (s.commitHash or "") == (commit_hash or "")
+                ):
                     active_session = s
                     break
             active_id = active_session.sessionId if active_session else "unknown"

@@ -272,6 +272,47 @@ class TestScaffoldInProgress:
         assert "in progress" in out.lower()
         assert "test-session-id" in out
 
+    def test_active_session_scoped_to_current_commit(self, capsys):
+        """Active session lookup in abort message uses current commit's session, not old-commit session."""
+        now = datetime.now(timezone.utc)
+        old_session = ReviewSession(
+            sessionId="old-session",
+            modelId="gpt-5",
+            startedUtc=(now - timedelta(hours=1)).isoformat(),
+            status="in_progress",
+            commitHash="old_hash",
+        )
+        current_session = ReviewSession(
+            sessionId="current-session",
+            modelId="gpt-5",
+            startedUtc=now.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[old_session, current_session])
+        requests_mock = _make_requests_mock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=state,
+        ):
+            scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        out = capsys.readouterr().out
+        assert "current-session" in out
+        assert "old-session" not in out
+
 
 class TestScaffoldResumeStale:
     """Same commit, same model, stale session → mark failed and resume."""
