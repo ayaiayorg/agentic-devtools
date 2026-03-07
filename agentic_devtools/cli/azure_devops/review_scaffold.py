@@ -765,7 +765,11 @@ def scaffold_review_threads(
             total = len(existing_state.files)
             stale_id = "unknown"
             for s in existing_state.sessions:
-                if s.modelId == effective_model and s.status == "failed":
+                if (
+                    s.modelId == effective_model
+                    and s.status == "failed"
+                    and (s.commitHash or "") == (commit_hash or "")
+                ):
                     stale_id = s.sessionId
                     break
             print(f"Resuming stale review session for PR {pull_request_id} ({reviewed}/{total} files reviewed).")

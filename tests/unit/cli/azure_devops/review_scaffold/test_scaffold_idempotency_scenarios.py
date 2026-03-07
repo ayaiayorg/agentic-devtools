@@ -345,6 +345,56 @@ class TestScaffoldResumeStale:
 
         assert session.status == "failed"
 
+    def test_stale_id_scoped_to_current_commit(self):
+        """stale_id lookup only picks up failed sessions from the current commit, not older commits."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        # Old failed session from a prior commit — should NOT be selected as stale_id
+        old_session = ReviewSession(
+            sessionId="old-failed-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="failed",
+            completedUtc=stale_started.isoformat(),
+            commitHash="old_hash",
+        )
+        # Current stale in-progress session for the current commit — will be marked failed
+        current_session = ReviewSession(
+            sessionId="current-stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[old_session, current_session])
+        state.activityLogThreadId = 900
+        requests_mock = _make_requests_mock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+            return_value=state,
+        ):
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                scaffold_review_threads(
+                    pull_request_id=_PR_ID,
+                    files=["/src/a.ts"],
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=1,
+                    requests_module=requests_mock,
+                    headers={},
+                    commit_hash="abc123",
+                    model_id="gpt-5",
+                )
+
+        # The activity log entry should reference "current-stale-sess" (just marked failed)
+        # not "old-failed-sess" (from a prior commit).
+        # The entry content is PATCHed as the new main comment of the activity log thread.
+        patch_calls = str(requests_mock.patch.call_args_list)
+        assert "current-stale-sess" in patch_calls
+        assert "old-failed-sess" not in patch_calls
+
 
 class TestScaffoldDifferentModel:
     """Same commit, different model → skip scaffolding, post activity log."""
