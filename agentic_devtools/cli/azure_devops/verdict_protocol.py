@@ -22,7 +22,6 @@ from .review_state import (
     ConsolidationStatus,
     FileEntry,
     ModelVerdict,
-    ReviewState,
     ReviewStatus,
     VerdictType,
 )
@@ -245,6 +244,4 @@ def initialize_model_verdicts(file_entry: FileEntry, reviewer_models: List[str])
     existing_models = {mv.modelId for mv in file_entry.modelVerdicts}
     for model_id in reviewer_models:
         if model_id not in existing_models:
-            file_entry.modelVerdicts.append(
-                ModelVerdict(modelId=model_id, status=ReviewStatus.UNREVIEWED.value)
-            )
+            file_entry.modelVerdicts.append(ModelVerdict(modelId=model_id, status=ReviewStatus.UNREVIEWED.value))
