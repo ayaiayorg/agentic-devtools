@@ -101,3 +101,17 @@ class TestPersistPathEntry:
         assert result is True
         content = profile.read_text(encoding="utf-8")
         assert 'export PATH="/home/user/.agdt/bin:$PATH"' in content
+
+    def test_appends_newline_when_last_line_has_no_trailing_newline(self, tmp_path):
+        """Inserts a newline before appending when the file doesn't end with one."""
+        profile = tmp_path / ".bashrc"
+        # Write content WITHOUT a trailing newline
+        profile.write_text("# existing config", encoding="utf-8")
+
+        result = persist_path_entry(profile, "/home/user/.agdt/bin", "bash")
+
+        assert result is True
+        content = profile.read_text(encoding="utf-8")
+        # Verify there's a newline between existing content and the new line
+        assert "# existing config\n# Added by agdt-setup\n" in content
+        assert 'export PATH="/home/user/.agdt/bin:$PATH"' in content

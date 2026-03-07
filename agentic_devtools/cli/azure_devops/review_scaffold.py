@@ -34,6 +34,14 @@ from .review_state import (
     save_review_state,
 )
 from .review_templates import render_file_summary, render_overall_summary
+from .suggestion_verification import (
+    categorize_all_suggestions,
+    fetch_threads_lookup,
+    has_unaddressed,
+    partition_results,
+    render_abort_summary,
+    render_unaddressed_thread_comment,
+)
 
 # Stale session threshold: sessions older than this are considered crashed.
 STALE_SESSION_THRESHOLD = timedelta(hours=2)
@@ -1113,6 +1121,108 @@ def _incremental_rescaffold(
         f"Incremental re-scaffolding for PR {pull_request_id}: "
         f"{n_new} new, {n_mod} modified, {n_del} deleted, {n_unch} unchanged files."
     )
+
+    # -------------------------------------------------------------------
+    # Suggestion verification gate
+    # -------------------------------------------------------------------
+    files_with_previous = {
+        fp: fe.previousSuggestions for fp, fe in existing_state.files.items() if fe.previousSuggestions
+    }
+    if files_with_previous and not dry_run:
+        threads_lookup = fetch_threads_lookup(requests_module, headers, threads_url)
+        if threads_lookup is not None:
+            changed_set = frozenset(changes.new_files + changes.modified_files + changes.deleted_files)
+            verification_results = categorize_all_suggestions(files_with_previous, changed_set, threads_lookup)
+            if verification_results:
+                unaddressed_list, needs_review_list = partition_results(verification_results)
+                if has_unaddressed(verification_results):
+                    # --- Abort gate: post comments on unaddressed threads ---
+                    for r in unaddressed_list:
+                        try:
+                            _post_reply(
+                                requests_module,
+                                headers,
+                                threads_url,
+                                r.suggestion.threadId,
+                                render_unaddressed_thread_comment(short_new_hash),
+                            )
+                        except Exception as exc:
+                            print(
+                                f"Warning: Could not post unaddressed comment on thread {r.suggestion.threadId}: {exc}",
+                                file=sys.stderr,
+                            )
+
+                    # Post abort summary on the overall summary thread
+                    abort_summary = render_abort_summary(
+                        unaddressed_list,
+                        needs_review_list,
+                        short_new_hash,
+                    )
+                    overall = existing_state.overallSummary
+                    if overall.threadId:
+                        try:
+                            _demote_main_comment(
+                                requests_module,
+                                headers,
+                                threads_url,
+                                overall.threadId,
+                                overall.commentId,
+                                abort_summary,
+                            )
+                        except Exception as exc:
+                            print(f"Warning: Could not post abort summary: {exc}", file=sys.stderr)
+
+                    # Record abort-gated session unconditionally (consistent with
+                    # resume_stale and different_model paths which always create a
+                    # session regardless of activityLogThreadId).
+                    n_unaddr = len(unaddressed_list)
+                    session = _create_session(model_id, commit_hash=commit_hash, now=now)
+                    # Mark this abort-gated session as a terminal failure so it is not treated
+                    # as an in-progress or resumable session by _check_session_status().
+                    session.status = "failed"
+                    session.completedUtc = now.isoformat()
+                    existing_state.sessions.append(session)
+
+                    # Post activity log entry (only if activity log thread exists)
+                    if existing_state.activityLogThreadId:
+                        seq = len(existing_state.sessions)
+                        detail = f"Review blocked: {n_unaddr} unaddressed suggestion(s)."
+                        entry = _format_activity_log_entry(
+                            "⛔",
+                            "Blocked",
+                            now.isoformat(),
+                            model_id,
+                            short_new_hash,
+                            session.sessionId,
+                            detail,
+                            seq,
+                        )
+                        try:
+                            _post_activity_log_entry(
+                                requests_module,
+                                headers,
+                                threads_url,
+                                existing_state.activityLogThreadId,
+                                1,
+                                entry,
+                            )
+                        except Exception as exc:
+                            print(f"Warning: Could not post activity log: {exc}", file=sys.stderr)
+
+                    existing_state.commitHash = commit_hash
+                    save_review_state(existing_state)
+                    print(
+                        f"⛔ Review blocked: {n_unaddr} unaddressed suggestion(s). Address them and push a new commit."
+                    )
+                    return existing_state
+
+                # All are needs_review — set verification status on affected files
+                for r in needs_review_list:
+                    fe = existing_state.files.get(r.file_path)
+                    if fe:
+                        fe.suggestionVerificationStatus = "pending_verification"
+        else:
+            print("Warning: Could not fetch PR threads for verification. Proceeding.", file=sys.stderr)
 
     if dry_run:
         print(f"[DRY RUN] Would re-scaffold PR {pull_request_id} for commit {short_new_hash}")

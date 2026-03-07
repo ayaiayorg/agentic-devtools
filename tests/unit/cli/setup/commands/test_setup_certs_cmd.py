@@ -1,5 +1,6 @@
 """Tests for setup_certs_cmd."""
 
+import os
 from unittest.mock import patch
 
 from agentic_devtools.cli.setup import commands
@@ -42,3 +43,14 @@ class TestSetupCertsCmd:
                     commands.setup_certs_cmd()
         mock_persist.assert_called_once()
         assert mock_persist.call_args.kwargs["overwrite_env"] is True
+
+    def test_no_verify_ssl_sets_env_var(self, monkeypatch, capsys):
+        """Sets AGDT_NO_VERIFY_SSL env var when --no-verify-ssl is passed."""
+        monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
+        with patch("sys.argv", ["agdt-setup-certs", "--no-verify-ssl"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
+                    commands.setup_certs_cmd()
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
+        out = capsys.readouterr().out
+        assert "SSL verification disabled" in out

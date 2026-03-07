@@ -115,6 +115,15 @@ COMMAND_MAP = {
         "agentic_devtools.cli.azure_devops",
         "mark_file_reviewed_async",
     ),
+    # Suggestion verification commands
+    "agdt-confirm-suggestion-addressed": (
+        "agentic_devtools.cli.azure_devops",
+        "confirm_suggestion_addressed_async_cli",
+    ),
+    "agdt-reject-suggestion-resolution": (
+        "agentic_devtools.cli.azure_devops",
+        "reject_suggestion_resolution_async_cli",
+    ),
     # Azure CLI (App Insights queries)
     "agdt-query-app-insights": (
         "agentic_devtools.cli.azure",
