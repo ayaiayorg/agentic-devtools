@@ -1,14 +1,11 @@
-"""Tests for abort gate logic: has_unaddressed, partition_results, render functions."""
+"""Tests for render_abort_summary function."""
 
 from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
 from agentic_devtools.cli.azure_devops.suggestion_verification import (
     CATEGORY_NEEDS_REVIEW,
     CATEGORY_UNADDRESSED,
     SuggestionVerificationResult,
-    has_unaddressed,
-    partition_results,
     render_abort_summary,
-    render_unaddressed_thread_comment,
 )
 
 
@@ -36,44 +33,6 @@ def _make_result(
         file_changed=file_changed,
         thread_status="active",
     )
-
-
-class TestHasUnaddressed:
-    """Tests for the has_unaddressed helper."""
-
-    def test_empty_list(self):
-        assert has_unaddressed([]) is False
-
-    def test_all_needs_review(self):
-        results = [_make_result(CATEGORY_NEEDS_REVIEW)]
-        assert has_unaddressed(results) is False
-
-    def test_any_unaddressed_returns_true(self):
-        results = [
-            _make_result(CATEGORY_NEEDS_REVIEW),
-            _make_result(CATEGORY_UNADDRESSED),
-        ]
-        assert has_unaddressed(results) is True
-
-
-class TestPartitionResults:
-    """Tests for the partition_results helper."""
-
-    def test_empty(self):
-        unaddr, needs = partition_results([])
-        assert unaddr == []
-        assert needs == []
-
-    def test_mixed(self):
-        r1 = _make_result(CATEGORY_UNADDRESSED, "/a.py")
-        r2 = _make_result(CATEGORY_NEEDS_REVIEW, "/b.py")
-        r3 = _make_result(CATEGORY_UNADDRESSED, "/c.py")
-        unaddr, needs = partition_results([r1, r2, r3])
-        assert len(unaddr) == 2
-        assert len(needs) == 1
-        assert unaddr[0].file_path == "/a.py"
-        assert unaddr[1].file_path == "/c.py"
-        assert needs[0].file_path == "/b.py"
 
 
 class TestRenderAbortSummary:
@@ -130,17 +89,3 @@ class TestRenderAbortSummary:
         )
         assert "🧠" in result
         assert "Claude 3.5" in result
-
-
-class TestRenderUnaddressedThreadComment:
-    """Tests for render_unaddressed_thread_comment."""
-
-    def test_contains_hash(self):
-        result = render_unaddressed_thread_comment("abc1234")
-        assert "abc1234" in result
-        assert "⚠️ **Unaddressed Suggestion**" in result
-
-    def test_contains_instructions(self):
-        result = render_unaddressed_thread_comment("abc1234")
-        assert "Make the suggested changes" in result
-        assert "Reply to this thread" in result

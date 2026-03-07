@@ -11,6 +11,7 @@ from agentic_devtools.cli.azure_devops.review_state import (
     OverallSummary,
     ReviewState,
     ReviewStatus,
+    SuggestionEntry,
 )
 
 _ORG = "https://dev.azure.com/testorg"
@@ -427,4 +428,435 @@ class TestIncrementalRescaffoldExceptionHandling:
         result = self._run_with_failure(existing, ["/src/a.ts"], FileChangeResult(unchanged_files=["/src/a.ts"]))
         err = capsys.readouterr().err
         assert "Warning: Could not" in err
+        assert result is not None
+
+
+def _make_suggestion(thread_id: int = 300) -> SuggestionEntry:
+    return SuggestionEntry(
+        threadId=thread_id,
+        commentId=301,
+        line=10,
+        endLine=20,
+        severity="high",
+        outOfScope=False,
+        linkText="lines 10 - 20",
+        content="Missing null check",
+    )
+
+
+def _make_existing_state_with_previous_suggestions(
+    files=None,
+    commit_hash="old_hash",
+    previous_suggestions_map=None,
+):
+    """Build an existing state with previousSuggestions on specific files."""
+    file_entries = {}
+    folder_files = {}
+    for fp in files or ["/src/a.ts"]:
+        folder = fp.split("/")[1] if "/" in fp.lstrip("/") else "root"
+        file_entries[fp] = FileEntry(
+            threadId=100,
+            commentId=1,
+            folder=folder,
+            fileName=fp.split("/")[-1],
+            status=ReviewStatus.APPROVED.value,
+            summary="Previously reviewed",
+        )
+        folder_files.setdefault(folder, []).append(fp)
+
+    # Apply previousSuggestions
+    if previous_suggestions_map:
+        for fp, suggestions in previous_suggestions_map.items():
+            if fp in file_entries:
+                file_entries[fp].previousSuggestions = suggestions
+
+    folders = {k: FolderGroup(files=v) for k, v in folder_files.items()}
+
+    return ReviewState(
+        prId=_PR_ID,
+        repoId=_REPO_ID,
+        repoName=_REPO,
+        project=_PROJECT,
+        organization=_ORG,
+        latestIterationId=1,
+        scaffoldedUtc="2026-01-01T00:00:00+00:00",
+        overallSummary=OverallSummary(threadId=500, commentId=1),
+        folders=folders,
+        files=file_entries,
+        commitHash=commit_hash,
+        activityLogThreadId=999,
+    )
+
+
+class TestIncrementalRescaffoldVerificationGate:
+    """Tests for the suggestion verification gate in _incremental_rescaffold."""
+
+    def _run_rescaffold_with_mocks(
+        self,
+        existing_state,
+        current_files,
+        changed_paths=None,
+        dry_run=False,
+        fetch_threads_return=None,
+        categorize_return=None,
+    ):
+        """Run _incremental_rescaffold with mocked verification functions."""
+        requests_mock = MagicMock()
+        id_gen = count(1000)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i, i + 1)
+
+        requests_mock.post.side_effect = make_resp
+
+        get_resp = MagicMock()
+        get_resp.raise_for_status = MagicMock()
+        get_resp.json.return_value = {"comments": [{"id": 1, "content": "Old content"}]}
+        requests_mock.get.return_value = get_resp
+
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        save_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            existing_files = set(existing_state.files.keys())
+            current_set = set(current_files)
+            changed_set = set(changed_paths or [])
+
+            result_obj = FileChangeResult(
+                new_files=sorted(current_set - existing_files),
+                modified_files=sorted(existing_files & current_set & changed_set),
+                deleted_files=sorted(existing_files - current_set),
+                unchanged_files=sorted((existing_files & current_set) - changed_set),
+            )
+            mock_detect.return_value = result_obj
+
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = fetch_threads_return
+
+                with patch(
+                    "agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions"
+                ) as mock_categorize:
+                    mock_categorize.return_value = categorize_return or []
+
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+                        result = _incremental_rescaffold(
+                            existing_state=existing_state,
+                            pull_request_id=_PR_ID,
+                            files=current_files,
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=dry_run,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        return result, requests_mock, save_mock, mock_fetch, mock_categorize
+
+    def test_abort_gate_fires_with_unaddressed_suggestions(self, capsys):
+        """Abort gate blocks review when unaddressed suggestions exist."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_NEEDS_REVIEW,
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+        needs_review = SuggestionVerificationResult(
+            suggestion=_make_suggestion(thread_id=301),
+            file_path="/src/a.ts",
+            category=CATEGORY_NEEDS_REVIEW,
+            has_reply=True,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        result, requests_mock, save_mock, _, _ = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return={300: {"id": 300, "comments": [{"id": 1}]}},
+            categorize_return=[unaddressed, needs_review],
+        )
+
+        # Should return existing_state (early return, not None)
+        assert result is not None
+        # Session should be marked as failed
+        assert len(result.sessions) == 1
+        assert result.sessions[0].status == "failed"
+        assert result.sessions[0].completedUtc is not None
+        # Commit hash should still be updated
+        assert result.commitHash == "new_hash"
+        # State should be saved
+        save_mock.assert_called_once()
+        # Should print abort message
+        out = capsys.readouterr().out
+        assert "Review blocked" in out
+
+    def test_all_needs_review_sets_pending_verification(self):
+        """When all suggestions are needs_review, files get pending_verification status."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_NEEDS_REVIEW,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        needs_review = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_NEEDS_REVIEW,
+            has_reply=True,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        result, _, _, _, _ = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return={300: {"id": 300, "comments": [{"id": 1}, {"id": 2}]}},
+            categorize_return=[needs_review],
+        )
+
+        assert result is not None
+        assert result.files["/src/a.ts"].suggestionVerificationStatus == "pending_verification"
+
+    def test_fetch_threads_returns_none_proceeds(self, capsys):
+        """When fetch_threads_lookup returns None, proceed without blocking."""
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        result, _, _, mock_fetch, mock_categorize = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return=None,
+        )
+
+        # Should proceed to normal scaffolding (not abort)
+        assert result is not None
+        # categorize_all_suggestions should NOT have been called
+        mock_categorize.assert_not_called()
+        # Warning should be printed
+        err = capsys.readouterr().err
+        assert "Could not fetch PR threads" in err
+
+    def test_dry_run_skips_verification(self):
+        """Dry-run mode skips the verification gate entirely."""
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        result, _, _, mock_fetch, mock_categorize = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            dry_run=True,
+            fetch_threads_return={300: {"id": 300, "comments": [{"id": 1}]}},
+        )
+
+        # Returns None in dry-run mode
+        assert result is None
+        # fetch_threads_lookup should NOT have been called (dry_run short-circuits)
+        mock_fetch.assert_not_called()
+        mock_categorize.assert_not_called()
+
+    def test_no_previous_suggestions_skips_verification(self):
+        """No files with previousSuggestions → verification is skipped entirely."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        assert existing.files["/src/a.ts"].previousSuggestions is None
+
+        result, _, _, mock_fetch, mock_categorize = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return={},
+        )
+
+        assert result is not None
+        mock_fetch.assert_not_called()
+        mock_categorize.assert_not_called()
+
+    def test_abort_gate_posts_unaddressed_thread_comments(self):
+        """Abort gate posts reply comments on each unaddressed suggestion thread."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        result, requests_mock, _, _, _ = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return={300: {"id": 300, "comments": [{"id": 1}]}},
+            categorize_return=[unaddressed],
+        )
+
+        # Verify POST calls were made (thread comment + activity log)
+        assert requests_mock.post.call_count >= 1
+        assert result is not None
+
+    def test_abort_gate_thread_comment_exception_handled(self, capsys):
+        """Exception posting unaddressed thread comment is caught and logged."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        requests_mock = MagicMock()
+        # POST fails (thread comment + activity log)
+        requests_mock.post.side_effect = Exception("API error")
+        get_resp = MagicMock()
+        get_resp.raise_for_status = MagicMock()
+        get_resp.json.return_value = {"comments": [{"id": 1, "content": "Old"}]}
+        requests_mock.get.return_value = get_resp
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        save_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            mock_detect.return_value = FileChangeResult(unchanged_files=["/src/a.ts"])
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = {300: {"id": 300, "comments": [{"id": 1}]}}
+                with patch("agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions") as mock_cat:
+                    mock_cat.return_value = [unaddressed]
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+                        result = _incremental_rescaffold(
+                            existing_state=existing,
+                            pull_request_id=_PR_ID,
+                            files=["/src/a.ts"],
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=False,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        err = capsys.readouterr().err
+        assert "Could not post unaddressed comment on thread 300" in err
+        assert "Could not post activity log" in err
+        assert result is not None
+
+    def test_abort_gate_summary_exception_handled(self, capsys):
+        """Exception posting abort summary is caught and logged."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        requests_mock = MagicMock()
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 999, "comments": [{"id": 1}]}
+        requests_mock.post.return_value = post_resp
+        # GET fails (used by _demote_main_comment for abort summary)
+        requests_mock.get.side_effect = Exception("GET error")
+
+        save_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            mock_detect.return_value = FileChangeResult(unchanged_files=["/src/a.ts"])
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = {300: {"id": 300, "comments": [{"id": 1}]}}
+                with patch("agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions") as mock_cat:
+                    mock_cat.return_value = [unaddressed]
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+                        result = _incremental_rescaffold(
+                            existing_state=existing,
+                            pull_request_id=_PR_ID,
+                            files=["/src/a.ts"],
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=False,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        err = capsys.readouterr().err
+        assert "Could not post abort summary" in err
         assert result is not None
