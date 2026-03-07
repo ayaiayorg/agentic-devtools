@@ -131,18 +131,19 @@ def load_review_models_config(repo_path: str) -> ReviewModelsConfig:
 
 
 def ensure_default_config(repo_path: str) -> Path:
-    """Ensure the default review-models.json exists under ``.agdt/config/``.
+    """Write the managed default ``review-models.json`` under ``.agdt/config/``.
 
-    Creates the file with default content if it does not already exist.
+    Overwrites the base config file unconditionally on each run so that managed
+    defaults stay in sync with the current package version.
     Never overwrites ``*-override.*`` files.
 
-    Called by ``agdt-setup`` to install managed defaults.
+    Called by ``agdt-setup`` to install/update managed defaults.
 
     Args:
         repo_path: Absolute (or relative) path to the root of the target repo.
 
     Returns:
-        Path to the written (or existing) base config file.
+        Path to the written base config file.
     """
     config_root = _config_dir(repo_path)
     base_path = config_root / _BASE_FILENAME

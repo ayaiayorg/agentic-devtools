@@ -100,7 +100,11 @@ def compute_file_effective_status(file_entry: FileEntry) -> str:
         # Consolidation is complete — the file.status has been set by the consolidator
         return file_entry.status
 
-    # All agree — use the primary reviewer's status (first model)
+    # All agree — use the primary reviewer's status.
+    # Contract: ``modelVerdicts`` is ordered by ``reviewerModels`` configuration
+    # (populated by ``initialize_model_verdicts``), so index 0 is always the
+    # configured primary reviewer.  If ``record_verdict`` is called before
+    # ``initialize_model_verdicts``, insertion order still reflects call order.
     primary = file_entry.modelVerdicts[0]
     return primary.status
 
@@ -148,7 +152,21 @@ def render_reviewer_addendum(
 
     Returns:
         Markdown string for the addendum section.
+
+    Raises:
+        ValueError: If ``verdict_type`` is not ``VerdictType.SUPPLEMENT`` or
+            ``VerdictType.DISAGREE``.
     """
+    _ADDENDUM_VERDICT_LABELS = {
+        VerdictType.SUPPLEMENT: "Agree + Supplement",
+        VerdictType.DISAGREE: "Disagree",
+    }
+    if verdict_type not in _ADDENDUM_VERDICT_LABELS:
+        raise ValueError(
+            f"Unsupported verdict_type for addendum: {verdict_type!r}. "
+            f"Must be one of {sorted(_ADDENDUM_VERDICT_LABELS)}"
+        )
+
     icon = get_model_icon(model_name)
     short_hash = commit_hash[:SHORT_HASH_LENGTH] if commit_hash else "unknown"
 
@@ -157,7 +175,7 @@ def render_reviewer_addendum(
     else:
         commit_ref = f"`{short_hash}`"
 
-    verdict_label = "Agree + Supplement" if verdict_type == VerdictType.SUPPLEMENT else "Disagree"
+    verdict_label = _ADDENDUM_VERDICT_LABELS[verdict_type]
 
     lines = [
         "---",

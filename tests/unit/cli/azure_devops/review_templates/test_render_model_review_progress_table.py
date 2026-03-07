@@ -68,7 +68,7 @@ class TestRenderModelReviewProgressTable:
         assert "*🔃 Consolidation underway by Claude Opus 4.6*" in result
 
     def test_consolidation_complete(self):
-        """Shows final consolidation attribution."""
+        """Shows final consolidation attribution with final_verdict."""
         verdicts = [
             ModelVerdict(modelId="A", status=ReviewStatus.APPROVED.value, verdictType=VerdictType.AGREE),
             ModelVerdict(modelId="B", status=ReviewStatus.NEEDS_WORK.value, verdictType=VerdictType.DISAGREE),
@@ -77,8 +77,21 @@ class TestRenderModelReviewProgressTable:
             verdicts,
             consolidation_status=ConsolidationStatus.COMPLETE,
             boss_model="Claude Opus 4.6",
+            final_verdict="📝 Needs Work",
         )
-        assert "*Consolidated by Claude Opus 4.6 — Final verdict:" in result
+        assert "*Consolidated by Claude Opus 4.6 — Final verdict: 📝 Needs Work*" in result
+
+    def test_consolidation_complete_default_verdict(self):
+        """Uses default approved verdict when final_verdict is not passed."""
+        verdicts = [
+            ModelVerdict(modelId="A", status=ReviewStatus.APPROVED.value, verdictType=VerdictType.AGREE),
+        ]
+        result = render_model_review_progress_table(
+            verdicts,
+            consolidation_status=ConsolidationStatus.COMPLETE,
+            boss_model="Boss",
+        )
+        assert "*Consolidated by Boss — Final verdict: ✅ Approved*" in result
 
     def test_no_consolidation_note_when_not_needed(self):
         """No consolidation note when status is not_needed."""

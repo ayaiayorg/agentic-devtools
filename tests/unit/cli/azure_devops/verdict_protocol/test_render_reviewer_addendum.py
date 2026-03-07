@@ -98,3 +98,25 @@ class TestRenderReviewerAddendum:
             disagreements=["Point"],
         )
         assert "### Supplements" not in result
+
+    def test_invalid_verdict_type_raises(self):
+        """Raises ValueError for unsupported verdict type."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsupported verdict_type"):
+            render_reviewer_addendum(
+                model_name="Model A",
+                verdict_type=VerdictType.AGREE,
+                commit_hash="abc",
+            )
+
+    def test_arbitrary_string_verdict_type_raises(self):
+        """Raises ValueError for arbitrary string verdict type."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsupported verdict_type"):
+            render_reviewer_addendum(
+                model_name="Model A",
+                verdict_type="invalid_type",
+                commit_hash="abc",
+            )

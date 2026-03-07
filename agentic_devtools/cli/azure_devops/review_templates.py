@@ -14,7 +14,6 @@ from .review_state import (
     ReviewState,
     ReviewStatus,
     SuggestionEntry,
-    VerdictType,
     compute_aggregate_status,
 )
 
@@ -81,6 +80,7 @@ def render_model_review_progress_table(
     model_verdicts: List[ModelVerdict],
     consolidation_status: Optional[str] = None,
     boss_model: Optional[str] = None,
+    final_verdict: Optional[str] = None,
 ) -> str:
     """Render the Model Review Progress table in markdown.
 
@@ -94,6 +94,9 @@ def render_model_review_progress_table(
             ``ConsolidationStatus``), or ``None`` if not applicable.
         boss_model: Boss/consolidator model name. Used in the consolidation
             attribution note when consolidation runs.
+        final_verdict: Display string for the final consolidated verdict
+            (e.g. "✅ Approved" or "📝 Needs Work"). Required when
+            ``consolidation_status`` is ``COMPLETE``.
 
     Returns:
         Markdown string containing the table (including the ``###`` header).
@@ -118,19 +121,9 @@ def render_model_review_progress_table(
         lines.append("")
         lines.append(f"*🔃 Consolidation underway by {boss_model}*")
     elif consolidation_status == ConsolidationStatus.COMPLETE and boss_model:
-        # Determine the final verdict from the file's effective status
-        # The caller should pass the final status; we use the primary reviewer's
-        # verdict as the displayed "final verdict" since consolidation resolves to it.
-        # Build the list of reviewer models that had disagreements for attribution.
-        disagreeing = [
-            mv.modelId for mv in model_verdicts if mv.verdictType in (VerdictType.SUPPLEMENT, VerdictType.DISAGREE)
-        ]
-        final_verdict = "✅ Approved"  # Default; overridden by caller context
+        resolved_verdict = final_verdict if final_verdict else "✅ Approved"
         lines.append("")
-        if disagreeing:
-            lines.append(f"*Consolidated by {boss_model} — Final verdict: {final_verdict}*")
-        else:
-            lines.append(f"*Consolidated by {boss_model} — Final verdict: {final_verdict}*")
+        lines.append(f"*Consolidated by {boss_model} — Final verdict: {resolved_verdict}*")
 
     return "\n".join(lines)
 
@@ -143,6 +136,7 @@ def render_file_summary(
     model_icon: Optional[str] = None,
     commit_hash: Optional[str] = None,
     commit_url: Optional[str] = None,
+    boss_model: Optional[str] = None,
 ) -> str:
     """Render a file review summary in markdown format.
 
@@ -157,6 +151,8 @@ def render_file_summary(
             ``model_name``, an attribution line is prepended.
         commit_url: URL to the file at the reviewed commit. Used in the
             attribution line link.
+        boss_model: Boss/consolidator model name. Passed through to
+            ``render_model_review_progress_table()`` for consolidation attribution.
 
     Returns:
         Markdown string for the file review summary.
@@ -216,15 +212,14 @@ def render_file_summary(
                     item += " *(out of scope)*"
                 lines.append(f"- {item}")
 
-    # Model Review Progress table (always present when model verdicts exist)
-    if file_entry.modelVerdicts:
-        progress_table = render_model_review_progress_table(
-            file_entry.modelVerdicts,
-            consolidation_status=file_entry.consolidationStatus,
-            boss_model=None,  # Populated by caller when ReviewState is available
-        )
-        if progress_table:
-            lines += ["", progress_table]
+    # Model Review Progress table (always attempt to render; returns empty for no verdicts)
+    progress_table = render_model_review_progress_table(
+        file_entry.modelVerdicts or [],
+        consolidation_status=file_entry.consolidationStatus,
+        boss_model=boss_model,
+    )
+    if progress_table:
+        lines += ["", progress_table]
 
     return "\n".join(lines)
 
