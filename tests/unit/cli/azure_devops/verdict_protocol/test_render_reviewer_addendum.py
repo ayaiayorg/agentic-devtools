@@ -1,5 +1,7 @@
 """Tests for render_reviewer_addendum function."""
 
+import pytest
+
 from agentic_devtools.cli.azure_devops.review_state import VerdictType
 from agentic_devtools.cli.azure_devops.verdict_protocol import render_reviewer_addendum
 
@@ -101,8 +103,6 @@ class TestRenderReviewerAddendum:
 
     def test_invalid_verdict_type_raises(self):
         """Raises ValueError for unsupported verdict type."""
-        import pytest
-
         with pytest.raises(ValueError, match="Unsupported verdict_type"):
             render_reviewer_addendum(
                 model_name="Model A",
@@ -112,8 +112,6 @@ class TestRenderReviewerAddendum:
 
     def test_arbitrary_string_verdict_type_raises(self):
         """Raises ValueError for arbitrary string verdict type."""
-        import pytest
-
         with pytest.raises(ValueError, match="Unsupported verdict_type"):
             render_reviewer_addendum(
                 model_name="Model A",
