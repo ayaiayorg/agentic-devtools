@@ -84,23 +84,28 @@ def render_model_review_progress_table(
 ) -> str:
     """Render the Model Review Progress table in markdown.
 
-    Always present in file review comments, even for single-model reviews.
+    Intended to be present in file review comments for both single-model and
+    multi-model reviews.  Returns an empty string when ``model_verdicts`` is
+    empty so callers can safely concatenate the result.
+
     The consolidator does not appear as a row — it appears as an attribution
     note below the table only when consolidation runs.
 
     Args:
-        model_verdicts: Per-model verdict entries for this file.
+        model_verdicts: Per-model verdict entries for this file.  When empty,
+            the function returns ``""`` (no table rendered).
         consolidation_status: Consolidation status for this file (from
             ``ConsolidationStatus``), or ``None`` if not applicable.
         boss_model: Boss/consolidator model name. Used in the consolidation
             attribution note when consolidation runs.
         final_verdict: Display string for the final consolidated verdict
-            (e.g. "✅ Approved" or "📝 Needs Work"). Required when
-            ``consolidation_status`` is ``COMPLETE``.
+            (e.g. "✅ Approved" or "📝 Needs Work").  When ``None`` and
+            ``consolidation_status`` is ``COMPLETE``, defaults to
+            "✅ Approved".
 
     Returns:
-        Markdown string containing the table (including the ``###`` header).
-        Returns an empty string if ``model_verdicts`` is empty.
+        Markdown string containing the table (including the ``###`` header),
+        or an empty string if ``model_verdicts`` is empty.
     """
     if not model_verdicts:
         return ""

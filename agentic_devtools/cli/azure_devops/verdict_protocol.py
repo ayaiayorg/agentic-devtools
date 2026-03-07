@@ -42,7 +42,7 @@ def record_verdict(
         file_entry: The ``FileEntry`` to update.
         model_id: Model identifier (e.g. "Gemini Pro 3.1").
         verdict_type: One of ``VerdictType.AGREE``, ``SUPPLEMENT``, ``DISAGREE``.
-        status: Terminal review status for this model (``approved`` or ``needs_work``).
+        status: Terminal review status for this model (``approved`` or ``needs-work``).
 
     Returns:
         The updated or newly created ``ModelVerdict``.
@@ -263,3 +263,4 @@ def initialize_model_verdicts(file_entry: FileEntry, reviewer_models: List[str])
     for model_id in reviewer_models:
         if model_id not in existing_models:
             file_entry.modelVerdicts.append(ModelVerdict(modelId=model_id, status=ReviewStatus.UNREVIEWED.value))
+            existing_models.add(model_id)

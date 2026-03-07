@@ -190,7 +190,7 @@ class ModelVerdict:
 
     Attributes:
         modelId: Model identifier (e.g. "Claude Opus 4.6").
-        status: Review status for this model (unreviewed/in_progress/approved/needs_work).
+        status: Review status for this model (unreviewed/in-progress/approved/needs-work).
         verdictType: Verdict classification (agree/supplement/disagree) or None if not yet complete.
     """
 

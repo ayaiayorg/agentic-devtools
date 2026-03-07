@@ -63,3 +63,11 @@ class TestInitializeModelVerdicts:
         initialize_model_verdicts(fe, ["Solo Model"])
         assert len(fe.modelVerdicts) == 1
         assert fe.modelVerdicts[0].modelId == "Solo Model"
+
+    def test_duplicate_model_ids_in_input(self):
+        """Duplicate model IDs in reviewer_models do not create duplicate entries."""
+        fe = _make_file_entry()
+        initialize_model_verdicts(fe, ["Model A", "Model A", "Model B"])
+        assert len(fe.modelVerdicts) == 2
+        model_ids = [mv.modelId for mv in fe.modelVerdicts]
+        assert model_ids == ["Model A", "Model B"]
