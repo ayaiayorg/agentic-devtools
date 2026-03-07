@@ -1,6 +1,13 @@
 """Tests for render_file_summary function."""
 
-from agentic_devtools.cli.azure_devops.review_state import FileEntry, SuggestionEntry
+from agentic_devtools.cli.azure_devops.review_state import (
+    ConsolidationStatus,
+    FileEntry,
+    ModelVerdict,
+    ReviewStatus,
+    SuggestionEntry,
+    VerdictType,
+)
 from agentic_devtools.cli.azure_devops.review_templates import render_file_summary
 
 _BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullRequest/42"
@@ -272,3 +279,32 @@ class TestRenderFileSummary:
         fe = _make_file_entry(status="unreviewed")
         result = render_file_summary(fe, [], _BASE_URL)
         assert "🤖 *Reviewed by*" not in result
+
+    def test_model_verdicts_renders_progress_table(self):
+        """Test that model verdicts produce a Model Review Progress table."""
+        mv = ModelVerdict(modelId="Claude Opus 4.6", status=ReviewStatus.APPROVED.value, verdictType=VerdictType.AGREE)
+        fe = _make_file_entry(status="approved", summary="LGTM", modelVerdicts=[mv])
+        result = render_file_summary(fe, [], _BASE_URL)
+        assert "### Model Review Progress" in result
+        assert "| Claude Opus 4.6 | ✅ Approved |" in result
+
+    def test_empty_model_verdicts_omits_table(self):
+        """Test that empty model verdicts do not add a progress table."""
+        fe = _make_file_entry(status="approved", summary="LGTM")
+        result = render_file_summary(fe, [], _BASE_URL)
+        assert "### Model Review Progress" not in result
+
+    def test_boss_model_plumbed_to_progress_table(self):
+        """Test that boss_model is passed through to the progress table."""
+        verdicts = [
+            ModelVerdict(modelId="A", status=ReviewStatus.APPROVED.value, verdictType=VerdictType.AGREE),
+            ModelVerdict(modelId="B", status=ReviewStatus.NEEDS_WORK.value, verdictType=VerdictType.DISAGREE),
+        ]
+        fe = _make_file_entry(
+            status="approved",
+            summary="Resolved",
+            modelVerdicts=verdicts,
+            consolidationStatus=ConsolidationStatus.IN_PROGRESS,
+        )
+        result = render_file_summary(fe, [], _BASE_URL, boss_model="Boss Model")
+        assert "*🔃 Consolidation underway by Boss Model*" in result
