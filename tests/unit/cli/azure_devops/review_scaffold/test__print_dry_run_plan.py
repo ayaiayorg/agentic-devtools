@@ -32,10 +32,16 @@ class TestPrintDryRunPlan:
         assert "Would create overall PR summary thread" in out
 
     def test_prints_total_api_calls(self, capsys):
-        """Prints total API call count (N files + 1 overall, no folder threads)."""
+        """Prints total API call count (N files + 1 overall + 1 activity log + 1 demote reply)."""
         files = ["/a/x.ts", "/a/y.ts", "/b/z.ts"]
         folders = {"a": ["/a/x.ts", "/a/y.ts"], "b": ["/b/z.ts"]}
         _print_dry_run_plan(1, files, folders)
         out = capsys.readouterr().out
-        # 3 files + 1 overall = 4 (no folder threads)
-        assert "Total API calls: 4" in out
+        # 3 files + 3 (overall + activity log + demote reply) = 6
+        assert "Total API calls: 6" in out
+
+    def test_prints_activity_log_thread(self, capsys):
+        """Prints a line for the Review Activity Log thread."""
+        _print_dry_run_plan(1, [], {})
+        out = capsys.readouterr().out
+        assert "Would create Review Activity Log thread" in out
