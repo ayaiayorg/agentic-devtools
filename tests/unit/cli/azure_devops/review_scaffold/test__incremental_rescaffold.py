@@ -614,6 +614,48 @@ class TestIncrementalRescaffoldVerificationGate:
         out = capsys.readouterr().out
         assert "Review blocked" in out
 
+    def test_abort_gate_records_session_without_activity_log_thread(self, capsys):
+        """Abort gate records failed session even when activityLogThreadId is falsy."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+        # Set activityLogThreadId to 0 (falsy)
+        existing.activityLogThreadId = 0
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        result, requests_mock, save_mock, _, _ = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],
+            fetch_threads_return={300: {"id": 300, "comments": [{"id": 1}]}},
+            categorize_return=[unaddressed],
+        )
+
+        # Session should still be created and marked as failed
+        assert result is not None
+        assert len(result.sessions) == 1
+        assert result.sessions[0].status == "failed"
+        assert result.sessions[0].completedUtc is not None
+        # State should be saved
+        save_mock.assert_called_once()
+        # Abort message should be printed
+        out = capsys.readouterr().out
+        assert "Review blocked" in out
+
     def test_all_needs_review_sets_pending_verification(self):
         """When all suggestions are needs_review, files get pending_verification status."""
         from agentic_devtools.cli.azure_devops.suggestion_verification import (

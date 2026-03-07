@@ -1172,15 +1172,19 @@ def _incremental_rescaffold(
                         except Exception as exc:
                             print(f"Warning: Could not post abort summary: {exc}", file=sys.stderr)
 
-                    # Post activity log
+                    # Record abort-gated session unconditionally (consistent with
+                    # resume_stale and different_model paths which always create a
+                    # session regardless of activityLogThreadId).
                     n_unaddr = len(unaddressed_list)
+                    session = _create_session(model_id, commit_hash=commit_hash, now=now)
+                    # Mark this abort-gated session as a terminal failure so it is not treated
+                    # as an in-progress or resumable session by _check_session_status().
+                    session.status = "failed"
+                    session.completedUtc = now.isoformat()
+                    existing_state.sessions.append(session)
+
+                    # Post activity log entry (only if activity log thread exists)
                     if existing_state.activityLogThreadId:
-                        session = _create_session(model_id, commit_hash=commit_hash, now=now)
-                        # Mark this abort-gated session as a terminal failure so it is not treated
-                        # as an in-progress or resumable session by _check_session_status().
-                        session.status = "failed"
-                        session.completedUtc = now.isoformat()
-                        existing_state.sessions.append(session)
                         seq = len(existing_state.sessions)
                         detail = f"Review blocked: {n_unaddr} unaddressed suggestion(s)."
                         entry = _format_activity_log_entry(
