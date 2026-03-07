@@ -27,6 +27,8 @@ from .async_commands import (
     approve_file_async_cli,
     approve_pull_request_async,
     approve_pull_request_async_cli,
+    confirm_suggestion_addressed_async,
+    confirm_suggestion_addressed_async_cli,
     create_pipeline_async,
     create_pull_request_async,
     create_pull_request_async_cli,
@@ -39,6 +41,8 @@ from .async_commands import (
     mark_file_reviewed_async,
     mark_pull_request_draft_async,
     publish_pull_request_async,
+    reject_suggestion_resolution_async,
+    reject_suggestion_resolution_async_cli,
     reply_to_pull_request_thread_async,
     reply_to_pull_request_thread_async_cli,
     request_changes_async,
@@ -171,6 +175,23 @@ from .status_cascade import (
     execute_cascade,
 )
 
+# Suggestion commands exports
+from .suggestion_commands import confirm_suggestion_addressed, reject_suggestion_resolution
+
+# Suggestion verification exports
+from .suggestion_verification import (
+    CATEGORY_NEEDS_REVIEW,
+    CATEGORY_UNADDRESSED,
+    SuggestionVerificationResult,
+    categorize_all_suggestions,
+    fetch_threads_lookup,
+    has_unaddressed,
+    partition_results,
+    render_abort_summary,
+    render_unaddressed_thread_comment,
+    verify_previous_suggestions,
+)
+
 __all__ = [
     # Constants
     "DEFAULT_ORGANIZATION",
@@ -301,4 +322,23 @@ __all__ = [
     "derive_overall_status",
     "cascade_status_update",
     "execute_cascade",
+    # Suggestion commands (sync)
+    "confirm_suggestion_addressed",
+    "reject_suggestion_resolution",
+    # Suggestion commands (async)
+    "confirm_suggestion_addressed_async",
+    "confirm_suggestion_addressed_async_cli",
+    "reject_suggestion_resolution_async",
+    "reject_suggestion_resolution_async_cli",
+    # Suggestion verification
+    "SuggestionVerificationResult",
+    "CATEGORY_UNADDRESSED",
+    "CATEGORY_NEEDS_REVIEW",
+    "verify_previous_suggestions",
+    "categorize_all_suggestions",
+    "has_unaddressed",
+    "partition_results",
+    "render_abort_summary",
+    "render_unaddressed_thread_comment",
+    "fetch_threads_lookup",
 ]

@@ -43,6 +43,7 @@ _REVIEW_MODULE = "agentic_devtools.cli.azure_devops.review_commands"
 _PR_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.pull_request_details_commands"
 _RUN_DETAILS_MODULE = "agentic_devtools.cli.azure_devops.run_details_commands"
 _MARK_REVIEWED_MODULE = "agentic_devtools.cli.azure_devops.mark_reviewed"
+_SUGGESTION_MODULE = "agentic_devtools.cli.azure_devops.suggestion_commands"
 
 
 # =============================================================================
@@ -1534,3 +1535,193 @@ def lookup_pr_from_jira_issue_async(issue_key: str) -> None:
     except Exception as e:
         # Silently fail - this is a background enhancement, not critical
         print(f"⚠️  Could not look up PR from Jira issue: {e}")
+
+
+# =============================================================================
+# Suggestion Verification Commands (Async)
+# =============================================================================
+
+
+def confirm_suggestion_addressed_async(
+    pull_request_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+) -> None:
+    """
+    Confirm that a suggestion was addressed, asynchronously in the background.
+
+    Resolves the suggestion thread and posts a confirmation reply.
+
+    Args:
+        pull_request_id: PR ID (overrides state)
+        thread_id: Thread ID (overrides state)
+        commit_hash: Commit hash (overrides state)
+
+    State keys (used as fallbacks):
+        pull_request_id (required): PR ID
+        thread_id (required): Thread ID
+        suggestion.commit_hash (required): Commit hash
+
+    Usage:
+        agdt-confirm-suggestion-addressed --thread-id 139474 --commit-hash abc1234
+
+        # Or using state:
+        agdt-set pull_request_id 23046
+        agdt-set thread_id 139474
+        agdt-set suggestion.commit_hash abc1234
+        agdt-confirm-suggestion-addressed
+    """
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("thread_id", thread_id)
+    _set_value_if_provided("suggestion.commit_hash", commit_hash)
+
+    _require_value("pull_request_id", "agdt-confirm-suggestion-addressed --pull-request-id 12345")
+    _require_value("thread_id", "agdt-confirm-suggestion-addressed --thread-id 67890")
+    _require_value("suggestion.commit_hash", "agdt-confirm-suggestion-addressed --commit-hash abc1234")
+
+    task = run_function_in_background(
+        _SUGGESTION_MODULE,
+        "confirm_suggestion_addressed",
+        command_display_name="agdt-confirm-suggestion-addressed",
+    )
+    print_task_tracking_info(task, "Confirming suggestion addressed")
+
+
+def confirm_suggestion_addressed_async_cli() -> None:  # pragma: no cover
+    """CLI entry point for confirm_suggestion_addressed_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Confirm a suggestion was addressed (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-confirm-suggestion-addressed --thread-id 139474 --commit-hash abc1234
+  agdt-confirm-suggestion-addressed -t 139474 -c abc1234
+
+  # Or using state:
+  agdt-set pull_request_id 23046
+  agdt-set thread_id 139474
+  agdt-set suggestion.commit_hash abc1234
+  agdt-confirm-suggestion-addressed
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--thread-id",
+        "-t",
+        type=str,
+        default=None,
+        help="Thread ID (falls back to thread_id state)",
+    )
+    parser.add_argument(
+        "--commit-hash",
+        "-c",
+        type=str,
+        default=None,
+        help="Commit hash (falls back to suggestion.commit_hash state)",
+    )
+    args = parser.parse_args()
+    confirm_suggestion_addressed_async(
+        pull_request_id=args.pull_request_id,
+        thread_id=args.thread_id,
+        commit_hash=args.commit_hash,
+    )
+
+
+def reject_suggestion_resolution_async(
+    pull_request_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    explanation: Optional[str] = None,
+) -> None:
+    """
+    Reject a suggestion resolution, asynchronously in the background.
+
+    Reactivates the suggestion thread and posts an explanation reply.
+
+    Args:
+        pull_request_id: PR ID (overrides state)
+        thread_id: Thread ID (overrides state)
+        explanation: Rejection explanation (overrides state)
+
+    State keys (used as fallbacks):
+        pull_request_id (required): PR ID
+        thread_id (required): Thread ID
+        suggestion.explanation (required): Explanation text
+
+    Usage:
+        agdt-reject-suggestion-resolution --thread-id 139474 --explanation "Null check still missing"
+
+        # Or using state:
+        agdt-set pull_request_id 23046
+        agdt-set thread_id 139474
+        agdt-set suggestion.explanation "Null check still missing"
+        agdt-reject-suggestion-resolution
+    """
+    _set_value_if_provided("pull_request_id", pull_request_id)
+    _set_value_if_provided("thread_id", thread_id)
+    _set_value_if_provided("suggestion.explanation", explanation)
+
+    _require_value("pull_request_id", "agdt-reject-suggestion-resolution --pull-request-id 12345")
+    _require_value("thread_id", "agdt-reject-suggestion-resolution --thread-id 67890")
+    _require_value(
+        "suggestion.explanation",
+        'agdt-reject-suggestion-resolution --explanation "Reason"',
+    )
+
+    task = run_function_in_background(
+        _SUGGESTION_MODULE,
+        "reject_suggestion_resolution",
+        command_display_name="agdt-reject-suggestion-resolution",
+    )
+    print_task_tracking_info(task, "Rejecting suggestion resolution")
+
+
+def reject_suggestion_resolution_async_cli() -> None:  # pragma: no cover
+    """CLI entry point for reject_suggestion_resolution_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Reject a suggestion resolution (async)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  agdt-reject-suggestion-resolution --thread-id 139474 --explanation "Null check missing"
+  agdt-reject-suggestion-resolution -t 139474 -e "Null check missing"
+
+  # Or using state:
+  agdt-set pull_request_id 23046
+  agdt-set thread_id 139474
+  agdt-set suggestion.explanation "Null check still missing"
+  agdt-reject-suggestion-resolution
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=str,
+        default=None,
+        help="PR ID (falls back to pull_request_id state)",
+    )
+    parser.add_argument(
+        "--thread-id",
+        "-t",
+        type=str,
+        default=None,
+        help="Thread ID (falls back to thread_id state)",
+    )
+    parser.add_argument(
+        "--explanation",
+        "-e",
+        type=str,
+        default=None,
+        help="Explanation text (falls back to suggestion.explanation state)",
+    )
+    args = parser.parse_args()
+    reject_suggestion_resolution_async(
+        pull_request_id=args.pull_request_id,
+        thread_id=args.thread_id,
+        explanation=args.explanation,
+    )
