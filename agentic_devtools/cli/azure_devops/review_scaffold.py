@@ -364,7 +364,13 @@ def _check_session_status(
     effective_new = commit_hash or ""
 
     if effective_old == effective_new:
-        matching_sessions = [s for s in existing_state.sessions if s.modelId == model_id]
+        # Filter by both model and commit hash — sessions accumulate across
+        # commits, so we must scope to the current commit to avoid false
+        # "already_reviewed" from sessions recorded for prior commits.
+        current_hash = commit_hash or ""
+        matching_sessions = [
+            s for s in existing_state.sessions if s.modelId == model_id and (s.commitHash or "") == current_hash
+        ]
 
         # First, prefer any completed session regardless of insertion order.
         for session in matching_sessions:
@@ -387,7 +393,6 @@ def _check_session_status(
         # model has sessions *for the current commit*.  Sessions accumulate across
         # commits (audit trail), so we must scope this check to avoid false
         # positives from sessions created for prior commits.
-        current_hash = commit_hash or ""
         if any(s.modelId != model_id and (s.commitHash or "") == current_hash for s in existing_state.sessions):
             return "different_model"
         return "first_review"
@@ -413,7 +418,11 @@ def _mark_stale_sessions_failed(
     if now is None:
         now = datetime.now(timezone.utc)
     for session in existing_state.sessions:
-        if session.modelId == model_id and session.status == "in_progress" and existing_state.commitHash == commit_hash:
+        if (
+            session.modelId == model_id
+            and session.status == "in_progress"
+            and (session.commitHash or "") == (commit_hash or "")
+        ):
             started = datetime.fromisoformat(session.startedUtc)
             if now - started >= STALE_SESSION_THRESHOLD:
                 session.status = "failed"

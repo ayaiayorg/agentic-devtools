@@ -106,6 +106,7 @@ class TestCheckSessionStatus:
             modelId="gpt-5",
             startedUtc=started.isoformat(),
             status="in_progress",
+            commitHash="abc123",
         )
         state = _make_state(sessions=[session])
         result = _check_session_status(state, "abc123", "gpt-5", now=now)
@@ -120,6 +121,7 @@ class TestCheckSessionStatus:
             modelId="gpt-5",
             startedUtc=started.isoformat(),
             status="in_progress",
+            commitHash="abc123",
         )
         state = _make_state(sessions=[session])
         result = _check_session_status(state, "abc123", "gpt-5", now=now)
@@ -166,12 +168,14 @@ class TestCheckSessionStatus:
             modelId="gpt-5",
             startedUtc=stale_started.isoformat(),
             status="in_progress",
+            commitHash="abc123",
         )
         s2 = ReviewSession(
             sessionId="s2",
             modelId="gpt-5",
             startedUtc=stale_started.isoformat(),
             status="in_progress",
+            commitHash="abc123",
         )
         state = _make_state(sessions=[s1, s2])
         result = _check_session_status(state, "abc123", "gpt-5", now=now)
@@ -210,3 +214,40 @@ class TestCheckSessionStatus:
         state = _make_state(commit_hash="abc123", sessions=[current_session])
         result = _check_session_status(state, "abc123", "gemini-pro")
         assert result == "different_model"
+
+    def test_old_completed_session_same_model_does_not_trigger_already_reviewed(self):
+        """Completed session from a prior commit for the same model should not trigger 'already_reviewed'.
+
+        After incremental re-scaffolding, existing_state.commitHash is updated to the new commit,
+        but old sessions remain with their original commitHash.  The same model requesting a
+        review of the new commit should get 'first_review', not 'already_reviewed'.
+        """
+        old_session = ReviewSession(
+            sessionId="old-sess",
+            modelId="gpt-5",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+            commitHash="old_commit_aaa",
+        )
+        state = _make_state(commit_hash="new_commit_bbb", sessions=[old_session])
+        result = _check_session_status(state, "new_commit_bbb", "gpt-5")
+        assert result == "first_review"
+
+    def test_old_in_progress_session_same_model_does_not_trigger_in_progress(self):
+        """Stale in-progress session from a prior commit for the same model should not block a new review.
+
+        matching_sessions must scope by commitHash so old sessions don't interfere.
+        """
+        now = datetime.now(timezone.utc)
+        old_started = now - timedelta(minutes=30)  # recent but for old commit
+        old_session = ReviewSession(
+            sessionId="old-sess",
+            modelId="gpt-5",
+            startedUtc=old_started.isoformat(),
+            status="in_progress",
+            commitHash="old_commit_aaa",
+        )
+        state = _make_state(commit_hash="new_commit_bbb", sessions=[old_session])
+        result = _check_session_status(state, "new_commit_bbb", "gpt-5", now=now)
+        assert result == "first_review"
