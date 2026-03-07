@@ -902,3 +902,41 @@ class TestIncrementalRescaffoldVerificationGate:
         err = capsys.readouterr().err
         assert "Could not post abort summary" in err
         assert result is not None
+
+    def test_deleted_file_with_suggestions_included_in_changed_set(self, capsys):
+        """Deleted file with previous suggestions should be in changed_set, avoiding false unaddressed."""
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_NEEDS_REVIEW,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=500)
+        # File /src/removed.ts exists in state but will NOT be in current_files (deleted).
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts", "/src/removed.ts"],
+            previous_suggestions_map={"/src/removed.ts": [suggestion]},
+        )
+
+        needs_review = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/removed.ts",
+            category=CATEGORY_NEEDS_REVIEW,
+            has_reply=False,
+            file_changed=True,  # deleted = changed
+            thread_status="active",
+        )
+
+        result, _, _, _, mock_categorize = self._run_rescaffold_with_mocks(
+            existing,
+            ["/src/a.ts"],  # /src/removed.ts deleted
+            fetch_threads_return={500: {"id": 500, "comments": [{"id": 1}]}},
+            categorize_return=[needs_review],
+        )
+
+        # Verify categorize_all_suggestions was called with changed_set including the deleted file
+        call_args = mock_categorize.call_args
+        changed_files_arg = call_args[0][1]  # second positional arg
+        assert "/src/removed.ts" in changed_files_arg
+        # No abort — file is needs_review, not unaddressed
+        assert result is not None
+        assert not any(s.status == "failed" for s in result.sessions)

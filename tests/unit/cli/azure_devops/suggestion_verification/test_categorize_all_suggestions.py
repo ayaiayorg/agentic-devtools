@@ -75,3 +75,13 @@ class TestCategorizeAllSuggestions:
         results = categorize_all_suggestions({"/src/x.ts": [sug]}, frozenset(["/src/x.ts"]), threads)
         assert results[0].category == CATEGORY_NEEDS_REVIEW
         assert results[0].file_changed is True
+
+    def test_deleted_file_in_changed_set_is_needs_review(self):
+        """Deleted file in changed set with no reply → needs_review, not unaddressed."""
+        sug = _make_suggestion(thread_id=5)
+        threads = {5: _make_thread(5, num_comments=1)}
+        # Deleted file should be in the changed_files set
+        results = categorize_all_suggestions({"/src/removed.ts": [sug]}, frozenset(["/src/removed.ts"]), threads)
+        assert len(results) == 1
+        assert results[0].category == CATEGORY_NEEDS_REVIEW
+        assert results[0].file_changed is True

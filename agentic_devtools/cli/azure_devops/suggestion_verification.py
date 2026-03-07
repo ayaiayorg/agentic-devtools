@@ -14,7 +14,7 @@ in.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .review_state import SuggestionEntry
 
@@ -131,7 +131,7 @@ def categorize_all_suggestions(
         files_with_previous: ``{file_path: [SuggestionEntry, …]}`` from
             ``FileEntry.previousSuggestions``.
         changed_files: Set of file paths that were changed in the new commit
-            (new + modified).
+            (new + modified + deleted).
         threads_data: Pre-fetched ``{thread_id: thread_api_response}``.
 
     Returns:
@@ -151,7 +151,7 @@ def has_unaddressed(results: List[SuggestionVerificationResult]) -> bool:
 
 def partition_results(
     results: List[SuggestionVerificationResult],
-) -> tuple:
+) -> Tuple[List[SuggestionVerificationResult], List[SuggestionVerificationResult]]:
     """Split results into (unaddressed, needs_review) lists.
 
     Returns:

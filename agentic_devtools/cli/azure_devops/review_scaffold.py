@@ -1131,7 +1131,7 @@ def _incremental_rescaffold(
     if files_with_previous and not dry_run:
         threads_lookup = fetch_threads_lookup(requests_module, headers, threads_url)
         if threads_lookup is not None:
-            changed_set = frozenset(changes.new_files + changes.modified_files)
+            changed_set = frozenset(changes.new_files + changes.modified_files + changes.deleted_files)
             verification_results = categorize_all_suggestions(files_with_previous, changed_set, threads_lookup)
             if verification_results:
                 unaddressed_list, needs_review_list = partition_results(verification_results)
