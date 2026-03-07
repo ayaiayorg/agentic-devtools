@@ -109,6 +109,12 @@ class TestRenderAbortSummary:
         result = render_abort_summary([], needs, "abc1234")
         assert "reply exists and file changed" in result
 
+    def test_needs_review_reason_thread_not_found(self):
+        """Thread not found produces has_reply=False, file_changed=False → unknown state reason."""
+        needs = [_make_result(CATEGORY_NEEDS_REVIEW, "/src/b.py", has_reply=False, file_changed=False)]
+        result = render_abort_summary([], needs, "abc1234")
+        assert "thread not found (unknown state)" in result
+
     def test_no_needs_review_shows_none(self):
         unaddressed = [_make_result(CATEGORY_UNADDRESSED)]
         result = render_abort_summary(unaddressed, [], "abc1234")

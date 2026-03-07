@@ -173,7 +173,9 @@ def _reason_text(result: SuggestionVerificationResult) -> str:
         return "reply exists and file changed"
     if result.has_reply:
         return "reply exists"
-    return "file changed"
+    if result.file_changed:
+        return "file changed"
+    return "thread not found (unknown state)"
 
 
 def render_abort_summary(
