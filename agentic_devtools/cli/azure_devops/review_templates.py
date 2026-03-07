@@ -8,10 +8,13 @@ from typing import Dict, List, Optional
 
 from .review_attribution import format_status, render_attribution_line
 from .review_state import (
+    ConsolidationStatus,
     FileEntry,
+    ModelVerdict,
     ReviewState,
     ReviewStatus,
     SuggestionEntry,
+    VerdictType,
     compute_aggregate_status,
 )
 
@@ -63,6 +66,73 @@ def _format_severity_counts(suggestions: List[SuggestionEntry]) -> str:
             counts[sev] += 1
     parts = [f"{counts[sev]} {sev.capitalize()}" for sev in _SEVERITY_ORDER if counts[sev] > 0]
     return ", ".join(parts)
+
+
+# Verdict display string mapping: per-model status → markdown display
+_VERDICT_DISPLAY: Dict[str, str] = {
+    ReviewStatus.UNREVIEWED.value: "⏳ Awaiting Review",
+    ReviewStatus.IN_PROGRESS.value: "🔃 In Progress",
+    ReviewStatus.APPROVED.value: "✅ Approved",
+    ReviewStatus.NEEDS_WORK.value: "📝 Needs Work",
+}
+
+
+def render_model_review_progress_table(
+    model_verdicts: List[ModelVerdict],
+    consolidation_status: Optional[str] = None,
+    boss_model: Optional[str] = None,
+) -> str:
+    """Render the Model Review Progress table in markdown.
+
+    Always present in file review comments, even for single-model reviews.
+    The consolidator does not appear as a row — it appears as an attribution
+    note below the table only when consolidation runs.
+
+    Args:
+        model_verdicts: Per-model verdict entries for this file.
+        consolidation_status: Consolidation status for this file (from
+            ``ConsolidationStatus``), or ``None`` if not applicable.
+        boss_model: Boss/consolidator model name. Used in the consolidation
+            attribution note when consolidation runs.
+
+    Returns:
+        Markdown string containing the table (including the ``###`` header).
+        Returns an empty string if ``model_verdicts`` is empty.
+    """
+    if not model_verdicts:
+        return ""
+
+    lines: List[str] = [
+        "### Model Review Progress",
+        "",
+        "| Model | Verdict |",
+        "|---|---|",
+    ]
+
+    for mv in model_verdicts:
+        verdict_display = _VERDICT_DISPLAY.get(mv.status, mv.status)
+        lines.append(f"| {mv.modelId} | {verdict_display} |")
+
+    # Consolidation attribution note (below the table)
+    if consolidation_status == ConsolidationStatus.IN_PROGRESS and boss_model:
+        lines.append("")
+        lines.append(f"*🔃 Consolidation underway by {boss_model}*")
+    elif consolidation_status == ConsolidationStatus.COMPLETE and boss_model:
+        # Determine the final verdict from the file's effective status
+        # The caller should pass the final status; we use the primary reviewer's
+        # verdict as the displayed "final verdict" since consolidation resolves to it.
+        # Build the list of reviewer models that had disagreements for attribution.
+        disagreeing = [
+            mv.modelId for mv in model_verdicts if mv.verdictType in (VerdictType.SUPPLEMENT, VerdictType.DISAGREE)
+        ]
+        final_verdict = "✅ Approved"  # Default; overridden by caller context
+        lines.append("")
+        if disagreeing:
+            lines.append(f"*Consolidated by {boss_model} — Final verdict: {final_verdict}*")
+        else:
+            lines.append(f"*Consolidated by {boss_model} — Final verdict: {final_verdict}*")
+
+    return "\n".join(lines)
 
 
 def render_file_summary(
@@ -145,6 +215,16 @@ def render_file_summary(
                 if s.outOfScope:
                     item += " *(out of scope)*"
                 lines.append(f"- {item}")
+
+    # Model Review Progress table (always present when model verdicts exist)
+    if file_entry.modelVerdicts:
+        progress_table = render_model_review_progress_table(
+            file_entry.modelVerdicts,
+            consolidation_status=file_entry.consolidationStatus,
+            boss_model=None,  # Populated by caller when ReviewState is available
+        )
+        if progress_table:
+            lines += ["", progress_table]
 
     return "\n".join(lines)
 

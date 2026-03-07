@@ -164,6 +164,58 @@ class FolderGroup:
 FolderEntry = FolderGroup
 
 
+class VerdictType:
+    """Verdict types for multi-model reviews."""
+
+    AGREE = "agree"
+    SUPPLEMENT = "supplement"
+    DISAGREE = "disagree"
+
+
+class ConsolidationStatus:
+    """Consolidation status for a file after all reviewers complete."""
+
+    NOT_NEEDED = "not_needed"
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+
+
+CONSOLIDATION_TERMINAL = frozenset({ConsolidationStatus.NOT_NEEDED, ConsolidationStatus.COMPLETE})
+
+
+@dataclass
+class ModelVerdict:
+    """Tracks an individual model's verdict for a file.
+
+    Attributes:
+        modelId: Model identifier (e.g. "Claude Opus 4.6").
+        status: Review status for this model (unreviewed/in_progress/approved/needs_work).
+        verdictType: Verdict classification (agree/supplement/disagree) or None if not yet complete.
+    """
+
+    modelId: str
+    status: str = ReviewStatus.UNREVIEWED.value
+    verdictType: Optional[str] = None
+
+    def to_dict(self) -> Dict:
+        """Serialize to JSON-compatible dictionary."""
+        return {
+            "modelId": self.modelId,
+            "status": self.status,
+            "verdictType": self.verdictType,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "ModelVerdict":
+        """Deserialize from a dictionary."""
+        return cls(
+            modelId=data["modelId"],
+            status=data.get("status", ReviewStatus.UNREVIEWED.value),
+            verdictType=data.get("verdictType"),
+        )
+
+
 @dataclass
 class FileEntry:
     """Review state for an individual file."""
@@ -178,10 +230,12 @@ class FileEntry:
     suggestions: List[SuggestionEntry] = field(default_factory=list)
     previousSuggestions: Optional[List[SuggestionEntry]] = None
     suggestionVerificationStatus: Optional[str] = None
+    modelVerdicts: List[ModelVerdict] = field(default_factory=list)
+    consolidationStatus: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
-        return {
+        result = {
             "threadId": self.threadId,
             "commentId": self.commentId,
             "folder": self.folder,
@@ -195,6 +249,11 @@ class FileEntry:
             ),
             "suggestionVerificationStatus": self.suggestionVerificationStatus,
         }
+        if self.modelVerdicts:
+            result["modelVerdicts"] = [mv.to_dict() for mv in self.modelVerdicts]
+        if self.consolidationStatus is not None:
+            result["consolidationStatus"] = self.consolidationStatus
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict) -> "FileEntry":
@@ -202,6 +261,7 @@ class FileEntry:
         suggestions = [SuggestionEntry.from_dict(s) for s in data.get("suggestions", [])]
         raw_prev = data.get("previousSuggestions")
         previous = [SuggestionEntry.from_dict(s) for s in raw_prev] if raw_prev is not None else None
+        model_verdicts = [ModelVerdict.from_dict(mv) for mv in data.get("modelVerdicts", [])]
         return cls(
             threadId=data["threadId"],
             commentId=data["commentId"],
@@ -213,7 +273,30 @@ class FileEntry:
             suggestions=suggestions,
             previousSuggestions=previous,
             suggestionVerificationStatus=data.get("suggestionVerificationStatus"),
+            modelVerdicts=model_verdicts,
+            consolidationStatus=data.get("consolidationStatus"),
         )
+
+    def get_model_verdict(self, model_id: str) -> Optional[ModelVerdict]:
+        """Get the verdict entry for a specific model, or None if not found."""
+        for mv in self.modelVerdicts:
+            if mv.modelId == model_id:
+                return mv
+        return None
+
+    def all_reviewers_complete(self) -> bool:
+        """Return True if all configured reviewer models have a terminal verdict."""
+        if not self.modelVerdicts:
+            return False
+        return all(mv.status in COMPLETE_STATUSES for mv in self.modelVerdicts)
+
+    def has_disagreements(self) -> bool:
+        """Return True if any reviewer posted a disagree or supplement verdict."""
+        return any(mv.verdictType in (VerdictType.SUPPLEMENT, VerdictType.DISAGREE) for mv in self.modelVerdicts)
+
+    def needs_consolidation(self) -> bool:
+        """Return True if consolidation is needed (all reviewers done + disagreements exist)."""
+        return self.all_reviewers_complete() and self.has_disagreements()
 
 
 @dataclass
@@ -273,10 +356,12 @@ class ReviewState:
     modelId: Optional[str] = None
     activityLogThreadId: int = 0
     sessions: List[ReviewSession] = field(default_factory=list)
+    reviewerModels: Optional[List[str]] = None
+    bossModel: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
-        return {
+        result = {
             "prId": self.prId,
             "repoId": self.repoId,
             "repoName": self.repoName,
@@ -292,6 +377,11 @@ class ReviewState:
             "activityLogThreadId": self.activityLogThreadId,
             "sessions": [s.to_dict() for s in self.sessions],
         }
+        if self.reviewerModels is not None:
+            result["reviewerModels"] = list(self.reviewerModels)
+        if self.bossModel is not None:
+            result["bossModel"] = self.bossModel
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict) -> "ReviewState":
@@ -301,6 +391,9 @@ class ReviewState:
         Missing ``commitHash`` defaults to ``None`` for direct callers, but
         ``load_review_state()`` enforces migration — it deletes state files
         lacking ``commitHash`` and raises ``FileNotFoundError``.
+
+        Multi-model fields (``reviewerModels``, ``bossModel``) default to
+        ``None`` for backward compatibility with older state files.
         """
         overall_summary = OverallSummary.from_dict(data["overallSummary"])
         folders = {k: FolderGroup.from_dict(v) for k, v in data.get("folders", {}).items()}
@@ -321,7 +414,14 @@ class ReviewState:
             modelId=data.get("modelId"),
             activityLogThreadId=data.get("activityLogThreadId", 0),
             sessions=sessions,
+            reviewerModels=data.get("reviewerModels"),
+            bossModel=data.get("bossModel"),
         )
+
+    @property
+    def is_multi_model(self) -> bool:
+        """Return True if multiple reviewer models are configured."""
+        return self.reviewerModels is not None and len(self.reviewerModels) > 1
 
 
 def normalize_file_path(file_path: str) -> str:
