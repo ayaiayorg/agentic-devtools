@@ -245,6 +245,16 @@
 | `agdt-get-pull-request-threads` | Get all PR threads |
 | `agdt-get-pull-request-details` | Get PR details and diff |
 
+### File Review Commands
+
+| Command | Purpose |
+|---------|---------|
+| `agdt-approve-file` | Approve a file in PR review |
+| `agdt-request-changes` | Request changes on a file with suggestions |
+| `agdt-request-changes-with-suggestion` | Request changes with code replacement suggestions |
+| `agdt-submit-file-review` | Submit a file review |
+| `agdt-mark-file-reviewed` | Mark a file as reviewed |
+
 ### Jira Commands
 
 | Command | Purpose |
