@@ -177,7 +177,19 @@ agentic_devtools/
 │   │   ├── config.py    # Constants + AzureDevOpsConfig dataclass
 │   │   ├── auth.py      # PAT and auth header functions
 │   │   ├── helpers.py   # Pure utility functions (no state reading)
-│   │   └── commands.py  # CLI commands with dry_run + state reading
+│   │   ├── commands.py  # CLI commands with dry_run + state reading
+│   │   ├── file_review_commands.py  # File-level review commands: approve, request-changes, suggestions, submit-review
+│   │   ├── mark_reviewed.py         # Mark files as reviewed in Azure DevOps
+│   │   ├── review_commands.py       # PR review workflow entry point
+│   │   ├── review_state.py          # Review state schema & CRUD
+│   │   ├── review_templates.py      # Markdown template engine for summaries
+│   │   ├── review_scaffold.py       # Upfront thread scaffolding
+│   │   ├── status_cascade.py        # Status derivation & cascade logic
+│   │   ├── review_attribution.py    # AI model attribution & commit tagging
+│   │   ├── review_models_config.py  # Multi-model review configuration
+│   │   ├── verdict_protocol.py      # Verdict recording & consolidation logic
+│   │   ├── suggestion_verification.py # Suggestion verification for re-reviews
+│   │   └── suggestion_commands.py   # Confirm/reject suggestion CLI commands
 │   ├── git/             # Git workflow commands (package)
 │   │   ├── __init__.py  # Command exports
 │   │   ├── core.py      # State helpers, git execution, temp files
@@ -215,6 +227,15 @@ agentic_devtools/
 | `azure_devops/mark_reviewed.py` | Mark files as reviewed in Azure DevOps: updates Reviewers API and Contribution API for UI display |
 | `azure_devops/review_commands.py` | PR review workflow: `review_pull_request`, prompt generation, Jira integration |
 | `azure_devops/__init__.py` | Re-exports all public API for backward compatibility (`from agentic_devtools.cli.azure_devops import reply_to_pr_thread`) |
+| `azure_devops/review_state.py` | Review state schema (`ReviewState`, `FileEntry`, `SuggestionEntry`, `ReviewSession`) and CRUD (`load_review_state`, `save_review_state`, `update_file_status`) for `review-state.json` |
+| `azure_devops/review_templates.py` | Markdown template engine: `render_file_summary`, `render_overall_summary`, `build_discussion_url` for review comment rendering |
+| `azure_devops/review_scaffold.py` | Upfront thread scaffolding: creates file/overall summary threads during `agdt-review-pull-request`, with idempotent re-scaffolding on new commits |
+| `azure_devops/status_cascade.py` | Status derivation rules (`compute_aggregate_status`) and overall PR summary PATCH operations (`cascade_status_update`, `execute_cascade`) derived directly from file statuses (no folder-level threads) |
+| `azure_devops/review_attribution.py` | AI model attribution: model icons, commit hash links, emoji status formatting |
+| `azure_devops/review_models_config.py` | Multi-model review configuration: `ReviewModelsConfig`, base/override config file loading from `.agdt/config/` |
+| `azure_devops/verdict_protocol.py` | Verdict recording and consolidation trigger logic: `record_verdict`, `compute_file_effective_status`, `evaluate_consolidation_need` |
+| `azure_devops/suggestion_verification.py` | Suggestion verification for re-reviews: `verify_previous_suggestions`, `SuggestionVerificationResult` |
+| `azure_devops/suggestion_commands.py` | Confirm/reject suggestion CLI commands: `confirm_suggestion_addressed`, `reject_suggestion_resolution` |
 | `git/core.py` | State helpers, git command execution, temp file handling |
 | `git/operations.py` | Individual git operations (stage, commit, push, etc.) and smart amend detection |
 | `git/commands.py` | CLI entry points: `agdt-git-save-work` (auto-detects amend), `agdt-git-stage`, `agdt-git-push`, etc. |
