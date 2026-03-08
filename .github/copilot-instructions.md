@@ -178,7 +178,7 @@ agentic_devtools/
 │   │   ├── auth.py      # PAT and auth header functions
 │   │   ├── helpers.py   # Pure utility functions (no state reading)
 │   │   ├── commands.py  # CLI commands with dry_run + state reading
-│   │   ├── file_review_commands.py  # File-level review: approve, request-changes
+│   │   ├── file_review_commands.py  # File-level review commands: approve, request-changes, suggestions, submit-review
 │   │   ├── mark_reviewed.py         # Mark files as reviewed in Azure DevOps
 │   │   ├── review_commands.py       # PR review workflow entry point
 │   │   ├── review_state.py          # Review state schema & CRUD
@@ -230,7 +230,7 @@ agentic_devtools/
 | `azure_devops/review_state.py` | Review state schema (`ReviewState`, `FileEntry`, `SuggestionEntry`, `ReviewSession`) and CRUD (`load_review_state`, `save_review_state`, `update_file_status`) for `review-state.json` |
 | `azure_devops/review_templates.py` | Markdown template engine: `render_file_summary`, `render_overall_summary`, `build_discussion_url` for review comment rendering |
 | `azure_devops/review_scaffold.py` | Upfront thread scaffolding: creates file/overall summary threads during `agdt-review-pull-request`, with idempotent re-scaffolding on new commits |
-| `azure_devops/status_cascade.py` | Status derivation rules (`compute_aggregate_status`) and cascade PATCH operations (`cascade_status_update`, `execute_cascade`) for folder/PR summaries |
+| `azure_devops/status_cascade.py` | Status derivation rules (`compute_aggregate_status`) and overall PR summary PATCH operations (`cascade_status_update`, `execute_cascade`) derived directly from file statuses (no folder-level threads) |
 | `azure_devops/review_attribution.py` | AI model attribution: model icons, commit hash links, emoji status formatting |
 | `azure_devops/review_models_config.py` | Multi-model review configuration: `ReviewModelsConfig`, base/override config file loading from `.agdt/config/` |
 | `azure_devops/verdict_protocol.py` | Verdict recording and consolidation trigger logic: `record_verdict`, `compute_file_effective_status`, `evaluate_consolidation_need` |
