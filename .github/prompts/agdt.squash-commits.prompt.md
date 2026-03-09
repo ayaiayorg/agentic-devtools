@@ -185,7 +185,7 @@ git status
 # 2. Verify exactly one commit ahead of origin/main
 git rev-list --count origin/main..HEAD
 
-# 3. Verify all changes are preserved (should show NO output if nothing was lost)
+# 3. Verify all changes are preserved (diff stats should match expected changes; compare to pre-squash diff if needed)
 git diff origin/main..HEAD --stat
 
 # 4. Verify commit message follows conventions

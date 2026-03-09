@@ -281,7 +281,9 @@ git diff --cached
 
 # Complete the merge (only if all conflicts resolved)
 # Option A: Use agentic-devtools (preferred - handles commit message and hooks)
-agdt-set commit_message "Merge main into <branch-name> - resolve conflicts"
+agdt-set commit_message "chore([#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)): resolve merge conflicts from main into <branch-name>
+
+[#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)"
 agdt-git-save-work
 
 # Option B: Raw git (fallback if agdt not available)
