@@ -134,9 +134,12 @@ directly if needed.
 
 ### Standalone Utility Prompts
 
-These are stateless, ad-hoc prompts for common git tasks. They are not tied to
-a multi-step workflow or backed by an agent — invoke them directly from VS Code
-Copilot Chat.
+These are stateless, ad-hoc prompts for common git tasks. They are implemented
+as prompt files under `.github/prompts/` rather than full agents in
+`.github/agents/`, so they do not have agent definitions or handoff buttons.
+Their appearance as `/` commands in the VS Code Copilot Chat slash menu depends
+on Copilot prompt-file support in your environment — when available, you can
+invoke them directly from VS Code Copilot Chat.
 
 | Command | Description |
 |---------|-------------|

@@ -18,7 +18,7 @@ to the next.
 | Push (force) | `agdt-git-force-push` | `git push --force-with-lease` |
 | List GitHub issues | — | `gh issue list` |
 
-The `agdt-*` commands provide: state tracking, pre-commit hooks (cspell), consistent formatting, and background task management.
+The `agdt-*` commands provide: centralized state tracking, consistent formatting, and background task management.
 
 ---
 

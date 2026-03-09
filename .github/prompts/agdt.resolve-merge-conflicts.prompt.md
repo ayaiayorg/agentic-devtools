@@ -17,7 +17,7 @@ You are a senior software engineer resolving merge conflicts. Follow this workfl
 | Get PR context | — | `gh pr view` |
 | List GitHub issues | — | `gh issue list` |
 
-The `agdt-*` commands provide: state tracking, pre-commit hooks (cspell), consistent formatting, and background task management.
+The `agdt-*` commands provide: state tracking, consistent formatting, and background task management.
 
 ---
 
@@ -31,8 +31,8 @@ Identify all files with merge conflicts.
 # List all conflicted files
 git diff --name-only --diff-filter=U
 
-# Alternative: Show conflicted files with status markers
-git status --porcelain | grep "^UU"
+# Alternative: Show conflicted files with status markers (cross-platform)
+git status --short --unmerged
 
 # Show full status for context
 git status
@@ -153,9 +153,9 @@ Apply file-type-specific strategies to resolve conflicts correctly.
 5. Validate JSON syntax with a parser or linter
 
 ```bash
-# Validate JSON after resolution
-npx jsonlint path/to/file.json
-# Or use jq to format and validate
+# Validate JSON after resolution (dependency-free)
+python -m json.tool path/to/file.json >/dev/null 2>&1 || echo "JSON INVALID"
+# Or use jq to format and validate (if available)
 jq . path/to/file.json
 ```
 
@@ -254,10 +254,10 @@ For each resolved file, confirm:
 
 ```bash
 # Ensure no conflict markers remain
-grep -r "^<<<<<<< \|^=======$\|^>>>>>>> " path/to/file
+grep -e '^<<<<<<< ' -e '^=======$' -e '^>>>>>>> ' path/to/file
 
-# For JSON files - validate syntax
-npx jsonlint path/to/file.json 2>&1 || echo "JSON INVALID"
+# For JSON files - validate syntax (dependency-free)
+python -m json.tool path/to/file.json >/dev/null 2>&1 || echo "JSON INVALID"
 
 # Run tests to verify resolution didn't break anything
 # Use agentic-devtools (always — do not run pytest directly)
