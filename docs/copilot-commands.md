@@ -132,6 +132,19 @@ directly if needed.
 
 ---
 
+### Standalone Utility Prompts
+
+These are stateless, ad-hoc prompts for common git tasks. They are not tied to
+a multi-step workflow or backed by an agent — invoke them directly from VS Code
+Copilot Chat.
+
+| Command | Description |
+|---------|-------------|
+| `/agdt.squash-commits` | Squash multiple commits on a feature branch into a single well-formed commit |
+| `/agdt.resolve-merge-conflicts` | Resolve merge conflicts systematically with file-type-specific strategies |
+
+---
+
 ### Other Agents
 
 | Command | Description |
