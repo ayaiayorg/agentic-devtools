@@ -11,10 +11,11 @@ class TestGetCopilotCliBinary:
 
     def test_returns_managed_binary_when_present(self, tmp_path):
         """Returns path to managed binary when it exists in ~/.agdt/bin/."""
-        managed = tmp_path / "copilot"
+        managed = tmp_path / copilot_cli_installer._BINARY_NAME
         managed.touch()
         with patch.object(copilot_cli_installer, "_INSTALL_DIR", tmp_path):
-            result = copilot_cli_installer.get_copilot_cli_binary()
+            with patch.object(shutil, "which", return_value=None):
+                result = copilot_cli_installer.get_copilot_cli_binary()
         assert result == str(managed)
 
     def test_returns_system_path_when_managed_not_present(self, tmp_path):

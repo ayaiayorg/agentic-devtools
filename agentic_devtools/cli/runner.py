@@ -328,6 +328,8 @@ COMMAND_MAP = {
     # Network / VPN wrappers
     "agdt-network-status": ("agentic_devtools.cli.network", "network_status_cmd"),
     "agdt-vpn-run": ("agentic_devtools.cli.vpn", "vpn_run_cmd"),
+    # Multi-model review pipeline
+    "agdt-review": ("agentic_devtools.cli.review", "main"),
 }
 
 

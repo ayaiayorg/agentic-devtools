@@ -15,6 +15,7 @@ authors = [
 dependencies = [
     "requests>=2.28.0",
     "Jinja2>=3.0.0",
+    "PyYAML>=6.0.0",
     "build>=1.2.2",
     "twine>=5.0.0",
     "azure-monitor-query>=1.0.0",
@@ -144,6 +145,7 @@ agdt-create-agdt-bug-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-feature-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-documentation-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-task-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-review = "agentic_devtools.cli.runner:run_as_script"
 
 [tool.hatch.version]
 source = "vcs"
