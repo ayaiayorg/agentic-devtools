@@ -206,7 +206,7 @@ def read_branch_tree(branch_ref: str) -> Dict[str, str]:
     """Read the full file tree of *branch_ref*.
 
     Resolves the branch to a commit SHA, then runs
-    ``git ls-tree -r <commit_sha>`` to list every blob.
+    ``git ls-tree -r --full-tree <commit_sha>`` to list every blob.
 
     Args:
         branch_ref: Branch name (e.g. ``"my-branch-agdt"``).
@@ -240,7 +240,7 @@ def read_branch_tree(branch_ref: str) -> Dict[str, str]:
     if not commit_sha:
         raise GitPlumbingError("git rev-parse returned empty output")
 
-    result = _run_plumbing("ls-tree", "-r", commit_sha)
+    result = _run_plumbing("ls-tree", "-r", "--full-tree", commit_sha)
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 

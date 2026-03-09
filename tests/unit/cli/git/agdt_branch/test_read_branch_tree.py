@@ -66,7 +66,7 @@ class TestReadBranchTree:
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_resolves_ref_with_full_path(self, mock_run):
-        """read_branch_tree uses refs/heads/<branch> for rev-parse."""
+        """read_branch_tree uses refs/heads/<branch> for rev-parse and --full-tree for ls-tree."""
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="abc\n", stderr=""),
             MagicMock(returncode=0, stdout="", stderr=""),
@@ -74,6 +74,8 @@ class TestReadBranchTree:
         read_branch_tree("my-branch")
         rev_args = mock_run.call_args_list[0][0]
         assert rev_args == ("rev-parse", "--verify", "refs/heads/my-branch")
+        ls_args = mock_run.call_args_list[1][0]
+        assert ls_args == ("ls-tree", "-r", "--full-tree", "abc")
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_rev_parse_empty_stdout_raises(self, mock_run):
