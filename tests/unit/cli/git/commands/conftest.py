@@ -4,6 +4,21 @@ from unittest.mock import patch
 
 import pytest
 
+from agentic_devtools.cli.git import operations
+
+
+@pytest.fixture(autouse=True)
+def mock_get_current_branch():
+    """Mock get_current_branch in operations to return 'main' by default.
+
+    stage_changes() calls get_current_branch() for branch-aware filtering.
+    Without this mock, the run_safe mock returns empty stdout which triggers
+    sys.exit(1) in get_current_branch().  Tests that need a specific branch
+    can override with their own patch.
+    """
+    with patch.object(operations, "get_current_branch", return_value="main"):
+        yield
+
 
 @pytest.fixture
 def mock_should_amend():
