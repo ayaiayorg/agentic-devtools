@@ -44,7 +44,8 @@ def _run_plumbing(*args: str, **kwargs: Any) -> CompletedProcess:
     """Run a git plumbing command.
 
     Wraps :func:`~agentic_devtools.cli.subprocess_utils.run_safe` with
-    ``capture_output=True``, ``text=True``, and ``shell=False``.
+    ``capture_output=True``, ``text=True``, and ``shell=False``.  These
+    three parameters are enforced and cannot be overridden via *kwargs*.
 
     Unlike :func:`~agentic_devtools.cli.git.core.run_git` this helper
     does **not** call ``sys.exit`` on failure — callers inspect
@@ -54,11 +55,16 @@ def _run_plumbing(*args: str, **kwargs: Any) -> CompletedProcess:
         *args: Git sub-command and its arguments (e.g. ``"hash-object"``,
             ``"-w"``, ``"--"``, ``"/tmp/file"``).
         **kwargs: Extra keyword arguments forwarded to ``run_safe``
-            (e.g. ``env``).
+            (e.g. ``env``, ``check``).  ``capture_output``, ``text``,
+            and ``shell`` are silently stripped — they are always set by
+            this function.
 
     Returns:
         :class:`~subprocess.CompletedProcess` with captured output.
     """
+    # Strip security-critical keys so callers cannot weaken the defaults.
+    for key in ("capture_output", "text", "shell"):
+        kwargs.pop(key, None)
     cmd = ["git"] + list(args)
     return run_safe(
         cmd,

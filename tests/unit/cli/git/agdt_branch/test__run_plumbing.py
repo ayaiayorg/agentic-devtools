@@ -49,3 +49,13 @@ class TestRunPlumbing:
         mock_run.return_value = expected
         result = _run_plumbing("hash-object", "-w", "/tmp/f")
         assert result is expected
+
+    @patch("agentic_devtools.cli.git.agdt_branch.run_safe")
+    def test_strips_security_critical_kwargs(self, mock_run):
+        """_run_plumbing ignores caller attempts to override shell/text/capture_output."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_plumbing("status", shell=True, text=False, capture_output=False)
+        kwargs = mock_run.call_args[1]
+        assert kwargs["shell"] is False
+        assert kwargs["text"] is True
+        assert kwargs["capture_output"] is True
