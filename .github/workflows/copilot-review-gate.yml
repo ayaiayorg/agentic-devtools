@@ -195,15 +195,24 @@ jobs:
               return;
             }
 
-            for (const run of failed) {
-              core.info(
-                `Re-running pull_request workflow run ${run.id} ` +
-                `(conclusion: ${run.conclusion})`
-              );
-              await github.rest.actions.reRunWorkflow({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: run.id,
-              });
-            }
-            core.info(`Re-run triggered for ${failed.length} workflow run(s).`);
+            // Re-run only the most recent failed workflow run for this head SHA.
+            // Only the latest run matters for updating the required check status;
+            // re-running all of them would create redundant API calls.
+            failed.sort((a, b) => {
+              if (a.run_number !== b.run_number) {
+                return b.run_number - a.run_number;
+              }
+              return new Date(b.created_at) - new Date(a.created_at);
+            });
+
+            const latestFailed = failed[0];
+            core.info(
+              `Re-running most recent failed pull_request workflow run ${latestFailed.id} ` +
+              `(run_number: ${latestFailed.run_number}, conclusion: ${latestFailed.conclusion})`
+            );
+            await github.rest.actions.reRunWorkflow({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: latestFailed.id,
+            });
+            core.info('Re-run triggered for 1 workflow run.');
