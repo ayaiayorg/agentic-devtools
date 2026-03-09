@@ -158,7 +158,8 @@ def run_dispatch(
         pr_id: Pull request ID.
         label: PR label that triggered the review.
         config_path: Optional override — either a repository root directory
-            or a path to the ``.agdt/review-config.yaml`` file.
+            or a path to the ``.agdt/review-config.yaml`` or
+            ``.agdt/review-config.yml`` file.
         dry_run: If True, print plan without executing.
     """
     try:

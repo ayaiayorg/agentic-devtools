@@ -16,7 +16,7 @@ def _resolve_repo_root(config_path: Optional[str]) -> Path:
     """Derive the repo root from an optional config path or repo root override.
 
     The argument may be either:
-    - a path to the review config file (e.g. ".agdt/review-config.yaml"), or
+    - a path to the review config file (e.g. ".agdt/review-config.yaml" or ".agdt/review-config.yml"), or
     - a path to the repository root directory.
     """
     if not config_path:
@@ -65,7 +65,14 @@ def _config_to_dict(config: object) -> Any:
 
 
 def run_config_get(config_path: Optional[str] = None) -> None:
-    """Read and display the target repo's review config (resolved)."""
+    """Read and display the resolved review config (internal representation).
+
+    The output reflects the fully-resolved configuration after defaults and
+    trigger overrides have been applied.  It is **not** a round-trippable
+    ``.agdt/review-config.yaml`` file — it uses the internal dataclass
+    schema (e.g. top-level ``reviewers``, ``consensus``, ``skip_consolidation``)
+    rather than the on-disk ``version`` + ``review: {…}`` layout.
+    """
     try:
         repo_root = _resolve_repo_root(config_path)
     except ReviewConfigError as exc:

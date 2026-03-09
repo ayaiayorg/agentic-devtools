@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     # --- config-get ---------------------------------------------------------
     config_get_parser = subparsers.add_parser(
         "config-get",
-        help="Read and display the target repo's review config.",
+        help="Read and display the resolved review config (internal representation).",
     )
     config_get_parser.add_argument(
         "--config-path",
