@@ -15,11 +15,16 @@ permissions:
 jobs:
   copilot-review-gate:
     name: Copilot Review ✅
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write    # only this job needs actions:write (for re-running stale checks)
     # pull_request_review does not support a branches filter, so guard at job level.
     if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Check Copilot review
+        id: check
         uses: actions/github-script@v7
         with:
           script: |
@@ -35,6 +40,7 @@ jobs:
             });
             const headSha = pr.head.sha;
             core.info(`PR #${prNumber}, head SHA: ${headSha}`);
+            core.setOutput('head_sha', headSha);
 
             // 2. Fetch all reviews for the PR.
             const allReviews = await github.paginate(github.rest.pulls.listReviews, {
@@ -59,78 +65,154 @@ jobs:
               return;
             }
 
-            // 5. Take the most recent Copilot review on the head commit.
-            const latestReview = copilotReviews[copilotReviews.length - 1];
-            const reviewBody = latestReview.body || '';
-            core.info(`Latest Copilot review ID: ${latestReview.id}`);
-            core.info(`Review body length: ${reviewBody.length} characters`);
+            // 5. Sort reviews by submitted_at to find the latest.
+            // Copilot may submit multiple reviews per commit:
+            //   - Multiple reviews in one session (code review + overview)
+            //   - A re-review after issues are addressed
+            // The latest review body reflects the current state — a re-review
+            // saying "no new comments" supersedes earlier reviews that found issues.
+            copilotReviews.sort((a, b) =>
+              new Date(b.submitted_at) - new Date(a.submitted_at)
+            );
+            const latestReview = copilotReviews[0];
 
-            // 6. Parse the review body for comment counts.
+            core.info(`Found ${copilotReviews.length} Copilot review(s) on head commit.`);
+            for (const r of copilotReviews) {
+              core.info(
+                `  Review ${r.id} (${r.submitted_at}): ` +
+                `body length ${(r.body || '').length} chars` +
+                (r.id === latestReview.id ? ' [latest]' : '')
+              );
+            }
+
+            // 6. Parse the LATEST review body for comment and suppressed counts.
+            // Only the latest review is used because a re-review supersedes
+            // earlier ones — "generated no new comments" means prior issues
+            // have been addressed.
+            const latestBody = latestReview.body || '';
             let bodyCommentCount = null;
-            const noCommentsMatch = /generated no comments/i.test(reviewBody);
-            if (noCommentsMatch) {
+            let suppressedCount = 0;
+
+            // Match both "generated no comments" and "generated no new comments"
+            // (Copilot uses "no new comments" on re-reviews).
+            if (/generated no( new)? comments/i.test(latestBody)) {
               bodyCommentCount = 0;
             } else {
-              const generatedMatch = reviewBody.match(/generated (\d+) comment/i);
+              const generatedMatch = latestBody.match(/generated (\d+) comment/i);
               if (generatedMatch) {
                 bodyCommentCount = parseInt(generatedMatch[1], 10);
               }
             }
 
-            // 7. Parse for suppressed/low-confidence comments.
-            // Copilot uses patterns like "Comments suppressed due to low confidence (3)".
-            let suppressedCount = 0;
-            const suppressedMatch = reviewBody.match(/[Ss]uppressed[^.(]*\((\d+)\)/);
+            const suppressedMatch = latestBody.match(/[Ss]uppressed[^.(]*\((\d+)\)/);
             if (suppressedMatch) {
               suppressedCount = parseInt(suppressedMatch[1], 10);
             } else {
-              const lowConfidenceMatch = reviewBody.match(/[Ll]ow confidence[^.(]*\((\d+)\)/);
-              if (lowConfidenceMatch) {
-                suppressedCount = parseInt(lowConfidenceMatch[1], 10);
+              const lowConfMatch = latestBody.match(/[Ll]ow confidence[^.(]*\((\d+)\)/);
+              if (lowConfMatch) {
+                suppressedCount = parseInt(lowConfMatch[1], 10);
               }
             }
 
-            // 8. Fetch review comments via API as a fallback (all pages).
-            const reviewComments = await github.paginate(
-              github.rest.pulls.listCommentsForReview,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                review_id: latestReview.id,
-                per_page: 100,
-              }
-            );
-            const apiCommentCount = reviewComments.filter(
-              c => c.user && c.user.login === copilotLogin
-            ).length;
-
-            // Determine the posted comment count.
+            // 7. Determine the posted comment count.
+            // Trust the latest review body when parseable. Fall back to API
+            // comment count (aggregated across all reviews) only when the
+            // body format is unrecognized.
             let postedCommentCount;
-            if (bodyCommentCount === null) {
-              core.warning('Could not parse comment count from review body — falling back to API comment count.');
-              postedCommentCount = apiCommentCount;
+            if (bodyCommentCount !== null) {
+              core.info(`Latest review body reports ${bodyCommentCount} comment(s).`);
+              postedCommentCount = bodyCommentCount;
             } else {
-              if (bodyCommentCount !== apiCommentCount) {
-                core.warning(
-                  `Comment count mismatch: review body says ${bodyCommentCount}, API says ${apiCommentCount}. Using the higher value.`
+              core.warning(
+                'Could not parse comment count from latest review body — ' +
+                'falling back to API comment count.'
+              );
+              let totalApiComments = 0;
+              for (const review of copilotReviews) {
+                const reviewComments = await github.paginate(
+                  github.rest.pulls.listCommentsForReview,
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber,
+                    review_id: review.id,
+                    per_page: 100,
+                  }
                 );
+                const count = reviewComments.filter(
+                  c => c.user && c.user.login === copilotLogin
+                ).length;
+                if (count > 0) {
+                  core.info(`  Review ${review.id}: ${count} API comment(s)`);
+                }
+                totalApiComments += count;
               }
-              postedCommentCount = Math.max(bodyCommentCount, apiCommentCount);
+              postedCommentCount = totalApiComments;
             }
 
             const totalComments = postedCommentCount + suppressedCount;
 
-            // 9. Decision.
+            // 8. Decision.
             if (totalComments === 0) {
               core.info(
-                `✅ Copilot reviewed the latest commit and generated 0 comments (including 0 suppressed). All clear!`
+                `✅ Copilot's latest review of commit ${headSha} reported 0 comments ` +
+                `(0 posted, 0 suppressed). Total Copilot reviews on this commit: ` +
+                `${copilotReviews.length}. All clear!`
               );
             } else {
               core.setFailed(
                 `❌ Copilot review found issues on commit ${headSha}.\n` +
+                `- Reviews on commit: ${copilotReviews.length}\n` +
                 `- Comments posted: ${postedCommentCount}\n` +
                 `- Comments suppressed (low confidence): ${suppressedCount}\n` +
                 `Please address all Copilot feedback (including suppressed low-confidence comments), push a new commit, and wait for Copilot to re-review.`
               );
             }
+
+      # When triggered by a pull_request_review event, the companion (pull_request)
+      # check may still show a stale failure from before the Copilot review existed.
+      # Re-running it ensures both required checks reflect the current review status.
+      # Best-effort: API errors (fork restrictions, rate limits) must not fail the gate.
+      - name: Re-run stale pull_request check
+        if: success() && github.event_name == 'pull_request_review'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headSha = '${{ steps.check.outputs.head_sha }}';
+            const { data: { workflow_runs: runs } } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'copilot-review-gate.yml',
+              event: 'pull_request',
+              head_sha: headSha,
+              per_page: 100,
+            });
+
+            const failed = runs.filter(r => r.conclusion === 'failure');
+            if (failed.length === 0) {
+              core.info('No failed pull_request checks to re-run.');
+              return;
+            }
+
+            // Re-run only the most recent failed workflow run for this head SHA.
+            // Only the latest run matters for updating the required check status;
+            // re-running all of them would create redundant API calls.
+            failed.sort((a, b) => {
+              if (a.run_number !== b.run_number) {
+                return b.run_number - a.run_number;
+              }
+              return new Date(b.created_at) - new Date(a.created_at);
+            });
+
+            const latestFailed = failed[0];
+            core.info(
+              `Re-running most recent failed pull_request workflow run ${latestFailed.id} ` +
+              `(run_number: ${latestFailed.run_number}, conclusion: ${latestFailed.conclusion})`
+            );
+            await github.rest.actions.reRunWorkflow({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: latestFailed.id,
+            });
+            core.info('Re-run triggered for 1 workflow run.');
