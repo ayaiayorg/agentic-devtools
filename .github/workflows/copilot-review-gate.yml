@@ -65,78 +65,99 @@ jobs:
               return;
             }
 
-            // 5. Take the most recent Copilot review on the head commit.
-            const latestReview = copilotReviews[copilotReviews.length - 1];
-            const reviewBody = latestReview.body || '';
-            core.info(`Latest Copilot review ID: ${latestReview.id}`);
-            core.info(`Review body length: ${reviewBody.length} characters`);
+            // 5. Aggregate across ALL Copilot reviews on the head commit.
+            // Copilot may submit multiple reviews per commit (e.g. code review
+            // with inline comments + a separate overview comment). Checking only
+            // the last review can miss comments from earlier reviews, allowing
+            // the gate to be bypassed.
+            core.info(`Found ${copilotReviews.length} Copilot review(s) on head commit.`);
+            for (const r of copilotReviews) {
+              core.info(`  Review ${r.id}: body length ${(r.body || '').length} characters`);
+            }
 
-            // 6. Parse the review body for comment counts.
-            let bodyCommentCount = null;
-            const noCommentsMatch = /generated no comments/i.test(reviewBody);
-            if (noCommentsMatch) {
-              bodyCommentCount = 0;
-            } else {
-              const generatedMatch = reviewBody.match(/generated (\d+) comment/i);
-              if (generatedMatch) {
-                bodyCommentCount = parseInt(generatedMatch[1], 10);
+            // 6. Parse every review body for comment counts and suppressed counts.
+            let totalBodyCommentCount = null;
+            let totalSuppressed = 0;
+            for (const review of copilotReviews) {
+              const body = review.body || '';
+
+              // Comment count from body text — sum across all reviews since
+              // Copilot may split inline comments across separate reviews.
+              if (/generated no comments/i.test(body)) {
+                if (totalBodyCommentCount === null) totalBodyCommentCount = 0;
+              } else {
+                const generatedMatch = body.match(/generated (\d+) comment/i);
+                if (generatedMatch) {
+                  const n = parseInt(generatedMatch[1], 10);
+                  totalBodyCommentCount = (totalBodyCommentCount || 0) + n;
+                }
+              }
+
+              // Suppressed / low-confidence comments.
+              const suppressedMatch = body.match(/[Ss]uppressed[^.(]*\((\d+)\)/);
+              if (suppressedMatch) {
+                totalSuppressed += parseInt(suppressedMatch[1], 10);
+              } else {
+                const lowConfMatch = body.match(/[Ll]ow confidence[^.(]*\((\d+)\)/);
+                if (lowConfMatch) {
+                  totalSuppressed += parseInt(lowConfMatch[1], 10);
+                }
               }
             }
 
-            // 7. Parse for suppressed/low-confidence comments.
-            // Copilot uses patterns like "Comments suppressed due to low confidence (3)".
-            let suppressedCount = 0;
-            const suppressedMatch = reviewBody.match(/[Ss]uppressed[^.(]*\((\d+)\)/);
-            if (suppressedMatch) {
-              suppressedCount = parseInt(suppressedMatch[1], 10);
-            } else {
-              const lowConfidenceMatch = reviewBody.match(/[Ll]ow confidence[^.(]*\((\d+)\)/);
-              if (lowConfidenceMatch) {
-                suppressedCount = parseInt(lowConfidenceMatch[1], 10);
+            // 7. Fetch review comments via API across ALL Copilot reviews.
+            let totalApiComments = 0;
+            for (const review of copilotReviews) {
+              const reviewComments = await github.paginate(
+                github.rest.pulls.listCommentsForReview,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  review_id: review.id,
+                  per_page: 100,
+                }
+              );
+              const count = reviewComments.filter(
+                c => c.user && c.user.login === copilotLogin
+              ).length;
+              if (count > 0) {
+                core.info(`  Review ${review.id}: ${count} API comment(s)`);
               }
+              totalApiComments += count;
             }
-
-            // 8. Fetch review comments via API as a fallback (all pages).
-            const reviewComments = await github.paginate(
-              github.rest.pulls.listCommentsForReview,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                review_id: latestReview.id,
-                per_page: 100,
-              }
-            );
-            const apiCommentCount = reviewComments.filter(
-              c => c.user && c.user.login === copilotLogin
-            ).length;
 
             // Determine the posted comment count.
             let postedCommentCount;
-            if (bodyCommentCount === null) {
-              core.warning('Could not parse comment count from review body — falling back to API comment count.');
-              postedCommentCount = apiCommentCount;
+            if (totalBodyCommentCount === null) {
+              core.warning(
+                'Could not parse comment count from any review body — falling back to API comment count.'
+              );
+              postedCommentCount = totalApiComments;
             } else {
-              if (bodyCommentCount !== apiCommentCount) {
+              if (totalBodyCommentCount !== totalApiComments) {
                 core.warning(
-                  `Comment count mismatch: review body says ${bodyCommentCount}, API says ${apiCommentCount}. Using the higher value.`
+                  `Comment count mismatch: review bodies total ${totalBodyCommentCount}, ` +
+                  `API total ${totalApiComments}. Using the higher value.`
                 );
               }
-              postedCommentCount = Math.max(bodyCommentCount, apiCommentCount);
+              postedCommentCount = Math.max(totalBodyCommentCount, totalApiComments);
             }
 
-            const totalComments = postedCommentCount + suppressedCount;
+            const totalComments = postedCommentCount + totalSuppressed;
 
-            // 9. Decision.
+            // 8. Decision.
             if (totalComments === 0) {
               core.info(
-                `✅ Copilot reviewed the latest commit and generated 0 comments (including 0 suppressed). All clear!`
+                `✅ Copilot reviewed the latest commit and generated 0 comments ` +
+                `(including 0 suppressed) across ${copilotReviews.length} review(s). All clear!`
               );
             } else {
               core.setFailed(
                 `❌ Copilot review found issues on commit ${headSha}.\n` +
+                `- Reviews checked: ${copilotReviews.length}\n` +
                 `- Comments posted: ${postedCommentCount}\n` +
-                `- Comments suppressed (low confidence): ${suppressedCount}\n` +
+                `- Comments suppressed (low confidence): ${totalSuppressed}\n` +
                 `Please address all Copilot feedback (including suppressed low-confidence comments), push a new commit, and wait for Copilot to re-review.`
               );
             }
