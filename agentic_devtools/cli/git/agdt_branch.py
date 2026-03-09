@@ -125,13 +125,15 @@ def build_tree(entries: Dict[str, str]) -> str:
     try:
         env = dict(os.environ, GIT_INDEX_FILE=tmp_index)
         for path, blob_sha in sorted(entries.items()):
-            # The single-argument comma form is the recommended modern
-            # syntax per ``git help update-index``.
+            # Use the three-argument ``--cacheinfo`` form so git parses
+            # the path safely, even when it contains commas.
             result = _run_plumbing(
                 "update-index",
                 "--add",
                 "--cacheinfo",
-                f"100644,{blob_sha},{path}",
+                "100644",
+                blob_sha,
+                path,
                 env=env,
             )
             if result.returncode != 0:
@@ -221,15 +223,22 @@ def read_branch_tree(branch_ref: str) -> Dict[str, str]:
     # Resolve the ref — return {} for missing refs, raise for other failures.
     rev_result = _run_plumbing("rev-parse", "--verify", "refs/heads/" + branch_ref)
     if rev_result.returncode != 0:
-        stderr = rev_result.stderr.strip().lower()
-        # Raise on failures unrelated to a missing ref (e.g. "not a git repository").
-        if "not a git repository" in stderr:
-            raise GitPlumbingError("git rev-parse failed: " + rev_result.stderr.strip())
-        return {}
+        raw_stderr = (rev_result.stderr or "").strip()
+        stderr_lower = raw_stderr.lower()
+        # Known patterns emitted by ``git rev-parse --verify`` when
+        # the ref simply does not exist.
+        missing_ref_patterns = (
+            "needed a single revision",
+            "unknown revision or path not in the working tree",
+        )
+        if any(pat in stderr_lower for pat in missing_ref_patterns):
+            return {}
+        # Any other failure (permissions, corrupt repo, etc.) is an error.
+        raise GitPlumbingError("git rev-parse failed: " + raw_stderr)
 
     commit_sha = rev_result.stdout.strip()
     if not commit_sha:
-        return {}
+        raise GitPlumbingError("git rev-parse returned empty output")
 
     result = _run_plumbing("ls-tree", "-r", commit_sha)
     if result.returncode != 0:

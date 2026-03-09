@@ -33,10 +33,14 @@ class TestBuildTree:
 
         first_args = calls[0][0]
         assert "update-index" in first_args
-        assert "100644,sha_a,a.txt" in first_args
+        assert "100644" in first_args
+        assert "sha_a" in first_args
+        assert "a.txt" in first_args
 
         second_args = calls[1][0]
-        assert "100644,sha_b,b.txt" in second_args
+        assert "100644" in second_args
+        assert "sha_b" in second_args
+        assert "b.txt" in second_args
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_uses_temp_index(self, mock_run):

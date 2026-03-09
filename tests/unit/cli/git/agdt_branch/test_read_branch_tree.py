@@ -34,6 +34,17 @@ class TestReadBranchTree:
         assert result == {}
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
+    def test_unknown_revision_returns_empty_dict(self, mock_run):
+        """read_branch_tree returns {} for 'unknown revision' stderr."""
+        mock_run.return_value = MagicMock(
+            returncode=128,
+            stdout="",
+            stderr="fatal: unknown revision or path not in the working tree",
+        )
+        result = read_branch_tree("no-such-branch")
+        assert result == {}
+
+    @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_empty_tree_returns_empty_dict(self, mock_run):
         """read_branch_tree returns {} for an empty tree (no files)."""
         mock_run.side_effect = [
@@ -65,11 +76,11 @@ class TestReadBranchTree:
         assert rev_args == ("rev-parse", "--verify", "refs/heads/my-branch")
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
-    def test_rev_parse_empty_stdout_returns_empty_dict(self, mock_run):
-        """read_branch_tree returns {} when rev-parse returns empty stdout."""
+    def test_rev_parse_empty_stdout_raises(self, mock_run):
+        """read_branch_tree raises GitPlumbingError when rev-parse returns empty stdout."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        result = read_branch_tree("branch")
-        assert result == {}
+        with pytest.raises(GitPlumbingError, match="rev-parse returned empty output"):
+            read_branch_tree("branch")
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_raises_on_not_a_git_repo(self, mock_run):
@@ -79,5 +90,12 @@ class TestReadBranchTree:
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories)",
         )
+        with pytest.raises(GitPlumbingError, match="git rev-parse failed"):
+            read_branch_tree("branch")
+
+    @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
+    def test_raises_on_unexpected_rev_parse_error(self, mock_run):
+        """read_branch_tree raises GitPlumbingError for unexpected rev-parse errors."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error: something unexpected happened")
         with pytest.raises(GitPlumbingError, match="git rev-parse failed"):
             read_branch_tree("branch")
