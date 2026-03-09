@@ -508,7 +508,8 @@ def persist_workflow_state(
         if branch_is_new:
             # Parent = source branch HEAD (or None if source doesn't exist).
             src_result = _run_plumbing("rev-parse", source_branch)
-            parent_sha = src_result.stdout.strip() if src_result.returncode == 0 and src_result.stdout.strip() else None
+            src_sha = src_result.stdout.strip() if src_result.returncode == 0 else ""
+            parent_sha = src_sha or None
         else:
             head_result = _run_plumbing("rev-parse", target_branch)
             head_sha = head_result.stdout.strip() if head_result.returncode == 0 else ""
@@ -516,7 +517,7 @@ def persist_workflow_state(
                 is_amend = True
                 parent_sha = _get_parent_sha(head_sha)
             else:
-                parent_sha = head_sha if head_sha else None
+                parent_sha = head_sha or None
 
         # 9. Create commit & update ref ---------------------------------------
         commit_sha = create_commit(tree_sha, parent_sha, full_message)
