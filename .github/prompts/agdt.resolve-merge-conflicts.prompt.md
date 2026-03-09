@@ -31,7 +31,7 @@ Identify all files with merge conflicts.
 # List all conflicted files
 git diff --name-only --diff-filter=U
 
-# Alternative: Show conflicted files with status markers (cross-platform)
+# Alternative: Show conflicted files with status markers
 git status --short --unmerged
 
 # Show full status for context

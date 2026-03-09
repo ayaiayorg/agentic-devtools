@@ -32,17 +32,20 @@ Understand the branch state before making any changes.
 # Show current branch name
 git rev-parse --abbrev-ref HEAD
 
-# Count commits to squash
-git rev-list --count main..HEAD
+# Fetch latest main so commit counts and diffs are accurate
+git fetch origin main
 
-# List all commits on current branch not in main
-git log --oneline main..HEAD
+# Count commits to squash
+git rev-list --count origin/main..HEAD
+
+# List all commits on current branch not in origin/main
+git log --oneline origin/main..HEAD
 
 # Show commit details with stats
-git log --stat main..HEAD
+git log --stat origin/main..HEAD
 
 # Show overall diff summary (files changed)
-git diff --stat main..HEAD
+git diff --stat origin/main..HEAD
 ```
 
 ### Output
@@ -56,11 +59,11 @@ Document:
 
 ### Edge Case: Single Commit
 
-If `git rev-list --count main..HEAD` returns `1`, **no squash is needed**. Inform the user and stop.
+If `git rev-list --count origin/main..HEAD` returns `1`, **no squash is needed**. Inform the user and stop.
 
 ### Edge Case: Merge Commits
 
-If `git log --oneline main..HEAD` shows merge commits (lines starting with `Merge`), prefer the **soft reset** approach in Phase 3 over interactive rebase to avoid complications.
+If `git log --oneline origin/main..HEAD` shows merge commits (lines starting with `Merge`), prefer the **soft reset** approach in Phase 3 over interactive rebase to avoid complications.
 
 ---
 
@@ -130,8 +133,8 @@ Use one of the two approaches below.
 Simpler and handles merge commits cleanly:
 
 ```bash
-# Soft reset to main — keeps all changes staged
-git reset --soft main
+# Soft reset to origin/main — keeps all changes staged
+git reset --soft origin/main
 
 # Preferred: use agentic-devtools with a multi-line commit message
 agdt-set commit_message "<composed message>"
@@ -147,8 +150,8 @@ git commit
 Use when you need finer control over individual commits:
 
 ```bash
-# Interactive rebase against main
-git rebase -i main
+# Interactive rebase against origin/main
+git rebase -i origin/main
 
 # In the editor:
 # - Keep the first commit as "pick"
@@ -160,8 +163,8 @@ git rebase -i main
 ### After Squashing
 
 ```bash
-# Verify the squash produced exactly one commit ahead of main
-git rev-list --count main..HEAD
+# Verify the squash produced exactly one commit ahead of origin/main
+git rev-list --count origin/main..HEAD
 
 # Show the final commit
 git log -1 --stat
@@ -179,17 +182,17 @@ Verify that no changes were lost and the result is correct.
 # 1. Verify working tree is clean
 git status
 
-# 2. Verify exactly one commit ahead of main
-git rev-list --count main..HEAD
+# 2. Verify exactly one commit ahead of origin/main
+git rev-list --count origin/main..HEAD
 
 # 3. Verify all changes are preserved (should show NO output if nothing was lost)
-git diff main..HEAD --stat
+git diff origin/main..HEAD --stat
 
 # 4. Verify commit message follows conventions
 git log -1 --format="%B"
 
 # 5. Verify branch still points to correct parent
-git merge-base --is-ancestor main HEAD && echo "OK: main is ancestor" || echo "ERROR: main is not ancestor"
+git merge-base --is-ancestor origin/main HEAD && echo "OK: origin/main is ancestor" || echo "ERROR: origin/main is not ancestor"
 ```
 
 ### Run Tests
@@ -206,9 +209,9 @@ Confirm all items pass:
 
 - [ ] All changes from all previous commits are preserved
 - [ ] Working tree is clean after squash
-- [ ] Exactly one commit ahead of main
+- [ ] Exactly one commit ahead of origin/main
 - [ ] Commit message follows repo conventions
-- [ ] Branch still points to correct parent (main is ancestor)
+- [ ] Branch still points to correct parent (origin/main is ancestor)
 - [ ] No unintended files staged or lost
 - [ ] Tests pass (if applicable)
 
