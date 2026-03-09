@@ -137,8 +137,11 @@ Simpler and handles merge commits cleanly:
 git reset --soft origin/main
 
 # Preferred: use agentic-devtools with a multi-line commit message
+# After soft reset, skip auto-stage/rebase/push — the force-push happens in Phase 5
 agdt-set commit_message "<composed message>"
-agdt-git-save-work
+agdt-set skip_stage true
+agdt-set skip_push true
+agdt-git-save-work --skip-rebase
 
 # Fallback: use git's editor directly for a multi-line message
 # (omit -m so you can enter subject, body, and footer properly)

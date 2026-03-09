@@ -280,14 +280,21 @@ git diff --name-only --diff-filter=U
 git diff --cached
 
 # Complete the merge (only if all conflicts resolved)
-# Option A: Use agentic-devtools (preferred - handles commit message and hooks)
+# Option A: Use agentic-devtools (preferred - but skip rebase/push automation during merge completion)
 agdt-set commit_message "chore([#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)): resolve merge conflicts from main into <branch-name>
 
 [#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)"
-agdt-git-save-work
+
+# During a merge commit, disable auto-push and skip the rebase step
+agdt-set skip_push true
+agdt-git-save-work --skip-rebase
+
+# After the merge commit is created and reviewed, push explicitly
+agdt-git-push
 
 # Option B: Raw git (fallback if agdt not available)
 git commit
+git push
 ```
 
 ---
