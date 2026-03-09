@@ -15,18 +15,58 @@ Consumers import directly from this module::
         read_branch_tree,
         push_branch,
     )
+
+.. note::
+
+   These functions use :func:`_run_plumbing` (which wraps ``run_safe``
+   with ``shell=False``) instead of :func:`~agentic_devtools.cli.git.core.run_git`.
+   ``run_git`` calls ``sys.exit`` on failure, which is appropriate for
+   CLI entry-points but not for library functions whose callers need to
+   catch :class:`GitPlumbingError`.  ``build_tree`` also requires the
+   ``env`` parameter (for ``GIT_INDEX_FILE``), which ``run_git`` does
+   not support.
 """
 
 import os
+import shutil
 import tempfile
 from subprocess import CompletedProcess
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..subprocess_utils import run_safe
 
 
 class GitPlumbingError(Exception):
     """Raised when a git plumbing command fails."""
+
+
+def _run_plumbing(*args: str, **kwargs: Any) -> CompletedProcess:
+    """Run a git plumbing command.
+
+    Wraps :func:`~agentic_devtools.cli.subprocess_utils.run_safe` with
+    ``capture_output=True``, ``text=True``, and ``shell=False``.
+
+    Unlike :func:`~agentic_devtools.cli.git.core.run_git` this helper
+    does **not** call ``sys.exit`` on failure — callers inspect
+    ``returncode`` and raise :class:`GitPlumbingError` as appropriate.
+
+    Args:
+        *args: Git sub-command and its arguments (e.g. ``"hash-object"``,
+            ``"-w"``, ``"--"``, ``"/tmp/file"``).
+        **kwargs: Extra keyword arguments forwarded to ``run_safe``
+            (e.g. ``env``).
+
+    Returns:
+        :class:`~subprocess.CompletedProcess` with captured output.
+    """
+    cmd = ["git"] + list(args)
+    return run_safe(
+        cmd,
+        capture_output=True,
+        text=True,
+        shell=False,
+        **kwargs,
+    )
 
 
 def hash_object(content: bytes) -> str:
@@ -45,13 +85,9 @@ def hash_object(content: bytes) -> str:
     """
     fd, tmp_path = tempfile.mkstemp()
     try:
-        os.write(fd, content)
-        os.close(fd)
-        result = run_safe(
-            ["git", "hash-object", "-w", "--", tmp_path],
-            capture_output=True,
-            text=True,
-        )
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        result = _run_plumbing("hash-object", "-w", "--", tmp_path)
         if result.returncode != 0:
             raise GitPlumbingError("git hash-object failed: " + result.stderr.strip())
         sha = result.stdout.strip()
@@ -68,9 +104,10 @@ def hash_object(content: bytes) -> str:
 def build_tree(entries: Dict[str, str]) -> str:
     """Build a git tree object from *{path: blob_sha}* entries.
 
-    Uses a temporary ``GIT_INDEX_FILE`` so the real index (and working
-    directory) are never touched.  All entries are stored with mode
-    ``100644``.
+    Uses a temporary ``GIT_INDEX_FILE`` pointing at a non-existent path
+    so the real index (and working directory) are never touched.  Git
+    creates the index file on the first ``update-index --add`` call.
+    All entries are stored with mode ``100644``.
 
     Args:
         entries: Mapping of ``path`` → ``blob_sha``.
@@ -81,32 +118,26 @@ def build_tree(entries: Dict[str, str]) -> str:
     Raises:
         GitPlumbingError: If any plumbing command fails.
     """
-    fd, tmp_index = tempfile.mkstemp()
-    os.close(fd)
+    # Use a non-existent path inside a temp directory so git creates
+    # a fresh index rather than reading an empty (invalid) file.
+    tmp_dir = tempfile.mkdtemp()
+    tmp_index = os.path.join(tmp_dir, "index")
     try:
         env = dict(os.environ, GIT_INDEX_FILE=tmp_index)
         for path, blob_sha in sorted(entries.items()):
-            result = run_safe(
-                [
-                    "git",
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    f"100644,{blob_sha},{path}",
-                ],
-                capture_output=True,
-                text=True,
+            # The single-argument comma form is the recommended modern
+            # syntax per ``git help update-index``.
+            result = _run_plumbing(
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"100644,{blob_sha},{path}",
                 env=env,
             )
             if result.returncode != 0:
                 raise GitPlumbingError(f"git update-index failed for {path}: {result.stderr.strip()}")
 
-        result = run_safe(
-            ["git", "write-tree"],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        result = _run_plumbing("write-tree", env=env)
         if result.returncode != 0:
             raise GitPlumbingError("git write-tree failed: " + result.stderr.strip())
         sha = result.stdout.strip()
@@ -114,10 +145,7 @@ def build_tree(entries: Dict[str, str]) -> str:
             raise GitPlumbingError("git write-tree returned empty output")
         return sha
     finally:
-        try:
-            os.unlink(tmp_index)
-        except OSError:
-            pass
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def create_commit(
@@ -141,12 +169,12 @@ def create_commit(
     Raises:
         GitPlumbingError: If the command fails or returns empty output.
     """
-    cmd = ["git", "commit-tree", tree_sha]
+    cmd_args = ["commit-tree", tree_sha]
     if parent_sha is not None:
-        cmd += ["-p", parent_sha]
-    cmd += ["-m", message]
+        cmd_args += ["-p", parent_sha]
+    cmd_args += ["-m", message]
 
-    result = run_safe(cmd, capture_output=True, text=True)
+    result = _run_plumbing(*cmd_args)
     if result.returncode != 0:
         raise GitPlumbingError("git commit-tree failed: " + result.stderr.strip())
     sha = result.stdout.strip()
@@ -167,11 +195,7 @@ def update_ref(branch_name: str, commit_sha: str) -> None:
     Raises:
         GitPlumbingError: If the command fails.
     """
-    result = run_safe(
-        ["git", "update-ref", "refs/heads/" + branch_name, commit_sha],
-        capture_output=True,
-        text=True,
-    )
+    result = _run_plumbing("update-ref", "refs/heads/" + branch_name, commit_sha)
     if result.returncode != 0:
         raise GitPlumbingError("git update-ref failed: " + result.stderr.strip())
 
@@ -190,34 +214,29 @@ def read_branch_tree(branch_ref: str) -> Dict[str, str]:
         branch does not exist.
 
     Raises:
-        GitPlumbingError: If ``git ls-tree`` fails for a reason other
-            than a missing ref.
+        GitPlumbingError: If ``git rev-parse`` fails for a reason other
+            than a missing ref (e.g. not a git repository), or if
+            ``git ls-tree`` fails.
     """
-    # Resolve the ref — if it doesn't exist, return empty dict.
-    rev_result = run_safe(
-        ["git", "rev-parse", "--verify", "refs/heads/" + branch_ref],
-        capture_output=True,
-        text=True,
-    )
+    # Resolve the ref — return {} for missing refs, raise for other failures.
+    rev_result = _run_plumbing("rev-parse", "--verify", "refs/heads/" + branch_ref)
     if rev_result.returncode != 0:
+        stderr = rev_result.stderr.strip().lower()
+        # Raise on failures unrelated to a missing ref (e.g. "not a git repository").
+        if "not a git repository" in stderr:
+            raise GitPlumbingError("git rev-parse failed: " + rev_result.stderr.strip())
         return {}
 
     commit_sha = rev_result.stdout.strip()
     if not commit_sha:
         return {}
 
-    result = run_safe(
-        ["git", "ls-tree", "-r", commit_sha],
-        capture_output=True,
-        text=True,
-    )
+    result = _run_plumbing("ls-tree", "-r", commit_sha)
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 
     tree = {}  # type: Dict[str, str]
     for line in result.stdout.splitlines():
-        if not line:
-            continue
         # Format: "<mode> <type> <sha>\t<path>"
         meta, path = line.split("\t", 1)
         parts = meta.split()
@@ -238,8 +257,4 @@ def push_branch(branch_name: str) -> CompletedProcess:
     Returns:
         The :class:`~subprocess.CompletedProcess` from the push command.
     """
-    return run_safe(
-        ["git", "push", "origin", branch_name],
-        capture_output=True,
-        text=True,
-    )
+    return _run_plumbing("push", "origin", branch_name)
