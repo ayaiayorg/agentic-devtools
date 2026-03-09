@@ -167,25 +167,23 @@ class TestCommitCommand:
 
         # Mock _sync_with_main to return True (rebase occurred)
         n = len(operations.STAGE_EXCLUDE_FILES)
-        with (
-            patch("agdt_ai_helpers.cli.git.commands._sync_with_main", return_value=True),
-            patch.object(operations, "get_current_branch", return_value="main"),
-        ):
-            mock_run_safe.side_effect = (
-                [MagicMock(returncode=0, stdout="", stderr="")]  # add
-                + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                + [
-                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
-                    MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                    MagicMock(returncode=0, stdout="", stderr=""),  # force push
-                ]
-            )
+        with patch("agdt_ai_helpers.cli.git.commands._sync_with_main", return_value=True):
+            with patch.object(operations, "get_current_branch", return_value="main"):
+                mock_run_safe.side_effect = (
+                    [MagicMock(returncode=0, stdout="", stderr="")]  # add
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [
+                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
+                        MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                        MagicMock(returncode=0, stdout="", stderr=""),  # force push
+                    ]
+                )
 
-            commands.commit_cmd()
+                commands.commit_cmd()
 
-            assert mock_run_safe.call_count == 4 + n
-            captured = capsys.readouterr()
-            assert "Force pushing" in captured.out
+                assert mock_run_safe.call_count == 4 + n
+                captured = capsys.readouterr()
+                assert "Force pushing" in captured.out
 
 
 # =============================================================================
@@ -384,27 +382,25 @@ class TestSmartCommitAmendDetection:
 
         # Mock should_amend to return True
         n = len(operations.STAGE_EXCLUDE_FILES)
-        with (
-            patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should,
-            patch.object(operations, "get_current_branch", return_value="main"),
-        ):
-            mock_should.return_value = True
-            mock_run_safe.side_effect = (
-                [MagicMock(returncode=0, stdout="", stderr="")]  # add
-                + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                + [
-                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
-                    MagicMock(returncode=0, stdout="", stderr=""),  # amend
-                    MagicMock(returncode=0, stdout="", stderr=""),  # force push
-                ]
-            )
+        with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
+            with patch.object(operations, "get_current_branch", return_value="main"):
+                mock_should.return_value = True
+                mock_run_safe.side_effect = (
+                    [MagicMock(returncode=0, stdout="", stderr="")]  # add
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [
+                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
+                        MagicMock(returncode=0, stdout="", stderr=""),  # amend
+                        MagicMock(returncode=0, stdout="", stderr=""),  # force push
+                    ]
+                )
 
-            commands.commit_cmd()
+                commands.commit_cmd()
 
-            assert mock_run_safe.call_count == 4 + n
-            # Amend call is at index 2 + n (after add + N resets + workflows reset)
-            amend_call_args = mock_run_safe.call_args_list[2 + n][0][0]
-            assert "--amend" in amend_call_args
+                assert mock_run_safe.call_count == 4 + n
+                # Amend call is at index 2 + n (after add + N resets + workflows reset)
+                amend_call_args = mock_run_safe.call_args_list[2 + n][0][0]
+                assert "--amend" in amend_call_args
 
     def test_commit_uses_new_commit_when_should_not_amend(
         self, temp_state_dir, clear_state_before, mock_run_safe, mock_sync_with_main
@@ -414,27 +410,25 @@ class TestSmartCommitAmendDetection:
         state.set_value("jira.issue_key", "DFLY-1234")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
-        with (
-            patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should,
-            patch.object(operations, "get_current_branch", return_value="main"),
-        ):
-            mock_should.return_value = False
-            mock_run_safe.side_effect = (
-                [MagicMock(returncode=0, stdout="", stderr="")]  # add
-                + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                + [
-                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
-                    MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                    MagicMock(returncode=0, stdout="", stderr=""),  # push
-                ]
-            )
+        with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
+            with patch.object(operations, "get_current_branch", return_value="main"):
+                mock_should.return_value = False
+                mock_run_safe.side_effect = (
+                    [MagicMock(returncode=0, stdout="", stderr="")]  # add
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [
+                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
+                        MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                        MagicMock(returncode=0, stdout="", stderr=""),  # push
+                    ]
+                )
 
-            commands.commit_cmd()
+                commands.commit_cmd()
 
-            assert mock_run_safe.call_count == 4 + n
-            # Commit call is at index 2 + n (after add + N resets + workflows reset)
-            commit_call_args = mock_run_safe.call_args_list[2 + n][0][0]
-            assert "--amend" not in commit_call_args
+                assert mock_run_safe.call_count == 4 + n
+                # Commit call is at index 2 + n (after add + N resets + workflows reset)
+                commit_call_args = mock_run_safe.call_args_list[2 + n][0][0]
+                assert "--amend" not in commit_call_args
 
 
 # =============================================================================
@@ -481,11 +475,9 @@ class TestCommitCompletedParameter:
         )
 
         # Mock sys.argv to include --completed
-        with (
-            mock_patch.object(sys, "argv", ["agdt-git-save-work", "--completed", "1,2"]),
-            mock_patch.object(operations, "get_current_branch", return_value="main"),
-        ):
-            commands.commit_cmd()
+        with mock_patch.object(sys, "argv", ["agdt-git-save-work", "--completed", "1,2"]):
+            with mock_patch.object(operations, "get_current_branch", return_value="main"):
+                commands.commit_cmd()
 
         # Verify checklist was updated
         from agdt_ai_helpers.cli.workflows.checklist import get_checklist
@@ -530,11 +522,9 @@ class TestCommitCompletedParameter:
             ]
         )
 
-        with (
-            mock_patch.object(sys, "argv", ["agdt-git-save-work", "--completed", "1"]),
-            mock_patch.object(operations, "get_current_branch", return_value="main"),
-        ):
-            commands.commit_cmd()
+        with mock_patch.object(sys, "argv", ["agdt-git-save-work", "--completed", "1"]):
+            with mock_patch.object(operations, "get_current_branch", return_value="main"):
+                commands.commit_cmd()
 
         captured = capsys.readouterr()
         # Should mention implementation review since all items are now complete

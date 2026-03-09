@@ -45,27 +45,21 @@ class TestStageChanges:
 
     def test_stage_changes_excludes_workflows_on_non_agdt_branch(self, mock_run_safe):
         """Test that .agdt/workflows/ is unstaged on non -agdt branches."""
-        with patch.object(
-            operations, "get_current_branch", return_value="feature/DFLY-1234"
-        ):
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         assert ["git", "reset", "HEAD", "--", ".agdt/workflows/"] in calls
 
     def test_stage_changes_includes_workflows_on_agdt_branch(self, mock_run_safe):
         """Test that .agdt/workflows/ stays staged on -agdt branches."""
-        with patch.object(
-            operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"
-        ):
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         assert ["git", "reset", "HEAD", "--", ".agdt/workflows/"] not in calls
 
     def test_stage_changes_dry_run_non_agdt_branch(self, mock_run_safe, capsys):
         """Test dry run prints unstage message on non -agdt branch."""
-        with patch.object(
-            operations, "get_current_branch", return_value="feature/DFLY-1234"
-        ):
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         assert "[DRY RUN] Would unstage .agdt/workflows/" in captured.out
@@ -73,9 +67,7 @@ class TestStageChanges:
 
     def test_stage_changes_dry_run_agdt_branch(self, mock_run_safe, capsys):
         """Test dry run prints keep-staged message on -agdt branch."""
-        with patch.object(
-            operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"
-        ):
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         assert ".agdt/workflows/ will stay staged" in captured.out
@@ -83,9 +75,7 @@ class TestStageChanges:
 
     def test_stage_changes_existing_exclude_files_unchanged(self, mock_run_safe):
         """Regression: STAGE_EXCLUDE_FILES resets still happen in same positions."""
-        with patch.object(
-            operations, "get_current_branch", return_value="feature/DFLY-1234"
-        ):
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         # First call is git add .
