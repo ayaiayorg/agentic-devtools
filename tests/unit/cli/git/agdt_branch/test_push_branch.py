@@ -18,11 +18,12 @@ class TestPushBranch:
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_calls_git_push_origin(self, mock_run):
-        """push_branch invokes _run_plumbing with push origin <branch>."""
+        """push_branch invokes _run_plumbing with push origin <branch> and check=False."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         push_branch("my-branch")
         args = mock_run.call_args[0]
         assert args == ("push", "origin", "my-branch")
+        assert mock_run.call_args[1] == {"check": False}
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_does_not_raise_on_failure(self, mock_run):

@@ -202,14 +202,15 @@ def update_ref(branch_name: str, commit_sha: str) -> None:
         raise GitPlumbingError("git update-ref failed: " + result.stderr.strip())
 
 
-def read_branch_tree(branch_ref: str) -> Dict[str, str]:
-    """Read the full file tree of *branch_ref*.
+def read_branch_tree(branch_name: str) -> Dict[str, str]:
+    """Read the full file tree of *branch_name*.
 
     Resolves the branch to a commit SHA, then runs
     ``git ls-tree -r --full-tree <commit_sha>`` to list every blob.
 
     Args:
-        branch_ref: Branch name (e.g. ``"my-branch-agdt"``).
+        branch_name: Branch name without ``refs/heads/`` prefix
+            (e.g. ``"my-branch-agdt"``).
 
     Returns:
         A ``{path: blob_sha}`` dict.  Returns an empty dict when the
@@ -221,7 +222,7 @@ def read_branch_tree(branch_ref: str) -> Dict[str, str]:
             ``git ls-tree`` fails.
     """
     # Resolve the ref — return {} for missing refs, raise for other failures.
-    rev_result = _run_plumbing("rev-parse", "--verify", "refs/heads/" + branch_ref)
+    rev_result = _run_plumbing("rev-parse", "--verify", "refs/heads/" + branch_name)
     if rev_result.returncode != 0:
         raw_stderr = (rev_result.stderr or "").strip()
         stderr_lower = raw_stderr.lower()
@@ -266,4 +267,4 @@ def push_branch(branch_name: str) -> CompletedProcess:
     Returns:
         The :class:`~subprocess.CompletedProcess` from the push command.
     """
-    return _run_plumbing("push", "origin", branch_name)
+    return _run_plumbing("push", "origin", branch_name, check=False)
