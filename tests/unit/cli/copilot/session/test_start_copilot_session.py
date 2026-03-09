@@ -145,20 +145,36 @@ class TestStartCopilotSessionInteractive:
         call_kwargs = mock_popen.call_args[1]
         assert call_kwargs.get("shell") is False
 
-    def test_popen_called_with_correct_args(self, temp_state, mock_available, mock_popen_interactive):
+    def test_popen_called_with_correct_args_gh_fallback(self, temp_state, mock_available, mock_popen_interactive):
         """Popen is called with gh copilot suggest <inlined_prompt> args when no standalone binary is available."""
         mock_popen, _ = mock_popen_interactive
-        start_copilot_session(
-            prompt="Do something",
-            working_directory=str(temp_state),
-            interactive=True,
-        )
+        with patch.object(session_module, "_get_copilot_binary", return_value=None):
+            start_copilot_session(
+                prompt="Do something",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
         assert cmd[:3] == ["gh", "copilot", "suggest"]
         # The prompt is inlined with <br> replacements
         assert "Do something" in cmd[3]
         assert "The full prompt is also saved at:" in cmd[3]
+
+    def test_popen_called_with_standalone_binary(self, temp_state, mock_available, mock_popen_interactive):
+        """Popen uses the standalone copilot binary with -i flag when available."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/bin/copilot"):
+            start_copilot_session(
+                prompt="Do something",
+                working_directory=str(temp_state),
+                interactive=True,
+            )
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert cmd[0] == "/usr/bin/copilot"
+        assert "-i" in cmd
+        assert "Do something" in cmd[-1]
 
     def test_wait_is_called(self, temp_state, mock_available, mock_popen_interactive):
         """process.wait() is called for interactive mode."""

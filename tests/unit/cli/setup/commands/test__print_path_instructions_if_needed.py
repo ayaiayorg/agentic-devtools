@@ -14,7 +14,7 @@ class TestPrintPathInstructionsIfNeeded:
         """Prints PATH instructions when managed bin dir is absent from PATH."""
         managed_bin = str(tmp_path / "bin")
         # Ensure the managed bin is NOT in PATH
-        fake_path = "/usr/bin:/usr/local/bin"
+        fake_path = f"/usr/bin{os.pathsep}/usr/local/bin"
         with patch.object(commands, "_MANAGED_BIN_DIR", Path(managed_bin)):
             with patch.dict(os.environ, {"PATH": fake_path}):
                 commands._print_path_instructions_if_needed()
@@ -26,7 +26,7 @@ class TestPrintPathInstructionsIfNeeded:
         """Prints nothing when managed bin dir is already in PATH."""
         managed_bin = tmp_path / "bin"
         managed_bin.mkdir()
-        fake_path = f"/usr/bin:{managed_bin}"
+        fake_path = f"/usr/bin{os.pathsep}{managed_bin}"
         with patch.object(commands, "_MANAGED_BIN_DIR", managed_bin):
             with patch.dict(os.environ, {"PATH": fake_path}):
                 commands._print_path_instructions_if_needed()
@@ -36,7 +36,7 @@ class TestPrintPathInstructionsIfNeeded:
     def test_calls_persist_when_persist_env_true(self, tmp_path, capsys):
         """Calls _persist_env_vars_to_profile when persist_env=True."""
         managed_bin = str(tmp_path / "bin")
-        fake_path = "/usr/bin:/usr/local/bin"
+        fake_path = f"/usr/bin{os.pathsep}/usr/local/bin"
         with patch.object(commands, "_MANAGED_BIN_DIR", Path(managed_bin)):
             with patch.dict(os.environ, {"PATH": fake_path}):
                 with patch.object(commands, "_persist_env_vars_to_profile") as mock_persist:

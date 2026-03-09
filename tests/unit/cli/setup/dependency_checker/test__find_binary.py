@@ -1,6 +1,7 @@
 """Tests for _find_binary (dependency_checker)."""
 
 import shutil
+import sys
 from unittest.mock import patch
 
 from agentic_devtools.cli.setup import dependency_checker
@@ -12,10 +13,12 @@ class TestFindBinary:
 
     def test_returns_managed_binary_when_present(self, tmp_path):
         """Returns managed binary path when it exists in ~/.agdt/bin/."""
-        managed = tmp_path / "git"
+        binary_name = "git.exe" if sys.platform == "win32" else "git"
+        managed = tmp_path / binary_name
         managed.touch()
         with patch.object(dependency_checker, "_MANAGED_BIN_DIR", tmp_path):
-            result = _find_binary("git")
+            with patch.object(shutil, "which", return_value=None):
+                result = _find_binary("git")
         assert result == str(managed)
 
     def test_returns_system_path_when_managed_absent(self, tmp_path):

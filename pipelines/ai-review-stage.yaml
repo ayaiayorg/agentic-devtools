@@ -1,0 +1,94 @@
+# Reusable Azure DevOps pipeline template for AI-powered PR reviews.
+#
+# ⚠️  PREVIEW / STUB — this template currently invokes `agdt-review config-validate`
+# and `agdt-review dispatch` only. These commands are stubbed (they do not run real
+# reviewers or apply consolidations). Do NOT use this template as a merge gate until
+# the full workflow, including consolidation, is implemented. See issue #712 for progress.
+#
+# Target repos include this template to enable configurable multi-model
+# reviews triggered by PR labels.
+#
+# Usage in target repo (azure-pipelines-ai-review.yaml):
+#
+#   trigger: none
+#   pr:
+#     branches:
+#       include:
+#         - main
+#         - develop
+#   resources:
+#     repositories:
+#       - repository: agdt
+#         type: git
+#         name: DragonflyMgmt/agentic-devtools
+#   stages:
+#     - template: pipelines/ai-review-stage.yaml@agdt
+#       parameters:
+#         configPath: .agdt/review-config.yaml   # optional; omit for built-in defaults
+#         prId: $(System.PullRequest.PullRequestId)
+#         label: ai-review
+
+parameters:
+  - name: configPath
+    type: string
+    default: ''
+    displayName: 'Path to review config file or repo root (empty = CWD with fallback defaults)'
+  - name: prId
+    type: number
+    displayName: 'Pull Request ID'
+  - name: label
+    type: string
+    default: 'ai-review'
+    displayName: 'PR label that triggered the review'
+
+stages:
+  - stage: AIReview
+    displayName: 'AI Multi-Model Review'
+    jobs:
+      - job: ValidateConfig
+        displayName: 'Validate Review Configuration'
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+            displayName: 'Use Python 3.10'
+
+          # TODO: Pin to a specific version (e.g. agentic-devtools==x.y.z) or
+          # install from the checked-out template repo/ref to prevent
+          # template/CLI version drift once the stubs are replaced with
+          # real implementations.
+          - script: |
+              python -m pip install agentic-devtools
+            displayName: 'Install agentic-devtools'
+
+          - script: |
+              agdt-review config-validate --config-path "${{ parameters.configPath }}"
+            displayName: 'Validate review config'
+
+      - job: DispatchReview
+        displayName: 'Dispatch Multi-Model Review'
+        dependsOn: ValidateConfig
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+            displayName: 'Use Python 3.10'
+
+          # TODO: Pin to a specific version or install from the template
+          # repo/ref — see comment in ValidateConfig job above.
+          - script: |
+              python -m pip install agentic-devtools
+            displayName: 'Install agentic-devtools'
+
+          - script: |
+              agdt-review dispatch --pr-id "${{ parameters.prId }}" --label "${{ parameters.label }}" --config-path "${{ parameters.configPath }}"
+            displayName: 'Run multi-model review dispatch'
+            env:
+              AZURE_DEV_OPS_COPILOT_PAT: $(AzureDevOpsCopilotPat)
+              JIRA_COPILOT_PAT: $(JiraCopilotPat)
