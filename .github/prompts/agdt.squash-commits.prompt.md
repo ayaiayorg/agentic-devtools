@@ -12,10 +12,10 @@ to the next.
 
 | Operation | Preferred (agdt-*) | Fallback (raw) |
 |-----------|-------------------|----------------|
-| Run tests | `agdt-test` + `agdt-task-wait` | `pytest` |
+| Run tests | `agdt-test` + `agdt-task-wait` | _Do not run `pytest` directly; always use `agdt-test` commands._ |
 | Stage changes | `agdt-git-stage` | `git add` |
 | Commit | `agdt-git-save-work` | `git commit` |
-| Push | `agdt-git-push` | `git push --force-with-lease` |
+| Push (force) | `agdt-git-force-push` | `git push --force-with-lease` |
 | List GitHub issues | — | `gh issue list` |
 
 The `agdt-*` commands provide: state tracking, pre-commit hooks (cspell), consistent formatting, and background task management.
@@ -66,7 +66,7 @@ If `git log --oneline main..HEAD` shows merge commits (lines starting with `Merg
 
 ## Phase 2: Commit Message Composition
 
-Compose a single commit message following this repo's [Conventional Commits convention](COMMIT_CONVENTION.md) before squashing.
+Compose a single commit message following this repo's [Conventional Commits convention](../../COMMIT_CONVENTION.md) before squashing.
 
 ### Determine the GitHub Issue Number
 
@@ -94,7 +94,7 @@ The commit message **requires** a GitHub issue link as the scope. Try these stra
 
 ### Message Format
 
-Follow the [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md):
+Follow the [COMMIT_CONVENTION.md](../../COMMIT_CONVENTION.md):
 
 ```text
 type([#NNN](https://github.com/ayaiayorg/agentic-devtools/issues/NNN)): <short summary>
@@ -133,8 +133,13 @@ Simpler and handles merge commits cleanly:
 # Soft reset to main — keeps all changes staged
 git reset --soft main
 
-# Commit with the composed message
-git commit -m "<composed message>"
+# Preferred: use agentic-devtools with a multi-line commit message
+agdt-set commit_message "<composed message>"
+agdt-git-save-work
+
+# Fallback: use git's editor directly for a multi-line message
+# (omit -m so you can enter subject, body, and footer properly)
+git commit
 ```
 
 ### Approach B: Interactive Rebase
@@ -190,12 +195,9 @@ git merge-base --is-ancestor main HEAD && echo "OK: main is ancestor" || echo "E
 ### Run Tests
 
 ```bash
-# Preferred: Use agentic-devtools
+# Use agentic-devtools (always — do not run pytest directly)
 agdt-test
 agdt-task-wait
-
-# Fallback: Direct command
-pytest --cov=agentic_devtools --cov-report=term-missing
 ```
 
 ### Verification Summary
@@ -217,8 +219,8 @@ Confirm all items pass:
 Force-push the squashed branch (since history was rewritten).
 
 ```bash
-# Preferred: agentic-devtools
-agdt-git-push
+# Preferred: agentic-devtools (force push for rewritten history)
+agdt-git-force-push
 
 # Fallback: Use --force-with-lease for safety
 git push --force-with-lease
@@ -230,8 +232,9 @@ git push --force-with-lease
 
 ## After Squash
 
-Save your work:
+Your branch history is now clean and the single squashed commit has already been created and
+pushed in the previous phases. No additional `agdt-git-save-work` or `git commit` commands are
+required at this point.
 
-```bash
-agdt-git-save-work
-```
+If you still have uncommitted local changes, return to the earlier commit phase and use the
+appropriate commit step _before_ pushing.
