@@ -155,8 +155,9 @@ jobs:
             // 8. Decision.
             if (totalComments === 0) {
               core.info(
-                `✅ Copilot reviewed the latest commit and generated 0 comments ` +
-                `(including 0 suppressed) across ${copilotReviews.length} review(s). All clear!`
+                `✅ Copilot's latest review of commit ${headSha} reported 0 comments ` +
+                `(0 posted, 0 suppressed). Total Copilot reviews on this commit: ` +
+                `${copilotReviews.length}. All clear!`
               );
             } else {
               core.setFailed(
@@ -185,8 +186,7 @@ jobs:
               workflow_id: 'copilot-review-gate.yml',
               event: 'pull_request',
               head_sha: headSha,
-              // A single head SHA rarely produces more than one or two runs.
-              per_page: 10,
+              per_page: 100,
             });
 
             const failed = runs.filter(r => r.conclusion === 'failure');
