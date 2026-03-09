@@ -21,8 +21,8 @@ class TestCommitCommand:
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
             + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                MagicMock(returncode=0, stdout="feature/test\n", stderr=""),  # branch
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
         )
@@ -41,13 +41,12 @@ class TestCommitCommand:
 
         mock_run_safe.side_effect = [
             MagicMock(returncode=0, stdout="", stderr=""),  # commit
-            MagicMock(returncode=0, stdout="feature/test\n", stderr=""),  # branch
             MagicMock(returncode=0, stdout="", stderr=""),  # push
         ]
 
         commands.commit_cmd()
 
-        assert mock_run_safe.call_count == 3
+        assert mock_run_safe.call_count == 2
         captured = capsys.readouterr()
         assert "Skipping stage" in captured.out
 
@@ -60,7 +59,7 @@ class TestCommitCommand:
 
         commands.commit_cmd()
 
-        assert mock_run_safe.call_count == 2 + len(operations.STAGE_EXCLUDE_FILES)
+        assert mock_run_safe.call_count == 3 + len(operations.STAGE_EXCLUDE_FILES)
         captured = capsys.readouterr()
         assert "Skipping push" in captured.out
 
@@ -103,6 +102,7 @@ class TestCommitCommand:
                 [MagicMock(returncode=0, stdout="", stderr="")]  # add
                 + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
                 + [
+                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                     MagicMock(returncode=0, stdout="", stderr=""),  # commit
                     MagicMock(returncode=0, stdout="", stderr=""),  # force push
                 ]
@@ -110,7 +110,7 @@ class TestCommitCommand:
 
             commands.commit_cmd()
 
-            assert mock_run_safe.call_count == 3 + n
+            assert mock_run_safe.call_count == 4 + n
             captured = capsys.readouterr()
             assert "Force pushing" in captured.out
 
@@ -128,6 +128,7 @@ class TestCommitCommand:
                 [MagicMock(returncode=0, stdout="", stderr="")]  # add
                 + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
                 + [
+                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                     MagicMock(returncode=0, stdout="", stderr=""),  # amend
                     MagicMock(returncode=0, stdout="", stderr=""),  # force push
                 ]
@@ -135,9 +136,9 @@ class TestCommitCommand:
 
             commands.commit_cmd()
 
-            assert mock_run_safe.call_count == 3 + n
-            # Amend call is at index 1 + n (after add + N resets)
-            amend_call_args = mock_run_safe.call_args_list[1 + n][0][0]
+            assert mock_run_safe.call_count == 4 + n
+            # Amend call is at index 2 + n (after add + N resets + workflows reset)
+            amend_call_args = mock_run_safe.call_args_list[2 + n][0][0]
             assert "--amend" in amend_call_args
 
     def test_commit_uses_new_commit_when_should_not_amend(
@@ -154,8 +155,8 @@ class TestCommitCommand:
                 [MagicMock(returncode=0, stdout="", stderr="")]  # add
                 + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
                 + [
+                    MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                     MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                    MagicMock(returncode=0, stdout="feature/test\n", stderr=""),  # branch
                     MagicMock(returncode=0, stdout="", stderr=""),  # push
                 ]
             )
@@ -163,8 +164,8 @@ class TestCommitCommand:
             commands.commit_cmd()
 
             assert mock_run_safe.call_count == 4 + n
-            # Commit call is at index 1 + n (after add + N resets)
-            commit_call_args = mock_run_safe.call_args_list[1 + n][0][0]
+            # Commit call is at index 2 + n (after add + N resets + workflows reset)
+            commit_call_args = mock_run_safe.call_args_list[2 + n][0][0]
             assert "--amend" not in commit_call_args
 
     def test_commit_with_completed_marks_items(
@@ -193,8 +194,8 @@ class TestCommitCommand:
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
             + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                MagicMock(returncode=0, stdout="feature/test\n", stderr=""),  # branch
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
         )
@@ -234,8 +235,8 @@ class TestCommitCommand:
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * len(operations.STAGE_EXCLUDE_FILES)  # resets
             + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
-                MagicMock(returncode=0, stdout="feature/test\n", stderr=""),  # branch
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
         )

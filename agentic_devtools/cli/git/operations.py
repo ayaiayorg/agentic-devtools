@@ -18,6 +18,8 @@ STAGE_EXCLUDE_FILES = [
     "agentic_devtools/_version.py",
 ]
 
+AGDT_WORKFLOWS_DIR = ".agdt/workflows/"
+
 
 def stage_changes(dry_run: bool) -> None:
     """
@@ -26,6 +28,11 @@ def stage_changes(dry_run: bool) -> None:
     Auto-generated files listed in STAGE_EXCLUDE_FILES are always unstaged
     after the initial `git add .` so they are never included in commits.
 
+    On branches that do **not** end with ``-agdt``, the ``.agdt/workflows/``
+    directory is also unstaged to prevent workflow artifacts from being
+    accidentally committed to code branches.  On ``-agdt`` branches the
+    directory stays staged.
+
     Args:
         dry_run: If True, only print what would happen
     """
@@ -33,6 +40,11 @@ def stage_changes(dry_run: bool) -> None:
         print("[DRY RUN] Would stage all changes (git add .)")
         for excluded in STAGE_EXCLUDE_FILES:
             print(f"[DRY RUN] Would unstage auto-generated file: {excluded}")
+        branch = get_current_branch()
+        if not branch.endswith("-agdt"):
+            print(f"[DRY RUN] Would unstage {AGDT_WORKFLOWS_DIR} (not on -agdt branch)")
+        else:
+            print(f"[DRY RUN] {AGDT_WORKFLOWS_DIR} will stay staged (on -agdt branch)")
         return
 
     print("Staging all changes...")
@@ -42,6 +54,12 @@ def stage_changes(dry_run: bool) -> None:
         result = run_git("reset", "HEAD", "--", excluded, check=False)
         if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
             print(f"Unstaged auto-generated file: {excluded}")
+
+    branch = get_current_branch()
+    if not branch.endswith("-agdt"):
+        result = run_git("reset", "HEAD", "--", AGDT_WORKFLOWS_DIR, check=False)
+        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+            print(f"Unstaged workflow artifacts: {AGDT_WORKFLOWS_DIR}")
 
     print("Changes staged.")
 
