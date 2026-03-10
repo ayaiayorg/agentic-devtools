@@ -71,7 +71,7 @@ class TestPersistIfDirty:
         )
         assert is_dirty() is False
 
-    def test_resets_flag_even_on_persist_failure(self):
+    def test_resets_flag_even_on_persist_failure(self, capsys):
         """Flag is reset even when persist_workflow_state reports failure."""
         mark_dirty()
 
@@ -89,6 +89,32 @@ class TestPersistIfDirty:
                         persist_if_dirty()  # should not raise
 
         assert is_dirty() is False
+        captured = capsys.readouterr()
+        assert "push failed" in captured.err
+
+    def test_silently_ignores_no_workflow_files_error(self, capsys):
+        """Treats 'No workflow files found' as a benign no-op (no stderr)."""
+        mark_dirty()
+
+        def _get(key, **kw):
+            return {
+                "agdt_run_id": "abc123def456",
+                "versionControl.currentBranch": "main",
+            }.get(key)
+
+        no_files_result = PersistResult(
+            success=False,
+            error="No workflow files found under .agdt/workflows/copilot/DFLY-1234/",
+        )
+        with patch(f"{_MOD}.get_value", side_effect=_get):
+            with patch(f"{_MOD}.persist_workflow_state", return_value=no_files_result):
+                with patch("agentic_devtools.state.get_workflow_state", return_value=None):
+                    with patch("agentic_devtools.state.is_dry_run", return_value=False):
+                        persist_if_dirty()
+
+        assert is_dirty() is False
+        captured = capsys.readouterr()
+        assert captured.err == ""
 
     def test_resets_flag_on_exception(self):
         """Flag is reset even when persist_workflow_state raises."""

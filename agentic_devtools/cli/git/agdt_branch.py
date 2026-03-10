@@ -183,12 +183,18 @@ def persist_if_dirty() -> None:
             workflow_type=workflow_type,
         )
         if not result.success and result.error:
-            import sys
+            error_text = str(result.error)
+            # When no workflow artifacts exist under .agdt/workflows/...,
+            # persist_workflow_state() returns a failure result. This is
+            # expected until writers start creating .agdt/workflows files,
+            # so treat it as a benign no-op to avoid noisy stderr output.
+            if not error_text.startswith("No workflow files found under .agdt/workflows/"):
+                import sys
 
-            print(
-                f"agdt: persist_if_dirty: {result.error}",
-                file=sys.stderr,
-            )
+                print(
+                    f"agdt: persist_if_dirty: {error_text}",
+                    file=sys.stderr,
+                )
     except Exception as exc:
         import sys
 
