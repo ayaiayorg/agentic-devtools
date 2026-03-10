@@ -9,6 +9,7 @@ This module provides common functionality for all workflow commands:
 """
 
 import sys
+import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
@@ -162,8 +163,6 @@ def initiate_workflow(
             context[_state_key_to_variable_name(key)] = value
 
     # Generate run_id for single-commit-per-run amend strategy
-    import uuid
-
     run_id = uuid.uuid4().hex[:12]
     set_value("agdt_run_id", run_id)
 

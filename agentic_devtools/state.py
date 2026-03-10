@@ -270,7 +270,9 @@ def set_value(key: str, value: Any) -> None:
 
     save_state(state)
 
-    # Signal that state has been mutated for auto-persist.
+    # Signal that workflow state has been mutated.  The CLI runner calls
+    # persist_if_dirty() after every command to commit pending changes to
+    # the -agdt branch automatically.
     try:
         from .cli.git.agdt_branch import mark_dirty
 

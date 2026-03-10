@@ -89,6 +89,9 @@ class PersistResult:
 
 # ---------------------------------------------------------------------------
 #  Auto-persist dirty flag
+#
+#  Module-level boolean.  Thread safety is not a concern because CLI
+#  commands are single-threaded.
 # ---------------------------------------------------------------------------
 
 _persist_dirty: bool = False
@@ -139,12 +142,11 @@ def persist_if_dirty() -> None:
             return
 
         # Resolve source branch from state, fallback to git
-        source_branch = get_value("versionControl.currentBranch")
-        if not source_branch or not str(source_branch).strip():
+        raw_branch = get_value("versionControl.currentBranch")
+        source_branch = str(raw_branch).strip() if raw_branch else ""
+        if not source_branch:
             branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
             source_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
-        else:
-            source_branch = str(source_branch).strip()
 
         if not source_branch:
             import sys
