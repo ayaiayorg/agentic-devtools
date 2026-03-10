@@ -320,6 +320,7 @@ class TestPersistWorkflowStatePushRetry:
     @patch(f"{_MOD}.create_commit", return_value="commit_sha")
     @patch(f"{_MOD}.build_tree", return_value="tree_sha")
     @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
     @patch(f"{_MOD}.push_branch")
     @patch(f"{_MOD}._run_plumbing")
     @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
@@ -337,6 +338,7 @@ class TestPersistWorkflowStatePushRetry:
         _rem,
         mock_plumbing,
         mock_push,
+        _read_commit_tree,
         _read,
         _build,
         mock_commit,
@@ -360,6 +362,7 @@ class TestPersistWorkflowStatePushRetry:
     @patch(f"{_MOD}.create_commit", return_value="commit_sha")
     @patch(f"{_MOD}.build_tree", return_value="tree_sha")
     @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
     @patch(f"{_MOD}.push_branch")
     @patch(f"{_MOD}._run_plumbing")
     @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
@@ -377,6 +380,7 @@ class TestPersistWorkflowStatePushRetry:
         _rem,
         mock_plumbing,
         mock_push,
+        _read_commit_tree,
         _read,
         _build,
         _commit,
@@ -609,3 +613,227 @@ class TestPersistWorkflowStateErrorHandling:
 
         msg = mock_commit.call_args[0][2]
         assert msg.endswith("\n\nRun-Id: abc123")
+
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(
+        f"{_MOD}.build_tree",
+        side_effect=RuntimeError("unexpected"),
+    )
+    def test_generic_exception_returns_failure(
+        self,
+        _build,
+        _read,
+        _rem,
+        _loc,
+        _discover,
+        _root,
+    ):
+        """A non-GitPlumbingError exception is caught and returned as PersistResult."""
+        result = persist_workflow_state("feat", worktree_key="K")
+        assert result.success is False
+        assert "unexpected" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Fetch failure
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStateFetchFailure:
+    """Tests for fetch error handling."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=True)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=False)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_fetch_failure_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _get_val,
+    ):
+        """If fetching the remote branch fails, return PersistResult with error."""
+        mock_plumbing.return_value = _fail(stderr="auth failed")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "fetch origin" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Stale artifact filtering
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStateStaleArtifacts:
+    """Tests for snapshot semantics (stale file removal)."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.push_branch", return_value=_ok())
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="ccc")
+    @patch(f"{_MOD}.build_tree", return_value="ttt")
+    @patch(f"{_MOD}.read_branch_tree")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_stale_files_removed_from_tree(
+        self,
+        _root,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_read_tree,
+        mock_build,
+        _commit,
+        _update,
+        _push,
+        _get_val,
+    ):
+        """Deleted workflow files are removed from the tree (snapshot semantics)."""
+        mock_plumbing.return_value = _ok(stdout="sha\n")
+        # Existing tree has two files in the workflow dir plus one outside.
+        mock_read_tree.return_value = {
+            ".agdt/workflows/default/K/old.json": "old_sha",
+            ".agdt/workflows/default/K/kept.json": "kept_sha",
+            "README.md": "readme_sha",
+        }
+
+        # Discovery only finds kept.json (old.json was deleted on disk).
+        updates = {".agdt/workflows/default/K/kept.json": "new_sha"}
+        with patch(
+            f"{_MOD}._discover_workflow_files",
+            return_value=updates,
+        ):
+            result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is True
+        # build_tree should receive: kept.json (updated), README.md (preserved),
+        # but NOT old.json (stale — removed).
+        built = mock_build.call_args[0][0]
+        assert "README.md" in built
+        assert ".agdt/workflows/default/K/kept.json" in built
+        assert ".agdt/workflows/default/K/old.json" not in built
+
+
+# ---------------------------------------------------------------------------
+#  Push retry edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStatePushRetryEdgeCases:
+    """Tests for push retry edge cases."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="commit_sha")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
+    @patch(f"{_MOD}.push_branch")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_retry_skips_when_remote_head_unresolvable(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_push,
+        _read_commit_tree,
+        _read,
+        _build,
+        _commit,
+        _update,
+        _get_val,
+    ):
+        """When remote HEAD can't be resolved, retry continues to next attempt."""
+        # First _run_plumbing: rev-parse target_branch (for parent detection)
+        # Subsequent: fetch ok, rev-parse origin/target FAIL, then repeat
+        call_count = [0]
+        rev_parse_origin_fail = _fail(stderr="not found")
+
+        def plumbing_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if "origin/" in str(args):
+                return rev_parse_origin_fail
+            return _ok(stdout="head_sha\n")
+
+        mock_plumbing.side_effect = plumbing_side_effect
+        mock_push.return_value = _fail(stderr="rejected")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+        assert result.success is False
+        assert "Push failed after 3 attempts" in result.error
+
+    @patch(f"{_MOD}.get_value", return_value="run123")
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="commit_sha")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
+    @patch(f"{_MOD}._has_matching_run_id", return_value=True)
+    @patch(f"{_MOD}._get_parent_sha", return_value="grandparent")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_amend_retry_uses_remote_parent(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _parent,
+        _match,
+        _read_commit_tree,
+        _read,
+        _build,
+        mock_commit,
+        _update,
+        _get_val,
+    ):
+        """Amend retry uses _get_parent_sha(remote_head) as parent."""
+        push_calls = [0]
+
+        def plumbing_side_effect(*args, **kwargs):
+            if "--force-with-lease" in args:
+                push_calls[0] += 1
+                if push_calls[0] == 1:
+                    return _fail(stderr="rejected")
+                return _ok()
+            return _ok(stdout="remote_head_sha\n")
+
+        mock_plumbing.side_effect = plumbing_side_effect
+
+        result = persist_workflow_state("feat", worktree_key="K")
+        assert result.success is True

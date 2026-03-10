@@ -406,6 +406,36 @@ def _get_parent_sha(commit_sha: str) -> Optional[str]:
     return sha if sha else None
 
 
+def _read_tree_for_commit(commit_sha: str) -> Dict[str, str]:
+    """Read the full file tree of *commit_sha* using ``git ls-tree``.
+
+    Unlike :func:`read_branch_tree`, this accepts any commit SHA
+    (including remote-tracking refs resolved to a SHA) rather than
+    requiring a local branch name.
+
+    Args:
+        commit_sha: The commit SHA to read the tree from.
+
+    Returns:
+        A ``{path: blob_sha}`` dict.
+
+    Raises:
+        GitPlumbingError: If ``git ls-tree`` fails.
+    """
+    result = _run_plumbing("ls-tree", "-r", "--full-tree", commit_sha)
+    if result.returncode != 0:
+        raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
+
+    tree = {}  # type: Dict[str, str]
+    for line in result.stdout.splitlines():
+        # Format: "<mode> <type> <sha>\t<path>"
+        meta, path = line.split("\t", 1)
+        parts = meta.split()
+        blob_sha = parts[2]
+        tree[path] = blob_sha
+    return tree
+
+
 # ---------------------------------------------------------------------------
 #  persist_workflow_state()
 # ---------------------------------------------------------------------------
@@ -477,20 +507,34 @@ def persist_workflow_state(
         if _branch_exists_locally(target_branch):
             pass  # proceed normally
         elif _branch_exists_remotely(target_branch):
-            _run_plumbing(
+            fetch_result = _run_plumbing(
                 "fetch",
                 "origin",
                 target_branch + ":" + target_branch,
             )
+            if fetch_result.returncode != 0:
+                raise GitPlumbingError(
+                    f"git fetch origin {target_branch}:{target_branch} failed with exit code {fetch_result.returncode}"
+                )
         else:
             branch_is_new = True
 
         # 6. Read existing tree and merge updates -----------------------------
+        #    Treat .agdt/workflows/{identity}/{worktree_key}/ as a snapshot:
+        #    drop any existing entries under that prefix which are not present
+        #    in the newly discovered updates, so deleted files do not persist
+        #    indefinitely in the -agdt branch.
         if branch_is_new:
             existing_tree = {}  # type: Dict[str, str]
         else:
             existing_tree = read_branch_tree(target_branch)
-        merged = dict(existing_tree, **updates)
+        workflow_prefix = f".agdt/workflows/{identity}/{worktree_key}/"
+        filtered_existing = {
+            path: sha
+            for path, sha in existing_tree.items()
+            if not (path.startswith(workflow_prefix) and path not in updates)
+        }  # type: Dict[str, str]
+        merged = dict(filtered_existing, **updates)
         tree_sha = build_tree(merged)
 
         # 7. Commit message + Run-Id trailer ----------------------------------
@@ -549,8 +593,18 @@ def persist_workflow_state(
                 continue  # nothing to rebase onto; retry push
 
             remote_head = remote_head_result.stdout.strip()
-            remote_tree = read_branch_tree("origin/" + target_branch)
-            merged = dict(remote_tree, **updates)
+            # Use _read_tree_for_commit() with the resolved commit SHA
+            # because read_branch_tree() prepends refs/heads/ internally
+            # and cannot accept remote-tracking refs like "origin/<branch>".
+            remote_tree = _read_tree_for_commit(remote_head)
+            # Apply snapshot semantics: drop stale entries under this
+            # workflow prefix before merging.
+            filtered_remote = {
+                path: sha
+                for path, sha in remote_tree.items()
+                if not (path.startswith(workflow_prefix) and path not in updates)
+            }  # type: Dict[str, str]
+            merged = dict(filtered_remote, **updates)
             tree_sha = build_tree(merged)
 
             if is_amend:
