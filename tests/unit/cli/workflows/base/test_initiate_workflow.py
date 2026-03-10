@@ -1,5 +1,7 @@
 """Tests for InitiateWorkflow."""
 
+import re
+from subprocess import CompletedProcess
 from unittest.mock import patch
 
 import pytest
@@ -116,3 +118,89 @@ class TestInitiateWorkflow:
 
         captured = capsys.readouterr()
         assert "PR #123" in captured.out
+
+    def test_run_id_generated_on_initiation(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """initiate_workflow generates a 12-char hex run_id."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="feature/test\n", stderr=""),
+        ):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        run_id = state.get_value("agdt_run_id")
+        assert run_id is not None
+        assert len(run_id) == 12
+        assert re.fullmatch(r"[0-9a-f]{12}", run_id)
+
+    def test_current_branch_stored_on_initiation(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """initiate_workflow stores versionControl.currentBranch from git."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="feature/DFLY-1234\n", stderr=""),
+        ):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        branch = state.get_value("versionControl.currentBranch")
+        assert branch == "feature/DFLY-1234"
+
+    def test_run_id_is_unique_across_initiations(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Two initiate_workflow calls generate different run_ids."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="main\n", stderr=""),
+        ):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        run_id_1 = state.get_value("agdt_run_id")
+
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="main\n", stderr=""),
+        ):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        run_id_2 = state.get_value("agdt_run_id")
+        assert run_id_1 != run_id_2

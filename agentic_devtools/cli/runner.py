@@ -360,7 +360,15 @@ def run_command(command: str) -> None:
         sys.exit(1)
 
     # Run the command
-    func()
+    try:
+        func()
+    finally:
+        try:
+            from agentic_devtools.cli.git.agdt_branch import persist_if_dirty
+
+            persist_if_dirty()
+        except Exception:
+            pass  # Never crash the command due to persist hook
 
 
 def run_as_script() -> None:

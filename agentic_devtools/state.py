@@ -270,6 +270,14 @@ def set_value(key: str, value: Any) -> None:
 
     save_state(state)
 
+    # Signal that state has been mutated for auto-persist.
+    try:
+        from .cli.git.agdt_branch import mark_dirty
+
+        mark_dirty()
+    except ImportError:  # pragma: no cover
+        pass  # agdt_branch not available (e.g., minimal install)
+
 
 # Context-switching keys that trigger temp folder clearing
 CONTEXT_SWITCH_KEYS = {"pull_request_id", "jira.issue_key"}

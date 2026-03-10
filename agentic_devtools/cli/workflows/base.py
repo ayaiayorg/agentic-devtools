@@ -12,7 +12,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import clear_state, get_value, set_workflow_state
+from ...state import clear_state, get_value, set_value, set_workflow_state
 
 
 def clear_state_for_workflow_initiation() -> None:
@@ -160,6 +160,22 @@ def initiate_workflow(
         context = {}
         for key, value in required_values.items():
             context[_state_key_to_variable_name(key)] = value
+
+    # Generate run_id for single-commit-per-run amend strategy
+    import uuid
+
+    run_id = uuid.uuid4().hex[:12]
+    set_value("agdt_run_id", run_id)
+
+    # Store current branch for persist_if_dirty() resolution
+    try:
+        from ..git.agdt_branch import _run_plumbing
+
+        branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
+        if branch_result.returncode == 0 and branch_result.stdout.strip():
+            set_value("versionControl.currentBranch", branch_result.stdout.strip())
+    except Exception:
+        pass  # Best-effort; persist_if_dirty has its own fallback
 
     # Update workflow state
     set_workflow_state(
