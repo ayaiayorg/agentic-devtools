@@ -258,7 +258,7 @@ class TestPersistIfDirty:
         )
 
     def test_workflow_type_defaults_on_get_workflow_state_exception(self):
-        """Defaults workflow_type to '' when get_workflow_state raises."""
+        """Defaults workflow_type to '' when get_workflow_state raises an exception."""
         mark_dirty()
 
         def _get(key, **kw):
