@@ -53,6 +53,37 @@ class TestLoadWorkflowArtifactsValidation:
         # _branch_exists_locally should have been called with "feat-agdt", not "feat-agdt-agdt"
         mock_loc.assert_called_once_with("feat-agdt")
 
+    @patch(f"{_MOD}.read_blob", return_value='{"k": "v"}')
+    @patch(
+        f"{_MOD}.read_branch_tree",
+        return_value={".agdt/workflows/default/KEY/review/state.json": "sha1"},
+    )
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    def test_empty_workflow_type_normalized_to_none(self, _loc, mock_tree, _blob):
+        """Empty string workflow_type is normalized to None (broad prefix)."""
+        result = load_workflow_artifacts("feat", worktree_key="KEY", workflow_type="")
+        assert result is not None
+        # Should use the broad prefix (no workflow_type segment)
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/",
+        )
+
+    @patch(f"{_MOD}.read_blob", return_value='{"k": "v"}')
+    @patch(
+        f"{_MOD}.read_branch_tree",
+        return_value={".agdt/workflows/default/KEY/review/state.json": "sha1"},
+    )
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    def test_whitespace_workflow_type_normalized_to_none(self, _loc, mock_tree, _blob):
+        """Whitespace-only workflow_type is normalized to None (broad prefix)."""
+        result = load_workflow_artifacts("feat", worktree_key="KEY", workflow_type="  ")
+        assert result is not None
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/",
+        )
+
 
 # ---------------------------------------------------------------------------
 #  Branch Existence

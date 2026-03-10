@@ -271,7 +271,8 @@ def read_branch_tree(
 
     Returns:
         A ``{path: blob_sha}`` dict.  Returns an empty dict when the
-        branch does not exist.
+        branch does not exist **or** when no entries match the given
+        *path_prefix*.
 
     Raises:
         GitPlumbingError: If ``git rev-parse`` fails for a reason other
@@ -394,6 +395,12 @@ def load_workflow_artifacts(
     """
     if worktree_key is None:
         return None
+
+    # Normalize empty/whitespace-only strings to None so that callers
+    # forwarding persist_workflow_state's default (workflow_type="")
+    # get "no filter" behaviour rather than a double-slash prefix.
+    if workflow_type is not None and not workflow_type.strip():
+        workflow_type = None
 
     identity = identity or "default"
 
