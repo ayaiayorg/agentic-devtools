@@ -875,6 +875,9 @@ class TestPersistWorkflowStateBranchResolution:
         assert result.success is False
         assert "Failed to resolve source branch HEAD" in result.error
         assert "nonexistent" in result.error
+        # Verify base_result fields are preserved (not dropped)
+        assert result.branch_name == "nonexistent-agdt"
+        assert result.worktree_key == "K"
 
     @patch(f"{_MOD}.get_value", return_value=None)
     @patch(f"{_MOD}.build_tree", return_value="ttt")
@@ -903,6 +906,9 @@ class TestPersistWorkflowStateBranchResolution:
 
         assert result.success is False
         assert "has no HEAD commit" in result.error
+        # Verify base_result fields are preserved (not dropped)
+        assert result.branch_name == "feat-agdt"
+        assert result.worktree_key == "K"
 
     @patch(f"{_MOD}.get_value", return_value=None)
     @patch(f"{_MOD}.build_tree", return_value="ttt")

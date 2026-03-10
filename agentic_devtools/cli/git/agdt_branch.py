@@ -563,19 +563,15 @@ def persist_workflow_state(
             # treat this as a hard failure to avoid creating an orphan/root commit.
             src_result = _run_plumbing("rev-parse", source_branch)
             if src_result.returncode != 0:
-                return PersistResult(
-                    success=False,
-                    error=(
-                        f"Failed to resolve source branch HEAD for '{source_branch}': "
-                        f"{src_result.stdout.strip() or src_result.stderr.strip()}"
-                    ),
+                base_result.error = (
+                    f"Failed to resolve source branch HEAD for '{source_branch}': "
+                    f"{src_result.stdout.strip() or src_result.stderr.strip()}"
                 )
+                return base_result
             src_sha = src_result.stdout.strip()
             if not src_sha:
-                return PersistResult(
-                    success=False,
-                    error=f"Source branch '{source_branch}' has no HEAD commit.",
-                )
+                base_result.error = f"Source branch '{source_branch}' has no HEAD commit."
+                return base_result
             parent_sha = src_sha
         else:
             head_result = _run_plumbing("rev-parse", target_branch)
