@@ -24,3 +24,15 @@ class TestBranchExistsRemotely:
         mock = MagicMock(returncode=1, stdout="", stderr="error")
         monkeypatch.setattr(f"{_MOD}._run_plumbing", lambda *a, **kw: mock)
         assert _branch_exists_remotely("b") is False
+
+    def test_passes_double_dash_before_branch_name(self, monkeypatch):
+        captured = {}
+        mock = MagicMock(returncode=0, stdout="sha refs/heads/b\n", stderr="")
+
+        def spy(*args, **kwargs):
+            captured["args"] = args
+            return mock
+
+        monkeypatch.setattr(f"{_MOD}._run_plumbing", spy)
+        _branch_exists_remotely("my-branch")
+        assert captured["args"] == ("ls-remote", "--heads", "origin", "--", "my-branch")

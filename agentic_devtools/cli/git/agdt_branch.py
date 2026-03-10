@@ -490,7 +490,7 @@ def _branch_exists_locally(branch_name: str) -> bool:
 
 def _branch_exists_remotely(branch_name: str) -> bool:
     """Return ``True`` if *branch_name* exists on ``origin``."""
-    result = _run_plumbing("ls-remote", "--heads", "origin", branch_name)
+    result = _run_plumbing("ls-remote", "--heads", "origin", "--", branch_name)
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
