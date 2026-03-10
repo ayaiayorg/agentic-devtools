@@ -33,6 +33,11 @@ class TestLoadWorkflowArtifactsValidation:
         result = load_workflow_artifacts("feat", worktree_key="KEY", workflow_type="review", identity=None)
         assert result is not None
         assert ".agdt/workflows/default/KEY/review/state.json" in result
+        # Verify path_prefix uses "default" identity
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/review/",
+        )
 
     @patch(f"{_MOD}.read_blob", return_value='{"k": "v"}')
     @patch(
@@ -109,29 +114,37 @@ class TestLoadWorkflowArtifactsPathFiltering:
 
     @patch(
         f"{_MOD}.read_branch_tree",
-        return_value={"other/file.txt": "sha"},
+        return_value={},
     )
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
-    def test_returns_none_when_no_matching_paths(self, _loc, _tree):
+    def test_returns_none_when_no_matching_paths(self, _loc, mock_tree):
         """Returns None when no tree entries match the prefix."""
         result = load_workflow_artifacts("feat", worktree_key="KEY")
         assert result is None
+        # Verify path_prefix is passed to scope git ls-tree
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/",
+        )
 
     @patch(f"{_MOD}.read_blob", return_value='{"ok": true}')
     @patch(
         f"{_MOD}.read_branch_tree",
         return_value={
             ".agdt/workflows/default/KEY/review/state.json": "sha1",
-            ".agdt/workflows/default/KEY/impl/plan.json": "sha2",
         },
     )
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
-    def test_filters_by_workflow_type(self, _loc, _tree, mock_blob):
+    def test_filters_by_workflow_type(self, _loc, mock_tree, mock_blob):
         """Only files matching the specified workflow_type are returned."""
         result = load_workflow_artifacts("feat", worktree_key="KEY", workflow_type="review")
         assert result is not None
         assert ".agdt/workflows/default/KEY/review/state.json" in result
-        assert ".agdt/workflows/default/KEY/impl/plan.json" not in result
+        # Verify the narrower prefix is passed
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/review/",
+        )
 
     @patch(f"{_MOD}.read_blob", return_value='{"ok": true}')
     @patch(
@@ -142,12 +155,17 @@ class TestLoadWorkflowArtifactsPathFiltering:
         },
     )
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
-    def test_loads_all_types_when_workflow_type_none(self, _loc, _tree, _blob):
+    def test_loads_all_types_when_workflow_type_none(self, _loc, mock_tree, _blob):
         """All workflow types are loaded when workflow_type is None."""
         result = load_workflow_artifacts("feat", worktree_key="KEY")
         assert result is not None
         assert ".agdt/workflows/default/KEY/review/state.json" in result
         assert ".agdt/workflows/default/KEY/impl/plan.json" in result
+        # Verify the broader prefix is used (no workflow_type segment)
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/",
+        )
 
     @patch(f"{_MOD}.read_branch_tree", return_value={})
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
@@ -235,12 +253,11 @@ class TestLoadWorkflowArtifactsIntegration:
         return_value={
             ".agdt/workflows/default/KEY/review/state.json": "sha1",
             ".agdt/workflows/default/KEY/review/queue.json": "sha2",
-            "README.md": "readme_sha",
         },
     )
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
-    def test_full_flow_returns_correct_dict(self, _loc, _tree, mock_blob):
-        """Full flow: branch exists, tree has matching and non-matching files."""
+    def test_full_flow_returns_correct_dict(self, _loc, mock_tree, mock_blob):
+        """Full flow: branch exists, tree returns only matching files (path-filtered)."""
         mock_blob.side_effect = lambda sha: {
             "sha1": '{"status": "active"}',
             "sha2": '{"files": ["a.ts", "b.ts"]}',
@@ -251,5 +268,8 @@ class TestLoadWorkflowArtifactsIntegration:
         assert len(result) == 2
         assert result[".agdt/workflows/default/KEY/review/state.json"] == {"status": "active"}
         assert result[".agdt/workflows/default/KEY/review/queue.json"] == {"files": ["a.ts", "b.ts"]}
-        # README.md should NOT be in the result
-        assert "README.md" not in result
+        # Verify path-filtered call
+        mock_tree.assert_called_once_with(
+            "feat-agdt",
+            path_prefix=".agdt/workflows/default/KEY/review/",
+        )

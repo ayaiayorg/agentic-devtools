@@ -251,15 +251,23 @@ def update_ref(branch_name: str, commit_sha: str) -> None:
         raise GitPlumbingError("git update-ref failed: " + result.stderr.strip())
 
 
-def read_branch_tree(branch_name: str) -> Dict[str, str]:
-    """Read the full file tree of *branch_name*.
+def read_branch_tree(
+    branch_name: str,
+    path_prefix: Optional[str] = None,
+) -> Dict[str, str]:
+    """Read the file tree of *branch_name*.
 
     Resolves the branch to a commit SHA, then runs
     ``git ls-tree -r --full-tree <commit_sha>`` to list every blob.
+    When *path_prefix* is provided the listing is restricted to paths
+    under that prefix, avoiding the cost of enumerating the entire tree.
 
     Args:
         branch_name: Branch name without ``refs/heads/`` prefix
             (e.g. ``"my-branch-agdt"``).
+        path_prefix: Optional path prefix passed to ``git ls-tree``
+            (e.g. ``".agdt/workflows/"``).  Only entries under this
+            prefix are returned.  When ``None`` the full tree is read.
 
     Returns:
         A ``{path: blob_sha}`` dict.  Returns an empty dict when the
@@ -290,7 +298,10 @@ def read_branch_tree(branch_name: str) -> Dict[str, str]:
     if not commit_sha:
         raise GitPlumbingError("git rev-parse returned empty output")
 
-    result = _run_plumbing("ls-tree", "-r", "--full-tree", commit_sha)
+    ls_args = ["ls-tree", "-r", "--full-tree", commit_sha]
+    if path_prefix is not None:
+        ls_args += ["--", path_prefix]
+    result = _run_plumbing(*ls_args)
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 
@@ -400,25 +411,21 @@ def load_workflow_artifacts(
         else:
             return None
 
-    # Enumerate files via read_branch_tree
-    tree = read_branch_tree(target_branch)
-    if not tree:
-        return None
-
-    # Compute path prefix
+    # Compute path prefix — used to scope git ls-tree to only the
+    # relevant subtree, avoiding enumeration of the entire branch.
     if workflow_type is not None:
         prefix = f".agdt/workflows/{identity}/{worktree_key}/{workflow_type}/"
     else:
         prefix = f".agdt/workflows/{identity}/{worktree_key}/"
 
-    # Filter matching entries
-    matching = {path: sha for path, sha in tree.items() if path.startswith(prefix)}
-    if not matching:
+    # Enumerate files via read_branch_tree (path-filtered)
+    tree = read_branch_tree(target_branch, path_prefix=prefix)
+    if not tree:
         return None
 
     # Read content and attempt JSON parsing
     result: Dict[str, Any] = {}
-    for path, blob_sha in matching.items():
+    for path, blob_sha in tree.items():
         content = read_blob(blob_sha)
         try:
             result[path] = json.loads(content)

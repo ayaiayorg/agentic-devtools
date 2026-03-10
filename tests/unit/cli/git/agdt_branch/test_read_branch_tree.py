@@ -78,6 +78,29 @@ class TestReadBranchTree:
         assert ls_args == ("ls-tree", "-r", "--full-tree", "abc")
 
     @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
+    def test_path_prefix_appended_to_ls_tree(self, mock_run):
+        """read_branch_tree appends -- <prefix> to ls-tree when path_prefix is given."""
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="abc\n", stderr=""),
+            MagicMock(returncode=0, stdout="100644 blob sha1\t.agdt/f.json\n", stderr=""),
+        ]
+        result = read_branch_tree("my-branch", path_prefix=".agdt/")
+        ls_args = mock_run.call_args_list[1][0]
+        assert ls_args == ("ls-tree", "-r", "--full-tree", "abc", "--", ".agdt/")
+        assert result == {".agdt/f.json": "sha1"}
+
+    @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
+    def test_no_path_prefix_omits_separator(self, mock_run):
+        """read_branch_tree omits -- when path_prefix is None."""
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="abc\n", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        ]
+        read_branch_tree("my-branch", path_prefix=None)
+        ls_args = mock_run.call_args_list[1][0]
+        assert ls_args == ("ls-tree", "-r", "--full-tree", "abc")
+
+    @patch("agentic_devtools.cli.git.agdt_branch._run_plumbing")
     def test_rev_parse_empty_stdout_raises(self, mock_run):
         """read_branch_tree raises GitPlumbingError when rev-parse returns empty stdout."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
