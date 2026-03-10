@@ -29,6 +29,7 @@ Consumers import directly from this module::
    not support.
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -250,19 +251,28 @@ def update_ref(branch_name: str, commit_sha: str) -> None:
         raise GitPlumbingError("git update-ref failed: " + result.stderr.strip())
 
 
-def read_branch_tree(branch_name: str) -> Dict[str, str]:
-    """Read the full file tree of *branch_name*.
+def read_branch_tree(
+    branch_name: str,
+    path_prefix: Optional[str] = None,
+) -> Dict[str, str]:
+    """Read the file tree of *branch_name*.
 
     Resolves the branch to a commit SHA, then runs
     ``git ls-tree -r --full-tree <commit_sha>`` to list every blob.
+    When *path_prefix* is provided the listing is restricted to paths
+    under that prefix, avoiding the cost of enumerating the entire tree.
 
     Args:
         branch_name: Branch name without ``refs/heads/`` prefix
             (e.g. ``"my-branch-agdt"``).
+        path_prefix: Optional path prefix passed to ``git ls-tree``
+            (e.g. ``".agdt/workflows/"``).  Only entries under this
+            prefix are returned.  When ``None`` the full tree is read.
 
     Returns:
         A ``{path: blob_sha}`` dict.  Returns an empty dict when the
-        branch does not exist.
+        branch does not exist **or** when no entries match the given
+        *path_prefix*.
 
     Raises:
         GitPlumbingError: If ``git rev-parse`` fails for a reason other
@@ -289,7 +299,10 @@ def read_branch_tree(branch_name: str) -> Dict[str, str]:
     if not commit_sha:
         raise GitPlumbingError("git rev-parse returned empty output")
 
-    result = _run_plumbing("ls-tree", "-r", "--full-tree", commit_sha)
+    ls_args = ["ls-tree", "-r", "--full-tree", commit_sha]
+    if path_prefix is not None:
+        ls_args += ["--", path_prefix]
+    result = _run_plumbing(*ls_args)
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 
@@ -316,6 +329,117 @@ def push_branch(branch_name: str) -> CompletedProcess:
         The :class:`~subprocess.CompletedProcess` from the push command.
     """
     return _run_plumbing("push", "origin", branch_name, check=False)
+
+
+def read_blob(blob_sha: str) -> str:
+    """Read the contents of a blob object by its SHA.
+
+    Runs ``git cat-file -p <blob_sha>`` to retrieve the blob content.
+
+    Args:
+        blob_sha: The 40-character hex SHA of the blob.
+
+    Returns:
+        The blob content as a string (not stripped — whitespace preserved).
+
+    Raises:
+        GitPlumbingError: If the command fails.
+    """
+    result = _run_plumbing("cat-file", "-p", "--", blob_sha)
+    if result.returncode != 0:
+        raise GitPlumbingError(f"git cat-file failed for {blob_sha}: {result.stderr.strip()}")
+    return result.stdout
+
+
+# ---------------------------------------------------------------------------
+#  load_workflow_artifacts()
+# ---------------------------------------------------------------------------
+
+
+def load_workflow_artifacts(
+    source_branch: str,
+    worktree_key: Optional[str] = None,
+    workflow_type: Optional[str] = None,
+    identity: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Read persisted workflow artifacts from the -agdt branch.
+
+    Reads file contents from ``{source_branch}-agdt`` via git plumbing
+    without checking out the branch.  Files are enumerated via
+    :func:`read_branch_tree` and content is retrieved via
+    :func:`read_blob`.
+
+    Each file's content is parsed as JSON if possible; otherwise the raw
+    string content is returned.
+
+    Args:
+        source_branch: The source code branch name (e.g.
+            ``"feature/DFLY-1234"``).  The ``-agdt`` suffix is appended
+            automatically unless the branch already ends with ``-agdt``.
+        worktree_key: Worktree key (e.g. ``"DFLY-1234"``).  Required.
+            Returns ``None`` if not provided.
+        workflow_type: Optional workflow type filter (e.g. ``"review"``).
+            When provided, only files under
+            ``.agdt/workflows/{identity}/{worktree_key}/{workflow_type}/``
+            are read.  When ``None``, all files under
+            ``.agdt/workflows/{identity}/{worktree_key}/`` are read.
+        identity: The identity segment (default: ``"default"``).
+
+    Returns:
+        A dict mapping ``{file_path: content}`` where *content* is the
+        parsed JSON object or raw string.  Returns ``None`` when:
+
+        - ``worktree_key`` is ``None``
+        - The ``-agdt`` branch does not exist locally or remotely
+        - No files match the computed path prefix on the branch
+    """
+    if worktree_key is None:
+        return None
+
+    # Normalize empty/whitespace-only strings to None so that callers
+    # forwarding persist_workflow_state's default (workflow_type="")
+    # get "no filter" behaviour rather than a double-slash prefix.
+    if workflow_type is not None and not workflow_type.strip():
+        workflow_type = None
+
+    identity = identity or "default"
+
+    # Double-suffix prevention
+    if source_branch.endswith("-agdt"):
+        target_branch = source_branch
+    else:
+        target_branch = f"{source_branch}-agdt"
+
+    # Branch existence: local → remote fetch → None
+    if not _branch_exists_locally(target_branch):
+        if _branch_exists_remotely(target_branch):
+            if not _fetch_branch(target_branch):
+                return None
+        else:
+            return None
+
+    # Compute path prefix — used to scope git ls-tree to only the
+    # relevant subtree, avoiding enumeration of the entire branch.
+    if workflow_type is not None:
+        prefix = f".agdt/workflows/{identity}/{worktree_key}/{workflow_type}/"
+    else:
+        prefix = f".agdt/workflows/{identity}/{worktree_key}/"
+
+    # Enumerate files via read_branch_tree (path-filtered)
+    tree = read_branch_tree(target_branch, path_prefix=prefix)
+    if not tree:
+        return None
+
+    # Read content and attempt JSON parsing
+    result: Dict[str, Any] = {}
+    for path, blob_sha in tree.items():
+        content = read_blob(blob_sha)
+        try:
+            result[path] = json.loads(content)
+        except json.JSONDecodeError:
+            result[path] = content
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -373,8 +497,17 @@ def _branch_exists_locally(branch_name: str) -> bool:
 
 def _branch_exists_remotely(branch_name: str) -> bool:
     """Return ``True`` if *branch_name* exists on ``origin``."""
-    result = _run_plumbing("ls-remote", "--heads", "origin", branch_name)
+    result = _run_plumbing("ls-remote", "--heads", "origin", "--", branch_name)
     return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _fetch_branch(branch_name: str) -> bool:
+    """Fetch *branch_name* from ``origin``, creating a local tracking ref.
+
+    Returns ``True`` on success, ``False`` on failure.
+    """
+    result = _run_plumbing("fetch", "origin", "--", f"{branch_name}:refs/heads/{branch_name}")
+    return result.returncode == 0
 
 
 def _read_commit_message(commit_sha: str) -> str:
@@ -417,9 +550,7 @@ def _get_parent_sha(commit_sha: str) -> Optional[str]:
     result = _run_plumbing("cat-file", "-p", commit_sha)
     if result.returncode != 0:
         stderr = (result.stderr or "").strip()
-        raise GitPlumbingError(
-            f"Failed to read commit object '{commit_sha}': {stderr}"
-        )
+        raise GitPlumbingError(f"Failed to read commit object '{commit_sha}': {stderr}")
     for line in result.stdout.splitlines():
         if line.startswith("parent "):
             return line.split(" ", 1)[1].strip()
@@ -645,7 +776,11 @@ def persist_workflow_state(
 
             # Push rejected — fetch, re-merge, re-commit, retry.
             fetch_result = _run_plumbing(
-                "fetch", "origin", target_branch, check=False,
+                "fetch",
+                "origin",
+                "--",
+                target_branch,
+                check=False,
             )
             if fetch_result.returncode != 0:
                 stderr = (fetch_result.stderr or "").strip()
