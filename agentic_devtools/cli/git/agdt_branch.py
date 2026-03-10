@@ -495,22 +495,25 @@ def persist_workflow_state(
     Returns:
         A :class:`PersistResult` indicating success or failure.
     """
-    # 1. Validate worktree_key ------------------------------------------------
-    if worktree_key is None:
-        return PersistResult(
-            success=False,
-            error=("worktree_key is required. Auto-resolution will be available via resolve_worktree_key()."),
-        )
-
-    # 2. Defaults -------------------------------------------------------------
+    # 1. Defaults -------------------------------------------------------------
     identity = identity or "default"
     wf_label = workflow_type or "workflow"
 
-    # 3. Target branch (double-suffix prevention) -----------------------------
+    # 2. Target branch (double-suffix prevention) -----------------------------
     if source_branch.endswith("-agdt"):
         target_branch = source_branch
     else:
         target_branch = source_branch + "-agdt"
+
+    # 3. Validate worktree_key ------------------------------------------------
+    if worktree_key is None:
+        return PersistResult(
+            success=False,
+            branch_name=target_branch,
+            worktree_key=worktree_key,
+            workflow_type=workflow_type,
+            error="worktree_key is required and must not be None.",
+        )
 
     base_result = PersistResult(
         branch_name=target_branch,

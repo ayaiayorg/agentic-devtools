@@ -30,10 +30,12 @@ class TestPersistWorkflowStateValidation:
     """Validation and defaults tests."""
 
     def test_worktree_key_none_returns_failure(self):
-        """worktree_key=None must return PersistResult(success=False)."""
+        """worktree_key=None must return PersistResult(success=False) with populated fields."""
         result = persist_workflow_state("feature/x", worktree_key=None)
         assert result.success is False
         assert "worktree_key is required" in result.error
+        assert result.branch_name == "feature/x-agdt"
+        assert result.workflow_type == ""
 
     @patch(f"{_MOD}.get_value", return_value=None)
     @patch(f"{_MOD}.push_branch", return_value=_ok())
