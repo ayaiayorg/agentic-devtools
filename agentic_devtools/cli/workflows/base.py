@@ -171,8 +171,12 @@ def initiate_workflow(
         from ..git.agdt_branch import _run_plumbing
 
         branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
-        if branch_result.returncode == 0 and branch_result.stdout.strip():
-            set_value("versionControl.currentBranch", branch_result.stdout.strip())
+        branch_name = branch_result.stdout.strip()
+        # When in a detached HEAD state, Git returns the literal string "HEAD".
+        # Treat that as "unresolvable" and skip setting the currentBranch key so
+        # persist_if_dirty() can fall back or no-op cleanly.
+        if branch_result.returncode == 0 and branch_name and branch_name != "HEAD":
+            set_value("versionControl.currentBranch", branch_name)
     except Exception:
         pass  # Best-effort; persist_if_dirty has its own fallback
 

@@ -169,6 +169,30 @@ class TestInitiateWorkflow:
         branch = state.get_value("versionControl.currentBranch")
         assert branch == "feature/DFLY-1234"
 
+    def test_current_branch_not_stored_on_detached_head(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """initiate_workflow skips versionControl.currentBranch when detached HEAD."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+            return_value=CompletedProcess(args=[], returncode=0, stdout="HEAD\n", stderr=""),
+        ):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        branch = state.get_value("versionControl.currentBranch")
+        assert branch is None
+
     def test_run_id_is_unique_across_initiations(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):

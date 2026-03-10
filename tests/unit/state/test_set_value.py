@@ -1,5 +1,7 @@
 """Tests for agentic_devtools.state.set_value."""
 
+from unittest.mock import patch
+
 from agentic_devtools import state
 
 
@@ -37,6 +39,24 @@ class TestSetValue:
         config = {"key": "value", "nested": {"inner": 1}}
         state.set_value("config", config)
         assert state.get_value("config") == config
+
+    def test_set_value_calls_mark_dirty(self, temp_state_dir):
+        """set_value should call mark_dirty after writing state."""
+        with patch("agentic_devtools.cli.git.agdt_branch.mark_dirty") as mock_mark:
+            state.set_value("foo", "bar")
+
+        mock_mark.assert_called_once()
+
+    def test_set_value_tolerates_import_error(self, temp_state_dir):
+        """set_value does not fail when agdt_branch is not importable."""
+        with patch(
+            "agentic_devtools.cli.git.agdt_branch.mark_dirty",
+            side_effect=ImportError("no module"),
+        ):
+            # Should not raise
+            state.set_value("foo", "bar")
+
+        assert state.get_value("foo") == "bar"
 
 
 class TestSetValueSpecialCharacters:

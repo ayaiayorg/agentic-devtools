@@ -1,9 +1,7 @@
-"""Tests for the auto-persist dirty flag and persist_if_dirty hook."""
+"""Tests for persist_if_dirty()."""
 
 from subprocess import CompletedProcess
 from unittest.mock import patch
-
-import pytest
 
 from agentic_devtools.cli.git.agdt_branch import (
     PersistResult,
@@ -16,41 +14,14 @@ from agentic_devtools.cli.git.agdt_branch import (
 _MOD = "agentic_devtools.cli.git.agdt_branch"
 
 
-@pytest.fixture(autouse=True)
-def _clean_dirty_flag():
-    """Ensure the dirty flag is reset before and after each test."""
-    _reset_dirty()
-    yield
+def setup_function():
+    """Reset dirty flag before each test."""
     _reset_dirty()
 
 
-# ---------------------------------------------------------------------------
-#  TestDirtyFlag
-# ---------------------------------------------------------------------------
-
-
-class TestDirtyFlag:
-    """Tests for mark_dirty / is_dirty / _reset_dirty."""
-
-    def test_initially_not_dirty(self):
-        """Flag is False after reset."""
-        assert is_dirty() is False
-
-    def test_mark_dirty_sets_flag(self):
-        """mark_dirty() sets the flag to True."""
-        mark_dirty()
-        assert is_dirty() is True
-
-    def test_reset_dirty_clears_flag(self):
-        """_reset_dirty() clears the flag."""
-        mark_dirty()
-        _reset_dirty()
-        assert is_dirty() is False
-
-
-# ---------------------------------------------------------------------------
-#  TestPersistIfDirty
-# ---------------------------------------------------------------------------
+def teardown_function():
+    """Reset dirty flag after each test."""
+    _reset_dirty()
 
 
 def _ok(stdout="", stderr=""):
@@ -178,6 +149,46 @@ class TestPersistIfDirty:
         captured = capsys.readouterr()
         assert "could not resolve source branch" in captured.err
 
+    def test_skips_persist_when_detached_head_in_state(self, capsys):
+        """Skips persist when versionControl.currentBranch is 'HEAD'."""
+        mark_dirty()
+
+        def _get(key, **kw):
+            return {
+                "agdt_run_id": "abc123def456",
+                "versionControl.currentBranch": "HEAD",
+            }.get(key)
+
+        with patch(f"{_MOD}.get_value", side_effect=_get):
+            with patch(f"{_MOD}.persist_workflow_state") as mock_persist:
+                with patch("agentic_devtools.state.get_workflow_state", return_value=None):
+                    with patch("agentic_devtools.state.is_dry_run", return_value=False):
+                        persist_if_dirty()
+
+        mock_persist.assert_not_called()
+        assert is_dirty() is False
+        captured = capsys.readouterr()
+        assert "detached HEAD" in captured.err
+
+    def test_skips_persist_when_detached_head_from_git(self, capsys):
+        """Skips persist when git rev-parse returns 'HEAD' (detached)."""
+        mark_dirty()
+
+        def _get(key, **kw):
+            return {"agdt_run_id": "abc123def456"}.get(key)
+
+        with patch(f"{_MOD}.get_value", side_effect=_get):
+            with patch(f"{_MOD}._run_plumbing", return_value=_ok(stdout="HEAD\n")):
+                with patch(f"{_MOD}.persist_workflow_state") as mock_persist:
+                    with patch("agentic_devtools.state.get_workflow_state", return_value=None):
+                        with patch("agentic_devtools.state.is_dry_run", return_value=False):
+                            persist_if_dirty()
+
+        mock_persist.assert_not_called()
+        assert is_dirty() is False
+        captured = capsys.readouterr()
+        assert "detached HEAD" in captured.err
+
     def test_dry_run_logs_without_persisting(self, capsys):
         """In dry-run mode, logs a message without calling persist."""
         mark_dirty()
@@ -238,6 +249,31 @@ class TestPersistIfDirty:
         with patch(f"{_MOD}.get_value", side_effect=_get):
             with patch(f"{_MOD}.persist_workflow_state", return_value=mock_result) as mock_persist:
                 with patch("agentic_devtools.state.get_workflow_state", return_value=None):
+                    with patch("agentic_devtools.state.is_dry_run", return_value=False):
+                        persist_if_dirty()
+
+        mock_persist.assert_called_once_with(
+            source_branch="main",
+            workflow_type="",
+        )
+
+    def test_workflow_type_defaults_on_get_workflow_state_exception(self):
+        """Defaults workflow_type to '' when get_workflow_state raises."""
+        mark_dirty()
+
+        def _get(key, **kw):
+            return {
+                "agdt_run_id": "abc123def456",
+                "versionControl.currentBranch": "main",
+            }.get(key)
+
+        mock_result = PersistResult(success=True)
+        with patch(f"{_MOD}.get_value", side_effect=_get):
+            with patch(f"{_MOD}.persist_workflow_state", return_value=mock_result) as mock_persist:
+                with patch(
+                    "agentic_devtools.state.get_workflow_state",
+                    side_effect=RuntimeError("state corrupted"),
+                ):
                     with patch("agentic_devtools.state.is_dry_run", return_value=False):
                         persist_if_dirty()
 

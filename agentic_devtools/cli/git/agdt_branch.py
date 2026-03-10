@@ -148,13 +148,15 @@ def persist_if_dirty() -> None:
             branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
             source_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
 
-        if not source_branch:
+        if not source_branch or source_branch == "HEAD":
             import sys
 
-            print(
-                "agdt: persist_if_dirty: could not resolve source branch; skipping persist.",
-                file=sys.stderr,
+            message = (
+                "agdt: persist_if_dirty: detected detached HEAD; skipping persist."
+                if source_branch == "HEAD"
+                else "agdt: persist_if_dirty: could not resolve source branch; skipping persist."
             )
+            print(message, file=sys.stderr)
             _persist_dirty = False
             return
 
