@@ -528,39 +528,12 @@ def persist_workflow_state(
         else:
             branch_is_new = True
 
-        # 6. Read existing tree and merge updates -----------------------------
-        #    Treat .agdt/workflows/{identity}/{worktree_key}/ as a snapshot:
-        #    drop any existing entries under that prefix which are not present
-        #    in the newly discovered updates, so deleted files do not persist
-        #    indefinitely in the -agdt branch.
+        # 6. Resolve source branch for new branches (needed before tree read) --
+        #    When creating a brand-new -agdt branch, resolve the source branch
+        #    HEAD upfront so we can (a) use its tree as the base and (b) set it
+        #    as the parent commit.
+        src_sha = None  # type: Optional[str]
         if branch_is_new:
-            existing_tree = {}  # type: Dict[str, str]
-        else:
-            existing_tree = read_branch_tree(target_branch)
-        workflow_prefix = f".agdt/workflows/{identity}/{worktree_key}/"
-        filtered_existing = {
-            path: sha
-            for path, sha in existing_tree.items()
-            if not (path.startswith(workflow_prefix) and path not in updates)
-        }  # type: Dict[str, str]
-        merged = dict(filtered_existing, **updates)
-        tree_sha = build_tree(merged)
-
-        # 7. Commit message + Run-Id trailer ----------------------------------
-        if not commit_message:
-            commit_message = f"agdt: persist {wf_label} state for {worktree_key}"
-
-        run_id = get_value("agdt_run_id")
-        if run_id:
-            full_message = commit_message + "\n\nRun-Id: " + str(run_id)
-        else:
-            full_message = commit_message
-
-        # 8. Determine parent (amend vs new commit) ---------------------------
-        is_amend = False
-        if branch_is_new:
-            # Parent must be the source branch HEAD; if it cannot be resolved,
-            # treat this as a hard failure to avoid creating an orphan/root commit.
             src_result = _run_plumbing("rev-parse", source_branch)
             if src_result.returncode != 0:
                 base_result.error = (
@@ -572,6 +545,38 @@ def persist_workflow_state(
             if not src_sha:
                 base_result.error = f"Source branch '{source_branch}' has no HEAD commit."
                 return base_result
+
+        # 7. Read existing tree and merge updates -----------------------------
+        #    Treat .agdt/workflows/{identity}/{worktree_key}/ as a snapshot:
+        #    drop any existing entries under that prefix which are not present
+        #    in the newly discovered updates, so deleted files do not persist
+        #    indefinitely in the -agdt branch.
+        if branch_is_new:
+            existing_tree = _read_tree_for_commit(src_sha)  # type: Dict[str, str]
+        else:
+            existing_tree = read_branch_tree(target_branch)
+        workflow_prefix = f".agdt/workflows/{identity}/{worktree_key}/"
+        filtered_existing = {
+            path: sha
+            for path, sha in existing_tree.items()
+            if not (path.startswith(workflow_prefix) and path not in updates)
+        }  # type: Dict[str, str]
+        merged = dict(filtered_existing, **updates)
+        tree_sha = build_tree(merged)
+
+        # 8. Commit message + Run-Id trailer ----------------------------------
+        if not commit_message:
+            commit_message = f"agdt: persist {wf_label} state for {worktree_key}"
+
+        run_id = get_value("agdt_run_id")
+        if run_id:
+            full_message = commit_message + "\n\nRun-Id: " + str(run_id)
+        else:
+            full_message = commit_message
+
+        # 9. Determine parent (amend vs new commit) ---------------------------
+        is_amend = False
+        if branch_is_new:
             parent_sha = src_sha
         else:
             head_result = _run_plumbing("rev-parse", target_branch)

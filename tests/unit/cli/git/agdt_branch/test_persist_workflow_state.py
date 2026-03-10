@@ -94,6 +94,10 @@ class TestPersistWorkflowStateNewBranch:
     @patch(f"{_MOD}.update_ref")
     @patch(f"{_MOD}.create_commit", return_value="commit_aaa")
     @patch(f"{_MOD}.build_tree", return_value="tree_aaa")
+    @patch(
+        f"{_MOD}._read_tree_for_commit",
+        return_value={"README.md": "readme_sha", "src/main.py": "main_sha"},
+    )
     @patch(f"{_MOD}._run_plumbing")
     @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
     @patch(f"{_MOD}._branch_exists_locally", return_value=False)
@@ -109,13 +113,14 @@ class TestPersistWorkflowStateNewBranch:
         _loc,
         _rem,
         mock_plumbing,
-        _build,
+        mock_read_tree,
+        mock_build,
         mock_commit,
         mock_update,
         mock_push,
         _get_val,
     ):
-        """New branch: commit with source HEAD as parent, push called."""
+        """New branch: reads source tree, merges workflow files, commits with source HEAD as parent."""
         # _run_plumbing is called for rev-parse of source_branch
         mock_plumbing.return_value = _ok(stdout="source_head_sha\n")
         mock_push.return_value = _ok()
@@ -125,6 +130,14 @@ class TestPersistWorkflowStateNewBranch:
         assert result.success is True
         assert result.branch_name == "feat-agdt"
         assert result.commit_hash == "commit_aaa"
+        # Source tree should be read via _read_tree_for_commit(src_sha)
+        mock_read_tree.assert_called_once_with("source_head_sha")
+        # build_tree should receive source tree entries + workflow updates
+        mock_build.assert_called_once()
+        merged_tree = mock_build.call_args[0][0]
+        assert "README.md" in merged_tree  # from source tree
+        assert "src/main.py" in merged_tree  # from source tree
+        assert ".agdt/workflows/default/K/f.json" in merged_tree  # workflow update
         # create_commit should receive source HEAD as parent
         mock_commit.assert_called_once()
         call_args = mock_commit.call_args
