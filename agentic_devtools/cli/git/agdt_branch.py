@@ -108,8 +108,10 @@ def resolve_worktree_key(explicit_key: Optional[str] = None) -> str:
     Raises:
         ValueError: If no worktree key can be resolved.
     """
-    if explicit_key is not None and explicit_key.strip():
-        return explicit_key.strip()
+    if explicit_key is not None:
+        stripped = explicit_key.strip()
+        if stripped:
+            return stripped
 
     jira_key = get_value("jira.issue_key")
     if jira_key is not None and str(jira_key).strip():
