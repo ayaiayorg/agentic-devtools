@@ -335,7 +335,7 @@ def read_blob(blob_sha: str) -> str:
     """
     result = _run_plumbing("cat-file", "-p", blob_sha)
     if result.returncode != 0:
-        raise GitPlumbingError(f"git cat-file failed for {blob_sha}: " + result.stderr.strip())
+        raise GitPlumbingError(f"git cat-file failed for {blob_sha}: {result.stderr.strip()}")
     return result.stdout
 
 
