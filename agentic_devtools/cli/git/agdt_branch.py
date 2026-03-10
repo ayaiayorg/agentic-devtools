@@ -29,6 +29,7 @@ Consumers import directly from this module::
    not support.
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -318,6 +319,115 @@ def push_branch(branch_name: str) -> CompletedProcess:
     return _run_plumbing("push", "origin", branch_name, check=False)
 
 
+def read_blob(blob_sha: str) -> str:
+    """Read the contents of a blob object by its SHA.
+
+    Runs ``git cat-file -p <blob_sha>`` to retrieve the blob content.
+
+    Args:
+        blob_sha: The 40-character hex SHA of the blob.
+
+    Returns:
+        The blob content as a string (not stripped — whitespace preserved).
+
+    Raises:
+        GitPlumbingError: If the command fails.
+    """
+    result = _run_plumbing("cat-file", "-p", blob_sha)
+    if result.returncode != 0:
+        raise GitPlumbingError(f"git cat-file failed for {blob_sha}: " + result.stderr.strip())
+    return result.stdout
+
+
+# ---------------------------------------------------------------------------
+#  load_workflow_artifacts()
+# ---------------------------------------------------------------------------
+
+
+def load_workflow_artifacts(
+    source_branch: str,
+    worktree_key: Optional[str] = None,
+    workflow_type: Optional[str] = None,
+    identity: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Read persisted workflow artifacts from the -agdt branch.
+
+    Reads file contents from ``{source_branch}-agdt`` via git plumbing
+    without checking out the branch.  Files are enumerated via
+    :func:`read_branch_tree` and content is retrieved via
+    :func:`read_blob`.
+
+    Each file's content is parsed as JSON if possible; otherwise the raw
+    string content is returned.
+
+    Args:
+        source_branch: The source code branch name (e.g.
+            ``"feature/DFLY-1234"``).  The ``-agdt`` suffix is appended
+            automatically unless the branch already ends with ``-agdt``.
+        worktree_key: Worktree key (e.g. ``"DFLY-1234"``).  Required.
+            Returns ``None`` if not provided.
+        workflow_type: Optional workflow type filter (e.g. ``"review"``).
+            When provided, only files under
+            ``.agdt/workflows/{identity}/{worktree_key}/{workflow_type}/``
+            are read.  When ``None``, all files under
+            ``.agdt/workflows/{identity}/{worktree_key}/`` are read.
+        identity: The identity segment (default: ``"default"``).
+
+    Returns:
+        A dict mapping ``{file_path: content}`` where *content* is the
+        parsed JSON object or raw string.  Returns ``None`` when:
+
+        - ``worktree_key`` is ``None``
+        - The ``-agdt`` branch does not exist locally or remotely
+        - No files match the computed path prefix on the branch
+    """
+    if worktree_key is None:
+        return None
+
+    identity = identity or "default"
+
+    # Double-suffix prevention
+    if source_branch.endswith("-agdt"):
+        target_branch = source_branch
+    else:
+        target_branch = f"{source_branch}-agdt"
+
+    # Branch existence: local → remote fetch → None
+    if not _branch_exists_locally(target_branch):
+        if _branch_exists_remotely(target_branch):
+            if not _fetch_branch(target_branch):
+                return None
+        else:
+            return None
+
+    # Enumerate files via read_branch_tree
+    tree = read_branch_tree(target_branch)
+    if not tree:
+        return None
+
+    # Compute path prefix
+    if workflow_type is not None:
+        prefix = f".agdt/workflows/{identity}/{worktree_key}/{workflow_type}/"
+    else:
+        prefix = f".agdt/workflows/{identity}/{worktree_key}/"
+
+    # Filter matching entries
+    matching = {path: sha for path, sha in tree.items() if path.startswith(prefix)}
+    if not matching:
+        return None
+
+    # Read content and attempt JSON parsing
+    result: Dict[str, Any] = {}
+    for path, blob_sha in matching.items():
+        content = read_blob(blob_sha)
+        try:
+            result[path] = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            result[path] = content
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 #  Helpers for persist_workflow_state()
 # ---------------------------------------------------------------------------
@@ -377,6 +487,15 @@ def _branch_exists_remotely(branch_name: str) -> bool:
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
+def _fetch_branch(branch_name: str) -> bool:
+    """Fetch *branch_name* from ``origin``, creating a local tracking ref.
+
+    Returns ``True`` on success, ``False`` on failure.
+    """
+    result = _run_plumbing("fetch", "origin", f"{branch_name}:refs/heads/{branch_name}")
+    return result.returncode == 0
+
+
 def _read_commit_message(commit_sha: str) -> str:
     """Read the commit message body of *commit_sha*.
 
@@ -417,9 +536,7 @@ def _get_parent_sha(commit_sha: str) -> Optional[str]:
     result = _run_plumbing("cat-file", "-p", commit_sha)
     if result.returncode != 0:
         stderr = (result.stderr or "").strip()
-        raise GitPlumbingError(
-            f"Failed to read commit object '{commit_sha}': {stderr}"
-        )
+        raise GitPlumbingError(f"Failed to read commit object '{commit_sha}': {stderr}")
     for line in result.stdout.splitlines():
         if line.startswith("parent "):
             return line.split(" ", 1)[1].strip()
@@ -645,7 +762,10 @@ def persist_workflow_state(
 
             # Push rejected — fetch, re-merge, re-commit, retry.
             fetch_result = _run_plumbing(
-                "fetch", "origin", target_branch, check=False,
+                "fetch",
+                "origin",
+                target_branch,
+                check=False,
             )
             if fetch_result.returncode != 0:
                 stderr = (fetch_result.stderr or "").strip()
