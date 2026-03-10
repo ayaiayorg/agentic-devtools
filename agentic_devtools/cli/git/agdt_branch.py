@@ -16,6 +16,7 @@ Consumers import directly from this module::
         push_branch,
         persist_workflow_state,
         PersistResult,
+        resolve_worktree_key,
     )
 
 .. note::
@@ -81,6 +82,48 @@ class PersistResult:
     worktree_key: str = ""
     workflow_type: str = ""
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+#  Worktree key resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_worktree_key(explicit_key: Optional[str] = None) -> str:
+    """Resolve the worktree key from an explicit value or current state.
+
+    Resolution priority:
+    1. If *explicit_key* is provided and non-empty, return it directly.
+    2. Check ``get_value("jira.issue_key")`` — return it if set.
+    3. Check ``get_value("pull_request_id")`` — return ``f"PR{value}"`` if set.
+    4. Raise :class:`ValueError` if none of the above resolves.
+
+    Args:
+        explicit_key: An explicit worktree key override.  When ``None``
+            or empty, auto-resolution from state is attempted.
+
+    Returns:
+        The resolved worktree key string.
+
+    Raises:
+        ValueError: If no worktree key can be resolved.
+    """
+    if explicit_key is not None and explicit_key.strip():
+        return explicit_key.strip()
+
+    jira_key = get_value("jira.issue_key")
+    if jira_key is not None and str(jira_key).strip():
+        return str(jira_key).strip()
+
+    pr_id = get_value("pull_request_id")
+    if pr_id is not None and str(pr_id).strip():
+        return f"PR{pr_id}"
+
+    raise ValueError(
+        "Cannot resolve worktree key: neither jira.issue_key nor "
+        "pull_request_id is set in state. Provide an explicit "
+        "worktree_key parameter."
+    )
 
 
 def _run_plumbing(*args: str, **kwargs: Any) -> CompletedProcess:
@@ -376,8 +419,8 @@ def load_workflow_artifacts(
         source_branch: The source code branch name (e.g.
             ``"feature/DFLY-1234"``).  The ``-agdt`` suffix is appended
             automatically unless the branch already ends with ``-agdt``.
-        worktree_key: Worktree key (e.g. ``"DFLY-1234"``).  Required.
-            Returns ``None`` if not provided.
+        worktree_key: Worktree key (e.g. ``"DFLY-1234"``).  When ``None``
+            or empty, auto-resolved via :func:`resolve_worktree_key`.
         workflow_type: Optional workflow type filter (e.g. ``"review"``).
             When provided, only files under
             ``.agdt/workflows/{identity}/{worktree_key}/{workflow_type}/``
@@ -389,11 +432,14 @@ def load_workflow_artifacts(
         A dict mapping ``{file_path: content}`` where *content* is the
         parsed JSON object or raw string.  Returns ``None`` when:
 
-        - ``worktree_key`` is ``None``
+        - The worktree key cannot be resolved (no explicit key, and
+          neither ``jira.issue_key`` nor ``pull_request_id`` is set)
         - The ``-agdt`` branch does not exist locally or remotely
         - No files match the computed path prefix on the branch
     """
-    if worktree_key is None:
+    try:
+        worktree_key = resolve_worktree_key(worktree_key)
+    except ValueError:
         return None
 
     # Normalize empty/whitespace-only strings to None so that callers
@@ -618,7 +664,8 @@ def persist_workflow_state(
 
     Args:
         source_branch: The feature branch this state belongs to.
-        worktree_key: The worktree key (e.g. Jira issue key).  Required.
+        worktree_key: The worktree key (e.g. Jira issue key).  When
+            ``None`` or empty, auto-resolved via :func:`resolve_worktree_key`.
         workflow_type: Workflow type label for the commit message.
         identity: Identity segment.  Defaults to ``"default"``.
         commit_message: Custom commit message.  Auto-generated when empty.
@@ -636,14 +683,16 @@ def persist_workflow_state(
     else:
         target_branch = source_branch + "-agdt"
 
-    # 3. Validate worktree_key ------------------------------------------------
-    if worktree_key is None:
+    # 3. Resolve worktree_key --------------------------------------------------
+    try:
+        worktree_key = resolve_worktree_key(worktree_key)
+    except ValueError as exc:
         return PersistResult(
             success=False,
             branch_name=target_branch,
-            worktree_key=worktree_key,
+            worktree_key="",
             workflow_type=workflow_type,
-            error="worktree_key is required and must not be None.",
+            error=str(exc),
         )
 
     base_result = PersistResult(
