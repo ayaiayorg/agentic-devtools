@@ -118,8 +118,10 @@ def resolve_worktree_key(explicit_key: Optional[str] = None) -> str:
         return str(jira_key).strip()
 
     pr_id = get_value("pull_request_id")
-    if pr_id is not None and str(pr_id).strip():
-        return f"PR{pr_id}"
+    if pr_id is not None:
+        pr_id_stripped = str(pr_id).strip()
+        if pr_id_stripped:
+            return f"PR{pr_id_stripped}"
 
     raise ValueError(
         "Cannot resolve worktree key: neither jira.issue_key nor "
