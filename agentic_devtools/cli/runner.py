@@ -365,9 +365,10 @@ def run_command(command: str) -> None:
     finally:
         try:
             from agentic_devtools.cli.git.agdt_branch import persist_if_dirty
-        except ImportError as exc:
-            # Warn once if the persist hook cannot be imported, but do not
-            # change the command's exit code.
+        except Exception as exc:
+            # Warn once if the persist hook cannot be imported (ImportError,
+            # SyntaxError, or any other import-time error), but never change
+            # the command's exit code.
             print(
                 f"Warning: could not import persist_if_dirty hook: {exc}",
                 file=sys.stderr,

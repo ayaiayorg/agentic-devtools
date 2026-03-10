@@ -148,3 +148,28 @@ class TestRunCommand:
         mock_func.assert_called_once()
         captured = capsys.readouterr()
         assert "Warning: could not import persist_if_dirty hook" in captured.err
+
+    def test_persist_hook_non_import_error_prints_warning(self, capsys):
+        """Runner prints a warning when persist hook import raises non-ImportError."""
+        import builtins
+
+        mock_func = MagicMock()
+        mock_module = MagicMock()
+        mock_module.show_cmd = mock_func
+
+        # Force a SyntaxError on import of agdt_branch to verify the broad
+        # except Exception guard catches non-ImportError exceptions too.
+        original_import = builtins.__import__
+
+        def _raising_import(name, *args, **kwargs):
+            if name == "agentic_devtools.cli.git.agdt_branch":
+                raise SyntaxError("simulated syntax error in agdt_branch")
+            return original_import(name, *args, **kwargs)
+
+        with patch("importlib.import_module", side_effect=_import_side_effect(mock_module)):
+            with patch("builtins.__import__", side_effect=_raising_import):
+                runner.run_command("agdt-show")
+
+        mock_func.assert_called_once()
+        captured = capsys.readouterr()
+        assert "Warning: could not import persist_if_dirty hook" in captured.err
