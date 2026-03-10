@@ -16,8 +16,9 @@ class TestLoadWorkflowArtifactsValidation:
     """Validation and defaults tests."""
 
     def test_worktree_key_none_returns_none(self):
-        """worktree_key=None returns None without any git calls."""
-        result = load_workflow_artifacts("feat", worktree_key=None)
+        """worktree_key=None returns None without any git calls when no state set."""
+        with patch(f"{_MOD}.get_value", return_value=None):
+            result = load_workflow_artifacts("feat", worktree_key=None)
         assert result is None
 
     @patch(f"{_MOD}.read_blob", return_value='{"k": "v"}')

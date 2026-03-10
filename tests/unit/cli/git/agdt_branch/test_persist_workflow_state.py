@@ -31,9 +31,10 @@ class TestPersistWorkflowStateValidation:
 
     def test_worktree_key_none_returns_failure(self):
         """worktree_key=None must return PersistResult(success=False) with populated fields."""
-        result = persist_workflow_state("feature/x", worktree_key=None)
+        with patch(f"{_MOD}.get_value", return_value=None):
+            result = persist_workflow_state("feature/x", worktree_key=None)
         assert result.success is False
-        assert "worktree_key is required" in result.error
+        assert "Cannot resolve worktree key" in result.error
         assert result.branch_name == "feature/x-agdt"
         assert result.workflow_type == ""
 
@@ -1134,6 +1135,7 @@ class TestPersistWorkflowStatePushRetryEmptyRemoteHead:
         _get_val,
     ):
         """When remote HEAD resolves to empty string, retry continues."""
+
         def plumbing_side_effect(*args, **kwargs):
             if "origin/" in str(args):
                 return _ok(stdout="")  # empty remote head
