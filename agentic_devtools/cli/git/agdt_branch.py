@@ -429,7 +429,7 @@ def load_workflow_artifacts(
         content = read_blob(blob_sha)
         try:
             result[path] = json.loads(content)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError:
             result[path] = content
 
     return result
@@ -771,6 +771,7 @@ def persist_workflow_state(
             fetch_result = _run_plumbing(
                 "fetch",
                 "origin",
+                "--",
                 target_branch,
                 check=False,
             )
