@@ -394,7 +394,13 @@ def _read_commit_message(commit_sha: str) -> str:
 def _has_matching_run_id(commit_sha: str, run_id: str) -> bool:
     """Return ``True`` if *commit_sha*'s message contains a matching Run-Id trailer."""
     msg = _read_commit_message(commit_sha)
-    return "Run-Id: " + run_id in msg
+    if not msg:
+        return False
+    target = f"Run-Id: {run_id}"
+    for line in msg.splitlines():
+        if line.strip() == target:
+            return True
+    return False
 
 
 def _get_parent_sha(commit_sha: str) -> Optional[str]:
@@ -513,8 +519,11 @@ def persist_workflow_state(
                 target_branch + ":" + target_branch,
             )
             if fetch_result.returncode != 0:
+                stderr = (fetch_result.stderr or "").strip()
+                stderr_suffix = f"; stderr: {stderr}" if stderr else ""
                 raise GitPlumbingError(
-                    f"git fetch origin {target_branch}:{target_branch} failed with exit code {fetch_result.returncode}"
+                    f"git fetch origin {target_branch}:{target_branch} failed "
+                    f"with exit code {fetch_result.returncode}{stderr_suffix}"
                 )
         else:
             branch_is_new = True
@@ -550,18 +559,38 @@ def persist_workflow_state(
         # 8. Determine parent (amend vs new commit) ---------------------------
         is_amend = False
         if branch_is_new:
-            # Parent = source branch HEAD (or None if source doesn't exist).
+            # Parent must be the source branch HEAD; if it cannot be resolved,
+            # treat this as a hard failure to avoid creating an orphan/root commit.
             src_result = _run_plumbing("rev-parse", source_branch)
-            src_sha = src_result.stdout.strip() if src_result.returncode == 0 else ""
-            parent_sha = src_sha or None
+            if src_result.returncode != 0:
+                return PersistResult(
+                    success=False,
+                    error=(
+                        f"Failed to resolve source branch HEAD for '{source_branch}': "
+                        f"{src_result.stdout.strip() or src_result.stderr.strip()}"
+                    ),
+                )
+            src_sha = src_result.stdout.strip()
+            if not src_sha:
+                return PersistResult(
+                    success=False,
+                    error=f"Source branch '{source_branch}' has no HEAD commit.",
+                )
+            parent_sha = src_sha
         else:
             head_result = _run_plumbing("rev-parse", target_branch)
             head_sha = head_result.stdout.strip() if head_result.returncode == 0 else ""
-            if head_sha and run_id and _has_matching_run_id(head_sha, str(run_id)):
+            if not head_sha:
+                stderr = (head_result.stderr or "").strip()
+                raise GitPlumbingError(
+                    f"Failed to resolve existing target branch {target_branch!r} "
+                    f"to a commit SHA using 'git rev-parse'. stderr: {stderr}"
+                )
+            if run_id and _has_matching_run_id(head_sha, str(run_id)):
                 is_amend = True
                 parent_sha = _get_parent_sha(head_sha)
             else:
-                parent_sha = head_sha or None
+                parent_sha = head_sha
 
         # 9. Create commit & update ref ---------------------------------------
         commit_sha = create_commit(tree_sha, parent_sha, full_message)

@@ -837,3 +837,99 @@ class TestPersistWorkflowStatePushRetryEdgeCases:
 
         result = persist_workflow_state("feat", worktree_key="K")
         assert result.success is True
+
+
+# ---------------------------------------------------------------------------
+#  Source/target branch resolution failures
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStateBranchResolution:
+    """Tests for hard failure when source/target branches are unresolvable."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.build_tree", return_value="ttt")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=False)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_source_branch_revparse_failure_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _build,
+        _get_val,
+    ):
+        """When source branch rev-parse fails, return PersistResult(success=False)."""
+        mock_plumbing.return_value = _fail(stderr="unknown revision")
+
+        result = persist_workflow_state("nonexistent", worktree_key="K")
+
+        assert result.success is False
+        assert "Failed to resolve source branch HEAD" in result.error
+        assert "nonexistent" in result.error
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.build_tree", return_value="ttt")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=False)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_source_branch_empty_sha_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _build,
+        _get_val,
+    ):
+        """When source branch rev-parse succeeds but returns empty output."""
+        mock_plumbing.return_value = _ok(stdout="")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "has no HEAD commit" in result.error
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.build_tree", return_value="ttt")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_target_branch_revparse_failure_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _read,
+        _build,
+        _get_val,
+    ):
+        """When existing target branch rev-parse fails, return error."""
+        mock_plumbing.return_value = _fail(stderr="corrupt ref")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "Failed to resolve existing target branch" in result.error
