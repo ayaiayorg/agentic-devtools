@@ -344,7 +344,7 @@ def read_blob(blob_sha: str) -> str:
     Raises:
         GitPlumbingError: If the command fails.
     """
-    result = _run_plumbing("cat-file", "-p", blob_sha)
+    result = _run_plumbing("cat-file", "-p", "--", blob_sha)
     if result.returncode != 0:
         raise GitPlumbingError(f"git cat-file failed for {blob_sha}: {result.stderr.strip()}")
     return result.stdout
@@ -499,7 +499,7 @@ def _fetch_branch(branch_name: str) -> bool:
 
     Returns ``True`` on success, ``False`` on failure.
     """
-    result = _run_plumbing("fetch", "origin", f"{branch_name}:refs/heads/{branch_name}")
+    result = _run_plumbing("fetch", "origin", "--", f"{branch_name}:refs/heads/{branch_name}")
     return result.returncode == 0
 
 

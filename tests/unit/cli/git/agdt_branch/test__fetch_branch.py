@@ -29,4 +29,4 @@ class TestFetchBranch:
 
         monkeypatch.setattr(f"{_MOD}._run_plumbing", capture)
         _fetch_branch("feat-agdt")
-        assert calls == [("fetch", "origin", "feat-agdt:refs/heads/feat-agdt")]
+        assert calls == [("fetch", "origin", "--", "feat-agdt:refs/heads/feat-agdt")]

@@ -23,7 +23,7 @@ class TestReadBlob:
         """read_blob invokes git cat-file -p with the blob SHA."""
         mock_run.return_value = MagicMock(returncode=0, stdout="content", stderr="")
         read_blob("blob_sha_123")
-        mock_run.assert_called_once_with("cat-file", "-p", "blob_sha_123")
+        mock_run.assert_called_once_with("cat-file", "-p", "--", "blob_sha_123")
 
     @patch(f"{_MOD}._run_plumbing")
     def test_raises_on_failure(self, mock_run):
