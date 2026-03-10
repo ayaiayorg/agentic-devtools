@@ -124,3 +124,34 @@ class TestRunCommand:
                 runner.run_command("agdt-show")
 
         mock_func.assert_called_once()
+
+    def test_persist_hook_import_error_prints_warning(self, capsys):
+        """Runner prints a warning when persist hook cannot be imported."""
+        mock_func = MagicMock()
+        mock_module = MagicMock()
+        mock_module.show_cmd = mock_func
+
+        def _import_side(name, *args, **kwargs):
+            if name == "agentic_devtools.cli.state":
+                return mock_module
+            if name == "agentic_devtools.cli.git.agdt_branch":
+                raise ImportError("missing agdt_branch")
+            return importlib.import_module.__wrapped__(name, *args, **kwargs)
+
+        # We need to make the lazy import inside run_command's finally block fail.
+        # Patch sys.modules to make the module unimportable.
+        import sys
+
+        saved = sys.modules.pop("agentic_devtools.cli.git.agdt_branch", None)
+        try:
+            with patch.dict(sys.modules, {"agentic_devtools.cli.git.agdt_branch": None}):
+                with patch("importlib.import_module", side_effect=_import_side_effect(mock_module)):
+                    # Should NOT raise despite import failure
+                    runner.run_command("agdt-show")
+        finally:
+            if saved is not None:
+                sys.modules["agentic_devtools.cli.git.agdt_branch"] = saved
+
+        mock_func.assert_called_once()
+        captured = capsys.readouterr()
+        assert "Warning: could not import persist_if_dirty hook" in captured.err

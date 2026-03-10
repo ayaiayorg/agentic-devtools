@@ -14,16 +14,6 @@ from agentic_devtools.cli.git.agdt_branch import (
 _MOD = "agentic_devtools.cli.git.agdt_branch"
 
 
-def setup_function():
-    """Reset dirty flag before each test."""
-    _reset_dirty()
-
-
-def teardown_function():
-    """Reset dirty flag after each test."""
-    _reset_dirty()
-
-
 def _ok(stdout="", stderr=""):
     return CompletedProcess(args=[], returncode=0, stdout=stdout, stderr=stderr)
 
@@ -34,6 +24,14 @@ def _fail(stderr="error", stdout=""):
 
 class TestPersistIfDirty:
     """Tests for the persist_if_dirty hook."""
+
+    def setup_method(self):
+        """Reset dirty flag before each test."""
+        _reset_dirty()
+
+    def teardown_method(self):
+        """Reset dirty flag after each test."""
+        _reset_dirty()
 
     def test_noop_when_not_dirty(self):
         """Does nothing when the dirty flag is not set."""

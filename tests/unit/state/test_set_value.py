@@ -49,12 +49,18 @@ class TestSetValue:
 
     def test_set_value_tolerates_import_error(self, temp_state_dir):
         """set_value does not fail when agdt_branch is not importable."""
-        with patch(
-            "agentic_devtools.cli.git.agdt_branch.mark_dirty",
-            side_effect=ImportError("no module"),
-        ):
-            # Should not raise
-            state.set_value("foo", "bar")
+        # Temporarily make the module unimportable so the lazy import
+        # inside set_value() raises ImportError at import time.
+        import sys
+
+        saved = sys.modules.pop("agentic_devtools.cli.git.agdt_branch", None)
+        try:
+            with patch.dict(sys.modules, {"agentic_devtools.cli.git.agdt_branch": None}):
+                # Should not raise despite the module being unimportable
+                state.set_value("foo", "bar")
+        finally:
+            if saved is not None:
+                sys.modules["agentic_devtools.cli.git.agdt_branch"] = saved
 
         assert state.get_value("foo") == "bar"
 

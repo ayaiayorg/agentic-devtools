@@ -365,10 +365,18 @@ def run_command(command: str) -> None:
     finally:
         try:
             from agentic_devtools.cli.git.agdt_branch import persist_if_dirty
-
-            persist_if_dirty()
-        except Exception:
-            pass  # Never crash the command due to persist hook
+        except ImportError as exc:
+            # Warn once if the persist hook cannot be imported, but do not
+            # change the command's exit code.
+            print(
+                f"Warning: could not import persist_if_dirty hook: {exc}",
+                file=sys.stderr,
+            )
+        else:
+            try:
+                persist_if_dirty()
+            except Exception:
+                pass  # Never crash the command due to persist hook failures
 
 
 def run_as_script() -> None:
