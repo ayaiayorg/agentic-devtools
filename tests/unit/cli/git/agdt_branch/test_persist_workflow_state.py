@@ -952,3 +952,258 @@ class TestPersistWorkflowStateBranchResolution:
 
         assert result.success is False
         assert "Failed to resolve existing target branch" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Amend root-commit guard
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStateAmendRootGuard:
+    """Tests for amend-root-commit detection."""
+
+    @patch(f"{_MOD}.get_value", return_value="run123")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._has_matching_run_id", return_value=True)
+    @patch(f"{_MOD}._get_parent_sha", return_value=None)
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_amend_root_commit_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _parent,
+        _match,
+        _read,
+        _build,
+        _get_val,
+    ):
+        """Amending a root commit on -agdt branch returns error to avoid history drop."""
+        mock_plumbing.return_value = _ok(stdout="head_sha\n")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "root commit" in result.error
+        assert result.branch_name == "feat-agdt"
+        assert result.worktree_key == "K"
+
+    @patch(f"{_MOD}.get_value", return_value="run123")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._has_matching_run_id", return_value=True)
+    @patch(f"{_MOD}._get_parent_sha")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_amend_catfile_failure_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_parent,
+        _match,
+        _read,
+        _build,
+        _get_val,
+    ):
+        """cat-file failure from _get_parent_sha propagates as GitPlumbingError."""
+        mock_plumbing.return_value = _ok(stdout="head_sha\n")
+        mock_parent.side_effect = GitPlumbingError("Failed to read commit object 'head_sha': bad object")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "Failed to read commit object" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Push retry: fetch failure
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStatePushRetryFetchFailure:
+    """Tests for fetch failure handling during push retry."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="commit_sha")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}.push_branch")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_fetch_failure_during_push_retry_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_push,
+        _read,
+        _build,
+        _commit,
+        _update,
+        _get_val,
+    ):
+        """When fetch fails during push retry, return error immediately."""
+        call_count = [0]
+
+        def plumbing_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            # First call: rev-parse target_branch
+            if call_count[0] == 1:
+                return _ok(stdout="head_sha\n")
+            # Second call: fetch origin target_branch — FAIL
+            if "fetch" in args:
+                return _fail(stderr="network unreachable")
+            return _ok(stdout="head_sha\n")
+
+        mock_plumbing.side_effect = plumbing_side_effect
+        mock_push.return_value = _fail(stderr="rejected")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "git fetch origin" in result.error
+        assert "network unreachable" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Push retry: empty remote head
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStatePushRetryEmptyRemoteHead:
+    """Tests for empty remote_head during push retry."""
+
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="commit_sha")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
+    @patch(f"{_MOD}.push_branch")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_empty_remote_head_continues_retry(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_push,
+        _read_commit_tree,
+        _read,
+        _build,
+        _commit,
+        _update,
+        _get_val,
+    ):
+        """When remote HEAD resolves to empty string, retry continues."""
+        def plumbing_side_effect(*args, **kwargs):
+            if "origin/" in str(args):
+                return _ok(stdout="")  # empty remote head
+            return _ok(stdout="head_sha\n")
+
+        mock_plumbing.side_effect = plumbing_side_effect
+        mock_push.return_value = _fail(stderr="rejected")
+
+        result = persist_workflow_state("feat", worktree_key="K")
+        assert result.success is False
+        assert "Push failed after 3 attempts" in result.error
+
+
+# ---------------------------------------------------------------------------
+#  Push retry: amend root commit guard
+# ---------------------------------------------------------------------------
+
+
+class TestPersistWorkflowStatePushRetryAmendRootGuard:
+    """Tests for amend-root-commit detection in push retry path."""
+
+    @patch(f"{_MOD}.get_value", return_value="run123")
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="commit_sha")
+    @patch(f"{_MOD}.build_tree", return_value="tree_sha")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._read_tree_for_commit", return_value={})
+    @patch(f"{_MOD}._has_matching_run_id", return_value=True)
+    @patch(f"{_MOD}._get_parent_sha")
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_amend_retry_root_commit_returns_error(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        mock_parent,
+        _match,
+        _read_commit_tree,
+        _read,
+        _build,
+        mock_commit,
+        _update,
+        _get_val,
+    ):
+        """Amend retry with root commit remote HEAD returns error."""
+        push_calls = [0]
+
+        # _get_parent_sha: first call returns "grandparent" (initial amend),
+        # second call returns None (retry amend — root commit).
+        mock_parent.side_effect = ["grandparent", None]
+
+        def plumbing_side_effect(*args, **kwargs):
+            if "--force-with-lease" in args:
+                push_calls[0] += 1
+                if push_calls[0] == 1:
+                    return _fail(stderr="rejected")
+                return _ok()
+            return _ok(stdout="remote_head_sha\n")
+
+        mock_plumbing.side_effect = plumbing_side_effect
+
+        result = persist_workflow_state("feat", worktree_key="K")
+
+        assert result.success is False
+        assert "push retry" in result.error
+        assert result.branch_name == "feat-agdt"

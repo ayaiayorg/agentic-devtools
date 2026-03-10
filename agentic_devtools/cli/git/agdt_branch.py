@@ -404,12 +404,30 @@ def _has_matching_run_id(commit_sha: str, run_id: str) -> bool:
 
 
 def _get_parent_sha(commit_sha: str) -> Optional[str]:
-    """Return the parent SHA of *commit_sha*, or ``None`` if it has no parent."""
-    result = _run_plumbing("rev-parse", commit_sha + "~1")
+    """Return the first parent SHA of *commit_sha*, or ``None`` for root commits.
+
+    Uses ``git cat-file -p`` to parse the commit object's parent lines.
+    This distinguishes genuine root commits (no parent lines) from
+    failures to read the object (shallow clones, missing objects, etc.),
+    which raise :class:`GitPlumbingError`.
+
+    Raises:
+        GitPlumbingError: If the commit object cannot be read.
+    """
+    result = _run_plumbing("cat-file", "-p", commit_sha)
     if result.returncode != 0:
-        return None
-    sha = result.stdout.strip()
-    return sha if sha else None
+        stderr = (result.stderr or "").strip()
+        raise GitPlumbingError(
+            f"Failed to read commit object '{commit_sha}': {stderr}"
+        )
+    for line in result.stdout.splitlines():
+        if line.startswith("parent "):
+            return line.split(" ", 1)[1].strip()
+        # Commit headers end at the first blank line; parent lines
+        # come before the blank separator, so stop early.
+        if not line.strip():
+            break
+    return None
 
 
 def _read_tree_for_commit(commit_sha: str) -> Dict[str, str]:
@@ -590,6 +608,13 @@ def persist_workflow_state(
             if run_id and _has_matching_run_id(head_sha, str(run_id)):
                 is_amend = True
                 parent_sha = _get_parent_sha(head_sha)
+                if parent_sha is None:
+                    base_result.error = (
+                        "Cannot amend: HEAD commit on the -agdt branch "
+                        "is a root commit; aborting to avoid dropping "
+                        "branch history."
+                    )
+                    return base_result
             else:
                 parent_sha = head_sha
 
@@ -616,13 +641,25 @@ def persist_workflow_state(
                 return base_result
 
             # Push rejected — fetch, re-merge, re-commit, retry.
-            _run_plumbing("fetch", "origin", target_branch, check=False)
+            fetch_result = _run_plumbing(
+                "fetch", "origin", target_branch, check=False,
+            )
+            if fetch_result.returncode != 0:
+                stderr = (fetch_result.stderr or "").strip()
+                base_result.error = (
+                    f"Push failed because 'git fetch origin {target_branch}' "
+                    f"failed during retry (attempt {attempt + 1}/{_MAX_PUSH_ATTEMPTS}): {stderr}"
+                )
+                return base_result
 
             remote_head_result = _run_plumbing("rev-parse", "origin/" + target_branch)
             if remote_head_result.returncode != 0:
                 continue  # nothing to rebase onto; retry push
 
             remote_head = remote_head_result.stdout.strip()
+            if not remote_head:
+                continue  # empty output; retry push
+
             # Use _read_tree_for_commit() with the resolved commit SHA
             # because read_branch_tree() prepends refs/heads/ internally
             # and cannot accept remote-tracking refs like "origin/<branch>".
@@ -639,6 +676,12 @@ def persist_workflow_state(
 
             if is_amend:
                 parent_sha = _get_parent_sha(remote_head)
+                if parent_sha is None:
+                    base_result.error = (
+                        "Failed to determine parent commit for amend during "
+                        "push retry; aborting to avoid modifying branch history."
+                    )
+                    return base_result
             else:
                 parent_sha = remote_head
 
