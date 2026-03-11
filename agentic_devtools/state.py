@@ -13,7 +13,7 @@ Key design decisions:
 - Multiline content works natively in Python CLI
 - Auto-approvable commands in VS Code
 - File locking to prevent race conditions between concurrent tasks
-- Background task tracking via backgroundTasks property
+- Background task tracking via background.recentTasks namespace
 """
 
 import json
@@ -202,11 +202,15 @@ def get_bootstrap_state() -> Dict[str, str]:
         if not isinstance(data, dict):
             return {}
         # Only expose the documented keys and normalize their values.
+        # Keys whose stripped value is empty are omitted so callers can
+        # treat a missing key as "unset" without checking for "".
         result: Dict[str, str] = {}
         for key in ("identity", "worktree_key"):
             value = data.get(key)
             if isinstance(value, str):
-                result[key] = value.strip()
+                stripped = value.strip()
+                if stripped:
+                    result[key] = stripped
         return result
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
@@ -252,7 +256,9 @@ def set_bootstrap_state(
             for bk in ("identity", "worktree_key"):
                 bv = data.get(bk)
                 if isinstance(bv, str):
-                    existing[bk] = bv.strip()
+                    stripped = bv.strip()
+                    if stripped:
+                        existing[bk] = stripped
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
