@@ -347,8 +347,9 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     Unlike ``set_bootstrap_state()``, this does **not** call ``subprocess``
     (no ``_get_git_repo_root`` / ``_resolve_identity``).  It locates the
     bootstrap file by walking up from a subprocess-free base directory:
-    either ``AGENTIC_DEVTOOLS_STATE_DIR`` (when set) or the current working
-    directory, looking for a ``.agdt`` directory.
+    either ``AGENTIC_DEVTOOLS_STATE_DIR`` / ``DFLY_AI_HELPERS_STATE_DIR``
+    (when set) or the current working directory, looking for a ``.agdt``
+    directory.
 
     If the bootstrap file does not exist but the ``.agdt/`` directory does,
     the file is created with just ``{"worktree_key": ...}``.  Identity will
@@ -359,10 +360,12 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     without interfering with tests that globally mock ``subprocess.run``.
     """
     try:
-        # Choose a subprocess-free starting point:
-        # 1. AGENTIC_DEVTOOLS_STATE_DIR (matches highest-priority state dir)
-        # 2. Current working directory as a reasonable default inside the repo
-        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+        # Choose a subprocess-free starting point (same priority as
+        # get_state_dir()'s env-var check):
+        # 1. AGENTIC_DEVTOOLS_STATE_DIR (primary)
+        # 2. DFLY_AI_HELPERS_STATE_DIR (legacy alias)
+        # 3. Current working directory as a reasonable default inside the repo
+        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
         if env_dir:
             base_dir = Path(env_dir)
         else:

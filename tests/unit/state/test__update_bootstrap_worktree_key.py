@@ -39,6 +39,23 @@ class TestUpdateBootstrapWorktreeKey:
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert data["worktree_key"] == "PR42"
 
+    def test_updates_existing_bootstrap_via_dfly_env_var(self, tmp_path, monkeypatch):
+        """Uses DFLY_AI_HELPERS_STATE_DIR as fallback when primary env var is unset."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "xyz"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        monkeypatch.setenv("DFLY_AI_HELPERS_STATE_DIR", str(state_dir))
+        state._update_bootstrap_worktree_key("PR99")
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "PR99"
+
     def test_creates_bootstrap_when_agdt_dir_exists_but_no_file(self, tmp_path, monkeypatch):
         """Creates bootstrap file when .agdt/ exists but bootstrap file does not."""
         agdt_dir = tmp_path / ".agdt"
