@@ -14,9 +14,7 @@ class TestGetBootstrapState:
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
         bootstrap_data = {"identity": "ama", "worktree_key": "DFLY-1234"}
-        (agdt_dir / "runtime-bootstrap.json").write_text(
-            json.dumps(bootstrap_data), encoding="utf-8"
-        )
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
@@ -34,9 +32,7 @@ class TestGetBootstrapState:
         """Returns {} when the bootstrap file contains malformed JSON."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
-        (agdt_dir / "runtime-bootstrap.json").write_text(
-            "not valid json {{{", encoding="utf-8"
-        )
+        (agdt_dir / "runtime-bootstrap.json").write_text("not valid json {{{", encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
@@ -55,9 +51,7 @@ class TestGetBootstrapState:
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
         bootstrap_data = {"identity": "ama"}  # no worktree_key
-        (agdt_dir / "runtime-bootstrap.json").write_text(
-            json.dumps(bootstrap_data), encoding="utf-8"
-        )
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
@@ -69,9 +63,7 @@ class TestGetBootstrapState:
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
         bootstrap_data = {"identity": "ama", "worktree_key": 123, "extra": True}
-        (agdt_dir / "runtime-bootstrap.json").write_text(
-            json.dumps(bootstrap_data), encoding="utf-8"
-        )
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()

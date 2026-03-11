@@ -1,9 +1,6 @@
 """Tests for agentic_devtools.state.get_state_dir."""
 
-import json
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from agentic_devtools import state
 

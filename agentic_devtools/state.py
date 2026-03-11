@@ -329,9 +329,7 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
                 data = json.loads(content)
                 if isinstance(data, dict):
                     data["worktree_key"] = worktree_key
-                    bootstrap_path.write_text(
-                        json.dumps(data, indent=2), encoding="utf-8"
-                    )
+                    bootstrap_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
                 return
             # Also check if the parent itself IS .agdt
             if parent.name == ".agdt" and (parent / BOOTSTRAP_FILENAME).is_file():

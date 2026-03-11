@@ -67,9 +67,7 @@ class TestSetBootstrapState:
             with patch("agentic_devtools.state.subprocess.run", return_value=mock_git):
                 state.set_bootstrap_state(worktree_key="NEW-2")
 
-        data = json.loads(
-            (agdt_dir / "runtime-bootstrap.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((agdt_dir / "runtime-bootstrap.json").read_text(encoding="utf-8"))
         assert data["identity"] == "ama"
         assert data["worktree_key"] == "NEW-2"
 

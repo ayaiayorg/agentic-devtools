@@ -68,7 +68,8 @@ class TestResolveIdentityBasic:
 
     def test_mixed_delimiters(self, tmp_path):
         """john-paul.doe_smith@... → splits on all, uses first and last → jsmith (j+sm)."""
-        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("john-paul.doe_smith@example.com")):
+        email = "john-paul.doe_smith@example.com"
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email(email)):
             result = state._resolve_identity(tmp_path)
 
         # first part = "john", last part = "smith" → j + sm = "jsm"
@@ -119,7 +120,8 @@ class TestResolveIdentityCollision:
         _setup_identity_owner(tmp_path, "ama", "user1@example.com")
         _setup_identity_owner(tmp_path, "amar", "user2@example.com")
 
-        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("andreas.martino@example.com")):
+        email = "andreas.martino@example.com"
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email(email)):
             result = state._resolve_identity(tmp_path)
 
         # ama collides → amar collides, anma unique → anma
