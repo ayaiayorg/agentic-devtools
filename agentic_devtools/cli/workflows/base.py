@@ -13,21 +13,24 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import clear_state, get_value, set_value, set_workflow_state
+from ...state import delete_value, get_value, set_value, set_workflow_state
 
 
 def clear_state_for_workflow_initiation() -> None:
     """
-    Clear all state to ensure a fresh start for workflow initiation.
+    Reset workflow tracking state for a fresh workflow initiation.
 
-    This prevents leftover state from previous sessions (like pull_request_id,
-    source_branch, worktree_setup) from interfering with new workflow runs.
+    Deletes runtime workflow tracking keys (workflow, agdt_run_id) so a new
+    workflow can start cleanly.  Context keys (pull_request_id, jira.issue_key,
+    versionControl.currentBranch) are intentionally preserved — the worktree
+    key change naturally points to a different directory under .agdt/workflows/.
 
     Should be called at the very beginning of each workflow initiation command,
     BEFORE parsing CLI arguments or accessing state.
     """
-    clear_state()
-    print("✓ Cleared previous workflow state")
+    delete_value("workflow")
+    delete_value("agdt_run_id")
+    print("✓ Reset workflow tracking state")
 
 
 def validate_required_state(required_keys: List[str]) -> Dict[str, Any]:

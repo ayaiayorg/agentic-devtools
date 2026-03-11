@@ -45,9 +45,9 @@ def clear_state_before(temp_state_dir):
 def mock_workflow_state_clearing():
     """Mock clear_state_for_workflow_initiation to be a no-op.
 
-    This is needed because workflow initiation commands clear all state at the start,
-    but tests set up state before calling the command. Without this mock, the test's
-    state setup would be wiped immediately.
+    Workflow initiation commands reset workflow tracking keys (workflow,
+    agdt_run_id) at the start.  This fixture prevents that reset, which
+    is useful when tests pre-set workflow state before calling the command.
     """
     with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
         yield

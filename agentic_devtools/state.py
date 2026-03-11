@@ -295,11 +295,8 @@ def set_context_value(
     Set a context-switching value (pull_request_id or jira.issue_key).
 
     When one of these primary context keys changes to a NEW value:
-    1. Clears the entire temp folder (preserving the new value)
+    1. Updates the value in state via set_value()
     2. Optionally triggers a background cross-lookup for the related key
-
-    This ensures that switching to a new PR or Jira issue starts with a clean slate,
-    removing all temp files, prompts, and queues from the previous context.
 
     Cross-lookup behavior:
     - pull_request_id change -> looks up jira.issue_key from PR source branch/title
@@ -312,7 +309,7 @@ def set_context_value(
         verbose: If True, print status messages
 
     Returns:
-        True if the value changed (and temp was cleared), False if unchanged
+        True if the value changed, False if unchanged
 
     Raises:
         ValueError: If key is not a context-switching key
@@ -333,25 +330,14 @@ def set_context_value(
             print(f"ℹ️  {key} unchanged (already set to {value})")
         return False
 
-    # Value is changing - clear temp folder but preserve the new context value
+    # Value is changing — update it directly
     if verbose:
         if current_value is not None:
             print(f"🔄 Context switch: {key} changing from {current_value} to {value}")
         else:
             print(f"🔄 Setting context: {key} = {value}")
-        print("✓ Clearing temp folder for fresh context...")
 
-    # Build preserved state with the new value
-    # Note: The elif branch below is guaranteed to be True after the if-branch is False
-    # because set_context_value validates that key must be one of these two values.
-    # This makes the 333->336 branch (elif=False) unreachable.
-    preserve = {}
-    if key == "pull_request_id":
-        preserve["pull_request_id"] = value
-    elif key == "jira.issue_key":  # pragma: no branch
-        preserve["jira"] = {"issue_key": value}
-
-    clear_temp_folder(preserve_keys=preserve)
+    set_value(key, value)
 
     # Trigger cross-lookup in background if requested
     if trigger_cross_lookup:
@@ -500,11 +486,13 @@ def clear_temp_folder(preserve_keys: Optional[Dict[str, Any]] = None) -> None:
 
 def clear_state() -> None:
     """
-    Clear all state by removing the entire temp folder contents.
+    Clear all state by writing an empty JSON file.
 
-    This is now an alias for clear_temp_folder() for backward compatibility.
+    This resets the state file contents but does NOT delete directories
+    or other files in the state directory.  Use sparingly — most callers
+    should use delete_value() for targeted key removal instead.
     """
-    clear_temp_folder()
+    save_state({})
 
 
 def get_all_keys() -> List[str]:
