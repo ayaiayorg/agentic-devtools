@@ -296,7 +296,8 @@ def set_context_value(
 
     When one of these primary context keys changes to a NEW value:
     1. Updates the value in state via set_value()
-    2. Optionally triggers a background cross-lookup for the related key
+    2. Deletes the counterpart context key to prevent stale data
+    3. Optionally triggers a background cross-lookup for the related key
 
     Cross-lookup behavior:
     - pull_request_id change -> looks up jira.issue_key from PR source branch/title
@@ -338,6 +339,12 @@ def set_context_value(
             print(f"🔄 Setting context: {key} = {value}")
 
     set_value(key, value)
+
+    # Clear stale counterpart context key to prevent incorrect worktree key
+    # resolution (jira.issue_key has higher priority than pull_request_id in
+    # resolve_worktree_key).  Cross-lookup will repopulate it.
+    counterpart = "jira.issue_key" if key == "pull_request_id" else "pull_request_id"
+    delete_value(counterpart)
 
     # Trigger cross-lookup in background if requested
     if trigger_cross_lookup:

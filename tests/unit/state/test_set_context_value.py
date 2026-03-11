@@ -29,8 +29,8 @@ class TestSetContextValue:
         assert result is True
         assert state.get_value("jira.issue_key") == "DFLY-1234"
 
-    def test_set_context_value_jira_issue_key_change_preserves_other_state(self, temp_state_dir):
-        """Test changing jira.issue_key preserves all other state (no clearing)."""
+    def test_set_context_value_jira_issue_key_change_preserves_non_context_state(self, temp_state_dir):
+        """Test changing jira.issue_key preserves non-context state but clears counterpart."""
         state.set_value("jira.issue_key", "DFLY-OLD")
         state.set_value("pull_request_id", 12345)
         state.set_value("other_data", "should survive")
@@ -40,7 +40,7 @@ class TestSetContextValue:
 
         assert result is True
         assert state.get_value("jira.issue_key") == "DFLY-NEW"
-        assert state.get_value("pull_request_id") == 12345
+        assert state.get_value("pull_request_id") is None  # counterpart cleared
         assert state.get_value("other_data") == "should survive"
 
     def test_set_context_value_no_change_returns_false(self, temp_state_dir):
@@ -75,8 +75,8 @@ class TestSetContextValue:
         assert state.get_value("other_key") == "should_survive"
         assert (temp_state_dir / "temp-data.json").exists()
 
-    def test_set_context_value_change_preserves_all_state(self, temp_state_dir):
-        """Test that context switch preserves all existing state."""
+    def test_set_context_value_change_clears_stale_counterpart(self, temp_state_dir):
+        """Test that context switch clears the stale counterpart key."""
         state.set_value("pull_request_id", 12345)
         state.set_value("jira.issue_key", "DFLY-OLD")
 
@@ -84,7 +84,15 @@ class TestSetContextValue:
             state.set_context_value("pull_request_id", 99999, verbose=False)
 
         assert state.get_value("pull_request_id") == 99999
-        assert state.get_value("jira.issue_key") == "DFLY-OLD"
+        assert state.get_value("jira.issue_key") is None  # stale counterpart cleared
+
+    def test_set_context_value_counterpart_clear_noop_when_absent(self, temp_state_dir):
+        """Test counterpart clearing is a no-op when no counterpart key exists."""
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("pull_request_id", 12345, verbose=False)
+
+        assert state.get_value("pull_request_id") == 12345
+        assert state.get_value("jira.issue_key") is None
 
     def test_set_context_value_string_to_int_comparison(self, temp_state_dir):
         """Test that string/int values are normalized for comparison."""
