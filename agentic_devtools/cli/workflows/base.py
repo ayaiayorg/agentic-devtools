@@ -9,10 +9,11 @@ This module provides common functionality for all workflow commands:
 """
 
 import sys
+import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import clear_state, get_value, set_workflow_state
+from ...state import clear_state, get_value, set_value, set_workflow_state
 
 
 def clear_state_for_workflow_initiation() -> None:
@@ -160,6 +161,24 @@ def initiate_workflow(
         context = {}
         for key, value in required_values.items():
             context[_state_key_to_variable_name(key)] = value
+
+    # Generate run_id for single-commit-per-run amend strategy
+    run_id = uuid.uuid4().hex[:12]
+    set_value("agdt_run_id", run_id)
+
+    # Store current branch for persist_if_dirty() resolution
+    try:
+        from ..git.agdt_branch import _run_plumbing
+
+        branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
+        branch_name = branch_result.stdout.strip()
+        # When in a detached HEAD state, Git returns the literal string "HEAD".
+        # Treat that as "unresolvable" and skip setting the currentBranch key so
+        # persist_if_dirty() can fall back or no-op cleanly.
+        if branch_result.returncode == 0 and branch_name and branch_name != "HEAD":
+            set_value("versionControl.currentBranch", branch_name)
+    except Exception:
+        pass  # Best-effort; persist_if_dirty has its own fallback
 
     # Update workflow state
     set_workflow_state(

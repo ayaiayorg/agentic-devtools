@@ -17,6 +17,9 @@ Consumers import directly from this module::
         persist_workflow_state,
         PersistResult,
         resolve_worktree_key,
+        mark_dirty,
+        is_dirty,
+        persist_if_dirty,
     )
 
 .. note::
@@ -82,6 +85,125 @@ class PersistResult:
     worktree_key: str = ""
     workflow_type: str = ""
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+#  Auto-persist dirty flag
+#
+#  Module-level boolean.  Thread safety is not a concern because CLI
+#  commands are single-threaded.
+# ---------------------------------------------------------------------------
+
+_persist_dirty: bool = False
+
+
+def mark_dirty() -> None:
+    """Mark that workflow state has been mutated and needs persisting."""
+    global _persist_dirty
+    _persist_dirty = True
+
+
+def is_dirty() -> bool:
+    """Return ``True`` if workflow state has been mutated since last persist."""
+    return _persist_dirty
+
+
+def _reset_dirty() -> None:
+    """Reset the dirty flag. Intended for testing only."""
+    global _persist_dirty
+    _persist_dirty = False
+
+
+def persist_if_dirty() -> None:
+    """Persist workflow state if the dirty flag is set.
+
+    This is the post-command hook called by the CLI runner.  It is a
+    no-op when:
+
+    - The dirty flag is not set (no state mutations occurred).
+    - No ``agdt_run_id`` is present in state (no active workflow run).
+
+    When ``is_dry_run()`` returns ``True``, logs what would be persisted
+    without actually committing.
+
+    Any exception raised during persistence is caught and logged to
+    stderr — the original command's exit code is never affected.
+    """
+    global _persist_dirty
+    if not _persist_dirty:
+        return
+
+    try:
+        from ...state import get_workflow_state, is_dry_run
+
+        run_id = get_value("agdt_run_id")
+        if not run_id:
+            _persist_dirty = False
+            return
+
+        # Resolve source branch from state, fallback to git
+        raw_branch = get_value("versionControl.currentBranch")
+        source_branch = str(raw_branch).strip() if raw_branch else ""
+        if not source_branch:
+            branch_result = _run_plumbing("rev-parse", "--abbrev-ref", "HEAD")
+            source_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+
+        if not source_branch or source_branch == "HEAD":
+            import sys
+
+            message = (
+                "agdt: persist_if_dirty: detected detached HEAD; skipping persist."
+                if source_branch == "HEAD"
+                else "agdt: persist_if_dirty: could not resolve source branch; skipping persist."
+            )
+            print(message, file=sys.stderr)
+            _persist_dirty = False
+            return
+
+        # Resolve workflow type from active workflow
+        workflow_type = ""
+        try:
+            wf_state = get_workflow_state()
+            if wf_state and wf_state.get("active"):
+                workflow_type = wf_state["active"]
+        except Exception:
+            pass
+
+        if is_dry_run():
+            print(
+                f"agdt: [dry-run] would persist workflow state for "
+                f"branch={source_branch!r}, run_id={run_id!r}, "
+                f"workflow_type={workflow_type!r}"
+            )
+            _persist_dirty = False
+            return
+
+        result = persist_workflow_state(
+            source_branch=source_branch,
+            workflow_type=workflow_type,
+        )
+        if not result.success and result.error:
+            error_text = str(result.error)
+            # When no workflow artifacts exist under .agdt/workflows/...,
+            # persist_workflow_state() returns a failure result. This is
+            # expected until writers start creating .agdt/workflows files,
+            # so treat it as a benign no-op to avoid noisy stderr output.
+            if not error_text.startswith("No workflow files found under .agdt/workflows/"):
+                import sys
+
+                print(
+                    f"agdt: persist_if_dirty: {error_text}",
+                    file=sys.stderr,
+                )
+    except Exception as exc:
+        import sys
+
+        print(
+            f"agdt: persist_if_dirty failed: {exc}",
+            file=sys.stderr,
+        )
+    finally:
+        _persist_dirty = False
 
 
 # ---------------------------------------------------------------------------
