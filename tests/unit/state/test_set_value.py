@@ -245,6 +245,13 @@ class TestSetValueBootstrapWiring:
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert data["worktree_key"] == "PR42"
 
+    def test_bool_pr_id_skips_bootstrap(self, temp_state_dir):
+        """set_value('pull_request_id', True) must not write PRTrue/PR1."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", True)
+
+        mock_update.assert_not_called()
+
     def test_none_jira_key_skips_bootstrap(self, temp_state_dir):
         """set_value('jira.issue_key', None) does not touch bootstrap."""
         with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:

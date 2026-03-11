@@ -584,8 +584,11 @@ def set_value(key: str, value: Any) -> None:
                     _update_bootstrap_worktree_key(issue_key)
         elif key == "pull_request_id":
             # Only accept int or digit-only string PR ids.
+            # Use ``type(value) is int`` instead of ``isinstance(value, int)``
+            # because bool is a subclass of int — ``isinstance(True, int)``
+            # is True, which would write "PR1" / "PR0" for booleans.
             pr_id_str: Optional[str] = None
-            if isinstance(value, int):
+            if type(value) is int:  # noqa: E721
                 pr_id_str = str(value)
             elif isinstance(value, str):
                 candidate = value.strip()
