@@ -29,19 +29,19 @@ class TestSetContextValue:
         assert result is True
         assert state.get_value("jira.issue_key") == "DFLY-1234"
 
-    def test_set_context_value_jira_issue_key_change_preserves_new_key(self, temp_state_dir):
-        """Test changing jira.issue_key preserves the new key after clearing."""
+    def test_set_context_value_jira_issue_key_change_preserves_non_context_state(self, temp_state_dir):
+        """Test changing jira.issue_key preserves non-context state but clears counterpart."""
         state.set_value("jira.issue_key", "DFLY-OLD")
         state.set_value("pull_request_id", 12345)
-        state.set_value("other_data", "should be cleared")
+        state.set_value("other_data", "should survive")
 
         with patch.object(state, "_trigger_cross_lookup"):
             result = state.set_context_value("jira.issue_key", "DFLY-NEW", verbose=False)
 
         assert result is True
         assert state.get_value("jira.issue_key") == "DFLY-NEW"
-        assert state.get_value("pull_request_id") is None
-        assert state.get_value("other_data") is None
+        assert state.get_value("pull_request_id") is None  # counterpart cleared
+        assert state.get_value("other_data") == "should survive"
 
     def test_set_context_value_no_change_returns_false(self, temp_state_dir):
         """Test that setting same value returns False (no change)."""
@@ -60,10 +60,10 @@ class TestSetContextValue:
 
         assert state.get_value("other_key") == "should_persist"
 
-    def test_set_context_value_change_clears_temp(self, temp_state_dir):
-        """Test that changing context value clears temp folder."""
+    def test_set_context_value_change_does_not_clear_temp(self, temp_state_dir):
+        """Test that changing context value does NOT clear temp folder."""
         state.set_value("pull_request_id", 12345)
-        state.set_value("other_key", "should_be_cleared")
+        state.set_value("other_key", "should_survive")
 
         (temp_state_dir / "temp-data.json").write_text("{}", encoding="utf-8")
 
@@ -72,11 +72,11 @@ class TestSetContextValue:
 
         assert result is True
         assert state.get_value("pull_request_id") == 99999
-        assert state.get_value("other_key") is None
-        assert not (temp_state_dir / "temp-data.json").exists()
+        assert state.get_value("other_key") == "should_survive"
+        assert (temp_state_dir / "temp-data.json").exists()
 
-    def test_set_context_value_change_preserves_new_value(self, temp_state_dir):
-        """Test that the new context value is preserved during clearing."""
+    def test_set_context_value_change_clears_stale_counterpart(self, temp_state_dir):
+        """Test that context switch clears the stale counterpart key."""
         state.set_value("pull_request_id", 12345)
         state.set_value("jira.issue_key", "DFLY-OLD")
 
@@ -84,7 +84,31 @@ class TestSetContextValue:
             state.set_context_value("pull_request_id", 99999, verbose=False)
 
         assert state.get_value("pull_request_id") == 99999
+        assert state.get_value("jira.issue_key") is None  # stale counterpart cleared
+
+    def test_set_context_value_counterpart_clear_noop_when_absent(self, temp_state_dir):
+        """Test counterpart clearing is a no-op when no counterpart key exists."""
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("pull_request_id", 12345, verbose=False)
+
+        assert state.get_value("pull_request_id") == 12345
         assert state.get_value("jira.issue_key") is None
+
+    def test_set_context_value_single_save_cycle(self, temp_state_dir):
+        """Test that set + counterpart delete happen in a single save_state call."""
+        state.set_value("pull_request_id", 12345)
+        state.set_value("jira.issue_key", "DFLY-OLD")
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            with patch.object(state, "save_state", wraps=state.save_state) as spy:
+                state.set_context_value("pull_request_id", 99999, verbose=False)
+
+                assert spy.call_count == 1
+                # The single save_state call should contain the new key and
+                # lack the counterpart — both mutations in one write.
+                saved_dict = spy.call_args[0][0]
+                assert saved_dict["pull_request_id"] == 99999
+                assert "issue_key" not in saved_dict.get("jira", {})
 
     def test_set_context_value_string_to_int_comparison(self, temp_state_dir):
         """Test that string/int values are normalized for comparison."""
@@ -143,6 +167,7 @@ class TestSetContextValue:
         assert "Context switch" in captured.out
         assert "12345" in captured.out
         assert "99999" in captured.out
+        assert "Clearing temp folder" not in captured.out
 
     def test_set_context_value_verbose_first_set(self, temp_state_dir, capsys):
         """Test verbose output when setting context for first time."""
@@ -161,6 +186,14 @@ class TestSetContextValue:
 
         captured = capsys.readouterr()
         assert "unchanged" in captured.out
+
+    def test_set_context_value_does_not_call_clear_temp_folder(self, temp_state_dir):
+        """Test that set_context_value does NOT call clear_temp_folder."""
+        with patch.object(state, "clear_temp_folder") as mock_clear:
+            with patch.object(state, "_trigger_cross_lookup"):
+                state.set_context_value("pull_request_id", 12345, verbose=False)
+
+        mock_clear.assert_not_called()
 
 
 class TestTriggerCrossLookup:

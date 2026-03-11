@@ -161,16 +161,13 @@ def mock_preflight_pass():
 def mock_workflow_state_clearing():
     """Mock clear_state_for_workflow_initiation to be a no-op.
 
-    Workflow initiation commands clear all state at the start to ensure
-    a fresh workflow. This fixture prevents that clearing.
+    Workflow initiation commands reset workflow tracking keys (workflow,
+    agdt_run_id) at the start.  This fixture prevents that reset, which
+    is useful when tests pre-set workflow state before calling the command.
 
     Prefer passing required values via _argv instead of relying on this
     fixture — that keeps tests more representative of real CLI usage.
     Use only when _argv support is absent for the command under test.
-
-    Note: fixture isolation (preventing clear_state from wiping temp_output_dir)
-    is handled by temp_state_dir using a dedicated subdirectory. You should NOT
-    need this fixture for that purpose.
     """
     with patch(
         "agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation",

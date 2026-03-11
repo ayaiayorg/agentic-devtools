@@ -118,17 +118,17 @@ class TestSetCommandContextSwitching:
         assert "Set pull_request_id" in captured.out
         assert "context switched" not in captured.out
 
-    def test_set_different_pull_request_id_clears_state(self, temp_state_dir, clear_state_before, capsys):
-        """Test that changing pull_request_id clears other state."""
+    def test_set_different_pull_request_id_preserves_other_state(self, temp_state_dir, clear_state_before, capsys):
+        """Test that changing pull_request_id preserves other state (no clearing)."""
         state.set_value("pull_request_id", "12345")
-        state.set_value("other_key", "should_be_cleared")
+        state.set_value("other_key", "should_survive")
 
         with patch.object(state, "_trigger_cross_lookup"):
             with patch.object(sys, "argv", ["agdt-set", "pull_request_id", "99999"]):
                 cli_state.set_cmd()
 
         assert state.get_value("pull_request_id") == 99999
-        assert state.get_value("other_key") is None
+        assert state.get_value("other_key") == "should_survive"
 
     def test_set_non_context_key_uses_set_value(self, temp_state_dir, clear_state_before, capsys):
         """Test that setting non-context keys uses regular set_value."""
