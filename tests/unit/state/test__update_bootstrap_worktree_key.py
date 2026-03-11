@@ -39,12 +39,28 @@ class TestUpdateBootstrapWorktreeKey:
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert data["worktree_key"] == "PR42"
 
-    def test_noop_when_no_bootstrap_file(self, tmp_path, monkeypatch):
-        """Does nothing when no bootstrap file exists anywhere."""
+    def test_creates_bootstrap_when_agdt_dir_exists_but_no_file(self, tmp_path, monkeypatch):
+        """Creates bootstrap file when .agdt/ exists but bootstrap file does not."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        state._update_bootstrap_worktree_key("DFLY-42")
+
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        assert bootstrap_path.exists()
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data == {"worktree_key": "DFLY-42"}
+
+    def test_noop_when_no_agdt_dir(self, tmp_path, monkeypatch):
+        """Does nothing when no .agdt/ directory exists anywhere."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
         # Should not raise
         state._update_bootstrap_worktree_key("IGNORED")
+        # No files created
+        assert not (tmp_path / ".agdt").exists()
 
     def test_noop_on_malformed_json(self, tmp_path, monkeypatch):
         """Does nothing when bootstrap file contains invalid JSON."""

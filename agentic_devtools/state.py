@@ -201,7 +201,13 @@ def get_bootstrap_state() -> Dict[str, str]:
         data = json.loads(content)
         if not isinstance(data, dict):
             return {}
-        return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+        # Only expose the documented keys and normalise their values.
+        result: Dict[str, str] = {}
+        for key in ("identity", "worktree_key"):
+            value = data.get(key)
+            if isinstance(value, str):
+                result[key] = value.strip()
+        return result
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
@@ -236,14 +242,17 @@ def set_bootstrap_state(
     if git_root is None:
         return
 
-    # Read existing bootstrap to preserve fields
+    # Read existing bootstrap to preserve documented fields
     bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
     existing: Dict[str, str] = {}
     try:
         content = bootstrap_path.read_text(encoding="utf-8")
         data = json.loads(content)
         if isinstance(data, dict):
-            existing = {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+            for bk in ("identity", "worktree_key"):
+                bv = data.get(bk)
+                if isinstance(bv, str):
+                    existing[bk] = bv.strip()
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
@@ -275,14 +284,15 @@ def get_state_dir() -> Path:
 
     Priority:
     1. ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable
-    2. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root
+    2. ``DFLY_AI_HELPERS_STATE_DIR`` environment variable (legacy alias)
+    3. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root
        (identity and worktree_key read from ``.agdt/runtime-bootstrap.json``)
-    3. ``.agdt/workflows/_unscoped/`` relative to git root (when bootstrap
+    4. ``.agdt/workflows/_unscoped/`` relative to git root (when bootstrap
        file is missing or incomplete)
-    4. ``.agdt-temp/`` in CWD (when not in a git repo)
+    5. ``.agdt-temp/`` in CWD (when not in a git repo)
     """
-    # 1. Environment variable override
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    # 1/2. Environment variable override (primary + legacy alias)
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
@@ -332,13 +342,18 @@ def get_state_file_path() -> Path:
 
 
 def _update_bootstrap_worktree_key(worktree_key: str) -> None:
-    """Update only the ``worktree_key`` in an existing bootstrap file.
+    """Update the ``worktree_key`` in the bootstrap file, creating it if needed.
 
     Unlike ``set_bootstrap_state()``, this does **not** call ``subprocess``
     (no ``_get_git_repo_root`` / ``_resolve_identity``).  It locates the
     bootstrap file by walking up from a subprocess-free base directory:
     either ``AGENTIC_DEVTOOLS_STATE_DIR`` (when set) or the current working
     directory, looking for a ``.agdt`` directory.
+
+    If the bootstrap file does not exist but the ``.agdt/`` directory does,
+    the file is created with just ``{"worktree_key": ...}``.  Identity will
+    be resolved on the next ``set_bootstrap_state()`` call; until then,
+    ``get_state_dir()`` falls back to ``_unscoped``.
 
     This exists so that ``set_value()`` can keep the bootstrap in sync
     without interfering with tests that globally mock ``subprocess.run``.
@@ -355,13 +370,22 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
 
         # Walk up from base_dir to find .agdt/
         for parent in [base_dir] + list(base_dir.parents):
-            bootstrap_path = parent / ".agdt" / BOOTSTRAP_FILENAME
+            agdt_dir = parent / ".agdt"
+            bootstrap_path = agdt_dir / BOOTSTRAP_FILENAME
             if bootstrap_path.is_file():
                 content = bootstrap_path.read_text(encoding="utf-8")
                 data = json.loads(content)
                 if isinstance(data, dict):
                     data["worktree_key"] = worktree_key
                     bootstrap_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                return
+            if agdt_dir.is_dir():
+                # .agdt/ exists but no bootstrap file yet — create it with
+                # just the worktree_key so subsequent calls can update it.
+                bootstrap_path.write_text(
+                    json.dumps({"worktree_key": worktree_key}, indent=2),
+                    encoding="utf-8",
+                )
                 return
     except (OSError, json.JSONDecodeError):
         pass
@@ -542,12 +566,24 @@ def set_value(key: str, value: Any) -> None:
     # Uses _update_bootstrap_worktree_key (subprocess-free) to avoid
     # consuming mock side_effects in tests that globally patch subprocess.run.
     try:
-        str_val = str(value).strip() if value is not None else ""
-        if str_val:
-            if key == "jira.issue_key":
-                _update_bootstrap_worktree_key(str_val)
-            elif key == "pull_request_id":
-                _update_bootstrap_worktree_key(f"PR{str_val}")
+        if key == "jira.issue_key":
+            # Only accept non-empty strings as issue keys to avoid writing
+            # unintended values (e.g., dict/list) into the bootstrap file.
+            if isinstance(value, str):
+                issue_key = value.strip()
+                if issue_key:
+                    _update_bootstrap_worktree_key(issue_key)
+        elif key == "pull_request_id":
+            # Only accept int or digit-only string PR ids.
+            pr_id_str: Optional[str] = None
+            if isinstance(value, int):
+                pr_id_str = str(value)
+            elif isinstance(value, str):
+                candidate = value.strip()
+                if candidate.isdigit():
+                    pr_id_str = candidate
+            if pr_id_str:
+                _update_bootstrap_worktree_key(f"PR{pr_id_str}")
     except Exception:  # noqa: BLE001 – bootstrap failure is non-fatal
         pass
 

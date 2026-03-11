@@ -70,6 +70,32 @@ class TestGetBootstrapState:
 
         assert result == {"identity": "ama"}
 
+    def test_only_whitelisted_keys_returned(self, tmp_path):
+        """Only 'identity' and 'worktree_key' keys are returned, even if file has more."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        bootstrap_data = {"identity": "ama", "worktree_key": "DFLY-1", "extra_key": "val", "debug": "true"}
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {"identity": "ama", "worktree_key": "DFLY-1"}
+        assert "extra_key" not in result
+        assert "debug" not in result
+
+    def test_strips_whitespace_from_values(self, tmp_path):
+        """Values are stripped of leading/trailing whitespace."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        bootstrap_data = {"identity": "  ama  ", "worktree_key": "  DFLY-1  "}
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {"identity": "ama", "worktree_key": "DFLY-1"}
+
     def test_returns_empty_dict_when_bootstrap_is_array(self, tmp_path):
         """Returns {} when bootstrap file contains a JSON array instead of object."""
         agdt_dir = tmp_path / ".agdt"
