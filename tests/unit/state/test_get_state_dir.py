@@ -1,132 +1,119 @@
 """Tests for agentic_devtools.state.get_state_dir."""
 
+import json
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agentic_devtools import state
 
 
-class TestStateDirResolution:
-    """Tests for state directory resolution edge cases."""
+class TestGetStateDirEnvVar:
+    """Tests for AGENTIC_DEVTOOLS_STATE_DIR environment variable override."""
 
-    def test_env_var_state_dir(self, tmp_path):
-        """Test that DFLY_AI_HELPERS_STATE_DIR environment variable is used."""
+    def test_env_var_takes_priority(self, tmp_path):
+        """AGENTIC_DEVTOOLS_STATE_DIR must override all other resolution."""
         custom_dir = tmp_path / "custom_state"
-        with patch.dict("os.environ", {"DFLY_AI_HELPERS_STATE_DIR": str(custom_dir)}):
+        with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": str(custom_dir)}, clear=True):
             result = state.get_state_dir()
             assert result == custom_dir
             assert custom_dir.exists()
 
-    def test_finds_existing_scripts_temp(self, tmp_path, monkeypatch):
-        """Test that existing scripts/temp is found and used."""
-        project_dir = tmp_path / "project"
-        scripts_temp = project_dir / "scripts" / "temp"
-        scripts_temp.mkdir(parents=True)
-
-        work_dir = project_dir / "src" / "app"
-        work_dir.mkdir(parents=True)
-
-        monkeypatch.chdir(work_dir)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
-
-        result = state.get_state_dir()
-        assert result == scripts_temp
-
-    def test_fallback_dir_when_no_scripts_temp(self, tmp_path, monkeypatch):
-        """Test fallback to .agdt-temp when scripts/temp not found."""
-        isolated_dir = tmp_path / "isolated"
-        isolated_dir.mkdir()
-
-        monkeypatch.chdir(isolated_dir)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
-
-        result = state.get_state_dir()
-        assert result.name == ".agdt-temp"
-        assert result.exists()
-
-    def test_scripts_dir_creates_temp(self, tmp_path, monkeypatch):
-        """Test that temp is created when inside scripts directory."""
-        scripts_dir = tmp_path / "scripts"
-        scripts_dir.mkdir()
-
-        monkeypatch.chdir(scripts_dir)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
-
-        result = state.get_state_dir()
-        assert result == scripts_dir / "temp"
-        assert result.exists()
-
-    def test_creates_temp_when_scripts_exists_but_temp_missing(self, tmp_path, monkeypatch):
-        """Test that scripts/temp is created when scripts exists but temp doesn't."""
-        project_dir = tmp_path / "project"
-        scripts_dir = project_dir / "scripts"
-        scripts_dir.mkdir(parents=True)
-
-        (scripts_dir / "some_helper.py").touch()
-
-        work_dir = project_dir / "src" / "app"
-        work_dir.mkdir(parents=True)
-
-        monkeypatch.chdir(work_dir)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
-
-        result = state.get_state_dir()
-        expected_temp = scripts_dir / "temp"
-        assert result == expected_temp
-        assert expected_temp.exists(), "scripts/temp should be created automatically"
+    def test_dfly_env_var_no_longer_honored(self, tmp_path):
+        """DFLY_AI_HELPERS_STATE_DIR must NOT be used (legacy, removed)."""
+        custom_dir = tmp_path / "legacy_dir"
+        with patch.object(state, "_get_git_repo_root", return_value=None):
+            with patch.dict(
+                "os.environ",
+                {"DFLY_AI_HELPERS_STATE_DIR": str(custom_dir)},
+                clear=True,
+            ):
+                with patch("pathlib.Path.cwd", return_value=tmp_path):
+                    result = state.get_state_dir()
+                    # Should NOT use legacy var — falls to .agdt-temp
+                    assert result != custom_dir
+                    assert ".agdt-temp" in str(result)
 
 
-class TestGetStateDirWithGit:
-    """Tests for get_state_dir using git-based detection."""
+class TestGetStateDirBootstrap:
+    """Tests for bootstrap-based resolution (.agdt/workflows/{identity}/{worktree_key}/)."""
 
-    def test_uses_git_repo_root_when_available(self, tmp_path):
-        """Test that get_state_dir uses git repo root when available."""
-        scripts_dir = tmp_path / "scripts"
-        scripts_dir.mkdir()
-
+    def test_bootstrap_scoped_path(self, tmp_path):
+        """With valid bootstrap → .agdt/workflows/{identity}/{worktree_key}/."""
+        bootstrap = {"identity": "ama", "worktree_key": "DFLY-1234"}
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
-            with patch.dict("os.environ", {}, clear=True):
-                result = state.get_state_dir()
+            with patch.object(state, "get_bootstrap_state", return_value=bootstrap):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
 
-                assert result == tmp_path / "scripts" / "temp"
-                assert result.exists()
+                    expected = tmp_path / ".agdt" / "workflows" / "ama" / "DFLY-1234"
+                    assert result == expected
+                    assert result.exists()
 
-    def test_falls_back_to_dfly_temp_when_no_scripts_dir(self, tmp_path):
-        """Test that get_state_dir falls back to .agdt-temp when no scripts dir found."""
-        subdir = tmp_path / "deep" / "nested" / "path"
-        subdir.mkdir(parents=True)
+    def test_unscoped_fallback_no_bootstrap(self, tmp_path):
+        """No bootstrap file → .agdt/workflows/_unscoped/."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "get_bootstrap_state", return_value={}):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
 
+                    expected = tmp_path / ".agdt" / "workflows" / "_unscoped"
+                    assert result == expected
+                    assert result.exists()
+
+    def test_unscoped_fallback_partial_bootstrap_identity_only(self, tmp_path):
+        """Bootstrap with only identity (no worktree_key) → _unscoped."""
+        bootstrap = {"identity": "ama"}
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "get_bootstrap_state", return_value=bootstrap):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
+
+                    assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
+    def test_unscoped_fallback_partial_bootstrap_worktree_only(self, tmp_path):
+        """Bootstrap with only worktree_key (no identity) → _unscoped."""
+        bootstrap = {"worktree_key": "DFLY-1234"}
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "get_bootstrap_state", return_value=bootstrap):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
+
+                    assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
+    def test_unscoped_fallback_empty_strings(self, tmp_path):
+        """Bootstrap with empty string values → _unscoped."""
+        bootstrap = {"identity": "", "worktree_key": ""}
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "get_bootstrap_state", return_value=bootstrap):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
+
+                    assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
+    def test_creates_directories(self, tmp_path):
+        """All returned paths must exist after the call."""
+        bootstrap = {"identity": "xyz", "worktree_key": "PROJ-99"}
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "get_bootstrap_state", return_value=bootstrap):
+                with patch.dict("os.environ", {}, clear=True):
+                    result = state.get_state_dir()
+                    assert result.exists()
+                    assert result.is_dir()
+
+
+class TestGetStateDirFallback:
+    """Tests for the .agdt-temp fallback when not in a git repo."""
+
+    def test_agdt_temp_fallback_no_git(self, tmp_path):
+        """Not in a git repo → CWD / .agdt-temp."""
         with patch.object(state, "_get_git_repo_root", return_value=None):
             with patch.dict("os.environ", {}, clear=True):
-                with patch("pathlib.Path.cwd", return_value=subdir):
+                with patch("pathlib.Path.cwd", return_value=tmp_path):
                     result = state.get_state_dir()
 
-                    assert ".agdt-temp" in str(result)
-
-    def test_env_var_takes_precedence_over_git(self, tmp_path):
-        """Test that DFLY_AI_HELPERS_STATE_DIR env var takes precedence."""
-        env_dir = tmp_path / "custom_state"
-
-        with patch.object(state, "_get_git_repo_root", return_value=tmp_path / "repo"):
-            with patch.dict("os.environ", {"DFLY_AI_HELPERS_STATE_DIR": str(env_dir)}):
-                result = state.get_state_dir()
-
-                assert result == env_dir
-                assert result.exists()
-
-    def test_git_root_without_scripts_dir_falls_back(self, tmp_path):
-        """Test fallback when git root exists but has no scripts directory."""
-        git_root = tmp_path / "repo_no_scripts"
-        git_root.mkdir()
-
-        cwd = tmp_path / "cwd"
-        cwd.mkdir()
-
-        with patch.object(state, "_get_git_repo_root", return_value=git_root):
-            with patch.dict("os.environ", {}, clear=True):
-                with patch("pathlib.Path.cwd", return_value=cwd):
-                    result = state.get_state_dir()
-
-                    assert ".agdt-temp" in str(result)
+                    assert result == tmp_path / ".agdt-temp"
+                    assert result.exists()
 
 
 class TestGetGitRepoRoot:

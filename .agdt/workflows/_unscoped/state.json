@@ -1,0 +1,11 @@
+{
+  "pypi": {
+    "package_name": "agentic-devtools",
+    "version": "0.1.0",
+    "repository": "pypi",
+    "dry_run": false
+  },
+  "worktree_setup": {
+    "auto_execute_exit_code": "-1"
+  }
+}
