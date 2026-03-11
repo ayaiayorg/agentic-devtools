@@ -128,6 +128,36 @@ class TestGetStateDirBootstrap:
 
                 assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
 
+    def test_unscoped_fallback_non_string_values(self, tmp_path):
+        """Bootstrap with non-string identity/worktree_key → _unscoped (not coerced)."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": 123, "worktree_key": True}), encoding="utf-8"
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+
+                assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
+    def test_unscoped_fallback_whitespace_only_values(self, tmp_path):
+        """Bootstrap with whitespace-only identity/worktree_key → _unscoped."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "  ", "worktree_key": "  "}), encoding="utf-8"
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+
+                assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
     def test_creates_directories(self, tmp_path):
         """All returned paths must exist after the call."""
         import json

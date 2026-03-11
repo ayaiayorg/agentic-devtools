@@ -303,8 +303,13 @@ def get_state_dir() -> Path:
         except (OSError, json.JSONDecodeError):
             bootstrap = {}
 
-        identity = str(bootstrap.get("identity", "") or "")
-        worktree_key = str(bootstrap.get("worktree_key", "") or "")
+        # Validate types to match get_bootstrap_state()'s strict filtering;
+        # non-string values (e.g. {"identity": 123}) fall back to _unscoped
+        # rather than coercing to unexpected directory names.
+        raw_id = bootstrap.get("identity", "")
+        raw_wk = bootstrap.get("worktree_key", "")
+        identity = raw_id.strip() if isinstance(raw_id, str) else ""
+        worktree_key = raw_wk.strip() if isinstance(raw_wk, str) else ""
 
         if identity and worktree_key:
             scoped = git_root / ".agdt" / "workflows" / identity / worktree_key
