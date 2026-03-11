@@ -129,7 +129,7 @@ I've fixed the issue:
 class TestSetValueBootstrapWiring:
     """Tests for bootstrap worktree_key sync inside set_value."""
 
-    def test_jira_issue_key_updates_bootstrap(self, tmp_path):
+    def test_jira_issue_key_updates_bootstrap(self, tmp_path, monkeypatch):
         """set_value('jira.issue_key', ...) updates bootstrap worktree_key."""
         import json
 
@@ -139,10 +139,11 @@ class TestSetValueBootstrapWiring:
         bootstrap_path = agdt_dir / "runtime-bootstrap.json"
         bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
 
-        # The state dir is under .agdt/workflows/... so the walk-up finds .agdt
+        # The state dir is under .agdt/workflows/... so the CWD walk-up finds .agdt
         state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
         state_dir.mkdir(parents=True)
 
+        monkeypatch.chdir(tmp_path)
         with patch.object(state, "get_state_dir", return_value=state_dir):
             state.set_value("jira.issue_key", "DFLY-1234")
 
@@ -150,7 +151,7 @@ class TestSetValueBootstrapWiring:
         assert data["worktree_key"] == "DFLY-1234"
         assert data["identity"] == "ama"
 
-    def test_pull_request_id_updates_bootstrap(self, tmp_path):
+    def test_pull_request_id_updates_bootstrap(self, tmp_path, monkeypatch):
         """set_value('pull_request_id', ...) updates bootstrap with PR prefix."""
         import json
 
@@ -162,13 +163,14 @@ class TestSetValueBootstrapWiring:
         state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
         state_dir.mkdir(parents=True)
 
+        monkeypatch.chdir(tmp_path)
         with patch.object(state, "get_state_dir", return_value=state_dir):
             state.set_value("pull_request_id", 42)
 
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert data["worktree_key"] == "PR42"
 
-    def test_empty_value_skips_bootstrap(self, tmp_path):
+    def test_empty_value_skips_bootstrap(self, tmp_path, monkeypatch):
         """set_value with empty string skips bootstrap update."""
         import json
 
@@ -180,6 +182,7 @@ class TestSetValueBootstrapWiring:
         state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
         state_dir.mkdir(parents=True)
 
+        monkeypatch.chdir(tmp_path)
         with patch.object(state, "get_state_dir", return_value=state_dir):
             state.set_value("jira.issue_key", "  ")
 

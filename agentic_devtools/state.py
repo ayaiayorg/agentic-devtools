@@ -102,11 +102,14 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
         candidate = first[0] + last[:2]
 
     if not candidate:
-        return "default"
+        return "default"  # pragma: no cover – defensive; name_parts is non-empty
 
-    # Build owner map from existing identity directories
+    # Build owner map from existing identity directories.
+    # Directories *without* a ``.identity-owner`` file are treated as claimed
+    # by an unknown agent (empty-string sentinel) to avoid cross-agent
+    # collisions with pre-existing or manually-created directories.
     workflows_dir = git_root / ".agdt" / "workflows"
-    owner_map: Dict[str, str] = {}  # directory name -> email
+    owner_map: Dict[str, str] = {}  # directory name -> email (or "" for unclaimed)
     if workflows_dir.is_dir():
         for entry in workflows_dir.iterdir():
             if entry.is_dir():
@@ -115,7 +118,11 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
                     try:
                         owner_map[entry.name] = owner_file.read_text(encoding="utf-8").strip()
                     except OSError:
-                        pass
+                        # Treat unreadable owner files as unclaimed (collision)
+                        owner_map[entry.name] = ""
+                else:
+                    # No owner file → treat as claimed by unknown agent
+                    owner_map[entry.name] = ""
 
     def _is_collision(cand: str) -> bool:
         return cand in owner_map and owner_map[cand] != email
@@ -147,7 +154,7 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
             # Both unique — pick shorter; prefer A (last name) on tie
             if len(opt_a) <= len(opt_b):  # type: ignore[arg-type]
                 return opt_a  # type: ignore[return-value]
-            return opt_b  # type: ignore[return-value]
+            return opt_b  # type: ignore[return-value]  # pragma: no cover – opt_a/opt_b same length at equal indices
         elif a_unique:
             last_idx += 1
             return opt_a  # type: ignore[return-value]
@@ -284,9 +291,20 @@ def get_state_dir() -> Path:
     # 2/3. Git-based resolution
     git_root = _get_git_repo_root()
     if git_root:
-        bootstrap = get_bootstrap_state()
-        identity = bootstrap.get("identity", "")
-        worktree_key = bootstrap.get("worktree_key", "")
+        # Read bootstrap inline to avoid a second _get_git_repo_root() call
+        # (get_bootstrap_state() would call _get_git_repo_root() again).
+        bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
+        bootstrap: Dict[str, Any] = {}
+        try:
+            if bootstrap_path.is_file():
+                bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+                if not isinstance(bootstrap, dict):
+                    bootstrap = {}
+        except (OSError, json.JSONDecodeError):
+            bootstrap = {}
+
+        identity = str(bootstrap.get("identity", "") or "")
+        worktree_key = str(bootstrap.get("worktree_key", "") or "")
 
         if identity and worktree_key:
             scoped = git_root / ".agdt" / "workflows" / identity / worktree_key
@@ -313,16 +331,25 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
 
     Unlike ``set_bootstrap_state()``, this does **not** call ``subprocess``
     (no ``_get_git_repo_root`` / ``_resolve_identity``).  It locates the
-    bootstrap file by walking up from the state file that ``set_value()``
-    just wrote, looking for a ``.agdt`` directory.
+    bootstrap file by walking up from a subprocess-free base directory:
+    either ``AGENTIC_DEVTOOLS_STATE_DIR`` (when set) or the current working
+    directory, looking for a ``.agdt`` directory.
 
     This exists so that ``set_value()`` can keep the bootstrap in sync
     without interfering with tests that globally mock ``subprocess.run``.
     """
     try:
-        state_path = get_state_file_path()
-        # Walk up from state dir to find .agdt/
-        for parent in [state_path.parent] + list(state_path.parent.parents):
+        # Choose a subprocess-free starting point:
+        # 1. AGENTIC_DEVTOOLS_STATE_DIR (matches highest-priority state dir)
+        # 2. Current working directory as a reasonable default inside the repo
+        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+        if env_dir:
+            base_dir = Path(env_dir)
+        else:
+            base_dir = Path.cwd()
+
+        # Walk up from base_dir to find .agdt/
+        for parent in [base_dir] + list(base_dir.parents):
             bootstrap_path = parent / ".agdt" / BOOTSTRAP_FILENAME
             if bootstrap_path.is_file():
                 content = bootstrap_path.read_text(encoding="utf-8")
@@ -330,15 +357,6 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
                 if isinstance(data, dict):
                     data["worktree_key"] = worktree_key
                     bootstrap_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-                return
-            # Also check if the parent itself IS .agdt
-            if parent.name == ".agdt" and (parent / BOOTSTRAP_FILENAME).is_file():
-                bp = parent / BOOTSTRAP_FILENAME
-                content = bp.read_text(encoding="utf-8")
-                data = json.loads(content)
-                if isinstance(data, dict):
-                    data["worktree_key"] = worktree_key
-                    bp.write_text(json.dumps(data, indent=2), encoding="utf-8")
                 return
     except (OSError, json.JSONDecodeError):
         pass

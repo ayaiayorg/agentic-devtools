@@ -12,7 +12,7 @@ class TestSetBootstrapState:
     def test_writes_bootstrap_file_with_identity_and_worktree_key(self, tmp_path):
         """Writes both identity and worktree_key to bootstrap file."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
-            with patch.object(state, "_resolve_identity", return_value="ama"):
+            with patch.object(state, "_get_git_email", return_value="test@example.com"):
                 state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1234")
 
         bootstrap_path = tmp_path / ".agdt" / "runtime-bootstrap.json"

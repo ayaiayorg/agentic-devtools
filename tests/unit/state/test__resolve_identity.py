@@ -162,3 +162,119 @@ class TestResolveIdentityCollision:
             result = state._resolve_identity(tmp_path)
 
         assert result == "ab2"
+
+
+class TestResolveIdentityEdgeCases:
+    """Tests for edge cases in identity derivation."""
+
+    def test_empty_local_part(self, tmp_path):
+        """Email with empty local part → default."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        assert result == "default"
+
+    def test_all_delimiter_local_part(self, tmp_path):
+        """Email local part is all delimiters → default."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email(".-._@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        assert result == "default"
+
+    def test_dir_without_identity_owner_is_collision(self, tmp_path):
+        """Existing directory without .identity-owner treated as collision."""
+        # Create directory without .identity-owner file
+        (tmp_path / ".agdt" / "workflows" / "ama").mkdir(parents=True)
+
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("albert.marsnik@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        # "ama" is treated as claimed → must resolve to something else
+        assert result != "ama"
+        assert result == "amar"  # extends last name
+
+    def test_unreadable_owner_file_is_collision(self, tmp_path):
+        """Owner file that raises OSError is treated as collision."""
+        identity_dir = tmp_path / ".agdt" / "workflows" / "ama"
+        identity_dir.mkdir(parents=True)
+        owner_file = identity_dir / ".identity-owner"
+        owner_file.write_text("other@example.com", encoding="utf-8")
+        # Make unreadable
+        owner_file.chmod(0o000)
+
+        try:
+            email = "albert.marsnik@example.com"
+            with patch(
+                "agentic_devtools.state.subprocess.run",
+                return_value=_mock_git_email(email),
+            ):
+                result = state._resolve_identity(tmp_path)
+
+            # Unreadable → treated as collision (empty sentinel)
+            assert result != "ama"
+        finally:
+            # Restore permissions for cleanup
+            owner_file.chmod(0o644)
+
+    def test_collision_both_unique_prefers_shorter(self, tmp_path):
+        """When both extensions are unique but different length, pick shorter."""
+        # Set up collision for "ama" with a long first name and short last name
+        # john.ma → initial "jma"
+        _setup_identity_owner(tmp_path, "jma", "other@example.com")
+
+        # Extensions: jma (3) → jmac (extend last, 4) vs joma (extend first, 4)
+        # Both 4 chars → tie → prefer last name (jmac)
+        with patch(
+            "agentic_devtools.state.subprocess.run",
+            return_value=_mock_git_email("john.mack@example.com"),
+        ):
+            result = state._resolve_identity(tmp_path)
+
+        assert result == "jmac"
+
+    def test_collision_neither_unique_advances(self, tmp_path):
+        """When neither single extension is unique, keep trying."""
+        # Set up so both amar and alma collide too
+        _setup_identity_owner(tmp_path, "ama", "user1@example.com")
+        _setup_identity_owner(tmp_path, "amar", "user2@example.com")
+        _setup_identity_owner(tmp_path, "alma", "user3@example.com")
+
+        with patch(
+            "agentic_devtools.state.subprocess.run",
+            return_value=_mock_git_email("albert.marsnik@example.com"),
+        ):
+            result = state._resolve_identity(tmp_path)
+
+        # Both first extensions collide → advance both → try amars/albma etc
+        assert result not in ("ama", "amar", "alma")
+
+    def test_collision_only_a_unique(self, tmp_path):
+        """When only last-name extension is unique, use it."""
+        # Set up collision for initial candidate
+        _setup_identity_owner(tmp_path, "jdo", "user1@example.com")
+        # Also make first-name extension collide: jodo
+        _setup_identity_owner(tmp_path, "jodo", "user2@example.com")
+
+        with patch(
+            "agentic_devtools.state.subprocess.run",
+            return_value=_mock_git_email("john.doe@example.com"),
+        ):
+            result = state._resolve_identity(tmp_path)
+
+        # jdo collides → opt_a=jdoe (unique), opt_b=jodo (collides) → jdoe
+        assert result == "jdoe"
+
+    def test_collision_only_b_unique(self, tmp_path):
+        """When only first-name extension is unique, use it."""
+        # ama collides, extend-last (amar) also collides, but extend-first (alma) is unique
+        _setup_identity_owner(tmp_path, "ama", "user1@example.com")
+        _setup_identity_owner(tmp_path, "amar", "user2@example.com")
+
+        with patch(
+            "agentic_devtools.state.subprocess.run",
+            return_value=_mock_git_email("albert.marsnik@example.com"),
+        ):
+            result = state._resolve_identity(tmp_path)
+
+        # Only option B (alma) is unique at first iteration
+        assert result == "alma"
