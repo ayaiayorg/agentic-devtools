@@ -201,7 +201,7 @@ def get_bootstrap_state() -> Dict[str, str]:
         data = json.loads(content)
         if not isinstance(data, dict):
             return {}
-        # Only expose the documented keys and normalise their values.
+        # Only expose the documented keys and normalize their values.
         result: Dict[str, str] = {}
         for key in ("identity", "worktree_key"):
             value = data.get(key)
