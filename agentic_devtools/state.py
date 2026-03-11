@@ -281,7 +281,7 @@ def set_value(key: str, value: Any) -> None:
         pass  # agdt_branch not available (e.g., minimal install)
 
 
-# Context-switching keys that trigger temp folder clearing
+# Context-switching keys that may trigger cross-lookup
 CONTEXT_SWITCH_KEYS = {"pull_request_id", "jira.issue_key"}
 
 

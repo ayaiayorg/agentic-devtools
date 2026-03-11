@@ -13,7 +13,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import delete_value, get_value, set_value, set_workflow_state
+from ...state import get_value, load_state, save_state, set_value, set_workflow_state
 
 
 def clear_state_for_workflow_initiation() -> None:
@@ -25,11 +25,20 @@ def clear_state_for_workflow_initiation() -> None:
     versionControl.currentBranch) are intentionally preserved — the worktree
     key change naturally points to a different directory under .agdt/workflows/.
 
+    Both keys are removed in a single load/save cycle to avoid intermediate
+    on-disk state and reduce I/O.
+
     Should be called at the very beginning of each workflow initiation command,
     BEFORE parsing CLI arguments or accessing state.
     """
-    delete_value("workflow")
-    delete_value("agdt_run_id")
+    state = load_state()
+    changed = False
+    for key in ("workflow", "agdt_run_id"):
+        if key in state:
+            del state[key]
+            changed = True
+    if changed:
+        save_state(state)
     print("✓ Reset workflow tracking state")
 
 
