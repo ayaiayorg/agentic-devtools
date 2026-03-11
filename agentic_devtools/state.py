@@ -1,11 +1,14 @@
 """
-State management using a single JSON file.
+State management for the agentic-devtools CLI.
 
-All AI helper state is stored in a single JSON file (state.json),
-making it easy to inspect, debug, and manage state across commands.
+Runtime state is stored in ``state.json`` under the active workflow
+directory (resolved by ``get_state_dir()``).  A bootstrap file
+(``runtime-bootstrap.json``) at ``{git_root}/.agdt/`` records the
+current identity and worktree key so ``get_state_dir()`` can build
+the scoped path without reading the state file itself.
 
 Key design decisions:
-- Single JSON file instead of multiple temp files
+- Single JSON file for workflow state
 - Direct parameter passing (no replacement tokens needed!)
 - Multiline content works natively in Python CLI
 - Auto-approvable commands in VS Code
@@ -142,12 +145,9 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
 
         if a_unique and b_unique:
             # Both unique — pick shorter; prefer A (last name) on tie
-            candidate = opt_a if len(opt_a) <= len(opt_b) else opt_b  # type: ignore[arg-type]
             if len(opt_a) <= len(opt_b):  # type: ignore[arg-type]
-                last_idx += 1
-            else:
-                first_idx += 1
-            return candidate
+                return opt_a  # type: ignore[return-value]
+            return opt_b  # type: ignore[return-value]
         elif a_unique:
             last_idx += 1
             return opt_a  # type: ignore[return-value]
@@ -738,16 +738,17 @@ def delete_value(key: str) -> bool:
 
 def clear_temp_folder(preserve_keys: Optional[Dict[str, Any]] = None) -> None:
     """
-    Clear the entire temp folder, removing all state and temporary files.
+    Clear the workflow state directory returned by ``get_state_dir()``.
 
-    This removes:
+    This removes all contents of the active workflow directory including:
     - state.json (the state file)
     - pull-request-review/ (PR review queue and prompts)
     - background-tasks/ (background task state)
     - All temp-*.json and temp-*.md files
 
-    Note: The Jira CA bundle (jira_ca_bundle.pem) is now stored in scripts/
-    (version-controlled), not in temp/, so it won't be affected by clearing.
+    Note: The bootstrap file (``.agdt/runtime-bootstrap.json``) and
+    ``.identity-owner`` files are **not** affected — they live outside
+    the per-worktree directory.
 
     Args:
         preserve_keys: Optional dict of state keys to preserve after clearing.

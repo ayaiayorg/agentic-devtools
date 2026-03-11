@@ -52,7 +52,7 @@ class TestSetBootstrapState:
         assert owner_file.read_text(encoding="utf-8") == "albert.marsnik@example.com"
 
     def test_updates_worktree_key_preserving_identity(self, tmp_path):
-        """Updating worktree_key preserves existing identity."""
+        """Updating worktree_key preserves existing identity without re-resolving."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir(parents=True)
         (agdt_dir / "runtime-bootstrap.json").write_text(
@@ -65,8 +65,11 @@ class TestSetBootstrapState:
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch("agentic_devtools.state.subprocess.run", return_value=mock_git):
-                state.set_bootstrap_state(worktree_key="NEW-2")
+                with patch.object(state, "_resolve_identity") as mock_resolve:
+                    state.set_bootstrap_state(worktree_key="NEW-2")
 
+        # Identity was already in the file — _resolve_identity should NOT be called
+        mock_resolve.assert_not_called()
         data = json.loads((agdt_dir / "runtime-bootstrap.json").read_text(encoding="utf-8"))
         assert data["identity"] == "ama"
         assert data["worktree_key"] == "NEW-2"

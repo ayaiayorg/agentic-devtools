@@ -67,12 +67,16 @@ class TestResolveIdentityBasic:
         assert result == "jdo"
 
     def test_mixed_delimiters(self, tmp_path):
-        """john-paul.doe_smith@... → splits on all, uses first and last → jsmith (j+sm)."""
+        """john-paul.doe_smith → 4 parts; first='john', last='smith' → jsm."""
         email = "john-paul.doe_smith@example.com"
-        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email(email)):
+        with patch(
+            "agentic_devtools.state.subprocess.run",
+            return_value=_mock_git_email(email),
+        ):
             result = state._resolve_identity(tmp_path)
 
-        # first part = "john", last part = "smith" → j + sm = "jsm"
+        # Split produces ["john", "paul", "doe", "smith"]
+        # first="john"[0] + last="smith"[:2] → "jsm"
         assert result == "jsm"
 
     def test_no_git_email_returns_default(self, tmp_path):
