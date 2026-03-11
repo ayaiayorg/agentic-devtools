@@ -295,9 +295,9 @@ def set_context_value(
     Set a context-switching value (pull_request_id or jira.issue_key).
 
     When one of these primary context keys changes to a NEW value:
-    1. Updates the value in state via set_value()
-    2. Deletes the counterpart context key to prevent stale data
-    3. Optionally triggers a background cross-lookup for the related key
+    1. Atomically updates the value and deletes the counterpart key in a
+       single load/save cycle to prevent stale data
+    2. Optionally triggers a background cross-lookup for the related key
 
     Cross-lookup behavior:
     - pull_request_id change -> looks up jira.issue_key from PR source branch/title
@@ -338,13 +338,51 @@ def set_context_value(
         else:
             print(f"🔄 Setting context: {key} = {value}")
 
-    set_value(key, value)
-
-    # Clear stale counterpart context key to prevent incorrect worktree key
-    # resolution (jira.issue_key has higher priority than pull_request_id in
-    # resolve_worktree_key).  Cross-lookup will repopulate it.
+    # Atomic update: set the new key and clear the stale counterpart in a
+    # single load/save cycle to prevent a transient on-disk state where both
+    # context keys exist (which could cause incorrect worktree key resolution
+    # since jira.issue_key has higher priority than pull_request_id in
+    # resolve_worktree_key).  Cross-lookup will repopulate the counterpart.
     counterpart = "jira.issue_key" if key == "pull_request_id" else "pull_request_id"
-    delete_value(counterpart)
+    state = load_state()
+
+    # Set the new context key (supports dot notation for jira.issue_key)
+    parts = key.split(".")
+    if len(parts) == 1:
+        state[key] = value
+    else:
+        current = state
+        for part in parts[:-1]:
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+        current[parts[-1]] = value
+
+    # Delete counterpart (supports dot notation for jira.issue_key)
+    cp_parts = counterpart.split(".")
+    if len(cp_parts) == 1:
+        state.pop(counterpart, None)
+    else:
+        cp_current = state
+        for cp_part in cp_parts[:-1]:
+            if not isinstance(cp_current, dict) or cp_part not in cp_current:
+                break
+            cp_current = cp_current[cp_part]
+        else:
+            if isinstance(cp_current, dict):
+                cp_current.pop(cp_parts[-1], None)
+
+    save_state(state)
+
+    # Signal that workflow state has been mutated.  The CLI runner calls
+    # persist_if_dirty() after every command to commit pending changes to
+    # the -agdt branch automatically.
+    try:
+        from .cli.git.agdt_branch import mark_dirty
+
+        mark_dirty()
+    except ImportError:  # pragma: no cover
+        pass  # agdt_branch not available (e.g., minimal install)
 
     # Trigger cross-lookup in background if requested
     if trigger_cross_lookup:

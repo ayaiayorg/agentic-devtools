@@ -94,6 +94,22 @@ class TestSetContextValue:
         assert state.get_value("pull_request_id") == 12345
         assert state.get_value("jira.issue_key") is None
 
+    def test_set_context_value_single_save_cycle(self, temp_state_dir):
+        """Test that set + counterpart delete happen in a single save_state call."""
+        state.set_value("pull_request_id", 12345)
+        state.set_value("jira.issue_key", "DFLY-OLD")
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            with patch.object(state, "save_state", wraps=state.save_state) as spy:
+                state.set_context_value("pull_request_id", 99999, verbose=False)
+
+                assert spy.call_count == 1
+                # The single save_state call should contain the new key and
+                # lack the counterpart — both mutations in one write.
+                saved_dict = spy.call_args[0][0]
+                assert saved_dict["pull_request_id"] == 99999
+                assert "issue_key" not in saved_dict.get("jira", {})
+
     def test_set_context_value_string_to_int_comparison(self, temp_state_dir):
         """Test that string/int values are normalized for comparison."""
         state.set_value("pull_request_id", "12345")
