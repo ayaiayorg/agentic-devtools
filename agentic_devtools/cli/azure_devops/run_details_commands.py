@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ...state import get_value, is_dry_run
+from ...state import get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
 from .config import DEFAULT_ORGANIZATION, DEFAULT_PROJECT
 from .helpers import require_requests
@@ -22,19 +22,9 @@ DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 
 
-def _get_temp_folder() -> Path:
-    """Get the scripts/temp folder path."""
-    # Navigate from agentic_devtools/cli/azure_devops to scripts/temp
-    package_dir = Path(__file__).parent.parent.parent.parent
-    scripts_dir = package_dir.parent
-    temp_dir = scripts_dir / "temp"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    return temp_dir
-
-
 def _save_json(data: Dict[str, Any], run_id: int, source: str) -> Path:
     """
-    Save raw JSON response to temp folder.
+    Save raw JSON response to the workflow state directory.
 
     Args:
         data: JSON data to save.
@@ -44,7 +34,8 @@ def _save_json(data: Dict[str, Any], run_id: int, source: str) -> Path:
     Returns:
         Path to the saved file.
     """
-    temp_folder = _get_temp_folder()
+    temp_folder = get_state_dir()
+    temp_folder.mkdir(parents=True, exist_ok=True)
     filename = f"temp-wb-patch-run-{run_id}-{source}.json"
     filepath = temp_folder / filename
 
@@ -146,7 +137,7 @@ def _get_failed_tasks(timeline_data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _save_log_file(log_content: str, run_id: int, task_name: str) -> Path:
     """
-    Save log content to a temp file.
+    Save log content to the workflow state directory.
 
     Args:
         log_content: The log text content.
@@ -156,7 +147,8 @@ def _save_log_file(log_content: str, run_id: int, task_name: str) -> Path:
     Returns:
         Path to the saved file.
     """
-    temp_folder = _get_temp_folder()
+    temp_folder = get_state_dir()
+    temp_folder.mkdir(parents=True, exist_ok=True)
     # Sanitize task name for filename
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in task_name)
     safe_name = safe_name[:50]  # Limit length
@@ -282,7 +274,7 @@ def _print_failed_logs_summary(log_result: Dict[str, Any], run_id: int) -> None:
         print(f"\n❌ {task['name']}")
 
     if log_files:
-        print("\n📁 Log files saved to scripts/temp/:")
+        print(f"\n📁 Log files saved to {get_state_dir()}:")
         for log_file in log_files:
             print(f"   • {log_file['task_name']}")
             print(f"     {log_file['path']}")
@@ -550,7 +542,7 @@ def get_run_details() -> None:
         --run-id: Override run_id from state
 
     Output:
-        Prints formatted summary and saves raw JSON to scripts/temp/.
+        Prints formatted summary and saves raw JSON to the state directory.
         If fetch_logs=true and run failed, also saves task logs.
 
     Raises:

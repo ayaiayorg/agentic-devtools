@@ -15,7 +15,6 @@ from agentic_devtools.cli.azure_devops.run_details_commands import (
     _fetch_pipeline_run,
     _fetch_task_log,
     _get_failed_tasks,
-    _get_temp_folder,
     _is_run_finished,
     _print_failed_logs_summary,
     _print_parameters,
@@ -405,7 +404,7 @@ class TestSaveJson:
     def test_saves_file_with_correct_name(self, tmp_path):
         """Should save JSON to correctly named file."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             data = {"test": "data"}
@@ -421,7 +420,7 @@ class TestSaveJson:
     def test_saves_error_file(self, tmp_path):
         """Should save error files with correct suffix."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             data = {"error": "Something went wrong"}
@@ -429,24 +428,6 @@ class TestSaveJson:
 
             assert filepath.name == "temp-wb-patch-run-99-build-error.json"
             assert filepath.exists()
-
-
-class TestGetTempFolder:
-    """Tests for _get_temp_folder helper."""
-
-    def test_creates_temp_folder(self, tmp_path):
-        """Should create temp folder if it doesn't exist."""
-        with patch("agentic_devtools.cli.azure_devops.run_details_commands.Path") as mock_path:
-            # Set up the chain of Path operations
-            mock_file = MagicMock()
-            mock_file.parent.parent.parent.parent = tmp_path
-            mock_path.return_value = mock_file
-            mock_path.__file__ = __file__
-
-            # Just verify the function returns a Path-like object
-            # The actual implementation depends on file system structure
-            result = _get_temp_folder()
-            assert result is not None
 
 
 class TestFetchBuildTimeline:
@@ -650,7 +631,7 @@ class TestSaveLogFile:
     def test_saves_log_with_sanitized_name(self, tmp_path):
         """Should save log file with sanitized task name."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             filepath = _save_log_file(
@@ -669,7 +650,7 @@ class TestSaveLogFile:
     def test_truncates_long_task_names(self, tmp_path):
         """Should truncate very long task names to 50 chars."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             long_name = "A" * 100

@@ -1,7 +1,7 @@
 """Review state schema and CRUD functions for managing hierarchical PR review state.
 
 Provides dataclasses for each schema level and load/save/update functions.
-File location: scripts/temp/pull-request-review/prompts/{pr_id}/review-state.json
+File location: .agdt/workflows/{identity}/{worktree_key}/pull-request-review/prompts/{pr_id}/review-state.json
 """
 
 import json

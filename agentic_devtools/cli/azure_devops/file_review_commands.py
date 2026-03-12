@@ -613,7 +613,7 @@ def print_next_file_prompt(pull_request_id: int) -> None:
             print(f"Prompt: {status['prompt_file_path']}")
         else:
             print("Continue with the next file in the queue.")
-            print(f"Queue location: scripts/temp/pull-request-review/prompts/{pull_request_id}/queue.json")
+            print(f"Queue location: {_get_queue_path(pull_request_id)}")
 
     print("")
 
@@ -733,7 +733,7 @@ def _trigger_workflow_continuation(
         print("=" * 60)
         print("")
         print("Continue with the next file in the queue.")
-        print(f"Queue location: scripts/temp/pull-request-review/prompts/{pull_request_id}/queue.json")
+        print(f"Queue location: {_get_queue_path(pull_request_id)}")
     else:
         print("ALL FILES REVIEWED")
         print("=" * 60)

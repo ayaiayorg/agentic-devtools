@@ -11,7 +11,7 @@ import re
 import sys
 from typing import Optional
 
-from ...state import _get_git_repo_root
+from ...state import _get_git_repo_root, get_state_dir
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -57,7 +57,7 @@ def _load_prompt(name: str, arguments: str) -> str:
 
 def _run(name: str, arguments: str) -> None:
     """
-    Load prompt for *name*, print it to stdout, and save it to scripts/temp/.
+    Load prompt for *name*, print it to stdout, and save it to the state dir.
 
     Printing to stdout lets the Copilot CLI agent (running in the terminal)
     see the prompt and act on it immediately, without spawning a nested
@@ -68,17 +68,13 @@ def _run(name: str, arguments: str) -> None:
         arguments: User-supplied arguments string.
     """
     prompt = _load_prompt(name, arguments)
-    repo_root = _get_git_repo_root()
 
-    # Save to scripts/temp/ so the prompt can be referenced later
-    if repo_root is not None:
-        temp_dir = repo_root / "scripts" / "temp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        saved_path = temp_dir / f"temp-speckit-{name}-prompt.md"
-        saved_path.write_text(prompt, encoding="utf-8")
-        save_notice = f"\n[Prompt saved to: {saved_path}]"
-    else:
-        save_notice = ""
+    # Save to state dir so the prompt can be referenced later
+    temp_dir = get_state_dir()
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    saved_path = temp_dir / f"temp-speckit-{name}-prompt.md"
+    saved_path.write_text(prompt, encoding="utf-8")
+    save_notice = f"\n[Prompt saved to: {saved_path}]"
 
     separator = "=" * 80
     print(f"\n{separator}")

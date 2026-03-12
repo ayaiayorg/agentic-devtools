@@ -16,7 +16,7 @@ from agentic_devtools.cli.cert_utils import (
 from agentic_devtools.cli.cert_utils import (
     fetch_certificate_chain_ssl as _fetch_certificate_chain_ssl,
 )
-from agentic_devtools.state import get_state_dir
+from agentic_devtools.state import _get_git_repo_root, get_state_dir
 
 
 def _get_requests():
@@ -50,21 +50,11 @@ def _get_repo_jira_pem_path() -> Path:
     This file is version-controlled at scripts/jira_ca_bundle.pem and contains
     the SSL certificate chain for jira.swica.ch. It's the same for all users.
     """
-    # Walk up from state dir to find scripts/ folder
-    state_dir = get_state_dir()
-    # state_dir is typically scripts/temp, so parent is scripts/
-    scripts_dir = state_dir.parent
-    if scripts_dir.name == "scripts":
-        return scripts_dir / "jira_ca_bundle.pem"
-    # Fallback: search upward for scripts directory
-    for parent in state_dir.parents:  # pragma: no cover
-        if parent.name == "scripts":
-            return parent / "jira_ca_bundle.pem"
-        candidate = parent / "scripts" / "jira_ca_bundle.pem"
-        if candidate.exists():
-            return candidate
-    # Last resort: same directory as state
-    return state_dir / "jira_ca_bundle.pem"  # pragma: no cover
+    git_root = _get_git_repo_root()
+    if git_root is not None:
+        return git_root / "scripts" / "jira_ca_bundle.pem"
+    # Fallback when not in a git repo: use state dir
+    return get_state_dir() / "jira_ca_bundle.pem"
 
 
 def _get_temp_jira_pem_path() -> Path:

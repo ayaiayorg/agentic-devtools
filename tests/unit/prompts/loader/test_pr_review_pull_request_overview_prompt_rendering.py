@@ -128,4 +128,4 @@ class TestPrReviewPullRequestOverviewPromptRendering:
         """Instructions file reference appears at the end of the rendered output."""
         result = self._render(**self._base_variables())
 
-        assert "scripts/temp/temp-pull-request-review-pull-request-overview-prompt.md" in result
+        assert "temp-pull-request-review-pull-request-overview-prompt.md" in result

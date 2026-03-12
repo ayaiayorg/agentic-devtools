@@ -43,8 +43,8 @@ graph TB
     
     subgraph "Repository"
         Repo[Git Repository]
-        State[scripts/temp/<br/>agdt-state.json]
-        Temp[scripts/temp/<br/>Output files]
+        State[.agdt/workflows/…/<br/>state.json]
+        Temp[.agdt/workflows/…/<br/>Output files]
     end
     
     subgraph "External Services"
@@ -190,11 +190,11 @@ flowchart TD
 graph TB
     subgraph "Repository Structure"
         Root[Repository Root]
-        Scripts[scripts/]
-        Temp[scripts/temp/]
-        State[agdt-state.json]
+        Agdt[.agdt/]
+        Workflows[.agdt/workflows/]
+        State[state.json]
         Output[Output files<br/>*.json]
-        Logs[scripts/temp/background-tasks/logs/]
+        Logs[.agdt/workflows/…/background-tasks/logs/]
     end
     
     subgraph "Git Tracking"
@@ -203,18 +203,18 @@ graph TB
         Ignored[Ignored Files]
     end
     
-    Root --> Scripts
-    Scripts --> Temp
-    Temp --> State
-    Temp --> Output
-    Temp --> Logs
+    Root --> Agdt
+    Agdt --> Workflows
+    Workflows --> State
+    Workflows --> Output
+    Workflows --> Logs
     
     State --> Ignored
     Output --> Ignored
     Logs --> Ignored
     Gitignore --> Ignored
     
-    Scripts --> Tracked
+    Agdt --> Ignored
     
     style Ignored fill:#f99
     style Tracked fill:#9f9
@@ -222,11 +222,11 @@ graph TB
 
 **State File Locations**:
 
-- Default: `scripts/temp/agdt-state.json`
+- Default: `.agdt/workflows/{identity}/{worktree_key}/state.json`
 - Excluded from Git via `.gitignore`
 - One state file per worktree
-- Background task logs in `scripts/temp/background-tasks/logs/`
-- Output files in `scripts/temp/`
+- Background task logs in `.agdt/workflows/…/background-tasks/logs/`
+- Output files in `.agdt/workflows/…/`
 
 ## 7.6 Configuration Deployment
 

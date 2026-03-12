@@ -52,7 +52,7 @@ def temp_state_dir(tmp_path):
 
 @pytest.fixture
 def temp_output_dir(tmp_path):
-    """Redirect all prompt/temp file writes away from scripts/temp/ during tests."""
+    """Redirect all prompt/temp file writes away from the state directory during tests."""
     output_dir = tmp_path / "temp"
     output_dir.mkdir()
     with patch.object(loader, "get_temp_output_dir", return_value=output_dir), patch(

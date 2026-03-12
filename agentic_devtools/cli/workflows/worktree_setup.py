@@ -906,12 +906,12 @@ def _run_auto_execute_command(
     """
     print(f"\n--- Executing command in worktree: {' '.join(command)} ---")
     # Inherit current environment and pin AGENTIC_DEVTOOLS_STATE_DIR to the
-    # target worktree's scripts/temp directory.  This propagates into any
-    # nested background tasks spawned by the auto-execute command so that
-    # prompt files and state are written to the correct worktree location
+    # target worktree's .agdt/workflows/_unscoped directory.  This propagates
+    # into any nested background tasks spawned by the auto-execute command so
+    # that prompt files and state are written to the correct worktree location
     # instead of falling back to a Python-install-relative temp directory.
     env = os.environ.copy()
-    state_dir = Path(worktree_path) / "scripts" / "temp"
+    state_dir = Path(worktree_path) / ".agdt" / "workflows" / "_unscoped"
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:

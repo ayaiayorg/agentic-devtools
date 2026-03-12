@@ -131,7 +131,7 @@ graph LR
 
 ### 8.3.2 Background Task Logging
 
-**Location**: `scripts/temp/background-tasks/logs/`
+**Location**: `.agdt/workflows/…/background-tasks/logs/`
 
 **Format**: One log file per task
 
@@ -363,10 +363,10 @@ graph TB
 ### 8.10.1 Excluded from Git
 
 ```text
-scripts/temp/               # All temp files
-  agdt-state.json          # State file
-  *.json                   # Output files
-  background-tasks/        # Task logs
+.agdt/                         # All workflow state files
+  workflows/…/state.json       # State file
+  workflows/…/*.json           # Output files
+  workflows/…/background-tasks/# Task logs
 __pycache__/               # Python cache
 *.pyc                      # Compiled Python
 dist/                      # Build artifacts

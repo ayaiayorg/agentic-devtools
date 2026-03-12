@@ -29,7 +29,7 @@
 | **State Keys** | Namespaced keys (e.g., `jira.issue_key`, `file_review.file_path`) |
 | **Background Tasks** | Long operations (>5s) must run as background tasks |
 | **Parameterless Commands** | Action commands read from state (no CLI parameters for approval) |
-| **Output Files** | Query results written to `scripts/temp/` for persistence |
+| **Output Files** | Query results written to the workflow state directory for persistence |
 
 ## 2.4 Development Constraints
 
@@ -79,7 +79,7 @@ graph LR
 |-----------|---------------------------|
 | **No Secrets in Code** | All credentials via environment variables |
 | **PAT Authentication** | Azure DevOps and Jira use Personal Access Tokens |
-| **State File Location** | `scripts/temp/agdt-state.json` excluded from Git |
+| **State File Location** | `.agdt/workflows/{identity}/{worktree_key}/state.json` excluded from Git |
 | **File Locking** | Concurrent access protection via cross-platform locking |
 | **No Cloud Storage** | State remains local to avoid data leakage |
 

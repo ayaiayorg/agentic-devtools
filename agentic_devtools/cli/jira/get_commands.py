@@ -86,7 +86,7 @@ def get_issue() -> None:
     - jira.issue_key (required): Issue key to retrieve
 
     Outputs:
-    - Saves full JSON response to scripts/temp/temp-get-issue-details-response.json
+    - Saves full JSON response to temp-get-issue-details-response.json in the state directory
     - If issue is a subtask, also saves parent issue to temp-get-parent-issue-details-response.json
     - If issue has an epic link, also saves epic to temp-get-epic-details-response.json
     - Prints formatted issue details to console

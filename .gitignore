@@ -52,7 +52,6 @@ htmlcov/
 .tox/
 
 # State files
-scripts/temp/
 .agdt-temp/
 .agdt/
 *.log

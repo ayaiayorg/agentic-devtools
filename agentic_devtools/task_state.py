@@ -10,7 +10,7 @@ Manages the state of background tasks including:
 - Query and filtering operations
 
 Storage structure:
-- Main state (dfly-state.json): background.recentTasks (unfinished or recent)
+- Main state (state.json): background.recentTasks (unfinished or recent)
 - History file (background-tasks/all-background-tasks.json): complete task history
 - Logs: background-tasks/logs/*.log
 """
@@ -271,7 +271,7 @@ def get_background_tasks_dir() -> Path:
     Get the directory for background tasks storage.
 
     Returns:
-        Path to scripts/temp/background-tasks/
+        Path to .agdt/workflows/…/background-tasks/
     """
     tasks_dir = get_state_dir() / BACKGROUND_TASKS_DIR_NAME
     tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -283,7 +283,7 @@ def get_logs_dir() -> Path:
     Get the directory for task log files.
 
     Returns:
-        Path to scripts/temp/background-tasks/logs/
+        Path to .agdt/workflows/…/background-tasks/logs/
     """
     logs_dir = get_background_tasks_dir() / LOGS_DIR_NAME
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -295,7 +295,7 @@ def get_all_tasks_file_path() -> Path:
     Get the path to the all-background-tasks.json file.
 
     Returns:
-        Path to scripts/temp/background-tasks/all-background-tasks.json
+        Path to .agdt/workflows/…/background-tasks/all-background-tasks.json
     """
     return get_background_tasks_dir() / ALL_TASKS_FILENAME
 

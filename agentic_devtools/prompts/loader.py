@@ -43,10 +43,10 @@ def get_temp_output_dir() -> Path:
     ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable.  This ensures that
     when a command is executed inside a worktree via
     ``_run_auto_execute_command``, prompt files are written to the worktree's
-    ``scripts/temp/`` rather than a path relative to the installed package.
+    state directory rather than a path relative to the installed package.
 
     Returns:
-        Path to scripts/temp/ directory
+        Path to the workflow state directory
     """
     from ..state import get_state_dir
 
@@ -296,7 +296,7 @@ def log_prompt_with_save_notice(
 
     ================================================================================
     The exact prompt logged above is also saved to:
-      scripts/temp/temp-pull-request-review-initiate-prompt.md
+      .agdt/workflows/…/temp-pull-request-review-initiate-prompt.md
     ================================================================================
 
     Args:

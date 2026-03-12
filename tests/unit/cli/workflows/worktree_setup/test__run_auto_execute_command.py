@@ -32,7 +32,7 @@ class TestRunAutoExecuteCommand:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     def test_sets_state_dir_env_var(self, mock_run, tmp_path):
-        """Test that AGENTIC_DEVTOOLS_STATE_DIR is set to worktree's scripts/temp."""
+        """Test that AGENTIC_DEVTOOLS_STATE_DIR is set to worktree's .agdt/workflows/_unscoped."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         worktree = tmp_path / "my-worktree"
         worktree.mkdir()
@@ -41,10 +41,10 @@ class TestRunAutoExecuteCommand:
 
         call_kwargs = mock_run.call_args[1]
         env = call_kwargs["env"]
-        expected_state_dir = str(worktree / "scripts" / "temp")
+        expected_state_dir = str(worktree / ".agdt" / "workflows" / "_unscoped")
         assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected_state_dir
-        # scripts/temp directory must have been created
-        assert (worktree / "scripts" / "temp").is_dir()
+        # .agdt/workflows/_unscoped directory must have been created
+        assert (worktree / ".agdt" / "workflows" / "_unscoped").is_dir()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     def test_state_dir_env_var_overrides_inherited(self, mock_run, tmp_path, monkeypatch):
@@ -58,7 +58,7 @@ class TestRunAutoExecuteCommand:
 
         call_kwargs = mock_run.call_args[1]
         env = call_kwargs["env"]
-        assert env["AGENTIC_DEVTOOLS_STATE_DIR"] == str(worktree / "scripts" / "temp")
+        assert env["AGENTIC_DEVTOOLS_STATE_DIR"] == str(worktree / ".agdt" / "workflows" / "_unscoped")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     def test_prints_stdout_on_success(self, mock_run, capsys):
@@ -140,11 +140,11 @@ class TestRunAutoExecuteCommand:
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.Path")
     def test_warns_when_state_dir_creation_fails(self, mock_path_cls, mock_run, capsys, tmp_path):
-        """Test that a warning is printed when scripts/temp directory creation fails."""
+        """Test that a warning is printed when state directory creation fails."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         # Make the Path object's mkdir raise OSError
         mock_state_dir = MagicMock()
-        mock_state_dir.__str__ = lambda self: "/worktree/scripts/temp"
+        mock_state_dir.__str__ = lambda self: "/worktree/.agdt/workflows/_unscoped"
         mock_state_dir.__truediv__ = MagicMock(return_value=mock_state_dir)
         mock_state_dir.mkdir.side_effect = OSError("Permission denied")
         mock_path_cls.return_value = mock_state_dir
