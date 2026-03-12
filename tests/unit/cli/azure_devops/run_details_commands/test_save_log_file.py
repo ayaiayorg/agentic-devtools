@@ -1,5 +1,5 @@
 """
-Tests for run_details_commands module.
+Tests for run_details_commands module — _save_log_file uses get_state_dir.
 """
 
 from unittest.mock import patch
@@ -15,7 +15,7 @@ class TestSaveLogFile:
     def test_saves_log_with_sanitized_name(self, tmp_path):
         """Should save log file with sanitized task name."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             filepath = _save_log_file(
@@ -34,7 +34,7 @@ class TestSaveLogFile:
     def test_truncates_long_task_names(self, tmp_path):
         """Should truncate very long task names to 50 chars."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             long_name = "A" * 100

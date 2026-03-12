@@ -1,5 +1,5 @@
 """
-Tests for run_details_commands module.
+Tests for run_details_commands module — _save_json uses get_state_dir.
 """
 
 import json
@@ -16,7 +16,7 @@ class TestSaveJson:
     def test_saves_file_with_correct_name(self, tmp_path):
         """Should save JSON to correctly named file."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             data = {"test": "data"}
@@ -32,7 +32,7 @@ class TestSaveJson:
     def test_saves_error_file(self, tmp_path):
         """Should save error files with correct suffix."""
         with patch(
-            "agentic_devtools.cli.azure_devops.run_details_commands._get_temp_folder",
+            "agentic_devtools.cli.azure_devops.run_details_commands.get_state_dir",
             return_value=tmp_path,
         ):
             data = {"error": "Something went wrong"}

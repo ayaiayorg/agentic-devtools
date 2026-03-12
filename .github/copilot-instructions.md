@@ -25,7 +25,7 @@ existing `speckit.*` pattern.
 ### Multi-Worktree Development
 
 The package supports **multi-worktree development** using a single global pip/pipx install of `agentic-devtools` shared across all
-worktrees. Each worktree has its own `scripts/temp/agdt-state.json` file, so state is fully isolated between branches.
+worktrees. Each worktree has its own `.agdt/workflows/{identity}/{worktree_key}/state.json` file, so state is fully isolated between branches.
 
 - **Single Global Install**: Install once with `pip install agentic-devtools` or `pipx install agentic-devtools`; all worktrees use the same installation
 - **No Command Changes**: The same `agdt-*` commands work everywhere - entry points call implementations directly
@@ -36,7 +36,7 @@ worktrees. Each worktree has its own `scripts/temp/agdt-state.json` file, so sta
 
 - Commands like `agdt-git-save-work`, `agdt-add-jira-comment`, `agdt-create-pull-request` run in the background
 - They return immediately with a task ID for tracking
-- Results are written to output files in `scripts/temp/` when the task completes
+- Results are written to output files in the workflow state directory when the task completes
 - Use `agdt-task-status`, `agdt-task-log`, or `agdt-task-wait` to monitor progress
 - The immediate console output tells the AI agent:
   1. What background task was triggered
@@ -67,7 +67,7 @@ agdt-test-pattern tests/test_jira_helpers.py::TestClassName -v
 Why:
 
 - Tests run as background tasks to prevent AI agents from thinking something went wrong
-- Logs are captured properly in `scripts/temp/background-tasks/logs/`
+- Logs are captured properly in `.agdt/workflows/…/background-tasks/logs/`
 - Direct pytest calls don't integrate with the background task system
 - `agdt-test-file` shows coverage ONLY for the specified source file
 
@@ -251,7 +251,7 @@ agentic_devtools/
 
 ## 3. State Management Pattern
 
-All state is stored in a single JSON file (`scripts/temp/agdt-state.json`):
+All state is stored in a single JSON file (`.agdt/workflows/{identity}/{worktree_key}/state.json`):
 
 ```python
 from agentic_devtools.state import get_value, set_value, load_state
@@ -668,7 +668,7 @@ These commands initiate a workflow, loading and rendering the appropriate prompt
 3. Loads the appropriate prompt template (override if exists, else default)
 4. Validates override template doesn't introduce new variables
 5. Substitutes variables into the template
-6. Saves the rendered prompt to `scripts/temp/temp-<workflow>-<step>-prompt.md`
+6. Saves the rendered prompt to `temp-<workflow>-<step>-prompt.md` in the workflow state directory
 7. Logs the prompt to console with a notice of where it was saved
 8. Updates workflow state (name, status=active, step, context)
 
@@ -863,7 +863,7 @@ Workflow commands use a template system for generating prompts:
 
 - **Default templates**: `agentic_devtools/prompts/default-<step>-<workflow>-prompt.md`
 - **Override templates**: `agentic_devtools/prompts/override-<step>-<workflow>-prompt.md`
-- **Generated output**: `scripts/temp/temp-<workflow>-<step>-prompt.md`
+- **Generated output**: `temp-<workflow>-<step>-prompt.md` in the workflow state directory
 
 ### Template Variables
 
@@ -921,19 +921,20 @@ the `agdt-ai-helpers` package uses **smart repo-local state detection** to keep 
 
 **How it works:**
 
-1. State files are stored in `scripts/temp/` relative to the repository/worktree root
-2. The `get_state_dir()` function walks up from the current directory looking for a `scripts` directory
-3. Once found, it automatically creates `scripts/temp/` if it doesn't exist
+1. State files are stored in `.agdt/workflows/{identity}/{worktree_key}/` relative to the repository root
+2. The `get_state_dir()` function resolves the path via `.agdt/runtime-bootstrap.json`
+3. Directories are automatically created as needed
 4. This ensures each worktree has its own isolated state, even with a single global pip installation
 
 **State directory resolution priority:**
 
 1. `AGENTIC_DEVTOOLS_STATE_DIR` environment variable (explicit override)
-2. `scripts/temp/` relative to repo root (auto-detected and created if needed)
-3. `.agdt-temp/` in current working directory (fallback for non-repo contexts)
+2. `.agdt/workflows/{identity}/{worktree_key}/` via bootstrap (auto-detected)
+3. `.agdt/workflows/_unscoped/` fallback
+4. `.agdt-temp/` in current working directory (fallback for non-repo contexts)
 
 **New worktree setup:**
-When creating a new worktree, `scripts/temp/` doesn't exist initially (it's gitignored). The helpers automatically create it on first use, so no manual setup is required.
+When creating a new worktree, `.agdt/workflows/` doesn't exist initially (it's gitignored). The helpers automatically create it on first use, so no manual setup is required.
 
 **Tip:** Use the `agdt-initiate-work-on-jira-issue-workflow` command which includes worktree setup automation with VS Code integration.
 
@@ -947,7 +948,7 @@ When creating a new worktree, `scripts/temp/` doesn't exist initially (it's giti
 | `JIRA_SSL_VERIFY` | Set to "0" to disable SSL verification |
 | `JIRA_CA_BUNDLE` | Path to custom CA bundle PEM file for Jira SSL |
 | `REQUESTS_CA_BUNDLE` | Standard requests library CA bundle path (fallback) |
-| `AGENTIC_DEVTOOLS_STATE_DIR` | Override default state directory (scripts/temp) |
+| `AGENTIC_DEVTOOLS_STATE_DIR` | Override default state directory (`.agdt/workflows/_unscoped`) |
 | `DFLY_DRY_RUN` | Set to "1" for dry-run mode globally |
 
 ### SSL Certificate Handling
@@ -957,7 +958,7 @@ The Jira commands automatically handle SSL certificate verification for corporat
 1. **Environment override**: Set `JIRA_SSL_VERIFY=0` to disable verification entirely
 2. **Custom CA bundle**: Set `JIRA_CA_BUNDLE` to a path containing your CA certificates
 3. **Repo-committed bundle**: The preferred CA bundle is committed at `scripts/jira_ca_bundle.pem` (contains the full certificate chain for jira.swica.ch)
-4. **Auto-fetch fallback**: If the repo bundle doesn't exist, certificates are auto-fetched from the Jira server using `openssl s_client` and cached to `scripts/temp/jira_ca_bundle.pem`
+4. **Auto-fetch fallback**: If the repo bundle doesn't exist, certificates are auto-fetched from the Jira server using `openssl s_client` and cached to `jira_ca_bundle.pem` in the state directory
 5. **Last resort**: If auto-fetch fails, SSL verification is disabled with a warning
 
 ## 9. Adding New Commands
@@ -1504,7 +1505,7 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 3. Validates the current worktree/branch context via pre-flight checks.
 4. If the context is wrong, **automatically creates a dedicated worktree**, attempts to open VS Code (when available), then re-runs the command inside the new worktree.
 5. Fetches full PR details (diff, threads, iterations) and Jira issue details.
-6. Generates per-file review prompts in `scripts/temp/pull-request-review/prompts/<pr_id>/`.
+6. Generates per-file review prompts in `pull-request-review/prompts/<pr_id>/` under the state directory.
 7. **When auto-setup ran (new worktree was created):** starts a `gh copilot` CLI session
    (interactive or background depending on `--interactive`). When already in the correct
    worktree context, the rendered initiate prompt is printed to the console for the agent
@@ -1515,7 +1516,7 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 | Value | Behavior (when a Copilot session is started) |
 |-------|----------------------------------------------|
 | `true` (default) | Starts `gh copilot suggest` with an attached terminal — the reviewer interacts with it directly in VS Code. |
-| `false` | Starts `gh copilot suggest` as a detached background process, capturing output to `scripts/temp/background-tasks/logs/`. Use for Azure DevOps pipelines or other headless environments. |
+| `false` | Starts `gh copilot suggest` as a detached background process, capturing output to `.agdt/workflows/…/background-tasks/logs/`. Use for Azure DevOps pipelines or other headless environments. |
 
 If `gh copilot` is not installed, a warning is printed and the prompt file path is shown so the review can be started manually.
 
@@ -1569,7 +1570,7 @@ reviewed.
 
 #### Review State File (`review-state.json`)
 
-Location: `scripts/temp/pull-request-review/prompts/{pr_id}/review-state.json`
+Location: `.agdt/workflows/{identity}/{worktree_key}/pull-request-review/prompts/{pr_id}/review-state.json`
 
 This file tracks all thread IDs, statuses, and suggestions for the entire review session:
 
@@ -1665,7 +1666,7 @@ For use in Azure DevOps pipelines (headless, no interactive terminal):
 
 When running in pipeline mode (`--interactive false`):
 
-- `gh copilot` output is captured to `scripts/temp/background-tasks/logs/copilot_session_*.log`.
+- `gh copilot` output is captured to `.agdt/workflows/…/background-tasks/logs/copilot_session_*.log`.
 - The Copilot process runs as a direct child process (via `subprocess.Popen`), not as an
   agdt background task, so there is no background task ID and `agdt-task-wait` is not
   applicable. Monitor completion using the `copilot.pid` state key and/or by tailing the
@@ -1683,7 +1684,7 @@ non-interactive mode:
   in CI pipelines), interactive mode is automatically disabled and `copilot.mode` is set
   to `"non-interactive"`.
 - In all of these cases, the rendered prompt is written to
-  `scripts/temp/copilot-session-<session_id>-prompt.md`, and the session metadata is still
+  `copilot-session-<session_id>-prompt.md` in the state directory, and the session metadata is still
   persisted to state (`copilot.*` keys).
 - The reviewer can open the prompt file in VS Code (or any editor) and start a manual
   Copilot session if desired.
@@ -1748,7 +1749,7 @@ agdt-get-jira-issue
 This fetches the issue and:
 
 - Prints formatted details (key, summary, type, labels, description, comments)
-- Saves full JSON response to `scripts/temp/temp-get-issue-details-response.json`
+- Saves full JSON response to `temp-get-issue-details-response.json` in the state directory
 - Stores issue in state as `jira.last_issue`
 
 ### Add Comment to Jira Issue
@@ -1820,20 +1821,20 @@ agdt-add-jira-comment  # Previews without posting
 
 | File | Command | Content |
 |------|---------|---------|
-| `scripts/temp/agdt-state.json` | All commands | Persistent state storage |
-| `scripts/temp/temp-get-issue-details-response.json` | `agdt-get-jira-issue` | Full Jira API response |
-| `scripts/temp/temp-get-pull-request-details-response.json` | `agdt-get-pull-request-details` | Full PR details payload |
-| `scripts/temp/pull-request-review/prompts/<pr_id>/` | `agdt-review-pull-request` | Review prompts directory |
-| `scripts/temp/pull-request-review/prompts/<pr_id>/review-state.json` | `agdt-review-pull-request` | Hierarchical review state (thread IDs, statuses, suggestions) |
-| `scripts/temp/temp-<workflow>-<step>-prompt.md` | Workflow initiation commands | Rendered workflow prompts |
+| `.agdt/workflows/…/state.json` | All commands | Persistent state storage |
+| `.agdt/workflows/…/temp-get-issue-details-response.json` | `agdt-get-jira-issue` | Full Jira API response |
+| `.agdt/workflows/…/temp-get-pull-request-details-response.json` | `agdt-get-pull-request-details` | Full PR details payload |
+| `.agdt/workflows/…/pull-request-review/prompts/<pr_id>/` | `agdt-review-pull-request` | Review prompts directory |
+| `.agdt/workflows/…/pull-request-review/prompts/<pr_id>/review-state.json` | `agdt-review-pull-request` | Hierarchical review state (thread IDs, statuses, suggestions) |
+| `.agdt/workflows/…/temp-<workflow>-<step>-prompt.md` | Workflow initiation commands | Rendered workflow prompts |
 
 ### Background Task Storage Structure
 
-Background tasks use a separate storage structure in `scripts/temp/background-tasks/`:
+Background tasks use a separate storage structure in `.agdt/workflows/…/background-tasks/`:
 
 ```text
-scripts/temp/
-├── agdt-state.json                    # Main state file (contains background.recentTasks)
+.agdt/workflows/{identity}/{worktree_key}/
+├── state.json                         # Main state file (contains background.recentTasks)
 └── background-tasks/
     ├── all-background-tasks.json      # Complete history of all tasks (never pruned)
     └── logs/

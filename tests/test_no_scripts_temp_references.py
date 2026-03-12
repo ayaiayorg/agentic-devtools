@@ -1,15 +1,19 @@
-"""Verify no scripts/temp references remain in the codebase."""
+"""Verify no stale scripts/temp references remain in the codebase."""
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 EXCLUDE_DIRS = {".git", ".venv", "venv", "__pycache__", ".eggs", "build", "dist", "node_modules"}
 EXCLUDE_FILES = {"CHANGELOG.md"}
 SCAN_EXTENSIONS = {".py", ".md"}
 
+# The pattern we are scanning for — kept as a constant so this test file
+# does not itself contain the literal pattern on assertion/comment lines.
+_BANNED_PATTERN = "scripts" + "/" + "temp"
 
-def test_no_scripts_temp_references():
-    """Ensure no file in the repo references the old scripts/temp/ path."""
+
+def test_no_stale_state_dir_references():
+    """Ensure no file in the repo references the old state directory path."""
     hits = []
     for path in REPO_ROOT.rglob("*"):
         if any(part in EXCLUDE_DIRS for part in path.parts):
@@ -20,8 +24,11 @@ def test_no_scripts_temp_references():
             continue
         if not path.is_file():
             continue
+        # Skip this test file itself
+        if path.resolve() == Path(__file__).resolve():
+            continue
         content = path.read_text(encoding="utf-8", errors="ignore")
         for lineno, line in enumerate(content.splitlines(), 1):
-            if "scripts/temp" in line:
+            if _BANNED_PATTERN in line:
                 hits.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
-    assert not hits, "Found scripts/temp references:\n" + "\n".join(hits)
+    assert not hits, f"Found {_BANNED_PATTERN} references:\n" + "\n".join(hits)
