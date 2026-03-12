@@ -18,7 +18,7 @@ class TestLoadState:
 
     def test_load_state_handles_corrupt_json(self, temp_state_dir):
         """Test that corrupt JSON returns empty dict."""
-        state_file = temp_state_dir / "agdt-state.json"
+        state_file = temp_state_dir / "state.json"
         state_file.write_text("{ invalid json", encoding="utf-8")
 
         result = state.load_state()

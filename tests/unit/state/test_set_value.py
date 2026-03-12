@@ -124,3 +124,137 @@ I've fixed the issue:
 - Changed {config}"""
         state.set_value("content", content)
         assert state.get_value("content") == content
+
+
+class TestSetValueBootstrapWiring:
+    """Tests for bootstrap worktree_key sync inside set_value."""
+
+    def test_jira_issue_key_updates_bootstrap(self, tmp_path, monkeypatch):
+        """set_value('jira.issue_key', ...) updates bootstrap worktree_key."""
+        import json
+
+        # Create a bootstrap file so the updater can find it
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
+
+        # The state dir is under .agdt/workflows/... so the CWD walk-up finds .agdt
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_value("jira.issue_key", "DFLY-1234")
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "DFLY-1234"
+        assert data["identity"] == "ama"
+
+    def test_pull_request_id_updates_bootstrap(self, tmp_path, monkeypatch):
+        """set_value('pull_request_id', ...) updates bootstrap with PR prefix."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "xyz"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_value("pull_request_id", 42)
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "PR42"
+
+    def test_empty_value_skips_bootstrap(self, tmp_path, monkeypatch):
+        """set_value with empty string skips bootstrap update."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_value("jira.issue_key", "  ")
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        # No worktree_key should be added
+        assert "worktree_key" not in data
+
+    def test_non_context_key_skips_bootstrap(self, temp_state_dir):
+        """set_value for non-context keys does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("some_other_key", "value")
+
+        mock_update.assert_not_called()
+
+    def test_bootstrap_failure_does_not_break_set_value(self, temp_state_dir):
+        """Bootstrap write failure is non-fatal."""
+        with patch.object(state, "_update_bootstrap_worktree_key", side_effect=RuntimeError("fail")):
+            # Should not raise
+            state.set_value("jira.issue_key", "PROJ-1")
+
+        assert state.get_value("jira.issue_key") == "PROJ-1"
+
+    def test_non_string_jira_key_skips_bootstrap(self, temp_state_dir):
+        """set_value('jira.issue_key', non-str) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("jira.issue_key", 123)
+
+        mock_update.assert_not_called()
+
+    def test_non_digit_pr_id_skips_bootstrap(self, temp_state_dir):
+        """set_value('pull_request_id', 'abc') does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", "abc")
+
+        mock_update.assert_not_called()
+
+    def test_dict_value_for_jira_key_skips_bootstrap(self, temp_state_dir):
+        """set_value('jira.issue_key', dict) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("jira.issue_key", {"bad": "input"})
+
+        mock_update.assert_not_called()
+
+    def test_string_digit_pr_id_updates_bootstrap(self, tmp_path, monkeypatch):
+        """set_value('pull_request_id', '42') updates bootstrap with PR prefix."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "xyz"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_value("pull_request_id", "42")
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "PR42"
+
+    def test_bool_pr_id_skips_bootstrap(self, temp_state_dir):
+        """set_value('pull_request_id', True) must not write PRTrue/PR1."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", True)
+
+        mock_update.assert_not_called()
+
+    def test_none_jira_key_skips_bootstrap(self, temp_state_dir):
+        """set_value('jira.issue_key', None) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("jira.issue_key", None)
+
+        mock_update.assert_not_called()

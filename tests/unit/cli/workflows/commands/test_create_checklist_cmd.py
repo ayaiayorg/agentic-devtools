@@ -35,7 +35,7 @@ def clear_state_before(temp_state_dir):
     Note: We only remove the state file, not the entire temp folder,
     to avoid deleting directories created by other fixtures (like temp_prompts_dir).
     """
-    state_file = temp_state_dir / "agdt-state.json"
+    state_file = temp_state_dir / "state.json"
     if state_file.exists():
         state_file.unlink()
     yield

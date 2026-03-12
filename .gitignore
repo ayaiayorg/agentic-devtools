@@ -54,6 +54,7 @@ htmlcov/
 # State files
 scripts/temp/
 .agdt-temp/
+.agdt/
 *.log
 
 # Spec-Driven Development artifacts
