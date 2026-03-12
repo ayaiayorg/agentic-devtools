@@ -22,7 +22,7 @@ SCAN_EXTENSIONS = {".py", ".md", ".toml", ".yml", ".yaml", ".txt", ".rst", ".cfg
 
 # Files whose docstrings still reference the old path because editing them
 # triggers a CI module-coverage gate that cannot currently pass (the azure
-# module has <100 % unit-test coverage).  Tracked for cleanup separately.
+# module has <100% unit-test coverage).  Tracked for cleanup separately.
 _KNOWN_EXCEPTIONS = {
     Path("agentic_devtools/cli/azure/app_insights_commands.py"),
 }
