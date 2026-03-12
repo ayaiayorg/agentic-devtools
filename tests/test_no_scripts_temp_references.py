@@ -17,7 +17,7 @@ EXCLUDE_DIRS = {
     ".dfly-temp",
 }
 EXCLUDE_FILES = {"CHANGELOG.md"}
-# Scan all common text file types so the check is equivalent to `grep -r`.
+# Scan common text file types where this pattern is likely to appear.
 SCAN_EXTENSIONS = {".py", ".md", ".toml", ".yml", ".yaml", ".txt", ".rst", ".cfg", ".ini"}
 
 # Files whose docstrings still reference the old path because editing them
