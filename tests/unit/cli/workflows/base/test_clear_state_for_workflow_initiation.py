@@ -44,13 +44,6 @@ class TestClearStateForWorkflowInitiation:
 
         mock_clear.assert_not_called()
 
-    def test_does_not_call_clear_temp_folder(self, temp_state_dir, capsys):
-        """Should NOT call clear_temp_folder() — no filesystem deletion."""
-        with patch("agentic_devtools.state.clear_temp_folder") as mock_clear_temp:
-            clear_state_for_workflow_initiation()
-
-        mock_clear_temp.assert_not_called()
-
     def test_only_deletes_expected_keys(self, temp_state_dir, capsys):
         """Should delete exactly workflow and agdt_run_id, nothing else."""
         state.set_value("workflow", {"name": "test"})

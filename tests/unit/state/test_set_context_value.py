@@ -187,14 +187,6 @@ class TestSetContextValue:
         captured = capsys.readouterr()
         assert "unchanged" in captured.out
 
-    def test_set_context_value_does_not_call_clear_temp_folder(self, temp_state_dir):
-        """Test that set_context_value does NOT call clear_temp_folder."""
-        with patch.object(state, "clear_temp_folder") as mock_clear:
-            with patch.object(state, "_trigger_cross_lookup"):
-                state.set_context_value("pull_request_id", 12345, verbose=False)
-
-        mock_clear.assert_not_called()
-
 
 class TestTriggerCrossLookup:
     """Tests for _trigger_cross_lookup (called by set_context_value)."""

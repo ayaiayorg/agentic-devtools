@@ -42,3 +42,13 @@ def test_clear_state_preserves_other_files(temp_state_dir):
 
     assert state.load_state() == {}
     assert other_file.exists()
+
+
+def test_clear_temp_folder_not_available():
+    """Verify clear_temp_folder has been removed from the state module.
+
+    clear_temp_folder() was a destructive function that deleted the entire
+    state directory contents.  It was removed as part of the -agdt branch
+    persistence migration (see #854, parent #843).
+    """
+    assert not hasattr(state, "clear_temp_folder")
