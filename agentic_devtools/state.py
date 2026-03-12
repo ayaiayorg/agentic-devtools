@@ -831,48 +831,6 @@ def delete_value(key: str) -> bool:
         return False
 
 
-def clear_temp_folder(preserve_keys: Optional[Dict[str, Any]] = None) -> None:
-    """
-    Clear the workflow state directory returned by ``get_state_dir()``.
-
-    This removes all contents of the active workflow directory including:
-    - state.json (the state file)
-    - pull-request-review/ (PR review queue and prompts)
-    - background-tasks/ (background task state)
-    - All temp-*.json and temp-*.md files
-
-    Note: The bootstrap file (``.agdt/runtime-bootstrap.json``) and
-    ``.identity-owner`` files are **not** affected — they live outside
-    the per-worktree directory.
-
-    Args:
-        preserve_keys: Optional dict of state keys to preserve after clearing.
-                      These will be written to a fresh state file.
-    """
-    import shutil
-
-    temp_dir = get_state_dir()
-
-    if temp_dir.exists():
-        # Delete everything in the temp folder
-        for item in temp_dir.iterdir():
-            try:
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-            except OSError:
-                # Ignore errors (file in use, permission issues, etc.)
-                pass
-    else:
-        # Create the temp directory if it doesn't exist
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-    # Restore preserved keys to fresh state file if provided
-    if preserve_keys:
-        save_state(preserve_keys)
-
-
 def clear_state() -> None:
     """
     Clear all state by writing an empty JSON file.
