@@ -24,7 +24,7 @@ DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 
 def _save_json(data: Dict[str, Any], run_id: int, source: str) -> Path:
     """
-    Save raw JSON response to temp folder.
+    Save raw JSON response to the workflow state directory.
 
     Args:
         data: JSON data to save.
@@ -137,7 +137,7 @@ def _get_failed_tasks(timeline_data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _save_log_file(log_content: str, run_id: int, task_name: str) -> Path:
     """
-    Save log content to a temp file.
+    Save log content to the workflow state directory.
 
     Args:
         log_content: The log text content.

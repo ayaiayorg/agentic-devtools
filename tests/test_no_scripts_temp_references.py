@@ -1,9 +1,21 @@
-"""Verify no stale scripts/temp references remain in the codebase."""
+"""Verify no stale state-directory references remain in the codebase."""
 
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXCLUDE_DIRS = {".git", ".venv", "venv", "__pycache__", ".eggs", "build", "dist", "node_modules"}
+EXCLUDE_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".eggs",
+    "build",
+    "dist",
+    "node_modules",
+    ".agdt",
+    ".agdt-temp",
+    ".dfly-temp",
+}
 EXCLUDE_FILES = {"CHANGELOG.md"}
 SCAN_EXTENSIONS = {".py", ".md"}
 
