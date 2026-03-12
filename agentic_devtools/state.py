@@ -262,14 +262,38 @@ def set_bootstrap_state(
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
-    # Resolve identity if not provided
+    # Normalize caller-provided identity: must be str, stripped, non-empty
+    if identity is not None:
+        if isinstance(identity, str):
+            identity = identity.strip() or None
+        else:
+            identity = None  # Non-str values treated as unset
+
+    # Resolve identity if not provided (or normalized to None)
     if identity is None:
         identity = existing.get("identity") or _resolve_identity(git_root)
 
+    # Normalize caller-provided worktree_key: must be str, stripped, non-empty
+    effective_wk: Optional[str] = None
+    if worktree_key is not None:
+        if isinstance(worktree_key, str):
+            stripped_wk = worktree_key.strip()
+            if stripped_wk:
+                effective_wk = stripped_wk
+        # Non-str or whitespace-only worktree_key → treated as deletion
+
+    # Update existing dict (pop invalid/empty keys to stay consistent
+    # with get_bootstrap_state() which omits empty-after-strip values)
     if identity:
         existing["identity"] = identity
+    else:
+        existing.pop("identity", None)
+
     if worktree_key is not None:
-        existing["worktree_key"] = worktree_key
+        if effective_wk is not None:
+            existing["worktree_key"] = effective_wk
+        else:
+            existing.pop("worktree_key", None)
 
     # Write bootstrap file
     bootstrap_path.parent.mkdir(parents=True, exist_ok=True)

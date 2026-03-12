@@ -94,3 +94,94 @@ class TestSetBootstrapState:
 
         assert (tmp_path / ".agdt" / "runtime-bootstrap.json").exists()
         assert (tmp_path / ".agdt" / "workflows" / "ama").is_dir()
+
+
+class TestSetBootstrapStateNormalization:
+    """Tests for value normalization in set_bootstrap_state()."""
+
+    def test_strips_whitespace_from_identity(self, tmp_path):
+        """Leading/trailing whitespace on identity is stripped before writing."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="  ama  ", worktree_key="K-1")
+
+        data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data["identity"] == "ama"
+        # Identity dir should use the stripped name
+        assert (tmp_path / ".agdt" / "workflows" / "ama").is_dir()
+
+    def test_strips_whitespace_from_worktree_key(self, tmp_path):
+        """Leading/trailing whitespace on worktree_key is stripped before writing."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key="  DFLY-1  ")
+
+        data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "DFLY-1"
+
+    def test_whitespace_only_identity_falls_back_to_resolve(self, tmp_path):
+        """Whitespace-only identity is treated as None → falls back to auto-resolve."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_resolve_identity", return_value="resolved") as mock_r:
+                with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                    state.set_bootstrap_state(identity="   ", worktree_key="K-1")
+
+        mock_r.assert_called_once()
+        data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data["identity"] == "resolved"
+
+    def test_whitespace_only_worktree_key_clears_existing(self, tmp_path):
+        """Whitespace-only worktree_key removes the key from bootstrap file."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True)
+        (agdt / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "ama", "worktree_key": "OLD-1"}), encoding="utf-8"
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key="   ")
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "worktree_key" not in data
+        assert data["identity"] == "ama"
+
+    def test_empty_string_worktree_key_clears_existing(self, tmp_path):
+        """Empty-string worktree_key removes the key from bootstrap file."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True)
+        (agdt / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "ama", "worktree_key": "OLD-1"}), encoding="utf-8"
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key="")
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "worktree_key" not in data
+
+    def test_non_str_identity_falls_back_to_resolve(self, tmp_path):
+        """Non-string identity (e.g., int) is treated as None → auto-resolve."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_resolve_identity", return_value="resolved") as mock_r:
+                with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                    state.set_bootstrap_state(identity=42, worktree_key="K-1")  # type: ignore[arg-type]
+
+        mock_r.assert_called_once()
+        data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data["identity"] == "resolved"
+
+    def test_identity_pops_when_resolve_fails(self, tmp_path):
+        """When identity cannot be resolved at all, existing identity key is removed."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True)
+        (agdt / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "", "worktree_key": "K-1"}), encoding="utf-8"
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_resolve_identity", return_value=""):
+                with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                    state.set_bootstrap_state(worktree_key="K-2")
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "identity" not in data
+        assert data["worktree_key"] == "K-2"
