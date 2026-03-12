@@ -119,3 +119,15 @@ class TestGetBootstrapState:
             result = state.get_bootstrap_state()
 
         assert result == {}
+
+    def test_returns_empty_dict_when_file_has_invalid_encoding(self, tmp_path):
+        """Returns {} when the bootstrap file has invalid UTF-8 bytes."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        # Write raw bytes that are not valid UTF-8
+        (agdt_dir / "runtime-bootstrap.json").write_bytes(b"\x80\x81\x82\x83")
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {}

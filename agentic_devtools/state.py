@@ -212,7 +212,7 @@ def get_bootstrap_state() -> Dict[str, str]:
                 if stripped:
                     result[key] = stripped
         return result
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
         return {}
 
 
@@ -340,7 +340,7 @@ def get_state_dir() -> Path:
                 bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
                 if not isinstance(bootstrap, dict):
                     bootstrap = {}
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             bootstrap = {}
 
         # Validate types to match get_bootstrap_state()'s strict filtering;
@@ -420,7 +420,7 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
                     encoding="utf-8",
                 )
                 return
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         pass
 
 

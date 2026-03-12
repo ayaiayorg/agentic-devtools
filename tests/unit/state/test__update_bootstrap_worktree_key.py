@@ -121,3 +121,19 @@ class TestUpdateBootstrapWorktreeKey:
 
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert data["worktree_key"] == "DEEP"
+
+    def test_noop_on_invalid_encoding(self, tmp_path, monkeypatch):
+        """Does nothing when bootstrap file has invalid UTF-8 bytes."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        original_bytes = b"\x80\x81\x82\x83"
+        bootstrap_path.write_bytes(original_bytes)
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        # Should not raise
+        state._update_bootstrap_worktree_key("IGNORED")
+
+        # File unchanged — still has the same invalid bytes
+        assert bootstrap_path.read_bytes() == original_bytes

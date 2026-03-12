@@ -129,6 +129,17 @@ class TestGetStateDirBootstrap:
 
                 assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
 
+    def test_unscoped_fallback_invalid_encoding(self, tmp_path):
+        """Bootstrap with invalid UTF-8 bytes → _unscoped."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_bytes(b"\x80\x81\x82\x83")
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+
+                assert result == tmp_path / ".agdt" / "workflows" / "_unscoped"
+
     def test_unscoped_fallback_non_dict_json(self, tmp_path):
         """Bootstrap with non-dict JSON → _unscoped."""
         import json
