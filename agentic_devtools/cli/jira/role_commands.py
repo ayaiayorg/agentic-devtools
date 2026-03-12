@@ -370,7 +370,7 @@ def add_users_to_project_role_batch() -> None:
         agdt-set jira.users "user1,user2,user3.EXT,nonexistent_user"
         agdt-add-users-to-project-role-batch
 
-    Output files (in scripts/temp/):
+    Output files (in the state directory):
     - nonexistent-users-<timestamp>.json: Users that don't exist in Jira
     """
     project_id_or_key = get_jira_value("project_id_or_key")

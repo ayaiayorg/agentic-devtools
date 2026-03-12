@@ -190,8 +190,8 @@ def _make_session_id() -> str:
 def _get_prompt_file_path(session_id: str) -> Path:
     """Return the path where the prompt file should be written.
 
-    The file is placed inside ``scripts/temp/`` relative to the state
-    directory, following the same convention as other temporary files.
+    The file is placed inside the workflow state directory, following the
+    same convention as other temporary files.
 
     Args:
         session_id: The session identifier.

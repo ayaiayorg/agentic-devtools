@@ -442,8 +442,8 @@ def get_pull_request_details() -> None:
         - dry_run: If true, only print what would be done
 
     Output:
-        - Writes JSON to scripts/temp/temp-get-pull-request-details-response.json
-        - Writes file details to scripts/temp/pull-request-review/prompts/<pull_request_id>/pull-request-files.json
+        - Writes JSON to temp-get-pull-request-details-response.json in the state directory
+        - Writes file details to pull-request-review/prompts/<pull_request_id>/pull-request-files.json
 
     Raises:
         SystemExit: On validation or execution errors.

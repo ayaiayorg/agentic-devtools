@@ -367,7 +367,7 @@ For security vulnerabilities, please follow responsible disclosure:
 
 ### Using State Management
 
-The package uses a JSON state file (`scripts/temp/agdt-state.json`) for parameter passing:
+The package uses a JSON state file (`.agdt/workflows/{identity}/{worktree_key}/state.json`) for parameter passing:
 
 ```bash
 # Set values

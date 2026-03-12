@@ -189,7 +189,7 @@ agdt-speckit-taskstoissues
 ```
 
 Each command prints the full agent prompt and saves it to
-`scripts/temp/temp-speckit-<name>-prompt.md`.
+`temp-speckit-<name>-prompt.md` in the workflow state directory.
 
 > **Note:** The `agdt-speckit-*` shell commands are designed for the terminal
 > Copilot CLI. In VS Code Copilot Chat, use `/speckit.*` slash commands instead.

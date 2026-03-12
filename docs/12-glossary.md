@@ -343,9 +343,9 @@
 
 | Location | Purpose |
 |----------|---------|
-| `scripts/temp/agdt-state.json` | State file |
-| `scripts/temp/*.json` | Command output files |
-| `scripts/temp/background-tasks/logs/` | Background task logs |
+| `.agdt/workflows/…/state.json` | State file |
+| `.agdt/workflows/…/*.json` | Command output files |
+| `.agdt/workflows/…/background-tasks/logs/` | Background task logs |
 | `.github/agents/` | Copilot Chat agent definitions |
 | `.github/prompts/` | Copilot Chat prompt stubs |
 | `agentic_devtools/prompts/` | Workflow prompt templates (rendered by CLI workflows) |

@@ -33,7 +33,7 @@ MODULE_VERSION = "2.3.0"  # Added -q parameter support to query_app_insights_asy
 def _get_temp_output_dir() -> Path:
     """Get the temp output directory for query results.
 
-    Uses the state directory (scripts/temp) which is automatically resolved
+    Uses the state directory which is automatically resolved
     relative to the git repo root.
     """
     return get_state_dir()

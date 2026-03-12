@@ -94,5 +94,5 @@ Prioritize catching:
 
 ## Instructions File Reference
 
-The full prompt for this workflow step is saved at:
-scripts/temp/temp-pull-request-review-pull-request-overview-prompt.md
+The full prompt for this workflow step is saved in the workflow state directory
+as `temp-pull-request-review-pull-request-overview-prompt.md`.

@@ -149,7 +149,7 @@ def parse_jira_error_report() -> None:
     Reads from state:
     - jira.error_file_path: Path to the error message file
 
-    Output files (in scripts/temp/):
+    Output files (in the state directory):
     - jira-error-report-<timestamp>.json: Full details in JSON format
     - jira-error-report-<timestamp>.csv: Table format for easy viewing
 

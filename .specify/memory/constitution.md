@@ -36,7 +36,7 @@ All CLI commands must be designed for auto-approval by AI assistants:
 
 ### II. Single Source of Truth
 
-State management must use a single JSON file (`scripts/temp/agdt-state.json`):
+State management must use a single JSON file (`.agdt/workflows/{identity}/{worktree_key}/state.json`):
 
 - All parameters stored in one location
 - No distributed configuration

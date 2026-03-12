@@ -22,7 +22,7 @@ Adding Tests for a New Workflow
 5. Use the shared fixtures from tests/workflows/conftest.py:
    - temp_state_dir: isolated state dir (tmp_path/state/); clear_state() only
      wipes this subdir and never touches temp_output_dir or temp_prompts_dir
-   - temp_output_dir: redirects all prompt/temp file writes away from scripts/temp/
+   - temp_output_dir: redirects all prompt/temp file writes away from the state directory
    - clear_state_before: wipes state before each test (depends on temp_state_dir)
    - mock_jira_issue_response: realistic Jira Story API payload
    - mock_preflight_pass: preflight check always passes (correct worktree assumed)
@@ -30,7 +30,7 @@ Adding Tests for a New Workflow
      via _argv instead (see "Notes on mock_workflow_state_clearing" in conftest.py)
 6. For tests that call advancement helpers that render prompts for the
    pull-request-review workflow, patch get_queue_status to avoid reading
-   the real queue.json from scripts/temp/:
+   the real queue.json from the state directory:
        with patch("agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
                   return_value=<queue_dict>):
            result = advancement.try_advance_workflow_after_pr_review()

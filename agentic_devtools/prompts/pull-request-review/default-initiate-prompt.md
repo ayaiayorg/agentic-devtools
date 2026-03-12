@@ -13,5 +13,5 @@ The agentic-devtools workflow will guide you through each step.
 
 ## Instructions File Reference
 
-The full prompt for this workflow step is saved at:
-scripts/temp/temp-pull-request-review-initiate-prompt.md
+The full prompt for this workflow step is saved in the workflow state directory
+as `temp-pull-request-review-initiate-prompt.md`.

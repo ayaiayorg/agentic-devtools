@@ -695,12 +695,12 @@ python scripts/validate_test_structure.py
 | `JIRA_SSL_VERIFY`                | Set to `0` to disable SSL verification                                              |
 | `JIRA_CA_BUNDLE`                 | Path to custom CA bundle PEM file for Jira SSL                                      |
 | `REQUESTS_CA_BUNDLE`             | Standard requests library CA bundle path (fallback)                                 |
-| `AGENTIC_DEVTOOLS_STATE_DIR`     | Override default state directory (e.g., `scripts/temp`)                             |
+| `AGENTIC_DEVTOOLS_STATE_DIR`     | Override default state directory (e.g., `.agdt/workflows/_unscoped`)                 |
 | `DFLY_AI_HELPERS_STATE_DIR`      | Legacy state directory override (still honored for backward compatibility)          |
 
 ## State File Location
 
-By default, state is stored in `scripts/temp/agdt-state.json` (relative to the
+By default, state is stored in `.agdt/workflows/{identity}/{worktree_key}/state.json` (relative to the
 repo root).
 
 ## Why This Design?
