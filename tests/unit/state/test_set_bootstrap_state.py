@@ -170,6 +170,19 @@ class TestSetBootstrapStateNormalization:
         data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
         assert data["identity"] == "resolved"
 
+    def test_handles_corrupted_existing_bootstrap(self, tmp_path):
+        """Corrupted (non-UTF-8) existing bootstrap is treated as empty, not an error."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True)
+        (agdt / "runtime-bootstrap.json").write_bytes(b"\x80\x81\x82\x83")
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key="K-1")
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data["identity"] == "ama"
+        assert data["worktree_key"] == "K-1"
+
     def test_identity_pops_when_resolve_fails(self, tmp_path):
         """When identity cannot be resolved at all, existing identity key is removed."""
         agdt = tmp_path / ".agdt"

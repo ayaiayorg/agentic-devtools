@@ -259,7 +259,7 @@ def set_bootstrap_state(
                     stripped = bv.strip()
                     if stripped:
                         existing[bk] = stripped
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
         pass
 
     # Normalize caller-provided identity: must be str, stripped, non-empty
