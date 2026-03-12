@@ -296,7 +296,7 @@ def log_prompt_with_save_notice(
 
     ================================================================================
     The exact prompt logged above is also saved to:
-      temp-pull-request-review-initiate-prompt.md
+      .agdt/workflows/…/temp-pull-request-review-initiate-prompt.md
     ================================================================================
 
     Args:
