@@ -6,12 +6,22 @@ This module provides functions to manage implementation checklists:
 - Update checklist items (add/remove/edit)
 - Mark items as completed
 - Check if all items are complete
+
+File location: .agdt/workflows/{identity}/{worktree_key}/implementations/checklist.json
 """
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Import the state module itself for get_state_dir access, so that
+# fixtures patching ``state.get_state_dir`` are respected everywhere.
+from ... import state as _state_module
 from ...state import get_workflow_state, set_workflow_state
+
+IMPLEMENTATIONS_SUBDIR = "implementations"
+CHECKLIST_FILENAME = "checklist.json"
 
 
 @dataclass
@@ -155,13 +165,39 @@ class Checklist:
         return "\n".join(lines)
 
 
+def get_checklist_file_path() -> Path:
+    """Get the path to the checklist.json file.
+
+    The path is scoped by identity and worktree key via
+    :func:`~agentic_devtools.state.get_state_dir`.
+
+    Returns:
+        Path to ``implementations/checklist.json`` under the state directory.
+    """
+    return _state_module.get_state_dir() / IMPLEMENTATIONS_SUBDIR / CHECKLIST_FILENAME
+
+
 def get_checklist() -> Optional[Checklist]:
     """
-    Get the current checklist from workflow state.
+    Get the current checklist.
+
+    Reads from the dedicated ``implementations/checklist.json`` file first.
+    Falls back to the legacy ``workflow.context["checklist"]`` location for
+    backward compatibility.
 
     Returns:
         Checklist object or None if no checklist exists
     """
+    # Try dedicated file first
+    file_path = get_checklist_file_path()
+    if file_path.exists():
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            return Checklist.from_dict(data)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass  # Fall through to legacy location
+
+    # Fall back to legacy workflow context
     workflow = get_workflow_state()
     if not workflow:
         return None
@@ -176,7 +212,12 @@ def get_checklist() -> Optional[Checklist]:
 
 def save_checklist(checklist: Checklist) -> None:
     """
-    Save the checklist to workflow state.
+    Save the checklist to the dedicated file and workflow context.
+
+    Writes to ``implementations/checklist.json`` and calls
+    ``mark_dirty()`` so the auto-persist hook commits the change
+    to the ``-agdt`` branch.  Also updates ``workflow.context``
+    for backward compatibility.
 
     Args:
         checklist: The checklist to save
@@ -185,8 +226,25 @@ def save_checklist(checklist: Checklist) -> None:
     if not workflow:
         raise ValueError("No active workflow to save checklist to")
 
+    checklist_dict = checklist.to_dict()
+
+    # Write to dedicated file
+    file_path = get_checklist_file_path()
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    content = json.dumps(checklist_dict, indent=2, ensure_ascii=False)
+    file_path.write_text(content, encoding="utf-8")
+
+    # Signal that checklist has been mutated for auto-persist.
+    try:
+        from ..git.agdt_branch import mark_dirty
+
+        mark_dirty()
+    except ImportError:
+        pass  # agdt_branch not available (e.g., minimal install)
+
+    # Also update workflow context for backward compatibility
     context = workflow.get("context", {})
-    context["checklist"] = checklist.to_dict()
+    context["checklist"] = checklist_dict
 
     set_workflow_state(
         name=workflow["active"],
