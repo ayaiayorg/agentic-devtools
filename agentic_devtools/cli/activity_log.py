@@ -112,9 +112,13 @@ class ActivityLog:
         posted_commits: Dict[str, ActivityLogEntry] = {}
         for commit_hash, entry_data in raw_commits.items():
             if not isinstance(entry_data, dict):
-                # Skip malformed entries rather than failing the entire load.
+                # Skip malformed entries with unexpected types rather than failing the entire load.
                 continue
-            posted_commits[commit_hash] = ActivityLogEntry.from_dict(entry_data)
+            try:
+                posted_commits[commit_hash] = ActivityLogEntry.from_dict(entry_data)
+            except (KeyError, TypeError):
+                # Skip malformed entries missing required fields rather than failing the entire load.
+                continue
 
         return cls(postedCommits=posted_commits)
 
@@ -309,9 +313,9 @@ def load_activity_log(
     if fallback_to_branch:
         try:
             data = _load_from_branch(source_branch, worktree_key)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             print(
-                "Warning: failed to load activity log from -agdt branch",
+                f"Warning: failed to load activity log from -agdt branch: {exc}",
                 file=sys.stderr,
             )
             data = None
