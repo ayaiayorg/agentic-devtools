@@ -2,9 +2,8 @@
 
 from unittest.mock import patch
 
+from agentic_devtools import state as state_module
 from agentic_devtools.cli.workflows.applied_suggestions import _load_from_branch
-
-_MOD = "agentic_devtools.cli.workflows.applied_suggestions"
 
 
 class TestLoadFromBranch:
@@ -27,7 +26,9 @@ class TestLoadFromBranch:
 
     def test_returns_none_when_no_branch(self):
         """Test returns None when no source branch can be resolved."""
-        with patch(f"{_MOD}.get_value", return_value=None):
+        # _load_from_branch accesses get_value through _state_module.get_value(),
+        # so patch on the actual state module, not on the applied_suggestions module.
+        with patch.object(state_module, "get_value", return_value=None):
             result = _load_from_branch(None, "KEY")
         assert result is None
 
@@ -37,7 +38,9 @@ class TestLoadFromBranch:
             "agentic_devtools.cli.git.agdt_branch.resolve_worktree_key",
             side_effect=ValueError("no key"),
         ):
-            with patch(f"{_MOD}.get_value", return_value=None):
+            # Patch get_value on the state module since _load_from_branch
+            # accesses it through _state_module.get_value().
+            with patch.object(state_module, "get_value", return_value=None):
                 result = _load_from_branch("feature/TEST-1", None)
         assert result is None
 
