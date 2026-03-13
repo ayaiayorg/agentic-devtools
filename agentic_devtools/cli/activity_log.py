@@ -129,9 +129,14 @@ class ActivityLog:
             commit_hash: The commit SHA to look up.
 
         Returns:
-            ``True`` if *commit_hash* is recorded in :attr:`postedCommits`.
+            ``True`` if *commit_hash* is recorded in :attr:`postedCommits`
+            and at least one of :attr:`ActivityLogEntry.prCommentPosted`
+            or :attr:`ActivityLogEntry.jiraCommentPosted` is ``True``.
         """
-        return commit_hash in self.postedCommits
+        entry = self.postedCommits.get(commit_hash)
+        if entry is None:
+            return False
+        return bool(entry.prCommentPosted or entry.jiraCommentPosted)
 
     def mark_as_posted(
         self,
