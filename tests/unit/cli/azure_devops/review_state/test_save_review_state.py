@@ -29,7 +29,7 @@ class TestSaveReviewState:
             state = _make_review_state()
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             assert expected_path.exists()
 
     def test_file_is_valid_json(self, tmp_path):
@@ -38,7 +38,7 @@ class TestSaveReviewState:
             state = _make_review_state()
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             content = expected_path.read_text(encoding="utf-8")
             data = json.loads(content)
             assert data["prId"] == 25365
@@ -49,7 +49,7 @@ class TestSaveReviewState:
             state = _make_review_state(pr_id=99999)
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "99999" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             assert expected_path.exists()
 
     def test_overwrites_existing_file(self, tmp_path):
@@ -62,7 +62,7 @@ class TestSaveReviewState:
             state.latestIterationId = 99
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["latestIterationId"] == 99
 
@@ -72,7 +72,7 @@ class TestSaveReviewState:
             state = _make_review_state()
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             restored = ReviewState.from_dict(data)
             assert restored.prId == 25365
@@ -85,7 +85,7 @@ class TestSaveReviewState:
             state.commitHash = "abc1234def567890"
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["commitHash"] == "abc1234def567890"
 
@@ -96,7 +96,7 @@ class TestSaveReviewState:
             assert state.commitHash is None
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["commitHash"] is None
 
@@ -108,7 +108,7 @@ class TestSaveReviewState:
             state.activityLogThreadId = 999
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["modelId"] == "claude-4"
             assert data["activityLogThreadId"] == 999
@@ -121,6 +121,41 @@ class TestSaveReviewState:
             state.overallSummary.narrativeSummary = "Great PR"
             save_review_state(state)
 
-            expected_path = tmp_path / "pull-request-review" / "prompts" / "25365" / "review-state.json"
+            expected_path = tmp_path / "reviews" / "review-state.json"
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             assert data["overallSummary"]["narrativeSummary"] == "Great PR"
+
+    def test_save_calls_mark_dirty(self, tmp_path):
+        """Test that save_review_state calls mark_dirty after writing."""
+        from agentic_devtools.cli.git.agdt_branch import _reset_dirty, is_dirty
+
+        _reset_dirty()
+        try:
+            with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+                state = _make_review_state()
+                save_review_state(state)
+                assert is_dirty() is True
+        finally:
+            _reset_dirty()
+
+    def test_save_succeeds_when_mark_dirty_import_fails(self, tmp_path):
+        """Test that save_review_state still writes the file when mark_dirty import fails."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            # Patch the import mechanism to simulate ImportError for agdt_branch
+            import builtins
+
+            original_import = builtins.__import__
+
+            def failing_import(name, *args, **kwargs):
+                if "agdt_branch" in name:
+                    raise ImportError("simulated")
+                return original_import(name, *args, **kwargs)
+
+            state = _make_review_state()
+            with patch.object(builtins, "__import__", side_effect=failing_import):
+                save_review_state(state)
+
+            expected_path = tmp_path / "reviews" / "review-state.json"
+            assert expected_path.exists()
+            data = json.loads(expected_path.read_text(encoding="utf-8"))
+            assert data["prId"] == 25365

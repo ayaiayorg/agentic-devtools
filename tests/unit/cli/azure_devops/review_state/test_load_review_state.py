@@ -32,12 +32,12 @@ class TestLoadReviewState:
         """Test that a valid JSON file is loaded and deserialized correctly."""
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             pr_id = 25365
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             state_file = state_dir / "review-state.json"
             state_file.write_text(json.dumps(_minimal_state_data(pr_id)), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert isinstance(result, ReviewState)
         assert result.prId == pr_id
@@ -47,7 +47,7 @@ class TestLoadReviewState:
         """Test that FileNotFoundError is raised when file doesn't exist."""
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             with pytest.raises(FileNotFoundError, match="25365"):
-                load_review_state(25365)
+                load_review_state(25365, fallback_to_branch=False)
 
     def test_loads_state_with_files_and_folders(self, tmp_path):
         """Test loading a state file that includes files and folders."""
@@ -68,11 +68,11 @@ class TestLoadReviewState:
                 }
             }
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert "src" in result.folders
         assert "/src/app.py" in result.files
@@ -81,7 +81,7 @@ class TestLoadReviewState:
         """Test that the FileNotFoundError message includes the PR ID."""
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             with pytest.raises(FileNotFoundError) as exc_info:
-                load_review_state(99999)
+                load_review_state(99999, fallback_to_branch=False)
         assert "99999" in str(exc_info.value)
 
     def test_loads_state_with_commit_hash(self, tmp_path):
@@ -91,11 +91,11 @@ class TestLoadReviewState:
             data = _minimal_state_data(pr_id)
             data["commitHash"] = "deadbeef12345678"
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert result.commitHash == "deadbeef12345678"
 
@@ -106,13 +106,13 @@ class TestLoadReviewState:
             data = _minimal_state_data(pr_id)
             del data["commitHash"]  # Simulate old format
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             state_file = state_dir / "review-state.json"
             state_file.write_text(json.dumps(data), encoding="utf-8")
 
             with pytest.raises(FileNotFoundError, match="43"):
-                load_review_state(pr_id)
+                load_review_state(pr_id, fallback_to_branch=False)
 
             # File should be deleted
             assert not state_file.exists()
@@ -125,13 +125,13 @@ class TestLoadReviewState:
             # Has commitHash but also has old-style folder with threadId
             data["folders"] = {"src": {"threadId": 100, "commentId": 200, "status": "unreviewed", "files": []}}
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             state_file = state_dir / "review-state.json"
             state_file.write_text(json.dumps(data), encoding="utf-8")
 
             with pytest.raises(FileNotFoundError, match="44"):
-                load_review_state(pr_id)
+                load_review_state(pr_id, fallback_to_branch=False)
 
             assert not state_file.exists()
 
@@ -142,11 +142,11 @@ class TestLoadReviewState:
             data = _minimal_state_data(pr_id)
             data["folders"] = {"src": {"threadId": 0, "commentId": 0, "files": ["/src/app.py"]}}
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert "src" in result.folders
 
@@ -166,11 +166,11 @@ class TestLoadReviewState:
                 }
             ]
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert result.modelId == "claude-4"
         assert result.activityLogThreadId == 999
@@ -184,12 +184,74 @@ class TestLoadReviewState:
             data = _minimal_state_data(pr_id)
             # Has commitHash but no modelId, activityLogThreadId, sessions
 
-            state_dir = tmp_path / "pull-request-review" / "prompts" / str(pr_id)
+            state_dir = tmp_path / "reviews"
             state_dir.mkdir(parents=True)
             (state_dir / "review-state.json").write_text(json.dumps(data), encoding="utf-8")
 
-            result = load_review_state(pr_id)
+            result = load_review_state(pr_id, fallback_to_branch=False)
 
         assert result.modelId is None
         assert result.activityLogThreadId == 0
         assert result.sessions == []
+
+    def test_fallback_to_branch_when_local_missing(self, tmp_path):
+        """Test branch fallback returns valid ReviewState when local file missing."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 25365
+            data = _minimal_state_data(pr_id)
+            with patch.object(rs_module, "_load_from_branch", return_value=data) as mock_fb:
+                result = load_review_state(pr_id)
+
+        assert isinstance(result, ReviewState)
+        assert result.prId == pr_id
+        mock_fb.assert_called_once_with(None, None)
+
+    def test_no_fallback_when_disabled(self, tmp_path):
+        """Test that fallback_to_branch=False skips branch fallback."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            with patch.object(rs_module, "_load_from_branch") as mock_fb:
+                with pytest.raises(FileNotFoundError):
+                    load_review_state(25365, fallback_to_branch=False)
+            mock_fb.assert_not_called()
+
+    def test_fallback_returns_none_falls_through_to_error(self, tmp_path):
+        """Test that FileNotFoundError raised when fallback returns None."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            with patch.object(rs_module, "_load_from_branch", return_value=None):
+                with pytest.raises(FileNotFoundError, match="25365"):
+                    load_review_state(25365)
+
+    def test_fallback_with_explicit_branch_and_key(self, tmp_path):
+        """Test that explicit branch and key are forwarded to _load_from_branch."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            data = _minimal_state_data(25365)
+            with patch.object(rs_module, "_load_from_branch", return_value=data) as mock_fb:
+                load_review_state(25365, source_branch="feat/X", worktree_key="X-123")
+            mock_fb.assert_called_once_with("feat/X", "X-123")
+
+    def test_local_file_takes_precedence_over_branch(self, tmp_path):
+        """Test that local file is used even when branch fallback is available."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 25365
+            state_dir = tmp_path / "reviews"
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "review-state.json"
+            state_file.write_text(json.dumps(_minimal_state_data(pr_id)), encoding="utf-8")
+
+            with patch.object(rs_module, "_load_from_branch") as mock_fb:
+                result = load_review_state(pr_id)
+
+            assert result.prId == pr_id
+            mock_fb.assert_not_called()
+
+    def test_fallback_migration_detection_no_delete(self, tmp_path):
+        """Test that branch fallback with incompatible format raises without deleting."""
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            pr_id = 25365
+            data = _minimal_state_data(pr_id)
+            del data["commitHash"]  # Incompatible format
+            with patch.object(rs_module, "_load_from_branch", return_value=data):
+                with pytest.raises(FileNotFoundError):
+                    load_review_state(pr_id)
+            # No local file existed, nothing to delete
+            assert not (tmp_path / "reviews" / "review-state.json").exists()

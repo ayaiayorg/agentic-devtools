@@ -1,10 +1,11 @@
 """Review state schema and CRUD functions for managing hierarchical PR review state.
 
 Provides dataclasses for each schema level and load/save/update functions.
-File location: .agdt/workflows/{identity}/{worktree_key}/pull-request-review/prompts/{pr_id}/review-state.json
+File location: .agdt/workflows/{identity}/{worktree_key}/reviews/review-state.json
 """
 
 import json
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Dict, List, Optional
 
 from ...state import get_state_dir
 
-REVIEW_STATE_DIR_PARTS = ("pull-request-review", "prompts")
+REVIEW_STATE_SUBDIR = "reviews"
 REVIEW_STATE_FILENAME = "review-state.json"
 
 
@@ -442,62 +443,213 @@ def normalize_file_path(file_path: str) -> str:
 
 def get_review_state_file_path(pr_id: int) -> Path:
     """
-    Get the path to the review-state.json file for a PR.
+    Get the path to the review-state.json file.
+
+    After the migration to .agdt/workflows/, the path is scoped by
+    identity and worktree_key (via ``get_state_dir()``), not by PR ID.
+    The ``pr_id`` parameter is retained for caller compatibility but
+    is no longer used in path construction.
 
     Args:
-        pr_id: Pull request ID.
+        pr_id: Pull request ID (retained for backward compatibility).
 
     Returns:
         Path to review-state.json.
     """
-    return get_state_dir() / REVIEW_STATE_DIR_PARTS[0] / REVIEW_STATE_DIR_PARTS[1] / str(pr_id) / REVIEW_STATE_FILENAME
+    return get_state_dir() / REVIEW_STATE_SUBDIR / REVIEW_STATE_FILENAME
 
 
-def load_review_state(pr_id: int) -> ReviewState:
-    """
-    Load review state from JSON file.
-
-    Implements migration detection: if the state file uses the old format
-    (``FolderEntry`` with ``threadId`` fields or missing ``commitHash``),
-    the file is deleted and ``FileNotFoundError`` is raised so the caller
-    proceeds with a fresh scaffolding run.
+def _validate_and_deserialize(
+    data: dict,
+    pr_id: int,
+    file_path: Path,
+    *,
+    delete_on_migration: bool,
+) -> ReviewState:
+    """Validate and deserialize review state data, with migration detection.
 
     Args:
-        pr_id: Pull request ID.
+        data: Parsed JSON data.
+        pr_id: PR ID for error messages and PR ID mismatch detection.
+        file_path: Local file path (for deletion if migration needed).
+        delete_on_migration: If True, delete the local file when
+            incompatible format is detected or PR ID mismatches.
+            False when data came from the -agdt branch (nothing local
+            to delete).
 
     Returns:
         ReviewState object.
 
     Raises:
-        FileNotFoundError: If review-state.json does not exist for this PR,
-            or if an incompatible old-format file was detected and deleted.
+        FileNotFoundError: If incompatible format detected or PR ID
+            does not match ``pr_id``.
     """
-    file_path = get_review_state_file_path(pr_id)
-    if not file_path.exists():
+    # PR ID mismatch: the per-worktree file may belong to a different PR
+    # (e.g., worktree reused for another PR review).
+    stored_id = data.get("prId") if isinstance(data, dict) else None
+    if stored_id != pr_id:
+        if delete_on_migration:
+            print(
+                f"Review state PR ID mismatch (file has {stored_id}, expected {pr_id}). Deleting and re-scaffolding.",
+                file=sys.stderr,
+            )
+            if file_path.exists():
+                file_path.unlink()
+        else:
+            print(
+                f"Review state PR ID mismatch (file has {stored_id}, expected {pr_id}). Re-scaffolding required.",
+                file=sys.stderr,
+            )
         raise FileNotFoundError(f"Review state not found for PR {pr_id}: {file_path}")
 
-    content = file_path.read_text(encoding="utf-8")
-    data = json.loads(content)
-
-    # Migration detection: old format lacks commitHash or has FolderEntry with threadId
     needs_migration = "commitHash" not in data
-    if not needs_migration:
-        for folder_data in data.get("folders", {}).values():
+    folders = data.get("folders", {})
+    if not needs_migration and isinstance(folders, dict):
+        for folder_data in folders.values():
             if isinstance(folder_data, dict) and folder_data.get("threadId", 0) != 0:
                 needs_migration = True
                 break
+    elif not isinstance(folders, dict):
+        needs_migration = True
 
     if needs_migration:
-        print(f"Incompatible review state format detected for PR {pr_id}. Deleting and re-scaffolding.")
-        file_path.unlink()
+        if delete_on_migration:
+            print(
+                f"Incompatible review state format detected for PR {pr_id}. Deleting and re-scaffolding.",
+                file=sys.stderr,
+            )
+            if file_path.exists():
+                file_path.unlink()
+        else:
+            print(
+                f"Incompatible review state format detected for PR {pr_id}. Re-scaffolding required.",
+                file=sys.stderr,
+            )
         raise FileNotFoundError(f"Review state not found for PR {pr_id}: {file_path}")
 
     return ReviewState.from_dict(data)
 
 
+def _load_from_branch(
+    source_branch: Optional[str],
+    worktree_key: Optional[str],
+) -> Optional[dict]:
+    """Attempt to load review-state.json from the -agdt branch.
+
+    Returns the parsed dict if found, or None if unavailable.
+    Expected failure modes (import unavailable, worktree resolution,
+    git plumbing, JSON parsing) are caught individually.
+    """
+    try:
+        from ...state import get_value
+        from ..git.agdt_branch import (
+            GitPlumbingError,
+            load_workflow_artifacts,
+            resolve_worktree_key,
+        )
+    except ImportError:
+        return None
+
+    try:
+        # Resolve source_branch
+        effective_branch = source_branch
+        if not effective_branch:
+            effective_branch = get_value("versionControl.currentBranch")
+        if not effective_branch or not str(effective_branch).strip():
+            return None
+        effective_branch = str(effective_branch).strip()
+
+        # Resolve worktree_key — raises ValueError when unresolvable
+        effective_key = worktree_key
+        if not effective_key:
+            try:
+                effective_key = resolve_worktree_key()
+            except ValueError:
+                return None
+
+        artifacts = load_workflow_artifacts(
+            source_branch=effective_branch,
+            worktree_key=effective_key,
+            workflow_type="reviews",
+        )
+        if artifacts is None:
+            return None
+
+        # Find the review-state.json entry
+        for path, content in artifacts.items():
+            if path.endswith(REVIEW_STATE_FILENAME):
+                if isinstance(content, dict):
+                    return content
+                if isinstance(content, str):
+                    return json.loads(content)
+        return None
+    except (GitPlumbingError, json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def load_review_state(
+    pr_id: int,
+    *,
+    fallback_to_branch: bool = True,
+    source_branch: Optional[str] = None,
+    worktree_key: Optional[str] = None,
+) -> ReviewState:
+    """
+    Load review state from JSON file.
+
+    Implements migration detection: if the state file uses the old format
+    (``FolderEntry`` with ``threadId`` fields or missing ``commitHash``),
+    or the stored ``prId`` does not match the requested *pr_id*, the local
+    file is deleted and ``FileNotFoundError`` is raised so the caller
+    proceeds with a fresh scaffolding run.  When data comes from the
+    ``-agdt`` branch fallback, the same validation is performed but no
+    local file is deleted (there is nothing local to remove).
+
+    When the local file does not exist and ``fallback_to_branch`` is
+    ``True``, attempts to read review-state.json from the ``-agdt``
+    branch via ``load_workflow_artifacts()``.
+
+    Args:
+        pr_id: Pull request ID (retained for backward compatibility).
+        fallback_to_branch: If True (default), attempt to load from the
+            -agdt branch when local file is missing.
+        source_branch: Optional source branch name for branch fallback.
+            When None, resolved from state
+            (``get_value("versionControl.currentBranch")``).
+        worktree_key: Optional worktree key for branch fallback.
+            When None, resolved via ``resolve_worktree_key()``.
+
+    Returns:
+        ReviewState object.
+
+    Raises:
+        FileNotFoundError: If review-state.json does not exist locally
+            (and branch fallback is disabled or unavailable), or if an
+            incompatible old-format file was detected (deleted when local,
+            left in place when from branch fallback).
+    """
+    file_path = get_review_state_file_path(pr_id)
+
+    if file_path.exists():
+        content = file_path.read_text(encoding="utf-8")
+        data = json.loads(content)
+        return _validate_and_deserialize(data, pr_id, file_path, delete_on_migration=True)
+
+    # Local file not found — attempt branch fallback
+    if fallback_to_branch:
+        data = _load_from_branch(source_branch, worktree_key)
+        if data is not None:
+            return _validate_and_deserialize(data, pr_id, file_path, delete_on_migration=False)
+
+    raise FileNotFoundError(f"Review state not found for PR {pr_id}: {file_path}")
+
+
 def save_review_state(review_state: ReviewState) -> None:
     """
     Save review state to JSON file.
+
+    After writing, calls ``mark_dirty()`` so the auto-persist hook
+    commits the change to the ``-agdt`` branch.
 
     Args:
         review_state: ReviewState object to save.
@@ -506,6 +658,14 @@ def save_review_state(review_state: ReviewState) -> None:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(review_state.to_dict(), indent=2, ensure_ascii=False)
     file_path.write_text(content, encoding="utf-8")
+
+    # Signal that review state has been mutated for auto-persist.
+    try:
+        from ..git.agdt_branch import mark_dirty
+
+        mark_dirty()
+    except ImportError:
+        pass  # agdt_branch not available (e.g., minimal install)
 
 
 def get_file_entry(review_state: ReviewState, file_path: str) -> Optional[FileEntry]:
