@@ -26,7 +26,8 @@ class TestLoadFromBranch:
 
     def test_returns_none_when_no_branch(self):
         """Test returns None when no source branch can be resolved."""
-        # _load_from_branch accesses get_value through _state_module.get_value(),
+        # _load_from_branch accesses get_value through _state_module.get_value()
+        # (see applied_suggestions.py line 15: ``from ... import state as _state_module``),
         # so patch on the actual state module, not on the applied_suggestions module.
         with patch.object(state_module, "get_value", return_value=None):
             result = _load_from_branch(None, "KEY")
@@ -39,7 +40,8 @@ class TestLoadFromBranch:
             side_effect=ValueError("no key"),
         ):
             # Patch get_value on the state module since _load_from_branch
-            # accesses it through _state_module.get_value().
+            # accesses it through _state_module.get_value()
+            # (see applied_suggestions.py line 15).
             with patch.object(state_module, "get_value", return_value=None):
                 result = _load_from_branch("feature/TEST-1", None)
         assert result is None
