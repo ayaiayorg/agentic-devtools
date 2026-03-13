@@ -415,6 +415,19 @@ agdt-git-publish     # Push with upstream tracking
 
 The package provides workflow commands for managing structured work processes.
 
+When a workflow creates a new worktree and opens it in VS Code, a Copilot CLI
+session can auto-start in the VS Code **integrated terminal** via a
+`.vscode/tasks.json` entry with `"runOn": "folderOpen"`. This makes the session
+immediately visible to the user as soon as the window opens. The task is
+one-shot: it writes a sentinel file (`.agdt/.copilot-auto-start-triggered`)
+before execution and removes itself from `tasks.json` after running, so no
+git-tracked changes remain.
+
+If VS Code is not available (headless context, `code` not on PATH), the session
+falls back to a background process and a notice is printed:
+`"NOTE: VS Code integrated terminal auto-start not available. Copilot session
+will run in the background. Run agdt-task-log to view output."`
+
 ### Work on Jira Issue Workflow
 
 ```bash
