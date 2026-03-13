@@ -1329,6 +1329,52 @@ def initiate_apply_pull_request_review_suggestions_workflow(
         optional_state_keys=["jira.issue_key"],
     )
 
+    # Auto-copy review state into the apply-suggestions directory
+    # so the agent has cross-workflow context prepared automatically.
+    _copy_review_state_to_apply_suggestions()
+
+
+def _copy_review_state_to_apply_suggestions() -> None:
+    """Copy review-state.json into the apply-suggestions directory.
+
+    Reads the current review state (from the local ``reviews/`` directory)
+    and snapshots it into the ``apply-suggestions/`` directory as part of
+    the ``AppliedSuggestionsState.reviewStateSnapshot``.  This gives the
+    AI agent cross-workflow context without requiring an explicit
+    ``load_workflow_artifacts()`` call.
+
+    Silently does nothing when no review state exists or any read fails.
+    """
+    import json
+
+    from ...state import get_state_dir, get_value
+    from ..azure_devops.review_state import REVIEW_STATE_FILENAME, REVIEW_STATE_SUBDIR
+    from .applied_suggestions import (
+        AppliedSuggestionsState,
+        save_applied_suggestions_state,
+    )
+
+    review_state_path = get_state_dir() / REVIEW_STATE_SUBDIR / REVIEW_STATE_FILENAME
+    if not review_state_path.exists():
+        return
+
+    try:
+        review_data = json.loads(review_state_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+
+    raw_pr_id = get_value("pull_request_id")
+    try:
+        pr_id = int(raw_pr_id) if raw_pr_id is not None else 0
+    except (TypeError, ValueError):
+        pr_id = 0
+
+    applied_state = AppliedSuggestionsState(
+        prId=pr_id,
+        reviewStateSnapshot=review_data,
+    )
+    save_applied_suggestions_state(applied_state)
+
 
 # =============================================================================
 # Checklist Commands
