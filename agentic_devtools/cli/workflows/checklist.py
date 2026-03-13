@@ -194,7 +194,7 @@ def get_checklist() -> Optional[Checklist]:
         try:
             data = json.loads(file_path.read_text(encoding="utf-8"))
             return Checklist.from_dict(data)
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
             pass  # Fall through to legacy location
 
     # Fall back to legacy workflow context
