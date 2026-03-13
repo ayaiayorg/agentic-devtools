@@ -64,3 +64,19 @@ class TestCopyReviewStateToApplySuggestions:
         assert applied_path.exists()
         data = json.loads(applied_path.read_text(encoding="utf-8"))
         assert data["prId"] == 0
+
+    def test_pr_id_defaults_to_zero_when_non_integer(self, tmp_path):
+        """Test that prId defaults to 0 when pull_request_id is a non-integer string."""
+        review_dir = tmp_path / "reviews"
+        review_dir.mkdir()
+        review_data = {"prId": 0}
+        (review_dir / "review-state.json").write_text(json.dumps(review_data), encoding="utf-8")
+
+        with patch.object(state, "get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_value", return_value="abc"):
+                _copy_review_state_to_apply_suggestions()
+
+        applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
+        assert applied_path.exists()
+        data = json.loads(applied_path.read_text(encoding="utf-8"))
+        assert data["prId"] == 0

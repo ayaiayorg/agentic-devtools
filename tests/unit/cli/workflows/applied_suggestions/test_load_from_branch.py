@@ -88,7 +88,7 @@ class TestLoadFromBranch:
         side_effect=KeyError("bad key"),
     )
     @patch("agentic_devtools.cli.git.agdt_branch._branch_exists_locally", return_value=True)
-    def test_returns_none_and_warns_on_runtime_error(self, _loc, _tree, capsys):
+    def test_returns_none_and_warns_on_plumbing_error(self, _loc, _tree, capsys):
         """Test returns None and prints warning when git plumbing fails."""
         result = _load_from_branch("feature/TEST-1", "KEY")
         assert result is None

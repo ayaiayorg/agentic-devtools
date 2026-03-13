@@ -108,3 +108,14 @@ class TestLoadAppliedSuggestionsState:
                 worktree_key="TEST-1",
             )
         assert result is None
+
+    @patch(f"{_MOD}._load_from_branch", side_effect=Exception("unexpected"))
+    def test_branch_fallback_catches_exception(self, mock_branch, tmp_path):
+        """Test that branch fallback catches any exception and returns None."""
+        with patch.object(state_module, "get_state_dir", return_value=tmp_path):
+            result = load_applied_suggestions_state(
+                fallback_to_branch=True,
+                source_branch="feature/TEST-1",
+                worktree_key="TEST-1",
+            )
+        assert result is None
