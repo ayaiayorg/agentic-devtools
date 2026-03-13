@@ -271,6 +271,26 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     return ["gh", "copilot", "suggest", prompt]
 
 
+def build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[list[str]]:
+    """Build the copilot argument list (public API).
+
+    Public wrapper around the internal argument builder.  Use this when you
+    need to obtain the argument list without starting a full session — for
+    example, to inject it into a VS Code ``tasks.json`` auto-start task.
+
+    Args:
+        prompt: The full prompt text to pass to the copilot command.
+        interactive: When ``True`` (default) the standalone binary receives
+            ``-i``; when ``False`` it receives ``-p`` and
+            ``--allow-all``.
+
+    Returns:
+        List of strings suitable for :func:`subprocess.Popen`, or ``None``
+        when the prompt is too large for the argv path.
+    """
+    return _build_copilot_args(prompt, interactive=interactive)
+
+
 def _persist_session_state(result: CopilotSessionResult) -> None:
     """Write session metadata to ``agdt-state.json``.
 

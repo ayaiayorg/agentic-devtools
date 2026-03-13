@@ -1191,7 +1191,7 @@ def _start_copilot_session_for_pr_review(
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
     """
-    from ..copilot.session import _build_copilot_args, start_copilot_session
+    from ..copilot.session import build_copilot_args, start_copilot_session
 
     prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
 
@@ -1210,7 +1210,7 @@ def _start_copilot_session_for_pr_review(
 
     # --- Attempt VS Code auto-start task injection ---------------------------
     # Build the same copilot command that start_copilot_session() would use.
-    copilot_args = _build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
+    copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
     if copilot_args is not None:
         task_injected = inject_auto_start_task(worktree_path, copilot_args)
         if task_injected and not has_tty:

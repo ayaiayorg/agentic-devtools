@@ -339,7 +339,7 @@ class TestStartCopilotSessionForPrReview:
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
-    @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_skips_copilot_session_when_task_injected_and_no_tty(
         self,
@@ -376,7 +376,7 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=False)
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
-    @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_falls_through_when_task_injection_fails(
         self,
@@ -403,7 +403,7 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
-    @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_falls_through_when_tty_available(
         self,
@@ -437,7 +437,7 @@ class TestStartCopilotSessionForPrReview:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=False)
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=False)
-    @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_prints_fallback_notice_when_vscode_unavailable(
         self,
