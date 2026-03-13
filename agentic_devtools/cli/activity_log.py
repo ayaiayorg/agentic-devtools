@@ -106,9 +106,17 @@ class ActivityLog:
             A new ``ActivityLog`` instance.
         """
         raw_commits = data.get("postedCommits", {})
-        return cls(
-            postedCommits={k: ActivityLogEntry.from_dict(v) for k, v in raw_commits.items()},
-        )
+        if not isinstance(raw_commits, dict):
+            raw_commits = {}
+
+        posted_commits: Dict[str, ActivityLogEntry] = {}
+        for commit_hash, entry_data in raw_commits.items():
+            if not isinstance(entry_data, dict):
+                # Skip malformed entries rather than failing the entire load.
+                continue
+            posted_commits[commit_hash] = ActivityLogEntry.from_dict(entry_data)
+
+        return cls(postedCommits=posted_commits)
 
     def has_been_posted(self, commit_hash: str) -> bool:
         """Check whether a persist commit has already been posted.
@@ -287,11 +295,17 @@ def load_activity_log(
     file_path = get_activity_log_file_path()
 
     if file_path.exists():
-        content = file_path.read_text(encoding="utf-8")
-        data = json.loads(content)
-        return ActivityLog.from_dict(data)
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            data = json.loads(content)
+            return ActivityLog.from_dict(data)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            print(
+                f"Warning: failed to parse local activity log {file_path}: {exc}",
+                file=sys.stderr,
+            )
 
-    # Local file not found — attempt branch fallback
+    # Local file not found or unreadable — attempt branch fallback
     if fallback_to_branch:
         try:
             data = _load_from_branch(source_branch, worktree_key)
