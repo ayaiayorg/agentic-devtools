@@ -552,3 +552,71 @@ class TestInjectAutoStartTask:
         assert "os.rmdir(" not in shell_cmd
         # Should always rewrite
         assert "json.dumps(d,indent=2)" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_cleans_up_stale_task_from_tasks_json(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json has the stale task, remove the task entry."""
+        # Setup: sentinel exists + tasks.json has the stale auto-start task
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [
+                {"label": "agdt-copilot-auto-start", "type": "shell", "command": "copilot"},
+                {"label": "user-task", "type": "shell", "command": "echo hi"},
+            ],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # The stale task should have been removed; user task preserved
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        assert len(data["tasks"]) == 1
+        assert data["tasks"][0]["label"] == "user-task"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_deletes_file_when_only_stale_task_remains(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json has only the stale task, delete the file."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": "agdt-copilot-auto-start", "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        assert not (vscode_dir / "tasks.json").exists()
+        # .vscode/ should be removed too (it's now empty)
+        assert not vscode_dir.exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_noop_when_no_stale_task(self, mock_available, tmp_path):
+        """When sentinel exists but tasks.json has no stale task, leave it untouched."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": "user-task", "type": "shell", "command": "echo hi"}],
+        }
+        original_content = json.dumps(tasks_data)
+        (vscode_dir / "tasks.json").write_text(original_content, encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # File should be untouched
+        assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == original_content

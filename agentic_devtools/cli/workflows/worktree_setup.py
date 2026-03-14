@@ -688,6 +688,57 @@ def _build_cleanup_shell_command(
     return f'{python_cmd} -c "{py_script}"'
 
 
+def _remove_stale_auto_start_task(
+    tasks_path: str,
+    vscode_dir: str,
+    task_label: str,
+) -> None:
+    """Best-effort remove a stale auto-start task from ``tasks.json``.
+
+    Called when the sentinel file already exists, indicating a previous run
+    succeeded but its cleanup may have failed.  If the task is found and
+    removed:
+
+    * When other tasks remain the file is rewritten.
+    * When no tasks remain the file is **deleted** and ``.vscode/`` is
+      removed if empty.
+
+    All errors are silently caught so this never prevents the caller from
+    proceeding.
+    """
+    if not os.path.isfile(tasks_path):
+        return
+    try:
+        with open(tasks_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return
+        tasks_list = data.get("tasks")
+        if not isinstance(tasks_list, list):
+            return
+        original_count = len(tasks_list)
+        data["tasks"] = [
+            t
+            for t in tasks_list
+            if not isinstance(t, dict) or t.get("label") != task_label
+        ]
+        if len(data["tasks"]) == original_count:
+            return  # Task was not present — nothing to clean up
+        if data["tasks"]:
+            # Other tasks remain — rewrite the file.
+            with open(tasks_path, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(data, indent=2) + "\n")
+        else:
+            # No tasks remain — delete the file and try to rmdir .vscode/.
+            os.remove(tasks_path)
+            try:
+                os.rmdir(vscode_dir)
+            except OSError:
+                pass
+    except (json.JSONDecodeError, OSError):
+        pass  # Best-effort — silently ignore errors
+
+
 def inject_auto_start_task(
     worktree_path: str,
     command: List[str],
@@ -742,6 +793,11 @@ def inject_auto_start_task(
     # this guard the task would be written but then exit immediately in
     # the sentinel short-circuit, leaving an orphaned entry in tasks.json.
     if os.path.exists(sentinel_path):
+        # Best-effort cleanup: remove any stale auto-start task that may
+        # have been left behind from a previous run whose cleanup failed
+        # or was interrupted.  This prevents the orphaned task entry from
+        # persisting permanently in tasks.json.
+        _remove_stale_auto_start_task(tasks_path, vscode_dir, task_label)
         return False
 
     # --- Read existing tasks.json (if any) -----------------------------------
@@ -1337,31 +1393,44 @@ def _start_copilot_session_for_pr_review(
                     if not isinstance(tasks_list, list):
                         tasks_list = []
                     if any(isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL for t in tasks_list):
-                        print(
-                            "\n--- VS Code auto-start task present. "
-                            "Waiting for VS Code to start the Copilot session... ---"
-                        )
-                        # Wait up to 15 seconds for the sentinel file to appear,
-                        # which means the VS Code task actually executed.
-                        import time
+                        # Check whether the sentinel already exists *before*
+                        # we start waiting.  A pre-existing sentinel (e.g.
+                        # left from a previous run) would cause the VS Code
+                        # task to exit immediately without starting a session.
+                        # In that case we must fall through to the background
+                        # session so the user still gets a Copilot session.
+                        if os.path.exists(sentinel_path):
+                            print(
+                                "\n--- Pre-existing sentinel detected. "
+                                "VS Code task will skip; falling back to "
+                                "background Copilot session. ---"
+                            )
+                        else:
+                            print(
+                                "\n--- VS Code auto-start task present. "
+                                "Waiting for VS Code to start the Copilot session... ---"
+                            )
+                            # Wait up to 15 seconds for the sentinel file to appear,
+                            # which means the VS Code task actually executed.
+                            import time
 
-                        _SENTINEL_WAIT_SECONDS = 15
-                        _SENTINEL_POLL_INTERVAL = 1.0
-                        waited = 0.0
-                        while waited < _SENTINEL_WAIT_SECONDS:
-                            if os.path.exists(sentinel_path):
-                                print(
-                                    "--- VS Code auto-start task confirmed running. "
-                                    "Copilot session is in the integrated terminal. ---"
-                                )
-                                return
-                            time.sleep(_SENTINEL_POLL_INTERVAL)
-                            waited += _SENTINEL_POLL_INTERVAL
-                        print(
-                            "--- VS Code auto-start task did not fire within "
-                            f"{_SENTINEL_WAIT_SECONDS}s. "
-                            "Falling back to background Copilot session. ---"
-                        )
+                            _SENTINEL_WAIT_SECONDS = 15
+                            _SENTINEL_POLL_INTERVAL = 1.0
+                            waited = 0.0
+                            while waited < _SENTINEL_WAIT_SECONDS:
+                                if os.path.exists(sentinel_path):
+                                    print(
+                                        "--- VS Code auto-start task confirmed running. "
+                                        "Copilot session is in the integrated terminal. ---"
+                                    )
+                                    return
+                                time.sleep(_SENTINEL_POLL_INTERVAL)
+                                waited += _SENTINEL_POLL_INTERVAL
+                            print(
+                                "--- VS Code auto-start task did not fire within "
+                                f"{_SENTINEL_WAIT_SECONDS}s. "
+                                "Falling back to background Copilot session. ---"
+                            )
             except (json.JSONDecodeError, OSError):
                 pass  # Fall through to starting the session directly
 
