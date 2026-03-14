@@ -6,6 +6,8 @@ and open VS Code workspaces for workflow execution.
 It also includes placeholder issue creation for create workflows.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import platform
