@@ -1,8 +1,10 @@
 """Tests for StartCopilotSessionForPrReview."""
 
-from unittest.mock import patch
+import json
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.workflows.worktree_setup import (
+    _AUTO_START_TASK_LABEL,
     COPILOT_SESSION_START_PROMPT,
     _start_copilot_session_for_pr_review,
 )
@@ -324,6 +326,419 @@ class TestStartCopilotSessionForPrReview:
             working_directory=str(tmp_path),
             interactive=False,
         )
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_skips_copilot_session_when_auto_start_task_present_and_no_tty(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When auto-start task exists, sentinel appears *during* wait, and no TTY, skip start_copilot_session."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task already present
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        # Do NOT create the sentinel yet — it appears during the wait loop
+        # (simulating VS Code starting the task after window open).
+        sentinel_dir = tmp_path / ".agdt"
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        # Simulate sentinel appearing during the wait loop (after first sleep)
+        def create_sentinel_on_sleep(_duration):
+            sentinel_dir.mkdir(parents=True, exist_ok=True)
+            (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+
+        with patch("time.sleep", side_effect=create_sentinel_on_sleep):
+            _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        mock_copilot.assert_not_called()
+        written = "".join(call.args[0] for call in mock_stdout.write.call_args_list if call.args)
+        assert "auto-start task confirmed running" in written
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_sentinel_pre_exists(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When sentinel already exists before the wait, fall through to background session."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        # Create sentinel BEFORE the call — simulates a stale sentinel
+        # from a previous run.
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through to background session since sentinel was pre-existing
+        mock_copilot.assert_called_once()
+        written = "".join(call.args[0] for call in mock_stdout.write.call_args_list if call.args)
+        assert "Pre-existing sentinel" in written
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_auto_start_task_present_but_sentinel_never_appears(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When auto-start task present but sentinel never appears, fall through to background session."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        # Do NOT create the sentinel file — simulates VS Code not running the task
+
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        # Mock time.sleep to avoid actual delay in tests
+        with patch("time.sleep"):
+            _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through after the sentinel wait timeout
+        mock_copilot.assert_called_once()
+        written = "".join(call.args[0] for call in mock_stdout.write.call_args_list if call.args)
+        assert "did not fire within" in written
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_no_auto_start_task_in_tasks_json(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json exists but has no auto-start task, fall through to start_copilot_session."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json without the auto-start task
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": "build", "type": "shell", "command": "make"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through since there's no matching auto-start task
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_tty_available_even_with_auto_start_task(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When TTY is available, fall through to start_copilot_session even if auto-start task exists."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = True
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = True
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=False)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_prints_fallback_notice_when_vscode_unavailable(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When VS Code is not available and no TTY, print fallback notice."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        # interactive=True required for fallback notice check
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # stdout is a MagicMock, so check print() output via write calls
+        written = "".join(call.args[0] for call in mock_stdout.write.call_args_list if call.args)
+        assert "VS Code integrated terminal auto-start not available" in written
+        assert "agdt-task-log" in written
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=False)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_skips_detection_when_vscode_unavailable(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When VS Code is unavailable, skip auto-start detection and fall through immediately."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task — should be ignored
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through immediately without entering the wait loop
+        mock_copilot.assert_called_once()
+        # Verify no "Waiting for VS Code" message was printed
+        written = "".join(call.args[0] for call in mock_stdout.write.call_args_list if call.args)
+        assert "Waiting for VS Code" not in written
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_does_not_check_auto_start_when_non_interactive(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+    ):
+        """Non-interactive mode (pipeline) should never check for auto-start task."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write a tasks.json with the auto-start task — should be ignored
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=False)
+
+        # Should always start copilot session in non-interactive mode
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_tasks_json_malformed(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json is malformed JSON, fall through gracefully to start_copilot_session."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write malformed tasks.json
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text("not json", encoding="utf-8")
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through since JSON is malformed
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_tasks_null_in_tasks_json(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json has `tasks: null`, fall through gracefully (no TypeError)."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write tasks.json with tasks: null
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text(
+            json.dumps({"version": "2.0.0", "tasks": None}),
+            encoding="utf-8",
+        )
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through since tasks is null (not a list with the auto-start task)
+        mock_copilot.assert_called_once()
 
 
 class TestCopilotSessionStartPrompt:
