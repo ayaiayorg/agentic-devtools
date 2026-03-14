@@ -334,3 +334,30 @@ class TestInjectAutoStartTask:
         assert "'copilot'" in shell_cmd
         assert "'-i'" in shell_cmd
         assert "'test'" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_uses_call_operator(self, mock_available, mock_system, tmp_path):
+        """On Windows, the command uses the & call operator for execution."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The & call operator must precede the quoted command so PowerShell
+        # treats it as an executable invocation, not a string literal.
+        assert "& 'copilot'" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_cleanup_uses_backtick_escaping(self, mock_available, mock_system, tmp_path):
+        """On Windows, double quotes in the cleanup -c arg use backtick escaping."""
+        # Use a label with a single quote to force repr() to produce "..."
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"], task_label="it's a label")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # PowerShell uses `" (backtick-double-quote) for escaping, not \"
+        assert "python -c" in shell_cmd
+        assert '`"' in shell_cmd
+        # Must NOT contain bash-style backslash escaping
+        assert '\\"' not in shell_cmd

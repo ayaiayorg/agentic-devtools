@@ -644,7 +644,12 @@ def _build_cleanup_shell_command(
     )
 
     # Escape double quotes in py_script so they don't break the outer -c "..."
-    py_script = py_script.replace('"', '\\"')
+    # On Unix (bash), backslash escaping (\") is used.
+    # On Windows (PowerShell), backtick escaping (`") is used.
+    if platform.system() == "Windows":
+        py_script = py_script.replace('"', '`"')
+    else:
+        py_script = py_script.replace('"', '\\"')
 
     return f'{python_cmd} -c "{py_script}"'
 
@@ -737,7 +742,7 @@ def inject_auto_start_task(
         for part in command:
             escaped = part.replace("'", "''")
             quoted_parts.append(f"'{escaped}'")
-        cmd_str = " ".join(quoted_parts)
+        cmd_str = "& " + " ".join(quoted_parts)
         # Also escape single quotes in sentinel paths for safe embedding.
         sentinel_win_safe = sentinel_win.replace("'", "''")
         sentinel_dir_win_safe = sentinel_dir_win.replace("'", "''")
