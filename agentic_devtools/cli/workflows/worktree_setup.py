@@ -598,9 +598,9 @@ def _build_cleanup_shell_command(
     """Build a platform-appropriate shell snippet that removes the injected task.
 
     The snippet removes only the task identified by *task_label* from
-    ``.vscode/tasks.json``.  If no other tasks remain after removal the
-    entire file is deleted; otherwise the file is rewritten without the
-    injected entry.
+    ``.vscode/tasks.json`` and rewrites the file without the injected
+    entry.  Other top-level keys (e.g. ``inputs``, ``options``) are
+    preserved even when no tasks remain after removal.
 
     On Unix the snippet uses ``python3``; on Windows it uses ``python``.
     Both paths use an inline Python one-liner for JSON manipulation so the
@@ -624,7 +624,7 @@ def _build_cleanup_shell_command(
     # Inline Python one-liner:
     #   1. Read tasks.json
     #   2. Remove the task matching the label
-    #   3. If tasks remain, rewrite; otherwise delete the file
+    #   3. Rewrite the file (with remaining tasks, or an empty array)
     # Use repr() for embedded string literals to prevent injection from
     # paths or labels containing quotes.  Use encoding='utf-8' for all
     # file I/O to avoid platform-default encoding on Windows.
