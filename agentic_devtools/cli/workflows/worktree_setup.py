@@ -769,8 +769,8 @@ def inject_auto_start_task(
         sentinel_dir_win_safe = sentinel_dir_win.replace("'", "''")
         shell_command = (
             f"if (Test-Path -LiteralPath '{sentinel_win_safe}') {{ exit 0 }}; "
-            f"New-Item -ItemType Directory -Force -Path '{sentinel_dir_win_safe}' | Out-Null; "
-            f"New-Item -ItemType File -Force -Path '{sentinel_win_safe}' | Out-Null; "
+            f"New-Item -ItemType Directory -Force -LiteralPath '{sentinel_dir_win_safe}' | Out-Null; "
+            f"New-Item -ItemType File -Force -LiteralPath '{sentinel_win_safe}' | Out-Null; "
             f"{cmd_str}; "
             f"$agdtExit=$LASTEXITCODE; "
             f"if ($agdtExit -ne 0) {{ Remove-Item -LiteralPath "

@@ -498,3 +498,15 @@ class TestInjectAutoStartTask:
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
         assert "Remove-Item -LiteralPath" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_new_item_uses_literal_path(self, mock_available, mock_system, tmp_path):
+        """On Windows, New-Item uses -LiteralPath to avoid wildcard expansion."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # Both New-Item calls (directory + file) should use -LiteralPath
+        assert "New-Item -ItemType Directory -Force -LiteralPath" in shell_cmd
+        assert "New-Item -ItemType File -Force -LiteralPath" in shell_cmd
