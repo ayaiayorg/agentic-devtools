@@ -639,8 +639,7 @@ def _build_cleanup_shell_command(
         f"d=json.load(open(p,encoding='utf-8')); "
         f"d['tasks']=[t for t in d.get('tasks',[]) if "
         f"not isinstance(t,dict) or t.get('label')!={label_repr}]; "
-        "( os.remove(p) if not d['tasks'] else "
-        "( open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') ) )"
+        "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n')"
     )
 
     # Escape double quotes in py_script so they don't break the outer -c "..."
@@ -666,8 +665,11 @@ def inject_auto_start_task(
     workspace window opens.  The task also checks for a sentinel file
     (``.agdt/.copilot-auto-start-triggered``) and exits early if it exists,
     preventing re-execution on subsequent window opens.  After the command
-    finishes the task cleans up by removing itself from ``tasks.json`` (or
-    deleting the file entirely if no other tasks remain).
+    finishes **successfully** the task cleans up by removing itself from
+    ``tasks.json`` (rewriting the file with an empty ``tasks`` array when no
+    other tasks remain, so any other top-level keys such as ``inputs`` or
+    ``options`` are preserved).  On failure the task remains in ``tasks.json``
+    so the next ``folderOpen`` retries the command.
 
     The function merges the new task into an existing ``tasks.json`` if one
     is present, preserving any user-defined tasks.

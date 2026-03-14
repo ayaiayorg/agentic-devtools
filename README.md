@@ -420,11 +420,12 @@ session can auto-start in the VS Code **integrated terminal** via a
 `.vscode/tasks.json` entry with `"runOn": "folderOpen"`. This makes the session
 immediately visible to the user as soon as the window opens. The task is
 one-shot: it writes a sentinel file (`.agdt/.copilot-auto-start-triggered`)
-before execution and removes itself from `tasks.json` after running, so no
-git-tracked changes remain.
+before execution and, **on success**, removes itself from `tasks.json` so no
+git-tracked changes remain. On failure the task stays in `tasks.json` so the
+next `folderOpen` retries the command.
 
-If VS Code is not available (headless context, `code` not on PATH), the session
-falls back to a background process and a notice is printed:
+When the session is requested in interactive mode but there is no TTY attached
+(background task context) and VS Code is not available, a notice is printed:
 
 ```text
 NOTE: VS Code integrated terminal auto-start not available. Copilot session
