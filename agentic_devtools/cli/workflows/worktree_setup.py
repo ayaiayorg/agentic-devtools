@@ -604,8 +604,8 @@ def _build_cleanup_shell_command(
 
     On Unix the snippet uses ``python3``; on Windows it uses ``python``.
     Both paths use an inline Python one-liner for JSON manipulation so the
-    cleanup is atomic and does not depend on ``jq``, ``sed``, or
-    PowerShell-specific cmdlets.
+    cleanup does not depend on ``jq``, ``sed``, or PowerShell-specific
+    cmdlets.
 
     Args:
         worktree_path: Absolute path to the worktree directory.
@@ -727,8 +727,12 @@ def inject_auto_start_task(
     # --- Build the composite shell command -----------------------------------
     # The command: (1) checks sentinel, (2) creates sentinel, (3) runs the
     # user command, (4) on failure removes sentinel so next open retries,
-    # (5) cleans up tasks.json (non-fatal), (6) exits with the user command's
-    # exit code so VS Code reflects the correct status.
+    # (5) on success cleans up tasks.json (non-fatal), (6) exits with the
+    # user command's exit code so VS Code reflects the correct status.
+    #
+    # Cleanup only runs on success so that a failed command leaves the task
+    # in tasks.json — the sentinel was already removed (step 4), so the
+    # next ``folderOpen`` will retry the task.
     sentinel_unix = sentinel_path.replace("\\", "/")
     cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label)
 
@@ -754,7 +758,7 @@ def inject_auto_start_task(
             f"{cmd_str}; "
             f"$agdtExit=$LASTEXITCODE; "
             f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
-            f"try {{ {cleanup_cmd} }} catch {{}}; "
+            f"if ($agdtExit -eq 0) {{ try {{ {cleanup_cmd} }} catch {{}} }}; "
             f"exit $agdtExit"
         )
     else:
@@ -774,7 +778,7 @@ def inject_auto_start_task(
             f"{cmd_str}; "
             f"agdt_exit=$?; "
             f"if [ $agdt_exit -ne 0 ]; then rm -f {sentinel_q}; fi; "
-            f"{cleanup_cmd} || true; "
+            f"if [ $agdt_exit -eq 0 ]; then {cleanup_cmd} || true; fi; "
             f"exit $agdt_exit"
         )
 
@@ -1222,15 +1226,12 @@ def _start_copilot_session_for_pr_review(
     :data:`COPILOT_SESSION_START_PROMPT` so that the AI agent is forced
     into the workflow step system before receiving any PR context.
 
-    **Auto-start task injection**: When *interactive* is ``True``, the
-    function first attempts to inject a ``.vscode/tasks.json`` task with
-    ``"runOn": "folderOpen"`` via :func:`inject_auto_start_task`.  When
-    the injection succeeds and there is no TTY attached (background task
-    scenario), the VS Code integrated terminal will handle the session
-    automatically when the new window opens, so the existing
-    ``start_copilot_session()`` call is skipped.  When injection fails,
-    a TTY is available, or *interactive* is ``False`` (pipeline mode),
-    the function falls through to the existing behaviour.
+    **Auto-start task handling**: The VS Code auto-start task is injected
+    *before* VS Code opens (by :func:`_maybe_inject_auto_start_before_vscode`
+    in the background worktree setup flow).  When this function detects the
+    task was already injected and there is no TTY attached (background task
+    scenario), it skips starting the Copilot session — the VS Code
+    integrated terminal will handle it automatically when the window opens.
 
     In interactive mode the Copilot session inherits the terminal so the
     user can interact with it; in non-interactive mode it runs in the
@@ -1243,7 +1244,7 @@ def _start_copilot_session_for_pr_review(
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
     """
-    from ..copilot.session import build_copilot_args, start_copilot_session
+    from ..copilot.session import start_copilot_session
 
     prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
 
@@ -1260,27 +1261,39 @@ def _start_copilot_session_for_pr_review(
     # where stdin/stdout are redirected to DEVNULL/log files).
     has_tty = getattr(sys.stdin, "isatty", lambda: False)() and getattr(sys.stdout, "isatty", lambda: False)()
 
-    # --- Attempt VS Code auto-start task injection ---------------------------
-    # Only attempt when interactive mode is requested — non-interactive
-    # (pipeline) callers should not have their session hijacked by a VS Code
-    # terminal task.  The injected task always launches an interactive copilot
-    # session (it runs in the VS Code integrated terminal).
-    if interactive:
-        copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
-        if copilot_args is not None:
-            task_injected = inject_auto_start_task(worktree_path, copilot_args)
-            if task_injected and not has_tty:
-                print(
-                    "\n--- VS Code auto-start task injected. "
-                    "Copilot session will start in the integrated terminal when the window opens. ---"
-                )
-                return
-            if not task_injected and not is_vscode_available():
-                print(
-                    "NOTE: VS Code integrated terminal auto-start not available. "
-                    "Copilot session will run in the background. "
-                    "Run agdt-task-log to view output."
-                )
+    # --- Check if the VS Code auto-start task was already injected -----------
+    # _maybe_inject_auto_start_before_vscode() injects the task *before* VS
+    # Code opens so that ``runOn: folderOpen`` fires with the task present.
+    # When that happened and we're in a background context (no TTY), the
+    # VS Code integrated terminal will handle the Copilot session — no need
+    # to start it here.
+    if interactive and not has_tty:
+        tasks_path = os.path.join(worktree_path, ".vscode", "tasks.json")
+        if os.path.exists(tasks_path):
+            try:
+                with open(tasks_path, encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if isinstance(data, dict):
+                    tasks_list = data.get("tasks", [])
+                    if any(
+                        isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL
+                        for t in tasks_list
+                    ):
+                        print(
+                            "\n--- VS Code auto-start task already present. "
+                            "Copilot session will start in the integrated terminal "
+                            "when the window opens. ---"
+                        )
+                        return
+            except (json.JSONDecodeError, OSError):
+                pass  # Fall through to starting the session directly
+
+    if interactive and not has_tty and not is_vscode_available():
+        print(
+            "NOTE: VS Code integrated terminal auto-start not available. "
+            "Copilot session will run in the background. "
+            "Run agdt-task-log to view output."
+        )
 
     effective_interactive = interactive and is_vscode_available() and has_tty
 
@@ -1308,6 +1321,30 @@ def _start_copilot_session_for_pr_review(
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         else:
             os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+
+
+def _maybe_inject_auto_start_before_vscode(worktree_path: str, interactive: bool) -> None:
+    """Inject a VS Code auto-start task if *interactive* mode is enabled.
+
+    Called right before ``open_vscode_workspace()`` so the task exists when
+    the ``folderOpen`` event fires.  Uses the static
+    :data:`COPILOT_SESSION_START_PROMPT` constant — no prompt file is needed.
+
+    This is a best-effort helper: if ``build_copilot_args()`` returns
+    ``None`` (Copilot CLI not found) or ``inject_auto_start_task()`` fails,
+    the caller silently continues without the auto-start task; the existing
+    fallback behaviour in ``_start_copilot_session_for_pr_review`` will
+    handle the session.
+    """
+    if not interactive:
+        return
+    from ..copilot.session import build_copilot_args
+
+    copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
+    if copilot_args is not None:
+        injected = inject_auto_start_task(worktree_path, copilot_args)
+        if injected:
+            print("   VS Code auto-start task injected (will run on window open).")
 
 
 def setup_worktree_in_background_sync(
@@ -1362,6 +1399,10 @@ def setup_worktree_in_background_sync(
         print(f"\nWorktree already exists at: {existing_path}")
         print("Opening VS Code in the existing worktree (using the workspace file if available)...")
 
+        # Inject VS Code auto-start task *before* opening the window so that
+        # the ``runOn: folderOpen`` event fires with the task already present.
+        _maybe_inject_auto_start_before_vscode(existing_path, interactive)
+
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
@@ -1394,10 +1435,17 @@ can copy and paste it into the new VS Code window that just opened:
         branch_prefix=branch_prefix,
         branch_name=branch_name,
         use_existing_branch=use_existing_branch,
-        open_vscode=True,
+        open_vscode=False,
     )
 
     if result.success:
+        # Inject VS Code auto-start task *before* opening the window so that
+        # the ``runOn: folderOpen`` event fires with the task already present.
+        _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive)
+
+        # Open VS Code after task injection
+        result.vscode_opened = open_vscode_workspace(result.worktree_path)
+
         if auto_execute_command:
             exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))

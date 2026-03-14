@@ -398,8 +398,9 @@ class TestInjectAutoStartTask:
 
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        # Cleanup is followed by '|| true' to make it non-fatal
+        # Cleanup is conditional on success and non-fatal (|| true)
         assert "|| true" in shell_cmd
+        assert "if [ $agdt_exit -eq 0 ]" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
@@ -420,7 +421,8 @@ class TestInjectAutoStartTask:
 
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        # Cleanup is wrapped in try/catch to make it non-fatal
+        # Cleanup is conditional on success and non-fatal (try/catch)
+        assert "if ($agdtExit -eq 0)" in shell_cmd
         assert "try {" in shell_cmd
         assert "} catch {}" in shell_cmd
 
