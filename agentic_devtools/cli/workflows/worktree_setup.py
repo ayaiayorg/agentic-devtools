@@ -1483,11 +1483,14 @@ def _start_copilot_session_for_workflow(
     # so that get_state_dir() resolves from the worktree's .agdt/runtime-bootstrap.json.
     previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
     previous_cwd = os.getcwd()
-    # Unset the env var before calling get_state_dir() so it resolves from the
-    # worktree context rather than honouring the caller's (possibly unrelated) value.
-    os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-    os.chdir(worktree_path)
     try:
+        # Unset the env var before calling get_state_dir() so it resolves from
+        # the worktree context rather than honouring the caller's value.
+        # Both the pop and chdir are inside the try so the finally block always
+        # restores them even if os.chdir() raises (e.g. missing worktree_path).
+        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        os.chdir(worktree_path)
+
         from ...state import get_state_dir
 
         state_dir = get_state_dir()

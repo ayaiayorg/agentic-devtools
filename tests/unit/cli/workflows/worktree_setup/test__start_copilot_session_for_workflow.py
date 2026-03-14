@@ -406,6 +406,50 @@ class TestStartCopilotSessionForWorkflow:
         assert os.getcwd() == original_cwd
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_restores_env_when_chdir_raises(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Verify env var is restored when os.chdir(worktree_path) raises."""
+        import pytest
+
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+
+        original_cwd = os.getcwd()
+        original_state_dir = "/original/safe/dir"
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", original_state_dir)
+
+        # Patch os.chdir to raise on the worktree path but allow the
+        # finally-block restore to succeed.
+        real_chdir = os.chdir
+
+        def chdir_side_effect(path):
+            if path == str(tmp_path):
+                raise FileNotFoundError(f"No such directory: {path}")
+            return real_chdir(path)
+
+        with pytest.raises(FileNotFoundError):
+            with patch("os.chdir", side_effect=chdir_side_effect):
+                _start_copilot_session_for_workflow(
+                    worktree_path=str(tmp_path),
+                    prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                    start_prompt=_CUSTOM_START_PROMPT,
+                    workflow_name=_CUSTOM_WORKFLOW_NAME,
+                )
+
+        # Env var and CWD must be restored despite the chdir failure
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_state_dir
+        assert os.getcwd() == original_cwd
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_returns_true_when_auto_start_task_confirmed(
