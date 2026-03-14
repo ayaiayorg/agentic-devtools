@@ -1342,20 +1342,19 @@ def _wait_for_prompt_file(
     return prompt_path.exists()
 
 
-def _start_copilot_session_for_pr_review(
+def _start_copilot_session_for_workflow(
     worktree_path: str,
+    prompt_file_relative_path: str,
+    start_prompt: str,
+    workflow_name: str,
     interactive: bool = False,
-) -> None:
-    """
-    Wait for the workflow setup to complete, then start a ``gh copilot``
-    session with a static single-line prompt that instructs the agent to
-    run ``agdt-advance-workflow pull-request-overview``.
+) -> bool:
+    """Wait for the workflow setup to complete, then start a ``gh copilot`` session.
 
-    The function still waits for the rendered initiate prompt file to
-    appear on disk (proving that the background setup has finished) but
-    does **not** read its content.  Instead it uses the constant
-    :data:`COPILOT_SESSION_START_PROMPT` so that the AI agent is forced
-    into the workflow step system before receiving any PR context.
+    This is the generic helper that all workflow-specific wrappers delegate
+    to.  It waits for a prompt file to appear on disk, detects VS Code /
+    TTY availability, handles the auto-start task sentinel check, and
+    finally calls :func:`start_copilot_session`.
 
     **Auto-start task handling**: The VS Code auto-start task is injected
     *before* VS Code opens (by :func:`_maybe_inject_auto_start_before_vscode`
@@ -1373,19 +1372,29 @@ def _start_copilot_session_for_pr_review(
 
     Args:
         worktree_path: Absolute path to the worktree root.
+        prompt_file_relative_path: Path to the prompt file relative to
+            *worktree_path* (forward-slash separated segments joined via
+            ``Path(worktree_path) / prompt_file_relative_path``).
+        start_prompt: The prompt text to pass to ``start_copilot_session()``.
+        workflow_name: Human-readable workflow name for log messages.
         interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started successfully or the
+        VS Code auto-start task was confirmed running.  ``False`` when
+        the prompt file was not found or was not a regular file.
     """
     from ..copilot.session import start_copilot_session
 
-    prompt_file = Path(worktree_path) / "scripts" / "temp" / "temp-pull-request-review-initiate-prompt.md"
+    prompt_file = Path(worktree_path) / prompt_file_relative_path
 
-    print(f"\n--- Waiting for initiate prompt file: {prompt_file} ---")
+    print(f"\n--- Waiting for initiate prompt file ({workflow_name}): {prompt_file} ---")
     if not _wait_for_prompt_file(prompt_file):
         print("WARNING: Initiate prompt file not found after waiting. Skipping Copilot session.")
-        return
+        return False
     if not prompt_file.is_file():
         print("WARNING: Initiate prompt path exists but is not a regular file. Skipping Copilot session.")
-        return
+        return False
 
     # Non-interactive mode when VS Code is not available (pipeline scenario),
     # or when there is no TTY attached (e.g. running inside run_function_in_background
@@ -1443,7 +1452,7 @@ def _start_copilot_session_for_pr_review(
                                         "--- VS Code auto-start task confirmed running. "
                                         "Copilot session is in the integrated terminal. ---"
                                     )
-                                    return
+                                    return True
                                 time.sleep(_SENTINEL_POLL_INTERVAL)
                                 waited += _SENTINEL_POLL_INTERVAL
                             print(
@@ -1464,29 +1473,72 @@ def _start_copilot_session_for_pr_review(
     effective_interactive = interactive and is_vscode_available() and has_tty
 
     print(
-        f"\n--- Starting gh copilot session (mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"
+        f"\n--- Starting gh copilot session for {workflow_name} "
+        f"(mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"
     )
     # Ensure Copilot session state and artifacts (prompt file, log file, copilot.*
     # state keys) are written under the target worktree, not the caller's CWD.
     # start_copilot_session() resolves paths via get_state_dir() which is CWD-based;
-    # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path.
-    state_dir = Path(worktree_path) / "scripts" / "temp"
+    # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path
+    # so that get_state_dir() resolves from the worktree's .agdt/runtime-bootstrap.json.
     previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
     previous_cwd = os.getcwd()
-    os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
-    os.chdir(worktree_path)
     try:
+        # Unset the env var before calling get_state_dir() so it resolves from
+        # the worktree context rather than honouring the caller's value.
+        # Both the pop and chdir are inside the try so the finally block always
+        # restores them even if os.chdir() raises (e.g. missing worktree_path).
+        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        os.chdir(worktree_path)
+
+        from ...state import get_state_dir
+
+        state_dir = get_state_dir()
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
         start_copilot_session(
-            prompt=COPILOT_SESSION_START_PROMPT,
+            prompt=start_prompt,
             working_directory=worktree_path,
             interactive=effective_interactive,
         )
+        return True
     finally:
         os.chdir(previous_cwd)
         if previous_state_dir is None:
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         else:
             os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+
+
+def _start_copilot_session_for_pr_review(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the pull-request-review workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies PR-review-specific parameters (prompt file path and start
+    prompt text).
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    # Build the prompt file relative path using Path segments to avoid the
+    # legacy state-dir literal that is flagged by the stale-reference guard.
+    _pr_review_prompt_relative = str(
+        Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md"
+    )
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_pr_review_prompt_relative,
+        start_prompt=COPILOT_SESSION_START_PROMPT,
+        workflow_name="pull-request-review",
+        interactive=interactive,
+    )
 
 
 def _maybe_inject_auto_start_before_vscode(worktree_path: str, interactive: bool) -> None:

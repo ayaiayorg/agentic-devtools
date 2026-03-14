@@ -199,6 +199,11 @@ class TestStartCopilotSessionForPrReview:
         mock_wait.return_value = True
         mock_vscode.return_value = True
 
+        # The generic helper uses get_state_dir() to resolve the state dir.
+        # Mock it to return a predictable path.
+        resolved_state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        resolved_state_dir.mkdir(parents=True, exist_ok=True)
+
         captured_state_dir: list = []
 
         def capture_env(**_kwargs):
@@ -208,10 +213,10 @@ class TestStartCopilotSessionForPrReview:
 
         # Ensure the env var is NOT set before the call
         monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-        _start_copilot_session_for_pr_review(str(tmp_path))
+        with patch("agentic_devtools.state.get_state_dir", return_value=resolved_state_dir):
+            _start_copilot_session_for_pr_review(str(tmp_path))
 
-        expected_state_dir = str(tmp_path / "scripts" / "temp")
-        assert captured_state_dir == [expected_state_dir]
+        assert captured_state_dir == [str(resolved_state_dir)]
         # Env var must be restored (removed) after the call
         assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ
 
@@ -241,7 +246,12 @@ class TestStartCopilotSessionForPrReview:
         original_state_dir = "/original/state/dir"
         monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", original_state_dir)
 
-        _start_copilot_session_for_pr_review(str(tmp_path))
+        # Mock get_state_dir so it doesn't try to create /original/state/dir
+        resolved_state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        resolved_state_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=resolved_state_dir):
+            _start_copilot_session_for_pr_review(str(tmp_path))
 
         # The original value must be restored after the call
         assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_state_dir
@@ -739,6 +749,36 @@ class TestStartCopilotSessionForPrReview:
 
         # Should fall through since tasks is null (not a list with the auto-start task)
         mock_copilot.assert_called_once()
+
+    @patch(
+        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow",
+        return_value=True,
+    )
+    def test_delegates_to_generic_helper(self, mock_generic):
+        """Verify the wrapper calls _start_copilot_session_for_workflow with PR-review args."""
+        from pathlib import Path
+
+        _start_copilot_session_for_pr_review("/some/worktree", interactive=True)
+
+        expected_relative = str(
+            Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md"
+        )
+        mock_generic.assert_called_once_with(
+            worktree_path="/some/worktree",
+            prompt_file_relative_path=expected_relative,
+            start_prompt=COPILOT_SESSION_START_PROMPT,
+            workflow_name="pull-request-review",
+            interactive=True,
+        )
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    def test_returns_generic_helper_result(self, mock_generic):
+        """Verify the wrapper returns the bool from the generic helper."""
+        mock_generic.return_value = True
+        assert _start_copilot_session_for_pr_review("/some/worktree") is True
+
+        mock_generic.return_value = False
+        assert _start_copilot_session_for_pr_review("/some/worktree") is False
 
 
 class TestCopilotSessionStartPrompt:
