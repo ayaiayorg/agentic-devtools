@@ -165,8 +165,12 @@ class TestWorkflowCommands:
                 issue_key="DFLY-1234",
             )
 
-            # Execute command with issue-key (continuation mode)
-            commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "DFLY-1234"])
+            # Mock session launcher to avoid waiting for prompt file
+            with patch(
+                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_create_jira_epic"
+            ):
+                # Execute command with issue-key (continuation mode)
+                commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         # Verify
         workflow = state.get_workflow_state()

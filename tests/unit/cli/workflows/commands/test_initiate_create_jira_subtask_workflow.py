@@ -175,8 +175,12 @@ class TestWorkflowCommands:
                 issue_key="DFLY-1235",
             )
 
-            # Execute command with issue-key (continuation mode)
-            commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-1235"])
+            # Mock session launcher to avoid waiting for prompt file
+            with patch(
+                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_create_jira_subtask"
+            ):
+                # Execute command with issue-key (continuation mode)
+                commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-1235"])
 
         # Verify
         workflow = state.get_workflow_state()

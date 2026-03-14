@@ -139,8 +139,12 @@ class TestWorkflowCommands:
                 issue_key="DFLY-1234",
             )
 
-            # Execute command with issue-key
-            commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234"])
+            # Mock session launcher to avoid waiting for prompt file
+            with patch(
+                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+            ):
+                # Execute command with issue-key
+                commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         # Verify
         workflow = state.get_workflow_state()

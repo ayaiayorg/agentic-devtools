@@ -147,8 +147,12 @@ class TestWorkflowCommands:
                 with patch("subprocess.run") as mock_subprocess:
                     mock_subprocess.return_value.returncode = 0
 
-                    # Execute command
-                    commands.initiate_work_on_jira_issue_workflow(_argv=[])
+                    # Mock session launcher to avoid waiting for prompt file
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_work_on_jira_issue"
+                    ):
+                        # Execute command
+                        commands.initiate_work_on_jira_issue_workflow(_argv=[])
 
         # Verify - should be in planning step
         workflow = state.get_workflow_state()

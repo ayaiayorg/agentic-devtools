@@ -33,6 +33,35 @@ COPILOT_SESSION_START_PROMPT = (
     "The agentic-devtools workflow will guide you through each step."
 )
 
+# ---------------------------------------------------------------------------
+# Workflow-specific Copilot session start prompts
+# Each MUST remain a single line (no ``\n``) and contain no template variables.
+# ---------------------------------------------------------------------------
+
+COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
+    "Execute this command now: agdt-advance-workflow planning"
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
+    "Read and follow the instructions in the workflow prompt file that was just rendered. "
+    "The workflow is create-jira-issue."
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
+    "Read and follow the instructions in the workflow prompt file that was just rendered. "
+    "The workflow is create-jira-epic."
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
+    "Read and follow the instructions in the workflow prompt file that was just rendered. "
+    "The workflow is create-jira-subtask."
+)
+
+COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
+    "Read and follow the instructions in the workflow prompt file that was just rendered. "
+    "The workflow is update-jira-issue."
+)
+
 
 def is_vscode_available() -> bool:
     """Check if VS Code CLI is available on PATH.
@@ -1537,6 +1566,160 @@ def _start_copilot_session_for_pr_review(
         prompt_file_relative_path=_pr_review_prompt_relative,
         start_prompt=COPILOT_SESSION_START_PROMPT,
         workflow_name="pull-request-review",
+        interactive=interactive,
+    )
+
+
+def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
+    """Resolve the prompt file path relative to *worktree_path*.
+
+    The prompt file lives in the state directory (returned by
+    :func:`get_state_dir`).  This helper computes the relative path from
+    *worktree_path* so that ``_start_copilot_session_for_workflow`` can
+    construct the absolute path via ``Path(worktree_path) / relative``.
+    """
+    from ...state import get_state_dir
+
+    state_dir = get_state_dir()
+    return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
+
+
+def _start_copilot_session_for_work_on_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the work-on-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies work-on-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-work-on-jira-issue-planning-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
+        workflow_name="work-on-jira-issue",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-create-jira-issue-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
+        workflow_name="create-jira-issue",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_epic(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-epic workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-epic-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-create-jira-epic-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
+        workflow_name="create-jira-epic",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_subtask(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-subtask workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-subtask-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-create-jira-subtask-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
+        workflow_name="create-jira-subtask",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_update_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the update-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies update-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-update-jira-issue-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
+        workflow_name="update-jira-issue",
         interactive=interactive,
     )
 
