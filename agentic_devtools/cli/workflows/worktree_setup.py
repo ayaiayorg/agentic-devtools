@@ -38,9 +38,7 @@ COPILOT_SESSION_START_PROMPT = (
 # Each MUST remain a single line (no ``\n``) and contain no template variables.
 # ---------------------------------------------------------------------------
 
-COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
-    "Execute this command now: agdt-advance-workflow planning"
-)
+COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = "Execute this command now: agdt-advance-workflow planning"
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
     "Read and follow the instructions in the workflow prompt file that was just rendered. "
@@ -1558,9 +1556,7 @@ def _start_copilot_session_for_pr_review(
     """
     # Build the prompt file relative path using Path segments to avoid the
     # legacy state-dir literal that is flagged by the stale-reference guard.
-    _pr_review_prompt_relative = str(
-        Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md"
-    )
+    _pr_review_prompt_relative = str(Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md")
     return _start_copilot_session_for_workflow(
         worktree_path=worktree_path,
         prompt_file_relative_path=_pr_review_prompt_relative,
@@ -1659,9 +1655,7 @@ def _start_copilot_session_for_create_jira_epic(
     """
     return _start_copilot_session_for_workflow(
         worktree_path=worktree_path,
-        prompt_file_relative_path=_prompt_file_relative_path(
-            worktree_path, "temp-create-jira-epic-initiate-prompt.md"
-        ),
+        prompt_file_relative_path=_prompt_file_relative_path(worktree_path, "temp-create-jira-epic-initiate-prompt.md"),
         start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
         workflow_name="create-jira-epic",
         interactive=interactive,

@@ -176,9 +176,7 @@ class TestWorkflowCommands:
             )
 
             # Mock session launcher to avoid waiting for prompt file
-            with patch(
-                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_create_jira_subtask"
-            ):
+            with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_create_jira_subtask"):
                 # Execute command with issue-key (continuation mode)
                 commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-1235"])
 
