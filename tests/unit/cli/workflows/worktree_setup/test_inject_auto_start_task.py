@@ -264,3 +264,73 @@ class TestInjectAutoStartTask:
         # repr() wraps strings in quotes; the cleanup command should contain
         # encoding='utf-8' for safe file I/O
         assert "encoding='utf-8'" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_non_dict_json_top_level_treated_as_malformed(self, mock_available, tmp_path, capsys):
+        """A tasks.json containing a JSON array (not object) is overwritten."""
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text("[1, 2, 3]", encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is True
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        assert data["version"] == "2.0.0"
+        assert len(data["tasks"]) == 1
+        captured = capsys.readouterr()
+        assert "not a JSON object" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_non_dict_items_in_tasks_array_preserved(self, mock_available, tmp_path):
+        """Non-dict items in the tasks array are preserved during dedup."""
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        existing = {
+            "version": "2.0.0",
+            "tasks": [
+                "a string task",
+                42,
+                {"label": "build", "type": "shell", "command": "make"},
+            ],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(existing), encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is True
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        # The two non-dict items + the existing dict task + the new task
+        assert len(data["tasks"]) == 4
+        assert "a string task" in data["tasks"]
+        assert 42 in data["tasks"]
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_escapes_double_quotes_from_repr(self, mock_available, mock_system, tmp_path):
+        """Double quotes produced by repr() are escaped in the -c argument."""
+        # Use a task label containing a single quote to force repr() to produce "..."
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"], task_label="it's a label")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The cleanup -c "..." argument must not contain unescaped double quotes.
+        # repr("it's a label") → '"it\'s a label"' — the outer " must be escaped
+        # to \" so the shell sees: python3 -c "...!=\"it\'s a label\"..."
+        assert 'python3 -c "' in shell_cmd
+        # After JSON round-trip, the escaped \" appear as literal \"
+        assert '\\"it' in shell_cmd
+        assert 'a label\\"' in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_always_quotes_simple_args(self, mock_available, mock_system, tmp_path):
+        """On Windows, all args are quoted even without spaces or special chars."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # Every argument should be single-quoted in PowerShell
+        assert "'copilot'" in shell_cmd
+        assert "'-i'" in shell_cmd
+        assert "'test'" in shell_cmd

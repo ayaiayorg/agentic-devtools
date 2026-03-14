@@ -425,8 +425,11 @@ git-tracked changes remain.
 
 If VS Code is not available (headless context, `code` not on PATH), the session
 falls back to a background process and a notice is printed:
-`"NOTE: VS Code integrated terminal auto-start not available. Copilot session
-will run in the background. Run agdt-task-log to view output."`
+
+```text
+NOTE: VS Code integrated terminal auto-start not available. Copilot session
+will run in the background. Run agdt-task-log to view output.
+```
 
 ### Work on Jira Issue Workflow
 

@@ -628,16 +628,23 @@ def _build_cleanup_shell_command(
     # Use repr() for embedded string literals to prevent injection from
     # paths or labels containing quotes.  Use encoding='utf-8' for all
     # file I/O to avoid platform-default encoding on Windows.
+    # Note: repr() may produce double-quoted strings (e.g. when the value
+    # contains a single quote).  We escape any resulting '"' so they don't
+    # break the outer -c "..." quoting.
     p_repr = repr(tasks_json_path)
     label_repr = repr(task_label)
     py_script = (
         "import json, os, sys; "
         f"p={p_repr}; "
         f"d=json.load(open(p,encoding='utf-8')); "
-        f"d['tasks']=[t for t in d.get('tasks',[]) if t.get('label')!={label_repr}]; "
+        f"d['tasks']=[t for t in d.get('tasks',[]) if "
+        f"isinstance(t,dict) and t.get('label')!={label_repr}]; "
         "( os.remove(p) if not d['tasks'] else "
         "( open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') ) )"
     )
+
+    # Escape double quotes in py_script so they don't break the outer -c "..."
+    py_script = py_script.replace('"', '\\"')
 
     return f'{python_cmd} -c "{py_script}"'
 
@@ -686,20 +693,31 @@ def inject_auto_start_task(
     if os.path.exists(tasks_path):
         try:
             with open(tasks_path, encoding="utf-8") as fh:
-                tasks_config = json.load(fh)
+                loaded = json.load(fh)
+            # Guard: a valid tasks.json could be any JSON type; treat
+            # non-dict top-levels as malformed and overwrite.
+            if isinstance(loaded, dict):
+                tasks_config = loaded
+            else:
+                print(
+                    f"Warning: {tasks_path} is not a JSON object — will overwrite",
+                    file=sys.stderr,
+                )
         except (json.JSONDecodeError, OSError) as exc:
             print(
                 f"Warning: could not read {tasks_path}: {exc} — will overwrite",
                 file=sys.stderr,
             )
-            tasks_config = {"version": "2.0.0", "tasks": []}
 
     # Ensure the tasks list exists
     if "tasks" not in tasks_config or not isinstance(tasks_config.get("tasks"), list):
         tasks_config["tasks"] = []
 
-    # Remove any previously-injected task with the same label to avoid duplicates
-    tasks_config["tasks"] = [t for t in tasks_config["tasks"] if t.get("label") != task_label]
+    # Remove any previously-injected task with the same label to avoid duplicates.
+    # Guard with isinstance(t, dict) so non-dict items don't raise on .get().
+    tasks_config["tasks"] = [
+        t for t in tasks_config["tasks"] if not isinstance(t, dict) or t.get("label") != task_label
+    ]
 
     # --- Build the composite shell command -----------------------------------
     # The command: (1) checks sentinel, (2) creates sentinel, (3) runs the
@@ -712,22 +730,24 @@ def inject_auto_start_task(
         # PowerShell syntax
         sentinel_win = sentinel_path.replace("/", "\\")
         sentinel_dir_win = os.path.dirname(sentinel_win)
-        # shlex.join is not reliable for Windows; manually quote each arg
+        # Always single-quote every arg so PowerShell metacharacters
+        # (;  &  |  >  etc.) are treated as literals.
+        # Escape embedded single quotes via PowerShell's '' convention.
         quoted_parts = []
         for part in command:
-            if " " in part or '"' in part or "'" in part:
-                escaped = part.replace("'", "''")
-                quoted_parts.append(f"'{escaped}'")
-            else:
-                quoted_parts.append(part)
+            escaped = part.replace("'", "''")
+            quoted_parts.append(f"'{escaped}'")
         cmd_str = " ".join(quoted_parts)
+        # Also escape single quotes in sentinel paths for safe embedding.
+        sentinel_win_safe = sentinel_win.replace("'", "''")
+        sentinel_dir_win_safe = sentinel_dir_win.replace("'", "''")
         shell_command = (
-            f"if (Test-Path '{sentinel_win}') {{ exit 0 }}; "
-            f"New-Item -ItemType Directory -Force -Path '{sentinel_dir_win}' | Out-Null; "
-            f"New-Item -ItemType File -Force -Path '{sentinel_win}' | Out-Null; "
+            f"if (Test-Path '{sentinel_win_safe}') {{ exit 0 }}; "
+            f"New-Item -ItemType Directory -Force -Path '{sentinel_dir_win_safe}' | Out-Null; "
+            f"New-Item -ItemType File -Force -Path '{sentinel_win_safe}' | Out-Null; "
             f"{cmd_str}; "
             f"$agdtExit=$LASTEXITCODE; "
-            f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win}' -Force -ErrorAction SilentlyContinue }}; "
+            f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
             f"{cleanup_cmd}"
         )
     else:
