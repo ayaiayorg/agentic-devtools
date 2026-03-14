@@ -307,6 +307,19 @@ class TestInjectAutoStartTask:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_one_liner_preserves_non_dict_items(self, mock_available, mock_system, tmp_path):
+        """The cleanup one-liner keeps non-dict items and only removes matching dicts."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The cleanup filter must use 'not isinstance(t,dict) or ...' so
+        # non-dict items are preserved — not 'isinstance(t,dict) and ...'
+        # which would drop them.
+        assert "not isinstance(t,dict)" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     def test_cleanup_escapes_double_quotes_from_repr(self, mock_available, mock_system, tmp_path):
         """Double quotes produced by repr() are escaped in the -c argument."""
         # Use a task label containing a single quote to force repr() to produce "..."

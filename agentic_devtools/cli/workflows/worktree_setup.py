@@ -14,7 +14,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
@@ -638,7 +638,7 @@ def _build_cleanup_shell_command(
         f"p={p_repr}; "
         f"d=json.load(open(p,encoding='utf-8')); "
         f"d['tasks']=[t for t in d.get('tasks',[]) if "
-        f"isinstance(t,dict) and t.get('label')!={label_repr}]; "
+        f"not isinstance(t,dict) or t.get('label')!={label_repr}]; "
         "( os.remove(p) if not d['tasks'] else "
         "( open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') ) )"
     )
@@ -656,7 +656,7 @@ def _build_cleanup_shell_command(
 
 def inject_auto_start_task(
     worktree_path: str,
-    command: "list[str]",
+    command: List[str],
     task_label: str = _AUTO_START_TASK_LABEL,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
