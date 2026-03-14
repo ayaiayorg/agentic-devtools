@@ -510,3 +510,45 @@ class TestInjectAutoStartTask:
         # Both New-Item calls (directory + file) should use -LiteralPath
         assert "New-Item -ItemType Directory -Force -LiteralPath" in shell_cmd
         assert "New-Item -ItemType File -Force -LiteralPath" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_deletes_file_when_created_new(self, mock_available, mock_system, tmp_path):
+        """When tasks.json was created new, cleanup deletes it instead of rewriting."""
+        # No .vscode/tasks.json exists before injection
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The cleanup one-liner should use os.remove() for deletion when tasks empty
+        assert "os.remove(p)" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_tries_rmdir_when_created_new(self, mock_available, mock_system, tmp_path):
+        """When tasks.json was created new, cleanup tries to remove .vscode/ dir."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The cleanup one-liner should attempt rmdir on the .vscode/ directory
+        assert "os.rmdir(" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_rewrites_when_file_preexisted(self, mock_available, mock_system, tmp_path):
+        """When tasks.json was pre-existing, cleanup rewrites instead of deleting."""
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        existing = {"version": "2.0.0", "tasks": []}
+        (vscode_dir / "tasks.json").write_text(json.dumps(existing), encoding="utf-8")
+
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # Pre-existing file: should NOT attempt to delete or rmdir
+        assert "os.remove(p)" not in shell_cmd
+        assert "os.rmdir(" not in shell_cmd
+        # Should always rewrite
+        assert "json.dumps(d,indent=2)" in shell_cmd

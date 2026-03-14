@@ -596,13 +596,22 @@ _AUTO_START_TASK_LABEL = "agdt-copilot-auto-start"
 def _build_cleanup_shell_command(
     worktree_path: str,
     task_label: str,
+    created_new: bool = False,
 ) -> str:
     """Build a platform-appropriate shell snippet that removes the injected task.
 
     The snippet removes only the task identified by *task_label* from
-    ``.vscode/tasks.json`` and rewrites the file without the injected
-    entry.  Other top-level keys (e.g. ``inputs``, ``options``) are
-    preserved even when no tasks remain after removal.
+    ``.vscode/tasks.json``.  When other tasks remain the file is rewritten
+    without the injected entry, preserving top-level keys (e.g. ``inputs``,
+    ``options``).
+
+    When *created_new* is ``True`` and no tasks remain after removal the
+    file is **deleted** (rather than rewritten with an empty ``tasks``
+    array), and the ``.vscode/`` directory is also removed if it is empty.
+    This avoids leaving behind an untracked file in repositories where
+    ``.vscode/`` is not gitignored.  When *created_new* is ``False`` (the
+    default) the file is always rewritten — even with an empty ``tasks``
+    array — so that pre-existing top-level keys are preserved.
 
     On Unix the snippet uses ``python3``; on Windows it uses ``python``.
     Both paths use an inline Python one-liner for JSON manipulation so the
@@ -612,6 +621,9 @@ def _build_cleanup_shell_command(
     Args:
         worktree_path: Absolute path to the worktree directory.
         task_label: The label identifying the task to remove.
+        created_new: ``True`` when ``tasks.json`` was created by the
+            injection (did not exist beforehand).  Enables full file
+            deletion when the tasks array is empty after cleanup.
 
     Returns:
         A shell command string suitable for embedding in a VS Code task.
@@ -626,7 +638,11 @@ def _build_cleanup_shell_command(
     # Inline Python one-liner:
     #   1. Read tasks.json
     #   2. Remove the task matching the label
-    #   3. Rewrite the file (with remaining tasks, or an empty array)
+    #   3a. If tasks remain → rewrite the file (always)
+    #   3b. If no tasks remain AND created_new → delete the file (and
+    #       try to rmdir .vscode/ if empty)
+    #   3c. If no tasks remain AND NOT created_new → rewrite with empty
+    #       tasks array (preserving other top-level keys)
     # Use repr() for embedded string literals to prevent injection from
     # paths or labels containing quotes.  Use encoding='utf-8' for all
     # file I/O to avoid platform-default encoding on Windows.
@@ -635,14 +651,31 @@ def _build_cleanup_shell_command(
     # break the outer -c "..." quoting.
     p_repr = repr(tasks_json_path)
     label_repr = repr(task_label)
-    py_script = (
-        "import json, os, sys; "
-        f"p={p_repr}; "
-        f"d=json.load(open(p,encoding='utf-8')); "
-        f"d['tasks']=[t for t in d.get('tasks',[]) if "
-        f"not isinstance(t,dict) or t.get('label')!={label_repr}]; "
-        "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n')"
-    )
+
+    filter_stmt = f"d['tasks']=[t for t in d.get('tasks',[]) if not isinstance(t,dict) or t.get('label')!={label_repr}]"
+
+    if created_new:
+        # When the file was created solely for auto-start: delete it when
+        # no tasks remain, and try to remove .vscode/ if it's now empty.
+        py_script = (
+            "import json, os; "
+            f"p={p_repr}; "
+            f"d=json.load(open(p,encoding='utf-8')); "
+            f"{filter_stmt}; "
+            "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') "
+            "if d['tasks'] else os.remove(p); "
+            "not d.get('tasks') and os.path.isdir(os.path.dirname(p)) "
+            "and not os.listdir(os.path.dirname(p)) and os.rmdir(os.path.dirname(p))"
+        )
+    else:
+        # Pre-existing file: always rewrite (preserving other top-level keys).
+        py_script = (
+            "import json, os; "
+            f"p={p_repr}; "
+            f"d=json.load(open(p,encoding='utf-8')); "
+            f"{filter_stmt}; "
+            "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n')"
+        )
 
     # Escape double quotes in py_script so they don't break the outer -c "..."
     # On Unix (bash), backslash escaping (\") is used.
@@ -668,10 +701,13 @@ def inject_auto_start_task(
     (``.agdt/.copilot-auto-start-triggered``) and exits early if it exists,
     preventing re-execution on subsequent window opens.  After the command
     finishes **successfully** the task cleans up by removing itself from
-    ``tasks.json`` (rewriting the file with an empty ``tasks`` array when no
-    other tasks remain, so any other top-level keys such as ``inputs`` or
-    ``options`` are preserved).  On failure the task remains in ``tasks.json``
-    so the next ``folderOpen`` retries the command.
+    ``tasks.json``.  When ``tasks.json`` did not exist before injection and
+    no other tasks remain, the file (and the ``.vscode/`` directory if
+    empty) is **deleted** so no untracked files are left behind.  When
+    ``tasks.json`` was pre-existing the file is rewritten (preserving
+    other top-level keys such as ``inputs`` or ``options``).  On failure
+    the task remains in ``tasks.json`` so the next ``folderOpen`` retries
+    the command.
 
     The function merges the new task into an existing ``tasks.json`` if one
     is present, preserving any user-defined tasks.
@@ -710,7 +746,8 @@ def inject_auto_start_task(
 
     # --- Read existing tasks.json (if any) -----------------------------------
     tasks_config: dict = {"version": "2.0.0", "tasks": []}
-    if os.path.exists(tasks_path):
+    file_existed = os.path.exists(tasks_path)
+    if file_existed:
         try:
             with open(tasks_path, encoding="utf-8") as fh:
                 loaded = json.load(fh)
@@ -752,7 +789,7 @@ def inject_auto_start_task(
     # in tasks.json — the sentinel was already removed (step 4), so the
     # next ``folderOpen`` will retry the task.
     sentinel_unix = sentinel_path.replace("\\", "/")
-    cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label)
+    cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label, created_new=not file_existed)
 
     if platform.system() == "Windows":
         # PowerShell syntax
