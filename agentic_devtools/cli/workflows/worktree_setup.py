@@ -717,11 +717,7 @@ def _remove_stale_auto_start_task(
         if not isinstance(tasks_list, list):
             return
         original_count = len(tasks_list)
-        data["tasks"] = [
-            t
-            for t in tasks_list
-            if not isinstance(t, dict) or t.get("label") != task_label
-        ]
+        data["tasks"] = [t for t in tasks_list if not isinstance(t, dict) or t.get("label") != task_label]
         if len(data["tasks"]) == original_count:
             return  # Task was not present — nothing to clean up
         if data["tasks"]:
