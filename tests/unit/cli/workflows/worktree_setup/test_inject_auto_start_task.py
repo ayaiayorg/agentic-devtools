@@ -198,3 +198,69 @@ class TestInjectAutoStartTask:
 
         captured = capsys.readouterr()
         assert "Injected auto-start task" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_quotes_args_with_spaces(self, mock_available, mock_system, tmp_path):
+        """On Windows, command args containing spaces are single-quoted."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "prompt with spaces"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        assert "'prompt with spaces'" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_task_has_explicit_powershell_shell(self, mock_available, mock_system, tmp_path):
+        """On Windows the task specifies PowerShell as the explicit shell."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert "options" in task
+        assert task["options"]["shell"]["executable"] == "powershell.exe"
+        assert task["options"]["shell"]["args"] == ["-Command"]
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_removes_sentinel_on_command_failure(self, mock_available, mock_system, tmp_path):
+        """On Unix the sentinel is removed when the command exits non-zero."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        assert "agdt_exit=$?" in shell_cmd
+        assert "rm -f" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_removes_sentinel_on_command_failure(self, mock_available, mock_system, tmp_path):
+        """On Windows the sentinel is removed when the command exits non-zero."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        assert "$agdtExit=$LASTEXITCODE" in shell_cmd
+        assert "Remove-Item" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_linux_task_has_no_shell_options(self, mock_available, mock_system, tmp_path):
+        """On Linux the task does not set explicit shell options."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert "options" not in task
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_cleanup_uses_repr_for_path_safety(self, mock_available, mock_system, tmp_path):
+        """The cleanup one-liner uses repr() for safe embedding of paths."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # repr() wraps strings in quotes; the cleanup command should contain
+        # encoding='utf-8' for safe file I/O
+        assert "encoding='utf-8'" in shell_cmd

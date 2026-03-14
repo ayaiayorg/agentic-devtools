@@ -625,13 +625,18 @@ def _build_cleanup_shell_command(
     #   1. Read tasks.json
     #   2. Remove the task matching the label
     #   3. If tasks remain, rewrite; otherwise delete the file
+    # Use repr() for embedded string literals to prevent injection from
+    # paths or labels containing quotes.  Use encoding='utf-8' for all
+    # file I/O to avoid platform-default encoding on Windows.
+    p_repr = repr(tasks_json_path)
+    label_repr = repr(task_label)
     py_script = (
         "import json, os, sys; "
-        f"p='{tasks_json_path}'; "
-        "d=json.load(open(p)); "
-        f"d['tasks']=[t for t in d.get('tasks',[]) if t.get('label')!='{task_label}']; "
+        f"p={p_repr}; "
+        f"d=json.load(open(p,encoding='utf-8')); "
+        f"d['tasks']=[t for t in d.get('tasks',[]) if t.get('label')!={label_repr}]; "
         "( os.remove(p) if not d['tasks'] else "
-        "( open(p,'w').write(json.dumps(d,indent=2)+'\\n') ) )"
+        "( open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') ) )"
     )
 
     return f'{python_cmd} -c "{py_script}"'
@@ -698,7 +703,8 @@ def inject_auto_start_task(
 
     # --- Build the composite shell command -----------------------------------
     # The command: (1) checks sentinel, (2) creates sentinel, (3) runs the
-    # user command, (4) cleans up tasks.json.
+    # user command, (4) on failure removes sentinel so next open retries,
+    # (5) cleans up tasks.json.
     sentinel_unix = sentinel_path.replace("\\", "/")
     cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label)
 
@@ -720,6 +726,8 @@ def inject_auto_start_task(
             f"New-Item -ItemType Directory -Force -Path '{sentinel_dir_win}' | Out-Null; "
             f"New-Item -ItemType File -Force -Path '{sentinel_win}' | Out-Null; "
             f"{cmd_str}; "
+            f"$agdtExit=$LASTEXITCODE; "
+            f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win}' -Force -ErrorAction SilentlyContinue }}; "
             f"{cleanup_cmd}"
         )
     else:
@@ -733,6 +741,8 @@ def inject_auto_start_task(
             f'mkdir -p "{sentinel_dir_unix}"; '
             f'touch "{sentinel_unix}"; '
             f"{cmd_str}; "
+            f"agdt_exit=$?; "
+            f'if [ $agdt_exit -ne 0 ]; then rm -f "{sentinel_unix}"; fi; '
             f"{cleanup_cmd}"
         )
 
@@ -749,6 +759,16 @@ def inject_auto_start_task(
         "isBackground": True,
         "problemMatcher": [],
     }
+
+    # On Windows, explicitly use PowerShell to avoid relying on the user's
+    # default shell (which may be cmd.exe or Git Bash).
+    if platform.system() == "Windows":
+        task_def["options"] = {
+            "shell": {
+                "executable": "powershell.exe",
+                "args": ["-Command"],
+            }
+        }
 
     tasks_config["tasks"].append(task_def)
 
@@ -1170,15 +1190,15 @@ def _start_copilot_session_for_pr_review(
     :data:`COPILOT_SESSION_START_PROMPT` so that the AI agent is forced
     into the workflow step system before receiving any PR context.
 
-    **Auto-start task injection**: Before starting the Copilot session,
-    the function attempts to inject a ``.vscode/tasks.json`` task with
+    **Auto-start task injection**: When *interactive* is ``True``, the
+    function first attempts to inject a ``.vscode/tasks.json`` task with
     ``"runOn": "folderOpen"`` via :func:`inject_auto_start_task`.  When
     the injection succeeds and there is no TTY attached (background task
     scenario), the VS Code integrated terminal will handle the session
     automatically when the new window opens, so the existing
-    ``start_copilot_session()`` call is skipped.  When injection fails
-    or a TTY is available, the function falls through to the existing
-    behaviour.
+    ``start_copilot_session()`` call is skipped.  When injection fails,
+    a TTY is available, or *interactive* is ``False`` (pipeline mode),
+    the function falls through to the existing behaviour.
 
     In interactive mode the Copilot session inherits the terminal so the
     user can interact with it; in non-interactive mode it runs in the
@@ -1209,22 +1229,26 @@ def _start_copilot_session_for_pr_review(
     has_tty = getattr(sys.stdin, "isatty", lambda: False)() and getattr(sys.stdout, "isatty", lambda: False)()
 
     # --- Attempt VS Code auto-start task injection ---------------------------
-    # Build the same copilot command that start_copilot_session() would use.
-    copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
-    if copilot_args is not None:
-        task_injected = inject_auto_start_task(worktree_path, copilot_args)
-        if task_injected and not has_tty:
-            print(
-                "\n--- VS Code auto-start task injected. "
-                "Copilot session will start in the integrated terminal when the window opens. ---"
-            )
-            return
-        if not task_injected and not is_vscode_available():
-            print(
-                "NOTE: VS Code integrated terminal auto-start not available. "
-                "Copilot session will run in the background. "
-                "Run agdt-task-log to view output."
-            )
+    # Only attempt when interactive mode is requested — non-interactive
+    # (pipeline) callers should not have their session hijacked by a VS Code
+    # terminal task.  The injected task always launches an interactive copilot
+    # session (it runs in the VS Code integrated terminal).
+    if interactive:
+        copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
+        if copilot_args is not None:
+            task_injected = inject_auto_start_task(worktree_path, copilot_args)
+            if task_injected and not has_tty:
+                print(
+                    "\n--- VS Code auto-start task injected. "
+                    "Copilot session will start in the integrated terminal when the window opens. ---"
+                )
+                return
+            if not task_injected and not is_vscode_available():
+                print(
+                    "NOTE: VS Code integrated terminal auto-start not available. "
+                    "Copilot session will run in the background. "
+                    "Run agdt-task-log to view output."
+                )
 
     effective_interactive = interactive and is_vscode_available() and has_tty
 

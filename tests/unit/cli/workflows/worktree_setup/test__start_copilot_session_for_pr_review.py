@@ -365,7 +365,8 @@ class TestStartCopilotSessionForPrReview:
         monkeypatch.setattr("sys.stdin", mock_stdin)
         monkeypatch.setattr("sys.stdout", mock_stdout)
 
-        _start_copilot_session_for_pr_review(str(tmp_path))
+        # interactive=True is required for task injection to be attempted
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
 
         mock_inject.assert_called_once()
         mock_copilot.assert_not_called()
@@ -395,7 +396,8 @@ class TestStartCopilotSessionForPrReview:
 
         mock_wait.return_value = True
 
-        _start_copilot_session_for_pr_review(str(tmp_path))
+        # interactive=True so the injection path is attempted
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
 
         mock_inject.assert_called_once()
         mock_copilot.assert_called_once()
@@ -457,11 +459,39 @@ class TestStartCopilotSessionForPrReview:
 
         mock_wait.return_value = True
 
-        _start_copilot_session_for_pr_review(str(tmp_path))
+        # interactive=True required for task injection attempt
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
 
         captured = capsys.readouterr()
         assert "VS Code integrated terminal auto-start not available" in captured.out
         assert "agdt-task-log" in captured.out
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-p", "prompt"])
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_skips_task_injection_when_non_interactive(
+        self,
+        mock_wait,
+        mock_build_args,
+        mock_vscode,
+        mock_inject,
+        mock_copilot,
+        tmp_path,
+    ):
+        """Non-interactive mode (pipeline) should never attempt task injection."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        mock_wait.return_value = True
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=False)
+
+        mock_inject.assert_not_called()
+        mock_copilot.assert_called_once()
 
 
 class TestCopilotSessionStartPrompt:

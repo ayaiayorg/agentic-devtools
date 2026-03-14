@@ -53,7 +53,7 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import IO, Optional
+from typing import IO, List, Optional
 
 from agentic_devtools.state import get_state_dir, set_value
 
@@ -219,7 +219,7 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[list[str]]:
+def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -271,7 +271,7 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[li
     return ["gh", "copilot", "suggest", prompt]
 
 
-def build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[list[str]]:
+def build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list (public API).
 
     Public wrapper around the internal argument builder.  Use this when you
