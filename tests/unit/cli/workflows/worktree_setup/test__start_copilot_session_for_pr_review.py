@@ -602,6 +602,43 @@ class TestStartCopilotSessionForPrReview:
         # Should fall through since JSON is malformed
         mock_copilot.assert_called_once()
 
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_falls_through_when_tasks_null_in_tasks_json(
+        self,
+        mock_wait,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json has `tasks: null`, fall through gracefully (no TypeError)."""
+        prompt_dir = tmp_path / "scripts" / "temp"
+        prompt_dir.mkdir(parents=True)
+        prompt_file = prompt_dir / "temp-pull-request-review-initiate-prompt.md"
+        prompt_file.write_text("# Prompt", encoding="utf-8")
+
+        # Write tasks.json with tasks: null
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text(
+            json.dumps({"version": "2.0.0", "tasks": None}),
+            encoding="utf-8",
+        )
+
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        _start_copilot_session_for_pr_review(str(tmp_path), interactive=True)
+
+        # Should fall through since tasks is null (not a list with the auto-start task)
+        mock_copilot.assert_called_once()
+
 
 class TestCopilotSessionStartPrompt:
     """Tests for the COPILOT_SESSION_START_PROMPT constant."""

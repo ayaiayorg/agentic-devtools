@@ -448,3 +448,53 @@ class TestInjectAutoStartTask:
         shell_cmd = data["tasks"][0]["command"]
         # The final statement must be 'exit $agdtExit'
         assert shell_cmd.rstrip().endswith("exit $agdtExit")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_returns_false_when_command_is_empty(self, mock_available, tmp_path):
+        """Returns False when an empty command list is provided."""
+        result = inject_auto_start_task(str(tmp_path), [])
+
+        assert result is False
+        assert not (tmp_path / ".vscode" / "tasks.json").exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_returns_false_when_command_has_non_string_items(self, mock_available, tmp_path):
+        """Returns False when command list contains non-string items."""
+        result = inject_auto_start_task(str(tmp_path), ["copilot", 42])  # type: ignore[list-item]
+
+        assert result is False
+        assert not (tmp_path / ".vscode" / "tasks.json").exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_ensures_version_field_when_missing_from_existing(self, mock_available, tmp_path):
+        """Adds version field when merging into tasks.json that lacks it."""
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        existing = {"tasks": [{"label": "existing", "type": "shell", "command": "echo hi"}]}
+        (vscode_dir / "tasks.json").write_text(json.dumps(existing), encoding="utf-8")
+
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        assert data["version"] == "2.0.0"
+        assert len(data["tasks"]) == 2  # existing + injected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_test_path_uses_literal_path(self, mock_available, mock_system, tmp_path):
+        """On Windows, Test-Path uses -LiteralPath to avoid wildcard expansion."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        assert "Test-Path -LiteralPath" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_remove_item_uses_literal_path(self, mock_available, mock_system, tmp_path):
+        """On Windows, Remove-Item uses -LiteralPath to avoid wildcard expansion."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        assert "Remove-Item -LiteralPath" in shell_cmd

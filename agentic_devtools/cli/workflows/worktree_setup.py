@@ -691,6 +691,10 @@ def inject_auto_start_task(
     if not is_vscode_available():
         return False
 
+    # Validate that the command list is non-empty and contains only strings.
+    if not command or not all(isinstance(c, str) for c in command):
+        return False
+
     vscode_dir = os.path.join(worktree_path, ".vscode")
     tasks_path = os.path.join(vscode_dir, "tasks.json")
     sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
@@ -712,6 +716,9 @@ def inject_auto_start_task(
             # non-dict top-levels as malformed and overwrite.
             if isinstance(loaded, dict):
                 tasks_config = loaded
+                # Ensure the required ``version`` field is present so VS Code
+                # will accept the file even if the existing one was missing it.
+                tasks_config.setdefault("version", "2.0.0")
             else:
                 print(
                     f"Warning: {tasks_path} is not a JSON object — will overwrite",
@@ -761,12 +768,13 @@ def inject_auto_start_task(
         sentinel_win_safe = sentinel_win.replace("'", "''")
         sentinel_dir_win_safe = sentinel_dir_win.replace("'", "''")
         shell_command = (
-            f"if (Test-Path '{sentinel_win_safe}') {{ exit 0 }}; "
+            f"if (Test-Path -LiteralPath '{sentinel_win_safe}') {{ exit 0 }}; "
             f"New-Item -ItemType Directory -Force -Path '{sentinel_dir_win_safe}' | Out-Null; "
             f"New-Item -ItemType File -Force -Path '{sentinel_win_safe}' | Out-Null; "
             f"{cmd_str}; "
             f"$agdtExit=$LASTEXITCODE; "
-            f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
+            f"if ($agdtExit -ne 0) {{ Remove-Item -LiteralPath "
+            f"'{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
             f"if ($agdtExit -eq 0) {{ try {{ {cleanup_cmd} }} catch {{}} }}; "
             f"exit $agdtExit"
         )
@@ -1286,11 +1294,10 @@ def _start_copilot_session_for_pr_review(
                 with open(tasks_path, encoding="utf-8") as fh:
                     data = json.load(fh)
                 if isinstance(data, dict):
-                    tasks_list = data.get("tasks", [])
-                    if any(
-                        isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL
-                        for t in tasks_list
-                    ):
+                    tasks_list = data.get("tasks")
+                    if not isinstance(tasks_list, list):
+                        tasks_list = []
+                    if any(isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL for t in tasks_list):
                         print(
                             "\n--- VS Code auto-start task present. "
                             "Waiting for VS Code to start the Copilot session... ---"
