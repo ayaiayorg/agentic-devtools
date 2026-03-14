@@ -620,3 +620,104 @@ class TestInjectAutoStartTask:
         assert result is False
         # File should be untouched
         assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == original_content
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_ignores_non_dict_json(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json has a non-dict top-level, leave it alone."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        # tasks.json is a valid JSON list (not a dict)
+        (vscode_dir / "tasks.json").write_text("[1, 2, 3]", encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # File should be untouched — non-dict top-level is ignored
+        assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == "[1, 2, 3]"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_ignores_non_list_tasks(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json has tasks: null, leave it alone."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {"version": "2.0.0", "tasks": None}
+        original = json.dumps(tasks_data)
+        (vscode_dir / "tasks.json").write_text(original, encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # File should be untouched — non-list tasks is ignored
+        assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == original
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_preserves_extra_keys_when_no_tasks_remain(self, mock_available, tmp_path):
+        """When sentinel exists, stale task is the only task, but file has extra
+        top-level keys (e.g. inputs), rewrite the file instead of deleting."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": "agdt-copilot-auto-start", "type": "shell", "command": "copilot"}],
+            "inputs": [{"id": "myInput", "type": "promptString"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # File should still exist (has extra keys to preserve)
+        assert (vscode_dir / "tasks.json").exists()
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        assert data["tasks"] == []
+        assert data["inputs"] == [{"id": "myInput", "type": "promptString"}]
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_rmdir_fails_when_vscode_not_empty(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json is deleted but .vscode/ has other
+        files, rmdir silently fails and .vscode/ remains."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": "agdt-copilot-auto-start", "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+        # Add another file so rmdir fails
+        (vscode_dir / "settings.json").write_text("{}", encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # tasks.json deleted but .vscode/ remains (has settings.json)
+        assert not (vscode_dir / "tasks.json").exists()
+        assert vscode_dir.exists()
+        assert (vscode_dir / "settings.json").exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_ignores_malformed_json(self, mock_available, tmp_path):
+        """When sentinel exists and tasks.json has malformed JSON, silently ignore."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text("{invalid json", encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        # File should be untouched — malformed JSON silently ignored
+        assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == "{invalid json"

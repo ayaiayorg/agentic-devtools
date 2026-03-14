@@ -700,8 +700,11 @@ def _remove_stale_auto_start_task(
     removed:
 
     * When other tasks remain the file is rewritten.
-    * When no tasks remain the file is **deleted** and ``.vscode/`` is
-      removed if empty.
+    * When no tasks remain **and** the file has no other top-level keys
+      besides ``version`` and ``tasks``, the file is **deleted** and
+      ``.vscode/`` is removed if empty.
+    * When no tasks remain but other top-level keys exist (e.g. ``inputs``,
+      ``options``), the file is rewritten preserving those keys.
 
     All errors are silently caught so this never prevents the caller from
     proceeding.
@@ -725,12 +728,21 @@ def _remove_stale_auto_start_task(
             with open(tasks_path, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(data, indent=2) + "\n")
         else:
-            # No tasks remain — delete the file and try to rmdir .vscode/.
-            os.remove(tasks_path)
-            try:
-                os.rmdir(vscode_dir)
-            except OSError:
-                pass
+            # No tasks remain.  Only delete the file when it contains no
+            # other top-level keys besides ``version`` and ``tasks`` (i.e.
+            # it was likely created solely for auto-start).  If other keys
+            # exist (e.g. ``inputs``, ``options``) the file belongs to the
+            # user — rewrite it preserving those keys.
+            extra_keys = set(data.keys()) - {"version", "tasks"}
+            if extra_keys:
+                with open(tasks_path, "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(data, indent=2) + "\n")
+            else:
+                os.remove(tasks_path)
+                try:
+                    os.rmdir(vscode_dir)
+                except OSError:
+                    pass
     except (json.JSONDecodeError, OSError):
         pass  # Best-effort — silently ignore errors
 
