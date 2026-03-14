@@ -1389,7 +1389,7 @@ def _start_copilot_session_for_pr_review(
     # we can skip.  If it doesn't appear within a reasonable window (e.g.
     # VS Code failed to open or the task didn't fire), we fall through and
     # start the session ourselves as a fallback.
-    if interactive and not has_tty:
+    if interactive and not has_tty and is_vscode_available():
         tasks_path = os.path.join(worktree_path, ".vscode", "tasks.json")
         sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
         if os.path.exists(tasks_path):
