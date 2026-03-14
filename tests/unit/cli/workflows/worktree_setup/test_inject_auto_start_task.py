@@ -361,3 +361,63 @@ class TestInjectAutoStartTask:
         assert '`"' in shell_cmd
         # Must NOT contain bash-style backslash escaping
         assert '\\"' not in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_sentinel_uses_shlex_quote(self, mock_available, mock_system, tmp_path):
+        """On Unix, sentinel paths use shlex.quote() (single-quote style)."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # shlex.quote() uses single quotes; paths must NOT be double-quoted
+        # (double quotes allow $VAR expansion and command substitution).
+        # Find all references to the sentinel — they should be single-quoted
+        assert f"'{tmp_path}" in shell_cmd
+        # Specifically: must NOT have double-quoted sentinel paths
+        assert f'"{tmp_path}' not in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_cleanup_is_non_fatal(self, mock_available, mock_system, tmp_path):
+        """On Unix, cleanup failure does not affect the task's exit code."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # Cleanup is followed by '|| true' to make it non-fatal
+        assert "|| true" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_exits_with_command_exit_code(self, mock_available, mock_system, tmp_path):
+        """On Unix, the task exits with the Copilot command's captured exit code."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The final statement must be 'exit $agdt_exit'
+        assert shell_cmd.rstrip().endswith("exit $agdt_exit")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_cleanup_is_non_fatal(self, mock_available, mock_system, tmp_path):
+        """On Windows, cleanup failure does not affect the task's exit code."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # Cleanup is wrapped in try/catch to make it non-fatal
+        assert "try {" in shell_cmd
+        assert "} catch {}" in shell_cmd
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_exits_with_command_exit_code(self, mock_available, mock_system, tmp_path):
+        """On Windows, the task exits with the Copilot command's captured exit code."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The final statement must be 'exit $agdtExit'
+        assert shell_cmd.rstrip().endswith("exit $agdtExit")

@@ -727,7 +727,8 @@ def inject_auto_start_task(
     # --- Build the composite shell command -----------------------------------
     # The command: (1) checks sentinel, (2) creates sentinel, (3) runs the
     # user command, (4) on failure removes sentinel so next open retries,
-    # (5) cleans up tasks.json.
+    # (5) cleans up tasks.json (non-fatal), (6) exits with the user command's
+    # exit code so VS Code reflects the correct status.
     sentinel_unix = sentinel_path.replace("\\", "/")
     cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label)
 
@@ -753,7 +754,8 @@ def inject_auto_start_task(
             f"{cmd_str}; "
             f"$agdtExit=$LASTEXITCODE; "
             f"if ($agdtExit -ne 0) {{ Remove-Item '{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
-            f"{cleanup_cmd}"
+            f"try {{ {cleanup_cmd} }} catch {{}}; "
+            f"exit $agdtExit"
         )
     else:
         # Bash syntax
@@ -761,14 +763,19 @@ def inject_auto_start_task(
 
         cmd_str = shlex.join(command)
         sentinel_dir_unix = os.path.dirname(sentinel_unix)
+        # Use shlex.quote() for sentinel paths so that $, backticks, etc.
+        # in worktree paths are not expanded by the shell.
+        sentinel_q = shlex.quote(sentinel_unix)
+        sentinel_dir_q = shlex.quote(sentinel_dir_unix)
         shell_command = (
-            f'if [ -f "{sentinel_unix}" ]; then exit 0; fi; '
-            f'mkdir -p "{sentinel_dir_unix}"; '
-            f'touch "{sentinel_unix}"; '
+            f"if [ -f {sentinel_q} ]; then exit 0; fi; "
+            f"mkdir -p {sentinel_dir_q}; "
+            f"touch {sentinel_q}; "
             f"{cmd_str}; "
             f"agdt_exit=$?; "
-            f'if [ $agdt_exit -ne 0 ]; then rm -f "{sentinel_unix}"; fi; '
-            f"{cleanup_cmd}"
+            f"if [ $agdt_exit -ne 0 ]; then rm -f {sentinel_q}; fi; "
+            f"{cleanup_cmd} || true; "
+            f"exit $agdt_exit"
         )
 
     # --- Build the task definition -------------------------------------------
