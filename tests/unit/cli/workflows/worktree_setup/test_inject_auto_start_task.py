@@ -721,3 +721,75 @@ class TestInjectAutoStartTask:
         assert result is False
         # File should be untouched — malformed JSON silently ignored
         assert (vscode_dir / "tasks.json").read_text(encoding="utf-8") == "{invalid json"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_cleanup_escapes_dollar_in_path(self, mock_available, mock_system, tmp_path):
+        """On Unix, $ in worktree paths is escaped to \\$ in the cleanup -c arg."""
+        worktree = tmp_path / "path$HOME"
+        worktree.mkdir()
+        inject_auto_start_task(str(worktree), ["copilot", "-i", "test"])
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        # The cleanup python3 -c "..." must contain \$ so bash doesn't expand $HOME.
+        # After JSON round-trip, \$ appears as \$ in the Python string.
+        cleanup_part = shell_cmd.split("python3 -c")[1]
+        assert "\\$HOME" in cleanup_part
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_cleanup_escapes_backtick_in_path(self, mock_available, mock_system, tmp_path):
+        """On Unix, backticks in worktree paths are escaped to \\` in cleanup."""
+        worktree = tmp_path / "path`cmd`"
+        worktree.mkdir()
+        inject_auto_start_task(str(worktree), ["copilot", "-i", "test"])
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        cleanup_part = shell_cmd.split("python3 -c")[1]
+        # Backticks must be escaped to \` in the -c arg
+        assert "\\`" in cleanup_part
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_unix_cleanup_escapes_backslash(self, mock_available, mock_system, tmp_path):
+        """On Unix, backslashes in py_script (from repr) are escaped to \\\\."""
+        inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        cleanup_part = shell_cmd.split("python3 -c")[1]
+        # The py_script contains '\n' (from the f-string '\\n').
+        # After \ → \\ escaping, this becomes '\\n' in the -c arg.
+        # Bash processes \\ → \ so Python receives '\n' → newline.  ✓
+        # Check that the cleanup contains the escaped newline literal
+        assert "\\\\n" in cleanup_part
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_cleanup_escapes_dollar_in_path(self, mock_available, mock_system, tmp_path):
+        """On Windows, $ in paths is escaped to `$ in the cleanup -c arg."""
+        worktree = tmp_path / "path$HOME"
+        worktree.mkdir()
+        inject_auto_start_task(str(worktree), ["copilot", "-i", "test"])
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        cleanup_part = shell_cmd.split("python -c")[1]
+        # PowerShell escapes $ with backtick
+        assert "`$HOME" in cleanup_part
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_windows_cleanup_escapes_backtick_in_path(self, mock_available, mock_system, tmp_path):
+        """On Windows, backticks in paths are escaped to `` in cleanup."""
+        worktree = tmp_path / "path`cmd"
+        worktree.mkdir()
+        inject_auto_start_task(str(worktree), ["copilot", "-i", "test"])
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        shell_cmd = data["tasks"][0]["command"]
+        cleanup_part = shell_cmd.split("python -c")[1]
+        # PowerShell escapes backtick by doubling it
+        assert "``" in cleanup_part

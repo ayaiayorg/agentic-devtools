@@ -647,8 +647,9 @@ def _build_cleanup_shell_command(
     # paths or labels containing quotes.  Use encoding='utf-8' for all
     # file I/O to avoid platform-default encoding on Windows.
     # Note: repr() may produce double-quoted strings (e.g. when the value
-    # contains a single quote).  We escape any resulting '"' so they don't
-    # break the outer -c "..." quoting.
+    # contains a single quote).  Shell-special characters ($, `, ", \) in
+    # the resulting py_script are escaped before embedding in the outer
+    # -c "..." argument — see the escaping block below.
     p_repr = repr(tasks_json_path)
     label_repr = repr(task_label)
 
@@ -677,12 +678,23 @@ def _build_cleanup_shell_command(
             "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n')"
         )
 
-    # Escape double quotes in py_script so they don't break the outer -c "..."
-    # On Unix (bash), backslash escaping (\") is used.
-    # On Windows (PowerShell), backtick escaping (`") is used.
+    # Escape py_script for safe embedding in the double-quoted -c "..." arg.
+    # Without this, $ and ` in paths (from repr() output) would trigger
+    # shell variable expansion / command substitution.
     if platform.system() == "Windows":
+        # PowerShell double-quoted strings: backtick is the escape char.
+        # Order matters: escape backticks first so they don't interact with
+        # the backtick-escapes we add for $ and " in subsequent steps.
+        py_script = py_script.replace("`", "``")
+        py_script = py_script.replace("$", "`$")
         py_script = py_script.replace('"', '`"')
     else:
+        # Bash double-quoted strings: backslash is the escape char.
+        # Escape \ first (so existing backslashes don't interact with our
+        # new \$ and \` escapes), then $ and ` which trigger expansion.
+        py_script = py_script.replace("\\", "\\\\")
+        py_script = py_script.replace("$", "\\$")
+        py_script = py_script.replace("`", "\\`")
         py_script = py_script.replace('"', '\\"')
 
     return f'{python_cmd} -c "{py_script}"'
