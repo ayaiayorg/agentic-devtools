@@ -11,7 +11,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
     """Tests for _maybe_inject_auto_start_before_vscode helper."""
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
-    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     def test_injects_task_when_interactive(
         self,
         mock_build_args,
@@ -28,7 +28,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         assert "auto-start task injected" in captured.out
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task")
-    @patch("agentic_devtools.cli.copilot.session.build_copilot_args")
+    @patch("agentic_devtools.cli.copilot.build_copilot_args")
     def test_skips_when_not_interactive(
         self,
         mock_build_args,
@@ -42,7 +42,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject.assert_not_called()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task")
-    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=None)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=None)
     def test_skips_when_build_copilot_args_returns_none(
         self,
         mock_build_args,
@@ -56,7 +56,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject.assert_not_called()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=False)
-    @patch("agentic_devtools.cli.copilot.session.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     def test_does_not_print_when_injection_fails(
         self,
         mock_build_args,

@@ -792,7 +792,6 @@ def inject_auto_start_task(
             "reveal": "always",
             "focus": True,
         },
-        "isBackground": True,
         "problemMatcher": [],
     }
 
@@ -1338,7 +1337,7 @@ def _maybe_inject_auto_start_before_vscode(worktree_path: str, interactive: bool
     """
     if not interactive:
         return
-    from ..copilot.session import build_copilot_args
+    from ..copilot import build_copilot_args
 
     copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
     if copilot_args is not None:

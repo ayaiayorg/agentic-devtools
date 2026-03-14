@@ -182,13 +182,13 @@ class TestInjectAutoStartTask:
         assert "touch" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
-    def test_task_is_background(self, mock_available, tmp_path):
-        """The injected task is marked as isBackground."""
+    def test_task_is_not_background(self, mock_available, tmp_path):
+        """The injected task is a foreground one-shot command (not background)."""
         inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
 
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         task = data["tasks"][0]
-        assert task["isBackground"] is True
+        assert "isBackground" not in task
         assert task["problemMatcher"] == []
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
