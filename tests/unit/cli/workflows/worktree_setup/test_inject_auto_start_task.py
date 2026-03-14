@@ -18,6 +18,18 @@ class TestInjectAutoStartTask:
         assert not (tmp_path / ".vscode" / "tasks.json").exists()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_returns_false_when_sentinel_already_exists(self, mock_available, tmp_path):
+        """Returns False without writing when the sentinel file already exists."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "test"])
+
+        assert result is False
+        assert not (tmp_path / ".vscode" / "tasks.json").exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     def test_creates_tasks_json_when_absent(self, mock_available, tmp_path):
         """Creates .vscode/tasks.json with the auto-start task when no file exists."""
         result = inject_auto_start_task(str(tmp_path), ["copilot", "-i", "hello"])

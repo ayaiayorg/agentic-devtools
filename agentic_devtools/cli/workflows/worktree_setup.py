@@ -695,6 +695,13 @@ def inject_auto_start_task(
     tasks_path = os.path.join(vscode_dir, "tasks.json")
     sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
 
+    # Skip injection when the sentinel already exists — the command was
+    # already executed successfully in a previous window open.  Without
+    # this guard the task would be written but then exit immediately in
+    # the sentinel short-circuit, leaving an orphaned entry in tasks.json.
+    if os.path.exists(sentinel_path):
+        return False
+
     # --- Read existing tasks.json (if any) -----------------------------------
     tasks_config: dict = {"version": "2.0.0", "tasks": []}
     if os.path.exists(tasks_path):
@@ -1265,11 +1272,15 @@ def _start_copilot_session_for_pr_review(
     # --- Check if the VS Code auto-start task was already injected -----------
     # _maybe_inject_auto_start_before_vscode() injects the task *before* VS
     # Code opens so that ``runOn: folderOpen`` fires with the task present.
-    # When that happened and we're in a background context (no TTY), the
-    # VS Code integrated terminal will handle the Copilot session — no need
-    # to start it here.
+    # When that happened and we're in a background context (no TTY), we wait
+    # briefly for the sentinel file to confirm the VS Code task actually
+    # started.  If the sentinel appears, VS Code is handling the session and
+    # we can skip.  If it doesn't appear within a reasonable window (e.g.
+    # VS Code failed to open or the task didn't fire), we fall through and
+    # start the session ourselves as a fallback.
     if interactive and not has_tty:
         tasks_path = os.path.join(worktree_path, ".vscode", "tasks.json")
+        sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
         if os.path.exists(tasks_path):
             try:
                 with open(tasks_path, encoding="utf-8") as fh:
@@ -1281,11 +1292,30 @@ def _start_copilot_session_for_pr_review(
                         for t in tasks_list
                     ):
                         print(
-                            "\n--- VS Code auto-start task already present. "
-                            "Copilot session will start in the integrated terminal "
-                            "when the window opens. ---"
+                            "\n--- VS Code auto-start task present. "
+                            "Waiting for VS Code to start the Copilot session... ---"
                         )
-                        return
+                        # Wait up to 15 seconds for the sentinel file to appear,
+                        # which means the VS Code task actually executed.
+                        import time
+
+                        _SENTINEL_WAIT_SECONDS = 15
+                        _SENTINEL_POLL_INTERVAL = 1.0
+                        waited = 0.0
+                        while waited < _SENTINEL_WAIT_SECONDS:
+                            if os.path.exists(sentinel_path):
+                                print(
+                                    "--- VS Code auto-start task confirmed running. "
+                                    "Copilot session is in the integrated terminal. ---"
+                                )
+                                return
+                            time.sleep(_SENTINEL_POLL_INTERVAL)
+                            waited += _SENTINEL_POLL_INTERVAL
+                        print(
+                            "--- VS Code auto-start task did not fire within "
+                            f"{_SENTINEL_WAIT_SECONDS}s. "
+                            "Falling back to background Copilot session. ---"
+                        )
             except (json.JSONDecodeError, OSError):
                 pass  # Fall through to starting the session directly
 
