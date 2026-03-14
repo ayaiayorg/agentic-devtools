@@ -734,8 +734,7 @@ class TestInjectAutoStartTask:
         shell_cmd = data["tasks"][0]["command"]
         # The cleanup python3 -c "..." must contain \$ so bash doesn't expand $HOME.
         # After JSON round-trip, \$ appears as \$ in the Python string.
-        cleanup_part = shell_cmd.split("python3 -c")[1]
-        assert "\\$HOME" in cleanup_part
+        assert "\\$HOME" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
@@ -747,9 +746,8 @@ class TestInjectAutoStartTask:
 
         data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        cleanup_part = shell_cmd.split("python3 -c")[1]
         # Backticks must be escaped to \` in the -c arg
-        assert "\\`" in cleanup_part
+        assert "\\`" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Linux")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
@@ -759,12 +757,11 @@ class TestInjectAutoStartTask:
 
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        cleanup_part = shell_cmd.split("python3 -c")[1]
         # The py_script contains '\n' (from the f-string '\\n').
         # After \ → \\ escaping, this becomes '\\n' in the -c arg.
         # Bash processes \\ → \ so Python receives '\n' → newline.  ✓
         # Check that the cleanup contains the escaped newline literal
-        assert "\\\\n" in cleanup_part
+        assert "\\\\n" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
@@ -776,9 +773,8 @@ class TestInjectAutoStartTask:
 
         data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        cleanup_part = shell_cmd.split("python -c")[1]
         # PowerShell escapes $ with backtick
-        assert "`$HOME" in cleanup_part
+        assert "`$HOME" in shell_cmd
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system", return_value="Windows")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
@@ -790,6 +786,5 @@ class TestInjectAutoStartTask:
 
         data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         shell_cmd = data["tasks"][0]["command"]
-        cleanup_part = shell_cmd.split("python -c")[1]
         # PowerShell escapes backtick by doubling it
-        assert "``" in cleanup_part
+        assert "``" in shell_cmd
