@@ -60,6 +60,18 @@ COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
     "The workflow is update-jira-issue."
 )
 
+# Mapping from workflow name → start prompt used by the VS Code auto-start task
+# injector.  Workflow names not listed here fall back to the generic PR-review
+# prompt (backward-compatible default).
+_WORKFLOW_START_PROMPTS: dict[str, str] = {
+    "pull-request-review": COPILOT_SESSION_START_PROMPT,
+    "work-on-jira-issue": COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
+    "create-jira-issue": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
+    "create-jira-epic": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
+    "create-jira-subtask": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
+    "update-jira-issue": COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
+}
+
 
 def is_vscode_available() -> bool:
     """Check if VS Code CLI is available on PATH.
@@ -1735,24 +1747,29 @@ def _start_copilot_session_for_update_jira_issue(
     )
 
 
-def _maybe_inject_auto_start_before_vscode(worktree_path: str, interactive: bool) -> None:
+def _maybe_inject_auto_start_before_vscode(
+    worktree_path: str,
+    interactive: bool,
+    start_prompt: str = COPILOT_SESSION_START_PROMPT,
+) -> None:
     """Inject a VS Code auto-start task if *interactive* mode is enabled.
 
     Called right before ``open_vscode_workspace()`` so the task exists when
-    the ``folderOpen`` event fires.  Uses the static
-    :data:`COPILOT_SESSION_START_PROMPT` constant — no prompt file is needed.
+    the ``folderOpen`` event fires.  Uses *start_prompt* to tell the Copilot
+    agent which workflow to execute — callers should pass the correct
+    workflow-specific prompt (see :data:`_WORKFLOW_START_PROMPTS`).
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (Copilot CLI not found) or ``inject_auto_start_task()`` fails,
     the caller silently continues without the auto-start task; the existing
-    fallback behaviour in ``_start_copilot_session_for_pr_review`` will
+    fallback behaviour in the workflow-specific session launcher will
     handle the session.
     """
     if not interactive:
         return
     from ..copilot import build_copilot_args
 
-    copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
+    copilot_args = build_copilot_args(start_prompt, interactive=True)
     if copilot_args is not None:
         injected = inject_auto_start_task(worktree_path, copilot_args)
         if injected:
@@ -1813,7 +1830,8 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(existing_path, interactive)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, COPILOT_SESSION_START_PROMPT)
+        _maybe_inject_auto_start_before_vscode(existing_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
@@ -1853,7 +1871,8 @@ can copy and paste it into the new VS Code window that just opened:
     if result.success:
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, COPILOT_SESSION_START_PROMPT)
+        _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
