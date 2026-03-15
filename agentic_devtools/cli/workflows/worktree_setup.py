@@ -73,9 +73,20 @@ COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
     "The agentic-devtools workflow will guide you through each step."
 )
 
+# Workflow-agnostic fallback prompt used when ``workflow_name`` is not found in
+# ``_WORKFLOW_START_PROMPTS``.  This instructs the agent to run
+# ``agdt-get-next-workflow-prompt`` which re-renders the current step regardless
+# of the specific workflow, so it's always safe to use as a default.
+_WORKFLOW_AGNOSTIC_FALLBACK_PROMPT = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the current workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
 # Mapping from workflow name → start prompt used by the VS Code auto-start task
-# injector.  Workflow names not listed here fall back to the generic PR-review
-# prompt (backward-compatible default).
+# injector.  Workflow names not listed here fall back to the workflow-agnostic
+# prompt (``_WORKFLOW_AGNOSTIC_FALLBACK_PROMPT``).
 _WORKFLOW_START_PROMPTS: dict[str, str] = {
     "pull-request-review": COPILOT_SESSION_START_PROMPT,
     "work-on-jira-issue": COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
@@ -1873,7 +1884,7 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, COPILOT_SESSION_START_PROMPT)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
         _maybe_inject_auto_start_before_vscode(existing_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code
@@ -1914,7 +1925,7 @@ can copy and paste it into the new VS Code window that just opened:
     if result.success:
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, COPILOT_SESSION_START_PROMPT)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
         _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code after task injection
