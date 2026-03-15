@@ -900,6 +900,10 @@ def initiate_create_jira_issue_workflow(
     resolved_issue_type = get_value("jira.issue_type") or "Story"
     resolved_user_request = get_value("jira.user_request")
 
+    # Persist the resolved default so initiate_workflow's required_state_keys check passes
+    if not get_value("jira.project_key"):
+        set_value("jira.project_key", resolved_project_key)
+
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
         preflight_result = check_worktree_and_branch(resolved_issue_key)
@@ -1082,6 +1086,10 @@ def initiate_create_jira_epic_workflow(
     resolved_issue_key = get_value("jira.issue_key")
     resolved_project_key = get_value("jira.project_key") or "DFLY"
     resolved_user_request = get_value("jira.user_request")
+
+    # Persist the resolved default so initiate_workflow's required_state_keys check passes
+    if not get_value("jira.project_key"):
+        set_value("jira.project_key", resolved_project_key)
 
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
