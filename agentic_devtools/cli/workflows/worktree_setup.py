@@ -1594,19 +1594,23 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
 
     # Resolve get_state_dir() in the worktree context, not the caller's.
     # Same pattern as _start_copilot_session_for_workflow() itself.
+    # The relative path is computed inside the try block so that a failed
+    # os.chdir() propagates naturally instead of causing an UnboundLocalError
+    # for ``state_dir``.
     previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
     previous_cwd = os.getcwd()
     try:
         os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         os.chdir(worktree_path)
         state_dir = get_state_dir()
+        relative_path = os.path.relpath(str(state_dir / prompt_filename), worktree_path)
     finally:
         os.chdir(previous_cwd)
         if previous_state_dir is None:
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         else:
             os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
-    return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
+    return relative_path
 
 
 def _start_copilot_session_for_work_on_jira_issue(

@@ -1260,11 +1260,16 @@ def initiate_create_jira_subtask_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
+            if not resolved_parent_key:
+                print("ERROR: --parent-key is required for the create-jira-subtask workflow.")
+                sys.exit(1)
+
             auto_execute_command = [
                 "agdt-initiate-create-jira-subtask-workflow",
                 "--issue-key",
                 resolved_issue_key,
-                *(["--parent-key", resolved_parent_key] if resolved_parent_key else []),
+                "--parent-key",
+                resolved_parent_key,
                 "--interactive",
                 "true" if interactive else "false",
             ]
@@ -1275,7 +1280,7 @@ def initiate_create_jira_subtask_workflow(
                 resolved_issue_key,
                 "create-jira-subtask",
                 user_request=resolved_user_request,
-                additional_params={"parent_key": resolved_parent_key} if resolved_parent_key else None,
+                additional_params={"parent_key": resolved_parent_key},
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):

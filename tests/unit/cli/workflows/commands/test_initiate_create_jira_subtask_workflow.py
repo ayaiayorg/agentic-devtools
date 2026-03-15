@@ -110,6 +110,29 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
                     commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-1235"])
                 assert exc_info.value.code == 1
 
+    def test_preflight_fails_without_parent_key_exits(self, temp_state_dir, clear_state_before, capsys):
+        """Test when preflight fails and parent_key is missing, exits with error."""
+        state.set_value("jira.issue_key", "DFLY-1235")
+        # No jira.parent_key set
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="DFLY-1235",
+            )
+
+            with pytest.raises(SystemExit) as exc_info:
+                commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-1235"])
+            assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "--parent-key is required" in captured.out
+
     def test_no_issue_key_no_parent_key_error(self, temp_state_dir, clear_state_before, capsys):
         """Test when no issue_key and no parent_key, shows error."""
         with pytest.raises(SystemExit) as exc_info:
