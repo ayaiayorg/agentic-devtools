@@ -27,6 +27,49 @@ from .base import (
 from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
+def _effective_argv(
+    _argv: Optional[List[str]],
+    *programmatic_params: object,
+) -> Optional[List[str]]:
+    """Return the argv list that :func:`argparse.ArgumentParser.parse_args` should receive.
+
+    When ``_argv`` is explicitly provided (including ``[]``), it is returned
+    as-is — the caller is controlling what gets parsed.
+
+    When ``_argv is None`` **and** no programmatic parameter was supplied,
+    the function is being used as a CLI entry point, so we return ``None``
+    to let argparse read ``sys.argv``.
+
+    When ``_argv is None`` **but** at least one programmatic parameter is
+    not ``None``, the caller is invoking the function from code (or from
+    tests that forgot to pass ``_argv=[]``).  In that case we return ``[]``
+    so that argparse parses an empty argument list instead of the host
+    process's ``sys.argv`` — which could contain unrelated flags and cause
+    an unexpected ``SystemExit``.
+    """
+    if _argv is not None:
+        return _argv
+    if any(p is not None for p in programmatic_params):
+        return []
+    return None
+
+
+def _parse_bool_interactive(value: str) -> str:
+    """Validate ``--interactive`` value (pass-through for argparse ``type=``).
+
+    Accepts only ``true`` / ``false`` (case-insensitive).  Returns the
+    normalised lowercase string so the caller can compare with ``"true"``.
+    Raises :class:`argparse.ArgumentTypeError` for anything else, which
+    argparse converts into a user-friendly error message.
+    """
+    import argparse
+
+    normalised = value.strip().lower()
+    if normalised in ("true", "false"):
+        return normalised
+    raise argparse.ArgumentTypeError(f"invalid value '{value}' — must be 'true' or 'false'")
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -54,9 +97,9 @@ def initiate_pull_request_review_workflow(
         issue_key: Jira issue key to find the PR by branch name.
         interactive: Whether to start the Copilot session interactively (default: False).
             Set to True for interactive mode.
-        _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv
-            (this function always calls parse_known_args, so unknown flags are silently ignored,
-            but passing [] prevents any accidental parsing of the test runner's sys.argv).
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid
+            parsing sys.argv.  When any programmatic parameter is set and
+            ``_argv`` is ``None``, an empty argv is used automatically.
 
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
@@ -70,8 +113,6 @@ def initiate_pull_request_review_workflow(
     from ..azure_devops.helpers import find_jira_issue_from_pr, find_pr_from_jira_issue, get_pull_request_source_branch
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # pull_request_id/issue_key are supplied programmatically.
     parser = argparse.ArgumentParser(
         description="Initiate the pull request review workflow",
         epilog="""
@@ -98,9 +139,10 @@ Examples:
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive))
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -108,7 +150,7 @@ Examples:
     if issue_key is None and args.issue_key:
         issue_key = args.issue_key
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -252,6 +294,7 @@ Examples:
 
 def initiate_work_on_jira_issue_workflow(
     issue_key: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -271,10 +314,13 @@ def initiate_work_on_jira_issue_workflow(
     If not in the correct worktree/branch context, automatically creates
     a worktree, installs agentic-devtools, and opens VS Code.
 
-    Usage: agdt-initiate-work-on-jira-issue-workflow [--issue-key DFLY-1234]
+    Usage:
+        agdt-initiate-work-on-jira-issue-workflow [--issue-key DFLY-1234]
+        agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-1234 --interactive true
 
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
     """
     # Clear all previous state to ensure fresh workflow start
@@ -285,16 +331,30 @@ def initiate_work_on_jira_issue_workflow(
     from ...state import set_value
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments if not called programmatically
-    if issue_key is None:
-        parser = argparse.ArgumentParser(description="Initiate the work-on-jira-issue workflow")
-        parser.add_argument(
-            "--issue-key",
-            dest="issue_key",
-            help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
+    parser = argparse.ArgumentParser(description="Initiate the work-on-jira-issue workflow")
+    parser.add_argument(
+        "--issue-key",
+        dest="issue_key",
+        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if issue_key is None and args.issue_key:
         issue_key = args.issue_key
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
 
     # If issue_key provided via CLI, set it in state
     if issue_key:  # pragma: no cover
@@ -312,8 +372,22 @@ def initiate_work_on_jira_issue_workflow(
         for reason in preflight_result.failure_reasons:
             print(f"   - {reason}")
 
+        # Build the command to re-run inside the worktree
+        auto_execute_command = [
+            "agdt-initiate-work-on-jira-issue-workflow",
+            "--issue-key",
+            issue_key,
+            "--interactive",
+            "true" if interactive else "false",
+        ]
+
         # Automatically set up the environment
-        if perform_auto_setup(issue_key, "work-on-jira-issue"):
+        if perform_auto_setup(
+            issue_key,
+            "work-on-jira-issue",
+            auto_execute_command=auto_execute_command,
+            interactive=interactive,
+        ):
             # Setup successful - user should continue in new VS Code window
             print("\n" + "=" * 80)
             print("Please continue the workflow in the new VS Code window.")
@@ -325,6 +399,12 @@ def initiate_work_on_jira_issue_workflow(
 
     # Pre-flight passed - proceed to retrieve step
     _execute_retrieve_step(issue_key, preflight_result.branch_name)
+
+    # Start a Copilot CLI session after the retrieve step completes.
+    from .worktree_setup import _start_copilot_session_for_work_on_jira_issue
+
+    repo_root = get_git_repo_root() or os.getcwd()
+    _start_copilot_session_for_work_on_jira_issue(repo_root, interactive=interactive)
 
 
 def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
@@ -700,6 +780,7 @@ def initiate_create_jira_issue_workflow(
     issue_key: Optional[str] = None,
     issue_type: Optional[str] = None,
     user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -721,12 +802,16 @@ def initiate_create_jira_issue_workflow(
         # Continuation call in new VS Code window:
         agdt-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
 
+        # With interactive mode:
+        agdt-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --interactive true
+
     Args:
         project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
         issue_key: Issue key (provided after placeholder creation for continuation).
         issue_type: Jira issue type (e.g., Story, Task, Bug). Defaults to "Story".
         user_request: User's explanation of what they want. The AI agent will use this
             to populate all Jira fields (summary, description, acceptance criteria, etc.).
+        interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Optional state:
@@ -744,37 +829,54 @@ def initiate_create_jira_issue_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments if not called programmatically
-    if project_key is None and issue_key is None and issue_type is None and user_request is None:
-        parser = argparse.ArgumentParser(description="Initiate the create-jira-issue workflow")
-        parser.add_argument(
-            "--project-key",
-            dest="project_key",
-            help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
-        )
-        parser.add_argument(
-            "--issue-key",
-            "-i",
-            dest="issue_key",
-            help="Issue key (provided after placeholder creation for continuation).",
-        )
-        parser.add_argument(
-            "--issue-type",
-            "-t",
-            dest="issue_type",
-            help="Jira issue type (e.g., Story, Task, Bug). Defaults to 'Story'.",
-        )
-        parser.add_argument(
-            "--user-request",
-            "-u",
-            dest="user_request",
-            help="Your explanation of what you want. AI will use this to populate all Jira fields.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
+    parser = argparse.ArgumentParser(description="Initiate the create-jira-issue workflow")
+    parser.add_argument(
+        "--project-key",
+        dest="project_key",
+        help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
+    )
+    parser.add_argument(
+        "--issue-key",
+        "-i",
+        dest="issue_key",
+        help="Issue key (provided after placeholder creation for continuation).",
+    )
+    parser.add_argument(
+        "--issue-type",
+        "-t",
+        dest="issue_type",
+        help="Jira issue type (e.g., Story, Task, Bug). Defaults to 'Story'.",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Your explanation of what you want. AI will use this to populate all Jira fields.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if project_key is None:
         project_key = args.project_key
+    if issue_key is None:
         issue_key = args.issue_key
+    if issue_type is None:
         issue_type = args.issue_type
+    if user_request is None:
         user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
 
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
@@ -798,6 +900,10 @@ def initiate_create_jira_issue_workflow(
     resolved_issue_type = get_value("jira.issue_type") or "Story"
     resolved_user_request = get_value("jira.user_request")
 
+    # Persist the resolved default so initiate_workflow's required_state_keys check passes
+    if not get_value("jira.project_key"):
+        set_value("jira.project_key", resolved_project_key)
+
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
         preflight_result = check_worktree_and_branch(resolved_issue_key)
@@ -815,6 +921,12 @@ def initiate_create_jira_issue_workflow(
                     "jira.user_request",
                 ],
             )
+
+            # Start a Copilot CLI session after the workflow is initiated.
+            from .worktree_setup import _start_copilot_session_for_create_jira_issue
+
+            repo_root = get_git_repo_root() or os.getcwd()
+            _start_copilot_session_for_create_jira_issue(repo_root, interactive=interactive)
             return
         else:
             # Not in correct context - auto-setup
@@ -822,7 +934,27 @@ def initiate_create_jira_issue_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            if perform_auto_setup(resolved_issue_key, "create-jira-issue", user_request=resolved_user_request):
+            auto_execute_command = [
+                "agdt-initiate-create-jira-issue-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                "--project-key",
+                resolved_project_key,
+                "--interactive",
+                "true" if interactive else "false",
+            ]
+            if resolved_issue_type:
+                auto_execute_command.extend(["--issue-type", resolved_issue_type])
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
+            if perform_auto_setup(
+                resolved_issue_key,
+                "create-jira-issue",
+                user_request=resolved_user_request,
+                auto_execute_command=auto_execute_command,
+                interactive=interactive,
+            ):
                 print("\n" + "=" * 80)
                 print("Please continue the workflow in the new VS Code window.")
                 print("=" * 80)
@@ -850,6 +982,7 @@ def initiate_create_jira_epic_workflow(
     project_key: Optional[str] = None,
     issue_key: Optional[str] = None,
     user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -868,11 +1001,15 @@ def initiate_create_jira_epic_workflow(
         # Continuation call in new VS Code window:
         agdt-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --user-request "..."
 
+        # With interactive mode:
+        agdt-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --interactive true
+
     Args:
         project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
         issue_key: Issue key (provided after placeholder creation for continuation).
         user_request: User's explanation of what they want. The AI agent will use this
             to populate all Jira fields (summary, epic name, description, user story, etc.).
+        interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Optional state:
@@ -892,30 +1029,46 @@ def initiate_create_jira_epic_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments if not called programmatically
-    if project_key is None and issue_key is None and user_request is None:
-        parser = argparse.ArgumentParser(description="Initiate the create-jira-epic workflow")
-        parser.add_argument(
-            "--project-key",
-            dest="project_key",
-            help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
-        )
-        parser.add_argument(
-            "--issue-key",
-            "-i",
-            dest="issue_key",
-            help="Issue key (provided after placeholder creation for continuation).",
-        )
-        parser.add_argument(
-            "--user-request",
-            "-u",
-            dest="user_request",
-            help="Your explanation of what you want. AI will use this to populate all Jira fields.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
+    parser = argparse.ArgumentParser(description="Initiate the create-jira-epic workflow")
+    parser.add_argument(
+        "--project-key",
+        dest="project_key",
+        help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
+    )
+    parser.add_argument(
+        "--issue-key",
+        "-i",
+        dest="issue_key",
+        help="Issue key (provided after placeholder creation for continuation).",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Your explanation of what you want. AI will use this to populate all Jira fields.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if project_key is None:
         project_key = args.project_key
+    if issue_key is None:
         issue_key = args.issue_key
+    if user_request is None:
         user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
 
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
@@ -933,6 +1086,10 @@ def initiate_create_jira_epic_workflow(
     resolved_issue_key = get_value("jira.issue_key")
     resolved_project_key = get_value("jira.project_key") or "DFLY"
     resolved_user_request = get_value("jira.user_request")
+
+    # Persist the resolved default so initiate_workflow's required_state_keys check passes
+    if not get_value("jira.project_key"):
+        set_value("jira.project_key", resolved_project_key)
 
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
@@ -953,6 +1110,12 @@ def initiate_create_jira_epic_workflow(
                     "jira.user_request",
                 ],
             )
+
+            # Start a Copilot CLI session after the workflow is initiated.
+            from .worktree_setup import _start_copilot_session_for_create_jira_epic
+
+            repo_root = get_git_repo_root() or os.getcwd()
+            _start_copilot_session_for_create_jira_epic(repo_root, interactive=interactive)
             return
         else:
             # Not in correct context - auto-setup
@@ -960,7 +1123,25 @@ def initiate_create_jira_epic_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            if perform_auto_setup(resolved_issue_key, "create-jira-epic", user_request=resolved_user_request):
+            auto_execute_command = [
+                "agdt-initiate-create-jira-epic-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                "--project-key",
+                resolved_project_key,
+                "--interactive",
+                "true" if interactive else "false",
+            ]
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
+            if perform_auto_setup(
+                resolved_issue_key,
+                "create-jira-epic",
+                user_request=resolved_user_request,
+                auto_execute_command=auto_execute_command,
+                interactive=interactive,
+            ):
                 print("\n" + "=" * 80)
                 print("Please continue the workflow in the new VS Code window.")
                 print("=" * 80)
@@ -988,6 +1169,7 @@ def initiate_create_jira_subtask_workflow(
     parent_key: Optional[str] = None,
     issue_key: Optional[str] = None,
     user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -1006,11 +1188,15 @@ def initiate_create_jira_subtask_workflow(
         # Continuation call in new VS Code window:
         agdt-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --user-request "..."
 
+        # With interactive mode:
+        agdt-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --interactive true
+
     Args:
         parent_key: Parent issue key (e.g., DFLY-1234). Required for creating placeholder.
         issue_key: Issue key (provided after placeholder creation for continuation).
         user_request: User's explanation of what they want. The AI agent will use this
             to populate all Jira fields (summary, description, etc.).
+        interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Optional state:
@@ -1027,30 +1213,46 @@ def initiate_create_jira_subtask_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments if not called programmatically
-    if parent_key is None and issue_key is None and user_request is None:
-        parser = argparse.ArgumentParser(description="Initiate the create-jira-subtask workflow")
-        parser.add_argument(
-            "--parent-key",
-            dest="parent_key",
-            help="Parent issue key (e.g., DFLY-1234). If not provided, uses jira.parent_key from state.",
-        )
-        parser.add_argument(
-            "--issue-key",
-            "-i",
-            dest="issue_key",
-            help="Issue key (provided after placeholder creation for continuation).",
-        )
-        parser.add_argument(
-            "--user-request",
-            "-u",
-            dest="user_request",
-            help="Your explanation of what you want. AI will use this to populate all Jira fields.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
+    parser = argparse.ArgumentParser(description="Initiate the create-jira-subtask workflow")
+    parser.add_argument(
+        "--parent-key",
+        dest="parent_key",
+        help="Parent issue key (e.g., DFLY-1234). If not provided, uses jira.parent_key from state.",
+    )
+    parser.add_argument(
+        "--issue-key",
+        "-i",
+        dest="issue_key",
+        help="Issue key (provided after placeholder creation for continuation).",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Your explanation of what you want. AI will use this to populate all Jira fields.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if parent_key is None:
         parent_key = args.parent_key
+    if issue_key is None:
         issue_key = args.issue_key
+    if user_request is None:
         user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
 
     # If parent_key provided via CLI, set it in state
     if parent_key:
@@ -1080,6 +1282,12 @@ def initiate_create_jira_subtask_workflow(
                 required_state_keys=["jira.parent_key"],
                 optional_state_keys=["jira.summary", "jira.description", "jira.issue_key", "jira.user_request"],
             )
+
+            # Start a Copilot CLI session after the workflow is initiated.
+            from .worktree_setup import _start_copilot_session_for_create_jira_subtask
+
+            repo_root = get_git_repo_root() or os.getcwd()
+            _start_copilot_session_for_create_jira_subtask(repo_root, interactive=interactive)
             return
         else:
             # Not in correct context - auto-setup
@@ -1087,11 +1295,29 @@ def initiate_create_jira_subtask_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
+            if not resolved_parent_key:
+                print("ERROR: --parent-key is required for the create-jira-subtask workflow.")
+                sys.exit(1)
+
+            auto_execute_command = [
+                "agdt-initiate-create-jira-subtask-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                "--parent-key",
+                resolved_parent_key,
+                "--interactive",
+                "true" if interactive else "false",
+            ]
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
             if perform_auto_setup(
                 resolved_issue_key,
                 "create-jira-subtask",
                 user_request=resolved_user_request,
-                additional_params={"parent_key": resolved_parent_key} if resolved_parent_key else None,
+                additional_params={"parent_key": resolved_parent_key},
+                auto_execute_command=auto_execute_command,
+                interactive=interactive,
             ):
                 print("\n" + "=" * 80)
                 print("Please continue the workflow in the new VS Code window.")
@@ -1131,6 +1357,7 @@ def initiate_create_jira_subtask_workflow(
 def initiate_update_jira_issue_workflow(
     issue_key: Optional[str] = None,
     user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
@@ -1146,10 +1373,14 @@ def initiate_update_jira_issue_workflow(
         # Continuation call in new VS Code window:
         agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
 
+        # With interactive mode:
+        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --interactive true
+
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
         user_request: User's explanation of the updates they want. The AI agent will use this
             to determine what fields to update and how.
+        interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Optional state:
@@ -1166,23 +1397,38 @@ def initiate_update_jira_issue_workflow(
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments if not called programmatically
-    if issue_key is None and user_request is None:
-        parser = argparse.ArgumentParser(description="Initiate the update-jira-issue workflow")
-        parser.add_argument(
-            "--issue-key",
-            dest="issue_key",
-            help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
-        )
-        parser.add_argument(
-            "--user-request",
-            "-u",
-            dest="user_request",
-            help="Your explanation of what you want to update. AI will determine the changes to make.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
+    parser = argparse.ArgumentParser(description="Initiate the update-jira-issue workflow")
+    parser.add_argument(
+        "--issue-key",
+        dest="issue_key",
+        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Your explanation of what you want to update. AI will determine the changes to make.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if issue_key is None:
         issue_key = args.issue_key
+    if user_request is None:
         user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
 
     # If issue_key provided via CLI, set it in state
     if issue_key:
@@ -1211,7 +1457,23 @@ def initiate_update_jira_issue_workflow(
             print(f"   - {reason}")
 
         # Automatically set up the environment
-        if perform_auto_setup(resolved_issue_key, "update-jira-issue", user_request=resolved_user_request):
+        auto_execute_command = [
+            "agdt-initiate-update-jira-issue-workflow",
+            "--issue-key",
+            resolved_issue_key,
+            "--interactive",
+            "true" if interactive else "false",
+        ]
+        if resolved_user_request:
+            auto_execute_command.extend(["--user-request", resolved_user_request])
+
+        if perform_auto_setup(
+            resolved_issue_key,
+            "update-jira-issue",
+            user_request=resolved_user_request,
+            auto_execute_command=auto_execute_command,
+            interactive=interactive,
+        ):
             print("\n" + "=" * 80)
             print("Please continue the workflow in the new VS Code window.")
             print("=" * 80)
@@ -1225,6 +1487,12 @@ def initiate_update_jira_issue_workflow(
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.summary", "jira.description", "jira.comment", "jira.user_request"],
     )
+
+    # Start a Copilot CLI session after the workflow is initiated.
+    from .worktree_setup import _start_copilot_session_for_update_jira_issue
+
+    repo_root = get_git_repo_root() or os.getcwd()
+    _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive)
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(

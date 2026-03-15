@@ -3,6 +3,8 @@
 from unittest.mock import patch
 
 from agentic_devtools.cli.workflows.worktree_setup import (
+    COPILOT_SESSION_START_PROMPT,
+    COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
     _maybe_inject_auto_start_before_vscode,
 )
 
@@ -22,7 +24,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         """When interactive=True and copilot args are available, inject the auto-start task."""
         _maybe_inject_auto_start_before_vscode(str(tmp_path), interactive=True)
 
-        mock_build_args.assert_called_once()
+        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
         mock_inject.assert_called_once_with(str(tmp_path), ["copilot", "-i", "prompt"])
         captured = capsys.readouterr()
         assert "auto-start task injected" in captured.out
@@ -70,3 +72,21 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject.assert_called_once()
         captured = capsys.readouterr()
         assert "auto-start task injected" not in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "custom"])
+    def test_passes_custom_start_prompt_to_build_copilot_args(
+        self,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """When a custom start_prompt is provided, it is forwarded to build_copilot_args."""
+        _maybe_inject_auto_start_before_vscode(
+            str(tmp_path),
+            interactive=True,
+            start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
+        )
+
+        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True)
+        mock_inject.assert_called_once()

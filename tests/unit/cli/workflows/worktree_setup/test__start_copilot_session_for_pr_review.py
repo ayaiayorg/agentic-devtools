@@ -760,9 +760,7 @@ class TestStartCopilotSessionForPrReview:
 
         _start_copilot_session_for_pr_review("/some/worktree", interactive=True)
 
-        expected_relative = str(
-            Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md"
-        )
+        expected_relative = str(Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md")
         mock_generic.assert_called_once_with(
             worktree_path="/some/worktree",
             prompt_file_relative_path=expected_relative,

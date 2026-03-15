@@ -33,6 +33,69 @@ COPILOT_SESSION_START_PROMPT = (
     "The agentic-devtools workflow will guide you through each step."
 )
 
+# ---------------------------------------------------------------------------
+# Workflow-specific Copilot session start prompts
+# Each MUST remain a single line (no ``\n``) and contain no template variables.
+# ---------------------------------------------------------------------------
+
+COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the work-on-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-epic workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-subtask workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the update-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+# Workflow-agnostic fallback prompt used when ``workflow_name`` is not found in
+# ``_WORKFLOW_START_PROMPTS``.  This instructs the agent to run
+# ``agdt-get-next-workflow-prompt`` which re-renders the current step regardless
+# of the specific workflow, so it's always safe to use as a default.
+_WORKFLOW_AGNOSTIC_FALLBACK_PROMPT = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the current workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+# Mapping from workflow name → start prompt used by the VS Code auto-start task
+# injector.  Workflow names not listed here fall back to the workflow-agnostic
+# prompt (``_WORKFLOW_AGNOSTIC_FALLBACK_PROMPT``).
+_WORKFLOW_START_PROMPTS: dict[str, str] = {
+    "pull-request-review": COPILOT_SESSION_START_PROMPT,
+    "work-on-jira-issue": COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
+    "create-jira-issue": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
+    "create-jira-epic": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
+    "create-jira-subtask": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
+    "update-jira-issue": COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
+}
+
 
 def is_vscode_available() -> bool:
     """Check if VS Code CLI is available on PATH.
@@ -1529,9 +1592,7 @@ def _start_copilot_session_for_pr_review(
     """
     # Build the prompt file relative path using Path segments to avoid the
     # legacy state-dir literal that is flagged by the stale-reference guard.
-    _pr_review_prompt_relative = str(
-        Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md"
-    )
+    _pr_review_prompt_relative = str(Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md")
     return _start_copilot_session_for_workflow(
         worktree_path=worktree_path,
         prompt_file_relative_path=_pr_review_prompt_relative,
@@ -1541,24 +1602,224 @@ def _start_copilot_session_for_pr_review(
     )
 
 
-def _maybe_inject_auto_start_before_vscode(worktree_path: str, interactive: bool) -> None:
+def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
+    """Resolve the prompt file path relative to *worktree_path*.
+
+    The prompt file lives in the state directory (returned by
+    :func:`get_state_dir`).  This helper computes the relative path from
+    *worktree_path* so that ``_start_copilot_session_for_workflow`` can
+    construct the absolute path via ``Path(worktree_path) / relative``.
+
+    When ``AGENTIC_DEVTOOLS_STATE_DIR`` is already set *and* points to a
+    directory under the target worktree, the env-var value is used directly.
+    This is the path where prompt files were written by the auto-execute
+    subprocess (see :func:`_run_auto_execute_command`), so using it ensures
+    prompt generation and prompt lookup agree.  The containment check uses
+    ``os.path.normcase`` so that drive-letter and path casing differences
+    on Windows do not cause a false negative.
+
+    When the env var is absent or points outside the worktree,
+    ``get_state_dir()`` is resolved inside the *worktree* context
+    (CWD + env override cleared) so the returned path points to the
+    worktree's own state directory — not the caller's.
+    """
+    from ...state import get_state_dir
+
+    # Fast path: honour AGENTIC_DEVTOOLS_STATE_DIR when it already points
+    # under the target worktree — this is the path the auto-execute
+    # subprocess used to write the prompt files.  Unsetting the env var and
+    # resolving via bootstrap could yield a different (scoped) directory,
+    # causing the session launcher to wait for a file that will never appear
+    # at the bootstrap-resolved path.
+    env_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    if env_state_dir:
+        try:
+            real_env = os.path.normcase(os.path.realpath(env_state_dir))
+            real_wt = os.path.normcase(os.path.realpath(worktree_path))
+            if real_env == real_wt or real_env.startswith(real_wt + os.sep):
+                state_dir = Path(env_state_dir)
+                return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
+        except (OSError, ValueError):
+            pass  # Fall through to bootstrap resolution
+
+    # Slow path: resolve get_state_dir() in the worktree context.
+    # Same pattern as _start_copilot_session_for_workflow() itself.
+    previous_state_dir = env_state_dir
+    previous_cwd = os.getcwd()
+    try:
+        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        os.chdir(worktree_path)
+        state_dir = get_state_dir()
+        return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
+    finally:
+        os.chdir(previous_cwd)
+        if previous_state_dir is None:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        else:
+            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+
+
+def _start_copilot_session_for_work_on_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the work-on-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies work-on-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-work-on-jira-issue-planning-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
+        workflow_name="work-on-jira-issue",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-create-jira-issue-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
+        workflow_name="create-jira-issue",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_epic(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-epic workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-epic-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(worktree_path, "temp-create-jira-epic-initiate-prompt.md"),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
+        workflow_name="create-jira-epic",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_create_jira_subtask(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the create-jira-subtask workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies create-jira-subtask-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-create-jira-subtask-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
+        workflow_name="create-jira-subtask",
+        interactive=interactive,
+    )
+
+
+def _start_copilot_session_for_update_jira_issue(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the update-jira-issue workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies update-jira-issue-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-update-jira-issue-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
+        workflow_name="update-jira-issue",
+        interactive=interactive,
+    )
+
+
+def _maybe_inject_auto_start_before_vscode(
+    worktree_path: str,
+    interactive: bool,
+    start_prompt: str = COPILOT_SESSION_START_PROMPT,
+) -> None:
     """Inject a VS Code auto-start task if *interactive* mode is enabled.
 
     Called right before ``open_vscode_workspace()`` so the task exists when
-    the ``folderOpen`` event fires.  Uses the static
-    :data:`COPILOT_SESSION_START_PROMPT` constant — no prompt file is needed.
+    the ``folderOpen`` event fires.  Uses *start_prompt* to tell the Copilot
+    agent which workflow to execute — callers should pass the correct
+    workflow-specific prompt (see :data:`_WORKFLOW_START_PROMPTS`).
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (Copilot CLI not found) or ``inject_auto_start_task()`` fails,
     the caller silently continues without the auto-start task; the existing
-    fallback behaviour in ``_start_copilot_session_for_pr_review`` will
+    fallback behaviour in the workflow-specific session launcher will
     handle the session.
     """
     if not interactive:
         return
     from ..copilot import build_copilot_args
 
-    copilot_args = build_copilot_args(COPILOT_SESSION_START_PROMPT, interactive=True)
+    copilot_args = build_copilot_args(start_prompt, interactive=True)
     if copilot_args is not None:
         injected = inject_auto_start_task(worktree_path, copilot_args)
         if injected:
@@ -1619,7 +1880,8 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(existing_path, interactive)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
+        _maybe_inject_auto_start_before_vscode(existing_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
@@ -1659,7 +1921,8 @@ can copy and paste it into the new VS Code window that just opened:
     if result.success:
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive)
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
+        _maybe_inject_auto_start_before_vscode(result.worktree_path, interactive, start_prompt=wf_prompt)
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
