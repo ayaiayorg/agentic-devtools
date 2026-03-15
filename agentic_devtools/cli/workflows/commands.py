@@ -27,6 +27,22 @@ from .base import (
 from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
+def _parse_bool_interactive(value: str) -> str:
+    """Validate ``--interactive`` value (pass-through for argparse ``type=``).
+
+    Accepts only ``true`` / ``false`` (case-insensitive).  Returns the
+    normalised lowercase string so the caller can compare with ``"true"``.
+    Raises :class:`argparse.ArgumentTypeError` for anything else, which
+    argparse converts into a user-friendly error message.
+    """
+    import argparse
+
+    normalised = value.strip().lower()
+    if normalised in ("true", "false"):
+        return normalised
+    raise argparse.ArgumentTypeError(f"invalid value '{value}' — must be 'true' or 'false'")
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -54,9 +70,7 @@ def initiate_pull_request_review_workflow(
         issue_key: Jira issue key to find the PR by branch name.
         interactive: Whether to start the Copilot session interactively (default: False).
             Set to True for interactive mode.
-        _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv
-            (this function always calls parse_known_args, so unknown flags are silently ignored,
-            but passing [] prevents any accidental parsing of the test runner's sys.argv).
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv.
 
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
@@ -98,9 +112,10 @@ Examples:
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -108,7 +123,7 @@ Examples:
     if issue_key is None and args.issue_key:
         issue_key = args.issue_key
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -301,15 +316,16 @@ def initiate_work_on_jira_issue_workflow(
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if issue_key is None and args.issue_key:
         issue_key = args.issue_key
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -816,9 +832,10 @@ def initiate_create_jira_issue_workflow(
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -830,7 +847,7 @@ def initiate_create_jira_issue_workflow(
     if user_request is None:
         user_request = args.user_request
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -999,9 +1016,10 @@ def initiate_create_jira_epic_workflow(
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -1011,7 +1029,7 @@ def initiate_create_jira_epic_workflow(
     if user_request is None:
         user_request = args.user_request
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -1174,9 +1192,10 @@ def initiate_create_jira_subtask_workflow(
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if parent_key is None:
@@ -1186,7 +1205,7 @@ def initiate_create_jira_subtask_workflow(
     if user_request is None:
         user_request = args.user_request
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
@@ -1342,9 +1361,10 @@ def initiate_update_jira_issue_workflow(
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_argv)
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -1352,7 +1372,7 @@ def initiate_update_jira_issue_workflow(
     if user_request is None:
         user_request = args.user_request
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
