@@ -904,14 +904,14 @@ def initiate_create_jira_issue_workflow(
                 print(f"   - {reason}")
 
             auto_execute_command = [
-                    "agdt-initiate-create-jira-issue-workflow",
-                    "--issue-key",
-                    resolved_issue_key,
-                    "--project-key",
-                    resolved_project_key,
-                    "--interactive",
-                    "true" if interactive else "false",
-                ]
+                "agdt-initiate-create-jira-issue-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                "--project-key",
+                resolved_project_key,
+                "--interactive",
+                "true" if interactive else "false",
+            ]
             if resolved_issue_type:
                 auto_execute_command.extend(["--issue-type", resolved_issue_type])
             if resolved_user_request:
@@ -1089,14 +1089,14 @@ def initiate_create_jira_epic_workflow(
                 print(f"   - {reason}")
 
             auto_execute_command = [
-                    "agdt-initiate-create-jira-epic-workflow",
-                    "--issue-key",
-                    resolved_issue_key,
-                    "--project-key",
-                    resolved_project_key,
-                    "--interactive",
-                    "true" if interactive else "false",
-                ]
+                "agdt-initiate-create-jira-epic-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                "--project-key",
+                resolved_project_key,
+                "--interactive",
+                "true" if interactive else "false",
+            ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
 
@@ -1261,13 +1261,13 @@ def initiate_create_jira_subtask_workflow(
                 print(f"   - {reason}")
 
             auto_execute_command = [
-                    "agdt-initiate-create-jira-subtask-workflow",
-                    "--issue-key",
-                    resolved_issue_key,
-                    *(["--parent-key", resolved_parent_key] if resolved_parent_key else []),
-                    "--interactive",
-                    "true" if interactive else "false",
-                ]
+                "agdt-initiate-create-jira-subtask-workflow",
+                "--issue-key",
+                resolved_issue_key,
+                *(["--parent-key", resolved_parent_key] if resolved_parent_key else []),
+                "--interactive",
+                "true" if interactive else "false",
+            ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
 
