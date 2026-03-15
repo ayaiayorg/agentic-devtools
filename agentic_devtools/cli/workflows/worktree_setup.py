@@ -38,26 +38,39 @@ COPILOT_SESSION_START_PROMPT = (
 # Each MUST remain a single line (no ``\n``) and contain no template variables.
 # ---------------------------------------------------------------------------
 
-COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = "Execute this command now: agdt-advance-workflow planning"
+COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the work-on-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
-    "Read and follow the instructions in the workflow prompt file that was just rendered. "
-    "The workflow is create-jira-issue."
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
-    "Read and follow the instructions in the workflow prompt file that was just rendered. "
-    "The workflow is create-jira-epic."
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-epic workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
-    "Read and follow the instructions in the workflow prompt file that was just rendered. "
-    "The workflow is create-jira-subtask."
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the create-jira-subtask workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
-    "Read and follow the instructions in the workflow prompt file that was just rendered. "
-    "The workflow is update-jira-issue."
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the update-jira-issue workflow instructions. "
+    "Do NOT attempt any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 # Mapping from workflow name → start prompt used by the VS Code auto-start task
