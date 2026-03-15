@@ -79,6 +79,12 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
         assert "Not in the correct context" in captured.out
         assert "continue the workflow in the new VS Code window" in captured.out
 
+        # Verify auto_execute_command includes --parent-key for the new worktree
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--parent-key" in auto_cmd
+        assert "DFLY-1234" in auto_cmd
+
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""
         state.set_value("jira.issue_key", "DFLY-1235")

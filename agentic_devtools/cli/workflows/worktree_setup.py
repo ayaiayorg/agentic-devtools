@@ -1573,10 +1573,27 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
     :func:`get_state_dir`).  This helper computes the relative path from
     *worktree_path* so that ``_start_copilot_session_for_workflow`` can
     construct the absolute path via ``Path(worktree_path) / relative``.
+
+    ``get_state_dir()`` is resolved inside the *worktree* context
+    (CWD + env override cleared) so the returned path points to the
+    worktree's own state directory — not the caller's.
     """
     from ...state import get_state_dir
 
-    state_dir = get_state_dir()
+    # Resolve get_state_dir() in the worktree context, not the caller's.
+    # Same pattern as _start_copilot_session_for_workflow() itself.
+    previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    previous_cwd = os.getcwd()
+    try:
+        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        os.chdir(worktree_path)
+        state_dir = get_state_dir()
+    finally:
+        os.chdir(previous_cwd)
+        if previous_state_dir is None:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        else:
+            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
     return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
 
 

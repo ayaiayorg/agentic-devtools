@@ -79,6 +79,25 @@ class TestStartCopilotSessionForWorkOnJiraIssue:
         call_kwargs = mock_generic.call_args[1]
         assert call_kwargs["interactive"] is False
 
+    @patch(
+        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow",
+        return_value=True,
+    )
+    @patch("agentic_devtools.state.get_state_dir")
+    def test_restores_state_dir_env_var(self, mock_state_dir, mock_generic, tmp_path):
+        """Verify AGENTIC_DEVTOOLS_STATE_DIR is restored after resolution."""
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+        mock_state_dir.return_value = state_dir
+
+        original_val = "/some/original/state/dir"
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = original_val
+        try:
+            _start_copilot_session_for_work_on_jira_issue(str(tmp_path))
+            assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_val
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
 
 class TestCopilotSessionStartPromptWorkOnJiraIssue:
     """Tests for the COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE constant."""
