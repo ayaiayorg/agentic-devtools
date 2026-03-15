@@ -903,11 +903,7 @@ def initiate_create_jira_issue_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            if perform_auto_setup(
-                resolved_issue_key,
-                "create-jira-issue",
-                user_request=resolved_user_request,
-                auto_execute_command=[
+            auto_execute_command = [
                     "agdt-initiate-create-jira-issue-workflow",
                     "--issue-key",
                     resolved_issue_key,
@@ -915,7 +911,17 @@ def initiate_create_jira_issue_workflow(
                     resolved_project_key,
                     "--interactive",
                     "true" if interactive else "false",
-                ],
+                ]
+            if resolved_issue_type:
+                auto_execute_command.extend(["--issue-type", resolved_issue_type])
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
+            if perform_auto_setup(
+                resolved_issue_key,
+                "create-jira-issue",
+                user_request=resolved_user_request,
+                auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
                 print("\n" + "=" * 80)
@@ -1082,11 +1088,7 @@ def initiate_create_jira_epic_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            if perform_auto_setup(
-                resolved_issue_key,
-                "create-jira-epic",
-                user_request=resolved_user_request,
-                auto_execute_command=[
+            auto_execute_command = [
                     "agdt-initiate-create-jira-epic-workflow",
                     "--issue-key",
                     resolved_issue_key,
@@ -1094,7 +1096,15 @@ def initiate_create_jira_epic_workflow(
                     resolved_project_key,
                     "--interactive",
                     "true" if interactive else "false",
-                ],
+                ]
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
+            if perform_auto_setup(
+                resolved_issue_key,
+                "create-jira-epic",
+                user_request=resolved_user_request,
+                auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
                 print("\n" + "=" * 80)
@@ -1250,19 +1260,23 @@ def initiate_create_jira_subtask_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            if perform_auto_setup(
-                resolved_issue_key,
-                "create-jira-subtask",
-                user_request=resolved_user_request,
-                additional_params={"parent_key": resolved_parent_key} if resolved_parent_key else None,
-                auto_execute_command=[
+            auto_execute_command = [
                     "agdt-initiate-create-jira-subtask-workflow",
                     "--issue-key",
                     resolved_issue_key,
                     *(["--parent-key", resolved_parent_key] if resolved_parent_key else []),
                     "--interactive",
                     "true" if interactive else "false",
-                ],
+                ]
+            if resolved_user_request:
+                auto_execute_command.extend(["--user-request", resolved_user_request])
+
+            if perform_auto_setup(
+                resolved_issue_key,
+                "create-jira-subtask",
+                user_request=resolved_user_request,
+                additional_params={"parent_key": resolved_parent_key} if resolved_parent_key else None,
+                auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
                 print("\n" + "=" * 80)
@@ -1403,17 +1417,21 @@ def initiate_update_jira_issue_workflow(
             print(f"   - {reason}")
 
         # Automatically set up the environment
+        auto_execute_command = [
+            "agdt-initiate-update-jira-issue-workflow",
+            "--issue-key",
+            resolved_issue_key,
+            "--interactive",
+            "true" if interactive else "false",
+        ]
+        if resolved_user_request:
+            auto_execute_command.extend(["--user-request", resolved_user_request])
+
         if perform_auto_setup(
             resolved_issue_key,
             "update-jira-issue",
             user_request=resolved_user_request,
-            auto_execute_command=[
-                "agdt-initiate-update-jira-issue-workflow",
-                "--issue-key",
-                resolved_issue_key,
-                "--interactive",
-                "true" if interactive else "false",
-            ],
+            auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
             print("\n" + "=" * 80)

@@ -65,6 +65,8 @@ class TestInitiateUpdateJiraIssueWorkflowBranches:
 
     def test_preflight_fails_and_auto_setup_succeeds(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails but auto-setup succeeds (returns early)."""
+        state.set_value("jira.user_request", "Update the description")
+
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
 
@@ -83,6 +85,12 @@ class TestInitiateUpdateJiraIssueWorkflowBranches:
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
         assert "continue the workflow in the new VS Code window" in captured.out
+
+        # Verify auto_execute_command includes --user-request
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--user-request" in auto_cmd
+        assert "Update the description" in auto_cmd
 
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""
