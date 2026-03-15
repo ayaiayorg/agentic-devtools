@@ -27,6 +27,33 @@ from .base import (
 from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
+def _effective_argv(
+    _argv: Optional[List[str]],
+    *programmatic_params: object,
+) -> Optional[List[str]]:
+    """Return the argv list that :func:`argparse.ArgumentParser.parse_args` should receive.
+
+    When ``_argv`` is explicitly provided (including ``[]``), it is returned
+    as-is — the caller is controlling what gets parsed.
+
+    When ``_argv is None`` **and** no programmatic parameter was supplied,
+    the function is being used as a CLI entry point, so we return ``None``
+    to let argparse read ``sys.argv``.
+
+    When ``_argv is None`` **but** at least one programmatic parameter is
+    not ``None``, the caller is invoking the function from code (or from
+    tests that forgot to pass ``_argv=[]``).  In that case we return ``[]``
+    so that argparse parses an empty argument list instead of the host
+    process's ``sys.argv`` — which could contain unrelated flags and cause
+    an unexpected ``SystemExit``.
+    """
+    if _argv is not None:
+        return _argv
+    if any(p is not None for p in programmatic_params):
+        return []
+    return None
+
+
 def _parse_bool_interactive(value: str) -> str:
     """Validate ``--interactive`` value (pass-through for argparse ``type=``).
 
@@ -70,7 +97,9 @@ def initiate_pull_request_review_workflow(
         issue_key: Jira issue key to find the PR by branch name.
         interactive: Whether to start the Copilot session interactively (default: False).
             Set to True for interactive mode.
-        _argv: Command line arguments (for testing). Pass [] in tests to avoid parsing sys.argv.
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid
+            parsing sys.argv.  When any programmatic parameter is set and
+            ``_argv`` is ``None``, an empty argv is used automatically.
 
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
@@ -84,8 +113,6 @@ def initiate_pull_request_review_workflow(
     from ..azure_devops.helpers import find_jira_issue_from_pr, find_pr_from_jira_issue, get_pull_request_source_branch
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # pull_request_id/issue_key are supplied programmatically.
     parser = argparse.ArgumentParser(
         description="Initiate the pull request review workflow",
         epilog="""
@@ -115,7 +142,7 @@ Examples:
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive))
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -304,8 +331,8 @@ def initiate_work_on_jira_issue_workflow(
     from ...state import set_value
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # issue_key is supplied programmatically.
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
     parser = argparse.ArgumentParser(description="Initiate the work-on-jira-issue workflow")
     parser.add_argument(
         "--issue-key",
@@ -319,7 +346,7 @@ def initiate_work_on_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None and args.issue_key:
@@ -802,8 +829,8 @@ def initiate_create_jira_issue_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # other args are supplied programmatically.
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
     parser = argparse.ArgumentParser(description="Initiate the create-jira-issue workflow")
     parser.add_argument(
         "--project-key",
@@ -835,7 +862,7 @@ def initiate_create_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive))
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -998,8 +1025,8 @@ def initiate_create_jira_epic_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # other args are supplied programmatically.
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
     parser = argparse.ArgumentParser(description="Initiate the create-jira-epic workflow")
     parser.add_argument(
         "--project-key",
@@ -1025,7 +1052,7 @@ def initiate_create_jira_epic_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive))
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -1178,8 +1205,8 @@ def initiate_create_jira_subtask_workflow(
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # other args are supplied programmatically.
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
     parser = argparse.ArgumentParser(description="Initiate the create-jira-subtask workflow")
     parser.add_argument(
         "--parent-key",
@@ -1205,7 +1232,7 @@ def initiate_create_jira_subtask_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive))
 
     # CLI values override programmatic values only when not already set
     if parent_key is None:
@@ -1362,8 +1389,8 @@ def initiate_update_jira_issue_workflow(
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # other args are supplied programmatically.
+    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
+    # point (all programmatic params are None).
     parser = argparse.ArgumentParser(description="Initiate the update-jira-issue workflow")
     parser.add_argument(
         "--issue-key",
@@ -1383,7 +1410,7 @@ def initiate_update_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
