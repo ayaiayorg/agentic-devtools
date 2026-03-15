@@ -1590,7 +1590,9 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
     directory under the target worktree, the env-var value is used directly.
     This is the path where prompt files were written by the auto-execute
     subprocess (see :func:`_run_auto_execute_command`), so using it ensures
-    prompt generation and prompt lookup agree.
+    prompt generation and prompt lookup agree.  The containment check uses
+    ``os.path.normcase`` so that drive-letter and path casing differences
+    on Windows do not cause a false negative.
 
     When the env var is absent or points outside the worktree,
     ``get_state_dir()`` is resolved inside the *worktree* context
@@ -1608,8 +1610,8 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
     env_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
     if env_state_dir:
         try:
-            real_env = os.path.realpath(env_state_dir)
-            real_wt = os.path.realpath(worktree_path)
+            real_env = os.path.normcase(os.path.realpath(env_state_dir))
+            real_wt = os.path.normcase(os.path.realpath(worktree_path))
             if real_env == real_wt or real_env.startswith(real_wt + os.sep):
                 state_dir = Path(env_state_dir)
                 return os.path.relpath(str(state_dir / prompt_filename), worktree_path)

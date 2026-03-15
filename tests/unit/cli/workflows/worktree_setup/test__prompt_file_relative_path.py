@@ -143,3 +143,19 @@ class TestPromptFileRelativePath:
 
         expected = os.path.relpath(str(state_dir / "prompt.md"), str(tmp_path))
         assert result == expected
+
+    def test_fast_path_falls_through_on_realpath_oserror(self, tmp_path):
+        """When os.path.realpath raises an OSError in the fast path, fall through to bootstrap."""
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+        try:
+            with patch("os.path.realpath", side_effect=OSError("mocked realpath failure")):
+                with patch("agentic_devtools.state.get_state_dir", return_value=state_dir):
+                    result = _prompt_file_relative_path(str(tmp_path), "prompt.md")
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+        expected = os.path.relpath(str(state_dir / "prompt.md"), str(tmp_path))
+        assert result == expected
