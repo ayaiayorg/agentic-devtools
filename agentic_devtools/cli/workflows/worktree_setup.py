@@ -1586,18 +1586,42 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
     *worktree_path* so that ``_start_copilot_session_for_workflow`` can
     construct the absolute path via ``Path(worktree_path) / relative``.
 
+    When ``AGENTIC_DEVTOOLS_STATE_DIR`` is already set *and* points to a
+    directory under the target worktree, the env-var value is used directly.
+    This is the path where prompt files were written by the auto-execute
+    subprocess (see :func:`_run_auto_execute_command`), so using it ensures
+    prompt generation and prompt lookup agree.
+
+    When the env var is absent or points outside the worktree,
     ``get_state_dir()`` is resolved inside the *worktree* context
     (CWD + env override cleared) so the returned path points to the
     worktree's own state directory — not the caller's.
     """
     from ...state import get_state_dir
 
-    # Resolve get_state_dir() in the worktree context, not the caller's.
+    # Fast path: honour AGENTIC_DEVTOOLS_STATE_DIR when it already points
+    # under the target worktree — this is the path the auto-execute
+    # subprocess used to write the prompt files.  Unsetting the env var and
+    # resolving via bootstrap could yield a different (scoped) directory,
+    # causing the session launcher to wait for a file that will never appear
+    # at the bootstrap-resolved path.
+    env_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    if env_state_dir:
+        try:
+            real_env = os.path.realpath(env_state_dir)
+            real_wt = os.path.realpath(worktree_path)
+            if real_env == real_wt or real_env.startswith(real_wt + os.sep):
+                state_dir = Path(env_state_dir)
+                return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
+        except (OSError, ValueError):
+            pass  # Fall through to bootstrap resolution
+
+    # Slow path: resolve get_state_dir() in the worktree context.
     # Same pattern as _start_copilot_session_for_workflow() itself.
     # The relative path is computed inside the try block so that a failed
     # os.chdir() propagates naturally instead of causing an UnboundLocalError
     # for ``state_dir``.
-    previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    previous_state_dir = env_state_dir
     previous_cwd = os.getcwd()
     try:
         os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)

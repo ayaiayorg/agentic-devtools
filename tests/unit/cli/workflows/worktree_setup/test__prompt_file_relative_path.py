@@ -39,7 +39,7 @@ class TestPromptFileRelativePath:
 
     @patch("agentic_devtools.state.get_state_dir")
     def test_restores_env_var_on_success(self, mock_state_dir, tmp_path):
-        """Verify the env var is restored after successful resolution."""
+        """Verify the env var is restored after successful resolution (env var outside worktree)."""
         state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
         state_dir.mkdir(parents=True)
         mock_state_dir.return_value = state_dir
@@ -75,3 +75,71 @@ class TestPromptFileRelativePath:
             assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/original/state"
         finally:
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+    def test_honours_env_var_under_worktree(self, tmp_path):
+        """When AGENTIC_DEVTOOLS_STATE_DIR points under the worktree, use it directly.
+
+        This is the auto-execute subprocess path: _run_auto_execute_command
+        sets the env var to the worktree's state dir, and prompt files are
+        written there.  _prompt_file_relative_path must resolve to the same
+        directory — not to a potentially different bootstrap-scoped path.
+        """
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+        try:
+            result = _prompt_file_relative_path(str(tmp_path), "temp-workflow-initiate-prompt.md")
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+        expected = os.path.relpath(
+            str(state_dir / "temp-workflow-initiate-prompt.md"),
+            str(tmp_path),
+        )
+        assert result == expected
+
+    def test_env_var_under_worktree_skips_bootstrap(self, tmp_path):
+        """When the env var is under the worktree, get_state_dir() is NOT called.
+
+        This verifies the fast path: no chdir, no env-var clearing, no
+        bootstrap resolution — just direct path computation.
+        """
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+        try:
+            with patch("agentic_devtools.state.get_state_dir") as mock_state_dir:
+                _prompt_file_relative_path(str(tmp_path), "prompt.md")
+                mock_state_dir.assert_not_called()
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+    def test_env_var_under_worktree_preserves_cwd(self, tmp_path):
+        """When using the fast path, the CWD must not change."""
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+        cwd_before = os.getcwd()
+        try:
+            _prompt_file_relative_path(str(tmp_path), "prompt.md")
+            assert os.getcwd() == cwd_before
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+    def test_env_var_outside_worktree_falls_through(self, tmp_path):
+        """When AGENTIC_DEVTOOLS_STATE_DIR points outside the worktree, fall through to bootstrap."""
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/some/other/path"
+        try:
+            with patch("agentic_devtools.state.get_state_dir", return_value=state_dir):
+                result = _prompt_file_relative_path(str(tmp_path), "prompt.md")
+        finally:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+
+        expected = os.path.relpath(str(state_dir / "prompt.md"), str(tmp_path))
+        assert result == expected
