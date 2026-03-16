@@ -3,6 +3,7 @@
 from agentic_devtools.cli.workflows.worktree_setup import (
     _WORKFLOW_START_PROMPTS,
     COPILOT_SESSION_START_PROMPT,
+    COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS,
     COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
     COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
     COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
@@ -14,10 +15,11 @@ from agentic_devtools.cli.workflows.worktree_setup import (
 class TestWorkflowStartPrompts:
     """Tests for the _WORKFLOW_START_PROMPTS mapping."""
 
-    def test_contains_all_six_workflows(self):
-        """Mapping must contain all 6 workflow names."""
+    def test_contains_all_seven_workflows(self):
+        """Mapping must contain all 7 workflow names."""
         expected = {
             "pull-request-review",
+            "apply-pull-request-review-suggestions",
             "work-on-jira-issue",
             "create-jira-issue",
             "create-jira-epic",
@@ -29,6 +31,13 @@ class TestWorkflowStartPrompts:
     def test_pr_review_maps_to_pr_prompt(self):
         """pull-request-review maps to the PR-review prompt constant."""
         assert _WORKFLOW_START_PROMPTS["pull-request-review"] is COPILOT_SESSION_START_PROMPT
+
+    def test_apply_pr_suggestions_maps_correctly(self):
+        """apply-pull-request-review-suggestions maps to its workflow-specific prompt."""
+        assert (
+            _WORKFLOW_START_PROMPTS["apply-pull-request-review-suggestions"]
+            is COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
+        )
 
     def test_work_on_jira_issue_maps_correctly(self):
         """work-on-jira-issue maps to its workflow-specific prompt."""

@@ -38,6 +38,16 @@ COPILOT_SESSION_START_PROMPT = (
 # Each MUST remain a single line (no ``\n``) and contain no template variables.
 # ---------------------------------------------------------------------------
 
+COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS = (
+    "You are applying pull request review suggestions. "
+    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
+    "--- This command will provide you with the rendered prompt file containing full instructions "
+    "on which review suggestions to apply and how. "
+    "Do NOT attempt to modify any code until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step."
+)
+
+
 COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
     "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
     "--- This command will provide you with the work-on-jira-issue workflow instructions. "
@@ -89,6 +99,7 @@ _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT = (
 # prompt (``_WORKFLOW_AGNOSTIC_FALLBACK_PROMPT``).
 _WORKFLOW_START_PROMPTS: dict[str, str] = {
     "pull-request-review": COPILOT_SESSION_START_PROMPT,
+    "apply-pull-request-review-suggestions": COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS,
     "work-on-jira-issue": COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
     "create-jira-issue": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
     "create-jira-epic": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
@@ -1184,6 +1195,7 @@ def get_worktree_continuation_prompt(
     workflow_base_commands = {
         "work-on-jira-issue": "agdt-initiate-work-on-jira-issue-workflow",
         "pull-request-review": "agdt-initiate-pull-request-review-workflow",
+        "apply-pull-request-review-suggestions": "agdt-initiate-apply-pr-suggestions-workflow",
         "create-jira-issue": "agdt-initiate-create-jira-issue-workflow",
         "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
         "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
@@ -1258,6 +1270,7 @@ def get_ai_agent_continuation_prompt(
     workflow_base_commands = {
         "work-on-jira-issue": "agdt-initiate-work-on-jira-issue-workflow",
         "pull-request-review": "agdt-initiate-pull-request-review-workflow",
+        "apply-pull-request-review-suggestions": "agdt-initiate-apply-pr-suggestions-workflow",
         "create-jira-issue": "agdt-initiate-create-jira-issue-workflow",
         "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
         "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
@@ -1267,8 +1280,12 @@ def get_ai_agent_continuation_prompt(
     base_command = workflow_base_commands.get(workflow_name, "agdt-initiate-work-on-jira-issue-workflow")
 
     # Build the full command with parameters
-    # For pull-request-review, use --pull-request-id instead of --issue-key
-    if workflow_name == "pull-request-review" and additional_params and additional_params.get("pull_request_id"):
+    # For PR-based workflows, use --pull-request-id instead of --issue-key
+    if (
+        workflow_name in ("pull-request-review", "apply-pull-request-review-suggestions")
+        and additional_params
+        and additional_params.get("pull_request_id")
+    ):
         pull_request_id = additional_params["pull_request_id"]
         command_parts = [base_command, f"--pull-request-id {pull_request_id}"]
     else:
@@ -1296,6 +1313,9 @@ def get_ai_agent_continuation_prompt(
     elif workflow_name == "pull-request-review":
         task_description = "assigned to review a pull request"
         action_description = "review the pull request thoroughly and provide feedback"
+    elif workflow_name == "apply-pull-request-review-suggestions":
+        task_description = "assigned to apply pull request review suggestions"
+        action_description = "apply the PR review suggestions to the codebase as specified in the workflow prompt"
     else:
         task_description = "assigned an issue to work on"
         action_description = "work on the issue until you have completed the workflow"
@@ -1663,6 +1683,34 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         else:
             os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+
+
+def _start_copilot_session_for_apply_pr_suggestions(
+    worktree_path: str,
+    interactive: bool = False,
+) -> bool:
+    """Start a Copilot session for the apply-pull-request-review-suggestions workflow.
+
+    Thin wrapper around :func:`_start_copilot_session_for_workflow` that
+    supplies apply-pr-suggestions-specific parameters.
+
+    Args:
+        worktree_path: Absolute path to the worktree root.
+        interactive: Whether to start the Copilot session interactively.
+
+    Returns:
+        ``True`` when a Copilot session was started or the auto-start task
+        confirmed running, ``False`` otherwise.
+    """
+    return _start_copilot_session_for_workflow(
+        worktree_path=worktree_path,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-apply-pull-request-review-suggestions-initiate-prompt.md"
+        ),
+        start_prompt=COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS,
+        workflow_name="apply-pull-request-review-suggestions",
+        interactive=interactive,
+    )
 
 
 def _start_copilot_session_for_work_on_jira_issue(

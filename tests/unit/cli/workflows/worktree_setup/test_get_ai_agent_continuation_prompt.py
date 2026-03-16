@@ -88,3 +88,36 @@ class TestGetAiAgentContinuationPrompt:
             )
             assert "--issue-key DFLY-1234" in prompt
             assert "--pull-request-id" not in prompt
+
+    def test_apply_pr_suggestions_uses_pull_request_id_parameter(self):
+        """Test that apply-pr-suggestions workflow uses --pull-request-id instead of --issue-key."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="apply-pull-request-review-suggestions",
+            additional_params={"pull_request_id": "24031"},
+        )
+        assert "--pull-request-id 24031" in prompt
+        assert "--issue-key DFLY-1234" not in prompt
+        assert "agdt-initiate-apply-pr-suggestions-workflow" in prompt
+
+    def test_apply_pr_suggestions_in_workflow_base_commands(self):
+        """Test that apply-pull-request-review-suggestions is in the workflow_base_commands mapping."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="apply-pull-request-review-suggestions",
+            additional_params={"pull_request_id": "99999"},
+        )
+        assert "agdt-initiate-apply-pr-suggestions-workflow" in prompt
+        assert "--pull-request-id 99999" in prompt
+
+    def test_apply_pr_suggestions_has_workflow_specific_description(self):
+        """Test that apply-pull-request-review-suggestions uses a workflow-specific description."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="apply-pull-request-review-suggestions",
+            additional_params={"pull_request_id": "24031"},
+        )
+        assert "apply pull request review suggestions" in prompt
+        assert "apply the PR review suggestions" in prompt
+        # Must NOT fall through to the generic description
+        assert "assigned an issue to work on" not in prompt
