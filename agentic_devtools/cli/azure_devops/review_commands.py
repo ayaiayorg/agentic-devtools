@@ -702,6 +702,16 @@ def setup_pull_request_review() -> None:
 
         set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
 
+        # Re-set context keys that were read from the old (_unscoped) state
+        # directory.  set_bootstrap_state() may have changed the resolved
+        # state dir, so downstream commands (e.g., get_pull_request_details)
+        # that call get_value() would find an empty scoped state.json.
+        set_value("pull_request_id", str(pull_request_id))
+        if jira_issue_key:
+            set_value("jira.issue_key", jira_issue_key)
+        if include_reviewed:
+            set_value("include_reviewed", "true")
+
         # Generate agdt_run_id (same pattern as initiate_workflow in base.py)
         # so that persist_if_dirty() can commit workflow state to a -agdt branch.
         run_id = uuid.uuid4().hex[:12]

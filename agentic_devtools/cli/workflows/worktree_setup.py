@@ -1380,9 +1380,21 @@ def _run_auto_execute_command(
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         pass
 
-    if identity and worktree_key:
+    # Validate that identity/worktree_key are safe single-component directory
+    # names (no path separators, no ``..``) to prevent the state dir from
+    # escaping the .agdt/workflows subtree via a malformed bootstrap file.
+    def _is_safe_dir_segment(name: str) -> bool:
+        return bool(name) and ".." not in name and "/" not in name and "\\" not in name
+
+    if identity and worktree_key and _is_safe_dir_segment(identity) and _is_safe_dir_segment(worktree_key):
         state_dir = Path(worktree_path) / ".agdt" / "workflows" / identity / worktree_key
     else:
+        if identity or worktree_key:
+            # Had values but they failed validation — log for debugging.
+            print(
+                f"WARNING: unsafe bootstrap identity/worktree_key "
+                f"({identity!r}/{worktree_key!r}), falling back to _unscoped"
+            )
         state_dir = Path(worktree_path) / ".agdt" / "workflows" / "_unscoped"
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
