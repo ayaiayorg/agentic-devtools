@@ -108,18 +108,22 @@ def checkout_and_sync_branch(
     dry_run: bool = False,
 ) -> tuple[bool, Optional[str], Set[str]]:
     """
-    Checkout the PR source branch, fetch main, and rebase onto it.
+    Checkout the PR source branch, sync it with origin, and rebase onto main.
 
     This prepares the local working copy for the review by:
     1. Checking out the source branch
-    2. Fetching the latest from origin/main
-    3. Rebasing onto main (continues even if conflicts, with warning)
+    2. Fetching the source branch from origin and hard-resetting to origin/<branch>
+       so the local copy reflects the author's latest pushed commits
+    3. Fetching the latest from origin/main
+    4. Rebasing onto main (continues even if conflicts, with warning)
 
     Args:
         source_branch: The PR source branch name (without refs/heads/)
         pull_request_id: Optional PR ID for saving files_on_branch to JSON
         save_files_on_branch: Whether to save files_on_branch to JSON file
-        dry_run: If True, skip destructive git operations (fetch, reset, rebase)
+        dry_run: If True, skip destructive git operations (checkout, fetch,
+            reset, rebase) — the function will still compute changed files
+            based on the current HEAD.
 
     Returns:
         Tuple of (success, error_message, files_on_branch)
