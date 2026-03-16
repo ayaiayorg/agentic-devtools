@@ -1232,16 +1232,17 @@ def get_worktree_continuation_prompt(
     # Generate a friendly description of what to do
     return f"""
 ================================================================================
-📋 COPY THE COMMAND BELOW INTO THE NEW VS CODE WINDOW
+📋 WORKFLOW CONTINUATION
 ================================================================================
 
-In the new VS Code window's AI chat (Copilot/Claude), paste this command:
+A Copilot session will start automatically in the new VS Code window.
+If the session doesn't start, paste this command in the VS Code AI chat:
 
 ```
 {full_command}
 ```
 
-This will continue the {workflow_name} workflow with all the context preserved.
+This command is a fallback — normally the session starts automatically.
 ================================================================================"""
 
 
@@ -1320,7 +1321,10 @@ def get_ai_agent_continuation_prompt(
         task_description = "assigned an issue to work on"
         action_description = "work on the issue until you have completed the workflow"
 
-    return f"""You are a senior software engineer and expert architect who has been {task_description}.
+    return f"""NOTE: A Copilot session should start automatically in the VS Code integrated terminal. \
+The instructions below are a fallback in case the auto-start did not succeed.
+
+You are a senior software engineer and expert architect who has been {task_description}.
 
 Please run the following command:
 
@@ -1988,11 +1992,11 @@ def setup_worktree_in_background_sync(
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         print("\n" + "=" * 80)
-        print("AI AGENT INSTRUCTIONS - IMPORTANT")
+        print("AI AGENT INSTRUCTIONS (FALLBACK)")
         print("=" * 80)
         print("""
-Please provide the following prompt in your chat response to the user so they
-can copy and paste it into the new VS Code window that just opened:
+A Copilot session was started automatically in the VS Code integrated terminal.
+The prompt below is a fallback — only provide it to the user if the auto-session did not start:
 """)
         print("--- BEGIN PROMPT FOR USER TO COPY ---")
         print(get_ai_agent_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
@@ -2031,11 +2035,11 @@ can copy and paste it into the new VS Code window that just opened:
         print(f"   VS Code opened: {'Yes' if result.vscode_opened else 'No'}")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         print("\n" + "=" * 80)
-        print("AI AGENT INSTRUCTIONS - IMPORTANT")
+        print("AI AGENT INSTRUCTIONS (FALLBACK)")
         print("=" * 80)
         print("""
-Please provide the following prompt in your chat response to the user so they
-can copy and paste it into the new VS Code window that just opened:
+A Copilot session was started automatically in the VS Code integrated terminal.
+The prompt below is a fallback — only provide it to the user if the auto-session did not start:
 """)
         print("--- BEGIN PROMPT FOR USER TO COPY ---")
         print(get_ai_agent_continuation_prompt(issue_key, workflow_name, user_request, additional_params))

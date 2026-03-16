@@ -79,7 +79,7 @@ class TestInitiateCreateJiraIssueWorkflowBranches:
 
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
         # Verify auto_execute_command includes --project-key, --user-request, --issue-type
         call_kwargs = mock_setup.call_args[1]
@@ -148,7 +148,7 @@ class TestInitiateCreateJiraIssueWorkflowBranches:
 
         mock_create.assert_called_once()
         captured = capsys.readouterr()
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
     def test_no_issue_key_placeholder_creation_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when placeholder creation fails."""

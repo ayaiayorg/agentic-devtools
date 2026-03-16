@@ -101,6 +101,7 @@ class TestPerformAutoSetup:
         assert "NEXT STEPS" in captured.out
         assert "agdt-task-log" in captured.out
         assert "agdt-task-wait" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_passes_auto_execute_command_to_background(self, mock_start_background, capsys):

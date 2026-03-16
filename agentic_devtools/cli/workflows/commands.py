@@ -70,6 +70,27 @@ def _parse_bool_interactive(value: str) -> str:
     raise argparse.ArgumentTypeError(f"invalid value '{value}' — must be 'true' or 'false'")
 
 
+def _format_auto_setup_success_message(workflow_name: str, issue_key: str) -> str:
+    """Return a formatted message block shown after a successful worktree auto-setup.
+
+    Args:
+        workflow_name: The workflow name (e.g., "work-on-jira-issue")
+        issue_key: The Jira issue key or other identifier (e.g., "DFLY-1234")
+
+    Returns:
+        A formatted string to print to stdout.
+    """
+    sep = "=" * 80
+    return (
+        f"\n{sep}\n"
+        f"✅ Worktree setup started for {issue_key}.\n"
+        f"A Copilot session will start automatically in the VS Code integrated terminal.\n"
+        f"Workflow: {workflow_name}\n"
+        f"If the session doesn't appear, run: agdt-task-log\n"
+        f"{sep}"
+    )
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -260,10 +281,8 @@ Examples:
             auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
-            # Setup successful - user should continue in new VS Code window
-            print("\n" + "=" * 80)
-            print("Please continue the workflow in the new VS Code window.")
-            print("=" * 80)
+            # Setup successful - Copilot session will start automatically
+            print(_format_auto_setup_success_message("pull-request-review", worktree_identifier))
             return
         else:
             # Setup failed - exit with error
@@ -388,10 +407,8 @@ def initiate_work_on_jira_issue_workflow(
             auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
-            # Setup successful - user should continue in new VS Code window
-            print("\n" + "=" * 80)
-            print("Please continue the workflow in the new VS Code window.")
-            print("=" * 80)
+            # Setup successful - Copilot session will start automatically
+            print(_format_auto_setup_success_message("work-on-jira-issue", issue_key))
             return
         else:
             # Setup failed - exit with error
@@ -1007,9 +1024,7 @@ def initiate_create_jira_issue_workflow(
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
-                print("\n" + "=" * 80)
-                print("Please continue the workflow in the new VS Code window.")
-                print("=" * 80)
+                print(_format_auto_setup_success_message("create-jira-issue", resolved_issue_key))
                 return
             else:
                 sys.exit(1)
@@ -1023,9 +1038,7 @@ def initiate_create_jira_issue_workflow(
     )
 
     if success:
-        print("\n" + "=" * 80)
-        print("Please continue the workflow in the new VS Code window.")
-        print("=" * 80)
+        print(_format_auto_setup_success_message("create-jira-issue", created_issue_key or "placeholder"))
     else:
         sys.exit(1)
 
@@ -1194,9 +1207,7 @@ def initiate_create_jira_epic_workflow(
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
-                print("\n" + "=" * 80)
-                print("Please continue the workflow in the new VS Code window.")
-                print("=" * 80)
+                print(_format_auto_setup_success_message("create-jira-epic", resolved_issue_key))
                 return
             else:
                 sys.exit(1)
@@ -1210,9 +1221,7 @@ def initiate_create_jira_epic_workflow(
     )
 
     if success:
-        print("\n" + "=" * 80)
-        print("Please continue the workflow in the new VS Code window.")
-        print("=" * 80)
+        print(_format_auto_setup_success_message("create-jira-epic", created_issue_key or "placeholder"))
     else:
         sys.exit(1)
 
@@ -1371,9 +1380,7 @@ def initiate_create_jira_subtask_workflow(
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
-                print("\n" + "=" * 80)
-                print("Please continue the workflow in the new VS Code window.")
-                print("=" * 80)
+                print(_format_auto_setup_success_message("create-jira-subtask", resolved_issue_key))
                 return
             else:
                 sys.exit(1)
@@ -1399,9 +1406,7 @@ def initiate_create_jira_subtask_workflow(
     )
 
     if success:
-        print("\n" + "=" * 80)
-        print("Please continue the workflow in the new VS Code window.")
-        print("=" * 80)
+        print(_format_auto_setup_success_message("create-jira-subtask", created_issue_key or "placeholder"))
     else:
         sys.exit(1)
 
@@ -1526,9 +1531,7 @@ def initiate_update_jira_issue_workflow(
             auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
-            print("\n" + "=" * 80)
-            print("Please continue the workflow in the new VS Code window.")
-            print("=" * 80)
+            print(_format_auto_setup_success_message("update-jira-issue", resolved_issue_key))
             return
         else:
             sys.exit(1)
@@ -1680,9 +1683,7 @@ Examples:
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
             ):
-                print("\n" + "=" * 80)
-                print("Please continue the workflow in the new VS Code window.")
-                print("=" * 80)
+                print(_format_auto_setup_success_message("apply-pull-request-review-suggestions", resolved_issue_key))
                 return
             else:
                 sys.exit(1)  # pragma: no cover
