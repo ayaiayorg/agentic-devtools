@@ -107,6 +107,37 @@ def cascade_status_update(
     return ops
 
 
+def cascade_overall_summary_update(
+    state: ReviewState,
+    base_url: str,
+) -> List[PatchOperation]:
+    """Compute PATCH operations for the overall PR summary without a file context.
+
+    Used at workflow completion to ensure the overall summary reflects the
+    final derived status. Unlike cascade_status_update(), this does not
+    require a file_path argument.
+
+    Args:
+        state: Full ReviewState (mutated in-place with new overall status).
+        base_url: PR root URL for generating markdown content.
+
+    Returns:
+        List of PatchOperation objects to execute via execute_cascade.
+    """
+    new_overall_status = derive_overall_status(state)
+    state.overallSummary.status = new_overall_status
+
+    overall_content = render_overall_summary(state, base_url)
+    return [
+        PatchOperation(
+            thread_id=state.overallSummary.threadId,
+            comment_id=state.overallSummary.commentId,
+            new_content=overall_content,
+            thread_status=_THREAD_STATUS_MAP[new_overall_status],
+        )
+    ]
+
+
 def execute_cascade(
     patch_operations: List[PatchOperation],
     requests_module,
