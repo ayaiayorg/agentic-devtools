@@ -30,6 +30,24 @@ class TestRunTestsPattern:
                 testing.run_tests_pattern()
             assert exc_info.value.code == 1
 
+    def test_exits_with_error_when_workspace_root_invalid(self, capsys):
+        """Should exit with error code when get_workspace_root raises."""
+        error_msg = (
+            "pyproject.toml not found in current directory (/tmp). "
+            "Run agdt-test commands from the workspace root."
+        )
+        with patch.object(
+            testing,
+            "get_workspace_root",
+            side_effect=FileNotFoundError(error_msg),
+        ):
+            with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_example.py"]):
+                with pytest.raises(SystemExit) as exc_info:
+                    testing.run_tests_pattern()
+                assert exc_info.value.code == 1
+                captured = capsys.readouterr()
+                assert "pyproject.toml not found" in captured.err
+
     def test_runs_with_pattern_args(self, tmp_path):
         """Should pass pattern arguments to pytest."""
         mock_result = MagicMock()

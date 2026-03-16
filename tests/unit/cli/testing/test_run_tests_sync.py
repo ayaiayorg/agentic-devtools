@@ -16,6 +16,22 @@ from agentic_devtools.cli import testing
 class TestRunTestsSync:
     """Tests for _run_tests_sync function (the actual implementation)."""
 
+    def test_returns_error_when_workspace_root_invalid(self, capsys):
+        """Should return error code when get_workspace_root raises."""
+        error_msg = (
+            "pyproject.toml not found in current directory (/tmp). "
+            "Run agdt-test commands from the workspace root."
+        )
+        with patch.object(
+            testing,
+            "get_workspace_root",
+            side_effect=FileNotFoundError(error_msg),
+        ):
+            result = testing._run_tests_sync()
+            assert result == 1
+            captured = capsys.readouterr()
+            assert "pyproject.toml not found" in captured.err
+
     def test_returns_error_when_tests_dir_missing(self, tmp_path):
         """Should return error code when tests directory is missing."""
         with patch.object(testing, "get_workspace_root", return_value=tmp_path):
@@ -38,4 +54,6 @@ class TestRunTestsSync:
                 assert "pytest" in call_args
                 assert "-v" in call_args
                 assert "--cov=agentic_devtools" in call_args
+                # Should clear default addopts to avoid duplicate --cov
+                assert "addopts=" in call_args
                 assert result == 0

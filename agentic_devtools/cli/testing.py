@@ -97,7 +97,11 @@ def _run_tests_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    workspace_root = get_workspace_root()
+    try:
+        workspace_root = get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
@@ -107,7 +111,9 @@ def _run_tests_sync() -> int:
     print(f"Running tests from {workspace_root}...")
     print()
 
-    # Run pytest with coverage - use streaming to capture output in logs
+    # Run pytest with coverage - use streaming to capture output in logs.
+    # Clear default addopts to avoid duplicating --cov from pyproject.toml,
+    # then supply all coverage args explicitly for deterministic behavior.
     return _run_subprocess_with_streaming(
         [
             sys.executable,
@@ -116,6 +122,8 @@ def _run_tests_sync() -> int:
             str(tests_dir),
             "-v",
             "--tb=short",
+            "-o",
+            "addopts=",
             "--cov=agentic_devtools",
             "--cov-report=term-missing",
             "--cov-report=html",
@@ -130,7 +138,11 @@ def _run_tests_quick_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    workspace_root = get_workspace_root()
+    try:
+        workspace_root = get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
@@ -194,7 +206,11 @@ def _run_tests_file_sync() -> int:
     """
     from agentic_devtools.state import get_value
 
-    workspace_root = get_workspace_root()
+    try:
+        workspace_root = get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
@@ -412,7 +428,11 @@ def run_tests_pattern() -> None:
         agdt-test-file
         agdt-task-wait
     """
-    workspace_root = get_workspace_root()
+    try:
+        workspace_root = get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Get all arguments after the command name
     pattern_args = sys.argv[1:] if len(sys.argv) > 1 else []
