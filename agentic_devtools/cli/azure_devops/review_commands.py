@@ -175,7 +175,6 @@ def checkout_and_sync_branch(
         )
 
     # Step 2: Fetch latest from main
-    print("\nFetching latest from origin/main...")
     fetch_success = fetch_main()
     if not fetch_success:
         print("Warning: Could not fetch from origin/main, continuing without rebase...")
