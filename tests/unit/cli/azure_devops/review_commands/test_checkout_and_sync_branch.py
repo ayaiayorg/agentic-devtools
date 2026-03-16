@@ -182,3 +182,34 @@ class TestCheckoutAndSyncBranch:
                                 checkout_and_sync_branch("feature/test")
 
                                 assert call_order == ["fetch_branch", "reset_branch_to_origin", "fetch_main"]
+
+    def test_dry_run_passes_flag_to_all_operations(self):
+        """Test dry_run flag is threaded through to all git operations."""
+        from unittest.mock import patch
+
+        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+
+        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch_main:
+                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                mock_fetch_branch.return_value = True
+                                mock_reset.return_value = True
+                                mock_fetch_main.return_value = True
+                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                mock_files.return_value = ["file.ts"]
+
+                                success, error, files = checkout_and_sync_branch(
+                                    "feature/test", dry_run=True
+                                )
+
+                                assert success is True
+                                mock_checkout.assert_called_once_with("feature/test", dry_run=True)
+                                mock_fetch_branch.assert_called_once_with("feature/test", dry_run=True)
+                                mock_reset.assert_called_once_with("feature/test", dry_run=True)
+                                mock_fetch_main.assert_called_once_with(dry_run=True)
+                                mock_rebase.assert_called_once_with(dry_run=True)

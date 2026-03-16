@@ -105,6 +105,7 @@ def checkout_and_sync_branch(
     source_branch: str,
     pull_request_id: Optional[int] = None,
     save_files_on_branch: bool = False,
+    dry_run: bool = False,
 ) -> tuple[bool, Optional[str], Set[str]]:
     """
     Checkout the PR source branch, fetch main, and rebase onto it.
@@ -118,6 +119,7 @@ def checkout_and_sync_branch(
         source_branch: The PR source branch name (without refs/heads/)
         pull_request_id: Optional PR ID for saving files_on_branch to JSON
         save_files_on_branch: Whether to save files_on_branch to JSON file
+        dry_run: If True, skip destructive git operations (fetch, reset, rebase)
 
     Returns:
         Tuple of (success, error_message, files_on_branch)
@@ -136,7 +138,7 @@ def checkout_and_sync_branch(
 
     # Step 1: Checkout the source branch
     print(f"\nChecking out PR source branch: {source_branch}...")
-    checkout_result = checkout_branch(source_branch)
+    checkout_result = checkout_branch(source_branch, dry_run=dry_run)
 
     if not checkout_result.is_success:
         if checkout_result.needs_user_action:
@@ -158,7 +160,7 @@ def checkout_and_sync_branch(
         )
 
     # Step 1b: Fetch source branch from origin to get latest changes
-    if not fetch_branch(source_branch):
+    if not fetch_branch(source_branch, dry_run=dry_run):
         return (
             False,
             f"Failed to fetch origin/{source_branch}. Cannot proceed with review on potentially stale code.",
@@ -166,7 +168,7 @@ def checkout_and_sync_branch(
         )
 
     # Step 1c: Reset local branch to match origin
-    if not reset_branch_to_origin(source_branch):
+    if not reset_branch_to_origin(source_branch, dry_run=dry_run):
         return (
             False,
             f"Failed to reset branch to origin/{source_branch}. "
@@ -175,13 +177,13 @@ def checkout_and_sync_branch(
         )
 
     # Step 2: Fetch latest from main
-    fetch_success = fetch_main()
+    fetch_success = fetch_main(dry_run=dry_run)
     if not fetch_success:
         print("Warning: Could not fetch from origin/main, continuing without rebase...")
     else:
         # Step 3: Rebase onto main (continue even on conflicts)
         print("Rebasing onto origin/main...")
-        rebase_result = rebase_onto_main()
+        rebase_result = rebase_onto_main(dry_run=dry_run)
 
         if rebase_result.is_success:
             print("Branch is synced with main.")
@@ -714,7 +716,7 @@ def setup_pull_request_review() -> None:
     if source_branch:
         print(f"\nChecking out source branch '{source_branch}' and syncing with main...")
         checkout_success, checkout_error, files_on_branch = checkout_and_sync_branch(
-            source_branch, pull_request_id, save_files_on_branch=True
+            source_branch, pull_request_id, save_files_on_branch=True, dry_run=is_dry_run()
         )
 
         if not checkout_success:
