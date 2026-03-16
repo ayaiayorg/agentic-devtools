@@ -8,7 +8,10 @@ This module provides the individual git operations:
 - Branch state detection
 """
 
+from pathlib import Path
 from typing import Optional
+
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
 from .core import get_current_branch, run_git, temp_message_file
 
@@ -18,8 +21,6 @@ STAGE_EXCLUDE_FILES = [
     "agentic_devtools/_version.py",
 ]
 
-AGDT_WORKFLOWS_DIR = ".agdt/workflows/"
-
 
 def stage_changes(dry_run: bool) -> None:
     """
@@ -28,10 +29,12 @@ def stage_changes(dry_run: bool) -> None:
     Auto-generated files listed in STAGE_EXCLUDE_FILES are always unstaged
     after the initial `git add .` so they are never included in commits.
 
-    On branches that do **not** end with ``-agdt``, the ``.agdt/workflows/``
-    directory is also unstaged to prevent workflow artifacts from being
-    accidentally committed to code branches.  On ``-agdt`` branches the
-    directory stays staged.
+    On branches that do **not** end with ``-agdt``, every entry from
+    ``AGDT_GITIGNORE_ENTRIES`` is unstaged (as ``.agdt/{entry}``) to prevent
+    runtime state from being accidentally committed to code branches.
+
+    On ``-agdt`` branches the entries stay staged and ``.agdt/.gitignore``
+    is deleted so that workflow state can be committed.
 
     Args:
         dry_run: If True, only print what would happen
@@ -42,9 +45,11 @@ def stage_changes(dry_run: bool) -> None:
             print(f"[DRY RUN] Would unstage auto-generated file: {excluded}")
         branch = get_current_branch()
         if not branch.endswith("-agdt"):
-            print(f"[DRY RUN] Would unstage {AGDT_WORKFLOWS_DIR} (not on -agdt branch)")
+            for entry in AGDT_GITIGNORE_ENTRIES:
+                print(f"[DRY RUN] Would unstage .agdt/{entry} (not on -agdt branch)")
         else:
-            print(f"[DRY RUN] {AGDT_WORKFLOWS_DIR} will stay staged (on -agdt branch)")
+            print("[DRY RUN] .agdt/ entries will stay staged (on -agdt branch)")
+            print("[DRY RUN] Would remove .agdt/.gitignore (on -agdt branch)")
         return
 
     print("Staging all changes...")
@@ -57,9 +62,21 @@ def stage_changes(dry_run: bool) -> None:
 
     branch = get_current_branch()
     if not branch.endswith("-agdt"):
-        result = run_git("reset", "HEAD", "--", AGDT_WORKFLOWS_DIR, check=False)
-        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
-            print(f"Unstaged workflow artifacts: {AGDT_WORKFLOWS_DIR}")
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            result = run_git("reset", "HEAD", "--", f".agdt/{entry}", check=False)
+            if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+                print(f"Unstaged runtime state: .agdt/{entry}")
+    else:
+        # On -agdt branches, remove .agdt/.gitignore so state can be committed
+        try:
+            toplevel = run_git("rev-parse", "--show-toplevel", check=False)
+            if toplevel.returncode == 0 and toplevel.stdout.strip():
+                gitignore_path = Path(toplevel.stdout.strip()) / ".agdt" / ".gitignore"
+                if gitignore_path.is_file():
+                    gitignore_path.unlink()
+                    print("Removed .agdt/.gitignore (on -agdt branch, state will be committed)")
+        except OSError:
+            pass  # Non-fatal — best effort
 
     print("Changes staged.")
 

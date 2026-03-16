@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from agentic_devtools import state
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agentic_devtools.cli.git import commands, operations
 
 
@@ -14,8 +15,9 @@ class TestStageCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.stage_cmd()
         n = len(operations.STAGE_EXCLUDE_FILES)
-        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + 1 (workflows reset)
-        assert mock_run_safe.call_count == 1 + n + 1
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + m (AGDT_GITIGNORE_ENTRIES resets)
+        assert mock_run_safe.call_count == 1 + n + m
         # First call: git add .
         assert mock_run_safe.call_args_list[0][0][0] == ["git", "add", "."]
         # Subsequent calls: git reset HEAD -- <excluded> for each excluded file

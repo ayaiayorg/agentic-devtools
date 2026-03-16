@@ -299,6 +299,11 @@ def set_bootstrap_state(
     bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
     bootstrap_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
+    # Ensure .agdt/.gitignore exists (silent — no user-facing message here)
+    from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
+
+    ensure_agdt_gitignore(git_root)
+
     # Write .identity-owner file
     if identity:
         identity_dir = git_root / ".agdt" / "workflows" / identity
