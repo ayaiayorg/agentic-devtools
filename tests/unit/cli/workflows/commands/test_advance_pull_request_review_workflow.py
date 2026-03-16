@@ -354,3 +354,262 @@ class TestAdvancePullRequestReviewWorkflow:
             assert "decision" in captured.err
             assert "file-review" in captured.err
             assert "pull-request-overview" in captured.err
+
+    def test_advance_to_completion_triggers_cascade(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test advancing to completion triggers cascade_overall_summary_update."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid"
+        mock_review_state.overallSummary.status = "approved"
+        mock_review_state.files = {}
+
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 3,
+            "pending_count": 0,
+            "total_count": 3,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+
+        mock_config = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ) as mock_save, patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=[],
+        ) as mock_cascade, patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+        ) as mock_execute, patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+            return_value=mock_config,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir(exist_ok=True)
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Review complete: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        mock_cascade.assert_called_once()
+        mock_execute.assert_called_once()
+        mock_save.assert_called_once_with(mock_review_state)
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"
+
+    def test_advance_to_completion_sets_decision_variable(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test completion step derives decision string from review state."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid"
+        mock_review_state.overallSummary.status = "needs-work"
+        mock_review_state.files = {}
+
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 3,
+            "pending_count": 0,
+            "total_count": 3,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+
+        mock_config = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+            return_value=mock_config,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir(exist_ok=True)
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Decision: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        captured = capsys.readouterr()
+        assert "\U0001f4dd Needs Work" in captured.out
+
+    def test_advance_to_completion_skips_cascade_when_review_state_missing(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test completion step skips cascade when review state file not found."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 3,
+            "pending_count": 0,
+            "total_count": 3,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=FileNotFoundError("review-state.json not found"),
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir(exist_ok=True)
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Review complete: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        captured = capsys.readouterr()
+        assert "Review state not found" in captured.err
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"
+
+    def test_advance_to_completion_continues_on_cascade_error(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test completion step continues when cascade execution fails."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid"
+        mock_review_state.overallSummary.status = "approved"
+        mock_review_state.files = {}
+
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 3,
+            "pending_count": 0,
+            "total_count": 3,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+
+        mock_config = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ) as mock_save, patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=[MagicMock()],
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+            side_effect=RuntimeError("API error"),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+            return_value=mock_config,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir(exist_ok=True)
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Review complete: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        captured = capsys.readouterr()
+        assert "Failed to update PR summary" in captured.err
+        mock_save.assert_called_once_with(mock_review_state)
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"
