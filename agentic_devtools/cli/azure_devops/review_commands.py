@@ -162,8 +162,7 @@ def checkout_and_sync_branch(
     if not fetch_branch(source_branch):
         return (
             False,
-            f"Failed to fetch origin/{source_branch}. "
-            "Cannot proceed with review on potentially stale code.",
+            f"Failed to fetch origin/{source_branch}. Cannot proceed with review on potentially stale code.",
             set(),
         )
 
@@ -172,8 +171,7 @@ def checkout_and_sync_branch(
     if not reset_branch_to_origin(source_branch):
         return (
             False,
-            f"Failed to reset branch to origin/{source_branch}. "
-            "Local branch may be in an inconsistent state.",
+            f"Failed to reset branch to origin/{source_branch}. Local branch may be in an inconsistent state.",
             set(),
         )
 

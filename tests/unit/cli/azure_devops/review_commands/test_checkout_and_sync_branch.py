@@ -182,4 +182,3 @@ class TestCheckoutAndSyncBranch:
                                 checkout_and_sync_branch("feature/test")
 
                                 assert call_order == ["fetch_branch", "reset_branch_to_origin", "fetch_main"]
-
