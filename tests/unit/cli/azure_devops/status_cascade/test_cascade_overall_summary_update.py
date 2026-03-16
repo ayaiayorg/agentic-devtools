@@ -11,7 +11,7 @@ from agentic_devtools.cli.azure_devops.status_cascade import (
     cascade_overall_summary_update,
 )
 
-_BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullRequest/100"
+_BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullrequest/100"
 
 
 def _make_state(file_statuses: dict[str, str]) -> ReviewState:
@@ -121,3 +121,21 @@ class TestCascadeOverallSummaryUpdate:
 
         assert len(result) == 1
         assert state.overallSummary.status == "needs-work"
+
+    def test_unreviewed_overall_gets_active_thread_status(self):
+        """All files unreviewed → thread_status 'active'."""
+        state = _make_state({"src/a.py": "unreviewed", "tests/b.py": "unreviewed"})
+
+        result = cascade_overall_summary_update(state, _BASE_URL)
+
+        assert result[0].thread_status == "active"
+        assert state.overallSummary.status == "unreviewed"
+
+    def test_in_progress_overall_gets_active_thread_status(self):
+        """Mixed reviewed/unreviewed files → in-progress → thread_status 'active'."""
+        state = _make_state({"src/a.py": "approved", "tests/b.py": "unreviewed"})
+
+        result = cascade_overall_summary_update(state, _BASE_URL)
+
+        assert result[0].thread_status == "active"
+        assert state.overallSummary.status == "in-progress"

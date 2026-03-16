@@ -617,3 +617,45 @@ class TestAdvancePullRequestReviewWorkflow:
         workflow = state.get_workflow_state()
         assert workflow["step"] == "completion"
         assert workflow["status"] == "completed"
+
+    def test_advance_to_completion_handles_malformed_state_gracefully(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test workflow completes even when cascade raises ValueError/KeyError from bad state."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=ValueError("malformed review state"),
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Complete! Decision: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        captured = capsys.readouterr()
+        assert "Could not update PR summary" in captured.err
+
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"

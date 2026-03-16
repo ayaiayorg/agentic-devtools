@@ -814,6 +814,8 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
         except FileNotFoundError:
             print("Warning: Review state not found. Skipping summary cascade.", file=sys.stderr)
+        except (OSError, ValueError, AttributeError, KeyError) as exc:
+            print(f"Warning: Could not update PR summary: {exc}", file=sys.stderr)
 
     variables["decision"] = decision
 

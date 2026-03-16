@@ -100,7 +100,7 @@ def cascade_status_update(
             thread_id=state.overallSummary.threadId,
             comment_id=state.overallSummary.commentId,
             new_content=overall_content,
-            thread_status=_THREAD_STATUS_MAP[new_overall_status],
+            thread_status=_THREAD_STATUS_MAP.get(new_overall_status, "active"),
         )
     )
 
@@ -133,7 +133,8 @@ def cascade_overall_summary_update(
             thread_id=state.overallSummary.threadId,
             comment_id=state.overallSummary.commentId,
             new_content=overall_content,
-            thread_status=_THREAD_STATUS_MAP[new_overall_status],
+            # Default to "active" for non-final statuses (unreviewed, in-progress)
+            thread_status=_THREAD_STATUS_MAP.get(new_overall_status, "active"),
         )
     ]
 
