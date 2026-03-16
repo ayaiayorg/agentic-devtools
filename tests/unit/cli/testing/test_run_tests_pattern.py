@@ -35,7 +35,7 @@ class TestRunTestsPattern:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
             with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_example.py", "-v"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result) as mock_run:
                     with pytest.raises(SystemExit) as exc_info:
@@ -51,7 +51,7 @@ class TestRunTestsPattern:
         mock_result = MagicMock()
         mock_result.returncode = 5  # pytest failure exit code
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
             with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_fail.py"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result):
                     with pytest.raises(SystemExit) as exc_info:

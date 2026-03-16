@@ -18,7 +18,7 @@ class TestRunTestsQuickSync:
 
     def test_returns_error_when_tests_dir_missing(self, tmp_path):
         """Should return error code when tests directory is missing."""
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
             result = testing._run_tests_quick_sync()
             assert result == 1
 
@@ -27,7 +27,7 @@ class TestRunTestsQuickSync:
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
             with patch.object(testing, "_run_subprocess_with_streaming", return_value=0) as mock_run:
                 result = testing._run_tests_quick_sync()
 
