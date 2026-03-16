@@ -13,14 +13,17 @@
 
 **Auto-session**
 : Behavior where an `agdt-initiate-*-workflow` command automatically launches a Copilot
-CLI session after worktree setup. The session starts with a short static **bootstrap
-prompt** (not the full rendered prompt) that instructs Copilot to run
-`agdt-get-next-workflow-prompt`, which then loads the rendered workflow prompt. When a new
-worktree is opened in VS Code, a `folderOpen` auto-start task always starts an interactive
-Copilot session regardless of `--interactive`. For direct CLI invocations, `--interactive`
-controls whether the session attaches to a terminal (`true`, requires TTY + VS Code) or
-runs as a background task (`false`, default). Falls back to printing the rendered prompt
-to the console when a session cannot be started.
+CLI session after worktree setup. The session starts with a short static workflow-specific
+**bootstrap prompt** (not the full rendered prompt). For most workflows it instructs
+Copilot to run `agdt-get-next-workflow-prompt`, which then loads the rendered workflow
+prompt. The PR review workflow is an exception: its bootstrap prompt instructs
+`agdt-advance-workflow pull-request-overview` instead. When a new worktree is opened in VS
+Code, a `folderOpen` auto-start task always starts an interactive Copilot session
+regardless of `--interactive`. For direct CLI invocations, `--interactive` controls
+whether the session attaches to a terminal (`true`, requires TTY + VS Code) or runs as a
+detached background process (`false`, default; no agdt task ID — use `copilot.*` state
+keys to locate the session log file). Falls back to printing the rendered prompt to the
+console when a session cannot be started.
 
 **Azure DevOps (ADO)**
 : Microsoft's DevOps platform providing Git repositories, pull requests, work items, and CI/CD pipelines
@@ -135,9 +138,11 @@ prompt. Template files live in `agentic_devtools/prompts/<workflow>/default-<ste
 the canonical versions are attached to
 [issue #867](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
 At runtime, variables are interpolated by `loader.py` (Jinja2) and the rendered prompt is
-saved to the workflow state directory. A Copilot session is then started with a bootstrap
-prompt that instructs the agent to run `agdt-get-next-workflow-prompt`, which loads and
-displays the rendered prompt file.
+saved to the workflow state directory. A Copilot session is then started with a
+workflow-specific bootstrap prompt that instructs the agent to run the first workflow
+command: `agdt-get-next-workflow-prompt` for most workflows, or
+`agdt-advance-workflow pull-request-overview` for the PR review workflow. The rendered
+prompt is then loaded and displayed by that command.
 
 **Pull Request (PR)**
 : Code review request in Azure DevOps or GitHub

@@ -3,9 +3,11 @@
 All `agdt-initiate-*-workflow` commands are driven by prompt files that serve as the
 **sole source of truth** for workflow automation in agentic-devtools. When a workflow is
 initiated, the CLI renders the appropriate prompt template (saving it to the workflow state
-directory), then starts a Copilot CLI session with a short **bootstrap prompt** that
-instructs the agent to run `agdt-get-next-workflow-prompt`. That command loads and displays
-the full rendered prompt, guiding the agent through the workflow step.
+directory), then starts a Copilot CLI session with a short workflow-specific **bootstrap
+prompt**. For most workflows, the bootstrap prompt instructs the agent to run
+`agdt-get-next-workflow-prompt`, which loads and displays the full rendered prompt. The PR
+review workflow is an exception: its bootstrap prompt instructs
+`agdt-advance-workflow pull-request-overview` instead.
 
 ---
 
@@ -60,15 +62,16 @@ Rendered prompt file saved to disk
         │
         │  Copilot session started with a short static bootstrap prompt
         │  (_start_copilot_session_for_workflow in worktree_setup.py)
-        │  e.g. "Execute: agdt-get-next-workflow-prompt"
+        │  Most workflows: "Execute: agdt-get-next-workflow-prompt"
+        │  PR review workflow: "Execute: agdt-advance-workflow pull-request-overview"
         ▼
 Copilot CLI session
-  Bootstrap prompt instructs the agent to run agdt-get-next-workflow-prompt
+  Bootstrap prompt instructs the agent to run the first workflow command
         │
         ▼
 Rendered prompt displayed
-  agdt-get-next-workflow-prompt reads temp-<workflow>-<step>-prompt.md
-  and prints the full workflow instructions to the agent
+  agdt-get-next-workflow-prompt (or agdt-advance-workflow) reads the
+  rendered temp file and prints the full workflow instructions to the agent
 ```
 
 Two session modes are possible depending on context:
@@ -77,8 +80,10 @@ Two session modes are possible depending on context:
   starts an interactive Copilot session in the integrated terminal, regardless of the
   `--interactive` flag.
 - **Direct invocation**: controlled by `--interactive` (default: `false`). With
-  `--interactive false` Copilot runs as a background task; with `--interactive true` it
-  attaches to the terminal (requires a TTY and VS Code to be available).
+  `--interactive false` Copilot runs as a detached background process (no agdt task ID;
+  check the Copilot session log file via the `copilot.*` state keys); with
+  `--interactive true` it attaches to the terminal (requires a TTY and VS Code to be
+  available).
 
 Override templates are supported: place an
 `agentic_devtools/prompts/<workflow>/override-<step>-prompt.md` file to replace the
@@ -126,8 +131,9 @@ installed, there is no TTY, or VS Code is unavailable), the workflow degrades gr
 You can then paste the prompt manually into GitHub Copilot Chat or any other AI assistant.
 
 By default (`--interactive` omitted or `--interactive false`), the Copilot session runs
-as a background task. To request an interactive terminal session, pass `--interactive true`
-(requires a TTY and VS Code):
+as a detached background process (no agdt task ID). To monitor it, check the Copilot
+session log file via the `copilot.*` state keys. To request an interactive terminal
+session, pass `--interactive true` (requires a TTY and VS Code):
 
 ```bash
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive true
