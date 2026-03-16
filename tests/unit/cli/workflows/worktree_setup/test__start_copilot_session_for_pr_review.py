@@ -84,19 +84,17 @@ class TestStartCopilotSessionForPrReview:
         return_value=True,
     )
     @patch("agentic_devtools.state.get_state_dir")
-    def test_restores_state_dir_env_var(self, mock_state_dir, mock_generic, tmp_path):
+    def test_restores_state_dir_env_var(self, mock_state_dir, mock_generic, tmp_path, monkeypatch):
         """Verify AGENTIC_DEVTOOLS_STATE_DIR is restored after resolution."""
         state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
         state_dir.mkdir(parents=True)
         mock_state_dir.return_value = state_dir
 
         original_val = "/some/original/state/dir"
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = original_val
-        try:
-            _start_copilot_session_for_pr_review(str(tmp_path))
-            assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_val
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", original_val)
+
+        _start_copilot_session_for_pr_review(str(tmp_path))
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_val
 
 
 class TestCopilotSessionStartPrompt:
