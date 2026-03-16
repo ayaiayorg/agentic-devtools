@@ -38,8 +38,9 @@ def is_safe_dir_segment(name: str) -> bool:
     """Check that *name* is safe for use as a single-component directory name.
 
     Returns ``False`` when *name* is empty or contains path separators
-    (``/``, ``\\``), parent references (``..``), or colons (``:``) which
-    on Windows can reset the drive (e.g. ``Path(base) / 'D:'``).
+    (``/``, ``\\``), double-dot sequences (``..`` anywhere in the string),
+    or colons (``:``) which on Windows can reset the drive
+    (e.g. ``Path(base) / 'D:'``).
 
     This is the **centralised** safety check used by both ``get_state_dir()``
     and ``_run_auto_execute_command()`` to prevent a tampered bootstrap file
