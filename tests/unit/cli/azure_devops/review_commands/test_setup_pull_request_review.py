@@ -542,6 +542,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -634,6 +637,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -715,6 +721,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_with_jira,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -793,6 +802,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_with_include_reviewed,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -865,6 +877,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_with_model_id,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -944,6 +959,9 @@ class TestSetupPullRequestReviewPersistence:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_with_dry_run,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
