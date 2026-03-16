@@ -1559,9 +1559,10 @@ Examples:
         "--interactive",
         dest="interactive",
         default=None,
-        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args, _unknown = parser.parse_known_args(_argv)
+    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive))
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -1569,7 +1570,7 @@ Examples:
     if issue_key is None and args.issue_key:
         issue_key = args.issue_key
     if interactive is None and args.interactive is not None:
-        interactive = args.interactive.lower() not in ("false", "0", "no")
+        interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
 
