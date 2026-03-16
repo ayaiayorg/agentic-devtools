@@ -141,6 +141,9 @@ from .review_attribution import (
     should_use_emoji,
 )
 
+# Review scaffold exports
+from .review_scaffold import build_pr_base_url
+
 # Review state exports
 from .review_state import (
     COMPLETE_STATUSES,
@@ -326,6 +329,8 @@ __all__ = [
     "build_commit_pr_url",
     "get_model_icon",
     "render_attribution_line",
+    # Review scaffold
+    "build_pr_base_url",
     # Status cascade
     "PatchOperation",
     "derive_overall_status",

@@ -408,7 +408,7 @@ class TestAdvancePullRequestReviewWorkflow:
         ), patch(
             "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
         ), patch(
-            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
@@ -482,7 +482,7 @@ class TestAdvancePullRequestReviewWorkflow:
         ), patch(
             "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
         ), patch(
-            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
@@ -592,7 +592,7 @@ class TestAdvancePullRequestReviewWorkflow:
         ), patch(
             "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
         ), patch(
-            "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
@@ -607,6 +607,9 @@ class TestAdvancePullRequestReviewWorkflow:
 
         captured = capsys.readouterr()
         assert "Failed to update PR summary" in captured.err
+
+        # Decision should still be derived even though cascade failed
+        assert "📝 Needs Work" in captured.out
 
         # save_review_state should still be called (finally block)
         mock_save.assert_called_once_with(mock_review_state)

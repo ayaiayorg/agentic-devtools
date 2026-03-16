@@ -75,7 +75,7 @@ def _get_file_name(file_path: str) -> str:
     return normalized.split("/")[-1]
 
 
-def _build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
+def build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
     """Build the PR web URL for building discussion links.
 
     Args:
@@ -91,6 +91,10 @@ def _build_pr_base_url(config: AzureDevOpsConfig, pull_request_id: int) -> str:
     encoded_project = quote(config.project, safe="")
     encoded_repo = quote(config.repository, safe="")
     return f"{org}/{encoded_project}/_git/{encoded_repo}/pullrequest/{pull_request_id}"
+
+
+# Backward-compatible alias for internal callers
+_build_pr_base_url = build_pr_base_url
 
 
 def _post_thread(

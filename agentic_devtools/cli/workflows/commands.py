@@ -775,20 +775,30 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
             from ..azure_devops.config import AzureDevOpsConfig
             from ..azure_devops.helpers import require_requests
             from ..azure_devops.review_attribution import format_status
-            from ..azure_devops.review_scaffold import _build_pr_base_url
+            from ..azure_devops.review_scaffold import build_pr_base_url
             from ..azure_devops.review_state import load_review_state, save_review_state
             from ..azure_devops.status_cascade import cascade_overall_summary_update, execute_cascade
 
             review_state = load_review_state(pr_id_int)
             config = AzureDevOpsConfig()
-            base_url = _build_pr_base_url(config, pr_id_int)
-            requests = require_requests()
-            pat = get_pat()
-            headers = get_auth_headers(pat)
-            repo_id = review_state.repoId
+            base_url = build_pr_base_url(config, pr_id_int)
+
+            patch_ops = cascade_overall_summary_update(review_state, base_url)
+
+            # Derive human-readable decision from overall status (always, even if PATCH fails)
+            overall_status = review_state.overallSummary.status
+            _STATUS_DECISION_MAP = {
+                "approved": "✅ Approved",
+                "needs-work": "📝 Needs Work",
+            }
+            decision = _STATUS_DECISION_MAP.get(overall_status, format_status(overall_status, use_emoji=True))
 
             try:
-                patch_ops = cascade_overall_summary_update(review_state, base_url)
+                requests = require_requests()
+                pat = get_pat()
+                headers = get_auth_headers(pat)
+                repo_id = review_state.repoId
+
                 execute_cascade(
                     patch_operations=patch_ops,
                     requests_module=requests,
@@ -797,21 +807,13 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
                     repo_id=repo_id,
                     pull_request_id=pr_id_int,
                 )
+            except Exception as exc:
+                print(f"Warning: Failed to update PR summary: {exc}", file=sys.stderr)
             finally:
                 save_review_state(review_state)
 
-            # Derive human-readable decision from overall status
-            overall_status = review_state.overallSummary.status
-            _STATUS_DECISION_MAP = {
-                "approved": "✅ Approved",
-                "needs-work": "📝 Needs Work",
-            }
-            decision = _STATUS_DECISION_MAP.get(overall_status, format_status(overall_status, use_emoji=True))
-
         except FileNotFoundError:
             print("Warning: Review state not found. Skipping summary cascade.", file=sys.stderr)
-        except Exception as exc:
-            print(f"Warning: Failed to update PR summary: {exc}", file=sys.stderr)
 
     variables["decision"] = decision
 
