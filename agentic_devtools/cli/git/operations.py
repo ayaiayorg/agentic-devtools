@@ -573,6 +573,8 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
             return False
     else:
         print("Warning: Could not determine current branch. Aborting reset as a safety precaution.")
+        if head_result.stderr:
+            print(f"  {head_result.stderr.strip()}")
         return False
 
     # Guard: check for unpushed local commits before hard reset

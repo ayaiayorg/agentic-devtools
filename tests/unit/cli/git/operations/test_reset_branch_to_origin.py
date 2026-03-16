@@ -154,6 +154,7 @@ class TestResetBranchToOrigin:
                 captured = capsys.readouterr()
                 assert "Could not determine current branch" in captured.out
                 assert "safety precaution" in captured.out
+                assert "fatal: not a git repository" in captured.out
 
     def test_reset_aborts_when_uncommitted_changes(self, mock_run_safe, capsys):
         """Test reset aborts when working tree has uncommitted changes."""
