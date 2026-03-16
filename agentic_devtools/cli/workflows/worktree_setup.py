@@ -1357,12 +1357,46 @@ def _run_auto_execute_command(
     """
     print(f"\n--- Executing command in worktree: {' '.join(command)} ---")
     # Inherit current environment and pin AGENTIC_DEVTOOLS_STATE_DIR to the
-    # target worktree's .agdt/workflows/_unscoped directory.  This propagates
-    # into any nested background tasks spawned by the auto-execute command so
+    # target worktree's identity-scoped state directory when the bootstrap
+    # file contains both ``identity`` and ``worktree_key``.  Falls back to
+    # ``_unscoped`` when the bootstrap file is missing, unreadable, or
+    # malformed, when either key is absent or empty, or when either segment
+    # fails ``is_safe_dir_segment()`` validation.  This propagates into
+    # any nested background tasks spawned by the auto-execute command so
     # that prompt files and state are written to the correct worktree location
     # instead of falling back to a Python-install-relative temp directory.
     env = os.environ.copy()
-    state_dir = Path(worktree_path) / ".agdt" / "workflows" / "_unscoped"
+
+    # Read bootstrap file to resolve identity-scoped state directory
+    bootstrap_path = Path(worktree_path) / ".agdt" / "runtime-bootstrap.json"
+    identity = ""
+    worktree_key = ""
+    try:
+        if bootstrap_path.is_file():
+            data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                raw_id = data.get("identity", "")
+                raw_wk = data.get("worktree_key", "")
+                identity = raw_id.strip() if isinstance(raw_id, str) else ""
+                worktree_key = raw_wk.strip() if isinstance(raw_wk, str) else ""
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        pass
+
+    # Validate that identity/worktree_key are safe single-component directory
+    # names (no path separators, no ``..``) to prevent the state dir from
+    # escaping the .agdt/workflows subtree via a malformed bootstrap file.
+    from ...state import is_safe_dir_segment
+
+    if identity and worktree_key and is_safe_dir_segment(identity) and is_safe_dir_segment(worktree_key):
+        state_dir = Path(worktree_path) / ".agdt" / "workflows" / identity / worktree_key
+    else:
+        if identity and worktree_key:
+            # Both values present but at least one failed safety validation.
+            print(
+                f"WARNING: unsafe bootstrap identity/worktree_key "
+                f"({identity!r}/{worktree_key!r}), falling back to _unscoped"
+            )
+        state_dir = Path(worktree_path) / ".agdt" / "workflows" / "_unscoped"
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:

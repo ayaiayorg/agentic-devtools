@@ -691,6 +691,47 @@ def setup_pull_request_review() -> None:
 
     jira_issue_key = get_value("jira.issue_key")
     include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
+    review_model_id = get_value("review.model_id")
+    dry_run_val = get_value("dry_run")
+
+    # Bootstrap identity + worktree_key before fetching PR details / generating
+    # artifacts so they land in the identity-scoped directory from the start.
+    # Note: get_value() calls above still resolve against the old state dir;
+    # the bootstrap call below re-seeds those keys into the scoped state.
+    try:
+        import uuid
+
+        from ...state import set_bootstrap_state, set_value
+
+        set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
+
+        # Re-set context keys that were read from the old (_unscoped) state
+        # directory.  set_bootstrap_state() may have changed the resolved
+        # state dir, so downstream commands (e.g., get_pull_request_details)
+        # that call get_value() would find an empty scoped state.json.
+        set_value("pull_request_id", str(pull_request_id))
+        if jira_issue_key:
+            set_value("jira.issue_key", jira_issue_key)
+        if include_reviewed:
+            set_value("include_reviewed", "true")
+        if review_model_id:
+            set_value("review.model_id", review_model_id)
+        if dry_run_val is not None:
+            set_value("dry_run", str(dry_run_val))
+
+        # Generate agdt_run_id (same pattern as initiate_workflow in base.py)
+        # so that persist_if_dirty() can commit workflow state to a -agdt branch.
+        run_id = uuid.uuid4().hex[:12]
+        set_value("agdt_run_id", run_id)
+
+        # NOTE: versionControl.currentBranch is intentionally NOT set here.
+        # This function checks out the PR source branch below (Step 3), so
+        # the branch at this point is stale.  persist_if_dirty() resolves the
+        # current branch from git when needed.
+    except Exception as exc:
+        # Bootstrap is best-effort: review proceeds using _unscoped if this
+        # fails (e.g., not in a git repo).  Log the error for debugging.
+        print(f"WARNING: bootstrap state init failed: {exc}", file=sys.stderr)
 
     # Step 1: Fetch Jira issue details if we have a key
     if jira_issue_key:

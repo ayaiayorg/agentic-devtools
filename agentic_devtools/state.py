@@ -34,6 +34,31 @@ IDENTITY_OWNER_FILENAME = ".identity-owner"
 DEFAULT_LOCK_TIMEOUT = 5.0
 
 
+def is_safe_dir_segment(name: str) -> bool:
+    """Check that *name* is safe for use as a single-component directory name.
+
+    Returns ``False`` when *name* is empty or contains path separators
+    (``/``, ``\\``), double-dot sequences (``..`` anywhere in the string),
+    colons (``:``) which on Windows can reset the drive
+    (e.g. ``Path(base) / 'D:'``), or non-printable characters (including
+    embedded NUL bytes ``\\x00``).  Non-printable characters can cause
+    ``pathlib.Path`` to raise ``ValueError`` or produce unpredictable
+    filesystem behaviour.
+
+    This is the **centralised** safety check used by both ``get_state_dir()``
+    and ``_run_auto_execute_command()`` to prevent a tampered bootstrap file
+    from escaping ``.agdt/workflows/``.
+    """
+    return (
+        bool(name)
+        and ".." not in name
+        and "/" not in name
+        and "\\" not in name
+        and ":" not in name
+        and name.isprintable()
+    )
+
+
 def _get_git_repo_root() -> Optional[Path]:
     """
     Get the git repository or worktree root using git rev-parse.
@@ -356,7 +381,7 @@ def get_state_dir() -> Path:
         identity = raw_id.strip() if isinstance(raw_id, str) else ""
         worktree_key = raw_wk.strip() if isinstance(raw_wk, str) else ""
 
-        if identity and worktree_key:
+        if identity and worktree_key and is_safe_dir_segment(identity) and is_safe_dir_segment(worktree_key):
             scoped = git_root / ".agdt" / "workflows" / identity / worktree_key
             scoped.mkdir(parents=True, exist_ok=True)
             return scoped
