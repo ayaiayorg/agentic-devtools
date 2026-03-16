@@ -1326,12 +1326,8 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                 return_value=["file1.ts", "file2.ts"],
                             ):
                                 # Patch Path to point to tmp_path
-                                with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.Path"
-                                ) as mock_path:
-                                    mock_path.return_value.parent.parent.parent.parent.parent = (
-                                        tmp_path
-                                    )
+                                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
+                                    mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
                                     from agdt_ai_helpers.cli.azure_devops.review_commands import (
                                         checkout_and_sync_branch,
                                     )

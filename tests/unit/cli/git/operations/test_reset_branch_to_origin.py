@@ -64,9 +64,7 @@ class TestResetBranchToOrigin:
         """Test reset aborts when local branch is ahead of origin."""
         with patch.object(operations, "run_git") as mock_run_git:
             # rev-list returns 3 commits ahead
-            mock_run_git.return_value = MagicMock(
-                returncode=0, stdout="3\n", stderr=""
-            )
+            mock_run_git.return_value = MagicMock(returncode=0, stdout="3\n", stderr="")
 
             result = operations.reset_branch_to_origin("feature/test")
 
