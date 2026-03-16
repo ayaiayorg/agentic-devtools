@@ -443,7 +443,6 @@ def get_pull_request_details() -> None:
 
     Output:
         - Writes JSON to temp-get-pull-request-details-response.json in the state directory
-        - Writes file details to pull-request-review/prompts/<pull_request_id>/pull-request-files.json
 
     Raises:
         SystemExit: On validation or execution errors.
@@ -455,11 +454,9 @@ def get_pull_request_details() -> None:
     # Determine output paths
     temp_dir = get_state_dir()
     output_file = temp_dir / "temp-get-pull-request-details-response.json"
-    prompts_root = temp_dir / "pull-request-review" / "prompts"
 
-    # Ensure directories exist
+    # Ensure state directory exists
     temp_dir.mkdir(parents=True, exist_ok=True)
-    prompts_root.mkdir(parents=True, exist_ok=True)
 
     if dry_run:
         print(f"DRY-RUN: Would retrieve pull request details for PR {pull_request_id}")
@@ -575,13 +572,6 @@ def get_pull_request_details() -> None:
         "baseBranch": target_branch,
         "compareBranch": source_branch,
     }
-
-    # Save files snapshot
-    pull_request_prompt_dir = prompts_root / str(pull_request_id)
-    pull_request_prompt_dir.mkdir(parents=True, exist_ok=True)
-    files_snapshot_path = pull_request_prompt_dir / "pull-request-files.json"
-    with open(files_snapshot_path, "w", encoding="utf-8") as f:
-        json.dump({"files": files_details}, f, indent=2)
 
     # Fetch threads, iterations, reviewer data
     repo_id = pr_data.get("repository", {}).get("id")

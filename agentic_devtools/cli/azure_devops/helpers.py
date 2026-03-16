@@ -11,6 +11,7 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
+from ...state import is_safe_dir_segment
 from ..subprocess_utils import run_safe
 from .config import (
     DEFAULT_ORGANIZATION,
@@ -647,3 +648,47 @@ def find_pr_from_jira_issue(
         pass
 
     return None
+
+
+def resolve_review_artifact_dir_name(pull_request_id: int, commit_hash_short, warn: bool = True) -> str:
+    """Return a safe, ``str``-typed directory-name segment for scoping review artifacts.
+
+    Reads *commit_hash_short* (already retrieved from state by the caller) and
+    validates it with :func:`is_safe_dir_segment`.  Falls back to
+    ``'PR<pull_request_id>'`` (printing a warning to stderr when *warn* is
+    ``True``) when the value is absent, not a safe path segment, or cannot be
+    coerced to a plain ``str``.
+
+    Pass ``warn=False`` from high-frequency callers (e.g. ``_get_queue_path``)
+    to avoid spamming stderr on every queue operation when the key is absent.
+
+    The returned value is always a plain :class:`str`, safe for direct use as a
+    single :class:`pathlib.Path` segment without further coercion or validation.
+    """
+    fallback = f"PR{pull_request_id}"
+    if commit_hash_short is None or commit_hash_short == "":
+        if warn:
+            print(
+                f"Warning: review.commit_hash_short not set; using {fallback!r} as artifact directory.",
+                file=sys.stderr,
+            )
+        return fallback
+    try:
+        as_str = str(commit_hash_short)
+    except Exception:
+        if warn:
+            print(
+                f"Warning: review.commit_hash_short {commit_hash_short!r} could not be coerced to str; "
+                f"using {fallback!r} as artifact directory.",
+                file=sys.stderr,
+            )
+        return fallback
+    if not is_safe_dir_segment(as_str):
+        if warn:
+            print(
+                f"Warning: review.commit_hash_short {commit_hash_short!r} is unsafe; "
+                f"using {fallback!r} as artifact directory.",
+                file=sys.stderr,
+            )
+        return fallback
+    return as_str

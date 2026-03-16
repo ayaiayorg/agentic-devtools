@@ -14,7 +14,7 @@ from ...state import get_state_dir, get_value, is_dry_run
 from ..subprocess_utils import run_safe
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import require_requests, verify_az_cli
+from .helpers import require_requests, resolve_review_artifact_dir_name, verify_az_cli
 
 # Import helper modules
 
@@ -212,8 +212,10 @@ def checkout_and_sync_branch(
 
     # Optionally save files_on_branch to JSON for async workflows
     if save_files_on_branch and pull_request_id:
+        commit_hash_short = get_value("review.commit_hash_short")
+        dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short)
         temp_dir = get_state_dir()
-        prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
+        prompts_dir = temp_dir / "pull-request-review" / dir_name
         prompts_dir.mkdir(parents=True, exist_ok=True)
         files_on_branch_path = prompts_dir / "files-on-branch.json"
         with open(files_on_branch_path, "w", encoding="utf-8") as f:
@@ -356,7 +358,9 @@ def generate_review_prompts(
     )
 
     temp_dir = get_state_dir()
-    prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
+    commit_hash_short = get_value("review.commit_hash_short")
+    dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short)
+    prompts_dir = temp_dir / "pull-request-review" / dir_name
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
     # Load pr_details from temp file if not provided
@@ -680,6 +684,7 @@ def setup_pull_request_review() -> None:
     This function is designed to be called in a background task from the
     workflow initiation command.
     """
+    from ...state import delete_value, set_value
     from .pull_request_details_commands import get_pull_request_details
 
     # Read parameters from state
@@ -701,7 +706,7 @@ def setup_pull_request_review() -> None:
     try:
         import uuid
 
-        from ...state import set_bootstrap_state, set_value
+        from ...state import set_bootstrap_state
 
         set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
 
@@ -755,6 +760,35 @@ def setup_pull_request_review() -> None:
 
     # Step 3: Checkout source branch and sync with main
     pr_info = pr_details.get("pullRequest", pr_details)
+
+    # Extract and store commit hash short for artifact directory scoping.
+    # This must be set before checkout_and_sync_branch() and generate_review_prompts()
+    # so that both use the correct directory under pull-request-review/.
+    # When commitId is absent, delete any stale value to keep artifact paths deterministic.
+    last_merge = pr_info.get("lastMergeSourceCommit")
+    if not isinstance(last_merge, dict):
+        if last_merge is not None:
+            print(
+                f"Warning: lastMergeSourceCommit has unexpected type "
+                f"{type(last_merge).__name__!r}; review artifacts will be scoped by PR ID.",
+                file=sys.stderr,
+            )
+        source_commit_id = ""
+    else:
+        source_commit_id = last_merge.get("commitId", "")
+        if source_commit_id and not isinstance(source_commit_id, str):
+            print(
+                f"Warning: lastMergeSourceCommit.commitId has unexpected type "
+                f"{type(source_commit_id).__name__!r}; review artifacts will be scoped by PR ID.",
+                file=sys.stderr,
+            )
+            source_commit_id = ""
+    commit_hash_short = source_commit_id[:8] if source_commit_id else ""
+    if commit_hash_short:
+        set_value("review.commit_hash_short", commit_hash_short)
+    else:
+        delete_value("review.commit_hash_short")
+
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
     files_on_branch: Set[str] | None = None
