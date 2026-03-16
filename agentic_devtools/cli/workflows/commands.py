@@ -768,7 +768,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
     }
 
     # Derive decision and trigger status cascade for completion step
-    decision = ""
+    decision = "⚠️ Unavailable"
     if step == "completion":
         try:
             from ..azure_devops.auth import get_auth_headers, get_pat
@@ -780,7 +780,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
             from ..azure_devops.status_cascade import cascade_overall_summary_update, execute_cascade
 
             review_state = load_review_state(pr_id_int)
-            config = AzureDevOpsConfig()
+            config = AzureDevOpsConfig.from_state()
             base_url = build_pr_base_url(config, pr_id_int)
 
             patch_ops = cascade_overall_summary_update(review_state, base_url)
@@ -814,7 +814,7 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
         except FileNotFoundError:
             print("Warning: Review state not found. Skipping summary cascade.", file=sys.stderr)
-        except (OSError, ValueError, AttributeError, KeyError) as exc:
+        except (OSError, ValueError, AttributeError, KeyError, TypeError) as exc:
             print(f"Warning: Could not update PR summary: {exc}", file=sys.stderr)
 
     variables["decision"] = decision

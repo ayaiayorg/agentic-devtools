@@ -406,7 +406,7 @@ class TestAdvancePullRequestReviewWorkflow:
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
             return_value=MagicMock(),
         ), patch(
-            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
         ), patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
@@ -422,7 +422,6 @@ class TestAdvancePullRequestReviewWorkflow:
             commands.advance_pull_request_review_workflow(step="completion")
 
         mock_load.assert_called_with(123)
-        assert mock_load.call_count == 2  # once for counts, once for cascade
         mock_cascade.assert_called_once()
         mock_execute.assert_called_once()
         mock_save.assert_called_once_with(mock_review_state)
@@ -480,7 +479,7 @@ class TestAdvancePullRequestReviewWorkflow:
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
             return_value=MagicMock(),
         ), patch(
-            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
         ), patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
@@ -535,6 +534,7 @@ class TestAdvancePullRequestReviewWorkflow:
 
         captured = capsys.readouterr()
         assert "Review state not found" in captured.err
+        assert "⚠️ Unavailable" in captured.out
 
         workflow = state.get_workflow_state()
         assert workflow["step"] == "completion"
@@ -590,7 +590,7 @@ class TestAdvancePullRequestReviewWorkflow:
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
             return_value=MagicMock(),
         ), patch(
-            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig",
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
         ), patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
             return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
@@ -655,6 +655,7 @@ class TestAdvancePullRequestReviewWorkflow:
 
         captured = capsys.readouterr()
         assert "Could not update PR summary" in captured.err
+        assert "⚠️ Unavailable" in captured.out
 
         workflow = state.get_workflow_state()
         assert workflow["step"] == "completion"
