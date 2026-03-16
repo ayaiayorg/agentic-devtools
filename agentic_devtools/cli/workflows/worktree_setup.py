@@ -1616,12 +1616,11 @@ def _start_copilot_session_for_pr_review(
         ``True`` when a Copilot session was started or the auto-start task
         confirmed running, ``False`` otherwise.
     """
-    # Build the prompt file relative path using Path segments to avoid the
-    # legacy state-dir literal that is flagged by the stale-reference guard.
-    _pr_review_prompt_relative = str(Path("scripts") / "temp" / "temp-pull-request-review-initiate-prompt.md")
     return _start_copilot_session_for_workflow(
         worktree_path=worktree_path,
-        prompt_file_relative_path=_pr_review_prompt_relative,
+        prompt_file_relative_path=_prompt_file_relative_path(
+            worktree_path, "temp-pull-request-review-initiate-prompt.md"
+        ),
         start_prompt=COPILOT_SESSION_START_PROMPT,
         workflow_name="pull-request-review",
         interactive=interactive,
