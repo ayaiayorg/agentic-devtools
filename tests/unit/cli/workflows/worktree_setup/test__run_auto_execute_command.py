@@ -303,3 +303,22 @@ class TestRunAutoExecuteCommand:
         assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
         captured = capsys.readouterr()
         assert "unsafe bootstrap" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_to_unscoped_when_identity_has_drive_letter(self, mock_run, capsys, tmp_path):
+        """Test fallback to _unscoped when identity contains a Windows drive letter (e.g. C:)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text('{"identity": "D:", "worktree_key": "PR1"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+        captured = capsys.readouterr()
+        assert "unsafe bootstrap" in captured.out

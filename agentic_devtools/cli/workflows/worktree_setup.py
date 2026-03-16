@@ -1384,7 +1384,7 @@ def _run_auto_execute_command(
     # names (no path separators, no ``..``) to prevent the state dir from
     # escaping the .agdt/workflows subtree via a malformed bootstrap file.
     def _is_safe_dir_segment(name: str) -> bool:
-        return bool(name) and ".." not in name and "/" not in name and "\\" not in name
+        return bool(name) and ".." not in name and "/" not in name and "\\" not in name and ":" not in name
 
     if identity and worktree_key and _is_safe_dir_segment(identity) and _is_safe_dir_segment(worktree_key):
         state_dir = Path(worktree_path) / ".agdt" / "workflows" / identity / worktree_key

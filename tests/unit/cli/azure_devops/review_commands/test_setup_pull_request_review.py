@@ -389,15 +389,17 @@ class TestSetupPullRequestReview:
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("pathlib.Path.exists", return_value=False):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                        setup_pull_request_review,
-                    )
+                    with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                        with patch("agdt_ai_helpers.state.set_value"):
+                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                setup_pull_request_review,
+                            )
 
-                    with pytest.raises(SystemExit) as exc_info:
-                        setup_pull_request_review()
-                    assert exc_info.value.code == 1
-                    captured = capsys.readouterr()
-                    assert "PR details file not found" in captured.err
+                            with pytest.raises(SystemExit) as exc_info:
+                                setup_pull_request_review()
+                            assert exc_info.value.code == 1
+                            captured = capsys.readouterr()
+                            assert "PR details file not found" in captured.err
 
     def test_exits_on_checkout_failure(self, capsys):
         """Test exits with error when checkout fails."""
@@ -435,13 +437,15 @@ class TestSetupPullRequestReview:
                             "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
                             return_value=(False, "Checkout error", set()),
                         ):
-                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                setup_pull_request_review,
-                            )
+                            with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                with patch("agdt_ai_helpers.state.set_value"):
+                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        setup_pull_request_review,
+                                    )
 
-                            with pytest.raises(SystemExit) as exc_info:
-                                setup_pull_request_review()
-                            assert exc_info.value.code == 1
+                                    with pytest.raises(SystemExit) as exc_info:
+                                        setup_pull_request_review()
+                                    assert exc_info.value.code == 1
 
     def test_warns_when_no_source_branch(self, capsys):
         """Test prints warning when source branch cannot be determined."""
@@ -776,3 +780,74 @@ class TestSetupPullRequestReviewPersistence:
 
         jira_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "jira.issue_key"]
         assert len(jira_calls) == 0
+
+    def test_resets_include_reviewed_when_true(self):
+        """Regression: include_reviewed must be re-set after bootstrap when originally true."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        def get_value_with_include_reviewed(key, default=None):
+            mapping = {
+                "pull_request_id": "456",
+                "jira.issue_key": None,
+                "include_reviewed": "true",
+            }
+            return mapping.get(key, default)
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+
+        pr_details = self._make_pr_details()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=get_value_with_include_reviewed,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(pr_details)
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                setup_pull_request_review()
+
+        include_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "include_reviewed"]
+        assert len(include_calls) == 1
+        assert include_calls[0][0][1] == "true"
