@@ -531,6 +531,84 @@ def fetch_branch(branch_name: str, dry_run: bool = False) -> bool:
     return True
 
 
+def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
+    """
+    Reset the current branch to match origin/<branch_name>.
+
+    Verifies that HEAD is on ``branch_name`` before proceeding —
+    returns ``False`` with an actionable message if a different branch
+    is checked out.
+
+    Guards against data loss by:
+    - Checking for uncommitted or untracked working tree changes.
+    - Checking for unpushed local commits before performing the hard reset.
+
+    If any safety condition is detected, the reset is aborted with a
+    descriptive message so the reviewer can resolve manually.
+
+    Args:
+        branch_name: Name of the branch to reset to
+        dry_run: If True, only print what would happen
+
+    Returns:
+        True if reset succeeded, False otherwise
+    """
+    if dry_run:
+        print(f"[DRY RUN] Would reset to origin/{branch_name}")
+        return True
+
+    # Guard: check for uncommitted/untracked working tree changes
+    if has_local_changes():
+        print("Error: You have uncommitted local changes.")
+        print("Aborting reset to avoid losing work. Commit, stash, or discard your changes, then retry.")
+        return False
+
+    # Guard: verify we are on the expected branch
+    head_result = run_git("rev-parse", "--abbrev-ref", "HEAD", check=False)
+    if head_result.returncode == 0:
+        current_branch = head_result.stdout.strip()
+        if current_branch != branch_name:
+            print(f"Error: Expected to be on branch '{branch_name}' but HEAD is on '{current_branch}'.")
+            print("Aborting reset to avoid resetting the wrong branch.")
+            return False
+    else:
+        print("Warning: Could not determine current branch. Aborting reset as a safety precaution.")
+        if head_result.stderr:
+            print(f"  {head_result.stderr.strip()}")
+        return False
+
+    # Guard: check for unpushed local commits before hard reset
+    ahead_result = run_git("rev-list", "--count", f"origin/{branch_name}..HEAD", check=False)
+    if ahead_result.returncode == 0:
+        count_text = ahead_result.stdout.strip()
+        try:
+            ahead = int(count_text)
+        except ValueError:
+            print(f"Warning: Could not parse rev-list output ({count_text!r}), aborting reset as a safety precaution.")
+            return False
+        if ahead > 0:
+            print(f"Warning: Local branch has {ahead} unpushed commit(s) ahead of origin/{branch_name}.")
+            print("Aborting reset to avoid losing local work. Push or discard your local commits, then retry.")
+            return False
+    else:
+        print(f"Warning: Could not check for unpushed commits (rev-list exited {ahead_result.returncode}).")
+        if ahead_result.stderr:
+            print(f"  {ahead_result.stderr.strip()}")
+        print("Aborting reset as a safety precaution.")
+        return False
+
+    print(f"Resetting branch to origin/{branch_name}...")
+    result = run_git("reset", "--hard", f"origin/{branch_name}", check=False)
+    if result.returncode != 0:
+        print(f"Warning: Failed to reset to origin/{branch_name}")
+        if result.stderr:
+            print(result.stderr.strip())
+        return False
+
+    print(f"Reset to origin/{branch_name} successfully.")
+    return True
+
+
 def fetch_main(main_branch: str = "main", dry_run: bool = False) -> bool:
     """
     Fetch the latest from origin for the main branch.

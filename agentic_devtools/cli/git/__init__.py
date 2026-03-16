@@ -50,9 +50,11 @@ from .operations import (
     CheckoutResult,
     RebaseResult,
     checkout_branch,
+    fetch_branch,
     fetch_main,
     get_files_changed_on_branch,
     rebase_onto_main,
+    reset_branch_to_origin,
 )
 
 __all__ = [
@@ -84,8 +86,10 @@ __all__ = [
     # Branch operations
     "checkout_branch",
     "CheckoutResult",
+    "fetch_branch",
     "fetch_main",
     "rebase_onto_main",
     "RebaseResult",
+    "reset_branch_to_origin",
     "get_files_changed_on_branch",
 ]
