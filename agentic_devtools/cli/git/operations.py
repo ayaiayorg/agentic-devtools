@@ -8,7 +8,11 @@ This module provides the individual git operations:
 - Branch state detection
 """
 
+import sys
+from pathlib import Path
 from typing import Optional
+
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
 from .core import get_current_branch, run_git, temp_message_file
 
@@ -18,34 +22,56 @@ STAGE_EXCLUDE_FILES = [
     "agentic_devtools/_version.py",
 ]
 
-AGDT_WORKFLOWS_DIR = ".agdt/workflows/"
-
 
 def stage_changes(dry_run: bool) -> None:
     """
     Stage all changes (git add .), then unstage any auto-generated files.
 
     Auto-generated files listed in STAGE_EXCLUDE_FILES are always unstaged
-    after the initial `git add .` so they are never included in commits.
+    after the initial ``git add .`` so they are never included in commits.
 
-    On branches that do **not** end with ``-agdt``, the ``.agdt/workflows/``
-    directory is also unstaged to prevent workflow artifacts from being
-    accidentally committed to code branches.  On ``-agdt`` branches the
-    directory stays staged.
+    On branches that do **not** end with ``-agdt``, every entry from
+    ``AGDT_GITIGNORE_ENTRIES`` is unstaged (as ``.agdt/{entry}``) to prevent
+    runtime state from being accidentally committed to code branches.
+
+    On ``-agdt`` branches, ``.agdt/.gitignore`` is deleted **before**
+    ``git add .`` so that previously-ignored runtime state files become
+    visible to git and are included in the commit.
 
     Args:
         dry_run: If True, only print what would happen
     """
+    branch = get_current_branch()
+    is_agdt_branch = branch.endswith("-agdt")
+
     if dry_run:
         print("[DRY RUN] Would stage all changes (git add .)")
         for excluded in STAGE_EXCLUDE_FILES:
             print(f"[DRY RUN] Would unstage auto-generated file: {excluded}")
-        branch = get_current_branch()
-        if not branch.endswith("-agdt"):
-            print(f"[DRY RUN] Would unstage {AGDT_WORKFLOWS_DIR} (not on -agdt branch)")
+        if not is_agdt_branch:
+            for entry in AGDT_GITIGNORE_ENTRIES:
+                print(f"[DRY RUN] Would unstage .agdt/{entry} (not on -agdt branch)")
         else:
-            print(f"[DRY RUN] {AGDT_WORKFLOWS_DIR} will stay staged (on -agdt branch)")
+            print("[DRY RUN] Would remove .agdt/.gitignore (on -agdt branch)")
+            print("[DRY RUN] .agdt/ entries will stay staged (on -agdt branch)")
         return
+
+    # On -agdt branches, remove .agdt/.gitignore BEFORE `git add .`
+    # so that previously-ignored state files become visible to git.
+    if is_agdt_branch:
+        try:
+            toplevel = run_git("rev-parse", "--show-toplevel", check=False)
+            if toplevel.returncode == 0 and toplevel.stdout.strip():
+                gitignore_path = Path(toplevel.stdout.strip()) / ".agdt" / ".gitignore"
+                if gitignore_path.is_file():
+                    gitignore_path.unlink()
+                    print("Removed .agdt/.gitignore (on -agdt branch, state will be committed)")
+        except OSError as exc:
+            print(
+                f"Warning: Failed to remove .agdt/.gitignore "
+                f"(state files may remain ignored and not be committed): {exc}",
+                file=sys.stderr,
+            )
 
     print("Staging all changes...")
     run_git("add", ".")
@@ -55,11 +81,11 @@ def stage_changes(dry_run: bool) -> None:
         if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
             print(f"Unstaged auto-generated file: {excluded}")
 
-    branch = get_current_branch()
-    if not branch.endswith("-agdt"):
-        result = run_git("reset", "HEAD", "--", AGDT_WORKFLOWS_DIR, check=False)
-        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
-            print(f"Unstaged workflow artifacts: {AGDT_WORKFLOWS_DIR}")
+    if not is_agdt_branch:
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            result = run_git("reset", "HEAD", "--", f".agdt/{entry}", check=False)
+            if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+                print(f"Unstaged runtime state: .agdt/{entry}")
 
     print("Changes staged.")
 

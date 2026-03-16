@@ -95,6 +95,15 @@ class TestSetBootstrapState:
         assert (tmp_path / ".agdt" / "runtime-bootstrap.json").exists()
         assert (tmp_path / ".agdt" / "workflows" / "ama").is_dir()
 
+    def test_calls_ensure_agdt_gitignore(self, tmp_path):
+        """set_bootstrap_state calls ensure_agdt_gitignore with the resolved git_root."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="test@example.com"):
+                with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore") as mock_gitignore:
+                    state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1")
+
+        mock_gitignore.assert_called_once_with(tmp_path)
+
 
 class TestSetBootstrapStateNormalization:
     """Tests for value normalization in set_bootstrap_state()."""

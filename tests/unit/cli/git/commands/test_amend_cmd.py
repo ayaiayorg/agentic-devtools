@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 from agentic_devtools import state
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agentic_devtools.cli.git import commands, operations
 
 
@@ -14,11 +15,12 @@ class TestAmendCommand:
         state.set_value("commit_message", "Updated commit")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # amend
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
@@ -26,7 +28,7 @@ class TestAmendCommand:
 
         commands.amend_cmd()
 
-        assert mock_run_safe.call_count == 4 + n
+        assert mock_run_safe.call_count == 3 + n + m
 
     def test_amend_cmd_skip_stage(self, temp_state_dir, clear_state_before, mock_run_safe, capsys):
         """Test amend with skip_stage."""

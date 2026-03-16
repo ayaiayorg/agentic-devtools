@@ -29,6 +29,13 @@ def _make_statuses(git_found: bool = True) -> list:
 class TestSetupCmd:
     """Tests for setup_cmd."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_gitignore(self):
+        """Prevent setup_cmd() from writing .agdt/.gitignore to the real repo."""
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
+            with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
+                yield
+
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""
         with patch("sys.argv", ["agdt-setup"]):
@@ -191,3 +198,39 @@ class TestSetupCmd:
 
         mock_persist.assert_called_once()
         assert mock_persist.call_args.kwargs["overwrite_env"] is True
+
+    def test_gitignore_success_prints_message(self, capsys, tmp_path):
+        """Prints success message when .agdt/.gitignore is created."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                # Override autouse fixture to test the success path
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        commands.setup_cmd()
+
+        out = capsys.readouterr().out
+        assert "Ensured .agdt/.gitignore" in out
+
+    def test_gitignore_write_failure_warns_on_stderr(self, capsys, tmp_path):
+        """Prints warning to stderr when .agdt/.gitignore write fails."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                # Override autouse fixture to test the failure path
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
+                                    ):
+                                        commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        assert "Failed to create/update .agdt/.gitignore" in err

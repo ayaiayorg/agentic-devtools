@@ -1,7 +1,8 @@
 """Tests for agentic_devtools.cli.git.operations.stage_changes."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agentic_devtools.cli.git import operations
 
 
@@ -39,30 +40,34 @@ class TestStageChanges:
         """Test that _version.py is in the exclude list."""
         assert "agentic_devtools/_version.py" in operations.STAGE_EXCLUDE_FILES
 
-    def test_agdt_workflows_dir_constant_value(self):
-        """Test that AGDT_WORKFLOWS_DIR has the expected value."""
-        assert operations.AGDT_WORKFLOWS_DIR == ".agdt/workflows/"
+    def test_agdt_gitignore_entries_imported(self):
+        """Test that AGDT_GITIGNORE_ENTRIES is used (replaces AGDT_WORKFLOWS_DIR)."""
+        assert "runtime-bootstrap.json" in AGDT_GITIGNORE_ENTRIES
+        assert "workflows/" in AGDT_GITIGNORE_ENTRIES
 
-    def test_stage_changes_excludes_workflows_on_non_agdt_branch(self, mock_run_safe):
-        """Test that .agdt/workflows/ is unstaged on non -agdt branches."""
+    def test_stage_changes_excludes_all_entries_on_non_agdt_branch(self, mock_run_safe):
+        """Test that all AGDT_GITIGNORE_ENTRIES are unstaged on non -agdt branches."""
         with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
-        assert ["git", "reset", "HEAD", "--", ".agdt/workflows/"] in calls
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            assert ["git", "reset", "HEAD", "--", f".agdt/{entry}"] in calls
 
-    def test_stage_changes_includes_workflows_on_agdt_branch(self, mock_run_safe):
-        """Test that .agdt/workflows/ stays staged on -agdt branches."""
+    def test_stage_changes_includes_entries_on_agdt_branch(self, mock_run_safe):
+        """Test that AGDT_GITIGNORE_ENTRIES stay staged on -agdt branches."""
         with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
-        assert ["git", "reset", "HEAD", "--", ".agdt/workflows/"] not in calls
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            assert ["git", "reset", "HEAD", "--", f".agdt/{entry}"] not in calls
 
     def test_stage_changes_dry_run_non_agdt_branch(self, mock_run_safe, capsys):
-        """Test dry run prints unstage message on non -agdt branch."""
+        """Test dry run prints unstage message for all entries on non -agdt branch."""
         with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
-        assert "[DRY RUN] Would unstage .agdt/workflows/" in captured.out
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            assert f"[DRY RUN] Would unstage .agdt/{entry}" in captured.out
         assert "not on -agdt branch" in captured.out
 
     def test_stage_changes_dry_run_agdt_branch(self, mock_run_safe, capsys):
@@ -70,7 +75,7 @@ class TestStageChanges:
         with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
-        assert ".agdt/workflows/ will stay staged" in captured.out
+        assert ".agdt/ entries will stay staged" in captured.out
         assert "on -agdt branch" in captured.out
 
     def test_stage_changes_existing_exclude_files_unchanged(self, mock_run_safe):
@@ -83,6 +88,79 @@ class TestStageChanges:
         # STAGE_EXCLUDE_FILES resets come immediately after git add .
         for i, excluded in enumerate(operations.STAGE_EXCLUDE_FILES):
             assert calls[i + 1] == ["git", "reset", "HEAD", "--", excluded]
-        # .agdt/workflows/ reset comes after STAGE_EXCLUDE_FILES resets
+        # AGDT_GITIGNORE_ENTRIES resets come after STAGE_EXCLUDE_FILES resets
         n = len(operations.STAGE_EXCLUDE_FILES)
-        assert calls[n + 1] == ["git", "reset", "HEAD", "--", ".agdt/workflows/"]
+        for i, entry in enumerate(AGDT_GITIGNORE_ENTRIES):
+            assert calls[n + 1 + i] == ["git", "reset", "HEAD", "--", f".agdt/{entry}"]
+
+    def test_stage_changes_deletes_gitignore_on_agdt_branch(self, mock_run_safe, tmp_path):
+        """On -agdt branch, .agdt/.gitignore is deleted BEFORE git add ."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        gitignore = agdt_dir / ".gitignore"
+        gitignore.write_text("dummy", encoding="utf-8")
+
+        # Track call ordering to verify deletion happens before git add .
+        call_order = []
+
+        # Make run_git for rev-parse return the tmp_path
+        toplevel_result = MagicMock(returncode=0, stdout=str(tmp_path), stderr="")
+        default_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        def side_effect(args, **kwargs):
+            call_order.append(("run_git", args[:3]))
+            if args[1:3] == ["rev-parse", "--show-toplevel"]:
+                return toplevel_result
+            return default_result
+
+        mock_run_safe.side_effect = side_effect
+
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+            operations.stage_changes(dry_run=False)
+
+        assert not gitignore.exists()
+        # Verify rev-parse (for deletion) was called before git add .
+        rev_parse_idx = next(i for i, (_, cmd) in enumerate(call_order) if cmd[1:] == ["rev-parse", "--show-toplevel"])
+        git_add_idx = next(i for i, (_, cmd) in enumerate(call_order) if cmd[1:] == ["add", "."])
+        assert rev_parse_idx < git_add_idx, (
+            ".agdt/.gitignore deletion must happen before git add . so previously-ignored files become visible to git"
+        )
+
+    def test_stage_changes_no_gitignore_deletion_on_non_agdt_branch(self, mock_run_safe, tmp_path):
+        """On non -agdt branch, .agdt/.gitignore is NOT deleted."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        gitignore = agdt_dir / ".gitignore"
+        gitignore.write_text("dummy", encoding="utf-8")
+
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
+            operations.stage_changes(dry_run=False)
+
+        assert gitignore.exists()
+
+    def test_stage_changes_gitignore_deletion_oserror_is_non_fatal(self, mock_run_safe, tmp_path, capsys):
+        """OSError during .agdt/.gitignore deletion on -agdt branch warns on stderr."""
+        toplevel_result = MagicMock(returncode=0, stdout=str(tmp_path), stderr="")
+        default_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        def side_effect(args, **kwargs):
+            if args[1:3] == ["rev-parse", "--show-toplevel"]:
+                return toplevel_result
+            return default_result
+
+        mock_run_safe.side_effect = side_effect
+
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+            with patch("pathlib.Path.is_file", side_effect=OSError("disk error")):
+                # Should not raise — OSError is caught and a warning is printed to stderr
+                operations.stage_changes(dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Warning: Failed to remove .agdt/.gitignore" in captured.err
+
+    def test_stage_changes_dry_run_agdt_branch_mentions_gitignore_removal(self, mock_run_safe, capsys):
+        """Dry run on -agdt branch mentions .agdt/.gitignore removal."""
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+            operations.stage_changes(dry_run=True)
+        captured = capsys.readouterr()
+        assert "[DRY RUN] Would remove .agdt/.gitignore" in captured.out

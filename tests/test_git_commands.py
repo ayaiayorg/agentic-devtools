@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agdt_ai_helpers import state
+from agdt_ai_helpers.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agdt_ai_helpers.cli.git import commands, core, operations
 
 # =============================================================================
@@ -77,11 +78,12 @@ class TestCommitCommand:
         state.set_value("commit_message", "Test commit")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
@@ -90,7 +92,7 @@ class TestCommitCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.commit_cmd()
 
-        assert mock_run_safe.call_count == 4 + n
+        assert mock_run_safe.call_count == 3 + n + m
         mock_sync_with_main.assert_called_once()
 
     def test_commit_cmd_skip_stage(
@@ -122,7 +124,7 @@ class TestCommitCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.commit_cmd()
 
-        assert mock_run_safe.call_count == 3 + len(operations.STAGE_EXCLUDE_FILES)
+        assert mock_run_safe.call_count == 2 + len(operations.STAGE_EXCLUDE_FILES) + len(AGDT_GITIGNORE_ENTRIES)
         captured = capsys.readouterr()
         assert "Skipping push" in captured.out
 
@@ -167,13 +169,14 @@ class TestCommitCommand:
 
         # Mock _sync_with_main to return True (rebase occurred)
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         with patch("agdt_ai_helpers.cli.git.commands._sync_with_main", return_value=True):
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
-                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                         MagicMock(returncode=0, stdout="", stderr=""),  # commit
                         MagicMock(returncode=0, stdout="", stderr=""),  # force push
                     ]
@@ -181,7 +184,7 @@ class TestCommitCommand:
 
                 commands.commit_cmd()
 
-                assert mock_run_safe.call_count == 4 + n
+                assert mock_run_safe.call_count == 3 + n + m
                 captured = capsys.readouterr()
                 assert "Force pushing" in captured.out
 
@@ -199,11 +202,12 @@ class TestAmendCommand:
         state.set_value("commit_message", "Updated commit")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # amend
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
@@ -212,7 +216,7 @@ class TestAmendCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.amend_cmd()
 
-        assert mock_run_safe.call_count == 4 + n
+        assert mock_run_safe.call_count == 3 + n + m
 
     def test_amend_cmd_skip_stage(self, temp_state_dir, clear_state_before, mock_run_safe, capsys):
         """Test amend with skip_stage."""
@@ -283,8 +287,9 @@ class TestStageCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.stage_cmd()
         n = len(operations.STAGE_EXCLUDE_FILES)
-        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + 1 (workflows reset)
-        assert mock_run_safe.call_count == 1 + n + 1
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + m (AGDT_GITIGNORE_ENTRIES resets)
+        assert mock_run_safe.call_count == 1 + n + m
         # First call: git add .
         assert mock_run_safe.call_args_list[0][0][0] == ["git", "add", "."]
         # Subsequent calls: git reset HEAD -- <excluded> for each excluded file
@@ -382,14 +387,15 @@ class TestSmartCommitAmendDetection:
 
         # Mock should_amend to return True
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_should.return_value = True
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
-                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                         MagicMock(returncode=0, stdout="", stderr=""),  # amend
                         MagicMock(returncode=0, stdout="", stderr=""),  # force push
                     ]
@@ -397,9 +403,9 @@ class TestSmartCommitAmendDetection:
 
                 commands.commit_cmd()
 
-                assert mock_run_safe.call_count == 4 + n
-                # Amend call is at index 2 + n (after add + N resets + workflows reset)
-                amend_call_args = mock_run_safe.call_args_list[2 + n][0][0]
+                assert mock_run_safe.call_count == 3 + n + m
+                # Amend call is at index 1 + n + m (after add + N resets + M gitignore resets)
+                amend_call_args = mock_run_safe.call_args_list[1 + n + m][0][0]
                 assert "--amend" in amend_call_args
 
     def test_commit_uses_new_commit_when_should_not_amend(
@@ -410,14 +416,15 @@ class TestSmartCommitAmendDetection:
         state.set_value("jira.issue_key", "DFLY-1234")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_should.return_value = False
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
-                        MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                         MagicMock(returncode=0, stdout="", stderr=""),  # commit
                         MagicMock(returncode=0, stdout="", stderr=""),  # push
                     ]
@@ -425,9 +432,9 @@ class TestSmartCommitAmendDetection:
 
                 commands.commit_cmd()
 
-                assert mock_run_safe.call_count == 4 + n
-                # Commit call is at index 2 + n (after add + N resets + workflows reset)
-                commit_call_args = mock_run_safe.call_args_list[2 + n][0][0]
+                assert mock_run_safe.call_count == 3 + n + m
+                # Commit call is at index 1 + n + m (after add + N resets + M gitignore resets)
+                commit_call_args = mock_run_safe.call_args_list[1 + n + m][0][0]
                 assert "--amend" not in commit_call_args
 
 
@@ -464,11 +471,12 @@ class TestCommitCompletedParameter:
         )
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
@@ -512,11 +520,12 @@ class TestCommitCompletedParameter:
         )
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
