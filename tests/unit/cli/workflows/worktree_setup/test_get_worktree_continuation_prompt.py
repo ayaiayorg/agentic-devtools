@@ -130,3 +130,23 @@ class TestGetWorktreeContinuationPrompt:
         assert "agdt-initiate-apply-pr-suggestions-workflow" in result
         assert "--pull-request-id" in result
         assert "12345" in result
+
+    def test_generate_optimize_issue_for_ai_agent_prompt(self):
+        """Test generating prompt for optimize-issue-for-ai-agent workflow."""
+        result = get_worktree_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="optimize-issue-for-ai-agent",
+        )
+
+        assert "agdt-initiate-optimize-issue-for-ai-agent-workflow" in result
+        assert "--issue-key DFLY-1234" in result
+
+    def test_generate_break_down_issue_into_subtasks_prompt(self):
+        """Test generating prompt for break-down-issue-into-subtasks workflow."""
+        result = get_worktree_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="break-down-issue-into-subtasks",
+        )
+
+        assert "agdt-initiate-break-down-issue-into-subtasks-workflow" in result
+        assert "--issue-key DFLY-1234" in result
