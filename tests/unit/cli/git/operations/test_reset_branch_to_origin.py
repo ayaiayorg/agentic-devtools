@@ -88,3 +88,20 @@ class TestResetBranchToOrigin:
 
             assert result is True
             assert mock_run_git.call_count == 2
+
+    def test_reset_aborts_when_rev_list_output_unparseable(self, mock_run_safe, capsys):
+        """Test reset aborts when rev-list output cannot be parsed as an integer."""
+        with patch.object(operations, "run_git") as mock_run_git:
+            # rev-list succeeds but returns non-numeric output
+            mock_run_git.return_value = MagicMock(
+                returncode=0, stdout="not-a-number\n", stderr=""
+            )
+
+            result = operations.reset_branch_to_origin("feature/test")
+
+            assert result is False
+            # Only the rev-list call should happen, no reset
+            mock_run_git.assert_called_once()
+            captured = capsys.readouterr()
+            assert "Could not parse" in captured.out
+            assert "safety precaution" in captured.out

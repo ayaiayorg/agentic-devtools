@@ -171,7 +171,8 @@ def checkout_and_sync_branch(
     if not reset_branch_to_origin(source_branch):
         return (
             False,
-            f"Failed to reset branch to origin/{source_branch}. Local branch may be in an inconsistent state.",
+            f"Failed to reset branch to origin/{source_branch}. "
+            "See the messages above for details and resolution steps.",
             set(),
         )
 
