@@ -1539,6 +1539,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     # pull_request_id/issue_key are supplied programmatically.
     parser = argparse.ArgumentParser(
         description="Initiate the apply-pull-request-review-suggestions workflow",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
