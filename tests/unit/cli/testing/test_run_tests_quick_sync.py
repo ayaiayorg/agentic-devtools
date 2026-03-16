@@ -46,7 +46,12 @@ class TestRunTestsQuickSync:
                 call_args = mock_run.call_args[0][0]
                 assert "-m" in call_args
                 assert "pytest" in call_args
-                assert not any("--cov" in arg for arg in call_args)
+                # Verify no coverage-enabling args (--cov=, --cov-report, etc.)
+                # are present; --no-cov is intentional and should be allowed.
+                assert not any(
+                    arg.startswith("--cov=") or arg.startswith("--cov-")
+                    for arg in call_args
+                )
                 # Verify addopts is cleared to neutralize pyproject.toml defaults
                 assert "addopts=" in call_args
                 # Verify --no-cov is passed to fully disable pytest-cov
