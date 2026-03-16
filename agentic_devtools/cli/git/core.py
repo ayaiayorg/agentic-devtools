@@ -67,6 +67,7 @@ def run_git(*args: str, check: bool = True) -> CompletedProcess:
         cmd,
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if check and result.returncode != 0:

@@ -55,7 +55,8 @@ class TestRunGit:
         assert result.returncode == 1
 
     def test_run_git_constructs_correct_command(self, mock_run_safe):
-        """Test that command is constructed correctly."""
+        """Test that command is constructed correctly with shell=False."""
         core.run_git("commit", "-m", "message")
         called_cmd = mock_run_safe.call_args[0][0]
         assert called_cmd == ["git", "commit", "-m", "message"]
+        assert mock_run_safe.call_args[1]["shell"] is False
