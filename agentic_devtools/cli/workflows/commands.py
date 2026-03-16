@@ -1520,7 +1520,9 @@ def initiate_apply_pull_request_review_suggestions_workflow(
             If not provided, attempts to derive from PR source branch.
         interactive: Whether to start the Copilot session interactively (default: False).
             Set to True for interactive mode.
-        _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid
+            parsing sys.argv.  When any programmatic parameter is set and
+            ``_argv`` is ``None``, an empty argv is used automatically.
 
     Optional state:
     - jira.issue_key: Jira issue key for context
