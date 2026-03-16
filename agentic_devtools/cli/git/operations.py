@@ -535,6 +535,11 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
     """
     Reset the current branch to match origin/<branch_name>.
 
+    Guards against data loss by checking for unpushed local commits
+    before performing the hard reset. If the local branch is ahead of
+    origin/<branch_name>, the reset is aborted with a descriptive
+    message so the reviewer can push/stash/discard manually.
+
     Args:
         branch_name: Name of the branch to reset to
         dry_run: If True, only print what would happen
@@ -545,6 +550,26 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
     if dry_run:
         print(f"[DRY RUN] Would reset to origin/{branch_name}")
         return True
+
+    # Guard: check for unpushed local commits before hard reset
+    ahead_result = run_git(
+        "rev-list", "--count", f"origin/{branch_name}..HEAD", check=False
+    )
+    if ahead_result.returncode == 0:
+        try:
+            ahead = int(ahead_result.stdout.strip())
+        except ValueError:
+            ahead = 0
+        if ahead > 0:
+            print(
+                f"Warning: Local branch has {ahead} unpushed commit(s) "
+                f"ahead of origin/{branch_name}."
+            )
+            print(
+                "Aborting reset to avoid losing local work. "
+                "Push or discard your local commits, then retry."
+            )
+            return False
 
     print(f"Resetting branch to origin/{branch_name}...")
     result = run_git("reset", "--hard", f"origin/{branch_name}", check=False)

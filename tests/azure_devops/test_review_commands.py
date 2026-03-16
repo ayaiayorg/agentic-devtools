@@ -1176,22 +1176,30 @@ class TestCheckoutAndSyncBranchEdgeCases:
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_main",
-                return_value=False,
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
-                    return_value=["file1.ts"],
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
                 ):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                        checkout_and_sync_branch,
-                    )
+                    with patch(
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=False,
+                    ):
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                            return_value=["file1.ts"],
+                        ):
+                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                checkout_and_sync_branch,
+                            )
 
-                    success, error, files = checkout_and_sync_branch("feature/test")
-                    assert success is True
-                    assert error is None
-                    captured = capsys.readouterr()
-                    assert "Could not fetch" in captured.out
+                            success, error, files = checkout_and_sync_branch("feature/test")
+                            assert success is True
+                            assert error is None
+                            captured = capsys.readouterr()
+                            assert "Could not fetch" in captured.out
 
     def test_rebase_conflict_continues_with_warning(self, capsys):
         """Test continues with warning when rebase has conflicts."""
@@ -1209,26 +1217,34 @@ class TestCheckoutAndSyncBranchEdgeCases:
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_main",
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
-                    return_value=mock_rebase_result,
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
-                        return_value=["file1.ts"],
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                            checkout_and_sync_branch,
-                        )
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            return_value=mock_rebase_result,
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                return_value=["file1.ts"],
+                            ):
+                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                    checkout_and_sync_branch,
+                                )
 
-                        success, error, files = checkout_and_sync_branch("feature/test")
-                        assert success is True
-                        assert error is None
-                        captured = capsys.readouterr()
-                        assert "REBASE CONFLICTS DETECTED" in captured.out
+                                success, error, files = checkout_and_sync_branch("feature/test")
+                                assert success is True
+                                assert error is None
+                                captured = capsys.readouterr()
+                                assert "REBASE CONFLICTS DETECTED" in captured.out
 
     def test_rebase_other_failure_continues(self, capsys):
         """Test continues with warning for other rebase failures."""
@@ -1247,25 +1263,33 @@ class TestCheckoutAndSyncBranchEdgeCases:
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_main",
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
-                    return_value=mock_rebase_result,
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
-                        return_value=["file1.ts"],
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                            checkout_and_sync_branch,
-                        )
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            return_value=mock_rebase_result,
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                return_value=["file1.ts"],
+                            ):
+                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                    checkout_and_sync_branch,
+                                )
 
-                        success, error, files = checkout_and_sync_branch("feature/test")
-                        assert success is True
-                        captured = capsys.readouterr()
-                        assert "Unknown rebase error" in captured.out
+                                success, error, files = checkout_and_sync_branch("feature/test")
+                                assert success is True
+                                captured = capsys.readouterr()
+                                assert "Unknown rebase error" in captured.out
 
     def test_saves_files_on_branch_when_requested(self, tmp_path):
         """Test saves files_on_branch to JSON when requested."""
@@ -1282,31 +1306,43 @@ class TestCheckoutAndSyncBranchEdgeCases:
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_main",
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
-                    return_value=mock_rebase_result,
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
-                        return_value=["file1.ts", "file2.ts"],
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=True,
                     ):
-                        # Patch Path to point to tmp_path
-                        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
-                            mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
-                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                checkout_and_sync_branch,
-                            )
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            return_value=mock_rebase_result,
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                return_value=["file1.ts", "file2.ts"],
+                            ):
+                                # Patch Path to point to tmp_path
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.Path"
+                                ) as mock_path:
+                                    mock_path.return_value.parent.parent.parent.parent.parent = (
+                                        tmp_path
+                                    )
+                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        checkout_and_sync_branch,
+                                    )
 
-                            success, error, files = checkout_and_sync_branch(
-                                "feature/test",
-                                pull_request_id=123,
-                                save_files_on_branch=True,
-                            )
-                            assert success is True
-                            assert len(files) == 2
+                                    success, error, files = checkout_and_sync_branch(
+                                        "feature/test",
+                                        pull_request_id=123,
+                                        save_files_on_branch=True,
+                                    )
+                                    assert success is True
+                                    assert len(files) == 2
 
 
 class TestSetupPullRequestReview:
