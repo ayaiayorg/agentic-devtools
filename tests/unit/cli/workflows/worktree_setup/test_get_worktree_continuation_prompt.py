@@ -118,3 +118,15 @@ class TestGetWorktreeContinuationPrompt:
         )
 
         assert "agdt-initiate-update-jira-issue-workflow" in result
+
+    def test_generate_apply_pr_suggestions_prompt(self):
+        """Test generating prompt for apply-pull-request-review-suggestions workflow."""
+        result = get_worktree_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="apply-pull-request-review-suggestions",
+            additional_params={"pull_request_id": "12345"},
+        )
+
+        assert "agdt-initiate-apply-pr-suggestions-workflow" in result
+        assert "--pull-request-id" in result
+        assert "12345" in result

@@ -1498,23 +1498,28 @@ def initiate_update_jira_issue_workflow(
 def initiate_apply_pull_request_review_suggestions_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
+    interactive: Optional[bool] = None,
     _argv: Optional[List[str]] = None,
 ) -> None:
     """
     Initiate the apply-pull-request-review-suggestions workflow.
 
     If not in the correct worktree/branch context, automatically creates
-    a worktree, installs agentic-devtools, and opens VS Code.
+    a worktree, installs agentic-devtools, and opens VS Code, then starts
+    a Copilot session with the integrated prompt.
 
     Usage:
         agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
         agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
+        agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --interactive false
 
     Args:
         pull_request_id: ID of the pull request with suggestions to apply.
             If not provided, uses pull_request_id from state.
         issue_key: Jira issue key for context and worktree setup.
             If not provided, attempts to derive from PR source branch.
+        interactive: Whether to start the Copilot session interactively (default: False).
+            Set to True for interactive mode.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Optional state:
@@ -1528,30 +1533,52 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments if not called programmatically
-    if pull_request_id is None and issue_key is None:
-        parser = argparse.ArgumentParser(description="Initiate the apply-pull-request-review-suggestions workflow")
-        parser.add_argument(
-            "--pull-request-id",
-            dest="pull_request_id",
-            help="ID of the pull request with suggestions to apply. If not provided, uses pull_request_id from state.",
-        )
-        parser.add_argument(
-            "--issue-key",
-            "-i",
-            dest="issue_key",
-            help="Jira issue key for context. If not provided, derives from PR source branch.",
-        )
-        args = parser.parse_args(_argv)
+    # Parse CLI arguments — always parse to pick up --interactive even when
+    # pull_request_id/issue_key are supplied programmatically.
+    parser = argparse.ArgumentParser(
+        description="Initiate the apply-pull-request-review-suggestions workflow",
+        epilog="""
+Examples:
+  agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
+  agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
+  agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --interactive false
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        dest="pull_request_id",
+        help="ID of the pull request with suggestions to apply. If not provided, uses pull_request_id from state.",
+    )
+    parser.add_argument(
+        "--issue-key",
+        "-i",
+        dest="issue_key",
+        help="Jira issue key for context. If not provided, derives from PR source branch.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        help="Start Copilot session interactively (default: false). Pass 'true' for interactive mode.",
+    )
+    args, _unknown = parser.parse_known_args(_argv)
+
+    # CLI values override programmatic values only when not already set
+    if pull_request_id is None and args.pull_request_id:
         pull_request_id = args.pull_request_id
+    if issue_key is None and args.issue_key:
         issue_key = args.issue_key
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive.lower() not in ("false", "0", "no")
+    if interactive is None:
+        interactive = False
 
     # If pull_request_id provided via CLI, set it in state
-    if pull_request_id:  # pragma: no cover
+    if pull_request_id:
         set_value("pull_request_id", pull_request_id)
 
     # If issue_key provided via CLI, set it in state
-    if issue_key:  # pragma: no cover
+    if issue_key:
         set_value("jira.issue_key", issue_key)
 
     # Get resolved values from state
@@ -1578,11 +1605,29 @@ def initiate_apply_pull_request_review_suggestions_workflow(
             for reason in preflight_result.failure_reasons:
                 print(f"   - {reason}")
 
-            # Automatically set up the environment
+            # Build the command to re-run inside the worktree so the full setup
+            # (render prompt, copy review state, start session) executes there.
+            auto_execute_command = [
+                "agdt-initiate-apply-pr-suggestions-workflow",
+            ]
+            if resolved_pr_id:
+                auto_execute_command.extend(["--pull-request-id", str(resolved_pr_id)])
+            if resolved_issue_key:
+                auto_execute_command.extend(["--issue-key", resolved_issue_key])
+            auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
+
+            # Automatically set up the environment.
+            # Pass interactive=False here so that the VS Code auto-start task
+            # is NOT injected — it would use the PR-review prompt, not the
+            # apply-pr-suggestions prompt.  The --interactive flag is carried
+            # inside auto_execute_command, so the re-run inside the worktree
+            # will start the Copilot session with the correct prompt.
             if perform_auto_setup(
                 resolved_issue_key,
                 "apply-pull-request-review-suggestions",
                 additional_params={"pull_request_id": resolved_pr_id} if resolved_pr_id else None,
+                auto_execute_command=auto_execute_command,
+                interactive=False,
             ):
                 print("\n" + "=" * 80)
                 print("Please continue the workflow in the new VS Code window.")
@@ -1600,6 +1645,16 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     # Auto-copy review state into the apply-suggestions directory
     # so the agent has cross-workflow context prepared automatically.
     _copy_review_state_to_apply_suggestions()
+
+    # Start a Copilot CLI session with the rendered prompt.
+    # _start_copilot_session_for_apply_pr_suggestions waits for the prompt file
+    # written by initiate_workflow before launching the session.
+    from .worktree_setup import _start_copilot_session_for_apply_pr_suggestions
+
+    # Use the git repo/worktree root (not cwd) so the prompt file is found
+    # even when the command is invoked from a subdirectory.
+    repo_root = get_git_repo_root() or os.getcwd()
+    _start_copilot_session_for_apply_pr_suggestions(repo_root, interactive=interactive)
 
 
 def _copy_review_state_to_apply_suggestions() -> None:

@@ -55,6 +55,37 @@ def mock_workflow_state_clearing():
 class TestInitiateApplyPRSuggestionsWorkflowBranches:
     """Test additional branches in initiate_apply_pull_request_review_suggestions_workflow."""
 
+    def test_cli_args_set_pull_request_id_and_issue_key(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Test that --pull-request-id and --issue-key CLI args are parsed and stored in state."""
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="DFLY-5678",
+                branch_name="feature/DFLY-5678/implementation",
+                issue_key="DFLY-5678",
+            )
+
+            with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
+                    ):
+                        commands.initiate_apply_pull_request_review_suggestions_workflow(
+                            _argv=["--pull-request-id", "456", "--issue-key", "DFLY-5678"]
+                        )
+
+        assert state.get_value("pull_request_id") == "456"
+        assert state.get_value("jira.issue_key") == "DFLY-5678"
+
     def test_derives_issue_key_from_pr_details(
         self,
         temp_state_dir,
@@ -87,7 +118,8 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
                 issue_key="DFLY-1234",
             )
 
-            commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
+            with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"):
+                commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
 
         assert state.get_value("jira.issue_key") == "DFLY-1234"
 
@@ -176,9 +208,193 @@ class TestWorkflowCommands:
                 issue_key="DFLY-1234",
             )
 
-            # Execute command
-            commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
+            with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"):
+                # Execute command
+                commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
 
         # Verify
         workflow = state.get_workflow_state()
         assert workflow["active"] == "apply-pull-request-review-suggestions"
+
+
+class TestInitiateApplyPRSuggestionsWorkflowInteractive:
+    """Tests for the --interactive flag and auto_execute_command behaviour."""
+
+    def _run_with_preflight_failing(self, argv=None):
+        """Helper: run the command with preflight failing, return mock_setup."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("pull_request_id", "123")
+        state.set_value("jira.issue_key", "DFLY-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="DFLY-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=argv)
+                return mock_setup
+
+    def test_interactive_flag_false_parsed_from_cli(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that --interactive false results in interactive=False to perform_auto_setup."""
+        mock_setup = self._run_with_preflight_failing(argv=["--interactive", "false"])
+
+        call_kwargs = mock_setup.call_args[1]
+        # interactive=False is passed explicitly so that the VS Code auto-start
+        # task is NOT injected (it would use the wrong prompt).
+        # The --interactive flag is carried inside auto_execute_command instead.
+        assert call_kwargs["interactive"] is False
+
+    def test_interactive_flag_true_parsed_from_cli(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that --interactive true still passes interactive=False to perform_auto_setup.
+
+        The VS Code auto-start task injected by perform_auto_setup hardcodes
+        the PR-review prompt, so we must always pass interactive=False here.
+        The --interactive flag is carried inside auto_execute_command instead.
+        """
+        mock_setup = self._run_with_preflight_failing(argv=["--interactive", "true"])
+
+        call_kwargs = mock_setup.call_args[1]
+        assert call_kwargs["interactive"] is False
+
+    def test_interactive_defaults_to_false(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that interactive=False is always passed to perform_auto_setup."""
+        mock_setup = self._run_with_preflight_failing(argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        assert call_kwargs["interactive"] is False
+
+    def test_auto_execute_command_includes_interactive_false(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes --interactive false by default."""
+        mock_setup = self._run_with_preflight_failing(argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--interactive" in auto_cmd
+        interactive_idx = auto_cmd.index("--interactive")
+        assert auto_cmd[interactive_idx + 1] == "false"
+
+    def test_auto_execute_command_includes_interactive_true(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes --interactive true when explicitly set."""
+        mock_setup = self._run_with_preflight_failing(argv=["--interactive", "true"])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--interactive" in auto_cmd
+        interactive_idx = auto_cmd.index("--interactive")
+        assert auto_cmd[interactive_idx + 1] == "true"
+
+    def test_auto_execute_command_includes_pull_request_id(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes --pull-request-id."""
+        mock_setup = self._run_with_preflight_failing(argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--pull-request-id" in auto_cmd
+        pr_idx = auto_cmd.index("--pull-request-id")
+        assert auto_cmd[pr_idx + 1] == "123"
+
+    def test_auto_execute_command_includes_issue_key(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command includes --issue-key when available."""
+        mock_setup = self._run_with_preflight_failing(argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--issue-key" in auto_cmd
+        ik_idx = auto_cmd.index("--issue-key")
+        assert auto_cmd[ik_idx + 1] == "DFLY-1234"
+
+    def test_auto_execute_command_starts_with_correct_command(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Test that auto_execute_command starts with the correct CLI command name."""
+        mock_setup = self._run_with_preflight_failing(argv=[])
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert auto_cmd[0] == "agdt-initiate-apply-pr-suggestions-workflow"
+
+
+class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
+    """Tests for the Copilot session started after preflight passes."""
+
+    def _run_with_preflight_passing(self, pr_id, issue_key=None, argv=None):
+        """Helper: run the command with preflight passing, return mock_session."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("pull_request_id", pr_id)
+        if issue_key:
+            state.set_value("jira.issue_key", issue_key)
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name=issue_key or f"PR{pr_id}",
+                branch_name="feature/some-branch",
+                issue_key=issue_key,
+            )
+            with patch(
+                "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                return_value="/fake/repo-root",
+            ):
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                    with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup"
+                            "._start_copilot_session_for_apply_pr_suggestions"
+                        ) as mock_session:
+                            commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=argv)
+                            return mock_session
+
+    def test_copilot_session_started_when_preflight_passes(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_apply_pr_suggestions is called with the repo root."""
+        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999")
+        mock_session.assert_called_once()
+        call_args = mock_session.call_args
+        assert call_args[0][0] == "/fake/repo-root"
+
+    def test_copilot_session_interactive_default_is_false(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """_start_copilot_session_for_apply_pr_suggestions is called with interactive=False by default."""
+        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999")
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+
+    def test_copilot_session_respects_interactive_false(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Session is called with interactive=False when --interactive false."""
+        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999", argv=["--interactive", "false"])
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+
+    def test_copilot_session_interactive_true_when_explicitly_set(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Session is called with interactive=True when --interactive true."""
+        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999", argv=["--interactive", "true"])
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
