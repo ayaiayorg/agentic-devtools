@@ -49,8 +49,7 @@ def get_workspace_root() -> Path:
     cwd = Path.cwd()
     if not (cwd / "pyproject.toml").is_file():
         raise FileNotFoundError(
-            f"pyproject.toml not found in current directory ({cwd}). "
-            "Run agdt-test commands from the workspace root."
+            f"pyproject.toml not found in current directory ({cwd}). Run agdt-test commands from the workspace root."
         )
     return cwd
 
