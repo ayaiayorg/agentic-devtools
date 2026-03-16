@@ -590,3 +590,175 @@ class TestStartCopilotSessionForWorkflow:
             working_directory=str(tmp_path),
             interactive=False,
         )
+
+    # ------------------------------------------------------------------
+    # Edge-case coverage for the auto-start task / sentinel logic
+    # ------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_tasks_key_not_a_list_falls_through(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json has a non-list 'tasks' key, the auto-start check falls through."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {"version": "2.0.0", "tasks": "not-a-list"}
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,
+            )
+
+        assert result is True
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_pre_existing_sentinel_falls_through_to_background(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Pre-existing sentinel causes fallback to background Copilot session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True, exist_ok=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,
+            )
+
+        assert result is True
+        # Falls through to background session because sentinel already existed
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_sentinel_timeout_falls_through_to_background(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When the sentinel never appears, the function falls through to a background session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("time.sleep"):
+            with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+                result = _start_copilot_session_for_workflow(
+                    worktree_path=str(tmp_path),
+                    prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                    start_prompt=_CUSTOM_START_PROMPT,
+                    workflow_name=_CUSTOM_WORKFLOW_NAME,
+                    interactive=False,
+                )
+
+        assert result is True
+        # Sentinel never appeared — falls through to background session
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_invalid_tasks_json_falls_through(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Malformed tasks.json is silently ignored, falling through to background session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "tasks.json").write_text("not valid json!!!", encoding="utf-8")
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,
+            )
+
+        assert result is True
+        mock_copilot.assert_called_once()
