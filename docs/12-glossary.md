@@ -13,17 +13,17 @@
 
 **Auto-session**
 : Behavior where an `agdt-initiate-*-workflow` command automatically launches a Copilot
-CLI session after worktree setup. The session starts with a short static workflow-specific
-**bootstrap prompt** (not the full rendered prompt). For most workflows it instructs
-Copilot to run `agdt-get-next-workflow-prompt`, which then loads the rendered workflow
-prompt. The PR review workflow is an exception: its bootstrap prompt instructs
-`agdt-advance-workflow pull-request-overview` instead. When a new worktree is opened in VS
-Code, a `folderOpen` auto-start task always starts an interactive Copilot session
-regardless of `--interactive`. For direct CLI invocations, `--interactive` controls
-whether the session attaches to a terminal (`true`, requires TTY + VS Code) or runs as a
-detached background process (`false`, default; no agdt task ID — use `copilot.*` state
-keys to locate the session log file). Falls back to printing the rendered prompt to the
-console when a session cannot be started.
+CLI session after workflow initiation (and auto-setup when needed). The session starts
+with a short static workflow-specific **bootstrap prompt** (not the full rendered prompt).
+For most workflows it instructs Copilot to run `agdt-get-next-workflow-prompt`, which then
+loads the rendered workflow prompt. The PR review workflow is an exception: its bootstrap
+prompt instructs `agdt-advance-workflow pull-request-overview` instead. When a new
+worktree is opened in VS Code, a `folderOpen` auto-start task always starts an interactive
+Copilot session regardless of `--interactive`. For direct CLI invocations, `--interactive`
+controls whether the session attaches to a terminal (`true`, requires TTY + VS Code) or
+runs as a detached background process (`false`, default; not an agdt background task —
+use `copilot.*` state keys to locate the session log file). Falls back to printing the
+rendered prompt to the console when a session cannot be started.
 
 **Azure DevOps (ADO)**
 : Microsoft's DevOps platform providing Git repositories, pull requests, work items, and CI/CD pipelines

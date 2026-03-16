@@ -83,20 +83,20 @@ workflow. Run them in order for a new feature.
 ## AGDT Workflow Commands
 
 All `agdt-initiate-*-workflow` commands automatically launch a Copilot CLI session after
-worktree setup. The rendered prompt is saved to the workflow state directory; the session
-starts with a short workflow-specific **bootstrap prompt**. For most workflows the bootstrap
-prompt instructs the agent to run `agdt-get-next-workflow-prompt`, which loads the full
-rendered prompt. For the PR review workflow the bootstrap prompt instructs
-`agdt-advance-workflow pull-request-overview` instead. Prompt files are documented in
-[Workflow Prompt Files](workflow-prompts.md).
+workflow initiation (and auto-setup when needed). The rendered prompt is saved to the
+workflow state directory; the session starts with a short workflow-specific **bootstrap
+prompt**. For most workflows the bootstrap prompt instructs the agent to run
+`agdt-get-next-workflow-prompt`, which loads the full rendered prompt. For the PR review
+workflow the bootstrap prompt instructs `agdt-advance-workflow pull-request-overview`
+instead. Prompt files are documented in [Workflow Prompt Files](workflow-prompts.md).
 
 When a new worktree is opened in VS Code, a `folderOpen` auto-start task starts an
 interactive Copilot session in the integrated terminal regardless of `--interactive`. For
 direct CLI invocations, pass `--interactive false` (the default) to run the Copilot
-session as a detached background process (no agdt task ID; check the Copilot session log
-via the `copilot.*` state keys), or `--interactive true` to attach to an interactive
-terminal (requires a TTY and VS Code). If the session cannot be launched, the rendered
-prompt is printed to the console as a fallback.
+session as a detached background process (not an agdt background task — no task ID;
+use the `copilot.*` state keys to locate the session log file), or `--interactive true`
+to attach to an interactive terminal (requires a TTY and VS Code). If the session cannot
+be launched, the rendered prompt is printed to the console as a fallback.
 
 ### Work on Jira Issue (11 steps)
 
