@@ -158,7 +158,6 @@ def checkout_and_sync_branch(
         )
 
     # Step 1b: Fetch source branch from origin to get latest changes
-    print(f"\nFetching latest from origin/{source_branch}...")
     if not fetch_branch(source_branch):
         return (
             False,
@@ -167,7 +166,6 @@ def checkout_and_sync_branch(
         )
 
     # Step 1c: Reset local branch to match origin
-    print(f"Resetting local branch to origin/{source_branch}...")
     if not reset_branch_to_origin(source_branch):
         return (
             False,

@@ -569,6 +569,13 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
             print(f"Warning: Local branch has {ahead} unpushed commit(s) ahead of origin/{branch_name}.")
             print("Aborting reset to avoid losing local work. Push or discard your local commits, then retry.")
             return False
+    else:
+        # rev-list failed (e.g. no tracking ref on first checkout) — warn
+        # that the safety check was skipped, but proceed with the reset
+        print(f"Warning: Could not check for unpushed commits (rev-list exited {ahead_result.returncode}).")
+        if ahead_result.stderr:
+            print(f"  {ahead_result.stderr.strip()}")
+        print("Proceeding with hard reset anyway.")
 
     print(f"Resetting branch to origin/{branch_name}...")
     result = run_git("reset", "--hard", f"origin/{branch_name}", check=False)

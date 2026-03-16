@@ -25,9 +25,8 @@ class TestResetBranchToOrigin:
             assert result is True
             assert mock_run_git.call_count == 2
             reset_call = mock_run_git.call_args_list[1]
-            assert "reset" in reset_call[0]
-            assert "--hard" in reset_call[0]
-            assert "origin/feature/test" in reset_call[0]
+            assert reset_call[0] == ("reset", "--hard", "origin/feature/test")
+            assert reset_call[1].get("check") is False
 
     def test_reset_branch_to_origin_failure(self, mock_run_safe):
         """Test branch reset failure returns False."""
@@ -75,7 +74,7 @@ class TestResetBranchToOrigin:
             assert "unpushed commit" in captured.out
             assert "Aborting reset" in captured.out
 
-    def test_reset_proceeds_when_rev_list_fails(self, mock_run_safe):
+    def test_reset_proceeds_when_rev_list_fails(self, mock_run_safe, capsys):
         """Test reset proceeds when rev-list check fails (e.g. no tracking branch)."""
         with patch.object(operations, "run_git") as mock_run_git:
             # rev-list fails (no tracking ref), reset succeeds
@@ -88,6 +87,9 @@ class TestResetBranchToOrigin:
 
             assert result is True
             assert mock_run_git.call_count == 2
+            captured = capsys.readouterr()
+            assert "Could not check for unpushed commits" in captured.out
+            assert "Proceeding with hard reset" in captured.out
 
     def test_reset_aborts_when_rev_list_output_unparseable(self, mock_run_safe, capsys):
         """Test reset aborts when rev-list output cannot be parsed as an integer."""
