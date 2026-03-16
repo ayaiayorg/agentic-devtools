@@ -531,6 +531,33 @@ def fetch_branch(branch_name: str, dry_run: bool = False) -> bool:
     return True
 
 
+def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
+    """
+    Reset the current branch to match origin/<branch_name>.
+
+    Args:
+        branch_name: Name of the branch to reset to
+        dry_run: If True, only print what would happen
+
+    Returns:
+        True if reset succeeded, False otherwise
+    """
+    if dry_run:
+        print(f"[DRY RUN] Would reset to origin/{branch_name}")
+        return True
+
+    print(f"Resetting branch to origin/{branch_name}...")
+    result = run_git("reset", "--hard", f"origin/{branch_name}", check=False)
+    if result.returncode != 0:
+        print(f"Warning: Failed to reset to origin/{branch_name}")
+        if result.stderr:
+            print(result.stderr.strip())
+        return False
+
+    print(f"Reset to origin/{branch_name} successfully.")
+    return True
+
+
 def fetch_main(main_branch: str = "main", dry_run: bool = False) -> bool:
     """
     Fetch the latest from origin for the main branch.

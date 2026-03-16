@@ -127,9 +127,11 @@ def checkout_and_sync_branch(
     """
     from ..git.operations import (
         checkout_branch,
+        fetch_branch,
         fetch_main,
         get_files_changed_on_branch,
         rebase_onto_main,
+        reset_branch_to_origin,
     )
 
     # Step 1: Checkout the source branch
@@ -152,6 +154,26 @@ def checkout_and_sync_branch(
         return (  # pragma: no cover
             False,
             f"Error checking out branch: {checkout_result.message}",
+            set(),
+        )
+
+    # Step 1b: Fetch source branch from origin to get latest changes
+    print(f"\nFetching latest from origin/{source_branch}...")
+    if not fetch_branch(source_branch):
+        return (
+            False,
+            f"Failed to fetch origin/{source_branch}. "
+            "Cannot proceed with review on potentially stale code.",
+            set(),
+        )
+
+    # Step 1c: Reset local branch to match origin
+    print(f"Resetting local branch to origin/{source_branch}...")
+    if not reset_branch_to_origin(source_branch):
+        return (
+            False,
+            f"Failed to reset branch to origin/{source_branch}. "
+            "Local branch may be in an inconsistent state.",
             set(),
         )
 

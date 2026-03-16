@@ -483,19 +483,23 @@ class TestCheckoutAndSyncBranch:
         from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
 
         with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                    with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_get_files:
-                        mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                        mock_fetch.return_value = True
-                        mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
-                        mock_get_files.return_value = ["file1.ts", "file2.ts"]
+            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                mock_fetch_branch.return_value = True
+                                mock_reset.return_value = True
+                                mock_fetch.return_value = True
+                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                        success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files = checkout_and_sync_branch("feature/test")
 
-                        assert success is True
-                        assert error is None
-                        assert files == {"file1.ts", "file2.ts"}
+                                assert success is True
+                                assert error is None
+                                assert files == {"file1.ts", "file2.ts"}
 
     def test_checkout_failure_returns_error(self):
         """Test checkout failure returns error message."""
@@ -526,44 +530,52 @@ class TestCheckoutAndSyncBranch:
         from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
 
         with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                    with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_get_files:
-                        mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                        mock_fetch.return_value = True
-                        mock_rebase.return_value = RebaseResult(
-                            RebaseResult.CONFLICT,
-                            "Rebase had conflicts",
-                        )
-                        mock_get_files.return_value = ["file1.ts"]
+            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                mock_fetch_branch.return_value = True
+                                mock_reset.return_value = True
+                                mock_fetch.return_value = True
+                                mock_rebase.return_value = RebaseResult(
+                                    RebaseResult.CONFLICT,
+                                    "Rebase had conflicts",
+                                )
+                                mock_files.return_value = ["file1.ts"]
 
-                        success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files = checkout_and_sync_branch("feature/test")
 
-                        # Success because we can still continue with review
-                        assert success is True
-                        assert error is None
-                        assert files == {"file1.ts"}
+                                # Success because we can still continue with review
+                                assert success is True
+                                assert error is None
+                                assert files == {"file1.ts"}
 
     def test_fetch_failure_still_continues(self):
-        """Test fetch failure doesn't block the workflow."""
+        """Test fetch_main failure doesn't block the workflow."""
         from unittest.mock import patch
 
         from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
         from agdt_ai_helpers.cli.git.operations import CheckoutResult
 
         with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_get_files:
-                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                    # fetch_main returns False on failure
-                    mock_fetch.return_value = False
-                    mock_get_files.return_value = ["file.ts"]
+            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                            mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                            mock_fetch_branch.return_value = True
+                            mock_reset.return_value = True
+                            # fetch_main returns False on failure
+                            mock_fetch.return_value = False
+                            mock_files.return_value = ["file.ts"]
 
-                    success, error, files = checkout_and_sync_branch("feature/test")
+                            success, error, files = checkout_and_sync_branch("feature/test")
 
-                    # Should still succeed
-                    assert success is True
-                    assert files == {"file.ts"}
+                            # Should still succeed
+                            assert success is True
+                            assert files == {"file.ts"}
 
 
 class TestGetJiraIssueKeyFromState:
