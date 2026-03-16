@@ -489,7 +489,10 @@ def setup_cmd() -> None:
 
     git_root = _get_git_repo_root()
     if ensure_agdt_gitignore(git_root):
-        print("  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees")
+        print(
+            "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
+            "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
+        )
     elif git_root is not None:
         print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 

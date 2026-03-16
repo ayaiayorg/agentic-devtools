@@ -29,6 +29,13 @@ def _make_statuses(git_found: bool = True) -> list:
 class TestSetupCmd:
     """Tests for setup_cmd."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_gitignore(self):
+        """Prevent setup_cmd() from writing .agdt/.gitignore to the real repo."""
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
+            with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
+                yield
+
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""
         with patch("sys.argv", ["agdt-setup"]):
@@ -200,6 +207,7 @@ class TestSetupCmd:
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
                             with patch.object(commands, "_persist_env_vars_to_profile"):
+                                # Override autouse fixture to test the success path
                                 with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
@@ -217,6 +225,7 @@ class TestSetupCmd:
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
                             with patch.object(commands, "_persist_env_vars_to_profile"):
+                                # Override autouse fixture to test the failure path
                                 with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
