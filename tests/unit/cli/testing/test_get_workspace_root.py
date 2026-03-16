@@ -29,3 +29,10 @@ class TestGetWorkspaceRoot:
         monkeypatch.chdir(tmp_path)
         with pytest.raises(FileNotFoundError, match="pyproject.toml not found in current directory"):
             testing.get_workspace_root()
+
+    def test_raises_error_when_pyproject_toml_is_directory(self, tmp_path, monkeypatch):
+        """Should raise FileNotFoundError when pyproject.toml is a directory, not a file."""
+        (tmp_path / "pyproject.toml").mkdir()
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(FileNotFoundError, match="pyproject.toml not found in current directory"):
+            testing.get_workspace_root()

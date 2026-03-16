@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from agentic_devtools.cli import testing
 
-from .conftest import WORKSPACE_ROOT_ERROR_MSG
+from .conftest import make_workspace_root_error
 
 
 class TestTryGetWorkspaceRoot:
@@ -27,16 +27,17 @@ class TestTryGetWorkspaceRoot:
         captured = capsys.readouterr()
         assert "pyproject.toml not found" in captured.err
 
-    def test_prints_clean_error_without_traceback(self, capsys):
+    def test_prints_clean_error_without_traceback(self, tmp_path, capsys):
         """Should print a single-line error, not a traceback."""
+        error_msg = make_workspace_root_error(tmp_path)
         with patch.object(
             testing,
             "get_workspace_root",
-            side_effect=FileNotFoundError(WORKSPACE_ROOT_ERROR_MSG),
+            side_effect=FileNotFoundError(error_msg),
         ):
             result = testing._try_get_workspace_root()
             assert result is None
             captured = capsys.readouterr()
-            assert f"Error: {WORKSPACE_ROOT_ERROR_MSG}" in captured.err
+            assert f"Error: {error_msg}" in captured.err
             # Should NOT contain traceback markers
             assert "Traceback" not in captured.err

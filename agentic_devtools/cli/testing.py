@@ -47,7 +47,7 @@ def get_workspace_root() -> Path:
     # Use CWD instead of __file__ so that the command works regardless of
     # whether the package is installed editable, via pip, or via pipx.
     cwd = Path.cwd()
-    if not (cwd / "pyproject.toml").exists():
+    if not (cwd / "pyproject.toml").is_file():
         raise FileNotFoundError(
             f"pyproject.toml not found in current directory ({cwd}). "
             "Run agdt-test commands from the workspace root."
