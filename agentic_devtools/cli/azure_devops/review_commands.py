@@ -692,9 +692,10 @@ def setup_pull_request_review() -> None:
     jira_issue_key = get_value("jira.issue_key")
     include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
 
-    # Bootstrap identity + worktree_key BEFORE any get_state_dir() calls so
-    # that all artifacts (PR details, prompts, review-state, etc.) land in
-    # the identity-scoped directory from the start.
+    # Bootstrap identity + worktree_key before fetching PR details / generating
+    # artifacts so they land in the identity-scoped directory from the start.
+    # Note: get_value() calls above still resolve against the old state dir;
+    # the bootstrap call below re-seeds those keys into the scoped state.
     try:
         import uuid
 

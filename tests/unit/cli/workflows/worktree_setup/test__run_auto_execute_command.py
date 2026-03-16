@@ -150,7 +150,11 @@ class TestRunAutoExecuteCommand:
         original_mkdir = Path.mkdir
 
         def failing_mkdir(self_path, *args, **kwargs):
-            if "workflows" in str(self_path):
+            # Only fail the specific .agdt/workflows state dir mkdir, not
+            # unrelated temp-directory creations that happen to contain
+            # "workflows" in the path.
+            parts = self_path.parts
+            if ".agdt" in parts and "workflows" in parts:
                 raise OSError("Permission denied")
             return original_mkdir(self_path, *args, **kwargs)
 
