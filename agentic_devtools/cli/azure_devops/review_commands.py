@@ -721,8 +721,10 @@ def setup_pull_request_review() -> None:
                 set_value("versionControl.currentBranch", branch_name)
         except Exception:
             pass  # Best-effort; persist_if_dirty has its own fallback
-    except Exception:
-        pass  # Best-effort; non-critical for review flow
+    except Exception as exc:
+        # Bootstrap is best-effort: review proceeds using _unscoped if this
+        # fails (e.g., not in a git repo).  Log the error for debugging.
+        print(f"WARNING: bootstrap state init failed: {exc}", file=sys.stderr)
 
     # Step 1: Fetch Jira issue details if we have a key
     if jira_issue_key:
