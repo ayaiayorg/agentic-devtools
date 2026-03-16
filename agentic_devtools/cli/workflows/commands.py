@@ -1619,18 +1619,13 @@ Examples:
                 auto_execute_command.extend(["--issue-key", resolved_issue_key])
             auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
 
-            # Automatically set up the environment.
-            # Pass interactive=False here so that the VS Code auto-start task
-            # is NOT injected — it would use the PR-review prompt, not the
-            # apply-pr-suggestions prompt.  The --interactive flag is carried
-            # inside auto_execute_command, so the re-run inside the worktree
-            # will start the Copilot session with the correct prompt.
+            # Automatically set up the environment
             if perform_auto_setup(
                 resolved_issue_key,
                 "apply-pull-request-review-suggestions",
                 additional_params={"pull_request_id": resolved_pr_id} if resolved_pr_id else None,
                 auto_execute_command=auto_execute_command,
-                interactive=False,
+                interactive=interactive,
             ):
                 print("\n" + "=" * 80)
                 print("Please continue the workflow in the new VS Code window.")

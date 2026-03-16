@@ -249,29 +249,25 @@ class TestInitiateApplyPRSuggestionsWorkflowInteractive:
         mock_setup = self._run_with_preflight_failing(argv=["--interactive", "false"])
 
         call_kwargs = mock_setup.call_args[1]
-        # interactive=False is passed explicitly so that the VS Code auto-start
-        # task is NOT injected (it would use the wrong prompt).
-        # The --interactive flag is carried inside auto_execute_command instead.
         assert call_kwargs["interactive"] is False
 
     def test_interactive_flag_true_parsed_from_cli(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
-        """Test that --interactive true still passes interactive=False to perform_auto_setup.
+        """Test that --interactive true passes interactive=True to perform_auto_setup.
 
-        The VS Code auto-start task injected by perform_auto_setup hardcodes
-        the PR-review prompt, so we must always pass interactive=False here.
-        The --interactive flag is carried inside auto_execute_command instead.
+        The VS Code auto-start task now uses workflow-specific prompts via
+        ``_WORKFLOW_START_PROMPTS``, so interactive mode is passed through.
         """
         mock_setup = self._run_with_preflight_failing(argv=["--interactive", "true"])
 
         call_kwargs = mock_setup.call_args[1]
-        assert call_kwargs["interactive"] is False
+        assert call_kwargs["interactive"] is True
 
     def test_interactive_defaults_to_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
-        """Test that interactive=False is always passed to perform_auto_setup."""
+        """Test that interactive defaults to False when not specified."""
         mock_setup = self._run_with_preflight_failing(argv=[])
 
         call_kwargs = mock_setup.call_args[1]
