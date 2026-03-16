@@ -129,3 +129,19 @@ class TestLoadActivityLog:
                 result = load_activity_log()
 
         assert result.postedCommits == {}
+
+    def test_warns_and_falls_back_when_local_file_is_corrupt(self, tmp_path, capsys):
+        """Test that a corrupt local file emits a warning and falls through to branch fallback."""
+        with patch.object(al_module, "get_state_dir", return_value=tmp_path):
+            log_dir = tmp_path / "activity-log"
+            log_dir.mkdir(parents=True)
+            log_file = log_dir / "activity-log.json"
+            log_file.write_text("not-valid-json", encoding="utf-8")
+
+            with patch.object(al_module, "_load_from_branch", return_value=None):
+                result = load_activity_log()
+
+        assert isinstance(result, ActivityLog)
+        assert result.postedCommits == {}
+        captured = capsys.readouterr()
+        assert "Warning: failed to parse local activity log" in captured.err
