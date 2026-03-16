@@ -142,6 +142,7 @@ def _run_tests_sync() -> int:
             "--cov=agentic_devtools",
             "--cov-report=term-missing",
             "--cov-report=html",
+            "--cov-fail-under=100",
         ],
         cwd=str(workspace_root),
     )

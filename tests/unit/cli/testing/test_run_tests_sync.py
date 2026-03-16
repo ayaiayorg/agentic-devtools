@@ -50,4 +50,7 @@ class TestRunTestsSync:
                 assert "--cov=agentic_devtools" in call_args
                 # Should clear default addopts to avoid duplicate --cov
                 assert "addopts=" in call_args
+                # Should preserve --cov-fail-under=100 since clearing addopts
+                # removes it from pyproject.toml's defaults
+                assert "--cov-fail-under=100" in call_args
                 assert result == 0
