@@ -1359,7 +1359,9 @@ def _run_auto_execute_command(
     # Inherit current environment and pin AGENTIC_DEVTOOLS_STATE_DIR to the
     # target worktree's identity-scoped state directory when the bootstrap
     # file contains both ``identity`` and ``worktree_key``.  Falls back to
-    # ``_unscoped`` when identity cannot be resolved.  This propagates into
+    # ``_unscoped`` when the bootstrap file is missing, unreadable, or
+    # malformed, when either key is absent or empty, or when either segment
+    # fails ``is_safe_dir_segment()`` validation.  This propagates into
     # any nested background tasks spawned by the auto-execute command so
     # that prompt files and state are written to the correct worktree location
     # instead of falling back to a Python-install-relative temp directory.
