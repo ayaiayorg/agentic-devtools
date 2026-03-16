@@ -1,6 +1,7 @@
 """Tests for RunAutoExecuteCommand."""
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.workflows.worktree_setup import (
@@ -32,7 +33,7 @@ class TestRunAutoExecuteCommand:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     def test_sets_state_dir_env_var(self, mock_run, tmp_path):
-        """Test that AGENTIC_DEVTOOLS_STATE_DIR is set to worktree's .agdt/workflows/_unscoped."""
+        """Test fallback to _unscoped when no bootstrap file exists."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         worktree = tmp_path / "my-worktree"
         worktree.mkdir()
@@ -58,6 +59,7 @@ class TestRunAutoExecuteCommand:
 
         call_kwargs = mock_run.call_args[1]
         env = call_kwargs["env"]
+        # No bootstrap file → falls back to _unscoped
         assert env["AGENTIC_DEVTOOLS_STATE_DIR"] == str(worktree / ".agdt" / "workflows" / "_unscoped")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
@@ -138,19 +140,109 @@ class TestRunAutoExecuteCommand:
         assert call_kwargs["timeout"] == 60
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    @patch("agentic_devtools.cli.workflows.worktree_setup.Path")
-    def test_warns_when_state_dir_creation_fails(self, mock_path_cls, mock_run, capsys, tmp_path):
+    def test_warns_when_state_dir_creation_fails(self, mock_run, capsys, tmp_path):
         """Test that a warning is printed when state directory creation fails."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        # Make the Path object's mkdir raise OSError
-        mock_state_dir = MagicMock()
-        mock_state_dir.__str__ = lambda self: "/worktree/.agdt/workflows/_unscoped"
-        mock_state_dir.__truediv__ = MagicMock(return_value=mock_state_dir)
-        mock_state_dir.mkdir.side_effect = OSError("Permission denied")
-        mock_path_cls.return_value = mock_state_dir
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
 
-        _run_auto_execute_command(["cmd"], "/worktree", 60)
+        # Patch only mkdir to simulate a permission error on the state directory
+        original_mkdir = Path.mkdir
+
+        def failing_mkdir(self_path, *args, **kwargs):
+            if "workflows" in str(self_path):
+                raise OSError("Permission denied")
+            return original_mkdir(self_path, *args, **kwargs)
+
+        with patch.object(Path, "mkdir", failing_mkdir):
+            _run_auto_execute_command(["cmd"], str(worktree), 60)
 
         captured = capsys.readouterr()
         assert "WARNING" in captured.out
         assert "Permission denied" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_uses_scoped_state_dir_when_bootstrap_has_identity(self, mock_run, tmp_path):
+        """Test that AGENTIC_DEVTOOLS_STATE_DIR uses identity/worktree_key when bootstrap exists."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "my-worktree"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text('{"identity": "ama", "worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        expected = str(worktree / ".agdt" / "workflows" / "ama" / "PR123")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_to_unscoped_when_bootstrap_missing_identity(self, mock_run, tmp_path):
+        """Test fallback to _unscoped when bootstrap has worktree_key but no identity."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text('{"worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_to_unscoped_when_bootstrap_malformed(self, mock_run, tmp_path):
+        """Test fallback to _unscoped when bootstrap file contains invalid JSON."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text("NOT VALID JSON{{{")
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_to_unscoped_when_identity_is_whitespace(self, mock_run, tmp_path):
+        """Test fallback to _unscoped when bootstrap identity is whitespace-only."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text('{"identity": "  ", "worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_to_unscoped_when_identity_is_non_string(self, mock_run, tmp_path):
+        """Test fallback to _unscoped when bootstrap identity is a non-string value."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap = agdt_dir / "runtime-bootstrap.json"
+        bootstrap.write_text('{"identity": 42, "worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")

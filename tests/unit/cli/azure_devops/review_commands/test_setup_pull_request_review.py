@@ -86,11 +86,15 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                            setup_pull_request_review,
-                                                        )
+                                                        with (
+                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                                            patch("agdt_ai_helpers.state.set_value"),
+                                                        ):
+                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                                setup_pull_request_review,
+                                                            )
 
-                                                        setup_pull_request_review()
+                                                            setup_pull_request_review()
 
         return captured_variables
 
@@ -169,12 +173,16 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                            setup_pull_request_review,
-                                                        )
+                                                        with (
+                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                                            patch("agdt_ai_helpers.state.set_value"),
+                                                        ):
+                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                                setup_pull_request_review,
+                                                            )
 
-                                                        setup_pull_request_review()
-                                                        mock_load.assert_called_once_with("/repo/root")
+                                                            setup_pull_request_review()
+                                                            mock_load.assert_called_once_with("/repo/root")
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_git_fails(self):
         """Test that load_review_focus_areas falls back to cwd when git rev-parse fails."""
@@ -223,12 +231,16 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                            setup_pull_request_review,
-                                                        )
+                                                        with (
+                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                                            patch("agdt_ai_helpers.state.set_value"),
+                                                        ):
+                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                                setup_pull_request_review,
+                                                            )
 
-                                                        setup_pull_request_review()
-                                                        mock_load.assert_called_once_with(str(Path.cwd()))
+                                                            setup_pull_request_review()
+                                                            mock_load.assert_called_once_with(str(Path.cwd()))
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_run_safe_raises(self):
         """Test that load_review_focus_areas falls back to cwd when run_safe raises an exception."""
@@ -273,12 +285,16 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                            setup_pull_request_review,
-                                                        )
+                                                        with (
+                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                                            patch("agdt_ai_helpers.state.set_value"),
+                                                        ):
+                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                                setup_pull_request_review,
+                                                            )
 
-                                                        setup_pull_request_review()
-                                                        mock_load.assert_called_once_with(str(Path.cwd()))
+                                                            setup_pull_request_review()
+                                                                mock_load.assert_called_once_with(str(Path.cwd()))
 
 
 class TestSetupPullRequestReview:
@@ -354,12 +370,16 @@ class TestSetupPullRequestReview:
                                     ):
                                         with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
                                             with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                    setup_pull_request_review,
-                                                )
+                                                with (
+                                                    patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                                    patch("agdt_ai_helpers.state.set_value"),
+                                                ):
+                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                        setup_pull_request_review,
+                                                    )
 
-                                                setup_pull_request_review()
-                                                mock_fetch_jira.assert_called_once_with("DFLY-1234")
+                                                        setup_pull_request_review()
+                                                        mock_fetch_jira.assert_called_once_with("DFLY-1234")
 
     def test_exits_when_pr_details_file_missing(self, capsys):
         """Test exits with error when PR details file not found."""
@@ -472,10 +492,152 @@ class TestSetupPullRequestReview:
                             with patch("agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"):
                                 with patch("agdt_ai_helpers.state.set_workflow_state"):
                                     with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
-                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                            setup_pull_request_review,
-                                        )
+                                        with (
+                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
+                                            patch("agdt_ai_helpers.state.set_value"),
+                                        ):
+                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                setup_pull_request_review,
+                                            )
 
-                                        setup_pull_request_review()
-                                        captured = capsys.readouterr()
-                                        assert "Could not determine source branch" in captured.err
+                                            setup_pull_request_review()
+                                            captured = capsys.readouterr()
+                                            assert "Could not determine source branch" in captured.err
+
+
+class TestSetupPullRequestReviewPersistence:
+    """Regression tests verifying bootstrap, agdt_run_id, and branch storage."""
+
+    def _make_pr_details(self):
+        return {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+            },
+            "files": [],
+            "threads": [],
+        }
+
+    def _default_get_value(self, key, default=None):
+        mapping = {
+            "pull_request_id": "123",
+            "jira.issue_key": None,
+            "include_reviewed": "false",
+        }
+        return mapping.get(key, default)
+
+    def _run_setup_with_captures(self, *, branch_stdout="feature/test\n", branch_returncode=0):
+        """Run setup_pull_request_review and capture set_bootstrap_state/set_value calls."""
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_branch_result = MagicMock()
+        mock_branch_result.returncode = branch_returncode
+        mock_branch_result.stdout = branch_stdout
+
+        def run_safe_side_effect(cmd, **kwargs):
+            if "rev-parse" in cmd and "--abbrev-ref" in cmd:
+                return mock_branch_result
+            return mock_git_result
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_bootstrap = MagicMock()
+        mock_set_value = MagicMock()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    side_effect=run_safe_side_effect,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch(
+                                                            "agdt_ai_helpers.state.set_bootstrap_state",
+                                                            mock_set_bootstrap,
+                                                        ):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                                    setup_pull_request_review,
+                                                                )
+
+                                                                setup_pull_request_review()
+
+        return mock_set_bootstrap, mock_set_value
+
+    def test_calls_set_bootstrap_state_with_pr_worktree_key(self):
+        """Regression: set_bootstrap_state() must be called with worktree_key=PR{id}."""
+        mock_set_bootstrap, _ = self._run_setup_with_captures()
+
+        mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
+
+    def test_sets_agdt_run_id_with_12_char_hex(self):
+        """Regression: agdt_run_id must be stored as a 12-character hex string."""
+        import re
+
+        _, mock_set_value = self._run_setup_with_captures()
+
+        run_id_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "agdt_run_id"]
+        assert len(run_id_calls) == 1
+        run_id = run_id_calls[0][0][1]
+        assert re.fullmatch(r"[0-9a-f]{12}", run_id), f"Expected 12-char hex, got {run_id!r}"
+
+    def test_sets_version_control_current_branch(self):
+        """Regression: versionControl.currentBranch must be stored when git succeeds."""
+        _, mock_set_value = self._run_setup_with_captures()
+
+        branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
+        assert len(branch_calls) == 1
+        assert branch_calls[0][0][1] == "feature/test"
+
+    def test_skips_current_branch_on_detached_head(self):
+        """Regression: versionControl.currentBranch must NOT be set on detached HEAD."""
+        _, mock_set_value = self._run_setup_with_captures(branch_stdout="HEAD\n")
+
+        branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
+        assert len(branch_calls) == 0
+
+    def test_skips_current_branch_on_git_failure(self):
+        """Regression: versionControl.currentBranch must NOT be set when git fails."""
+        _, mock_set_value = self._run_setup_with_captures(branch_returncode=1, branch_stdout="")
+
+        branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
+        assert len(branch_calls) == 0
