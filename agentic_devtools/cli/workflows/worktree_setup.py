@@ -1313,6 +1313,9 @@ def get_ai_agent_continuation_prompt(
     elif workflow_name == "pull-request-review":
         task_description = "assigned to review a pull request"
         action_description = "review the pull request thoroughly and provide feedback"
+    elif workflow_name == "apply-pull-request-review-suggestions":
+        task_description = "assigned to apply pull request review suggestions"
+        action_description = "apply the PR review suggestions to the codebase as specified in the workflow prompt"
     else:
         task_description = "assigned an issue to work on"
         action_description = "work on the issue until you have completed the workflow"
