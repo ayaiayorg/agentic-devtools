@@ -1390,6 +1390,9 @@ class TestSetupPullRequestReview:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch(
                 "agdt_ai_helpers.cli.azure_devops.review_commands._fetch_and_display_jira_issue"
@@ -1470,6 +1473,9 @@ class TestSetupPullRequestReview:
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
