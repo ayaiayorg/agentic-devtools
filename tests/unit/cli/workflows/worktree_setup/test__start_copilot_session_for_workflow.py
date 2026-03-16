@@ -498,3 +498,95 @@ class TestStartCopilotSessionForWorkflow:
 
         assert result is True
         mock_copilot.assert_not_called()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_sentinel_check_runs_when_not_interactive(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Sentinel check runs even when interactive=False, so VS Code auto-start is detected."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        # Write a tasks.json with the auto-start task (simulating successful injection)
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        sentinel_dir = tmp_path / ".agdt"
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        # Simulate sentinel appearing during wait loop
+        def create_sentinel_on_sleep(_duration):
+            sentinel_dir.mkdir(parents=True, exist_ok=True)
+            (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+
+        with patch("time.sleep", side_effect=create_sentinel_on_sleep):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,  # Key: interactive=False must not skip sentinel check
+            )
+
+        # VS Code confirmed via sentinel — no background session started
+        assert result is True
+        mock_copilot.assert_not_called()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_fallback_session_when_no_auto_start_task_not_interactive(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When interactive=False and no auto-start task in tasks.json, session is started as fallback."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        # No tasks.json → injection never happened (or failed)
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,
+            )
+
+        # Fallback: session started by the background process
+        assert result is True
+        mock_copilot.assert_called_once_with(
+            prompt=_CUSTOM_START_PROMPT,
+            working_directory=str(tmp_path),
+            interactive=False,
+        )
