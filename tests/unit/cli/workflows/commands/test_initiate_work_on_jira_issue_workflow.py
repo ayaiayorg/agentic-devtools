@@ -196,7 +196,7 @@ class TestWorkflowCommands:
         mock_auto_setup.assert_called_once()
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
     def test_work_on_jira_issue_workflow_preflight_pass(
         self,

@@ -84,7 +84,7 @@ class TestInitiateUpdateJiraIssueWorkflowBranches:
 
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
         # Verify auto_execute_command includes --user-request
         call_kwargs = mock_setup.call_args[1]

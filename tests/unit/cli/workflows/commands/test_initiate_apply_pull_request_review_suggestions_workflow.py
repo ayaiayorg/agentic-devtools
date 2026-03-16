@@ -147,7 +147,7 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
 
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Copilot session will start automatically" in captured.out
 
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""

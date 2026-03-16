@@ -223,13 +223,14 @@ def generate_setup_instructions(issue_key: str, preflight_result: PreflightResul
         [
             "## Continue Workflow",
             "",
-            "In the new VS Code window, paste this prompt to continue:",
+            "A Copilot session will start automatically in the new VS Code window.",
+            "If the session doesn't start, paste this prompt to continue:",
             "",
             "```",
             f"Work on Jira issue {issue_key}",
             "```",
             "",
-            "This will re-run the workflow initiation in the correct context.",
+            "This command is a fallback — normally the session starts automatically.",
         ]
     )
 
@@ -308,23 +309,14 @@ def perform_auto_setup(
         print("NEXT STEPS")
         print("=" * 80)
         print("""
-The worktree setup is running in the background. A new VS Code window will open
-when ready.
+The worktree setup is running in the background.
+A Copilot session will start automatically in the VS Code integrated terminal when the worktree is ready.
 
-To get the prompt for the new VS Code window:
-
+If the session doesn't start automatically:
   1. Run: agdt-task-log
-
-     This shows the full output. Look for the section:
-     "AI AGENT INSTRUCTIONS - IMPORTANT"
-
-  2. The log will contain instructions for you (the AI agent) to provide
-     a prompt in your chat response that the user can copy and paste into
-     the new VS Code window.
-
-  3. Or run: agdt-task-wait
-
-     This waits for the task to complete and then you can check the log.
+     Look for the "AI AGENT INSTRUCTIONS (FALLBACK)" section.
+  2. Or run: agdt-task-wait
+     This waits for the task to complete, then check the log.
 """)
         print("=" * 80)
 
