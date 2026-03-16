@@ -29,6 +29,7 @@ class TestStartCopilotSessionForPrReview:
         call_kwargs = mock_generic.call_args[1]
         assert call_kwargs["worktree_path"] == str(tmp_path)
         assert call_kwargs["prompt_file_relative_path"].endswith("temp-pull-request-review-initiate-prompt.md")
+        assert "scripts" not in call_kwargs["prompt_file_relative_path"]
         assert call_kwargs["start_prompt"] == COPILOT_SESSION_START_PROMPT
         assert call_kwargs["workflow_name"] == "pull-request-review"
         assert call_kwargs["interactive"] is True
