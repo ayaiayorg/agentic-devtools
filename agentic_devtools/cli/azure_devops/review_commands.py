@@ -692,6 +692,38 @@ def setup_pull_request_review() -> None:
     jira_issue_key = get_value("jira.issue_key")
     include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
 
+    # Bootstrap identity + worktree_key BEFORE any get_state_dir() calls so
+    # that all artifacts (PR details, prompts, review-state, etc.) land in
+    # the identity-scoped directory from the start.
+    try:
+        import uuid
+
+        from ...state import set_bootstrap_state, set_value
+
+        set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
+
+        # Generate agdt_run_id (same pattern as initiate_workflow in base.py)
+        # so that persist_if_dirty() can commit workflow state to a -agdt branch.
+        run_id = uuid.uuid4().hex[:12]
+        set_value("agdt_run_id", run_id)
+
+        # Store current branch for persist_if_dirty() resolution
+        try:
+            branch_result = run_safe(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+                shell=False,
+            )
+            branch_name = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+            if branch_name and branch_name != "HEAD":
+                set_value("versionControl.currentBranch", branch_name)
+        except Exception:
+            pass  # Best-effort; persist_if_dirty has its own fallback
+    except Exception:
+        pass  # Best-effort; non-critical for review flow
+
     # Step 1: Fetch Jira issue details if we have a key
     if jira_issue_key:
         print(f"\nFetching Jira issue details for {jira_issue_key}...")
@@ -756,34 +788,8 @@ def setup_pull_request_review() -> None:
 
     # Step 7: Initialize workflow with PR context
     try:
-        import uuid
-
         from ...prompts.loader import load_and_render_prompt
-        from ...state import set_bootstrap_state, set_value, set_workflow_state
-
-        # Bootstrap identity + worktree_key so that get_state_dir() resolves
-        # to the identity-scoped directory for all subsequent writes.
-        set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
-
-        # Generate agdt_run_id (same pattern as initiate_workflow in base.py)
-        # so that persist_if_dirty() can commit workflow state to a -agdt branch.
-        run_id = uuid.uuid4().hex[:12]
-        set_value("agdt_run_id", run_id)
-
-        # Store current branch for persist_if_dirty() resolution
-        try:
-            branch_result = run_safe(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-                shell=False,
-            )
-            branch_name = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
-            if branch_name and branch_name != "HEAD":
-                set_value("versionControl.currentBranch", branch_name)
-        except Exception:
-            pass  # Best-effort; persist_if_dirty has its own fallback
+        from ...state import set_workflow_state
 
         pr_title = pr_info.get("title", "")
         pr_author = pr_info.get("createdBy", {}).get("displayName", "")

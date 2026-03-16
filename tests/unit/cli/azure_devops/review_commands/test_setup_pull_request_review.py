@@ -33,6 +33,10 @@ class TestSetupPullRequestReviewFocusAreas:
 
     def _run_setup(self, pr_details, focus_areas_return):
         """Run setup_pull_request_review with mocked dependencies, return captured calls."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         captured_variables = {}
 
         def capture_render(workflow_name, step_name, variables, **kwargs):
@@ -86,15 +90,9 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        with (
-                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                                            patch("agdt_ai_helpers.state.set_value"),
-                                                        ):
-                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                                setup_pull_request_review,
-                                                            )
-
-                                                            setup_pull_request_review()
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                                setup_pull_request_review()
 
         return captured_variables
 
@@ -128,6 +126,10 @@ class TestSetupPullRequestReviewFocusAreas:
 
     def test_load_review_focus_areas_called_with_git_root(self):
         """Test that load_review_focus_areas is called with the git repo root when available."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         pr_details = self._make_pr_details()
 
         mock_git_result = MagicMock()
@@ -173,19 +175,17 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        with (
-                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                                            patch("agdt_ai_helpers.state.set_value"),
-                                                        ):
-                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                                setup_pull_request_review,
-                                                            )
-
-                                                            setup_pull_request_review()
-                                                            mock_load.assert_called_once_with("/repo/root")
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                                setup_pull_request_review()
+                                                                mock_load.assert_called_once_with("/repo/root")
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_git_fails(self):
         """Test that load_review_focus_areas falls back to cwd when git rev-parse fails."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         pr_details = self._make_pr_details()
 
         mock_git_result = MagicMock()
@@ -231,19 +231,17 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        with (
-                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                                            patch("agdt_ai_helpers.state.set_value"),
-                                                        ):
-                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                                setup_pull_request_review,
-                                                            )
-
-                                                            setup_pull_request_review()
-                                                            mock_load.assert_called_once_with(str(Path.cwd()))
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                                setup_pull_request_review()
+                                                                mock_load.assert_called_once_with(str(Path.cwd()))
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_run_safe_raises(self):
         """Test that load_review_focus_areas falls back to cwd when run_safe raises an exception."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         pr_details = self._make_pr_details()
 
         mock_config = MagicMock()
@@ -285,15 +283,9 @@ class TestSetupPullRequestReviewFocusAreas:
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
                                                         return_value=mock_config,
                                                     ):
-                                                        with (
-                                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                                            patch("agdt_ai_helpers.state.set_value"),
-                                                        ):
-                                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                                setup_pull_request_review,
-                                                            )
-
-                                                            setup_pull_request_review()
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                                setup_pull_request_review()
                                                                 mock_load.assert_called_once_with(str(Path.cwd()))
 
 
@@ -322,6 +314,10 @@ class TestSetupPullRequestReview:
         """Test fetches Jira issue when jira.issue_key in state."""
         import json
         from unittest.mock import MagicMock, patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
 
         mock_pr_details = {
             "pullRequest": {
@@ -370,14 +366,8 @@ class TestSetupPullRequestReview:
                                     ):
                                         with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
                                             with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                                with (
-                                                    patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                                    patch("agdt_ai_helpers.state.set_value"),
-                                                ):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                        setup_pull_request_review,
-                                                    )
-
+                                                with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                    with patch("agdt_ai_helpers.state.set_value"):
                                                         setup_pull_request_review()
                                                         mock_fetch_jira.assert_called_once_with("DFLY-1234")
 
@@ -458,6 +448,10 @@ class TestSetupPullRequestReview:
         import json
         from unittest.mock import MagicMock, patch
 
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         mock_pr_details = {
             "pullRequest": {
                 "sourceRefName": "",  # Empty source branch
@@ -492,17 +486,11 @@ class TestSetupPullRequestReview:
                             with patch("agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"):
                                 with patch("agdt_ai_helpers.state.set_workflow_state"):
                                     with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
-                                        with (
-                                            patch("agdt_ai_helpers.state.set_bootstrap_state"),
-                                            patch("agdt_ai_helpers.state.set_value"),
-                                        ):
-                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                setup_pull_request_review,
-                                            )
-
-                                            setup_pull_request_review()
-                                            captured = capsys.readouterr()
-                                            assert "Could not determine source branch" in captured.err
+                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                setup_pull_request_review()
+                                                captured = capsys.readouterr()
+                                                assert "Could not determine source branch" in captured.err
 
 
 class TestSetupPullRequestReviewPersistence:
@@ -531,6 +519,10 @@ class TestSetupPullRequestReviewPersistence:
 
     def _run_setup_with_captures(self, *, branch_stdout="feature/test\n", branch_returncode=0):
         """Run setup_pull_request_review and capture set_bootstrap_state/set_value calls."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
         mock_git_result = MagicMock()
         mock_git_result.returncode = 0
         mock_git_result.stdout = "/repo/root\n"
@@ -595,10 +587,6 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                                    setup_pull_request_review,
-                                                                )
-
                                                                 setup_pull_request_review()
 
         return mock_set_bootstrap, mock_set_value
