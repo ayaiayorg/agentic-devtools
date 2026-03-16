@@ -14,11 +14,12 @@ class TestAmendCommand:
         state.set_value("commit_message", "Updated commit")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
+        g = len(operations.AGDT_GITIGNORE_ENTRIES)
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * g  # gitignore entry resets
             + [
-                MagicMock(returncode=0, stdout="", stderr=""),  # workflows reset
                 MagicMock(returncode=0, stdout="", stderr=""),  # amend
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
             ]
@@ -26,7 +27,7 @@ class TestAmendCommand:
 
         commands.amend_cmd()
 
-        assert mock_run_safe.call_count == 4 + n
+        assert mock_run_safe.call_count == 3 + n + g
 
     def test_amend_cmd_skip_stage(self, temp_state_dir, clear_state_before, mock_run_safe, capsys):
         """Test amend with skip_stage."""

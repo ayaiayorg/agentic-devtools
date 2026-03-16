@@ -198,3 +198,30 @@ class TestSetBootstrapStateNormalization:
         data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
         assert "identity" not in data
         assert data["worktree_key"] == "K-2"
+
+
+class TestSetBootstrapStateGitignore:
+    """Tests for ensure_agdt_gitignore integration in set_bootstrap_state."""
+
+    def test_calls_ensure_agdt_gitignore(self, tmp_path):
+        """Verify ensure_agdt_gitignore is called with the resolved git_root."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                with patch(
+                    "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore"
+                ) as mock_ensure:
+                    state.set_bootstrap_state(identity="ama", worktree_key="K-1")
+
+        mock_ensure.assert_called_once_with(tmp_path)
+
+    def test_creates_gitignore_file(self, tmp_path):
+        """Verify .agdt/.gitignore is actually created by set_bootstrap_state."""
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key="K-1")
+
+        gi_path = tmp_path / ".agdt" / ".gitignore"
+        assert gi_path.exists()
+        content = gi_path.read_text(encoding="utf-8")
+        assert "runtime-bootstrap.json" in content
+        assert "workflows/" in content

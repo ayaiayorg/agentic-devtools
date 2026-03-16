@@ -14,8 +14,9 @@ class TestStageCommand:
         with patch.object(operations, "get_current_branch", return_value="main"):
             commands.stage_cmd()
         n = len(operations.STAGE_EXCLUDE_FILES)
-        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + 1 (workflows reset)
-        assert mock_run_safe.call_count == 1 + n + 1
+        g = len(operations.AGDT_GITIGNORE_ENTRIES)
+        # 1 (git add .) + n (STAGE_EXCLUDE_FILES) + g (AGDT_GITIGNORE_ENTRIES resets)
+        assert mock_run_safe.call_count == 1 + n + g
         # First call: git add .
         assert mock_run_safe.call_args_list[0][0][0] == ["git", "add", "."]
         # Subsequent calls: git reset HEAD -- <excluded> for each excluded file

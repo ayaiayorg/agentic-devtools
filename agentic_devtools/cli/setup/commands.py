@@ -483,6 +483,13 @@ def setup_cmd() -> None:
 
     any_required_missing = any(s.required and not s.found for s in statuses)
 
+    # Ensure .agdt/.gitignore exists in the repo (if inside a git repo)
+    from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
+    from agentic_devtools.state import _get_git_repo_root
+
+    if ensure_agdt_gitignore(_get_git_repo_root()):
+        print("  ✓ Created .agdt/.gitignore — commit this file to propagate to all worktrees")
+
     print()
     if not copilot_ok or not gh_ok or any_required_missing:
         print("Setup complete with warnings. See above for details.")
