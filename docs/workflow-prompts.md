@@ -2,9 +2,10 @@
 
 All `agdt-initiate-*-workflow` commands are driven by prompt files that serve as the
 **sole source of truth** for workflow automation in agentic-devtools. When a workflow is
-initiated, the CLI loads the appropriate prompt template, interpolates runtime variables,
-and feeds the rendered prompt directly to a Copilot CLI session in the VS Code integrated
-terminal.
+initiated, the CLI renders the appropriate prompt template (saving it to the workflow state
+directory), then starts a Copilot CLI session with a short **bootstrap prompt** that
+instructs the agent to run `agdt-get-next-workflow-prompt`. That command loads and displays
+the full rendered prompt, guiding the agent through the workflow step.
 
 ---
 
@@ -20,8 +21,14 @@ attachments take precedence.
 
 ## Prompt File Inventory
 
-| File Name | Workflow | CLI Command |
-|-----------|----------|-------------|
+The table below lists the canonical prompt file names as attached to the
+[#867 source-of-truth comment](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+These differ from the in-repo template naming scheme
+(`agentic_devtools/prompts/<workflow>/default-<step>-prompt.md`) — the canonical
+attachments are the authoritative reference; the in-repo templates are the editable source.
+
+| Canonical Attachment Name | Workflow | CLI Command |
+|---------------------------|----------|-------------|
 | `pull-request-review.prompt.md` | PR review workflow | `agdt-initiate-pull-request-review-workflow` |
 | `apply-pr-suggestions.prompt.md` | Apply PR review suggestions | `agdt-initiate-apply-pr-suggestions-workflow` |
 | `apply-pr-suggestions-command.prompt.md` | Apply PR suggestions (command variant) | `agdt-initiate-apply-pr-suggestions-workflow` |
@@ -48,15 +55,30 @@ Template file
         │  (Jinja2 via agentic_devtools/prompts/loader.py)
         │  Variables supplied from workflow state ({{ variable_name }} syntax)
         ▼
-Rendered prompt file
+Rendered prompt file saved to disk
   <state-dir>/temp-<workflow>-<step>-prompt.md
         │
-        │  Automatic Copilot session launch
+        │  Copilot session started with a short static bootstrap prompt
         │  (_start_copilot_session_for_workflow in worktree_setup.py)
+        │  e.g. "Execute: agdt-get-next-workflow-prompt"
         ▼
 Copilot CLI session
-  VS Code integrated terminal (interactive) or background task (non-interactive)
+  Bootstrap prompt instructs the agent to run agdt-get-next-workflow-prompt
+        │
+        ▼
+Rendered prompt displayed
+  agdt-get-next-workflow-prompt reads temp-<workflow>-<step>-prompt.md
+  and prints the full workflow instructions to the agent
 ```
+
+Two session modes are possible depending on context:
+
+- **VS Code auto-start** (`folderOpen` task): injected before VS Code opens, always
+  starts an interactive Copilot session in the integrated terminal, regardless of the
+  `--interactive` flag.
+- **Direct invocation**: controlled by `--interactive` (default: `false`). With
+  `--interactive false` Copilot runs as a background task; with `--interactive true` it
+  attaches to the terminal (requires a TTY and VS Code to be available).
 
 Override templates are supported: place an
 `agentic_devtools/prompts/<workflow>/override-<step>-prompt.md` file to replace the
@@ -103,10 +125,13 @@ installed, there is no TTY, or VS Code is unavailable), the workflow degrades gr
 
 You can then paste the prompt manually into GitHub Copilot Chat or any other AI assistant.
 
-To explicitly opt out of interactive session launch, pass `--interactive false`:
+By default (`--interactive` omitted or `--interactive false`), the Copilot session runs
+as a background task. To request an interactive terminal session, pass `--interactive true`
+(requires a TTY and VS Code):
 
 ```bash
-agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive true
 ```
 
-This is the recommended mode for CI pipelines and headless environments.
+For CI pipelines and other headless environments, omit `--interactive` (or pass
+`--interactive false`) to run the session non-interactively.

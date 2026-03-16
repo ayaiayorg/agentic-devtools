@@ -439,12 +439,17 @@ will run in the background. Run agdt-task-log to view output.
 ### Automated Copilot Session Launch
 
 All `agdt-initiate-*-workflow` commands automatically launch a Copilot CLI session after
-worktree setup. The session is fed a rendered prompt derived from the canonical prompt
-files — see [`docs/workflow-prompts.md`](docs/workflow-prompts.md) for the full prompt
-file inventory and lifecycle.
+worktree setup. The rendered prompt is saved to the workflow state directory; the Copilot
+session starts with a short **bootstrap prompt** that instructs the agent to run
+`agdt-get-next-workflow-prompt`, which then loads the full rendered prompt. See
+[`docs/workflow-prompts.md`](docs/workflow-prompts.md) for the prompt file inventory and
+full lifecycle.
 
-Pass `--interactive false` (the default) to run the Copilot session as a background task,
-or `--interactive true` to attach an interactive terminal session:
+Two session modes exist depending on context. When a new worktree is opened in VS Code, a
+`folderOpen` auto-start task starts an interactive session in the integrated terminal
+regardless of `--interactive`. For direct invocations from the CLI, pass
+`--interactive true` to attach to the terminal (requires a TTY and VS Code), or omit it
+(default: non-interactive) to run the Copilot session as a background task:
 
 ```bash
 agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-1234
