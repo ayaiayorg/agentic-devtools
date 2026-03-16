@@ -35,11 +35,41 @@ from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.task_state import print_task_tracking_info
 
 
-def get_package_root() -> Path:
-    """Get the root directory of the agentic_devtools package."""
-    # This file is at agentic_devtools/cli/testing.py
-    # Package root is two levels up
-    return Path(__file__).parent.parent.parent
+def get_workspace_root() -> Path:
+    """Get the workspace root directory (current working directory).
+
+    Validates that pyproject.toml exists in the current directory to ensure
+    commands are run from the correct location.
+
+    Raises:
+        FileNotFoundError: If pyproject.toml is not found in the current directory.
+    """
+    # Use CWD instead of __file__ so that the command works regardless of
+    # whether the package is installed editable, via pip, or via pipx.
+    cwd = Path.cwd()
+    if not (cwd / "pyproject.toml").is_file():
+        raise FileNotFoundError(
+            f"pyproject.toml not found in current directory ({cwd}). "
+            "Run agdt-test commands from the workspace root."
+        )
+    return cwd
+
+
+def _try_get_workspace_root() -> Path | None:
+    """Resolve workspace root, printing a clean error on failure.
+
+    Wraps get_workspace_root() to convert FileNotFoundError into a
+    single-line stderr message, keeping CLI output consistent across
+    all command boundaries without duplicating try/except blocks.
+
+    Returns:
+        The workspace root Path, or None if validation failed.
+    """
+    try:
+        return get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return None
 
 
 # =============================================================================
@@ -84,17 +114,21 @@ def _run_tests_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    package_root = get_package_root()
-    tests_dir = package_root / "tests"
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
+        return 1
+    tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
         print(f"Error: Tests directory not found at {tests_dir}", file=sys.stderr)
         return 1
 
-    print(f"Running tests from {package_root}...")
+    print(f"Running tests from {workspace_root}...")
     print()
 
-    # Run pytest with coverage - use streaming to capture output in logs
+    # Run pytest with coverage - use streaming to capture output in logs.
+    # Clear default addopts to avoid duplicating --cov from pyproject.toml,
+    # then supply all coverage args explicitly for deterministic behavior.
     return _run_subprocess_with_streaming(
         [
             sys.executable,
@@ -103,11 +137,14 @@ def _run_tests_sync() -> int:
             str(tests_dir),
             "-v",
             "--tb=short",
-            f"--cov={package_root / 'agentic_devtools'}",
+            "-o",
+            "addopts=",
+            "--cov=agentic_devtools",
             "--cov-report=term-missing",
             "--cov-report=html",
+            "--cov-fail-under=100",
         ],
-        cwd=str(package_root),
+        cwd=str(workspace_root),
     )
 
 
@@ -117,17 +154,21 @@ def _run_tests_quick_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    package_root = get_package_root()
-    tests_dir = package_root / "tests"
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
+        return 1
+    tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
         print(f"Error: Tests directory not found at {tests_dir}", file=sys.stderr)
         return 1
 
-    print(f"Running tests from {package_root}...")
+    print(f"Running tests from {workspace_root}...")
     print()
 
-    # Run pytest without coverage for speed - use streaming to capture output in logs
+    # Run pytest without coverage for speed - use streaming to capture output in logs.
+    # Clear addopts to neutralize pyproject.toml's default --cov=agentic_devtools,
+    # and pass --no-cov to ensure pytest-cov is fully disabled.
     return _run_subprocess_with_streaming(
         [
             sys.executable,
@@ -136,8 +177,11 @@ def _run_tests_quick_sync() -> int:
             str(tests_dir),
             "-v",
             "--tb=short",
+            "-o",
+            "addopts=",
+            "--no-cov",
         ],
-        cwd=str(package_root),
+        cwd=str(workspace_root),
     )
 
 
@@ -181,8 +225,10 @@ def _run_tests_file_sync() -> int:
     """
     from agentic_devtools.state import get_value
 
-    package_root = get_package_root()
-    tests_dir = package_root / "tests"
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
+        return 1
+    tests_dir = workspace_root / "tests"
 
     if not tests_dir.exists():
         print(f"Error: Tests directory not found at {tests_dir}", file=sys.stderr)
@@ -196,7 +242,7 @@ def _run_tests_file_sync() -> int:
         return 1
 
     # Verify source file exists
-    source_path = package_root / source_file
+    source_path = workspace_root / source_file
     if not source_path.exists():
         print(f"Error: Source file not found: {source_path}", file=sys.stderr)
         return 1
@@ -241,7 +287,7 @@ def _run_tests_file_sync() -> int:
     ]
 
     # Use streaming to capture output in logs
-    return _run_subprocess_with_streaming(args, cwd=str(package_root))
+    return _run_subprocess_with_streaming(args, cwd=str(workspace_root))
 
 
 # Module path for background task imports
@@ -399,9 +445,9 @@ def run_tests_pattern() -> None:
         agdt-test-file
         agdt-task-wait
     """
-    package_root = get_package_root()
-
-    # Get all arguments after the command name
+    # Check for pattern args first — show usage help before validating
+    # workspace root so "agdt-test-pattern" with no args always prints
+    # the usage message regardless of the current directory.
     pattern_args = sys.argv[1:] if len(sys.argv) > 1 else []
 
     if not pattern_args:
@@ -416,6 +462,10 @@ def run_tests_pattern() -> None:
         print("  agdt-set source_file agentic_devtools/state.py")
         print("  agdt-test-file")
         print("  agdt-task-wait")
+        sys.exit(1)
+
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
         sys.exit(1)
 
     args = [
@@ -434,5 +484,5 @@ def run_tests_pattern() -> None:
     print()
 
     # Run synchronously - output goes directly to terminal
-    result = subprocess.run(args, cwd=str(package_root))
+    result = subprocess.run(args, cwd=str(workspace_root))
     sys.exit(result.returncode)

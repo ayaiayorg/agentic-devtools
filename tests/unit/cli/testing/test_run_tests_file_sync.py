@@ -16,9 +16,19 @@ from agentic_devtools.cli import testing
 class TestRunTestsFileSync:
     """Tests for _run_tests_file_sync function (the actual implementation)."""
 
+    def test_returns_error_when_workspace_root_invalid(self, capsys):
+        """Should return error code when _try_get_workspace_root returns None."""
+        with patch.object(
+            testing,
+            "_try_get_workspace_root",
+            return_value=None,
+        ):
+            result = testing._run_tests_file_sync()
+            assert result == 1
+
     def test_returns_error_when_tests_dir_missing(self, tmp_path):
         """Should return error code when tests directory is missing."""
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             result = testing._run_tests_file_sync()
             assert result == 1
 
@@ -27,7 +37,7 @@ class TestRunTestsFileSync:
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch("agentic_devtools.state.get_value", return_value=None):
                 result = testing._run_tests_file_sync()
 
@@ -40,7 +50,7 @@ class TestRunTestsFileSync:
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch("agentic_devtools.state.get_value", return_value="agentic_devtools/missing.py"):
                 result = testing._run_tests_file_sync()
 
@@ -57,7 +67,7 @@ class TestRunTestsFileSync:
         source_dir.mkdir()
         (source_dir / "example.py").write_text("# Example module")
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch("agentic_devtools.state.get_value", return_value="agentic_devtools/example.py"):
                 result = testing._run_tests_file_sync()
 
@@ -76,7 +86,7 @@ class TestRunTestsFileSync:
         source_dir.mkdir()
         (source_dir / "example.py").write_text("# Example module")
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch("agentic_devtools.state.get_value", return_value="agentic_devtools/example.py"):
                 with patch.object(testing, "_run_subprocess_with_streaming", return_value=0) as mock_run:
                     result = testing._run_tests_file_sync()

@@ -16,9 +16,19 @@ from agentic_devtools.cli import testing
 class TestRunTestsSync:
     """Tests for _run_tests_sync function (the actual implementation)."""
 
+    def test_returns_error_when_workspace_root_invalid(self, capsys):
+        """Should return error code when _try_get_workspace_root returns None."""
+        with patch.object(
+            testing,
+            "_try_get_workspace_root",
+            return_value=None,
+        ):
+            result = testing._run_tests_sync()
+            assert result == 1
+
     def test_returns_error_when_tests_dir_missing(self, tmp_path):
         """Should return error code when tests directory is missing."""
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             result = testing._run_tests_sync()
             assert result == 1
 
@@ -27,7 +37,7 @@ class TestRunTestsSync:
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
 
-        with patch.object(testing, "get_package_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch.object(testing, "_run_subprocess_with_streaming", return_value=0) as mock_run:
                 result = testing._run_tests_sync()
 
@@ -37,5 +47,10 @@ class TestRunTestsSync:
                 assert "-m" in call_args
                 assert "pytest" in call_args
                 assert "-v" in call_args
-                assert any("--cov=" in arg for arg in call_args)
+                assert "--cov=agentic_devtools" in call_args
+                # Should clear default addopts to avoid duplicate --cov
+                assert "addopts=" in call_args
+                # Should preserve --cov-fail-under=100 since clearing addopts
+                # removes it from pyproject.toml's defaults
+                assert "--cov-fail-under=100" in call_args
                 assert result == 0
