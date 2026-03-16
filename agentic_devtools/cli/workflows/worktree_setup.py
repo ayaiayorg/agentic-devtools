@@ -1425,7 +1425,7 @@ def _start_copilot_session_for_workflow(
     task was already injected and there is no TTY attached (background task
     scenario), it waits for the sentinel file to confirm VS Code handled the
     session.  This check runs regardless of the *interactive* flag — injection
-    always happens when VS Code is available (even when the background setup
+    is attempted whenever VS Code is available (even when the background setup
     was invoked with ``interactive=False``).
 
     In interactive mode the Copilot session inherits the terminal so the
@@ -1805,7 +1805,6 @@ def _start_copilot_session_for_update_jira_issue(
 
 def _maybe_inject_auto_start_before_vscode(
     worktree_path: str,
-    interactive: bool,
     start_prompt: str = COPILOT_SESSION_START_PROMPT,
 ) -> bool:
     """Inject a VS Code auto-start task before VS Code opens.
@@ -1815,12 +1814,9 @@ def _maybe_inject_auto_start_before_vscode(
     agent which workflow to execute — callers should pass the correct
     workflow-specific prompt (see :data:`_WORKFLOW_START_PROMPTS`).
 
-    The *interactive* flag controls only whether the *fallback* Copilot CLI
-    session (started by :func:`_start_copilot_session_for_workflow` when the
-    sentinel never appears) inherits the TTY.  Injection itself always runs
-    regardless of *interactive*, because the VS Code integrated-terminal
-    auto-start is the local-development path even when the background setup
-    task was invoked with ``interactive=False``.
+    Injection is attempted regardless of the ``interactive`` flag passed to
+    the outer worktree-setup flow.  Internal guards (``is_vscode_available()``,
+    sentinel file check, etc.) prevent inappropriate injection.
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (Copilot CLI not found) or ``inject_auto_start_task()`` fails,
@@ -1898,9 +1894,7 @@ def setup_worktree_in_background_sync(
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
         wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
-        _auto_start_injected = _maybe_inject_auto_start_before_vscode(
-            existing_path, interactive, start_prompt=wf_prompt
-        )
+        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt)
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
@@ -1941,9 +1935,7 @@ can copy and paste it into the new VS Code window that just opened:
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
         wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
-        _auto_start_injected = _maybe_inject_auto_start_before_vscode(
-            result.worktree_path, interactive, start_prompt=wf_prompt
-        )
+        _maybe_inject_auto_start_before_vscode(result.worktree_path, start_prompt=wf_prompt)
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)

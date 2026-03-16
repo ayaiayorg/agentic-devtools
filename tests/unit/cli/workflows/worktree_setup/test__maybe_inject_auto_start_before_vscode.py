@@ -14,33 +14,15 @@ class TestMaybeInjectAutoStartBeforeVscode:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
-    def test_injects_task_when_interactive(
+    def test_injects_task_when_copilot_args_available(
         self,
         mock_build_args,
         mock_inject,
         tmp_path,
         capsys,
     ):
-        """When interactive=True and copilot args are available, inject the auto-start task."""
-        result = _maybe_inject_auto_start_before_vscode(str(tmp_path), interactive=True)
-
-        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
-        mock_inject.assert_called_once_with(str(tmp_path), ["copilot", "-i", "prompt"])
-        captured = capsys.readouterr()
-        assert "auto-start task injected" in captured.out
-        assert result is True
-
-    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
-    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
-    def test_injects_task_when_not_interactive(
-        self,
-        mock_build_args,
-        mock_inject,
-        tmp_path,
-        capsys,
-    ):
-        """When interactive=False, injection still runs (interactive flag does not gate it)."""
-        result = _maybe_inject_auto_start_before_vscode(str(tmp_path), interactive=False)
+        """When copilot args are available, inject the auto-start task."""
+        result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
         mock_inject.assert_called_once_with(str(tmp_path), ["copilot", "-i", "prompt"])
@@ -57,7 +39,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
     ):
         """When build_copilot_args returns None (Copilot CLI not found), skip injection."""
-        result = _maybe_inject_auto_start_before_vscode(str(tmp_path), interactive=True)
+        result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_called_once()
         mock_inject.assert_not_called()
@@ -73,7 +55,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When inject_auto_start_task returns False, no success message should be printed."""
-        result = _maybe_inject_auto_start_before_vscode(str(tmp_path), interactive=True)
+        result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_inject.assert_called_once()
         captured = capsys.readouterr()
@@ -91,7 +73,6 @@ class TestMaybeInjectAutoStartBeforeVscode:
         """When a custom start_prompt is provided, it is forwarded to build_copilot_args."""
         _maybe_inject_auto_start_before_vscode(
             str(tmp_path),
-            interactive=True,
             start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
         )
 
