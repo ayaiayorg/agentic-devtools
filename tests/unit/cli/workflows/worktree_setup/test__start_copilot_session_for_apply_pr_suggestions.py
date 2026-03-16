@@ -93,12 +93,9 @@ class TestStartCopilotSessionForApplyPrSuggestions:
         mock_state_dir.return_value = state_dir
 
         original_val = "/some/original/state/dir"
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = original_val
-        try:
+        with patch.dict(os.environ, {"AGENTIC_DEVTOOLS_STATE_DIR": original_val}, clear=False):
             _start_copilot_session_for_apply_pr_suggestions(str(tmp_path))
             assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == original_val
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
 
 
 class TestCopilotSessionStartPromptApplyPrSuggestions:
