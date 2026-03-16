@@ -6,50 +6,6 @@ import pytest
 
 from agentic_devtools import state
 from agentic_devtools.cli.workflows import commands
-from agentic_devtools.prompts import loader
-
-
-@pytest.fixture
-def temp_prompts_dir(tmp_path):
-    """Create a temporary prompts directory with test templates."""
-    prompts_dir = tmp_path / "prompts"
-    prompts_dir.mkdir()
-    with patch.object(loader, "get_prompts_dir", return_value=prompts_dir):
-        yield prompts_dir
-
-
-@pytest.fixture
-def temp_output_dir(tmp_path):
-    """Create a temporary output directory."""
-    output_dir = tmp_path / "temp"
-    output_dir.mkdir()
-    with patch.object(loader, "get_temp_output_dir", return_value=output_dir):
-        yield output_dir
-
-
-@pytest.fixture
-def clear_state_before(temp_state_dir):
-    """Clear state before each test.
-
-    Note: We only remove the state file, not the entire temp folder,
-    to avoid deleting directories created by other fixtures (like temp_prompts_dir).
-    """
-    state_file = temp_state_dir / "state.json"
-    if state_file.exists():
-        state_file.unlink()
-    yield
-
-
-@pytest.fixture
-def mock_workflow_state_clearing():
-    """Mock clear_state_for_workflow_initiation to be a no-op.
-
-    Workflow initiation commands reset workflow tracking keys (workflow,
-    agdt_run_id) at the start.  This fixture prevents that reset, which
-    is useful when tests pre-set workflow state before calling the command.
-    """
-    with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
-        yield
 
 
 class TestInitiateOptimizeIssueForAiAgentWorkflowBranches:
@@ -200,3 +156,69 @@ class TestWorkflowCommands:
         # Verify workflow state was set
         workflow = state.get_workflow_state()
         assert workflow["active"] == "optimize-issue-for-ai-agent"
+
+    def test_preflight_passes_persists_interactive_to_state(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Test that interactive is persisted to workflow.interactive in state on preflight pass."""
+        workflow_dir = temp_prompts_dir / "optimize-issue-for-ai-agent"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(
+            "Optimizing issue {{jira_issue_key}}", encoding="utf-8"
+        )
+        state.set_value("jira.issue_key", "DFLY-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="DFLY-1234",
+                branch_name="feature/DFLY-1234/optimize",
+                issue_key="DFLY-1234",
+            )
+
+            commands.initiate_optimize_issue_for_ai_agent_workflow(
+                _argv=["--issue-key", "DFLY-1234", "--interactive", "true"]
+            )
+
+        assert state.get_value("workflow.interactive") == "true"
+
+    def test_preflight_passes_persists_interactive_false_by_default(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Test that interactive defaults to false and is stored in state."""
+        workflow_dir = temp_prompts_dir / "optimize-issue-for-ai-agent"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(
+            "Optimizing issue {{jira_issue_key}}", encoding="utf-8"
+        )
+        state.set_value("jira.issue_key", "DFLY-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="DFLY-1234",
+                branch_name="feature/DFLY-1234/optimize",
+                issue_key="DFLY-1234",
+            )
+
+            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+
+        assert state.get_value("workflow.interactive") == "false"

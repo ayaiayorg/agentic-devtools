@@ -1776,7 +1776,11 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
         user_request: Optional guidance on what to focus on when optimizing the issue.
-        interactive: Whether to start the Copilot session interactively (default: False).
+        interactive: Whether to start the Copilot session interactively once session
+            launch is wired (see TODO below). The value is persisted to
+            ``workflow.interactive`` in state so future session-launch code can
+            read it with zero CLI changes. On the preflight-fail path it is also
+            forwarded to ``perform_auto_setup``.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Required state:
@@ -1785,7 +1789,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     Optional state:
     - jira.user_request: Guidance on what to focus on when optimizing
     """
-    # Clear all previous state to ensure fresh workflow start
+    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
 
     import argparse
@@ -1884,6 +1889,9 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         optional_state_keys=["jira.user_request"],
     )
 
+    # Persist interactive preference so future session-launch code can read it from state.
+    set_value("workflow.interactive", "true" if interactive else "false")
+
     # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
     # session helpers are available
 
@@ -1913,7 +1921,11 @@ def initiate_break_down_issue_into_subtasks_workflow(
     Args:
         issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
         user_request: Optional guidance on how to break down the issue.
-        interactive: Whether to start the Copilot session interactively (default: False).
+        interactive: Whether to start the Copilot session interactively once session
+            launch is wired (see TODO below). The value is persisted to
+            ``workflow.interactive`` in state so future session-launch code can
+            read it with zero CLI changes. On the preflight-fail path it is also
+            forwarded to ``perform_auto_setup``.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
     Required state:
@@ -1922,7 +1934,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
     Optional state:
     - jira.user_request: Guidance on how to break down the issue
     """
-    # Clear all previous state to ensure fresh workflow start
+    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
 
     import argparse
@@ -2020,6 +2033,9 @@ def initiate_break_down_issue_into_subtasks_workflow(
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.user_request"],
     )
+
+    # Persist interactive preference so future session-launch code can read it from state.
+    set_value("workflow.interactive", "true" if interactive else "false")
 
     # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
     # session helpers are available
