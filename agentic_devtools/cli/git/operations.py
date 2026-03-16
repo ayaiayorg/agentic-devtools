@@ -8,13 +8,13 @@ This module provides the individual git operations:
 - Branch state detection
 """
 
+import sys
 from pathlib import Path
 from typing import Optional
 
 from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
 from .core import get_current_branch, run_git, temp_message_file
-import sys
 
 # Auto-generated files that must never be staged or committed.
 # After `git add .`, these are unstaged via `git reset HEAD <file>`.
