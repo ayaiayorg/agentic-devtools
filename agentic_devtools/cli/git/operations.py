@@ -14,6 +14,7 @@ from typing import Optional
 from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
 from .core import get_current_branch, run_git, temp_message_file
+import sys
 
 # Auto-generated files that must never be staged or committed.
 # After `git add .`, these are unstaged via `git reset HEAD <file>`.
@@ -65,8 +66,12 @@ def stage_changes(dry_run: bool) -> None:
                 if gitignore_path.is_file():
                     gitignore_path.unlink()
                     print("Removed .agdt/.gitignore (on -agdt branch, state will be committed)")
-        except OSError:
-            pass  # Non-fatal — best effort
+        except OSError as exc:
+            print(
+                f"Warning: Failed to remove .agdt/.gitignore "
+                f"(state files may remain ignored and not be committed): {exc}",
+                file=sys.stderr,
+            )
 
     print("Staging all changes...")
     run_git("add", ".")
