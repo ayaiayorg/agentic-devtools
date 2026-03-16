@@ -534,6 +534,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         temp_output_dir,
         clear_state_before,
         mock_preflight_pass,
+        mock_copilot_session,
     ):
         """Test that initiating the workflow sets the expected state.
 
@@ -599,6 +600,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         temp_output_dir,
         clear_state_before,
         mock_preflight_pass,
+        mock_copilot_session,
         mock_jira_issue_response,
     ):
         """Test that try_advance_workflow_after_jira_issue_retrieved has no side effects.

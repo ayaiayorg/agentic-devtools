@@ -175,3 +175,18 @@ def mock_workflow_state_clearing():
         return_value=None,
     ):
         yield
+
+
+@pytest.fixture
+def mock_copilot_session():
+    """Mock Copilot session start to prevent real subprocess calls and 300s timeouts.
+
+    Workflow initiation commands (e.g., initiate_create_jira_issue_workflow) call
+    _start_copilot_session_for_workflow which polls for a prompt file on disk
+    (300s timeout) and then spawns ``gh copilot``.  Both are undesirable in tests.
+    """
+    with patch(
+        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow",
+        return_value=False,
+    ):
+        yield
