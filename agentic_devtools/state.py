@@ -39,14 +39,24 @@ def is_safe_dir_segment(name: str) -> bool:
 
     Returns ``False`` when *name* is empty or contains path separators
     (``/``, ``\\``), double-dot sequences (``..`` anywhere in the string),
-    or colons (``:``) which on Windows can reset the drive
-    (e.g. ``Path(base) / 'D:'``).
+    colons (``:``) which on Windows can reset the drive
+    (e.g. ``Path(base) / 'D:'``), or non-printable characters (including
+    embedded NUL bytes ``\\x00``).  Non-printable characters can cause
+    ``pathlib.Path`` to raise ``ValueError`` or produce unpredictable
+    filesystem behaviour.
 
     This is the **centralised** safety check used by both ``get_state_dir()``
     and ``_run_auto_execute_command()`` to prevent a tampered bootstrap file
     from escaping ``.agdt/workflows/``.
     """
-    return bool(name) and ".." not in name and "/" not in name and "\\" not in name and ":" not in name
+    return (
+        bool(name)
+        and ".." not in name
+        and "/" not in name
+        and "\\" not in name
+        and ":" not in name
+        and name.isprintable()
+    )
 
 
 def _get_git_repo_root() -> Optional[Path]:

@@ -36,3 +36,14 @@ class TestIsSafeDirSegment:
 
     def test_rejects_colon_in_name(self):
         assert is_safe_dir_segment("foo:bar") is False
+
+    def test_rejects_embedded_nul(self):
+        """NUL bytes cause pathlib.Path to raise ValueError."""
+        assert is_safe_dir_segment("a\x00b") is False
+
+    def test_rejects_nul_only(self):
+        assert is_safe_dir_segment("\x00") is False
+
+    def test_rejects_control_char(self):
+        """Non-printable control characters must be rejected."""
+        assert is_safe_dir_segment("foo\x01bar") is False
