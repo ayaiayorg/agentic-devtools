@@ -629,3 +629,64 @@ class TestSetupPullRequestReviewPersistence:
 
         branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
         assert len(branch_calls) == 0
+
+    def test_bootstrap_failure_logs_warning_and_continues(self, capsys):
+        """Regression: bootstrap init failure must log to stderr and not abort review setup."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch(
+                                                            "agdt_ai_helpers.state.set_bootstrap_state",
+                                                            side_effect=OSError("disk full"),
+                                                        ):
+                                                            with patch("agdt_ai_helpers.state.set_value"):
+                                                                setup_pull_request_review()
+
+        captured = capsys.readouterr()
+        assert "WARNING: bootstrap state init failed" in captured.err
+        assert "disk full" in captured.err
