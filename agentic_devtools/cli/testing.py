@@ -152,7 +152,9 @@ def _run_tests_quick_sync() -> int:
     print(f"Running tests from {workspace_root}...")
     print()
 
-    # Run pytest without coverage for speed - use streaming to capture output in logs
+    # Run pytest without coverage for speed - use streaming to capture output in logs.
+    # Clear addopts to neutralize pyproject.toml's default --cov=agentic_devtools,
+    # and pass --no-cov to ensure pytest-cov is fully disabled.
     return _run_subprocess_with_streaming(
         [
             sys.executable,
@@ -161,6 +163,9 @@ def _run_tests_quick_sync() -> int:
             str(tests_dir),
             "-v",
             "--tb=short",
+            "-o",
+            "addopts=",
+            "--no-cov",
         ],
         cwd=str(workspace_root),
     )
@@ -428,13 +433,9 @@ def run_tests_pattern() -> None:
         agdt-test-file
         agdt-task-wait
     """
-    try:
-        workspace_root = get_workspace_root()
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    # Get all arguments after the command name
+    # Check for pattern args first — show usage help before validating
+    # workspace root so "agdt-test-pattern" with no args always prints
+    # the usage message regardless of the current directory.
     pattern_args = sys.argv[1:] if len(sys.argv) > 1 else []
 
     if not pattern_args:
@@ -449,6 +450,12 @@ def run_tests_pattern() -> None:
         print("  agdt-set source_file agentic_devtools/state.py")
         print("  agdt-test-file")
         print("  agdt-task-wait")
+        sys.exit(1)
+
+    try:
+        workspace_root = get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
     args = [
