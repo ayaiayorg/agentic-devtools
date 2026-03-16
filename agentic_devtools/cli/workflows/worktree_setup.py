@@ -1389,8 +1389,8 @@ def _run_auto_execute_command(
     if identity and worktree_key and _is_safe_dir_segment(identity) and _is_safe_dir_segment(worktree_key):
         state_dir = Path(worktree_path) / ".agdt" / "workflows" / identity / worktree_key
     else:
-        if identity or worktree_key:
-            # Had values but they failed validation — log for debugging.
+        if identity and worktree_key:
+            # Both values present but at least one failed safety validation.
             print(
                 f"WARNING: unsafe bootstrap identity/worktree_key "
                 f"({identity!r}/{worktree_key!r}), falling back to _unscoped"

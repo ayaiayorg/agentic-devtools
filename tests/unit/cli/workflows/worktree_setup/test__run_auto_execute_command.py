@@ -180,8 +180,8 @@ class TestRunAutoExecuteCommand:
         assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    def test_falls_back_to_unscoped_when_bootstrap_missing_identity(self, mock_run, tmp_path):
-        """Test fallback to _unscoped when bootstrap has worktree_key but no identity."""
+    def test_falls_back_to_unscoped_when_bootstrap_missing_identity(self, mock_run, capsys, tmp_path):
+        """Test silent fallback to _unscoped when bootstrap has worktree_key but no identity."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         worktree = tmp_path / "wt"
         worktree.mkdir()
@@ -195,6 +195,11 @@ class TestRunAutoExecuteCommand:
         call_kwargs = mock_run.call_args[1]
         env = call_kwargs["env"]
         assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+        # Incomplete bootstrap (only one of identity/worktree_key) should NOT
+        # produce an "unsafe bootstrap" warning — that is reserved for the case
+        # where both are present but fail safety validation.
+        captured = capsys.readouterr()
+        assert "unsafe bootstrap" not in captured.out
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     def test_falls_back_to_unscoped_when_bootstrap_malformed(self, mock_run, tmp_path):

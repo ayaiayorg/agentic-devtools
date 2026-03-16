@@ -717,20 +717,10 @@ def setup_pull_request_review() -> None:
         run_id = uuid.uuid4().hex[:12]
         set_value("agdt_run_id", run_id)
 
-        # Store current branch for persist_if_dirty() resolution
-        try:
-            branch_result = run_safe(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-                shell=False,
-            )
-            branch_name = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
-            if branch_name and branch_name != "HEAD":
-                set_value("versionControl.currentBranch", branch_name)
-        except Exception:
-            pass  # Best-effort; persist_if_dirty has its own fallback
+        # NOTE: versionControl.currentBranch is intentionally NOT set here.
+        # This function checks out the PR source branch below (Step 3), so
+        # the branch at this point is stale.  persist_if_dirty() resolves the
+        # current branch from git when needed.
     except Exception as exc:
         # Bootstrap is best-effort: review proceeds using _unscoped if this
         # fails (e.g., not in a git repo).  Log the error for debugging.

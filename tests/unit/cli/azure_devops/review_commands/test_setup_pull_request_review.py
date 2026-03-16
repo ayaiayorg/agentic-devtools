@@ -521,7 +521,7 @@ class TestSetupPullRequestReviewPersistence:
         }
         return mapping.get(key, default)
 
-    def _run_setup_with_captures(self, *, branch_stdout="feature/test\n", branch_returncode=0):
+    def _run_setup_with_captures(self):
         """Run setup_pull_request_review and capture set_bootstrap_state/set_value calls."""
         from agentic_devtools.cli.azure_devops.review_commands import (
             setup_pull_request_review,
@@ -530,15 +530,6 @@ class TestSetupPullRequestReviewPersistence:
         mock_git_result = MagicMock()
         mock_git_result.returncode = 0
         mock_git_result.stdout = "/repo/root\n"
-
-        mock_branch_result = MagicMock()
-        mock_branch_result.returncode = branch_returncode
-        mock_branch_result.stdout = branch_stdout
-
-        def run_safe_side_effect(cmd, **kwargs):
-            if "rev-parse" in cmd and "--abbrev-ref" in cmd:
-                return mock_branch_result
-            return mock_git_result
 
         mock_config = MagicMock()
         mock_config.organization = "https://dev.azure.com/testorg"
@@ -577,7 +568,7 @@ class TestSetupPullRequestReviewPersistence:
                                             ):
                                                 with patch(
                                                     "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
-                                                    side_effect=run_safe_side_effect,
+                                                    return_value=mock_git_result,
                                                 ):
                                                     with patch(
                                                         "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
@@ -612,24 +603,15 @@ class TestSetupPullRequestReviewPersistence:
         run_id = run_id_calls[0][0][1]
         assert re.fullmatch(r"[0-9a-f]{12}", run_id), f"Expected 12-char hex, got {run_id!r}"
 
-    def test_sets_version_control_current_branch(self):
-        """Regression: versionControl.currentBranch must be stored when git succeeds."""
+    def test_does_not_set_version_control_current_branch(self):
+        """Regression: versionControl.currentBranch must NOT be set during bootstrap.
+
+        The function checks out the PR source branch after bootstrap, so
+        storing the pre-checkout branch would cause persist_if_dirty() to
+        target the wrong -agdt branch.  Let persist_if_dirty() resolve it
+        from git at runtime instead.
+        """
         _, mock_set_value = self._run_setup_with_captures()
-
-        branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
-        assert len(branch_calls) == 1
-        assert branch_calls[0][0][1] == "feature/test"
-
-    def test_skips_current_branch_on_detached_head(self):
-        """Regression: versionControl.currentBranch must NOT be set on detached HEAD."""
-        _, mock_set_value = self._run_setup_with_captures(branch_stdout="HEAD\n")
-
-        branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
-        assert len(branch_calls) == 0
-
-    def test_skips_current_branch_on_git_failure(self):
-        """Regression: versionControl.currentBranch must NOT be set when git fails."""
-        _, mock_set_value = self._run_setup_with_captures(branch_returncode=1, branch_stdout="")
 
         branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
         assert len(branch_calls) == 0
