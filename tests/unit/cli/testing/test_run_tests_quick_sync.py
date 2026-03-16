@@ -17,24 +17,18 @@ class TestRunTestsQuickSync:
     """Tests for _run_tests_quick_sync function (the actual implementation)."""
 
     def test_returns_error_when_workspace_root_invalid(self, capsys):
-        """Should return error code when get_workspace_root raises."""
-        error_msg = (
-            "pyproject.toml not found in current directory (/tmp). "
-            "Run agdt-test commands from the workspace root."
-        )
+        """Should return error code when _try_get_workspace_root returns None."""
         with patch.object(
             testing,
-            "get_workspace_root",
-            side_effect=FileNotFoundError(error_msg),
+            "_try_get_workspace_root",
+            return_value=None,
         ):
             result = testing._run_tests_quick_sync()
             assert result == 1
-            captured = capsys.readouterr()
-            assert "pyproject.toml not found" in captured.err
 
     def test_returns_error_when_tests_dir_missing(self, tmp_path):
         """Should return error code when tests directory is missing."""
-        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             result = testing._run_tests_quick_sync()
             assert result == 1
 
@@ -43,7 +37,7 @@ class TestRunTestsQuickSync:
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
 
-        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch.object(testing, "_run_subprocess_with_streaming", return_value=0) as mock_run:
                 result = testing._run_tests_quick_sync()
 

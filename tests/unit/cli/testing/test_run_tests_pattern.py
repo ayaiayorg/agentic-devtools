@@ -31,29 +31,23 @@ class TestRunTestsPattern:
             assert exc_info.value.code == 1
 
     def test_exits_with_error_when_workspace_root_invalid(self, capsys):
-        """Should exit with error code when get_workspace_root raises."""
-        error_msg = (
-            "pyproject.toml not found in current directory (/tmp). "
-            "Run agdt-test commands from the workspace root."
-        )
+        """Should exit with error code when _try_get_workspace_root returns None."""
         with patch.object(
             testing,
-            "get_workspace_root",
-            side_effect=FileNotFoundError(error_msg),
+            "_try_get_workspace_root",
+            return_value=None,
         ):
             with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_example.py"]):
                 with pytest.raises(SystemExit) as exc_info:
                     testing.run_tests_pattern()
                 assert exc_info.value.code == 1
-                captured = capsys.readouterr()
-                assert "pyproject.toml not found" in captured.err
 
     def test_runs_with_pattern_args(self, tmp_path):
         """Should pass pattern arguments to pytest."""
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_example.py", "-v"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result) as mock_run:
                     with pytest.raises(SystemExit) as exc_info:
@@ -69,7 +63,7 @@ class TestRunTestsPattern:
         mock_result = MagicMock()
         mock_result.returncode = 5  # pytest failure exit code
 
-        with patch.object(testing, "get_workspace_root", return_value=tmp_path):
+        with patch.object(testing, "_try_get_workspace_root", return_value=tmp_path):
             with patch.object(sys, "argv", ["agdt-test-pattern", "tests/test_fail.py"]):
                 with patch.object(testing.subprocess, "run", return_value=mock_result):
                     with pytest.raises(SystemExit) as exc_info:

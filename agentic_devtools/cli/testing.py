@@ -55,6 +55,23 @@ def get_workspace_root() -> Path:
     return cwd
 
 
+def _try_get_workspace_root() -> Path | None:
+    """Resolve workspace root, printing a clean error on failure.
+
+    Wraps get_workspace_root() to convert FileNotFoundError into a
+    single-line stderr message, keeping CLI output consistent across
+    all command boundaries without duplicating try/except blocks.
+
+    Returns:
+        The workspace root Path, or None if validation failed.
+    """
+    try:
+        return get_workspace_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return None
+
+
 # =============================================================================
 # Internal sync functions (called by background tasks)
 # =============================================================================
@@ -97,10 +114,8 @@ def _run_tests_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    try:
-        workspace_root = get_workspace_root()
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
         return 1
     tests_dir = workspace_root / "tests"
 
@@ -138,10 +153,8 @@ def _run_tests_quick_sync() -> int:
 
     Returns pytest exit code. Called by background task.
     """
-    try:
-        workspace_root = get_workspace_root()
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
         return 1
     tests_dir = workspace_root / "tests"
 
@@ -211,10 +224,8 @@ def _run_tests_file_sync() -> int:
     """
     from agentic_devtools.state import get_value
 
-    try:
-        workspace_root = get_workspace_root()
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
         return 1
     tests_dir = workspace_root / "tests"
 
@@ -452,10 +463,8 @@ def run_tests_pattern() -> None:
         print("  agdt-task-wait")
         sys.exit(1)
 
-    try:
-        workspace_root = get_workspace_root()
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    workspace_root = _try_get_workspace_root()
+    if workspace_root is None:
         sys.exit(1)
 
     args = [
