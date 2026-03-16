@@ -82,7 +82,7 @@ class TestCommitCommand:
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
@@ -175,7 +175,7 @@ class TestCommitCommand:
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
                         MagicMock(returncode=0, stdout="", stderr=""),  # commit
                         MagicMock(returncode=0, stdout="", stderr=""),  # force push
@@ -206,7 +206,7 @@ class TestAmendCommand:
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
                 MagicMock(returncode=0, stdout="", stderr=""),  # amend
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
@@ -394,7 +394,7 @@ class TestSmartCommitAmendDetection:
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
                         MagicMock(returncode=0, stdout="", stderr=""),  # amend
                         MagicMock(returncode=0, stdout="", stderr=""),  # force push
@@ -423,7 +423,7 @@ class TestSmartCommitAmendDetection:
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
                     + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+                    + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
                     + [
                         MagicMock(returncode=0, stdout="", stderr=""),  # commit
                         MagicMock(returncode=0, stdout="", stderr=""),  # push
@@ -475,7 +475,7 @@ class TestCommitCompletedParameter:
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
@@ -524,7 +524,7 @@ class TestCommitCompletedParameter:
         mock_run_safe.side_effect = (
             [MagicMock(returncode=0, stdout="", stderr="")]  # add
             + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
-            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # gitignore entry resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # AGDT_GITIGNORE_ENTRIES unstages
             + [
                 MagicMock(returncode=0, stdout="", stderr=""),  # commit
                 MagicMock(returncode=0, stdout="", stderr=""),  # push
