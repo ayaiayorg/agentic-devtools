@@ -207,9 +207,7 @@ class TestSetBootstrapStateGitignore:
         """Verify ensure_agdt_gitignore is called with the resolved git_root."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.object(state, "_get_git_email", return_value="u@e.com"):
-                with patch(
-                    "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore"
-                ) as mock_ensure:
+                with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore") as mock_ensure:
                     state.set_bootstrap_state(identity="ama", worktree_key="K-1")
 
         mock_ensure.assert_called_once_with(tmp_path)

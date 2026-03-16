@@ -121,4 +121,3 @@ class TestStageChanges:
 
         # File should still exist
         assert gi_path.exists()
-
