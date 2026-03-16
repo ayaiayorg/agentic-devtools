@@ -539,11 +539,12 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
     returns ``False`` with an actionable message if a different branch
     is checked out.
 
-    Guards against data loss by checking for unpushed local commits
-    before performing the hard reset. If the local branch is ahead of
-    origin/<branch_name>, or if the safety check cannot be performed,
-    the reset is aborted with a descriptive message so the reviewer
-    can push/stash/discard manually.
+    Guards against data loss by:
+    - Checking for uncommitted or untracked working tree changes.
+    - Checking for unpushed local commits before performing the hard reset.
+
+    If any safety condition is detected, the reset is aborted with a
+    descriptive message so the reviewer can resolve manually.
 
     Args:
         branch_name: Name of the branch to reset to
@@ -555,6 +556,12 @@ def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
     if dry_run:
         print(f"[DRY RUN] Would reset to origin/{branch_name}")
         return True
+
+    # Guard: check for uncommitted/untracked working tree changes
+    if has_local_changes():
+        print("Error: You have uncommitted local changes.")
+        print("Aborting reset to avoid losing work. Commit, stash, or discard your changes, then retry.")
+        return False
 
     # Guard: verify we are on the expected branch
     head_result = run_git("rev-parse", "--abbrev-ref", "HEAD", check=False)
