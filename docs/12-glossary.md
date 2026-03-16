@@ -11,6 +11,13 @@
 **Auto-approval**
 : VS Code feature that remembers command approvals; the goal is to minimize required approvals
 
+**Auto-session**
+: Behavior where an `agdt-initiate-*-workflow` command automatically launches a Copilot
+CLI session in the VS Code integrated terminal (or as a background task when
+`--interactive false`) after worktree setup, feeding the rendered prompt directly to the
+session. Falls back to printing the prompt to the console when a session cannot be
+started.
+
 **Azure DevOps (ADO)**
 : Microsoft's DevOps platform providing Git repositories, pull requests, work items, and CI/CD pipelines
 
@@ -117,6 +124,14 @@
 
 **PAT**
 : Personal Access Token; authentication credential for APIs
+
+**Prompt File (Workflow)**
+: Markdown file that serves as the source of truth for a workflow step's Copilot session
+prompt. Template files live in `agentic_devtools/prompts/<workflow>/default-<step>-prompt.md`;
+the canonical versions are attached to
+[issue #867](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+At runtime, variables are interpolated by `loader.py` (Jinja2) and the rendered prompt is
+saved to the workflow state directory before being fed to the Copilot CLI session.
 
 **Pull Request (PR)**
 : Code review request in Azure DevOps or GitHub
@@ -280,13 +295,13 @@
 
 | Command | Purpose |
 |---------|---------|
-| `agdt-initiate-work-on-jira-issue-workflow` | Start Jira issue workflow |
-| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow |
-| `agdt-initiate-create-jira-issue-workflow` | Start create Jira issue workflow |
-| `agdt-initiate-create-jira-epic-workflow` | Start create Jira epic workflow |
-| `agdt-initiate-create-jira-subtask-workflow` | Start create Jira subtask workflow |
-| `agdt-initiate-update-jira-issue-workflow` | Start update Jira issue workflow |
-| `agdt-initiate-apply-pr-suggestions-workflow` | Start apply PR suggestions workflow |
+| `agdt-initiate-work-on-jira-issue-workflow` | Start Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-issue-workflow` | Start create Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-epic-workflow` | Start create Jira epic workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-subtask-workflow` | Start create Jira subtask workflow (auto-launches Copilot session) |
+| `agdt-initiate-update-jira-issue-workflow` | Start update Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-apply-pr-suggestions-workflow` | Start apply PR suggestions workflow (auto-launches Copilot session) |
 | `agdt-advance-workflow` | Manually advance workflow step |
 | `agdt-get-next-workflow-prompt` | Get next step prompt |
 

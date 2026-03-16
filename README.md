@@ -436,6 +436,25 @@ NOTE: VS Code integrated terminal auto-start not available. Copilot session
 will run in the background. Run agdt-task-log to view output.
 ```
 
+### Automated Copilot Session Launch
+
+All `agdt-initiate-*-workflow` commands automatically launch a Copilot CLI session after
+worktree setup. The session is fed a rendered prompt derived from the canonical prompt
+files — see [`docs/workflow-prompts.md`](docs/workflow-prompts.md) for the full prompt
+file inventory and lifecycle.
+
+Pass `--interactive false` (the default) to run the Copilot session as a background task,
+or `--interactive true` to attach an interactive terminal session:
+
+```bash
+agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-1234
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive true
+```
+
+If auto-session launch fails (no `gh copilot`, no TTY, or VS Code unavailable), the
+rendered prompt is printed to the console and saved to the workflow state directory so you
+can paste it manually into Copilot Chat as a fallback.
+
 ### Work on Jira Issue Workflow
 
 ```bash

@@ -82,6 +82,14 @@ workflow. Run them in order for a new feature.
 
 ## AGDT Workflow Commands
 
+All `agdt-initiate-*-workflow` commands automatically launch a Copilot CLI session in the
+VS Code integrated terminal after worktree setup. The session is pre-fed a rendered prompt
+derived from the canonical prompt files documented in
+[Workflow Prompt Files](workflow-prompts.md). Pass `--interactive false` (the default) to
+run the Copilot session as a background task, or `--interactive true` to attach an
+interactive terminal session. If the session cannot be launched, the rendered prompt is
+printed to the console as a fallback.
+
 ### Work on Jira Issue (11 steps)
 
 Full end-to-end workflow for implementing a Jira issue.
@@ -129,6 +137,10 @@ directly if needed.
 | `/agdt.create-jira-subtask.initiate` | Create a Jira subtask |
 | `/agdt.update-jira-issue.initiate` | Update an existing Jira issue |
 | `/agdt.apply-pr-suggestions.initiate` | Apply PR review suggestions |
+
+> **Note:** All `initiate` commands above auto-launch a Copilot session. Pass
+> `--interactive true` for an interactive terminal session. See
+> [Workflow Prompt Files](workflow-prompts.md) for prompt file details.
 
 ---
 
@@ -230,5 +242,10 @@ To add a new slash command/agent:
 2. Create `.github/prompts/<name>.prompt.md` with an `agent: <name>` frontmatter field
 3. For terminal CLI support, add a `agdt-speckit-*` entry in
    `agentic_devtools/cli/speckit/commands.py`, `runner.py`, and `pyproject.toml`
+4. For workflow prompt templates, add a default template in
+   `agentic_devtools/prompts/<workflow>/default-<step>-prompt.md` and upload the
+   canonical version as an attachment on the
+   [#867 source-of-truth comment](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+   See [Workflow Prompt Files](workflow-prompts.md) for the full prompt lifecycle.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for full details.
