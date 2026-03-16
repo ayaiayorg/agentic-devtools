@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agdt_ai_helpers import state
+from agdt_ai_helpers.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agdt_ai_helpers.cli.git import commands, core, operations
 
 # =============================================================================
