@@ -128,6 +128,23 @@ class TestStageChanges:
 
         assert gitignore.exists()
 
+    def test_stage_changes_gitignore_deletion_oserror_is_non_fatal(self, mock_run_safe, tmp_path):
+        """OSError during .agdt/.gitignore deletion on -agdt branch is silently ignored."""
+        toplevel_result = MagicMock(returncode=0, stdout=str(tmp_path), stderr="")
+        default_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        def side_effect(args, **kwargs):
+            if args[1:3] == ["rev-parse", "--show-toplevel"]:
+                return toplevel_result
+            return default_result
+
+        mock_run_safe.side_effect = side_effect
+
+        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+            with patch("pathlib.Path.is_file", side_effect=OSError("disk error")):
+                # Should not raise — OSError is caught and ignored
+                operations.stage_changes(dry_run=False)
+
     def test_stage_changes_dry_run_agdt_branch_mentions_gitignore_removal(self, mock_run_safe, capsys):
         """Dry run on -agdt branch mentions .agdt/.gitignore removal."""
         with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
