@@ -704,12 +704,7 @@ class TestStartCopilotSessionForWorkflow:
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
 
-        mock_stdin = MagicMock()
-        mock_stdin.isatty.return_value = False
-        mock_stdout = MagicMock()
-        mock_stdout.isatty.return_value = False
-        monkeypatch.setattr("sys.stdin", mock_stdin)
-        monkeypatch.setattr("sys.stdout", mock_stdout)
+        _patch_no_tty(monkeypatch)
 
         with patch("time.sleep"):
             with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
@@ -744,12 +739,7 @@ class TestStartCopilotSessionForWorkflow:
         vscode_dir.mkdir()
         (vscode_dir / "tasks.json").write_text("not valid json!!!", encoding="utf-8")
 
-        mock_stdin = MagicMock()
-        mock_stdin.isatty.return_value = False
-        mock_stdout = MagicMock()
-        mock_stdout.isatty.return_value = False
-        monkeypatch.setattr("sys.stdin", mock_stdin)
-        monkeypatch.setattr("sys.stdout", mock_stdout)
+        _patch_no_tty(monkeypatch)
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
             result = _start_copilot_session_for_workflow(
