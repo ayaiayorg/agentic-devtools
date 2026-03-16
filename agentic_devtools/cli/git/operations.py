@@ -27,47 +27,37 @@ def stage_changes(dry_run: bool) -> None:
     Stage all changes (git add .), then unstage any auto-generated files.
 
     Auto-generated files listed in STAGE_EXCLUDE_FILES are always unstaged
-    after the initial `git add .` so they are never included in commits.
+    after the initial ``git add .`` so they are never included in commits.
 
     On branches that do **not** end with ``-agdt``, every entry from
     ``AGDT_GITIGNORE_ENTRIES`` is unstaged (as ``.agdt/{entry}``) to prevent
     runtime state from being accidentally committed to code branches.
 
-    On ``-agdt`` branches the entries stay staged and ``.agdt/.gitignore``
-    is deleted so that workflow state can be committed.
+    On ``-agdt`` branches, ``.agdt/.gitignore`` is deleted **before**
+    ``git add .`` so that previously-ignored runtime state files become
+    visible to git and are included in the commit.
 
     Args:
         dry_run: If True, only print what would happen
     """
+    branch = get_current_branch()
+    is_agdt_branch = branch.endswith("-agdt")
+
     if dry_run:
         print("[DRY RUN] Would stage all changes (git add .)")
         for excluded in STAGE_EXCLUDE_FILES:
             print(f"[DRY RUN] Would unstage auto-generated file: {excluded}")
-        branch = get_current_branch()
-        if not branch.endswith("-agdt"):
+        if not is_agdt_branch:
             for entry in AGDT_GITIGNORE_ENTRIES:
                 print(f"[DRY RUN] Would unstage .agdt/{entry} (not on -agdt branch)")
         else:
-            print("[DRY RUN] .agdt/ entries will stay staged (on -agdt branch)")
             print("[DRY RUN] Would remove .agdt/.gitignore (on -agdt branch)")
+            print("[DRY RUN] .agdt/ entries will stay staged (on -agdt branch)")
         return
 
-    print("Staging all changes...")
-    run_git("add", ".")
-
-    for excluded in STAGE_EXCLUDE_FILES:
-        result = run_git("reset", "HEAD", "--", excluded, check=False)
-        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
-            print(f"Unstaged auto-generated file: {excluded}")
-
-    branch = get_current_branch()
-    if not branch.endswith("-agdt"):
-        for entry in AGDT_GITIGNORE_ENTRIES:
-            result = run_git("reset", "HEAD", "--", f".agdt/{entry}", check=False)
-            if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
-                print(f"Unstaged runtime state: .agdt/{entry}")
-    else:
-        # On -agdt branches, remove .agdt/.gitignore so state can be committed
+    # On -agdt branches, remove .agdt/.gitignore BEFORE `git add .`
+    # so that previously-ignored state files become visible to git.
+    if is_agdt_branch:
         try:
             toplevel = run_git("rev-parse", "--show-toplevel", check=False)
             if toplevel.returncode == 0 and toplevel.stdout.strip():
@@ -77,6 +67,20 @@ def stage_changes(dry_run: bool) -> None:
                     print("Removed .agdt/.gitignore (on -agdt branch, state will be committed)")
         except OSError:
             pass  # Non-fatal — best effort
+
+    print("Staging all changes...")
+    run_git("add", ".")
+
+    for excluded in STAGE_EXCLUDE_FILES:
+        result = run_git("reset", "HEAD", "--", excluded, check=False)
+        if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+            print(f"Unstaged auto-generated file: {excluded}")
+
+    if not is_agdt_branch:
+        for entry in AGDT_GITIGNORE_ENTRIES:
+            result = run_git("reset", "HEAD", "--", f".agdt/{entry}", check=False)
+            if result.returncode == 0 and result.stdout.strip():  # pragma: no cover
+                print(f"Unstaged runtime state: .agdt/{entry}")
 
     print("Changes staged.")
 
