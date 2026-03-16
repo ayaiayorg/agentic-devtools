@@ -452,6 +452,9 @@ class TestPullRequestReviewWorkflowEndToEnd:
         with patch(
             "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
             return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=FileNotFoundError("no review-state.json"),
         ):
             commands.advance_pull_request_review_workflow()
         assert state.get_workflow_state()["step"] == "completion"
