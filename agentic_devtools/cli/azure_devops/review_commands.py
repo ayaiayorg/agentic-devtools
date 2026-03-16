@@ -691,6 +691,7 @@ def setup_pull_request_review() -> None:
 
     jira_issue_key = get_value("jira.issue_key")
     include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
+    review_model_id = get_value("review.model_id")
 
     # Bootstrap identity + worktree_key before fetching PR details / generating
     # artifacts so they land in the identity-scoped directory from the start.
@@ -712,6 +713,8 @@ def setup_pull_request_review() -> None:
             set_value("jira.issue_key", jira_issue_key)
         if include_reviewed:
             set_value("include_reviewed", "true")
+        if review_model_id:
+            set_value("review.model_id", review_model_id)
 
         # Generate agdt_run_id (same pattern as initiate_workflow in base.py)
         # so that persist_if_dirty() can commit workflow state to a -agdt branch.

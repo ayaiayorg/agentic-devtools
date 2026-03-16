@@ -199,6 +199,70 @@ class TestGetStateDirBootstrap:
                 assert result.exists()
                 assert result.is_dir()
 
+    def test_unscoped_fallback_unsafe_identity_dot_dot(self, tmp_path):
+        """Bootstrap with '..' in identity must fall back to _unscoped."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "..", "worktree_key": "PR123"}),
+            encoding="utf-8",
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+                expected = tmp_path / ".agdt" / "workflows" / "_unscoped"
+                assert result == expected
+
+    def test_unscoped_fallback_unsafe_identity_slash(self, tmp_path):
+        """Bootstrap with '/' in identity must fall back to _unscoped."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "foo/bar", "worktree_key": "PR123"}),
+            encoding="utf-8",
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+                expected = tmp_path / ".agdt" / "workflows" / "_unscoped"
+                assert result == expected
+
+    def test_unscoped_fallback_unsafe_worktree_key_backslash(self, tmp_path):
+        """Bootstrap with backslash in worktree_key must fall back to _unscoped."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "ama", "worktree_key": "foo\\bar"}),
+            encoding="utf-8",
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+                expected = tmp_path / ".agdt" / "workflows" / "_unscoped"
+                assert result == expected
+
+    def test_unscoped_fallback_unsafe_identity_drive_letter(self, tmp_path):
+        """Bootstrap with Windows drive letter in identity must fall back to _unscoped."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "D:", "worktree_key": "PR123"}),
+            encoding="utf-8",
+        )
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+                expected = tmp_path / ".agdt" / "workflows" / "_unscoped"
+                assert result == expected
+
 
 class TestGetStateDirFallback:
     """Tests for the .agdt-temp fallback when not in a git repo."""
