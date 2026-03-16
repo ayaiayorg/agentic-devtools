@@ -487,8 +487,11 @@ def setup_cmd() -> None:
     from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
     from agentic_devtools.state import _get_git_repo_root
 
-    if ensure_agdt_gitignore(_get_git_repo_root()):
+    git_root = _get_git_repo_root()
+    if ensure_agdt_gitignore(git_root):
         print("  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees")
+    elif git_root is not None:
+        print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 
     print()
     if not copilot_ok or not gh_ok or any_required_missing:
