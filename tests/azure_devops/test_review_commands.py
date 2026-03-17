@@ -897,6 +897,37 @@ class TestGenerateReviewPrompts:
         assert prompts_count == 1
         assert skipped_not_on_branch == 1
 
+    def test_uses_pr_id_fallback_when_commit_hash_is_unsafe(self, tmp_path, capsys):
+        """When review.commit_hash_short contains path traversal chars, falls back to PR<id>."""
+        from unittest.mock import patch
+
+        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+
+        pr_details = {
+            "files": [{"path": "/src/file1.ts", "changeType": "edit"}],
+            "threads": [],
+        }
+
+        with patch.object(
+            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            "get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=lambda key, *a, **kw: "../../evil" if key == "review.commit_hash_short" else None,
+        ):
+            _, _, _, prompts_dir = generate_review_prompts(
+                pull_request_id=42,
+                pr_details=pr_details,
+                include_reviewed=True,
+                files_on_branch=None,
+            )
+
+        assert prompts_dir == tmp_path / "pull-request-review" / "PR42"
+        captured = capsys.readouterr()
+        assert "PR42" in captured.err
+        assert "unsafe" in captured.err
+
 
 class TestGetLinkedPullRequestFromJira:
     """Tests for _get_linked_pull_request_from_jira function."""
@@ -1301,6 +1332,8 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_rebase_result = MagicMock()
         mock_rebase_result.is_success = True
 
+        commit_hash_short = "abc12345"
+
         with patch(
             "agdt_ai_helpers.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
@@ -1325,20 +1358,158 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                 "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts", "file2.ts"],
                             ):
-                                # Patch Path to point to tmp_path
-                                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
-                                    mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
-                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                        checkout_and_sync_branch,
-                                    )
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    side_effect=lambda key, *a, **kw: (
+                                        commit_hash_short if key == "review.commit_hash_short" else None
+                                    ),
+                                ):
+                                    with patch(
+                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        return_value=tmp_path,
+                                    ):
+                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                            checkout_and_sync_branch,
+                                        )
 
-                                    success, error, files = checkout_and_sync_branch(
-                                        "feature/test",
-                                        pull_request_id=123,
-                                        save_files_on_branch=True,
-                                    )
-                                    assert success is True
-                                    assert len(files) == 2
+                                        success, error, files = checkout_and_sync_branch(
+                                            "feature/test",
+                                            pull_request_id=123,
+                                            save_files_on_branch=True,
+                                        )
+                                        assert success is True
+                                        assert len(files) == 2
+                                        # Verify files-on-branch.json was saved in the new path
+                                        expected_path = (
+                                            tmp_path
+                                            / "pull-request-review"
+                                            / commit_hash_short
+                                            / "files-on-branch.json"
+                                        )
+                                        assert expected_path.exists()
+
+    def test_saves_files_on_branch_uses_pr_id_fallback_when_no_commit_hash(self, tmp_path, capsys):
+        """When save_files_on_branch=True but commit_hash_short is absent, falls back to PR<id> dir."""
+        from unittest.mock import MagicMock, patch
+
+        mock_checkout_result = MagicMock()
+        mock_checkout_result.is_success = True
+
+        mock_rebase_result = MagicMock()
+        mock_rebase_result.is_success = True
+
+        with patch(
+            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            return_value=mock_checkout_result,
+        ):
+            with patch(
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                return_value=True,
+            ):
+                with patch(
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
+                ):
+                    with patch(
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=True,
+                    ):
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            return_value=mock_rebase_result,
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                return_value=["file1.ts"],
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    return_value=None,  # commit_hash_short absent
+                                ):
+                                    with patch(
+                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        return_value=tmp_path,
+                                    ):
+                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                            checkout_and_sync_branch,
+                                        )
+
+                                        success, error, files = checkout_and_sync_branch(
+                                            "feature/test",
+                                            pull_request_id=456,
+                                            save_files_on_branch=True,
+                                        )
+                                        assert success is True
+                                        # Verify fallback directory is PR<pull_request_id>
+                                        expected_path = (
+                                            tmp_path / "pull-request-review" / "PR456" / "files-on-branch.json"
+                                        )
+                                        assert expected_path.exists()
+                                        captured = capsys.readouterr()
+                                        assert "PR456" in captured.err
+
+    def test_saves_files_on_branch_uses_pr_id_fallback_when_commit_hash_is_unsafe(self, tmp_path, capsys):
+        """When save_files_on_branch=True but commit_hash_short contains path traversal chars, falls back to PR<id>."""
+        from unittest.mock import MagicMock, patch
+
+        mock_checkout_result = MagicMock()
+        mock_checkout_result.is_success = True
+
+        mock_rebase_result = MagicMock()
+        mock_rebase_result.is_success = True
+
+        with patch(
+            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            return_value=mock_checkout_result,
+        ):
+            with patch(
+                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                return_value=True,
+            ):
+                with patch(
+                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    return_value=True,
+                ):
+                    with patch(
+                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        return_value=True,
+                    ):
+                        with patch(
+                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            return_value=mock_rebase_result,
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                return_value=["file1.ts"],
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    side_effect=lambda key, *a, **kw: (
+                                        "../evil" if key == "review.commit_hash_short" else None
+                                    ),
+                                ):
+                                    with patch(
+                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        return_value=tmp_path,
+                                    ):
+                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                            checkout_and_sync_branch,
+                                        )
+
+                                        success, error, files = checkout_and_sync_branch(
+                                            "feature/test",
+                                            pull_request_id=789,
+                                            save_files_on_branch=True,
+                                        )
+                                        assert success is True
+                                        # Unsafe segment rejected: falls back to PR789
+                                        expected_path = (
+                                            tmp_path / "pull-request-review" / "PR789" / "files-on-branch.json"
+                                        )
+                                        assert expected_path.exists()
+                                        captured = capsys.readouterr()
+                                        assert "PR789" in captured.err
+                                        assert "unsafe" in captured.err
 
 
 class TestSetupPullRequestReview:
@@ -1414,12 +1585,13 @@ class TestSetupPullRequestReview:
                                     ):
                                         with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
                                             with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                                    setup_pull_request_review,
-                                                )
+                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                        setup_pull_request_review,
+                                                    )
 
-                                                setup_pull_request_review()
-                                                mock_fetch_jira.assert_called_once_with("DFLY-1234")
+                                                    setup_pull_request_review()
+                                                    mock_fetch_jira.assert_called_once_with("DFLY-1234")
 
     def test_exits_when_pr_details_file_missing(self, capsys):
         """Test exits with error when PR details file not found."""
@@ -1481,17 +1653,18 @@ class TestSetupPullRequestReview:
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_pr_details)
                     with patch("pathlib.Path.exists", return_value=True):
-                        with patch(
-                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(False, "Checkout error", set()),
-                        ):
-                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                setup_pull_request_review,
-                            )
+                        with patch("agdt_ai_helpers.state.delete_value"):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                                return_value=(False, "Checkout error", set()),
+                            ):
+                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                    setup_pull_request_review,
+                                )
 
-                            with pytest.raises(SystemExit) as exc_info:
-                                setup_pull_request_review()
-                            assert exc_info.value.code == 1
+                                with pytest.raises(SystemExit) as exc_info:
+                                    setup_pull_request_review()
+                                assert exc_info.value.code == 1
 
     def test_warns_when_no_source_branch(self, capsys):
         """Test prints warning when source branch cannot be determined."""
@@ -1525,20 +1698,23 @@ class TestSetupPullRequestReview:
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_pr_details)
                     with patch("pathlib.Path.exists", return_value=True):
-                        with patch(
-                            "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
-                            return_value=(5, 0, 0, MagicMock()),
-                        ):
-                            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"):
-                                with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                    with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
-                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                            setup_pull_request_review,
-                                        )
+                        with patch("agdt_ai_helpers.state.delete_value"):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(5, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                                setup_pull_request_review,
+                                            )
 
-                                        setup_pull_request_review()
-                                        captured = capsys.readouterr()
-                                        assert "Could not determine source branch" in captured.err
+                                            setup_pull_request_review()
+                                            captured = capsys.readouterr()
+                                            assert "Could not determine source branch" in captured.err
 
 
 class TestPrintReviewInstructionsZeroPrompts:
@@ -1592,9 +1768,10 @@ class TestGenerateReviewPromptsEdgeCases:
         import json
         from unittest.mock import patch
 
-        # Create the temp directory structure
+        # Create the temp directory structure using the new path (pull-request-review/<commit_hash_short>/)
         temp_dir = tmp_path
-        prompts_dir = temp_dir / "pull-request-review" / "prompts" / "123"
+        commit_hash_short = "abc12345"
+        prompts_dir = temp_dir / "pull-request-review" / commit_hash_short
         prompts_dir.mkdir(parents=True)
 
         # Create files-on-branch.json
@@ -1610,7 +1787,10 @@ class TestGenerateReviewPromptsEdgeCases:
             "threads": [],
         }
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir):
+        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=lambda key, *args, **kwargs: commit_hash_short if key == "review.commit_hash_short" else None,
+        ):
             from agdt_ai_helpers.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )

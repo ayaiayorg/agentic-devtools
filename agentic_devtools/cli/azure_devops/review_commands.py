@@ -10,11 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
-from ...state import get_state_dir, get_value, is_dry_run
+from ...state import get_state_dir, get_value, is_dry_run, is_safe_dir_segment
 from ..subprocess_utils import run_safe
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import require_requests, verify_az_cli
+from .helpers import require_requests, resolve_review_artifact_dir_name, verify_az_cli
 
 # Import helper modules
 
@@ -212,8 +212,10 @@ def checkout_and_sync_branch(
 
     # Optionally save files_on_branch to JSON for async workflows
     if save_files_on_branch and pull_request_id:
+        commit_hash_short = get_value("review.commit_hash_short")
+        dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short)
         temp_dir = get_state_dir()
-        prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
+        prompts_dir = temp_dir / "pull-request-review" / dir_name
         prompts_dir.mkdir(parents=True, exist_ok=True)
         files_on_branch_path = prompts_dir / "files-on-branch.json"
         with open(files_on_branch_path, "w", encoding="utf-8") as f:
@@ -356,7 +358,9 @@ def generate_review_prompts(
     )
 
     temp_dir = get_state_dir()
-    prompts_dir = temp_dir / "pull-request-review" / "prompts" / str(pull_request_id)
+    commit_hash_short = get_value("review.commit_hash_short")
+    dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short)
+    prompts_dir = temp_dir / "pull-request-review" / dir_name
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
     # Load pr_details from temp file if not provided
@@ -623,8 +627,17 @@ def _scaffold_threads_for_review(
         iterations = pr_details.get("iterations") or []
         latest_iteration_id = max((it.get("id", 0) for it in iterations), default=0)
 
-        # Extract commit hash from PR info
-        commit_hash = pr_info.get("lastMergeSourceCommit", {}).get("commitId")
+        # Extract commit hash from PR info, guarding against JSON null → None or unexpected types
+        last_merge = pr_info.get("lastMergeSourceCommit")
+        commit_hash_raw = last_merge.get("commitId") if isinstance(last_merge, dict) else None
+        if commit_hash_raw is not None and not isinstance(commit_hash_raw, str):
+            print(
+                f"Warning: lastMergeSourceCommit.commitId has unexpected type "
+                f"{type(commit_hash_raw).__name__!r}; omitting from scaffolding.",
+                file=sys.stderr,
+            )
+            commit_hash_raw = None
+        commit_hash = commit_hash_raw
 
         # Resolve model_id from state; defaults to "unknown" if not set
         model_id = get_value("review.model_id") or "unknown"
@@ -680,6 +693,7 @@ def setup_pull_request_review() -> None:
     This function is designed to be called in a background task from the
     workflow initiation command.
     """
+    from ...state import delete_value, set_value
     from .pull_request_details_commands import get_pull_request_details
 
     # Read parameters from state
@@ -701,7 +715,7 @@ def setup_pull_request_review() -> None:
     try:
         import uuid
 
-        from ...state import set_bootstrap_state, set_value
+        from ...state import set_bootstrap_state
 
         set_bootstrap_state(worktree_key=f"PR{pull_request_id}")
 
@@ -755,6 +769,58 @@ def setup_pull_request_review() -> None:
 
     # Step 3: Checkout source branch and sync with main
     pr_info = pr_details.get("pullRequest", pr_details)
+
+    # Extract and store commit hash short for artifact directory scoping.
+    # This must be set before checkout_and_sync_branch() and generate_review_prompts()
+    # so that both use the correct directory under pull-request-review/.
+    # When commitId is absent, delete any stale value to keep artifact paths deterministic.
+    last_merge = pr_info.get("lastMergeSourceCommit")
+    if not isinstance(last_merge, dict):
+        if last_merge is not None:
+            print(
+                f"Warning: lastMergeSourceCommit has unexpected type "
+                f"{type(last_merge).__name__!r}; review artifacts will be scoped by PR ID.",
+                file=sys.stderr,
+            )
+        source_commit_id = ""
+    else:
+        source_commit_id = last_merge.get("commitId", "")
+        # Treat empty string as "absent", but warn and normalize any other non-string value.
+        if not isinstance(source_commit_id, str):
+            if source_commit_id != "":
+                print(
+                    f"Warning: lastMergeSourceCommit.commitId has unexpected type "
+                    f"{type(source_commit_id).__name__!r}; review artifacts will be scoped by PR ID.",
+                    file=sys.stderr,
+                )
+            source_commit_id = ""
+        else:
+            # Normalize leading/trailing whitespace so the derived short hash matches
+            # the canonical directory segment used for review artifacts.
+            normalized_commit_id = source_commit_id.strip()
+            if not normalized_commit_id:
+                # If the commit ID was empty or only whitespace, treat it as absent.
+                source_commit_id = ""
+            else:
+                source_commit_id = normalized_commit_id
+
+    commit_hash_short = ""
+    if source_commit_id:
+        commit_hash_short = source_commit_id[:8]
+        # Validate that commit_hash_short is safe to persist and use as a path segment.
+        if not is_safe_dir_segment(commit_hash_short):
+            print(
+                "Warning: Derived commit_hash_short contains unexpected characters; "
+                "review artifacts will be scoped by PR ID.",
+                file=sys.stderr,
+            )
+            commit_hash_short = ""
+
+    if commit_hash_short:
+        set_value("review.commit_hash_short", commit_hash_short)
+    else:
+        delete_value("review.commit_hash_short")
+
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
     files_on_branch: Set[str] | None = None

@@ -1505,7 +1505,18 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 3. Validates the current worktree/branch context via pre-flight checks.
 4. If the context is wrong, **automatically creates a dedicated worktree**, attempts to open VS Code (when available), then re-runs the command inside the new worktree.
 5. Fetches full PR details (diff, threads, iterations) and Jira issue details.
-6. Generates per-file review prompts in `pull-request-review/prompts/<pr_id>/` under the state directory.
+6. Generates per-file review prompts in `pull-request-review/<commit_hash_short>/` under the state directory.
+
+    > **⚠️ Migration note (upgrading from pre-refactor versions):**
+    > The artifact directory layout changed from `pull-request-review/prompts/<pr_id>/` to
+    > `pull-request-review/<commit_hash_short>/` in this release.
+    > `_get_queue_path` transparently falls back to the legacy path when the new path's
+    > `queue.json` is absent but the old one exists, so **in-progress reviews continue to
+    > work after upgrade without any manual migration**.  Once a new review session is
+    > started (via `agdt-review-pull-request`), artifacts for that PR will be written to
+    > the new path.  Artifacts from the old path can be safely deleted after all active
+    > reviews complete.
+
 7. **When auto-setup ran (new worktree was created):** starts a `gh copilot` CLI session
    (interactive or background depending on `--interactive`). When already in the correct
    worktree context, the rendered initiate prompt is printed to the console for the agent
@@ -1570,7 +1581,7 @@ reviewed.
 
 #### Review State File (`review-state.json`)
 
-Location: `.agdt/workflows/{identity}/{worktree_key}/pull-request-review/prompts/{pr_id}/review-state.json`
+Location: `<state_dir>/reviews/review-state.json` (where `<state_dir>` is `.agdt/workflows/{identity}/{worktree_key}`)
 
 This file tracks all thread IDs, statuses, and suggestions for the entire review session:
 
@@ -1824,8 +1835,8 @@ agdt-add-jira-comment  # Previews without posting
 | `.agdt/workflows/…/state.json` | All commands | Persistent state storage |
 | `.agdt/workflows/…/temp-get-issue-details-response.json` | `agdt-get-jira-issue` | Full Jira API response |
 | `.agdt/workflows/…/temp-get-pull-request-details-response.json` | `agdt-get-pull-request-details` | Full PR details payload |
-| `.agdt/workflows/…/pull-request-review/prompts/<pr_id>/` | `agdt-review-pull-request` | Review prompts directory |
-| `.agdt/workflows/…/pull-request-review/prompts/<pr_id>/review-state.json` | `agdt-review-pull-request` | Hierarchical review state (thread IDs, statuses, suggestions) |
+| `.agdt/workflows/…/pull-request-review/<commit_hash_short>/` | `agdt-review-pull-request` | Review prompts directory |
+| `.agdt/workflows/…/reviews/review-state.json` | `agdt-review-pull-request` | Hierarchical review state (thread IDs, statuses, suggestions) |
 | `.agdt/workflows/…/temp-<workflow>-<step>-prompt.md` | Workflow initiation commands | Rendered workflow prompts |
 
 ### Background Task Storage Structure
