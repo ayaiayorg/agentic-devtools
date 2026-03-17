@@ -18,7 +18,13 @@ from typing import Optional
 from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
-from .helpers import get_repository_id, patch_comment, patch_thread_status, require_requests
+from .helpers import (
+    get_repository_id,
+    patch_comment,
+    patch_thread_status,
+    require_requests,
+    resolve_review_artifact_dir_name,
+)
 from .mark_reviewed import mark_file_reviewed
 
 
@@ -55,8 +61,32 @@ def _get_thread_file_path(thread: dict) -> Optional[str]:
 
 
 def _get_queue_path(pull_request_id: int) -> Path:
-    """Get the path to the queue.json file for a pull request."""
-    return get_state_dir() / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
+    """Get the path to the queue.json file for a pull request.
+
+    Returns the new commit-hash-scoped path
+    (``pull-request-review/<dir_name>/queue.json``).  If that file does not yet
+    exist but the legacy path (``pull-request-review/prompts/<pr_id>/queue.json``)
+    does, the legacy path is returned instead so that in-progress review sessions
+    created before the commit-hash-short refactor continue to work transparently
+    after an upgrade.
+    """
+    commit_hash_short = get_value("review.commit_hash_short")
+    # Suppress warnings here: this function is called many times per review command.
+    # Warnings about a missing/unsafe commit hash are more useful at setup time
+    # (generate_review_prompts / checkout_and_sync_branch) than repeated per queue op.
+    dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short, warn=False)
+    state_dir = get_state_dir()
+    new_path = state_dir / "pull-request-review" / dir_name / "queue.json"
+    # Backward-compatible fallback: silently use the legacy path when the new one
+    # is absent but an old-format queue still exists.  This prevents silent queue
+    # loss (empty/default status) when upgrading mid-review.
+    if not new_path.exists():
+        legacy_path = (
+            state_dir / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
+        )
+        if legacy_path.exists():
+            return legacy_path
+    return new_path
 
 
 def mark_file_as_submission_pending(

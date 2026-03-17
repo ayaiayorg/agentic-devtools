@@ -321,3 +321,112 @@ class TestScaffoldThreadsForReview:
         captured = capsys.readouterr()
         assert "Scaffolding failed" in captured.err
         assert "API error" in captured.err
+
+    def test_handles_null_last_merge_source_commit(self):
+        """Does not raise when lastMergeSourceCommit is JSON null (None)."""
+        pr_info = {
+            **self._make_pr_info(),
+            "lastMergeSourceCommit": None,  # JSON null
+        }
+        pr_details = self._make_pr_details(files=[{"path": "/src/app.ts"}])
+
+        scaffold_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig") as mock_config_cls:
+            mock_config = MagicMock()
+            mock_config.repository = "test-repo"
+            mock_config_cls.from_state.return_value = mock_config
+
+            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat"):
+                    with patch("agentic_devtools.cli.azure_devops.review_commands.get_auth_headers"):
+                        with patch("agentic_devtools.cli.azure_devops.review_commands.is_dry_run", return_value=False):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_scaffold.scaffold_review_threads",
+                                scaffold_mock,
+                            ):
+                                from agentic_devtools.cli.azure_devops.review_commands import (
+                                    _scaffold_threads_for_review,
+                                )
+
+                                # Should not raise even though lastMergeSourceCommit is None
+                                _scaffold_threads_for_review(123, pr_details, pr_info, None)
+
+        scaffold_mock.assert_called_once()
+        call_kwargs = scaffold_mock.call_args[1]
+        # commit_hash should be None when lastMergeSourceCommit is null
+        assert call_kwargs["commit_hash"] is None
+
+    def test_handles_non_dict_last_merge_source_commit(self):
+        """Does not raise when lastMergeSourceCommit is a non-dict value."""
+        pr_info = {
+            **self._make_pr_info(),
+            "lastMergeSourceCommit": "unexpected-string",  # non-dict
+        }
+        pr_details = self._make_pr_details(files=[{"path": "/src/app.ts"}])
+
+        scaffold_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig") as mock_config_cls:
+            mock_config = MagicMock()
+            mock_config.repository = "test-repo"
+            mock_config_cls.from_state.return_value = mock_config
+
+            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat"):
+                    with patch("agentic_devtools.cli.azure_devops.review_commands.get_auth_headers"):
+                        with patch("agentic_devtools.cli.azure_devops.review_commands.is_dry_run", return_value=False):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_scaffold.scaffold_review_threads",
+                                scaffold_mock,
+                            ):
+                                from agentic_devtools.cli.azure_devops.review_commands import (
+                                    _scaffold_threads_for_review,
+                                )
+
+                                # Should not raise even though lastMergeSourceCommit is a non-dict
+                                _scaffold_threads_for_review(123, pr_details, pr_info, None)
+
+        scaffold_mock.assert_called_once()
+        call_kwargs = scaffold_mock.call_args[1]
+        # commit_hash should be None when lastMergeSourceCommit is not a dict
+        assert call_kwargs["commit_hash"] is None
+
+    def test_normalizes_non_str_commit_id_to_none(self, capsys):
+        """When lastMergeSourceCommit.commitId is a non-str (e.g. int), emits warning and passes None to scaffold."""
+        pr_info = {
+            **self._make_pr_info(),
+            "lastMergeSourceCommit": {"commitId": 99999},  # int, not str
+        }
+        pr_details = self._make_pr_details(files=[{"path": "/src/app.ts"}])
+
+        scaffold_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig") as mock_config_cls:
+            mock_config = MagicMock()
+            mock_config.repository = "test-repo"
+            mock_config_cls.from_state.return_value = mock_config
+
+            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat"):
+                    with patch("agentic_devtools.cli.azure_devops.review_commands.get_auth_headers"):
+                        with patch("agentic_devtools.cli.azure_devops.review_commands.is_dry_run", return_value=False):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_scaffold.scaffold_review_threads",
+                                scaffold_mock,
+                            ):
+                                from agentic_devtools.cli.azure_devops.review_commands import (
+                                    _scaffold_threads_for_review,
+                                )
+
+                                _scaffold_threads_for_review(123, pr_details, pr_info, None)
+
+        scaffold_mock.assert_called_once()
+        call_kwargs = scaffold_mock.call_args[1]
+        # Non-str commitId must be normalized to None
+        assert call_kwargs["commit_hash"] is None
+
+        # A warning should have been emitted
+        captured = capsys.readouterr()
+        assert "unexpected type" in captured.err
+        assert "int" in captured.err
