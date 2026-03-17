@@ -16,7 +16,7 @@ re-scaffolding are also handled here.
 
 import sys
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
@@ -1323,12 +1323,11 @@ def _incremental_rescaffold(
                     fe.threadId,
                     fe.commentId,
                     render_file_summary(
-                        FileEntry(
-                            threadId=fe.threadId,
-                            commentId=fe.commentId,
-                            folder=fe.folder,
-                            fileName=fe.fileName,
+                        replace(
+                            fe,
                             status=ReviewStatus.UNREVIEWED.value,
+                            summary=None,
+                            suggestions=[],
                         ),
                         [],
                         base_url,
