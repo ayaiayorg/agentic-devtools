@@ -14,7 +14,10 @@ The work-on-jira-issue workflow uses a state-machine approach with:
 - Automatic workflow advancement from commands
 """
 
+import json
+import logging
 import os
+import subprocess
 import sys
 from typing import List, Optional
 
@@ -91,6 +94,28 @@ def _format_auto_setup_success_message(workflow_name: str, issue_key: str) -> st
     )
 
 
+def _ensure_bootstrap_identity() -> None:
+    """Resolve identity via set_bootstrap_state() before any state I/O.
+
+    Follows the same guard and error-handling pattern as initiate_workflow()
+    in base.py: skipped when state directory is overridden via env vars,
+    and failures are logged as warnings without blocking the workflow.
+    """
+    from ...state import set_bootstrap_state
+
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    if env_state_override:
+        return
+    try:
+        set_bootstrap_state()
+    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize bootstrap state before workflow clear; "
+            "proceeding with unscoped state: %s",
+            exc,
+        )
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -125,6 +150,8 @@ def initiate_pull_request_review_workflow(
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -352,6 +379,8 @@ def initiate_work_on_jira_issue_workflow(
         interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -899,6 +928,8 @@ def initiate_create_jira_issue_workflow(
     - jira.description: Issue description (AI-generated from user_request)
     - jira.issue_type: Issue type (defaults to "Story")
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
