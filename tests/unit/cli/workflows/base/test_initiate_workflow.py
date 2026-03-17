@@ -228,3 +228,53 @@ class TestInitiateWorkflow:
 
         run_id_2 = state.get_value("agdt_run_id")
         assert run_id_1 != run_id_2
+
+    def test_initiate_workflow_continues_when_bootstrap_fails(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, caplog
+    ):
+        """Bootstrap initialization failures are logged and do not block workflow initiation."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch("agentic_devtools.cli.workflows.base.set_bootstrap_state", side_effect=OSError("boom")):
+            with patch(
+                "agentic_devtools.cli.git.agdt_branch._run_plumbing",
+                return_value=CompletedProcess(args=[], returncode=0, stdout="feature/test\n", stderr=""),
+            ):
+                base.initiate_workflow(
+                    workflow_name="pull-request-review",
+                    required_state_keys=["pull_request_id"],
+                    optional_state_keys=[],
+                )
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["active"] == "pull-request-review"
+        assert "Failed to initialize bootstrap state" in caplog.text
+
+    def test_initiate_workflow_continues_when_branch_detection_raises(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before
+    ):
+        """Branch detection is best-effort and should not block workflow initiation."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch("agentic_devtools.cli.git.agdt_branch._run_plumbing", side_effect=RuntimeError("git error")):
+            base.initiate_workflow(
+                workflow_name="pull-request-review",
+                required_state_keys=["pull_request_id"],
+                optional_state_keys=[],
+            )
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["active"] == "pull-request-review"
+        assert state.get_value("versionControl.currentBranch") is None

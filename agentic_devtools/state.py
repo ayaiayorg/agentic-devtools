@@ -3,9 +3,12 @@ State management for the agentic-devtools CLI.
 
 Runtime state is stored in ``state.json`` under the active workflow
 directory (resolved by ``get_state_dir()``).  A bootstrap file
-(``runtime-bootstrap.json``) at ``{git_root}/.agdt/`` records the
-current identity and worktree key so ``get_state_dir()`` can build
-the scoped path without reading the state file itself.
+(``runtime-bootstrap.json``) at ``{git_root}/.agdt/`` records the current
+``worktree_key`` so ``get_state_dir()`` can build the scoped path.  The
+``identity`` (derived from ``git config user.email`` via ``_resolve_identity()``)
+is stored separately in ``{git_root}/.agdt/identity.json`` and is validated
+on every workflow start by comparing the cached email against the current
+``git config user.email``; it is re-resolved only on mismatch.
 
 Key design decisions:
 - Single JSON file for workflow state
@@ -28,35 +31,11 @@ from .file_locking import FileLockError, locked_state_file
 STATE_FILENAME = "state.json"
 
 BOOTSTRAP_FILENAME = "runtime-bootstrap.json"
+IDENTITY_CACHE_FILENAME = "identity.json"
 IDENTITY_OWNER_FILENAME = ".identity-owner"
 
 # Default lock timeout in seconds
 DEFAULT_LOCK_TIMEOUT = 5.0
-
-
-def is_safe_dir_segment(name: str) -> bool:
-    """Check that *name* is safe for use as a single-component directory name.
-
-    Returns ``False`` when *name* is empty or contains path separators
-    (``/``, ``\\``), double-dot sequences (``..`` anywhere in the string),
-    colons (``:``) which on Windows can reset the drive
-    (e.g. ``Path(base) / 'D:'``), or non-printable characters (including
-    embedded NUL bytes ``\\x00``).  Non-printable characters can cause
-    ``pathlib.Path`` to raise ``ValueError`` or produce unpredictable
-    filesystem behaviour.
-
-    This is the **centralised** safety check used by both ``get_state_dir()``
-    and ``_run_auto_execute_command()`` to prevent a tampered bootstrap file
-    from escaping ``.agdt/workflows/``.
-    """
-    return (
-        bool(name)
-        and ".." not in name
-        and "/" not in name
-        and "\\" not in name
-        and ":" not in name
-        and name.isprintable()
-    )
 
 
 def _get_git_repo_root() -> Optional[Path]:
@@ -83,7 +62,7 @@ def _get_git_repo_root() -> Optional[Path]:
     return None
 
 
-def _resolve_identity(git_root: Optional[Path] = None) -> str:
+def _resolve_identity(git_root: Optional[Path] = None, *, _email: Optional[str] = None) -> str:
     """Derive a compact, collision-resistant identity string from git email.
 
     Algorithm:
@@ -99,19 +78,32 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
     - If all chars exhausted: append numeric suffix ``1``, ``2``, … until unique.
 
     Returns ``"default"`` when ``git config user.email`` is unavailable.
+
+    *_email* is an optional keyword-only argument.  When provided it is used
+    directly, avoiding a second ``git config user.email`` subprocess call.
+    Callers that have already fetched the email (e.g. ``_get_or_refresh_identity``)
+    should pass it here to eliminate redundant subprocess overhead.
     """
     if git_root is None:
         git_root = _get_git_repo_root()
     if git_root is None:
         return "default"
 
-    email = _get_git_email()
+    # Use the caller-supplied email when available to avoid a second subprocess call
+    email = _email if _email is not None else _get_git_email()
 
     if not email:
         return "default"
 
     local_part = email.split("@")[0].lower()
     name_parts = re.split(r"[.\-_]", local_part)
+    name_parts = [p for p in name_parts if p]
+    # Strip characters that are not alphanumeric (e.g. '+' in 'doe+work',
+    # '=' in 'user=tag') so that all generated candidates satisfy
+    # is_safe_dir_segment().  RFC 5321/5322 email local-parts allow many
+    # special characters that would otherwise produce an unsafe identity
+    # segment and fall back to unscoped for affected users.
+    name_parts = [re.sub(r"[^a-z0-9]", "", p) for p in name_parts]
     name_parts = [p for p in name_parts if p]
 
     if not name_parts:
@@ -208,10 +200,14 @@ def _resolve_identity(git_root: Optional[Path] = None) -> str:
 
 
 def get_bootstrap_state() -> Dict[str, str]:
-    """Read the bootstrap file at ``{git_root}/.agdt/runtime-bootstrap.json``.
+    """Read identity and worktree_key from their respective cache files.
+
+    Identity is read from ``.agdt/identity.json`` (new); ``worktree_key``
+    is read from ``.agdt/runtime-bootstrap.json``.  For installations that
+    have not yet been migrated, identity falls back to the bootstrap file.
 
     Returns a dict with ``"identity"`` and/or ``"worktree_key"`` keys.
-    Returns ``{}`` when the file is missing, malformed, or not in a git repo.
+    Returns ``{}`` when no data is found or not in a git repo.
 
     This function must NOT call ``get_state_dir()`` or ``load_state()`` to
     avoid circular dependency.
@@ -220,25 +216,38 @@ def get_bootstrap_state() -> Dict[str, str]:
     if git_root is None:
         return {}
 
-    bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
+    agdt_dir = git_root / ".agdt"
+    result: Dict[str, str] = {}
+
+    # Read identity from identity.json (new approach)
+    identity_cache = _read_identity_cache(agdt_dir)
+    if identity_cache is not None:
+        result["identity"] = identity_cache["identity"]
+
+    # Read worktree_key (and legacy identity) from bootstrap file
+    bootstrap_path = agdt_dir / BOOTSTRAP_FILENAME
     try:
         content = bootstrap_path.read_text(encoding="utf-8")
         data = json.loads(content)
         if not isinstance(data, dict):
-            return {}
-        # Only expose the documented keys and normalize their values.
-        # Keys whose stripped value is empty are omitted so callers can
-        # treat a missing key as "unset" without checking for "".
-        result: Dict[str, str] = {}
-        for key in ("identity", "worktree_key"):
-            value = data.get(key)
-            if isinstance(value, str):
-                stripped = value.strip()
+            return result
+        # worktree_key always comes from bootstrap
+        value = data.get("worktree_key")
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                result["worktree_key"] = stripped
+        # Legacy fallback: read identity from bootstrap when identity.json is absent
+        if "identity" not in result:
+            legacy_id = data.get("identity")
+            if isinstance(legacy_id, str):
+                stripped = legacy_id.strip()
                 if stripped:
-                    result[key] = stripped
-        return result
+                    result["identity"] = stripped
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
-        return {}
+        pass
+
+    return result
 
 
 def _get_git_email() -> str:
@@ -255,14 +264,138 @@ def _get_git_email() -> str:
         return ""
 
 
+def is_safe_dir_segment(segment: str) -> bool:
+    """Return True if ``segment`` is safe to use as a single directory name.
+
+    A safe segment:
+
+    - is non-empty after stripping
+    - is not ``"."`` or ``".."``
+    - does not contain path separators (``/`` or ``\\``) or ``":"``
+    - does not contain ``".."`` anywhere inside the string
+    - consists only of alphanumeric characters (including non-ASCII) plus
+      ``._-+'``
+
+    This is the **centralised** safety check used by ``get_state_dir()``,
+    ``set_bootstrap_state()``, and ``_run_auto_execute_command()`` to prevent
+    a tampered bootstrap or identity cache file from escaping
+    ``.agdt/workflows/``.
+    """
+    segment = segment.strip()
+    if not segment or segment in {".", ".."}:
+        return False
+    if "/" in segment or "\\" in segment or ":" in segment:
+        return False
+    if ".." in segment:
+        return False
+    # Allow Unicode alphanumerics plus a small set of safe punctuation that
+    # commonly appears in email local-parts (used for identity scoping).
+    allowed_punctuation = "._-+'"
+    for ch in segment:
+        if not (ch.isalnum() or ch in allowed_punctuation):
+            return False
+    return True
+
+
+def _read_identity_cache(agdt_dir: Path) -> Optional[Dict[str, str]]:
+    """Read the identity cache from ``.agdt/identity.json``.
+
+    Returns a dict with ``"identity"`` and ``"email"`` keys when the file
+    exists and contains valid data, or ``None`` when the file is missing,
+    malformed, or does not satisfy all of:
+
+    - ``"identity"`` is a non-empty, safe directory segment after stripping
+      whitespace
+    - ``"email"`` is present and is a string (may be empty)
+    """
+    cache_path = agdt_dir / IDENTITY_CACHE_FILENAME
+    try:
+        content = cache_path.read_text(encoding="utf-8")
+        data = json.loads(content)
+        if not isinstance(data, dict):
+            return None
+        identity = data.get("identity")
+        email = data.get("email")
+        if not (isinstance(identity, str) and isinstance(email, str)):
+            return None
+        identity_stripped = identity.strip()
+        if not identity_stripped:
+            return None
+
+        if is_safe_dir_segment(identity_stripped):
+            return {"identity": identity_stripped, "email": email}
+
+        # Cached identity is present but fails the safety check; return None to
+        # signal that the entry is unusable. Callers that perform identity
+        # resolution (e.g. _get_or_refresh_identity) may choose to re-resolve
+        # and rewrite the cache, while simpler callers like get_state_dir() /
+        # get_bootstrap_state() will just fall back without modifying it.
+        return None
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return None
+
+
+def _write_identity_cache(agdt_dir: Path, identity: str, email: str) -> None:
+    """Write the identity cache to ``.agdt/identity.json``.
+
+    Silent no-op on write errors.
+    """
+    try:
+        agdt_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = agdt_dir / IDENTITY_CACHE_FILENAME
+        cache_path.write_text(
+            json.dumps({"identity": identity, "email": email}, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+def _get_or_refresh_identity(git_root: Path, *, _email: Optional[str] = None) -> str:
+    """Get identity from cache (``.agdt/identity.json``) or resolve and cache it.
+
+    Validates the cache by comparing the stored email with the current
+    ``git config user.email``.  When they match (including when both are empty
+    strings), returns the cached identity without calling ``_resolve_identity()``
+    (avoids the filesystem collision scan under ``.agdt/workflows/``).  When
+    they differ or the cache is absent, calls ``_resolve_identity()`` and writes
+    the result to ``.agdt/identity.json``.
+
+    On a cache miss, the resolved identity will be ``"default"`` when
+    ``git config user.email`` is unavailable.
+
+    *_email* is an optional keyword-only argument.  When provided it is used
+    directly, skipping the ``git config user.email`` subprocess call.
+    Callers that have already fetched the email (e.g. ``set_bootstrap_state``)
+    should pass it here to eliminate redundant subprocess overhead.
+    """
+    agdt_dir = git_root / ".agdt"
+    current_email = _email if _email is not None else _get_git_email()
+
+    # Use cache when email has not changed
+    cached = _read_identity_cache(agdt_dir)
+    if cached is not None and cached["email"] == current_email:
+        return cached["identity"]
+
+    # Cache miss or stale — resolve and update cache.
+    # Pass current_email to avoid a second `git config user.email` subprocess call.
+    identity = _resolve_identity(git_root, _email=current_email)
+    _write_identity_cache(agdt_dir, identity, current_email)
+    return identity
+
+
 def set_bootstrap_state(
     identity: Optional[str] = None,
     worktree_key: Optional[str] = None,
 ) -> None:
-    """Write (or update) the bootstrap file at ``{git_root}/.agdt/runtime-bootstrap.json``.
+    """Write (or update) the bootstrap file and identity cache.
 
-    If *identity* is ``None`` it is resolved via ``_resolve_identity()``.
-    Existing fields not being updated are preserved.
+    Identity is stored in ``.agdt/identity.json`` (validated against
+    ``git config user.email`` on every call; re-resolved only on mismatch).
+    ``runtime-bootstrap.json`` stores only ``worktree_key``.
+
+    If *identity* is ``None`` it is obtained via ``_get_or_refresh_identity()``.
+    Existing ``worktree_key`` is preserved when *worktree_key* is not passed.
     Also writes ``.identity-owner`` under ``.agdt/workflows/{identity}/``.
 
     Silent no-op when not in a git repo.
@@ -271,32 +404,50 @@ def set_bootstrap_state(
     if git_root is None:
         return
 
-    # Read existing bootstrap to preserve documented fields
+    # Fetch git email once — reused for identity cache, _get_or_refresh_identity,
+    # and the .identity-owner file to avoid multiple subprocess calls.
+    email = _get_git_email()
+
+    # Normalize caller-provided identity: must be str, stripped, non-empty, and safe as
+    # a single directory segment (no path separators, "..", colons, or non-printable chars).
+    # Unsafe values are treated as unset and fall through to _get_or_refresh_identity().
+    if identity is not None:
+        if isinstance(identity, str):
+            stripped = identity.strip()
+            identity = stripped if stripped and is_safe_dir_segment(stripped) else None
+        else:
+            identity = None  # Non-str values treated as unset
+
+    # Get identity via cache (email-based validation) or explicit value
+    if identity is None:
+        identity = _get_or_refresh_identity(git_root, _email=email)
+    else:
+        # Explicit identity provided — write it to cache (reuse pre-fetched email)
+        _write_identity_cache(git_root / ".agdt", identity, email)
+
+    # Ensure resolved identity is safe as a single directory segment. This defends against
+    # unsafe values that might be returned from _get_or_refresh_identity() (e.g. email
+    # local-parts containing path separators). Treat invalid/unsafe identity as absent so
+    # that callers fall back to the true _unscoped path rather than using "_unscoped" as
+    # a scoped identity name (which would route to .agdt/workflows/_unscoped/<worktree_key>
+    # instead of the intended .agdt/workflows/_unscoped/).
+    if not isinstance(identity, str) or not is_safe_dir_segment(identity):
+        identity = ""
+
+    # Read existing bootstrap to preserve worktree_key
     bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
     existing: Dict[str, str] = {}
     try:
         content = bootstrap_path.read_text(encoding="utf-8")
         data = json.loads(content)
         if isinstance(data, dict):
-            for bk in ("identity", "worktree_key"):
-                bv = data.get(bk)
-                if isinstance(bv, str):
-                    stripped = bv.strip()
-                    if stripped:
-                        existing[bk] = stripped
+            bv = data.get("worktree_key")
+            if isinstance(bv, str):
+                stripped = bv.strip()
+                if stripped:
+                    existing["worktree_key"] = stripped
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
         pass
-
-    # Normalize caller-provided identity: must be str, stripped, non-empty
-    if identity is not None:
-        if isinstance(identity, str):
-            identity = identity.strip() or None
-        else:
-            identity = None  # Non-str values treated as unset
-
-    # Resolve identity if not provided (or normalized to None)
-    if identity is None:
-        identity = existing.get("identity") or _resolve_identity(git_root)
 
     # Normalize caller-provided worktree_key: must be str, stripped, non-empty
     effective_wk: Optional[str] = None
@@ -307,20 +458,13 @@ def set_bootstrap_state(
                 effective_wk = stripped_wk
         # Non-str or whitespace-only worktree_key → treated as deletion
 
-    # Update existing dict (pop invalid/empty keys to stay consistent
-    # with get_bootstrap_state() which omits empty-after-strip values)
-    if identity:
-        existing["identity"] = identity
-    else:
-        existing.pop("identity", None)
-
     if worktree_key is not None:
         if effective_wk is not None:
             existing["worktree_key"] = effective_wk
         else:
             existing.pop("worktree_key", None)
 
-    # Write bootstrap file
+    # Write bootstrap file (worktree_key only; identity lives in identity.json)
     bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
     bootstrap_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
@@ -329,12 +473,11 @@ def set_bootstrap_state(
 
     ensure_agdt_gitignore(git_root)
 
-    # Write .identity-owner file
+    # Write .identity-owner file (reuse email fetched at start of function)
     if identity:
         identity_dir = git_root / ".agdt" / "workflows" / identity
         identity_dir.mkdir(parents=True, exist_ok=True)
         owner_file = identity_dir / IDENTITY_OWNER_FILENAME
-        email = _get_git_email()
         if email:
             owner_file.write_text(email, encoding="utf-8")
 
@@ -345,10 +488,13 @@ def get_state_dir() -> Path:
     Priority:
     1. ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable
     2. ``DFLY_AI_HELPERS_STATE_DIR`` environment variable (legacy alias)
-    3. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root
-       (identity and worktree_key read from ``.agdt/runtime-bootstrap.json``)
-    4. ``.agdt/workflows/_unscoped/`` relative to git root (when bootstrap
-       file is missing or incomplete)
+    3. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root.
+       Identity is read from ``.agdt/identity.json``; worktree_key from
+       ``.agdt/runtime-bootstrap.json``.  Legacy installations that have not
+       yet created ``identity.json`` fall back to reading identity from the
+       bootstrap file.
+    4. ``.agdt/workflows/_unscoped/`` relative to git root (when identity or
+       worktree_key is missing or incomplete)
     5. ``.agdt-temp/`` in CWD (when not in a git repo)
     """
     # 1/2. Environment variable override (primary + legacy alias)
@@ -358,12 +504,19 @@ def get_state_dir() -> Path:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    # 2/3. Git-based resolution
+    # 3/4. Git-based resolution
     git_root = _get_git_repo_root()
     if git_root:
-        # Read bootstrap inline to avoid a second _get_git_repo_root() call
-        # (get_bootstrap_state() would call _get_git_repo_root() again).
-        bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
+        agdt_dir = git_root / ".agdt"
+
+        # Read identity from identity.json first (new); fall back to bootstrap (legacy)
+        identity = ""
+        identity_cache = _read_identity_cache(agdt_dir)
+        if identity_cache is not None:
+            identity = identity_cache["identity"]
+
+        # Read worktree_key (and legacy identity) from bootstrap file
+        bootstrap_path = agdt_dir / BOOTSTRAP_FILENAME
         bootstrap: Dict[str, Any] = {}
         try:
             if bootstrap_path.is_file():
@@ -373,12 +526,12 @@ def get_state_dir() -> Path:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             bootstrap = {}
 
-        # Validate types to match get_bootstrap_state()'s strict filtering;
-        # non-string values (e.g. {"identity": 123}) fall back to _unscoped
-        # rather than coercing to unexpected directory names.
-        raw_id = bootstrap.get("identity", "")
+        # Legacy fallback: read identity from bootstrap when identity.json absent
+        if not identity:
+            raw_id = bootstrap.get("identity", "")
+            identity = raw_id.strip() if isinstance(raw_id, str) else ""
+
         raw_wk = bootstrap.get("worktree_key", "")
-        identity = raw_id.strip() if isinstance(raw_id, str) else ""
         worktree_key = raw_wk.strip() if isinstance(raw_wk, str) else ""
 
         if identity and worktree_key and is_safe_dir_segment(identity) and is_safe_dir_segment(worktree_key):
@@ -390,7 +543,7 @@ def get_state_dir() -> Path:
         unscoped.mkdir(parents=True, exist_ok=True)
         return unscoped
 
-    # 4. Final fallback — not in a git repo
+    # 5. Final fallback — not in a git repo
     fallback = Path.cwd() / ".agdt-temp"
     fallback.mkdir(exist_ok=True)
     return fallback
@@ -412,9 +565,10 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     directory.
 
     If the bootstrap file does not exist but the ``.agdt/`` directory does,
-    the file is created with just ``{"worktree_key": ...}``.  Identity will
-    be resolved on the next ``set_bootstrap_state()`` call; until then,
-    ``get_state_dir()`` falls back to ``_unscoped``.
+    the file is created with just ``{"worktree_key": ...}``.  Identity is
+    read from ``.agdt/identity.json`` by ``get_state_dir()`` independently,
+    so the scoped state path resolves correctly as soon as ``identity.json``
+    is present — no ``set_bootstrap_state()`` call required.
 
     This exists so that ``set_value()`` can keep the bootstrap in sync
     without interfering with tests that globally mock ``subprocess.run``.

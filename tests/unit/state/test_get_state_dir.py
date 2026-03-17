@@ -67,6 +67,23 @@ class TestGetStateDirBootstrap:
                 assert result == expected
                 assert result.exists()
 
+    def test_identity_json_used_for_scoped_path(self, tmp_path):
+        """Identity from identity.json + worktree_key from bootstrap → scoped path."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # identity.json holds identity; bootstrap holds only worktree_key
+        (agdt_dir / "identity.json").write_text(json.dumps({"identity": "ama", "email": "a@b.com"}), encoding="utf-8")
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "DFLY-1234"}), encoding="utf-8")
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+
+                expected = tmp_path / ".agdt" / "workflows" / "ama" / "DFLY-1234"
+                assert result == expected
+                assert result.exists()
+
     def test_unscoped_fallback_no_bootstrap(self, tmp_path):
         """No bootstrap file → .agdt/workflows/_unscoped/."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):

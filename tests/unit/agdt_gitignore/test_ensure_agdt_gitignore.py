@@ -61,6 +61,7 @@ class TestEnsureAgdtGitignore:
     def test_entries_constant_values(self):
         """AGDT_GITIGNORE_ENTRIES contains expected values."""
         assert "runtime-bootstrap.json" in AGDT_GITIGNORE_ENTRIES
+        assert "identity.json" in AGDT_GITIGNORE_ENTRIES
         assert "workflows/" in AGDT_GITIGNORE_ENTRIES
 
     def test_content_ends_with_newline(self, tmp_path):

@@ -143,9 +143,7 @@ class TestInitiatePRReviewWorkflowBranches:
         assert "Could not fetch PR source branch" in captured.err
         assert "Unable to determine source branch" in captured.err
 
-    def test_stale_issue_key_cleared_when_not_provided(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_stale_issue_key_cleared_when_not_provided(self, temp_state_dir, clear_state_before):
         """Test that a stale jira.issue_key from a prior run is NOT reused.
 
         When --pull-request-id is provided without --issue-key, any jira.issue_key
@@ -169,9 +167,7 @@ class TestInitiatePRReviewWorkflowBranches:
         # The PR→issue cross-lookup must have been called (proving resolved_issue_key was None)
         mock_find.assert_called_once_with(123)
 
-    def test_stale_pull_request_id_cleared_when_not_provided(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_stale_pull_request_id_cleared_when_not_provided(self, temp_state_dir, clear_state_before):
         """Test that a stale pull_request_id from a prior run is NOT reused.
 
         When --issue-key is provided without --pull-request-id, any pull_request_id

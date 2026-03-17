@@ -247,10 +247,9 @@ class TestWorkflowCommands:
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_auto_setup:
                 mock_auto_setup.return_value = True
 
-                # Mock subprocess.run for the dfly-get-jira-issue call
-                with patch("subprocess.run") as mock_subprocess:
-                    mock_subprocess.return_value.returncode = 0
-
+                # Mock Jira retrieval to avoid external calls while keeping
+                # subprocess behavior intact for identity/bootstrap logic.
+                with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
                     # Mock session launcher to avoid waiting for prompt file
                     with patch(
                         "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_work_on_jira_issue"

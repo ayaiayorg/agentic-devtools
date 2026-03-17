@@ -10,18 +10,22 @@ from agentic_devtools.cli.workflows.worktree_setup import (
 class TestCreateWorktree:
     """Tests for create_worktree function."""
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
-    def test_creates_worktree_successfully(self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree):
+    def test_creates_worktree_successfully(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo
+    ):
         """Test successful worktree creation."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False  # Worktree doesn't exist
         mock_run.return_value = MagicMock(returncode=0)
         mock_get_branch.return_value = "main"  # Not on target branch
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None  # No identity.json to copy
 
         result = create_worktree("DFLY-1234", "feature")
 
@@ -72,17 +76,21 @@ class TestCreateWorktree:
         assert result.success is False
         assert "not a git worktree" in result.error_message
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
-    def test_handles_git_worktree_failure(self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree):
+    def test_handles_git_worktree_failure(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo
+    ):
         """Test handling git worktree command failure."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
         mock_get_branch.return_value = "main"
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
         mock_run.return_value = MagicMock(
             returncode=128,
             stderr="fatal: unable to create worktree",
@@ -93,17 +101,21 @@ class TestCreateWorktree:
         assert result.success is False
         assert result.error_message is not None
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
-    def test_handles_existing_branch(self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree):
+    def test_handles_existing_branch(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo
+    ):
         """Test handling when branch already exists."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
         mock_get_branch.return_value = "main"
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
         # First call fails with "already exists", second succeeds
         mock_run.side_effect = [
             MagicMock(returncode=128, stderr="branch 'feature/DFLY-1234/implementation' already exists"),
@@ -115,17 +127,21 @@ class TestCreateWorktree:
         assert result.success is True
         assert mock_run.call_count == 2
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
-    def test_handles_os_error(self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree):
+    def test_handles_os_error(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo
+    ):
         """Test handling OS error during worktree creation."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
         mock_get_branch.return_value = "main"
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
         mock_run.side_effect = OSError("Permission denied")
 
         result = create_worktree("DFLY-1234", "feature")
@@ -133,6 +149,7 @@ class TestCreateWorktree:
         assert result.success is False
         assert "Error creating worktree" in result.error_message
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
@@ -140,7 +157,7 @@ class TestCreateWorktree:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
     def test_switches_to_main_when_on_target_branch_in_main_repo(
-        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch, mock_main_repo
     ):
         """Test switches to main when on target branch in main repo (not worktree)."""
         mock_parent.return_value = "/repos"
@@ -149,6 +166,7 @@ class TestCreateWorktree:
         mock_in_worktree.return_value = False  # In main repo, not worktree
         mock_switch.return_value = True  # Switch succeeds
         mock_run.return_value = MagicMock(returncode=0)
+        mock_main_repo.return_value = None
 
         result = create_worktree("DFLY-1234", "feature")
 
@@ -156,6 +174,7 @@ class TestCreateWorktree:
         mock_switch.assert_called_once()
         mock_run.assert_called_once()
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
@@ -163,7 +182,7 @@ class TestCreateWorktree:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
     def test_does_not_switch_when_in_worktree(
-        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch, mock_main_repo
     ):
         """Test does NOT switch to main when already in a worktree (even if on same branch)."""
         mock_parent.return_value = "/repos"
@@ -171,6 +190,7 @@ class TestCreateWorktree:
         mock_get_branch.return_value = "feature/DFLY-1234/implementation"
         mock_in_worktree.return_value = True  # Already in a worktree
         mock_run.return_value = MagicMock(returncode=0)
+        mock_main_repo.return_value = None
 
         result = create_worktree("DFLY-1234", "feature")
 
@@ -197,6 +217,7 @@ class TestCreateWorktree:
         assert result.success is False
         assert "Failed to switch to main branch" in result.error_message
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
@@ -204,7 +225,7 @@ class TestCreateWorktree:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
     def test_does_not_switch_when_on_different_branch(
-        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_switch, mock_main_repo
     ):
         """Test does NOT switch when on a different branch than the target."""
         mock_parent.return_value = "/repos"
@@ -212,6 +233,7 @@ class TestCreateWorktree:
         mock_get_branch.return_value = "main"  # On main, not the target branch
         mock_in_worktree.return_value = False
         mock_run.return_value = MagicMock(returncode=0)
+        mock_main_repo.return_value = None
 
         result = create_worktree("DFLY-1234", "feature")
 
@@ -220,19 +242,29 @@ class TestCreateWorktree:
 
     @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
     @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
     def test_use_existing_branch_performs_safety_check(
-        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_fetch, mock_safety_check
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_main_repo,
+        mock_fetch,
+        mock_safety_check,
     ):
         """Test that use_existing_branch performs safety checks."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
         mock_get_branch.return_value = "main"
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
         mock_safety_check.return_value = MagicMock(is_safe=True, message="Branch is safe")
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -270,19 +302,29 @@ class TestCreateWorktree:
 
     @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
     @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")
     def test_use_existing_branch_tries_tracking_on_failure(
-        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_fetch, mock_safety_check
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_main_repo,
+        mock_fetch,
+        mock_safety_check,
     ):
         """Test that use_existing_branch tries tracking remote on first failure."""
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
         mock_get_branch.return_value = "main"
         mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
         mock_safety_check.return_value = MagicMock(is_safe=True, message="Safe")
         # First call fails, second succeeds (tracking remote)
         mock_run.side_effect = [
@@ -296,3 +338,87 @@ class TestCreateWorktree:
 
         assert result.success is True
         assert mock_run.call_count == 2
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.shutil.copy2")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_copies_identity_json_to_worktree(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo, mock_copy, tmp_path
+    ):
+        """Copies identity.json from main repo to new worktree after creation."""
+        main_repo_dir = tmp_path / "main"
+        main_repo_dir.mkdir()
+        agdt_dir = main_repo_dir / ".agdt"
+        agdt_dir.mkdir()
+        identity_file = agdt_dir / "identity.json"
+        identity_file.write_text('{"identity": "ama", "email": "a@b.com"}', encoding="utf-8")
+
+        mock_parent.return_value = str(tmp_path)
+        mock_exists.return_value = False
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = str(main_repo_dir)
+
+        result = create_worktree("DFLY-1234", "feature")
+
+        assert result.success is True
+        mock_copy.assert_called_once()
+        call_args = mock_copy.call_args[0]
+        assert "identity.json" in call_args[0]
+        assert "identity.json" in call_args[1]
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_skips_identity_copy_when_no_main_repo(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo
+    ):
+        """Does not fail when main repo cannot be determined (no identity to copy)."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None  # No main repo found
+
+        result = create_worktree("DFLY-1234", "feature")
+
+        assert result.success is True
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.shutil.copy2")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_identity_copy_exception_is_non_fatal(
+        self, mock_exists, mock_parent, mock_run, mock_get_branch, mock_in_worktree, mock_main_repo, mock_copy, tmp_path
+    ):
+        """An exception during identity.json copy does not fail worktree creation."""
+        main_repo_dir = tmp_path / "main"
+        main_repo_dir.mkdir()
+        agdt_dir = main_repo_dir / ".agdt"
+        agdt_dir.mkdir()
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}', encoding="utf-8")
+
+        mock_parent.return_value = str(tmp_path)
+        mock_exists.return_value = False
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = str(main_repo_dir)
+        mock_copy.side_effect = OSError("permission denied")
+
+        result = create_worktree("DFLY-1234", "feature")
+
+        # Should succeed despite the copy failure
+        assert result.success is True

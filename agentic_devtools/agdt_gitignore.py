@@ -13,7 +13,7 @@ from typing import Optional
 # Paths (relative to .agdt/) that must be git-ignored on code branches.
 # Used both for writing .agdt/.gitignore and for defense-in-depth unstaging
 # in stage_changes().
-AGDT_GITIGNORE_ENTRIES = ("runtime-bootstrap.json", "workflows/")
+AGDT_GITIGNORE_ENTRIES = ("runtime-bootstrap.json", "identity.json", "workflows/")
 
 AGDT_GITIGNORE_HEADER = (
     "# Managed by agentic-devtools — do not edit manually.\n"
