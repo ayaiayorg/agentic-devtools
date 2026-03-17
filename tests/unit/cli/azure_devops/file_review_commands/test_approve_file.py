@@ -277,3 +277,71 @@ class TestApproveFilePatchFlow:
         assert file_entry.previousSuggestions[0].threadId == 555
         assert file_entry.suggestions == []
         assert file_entry.status == "approved"
+
+
+class TestApproveFileRecordVerdict:
+    """Tests for record_verdict integration in approve_file PATCH flow."""
+
+    def _setup_state(self, set_value):
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "LGTM!")
+
+    def test_record_verdict_called_when_session_model_id_present(self, temp_state_dir, clear_state_before):
+        """Should call record_verdict with the session model ID when sessions exist."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict, ReviewSession
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = [
+            ReviewSession(sessionId="s1", modelId="claude-opus-4", startedUtc="2026-01-01T00:00:00Z")
+        ]
+        review_state.files["/src/main.py"].modelVerdicts = [ModelVerdict(modelId="claude-opus-4", status="unreviewed")]
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_approve_patch_flow_mocks(stack, review_state, mock_save)
+            self._setup_state(set_value)
+            approve_file()
+
+        verdict = review_state.files["/src/main.py"].get_model_verdict("claude-opus-4")
+        assert verdict is not None
+        assert verdict.status == "approved"
+
+    def test_record_verdict_falls_back_to_state_model_id(self, temp_state_dir, clear_state_before):
+        """Should use state.modelId when sessions list is empty."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = []
+        review_state.modelId = "fallback-model"
+        review_state.files["/src/main.py"].modelVerdicts = [ModelVerdict(modelId="fallback-model", status="unreviewed")]
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_approve_patch_flow_mocks(stack, review_state, mock_save)
+            self._setup_state(set_value)
+            approve_file()
+
+        verdict = review_state.files["/src/main.py"].get_model_verdict("fallback-model")
+        assert verdict is not None
+        assert verdict.status == "approved"
+
+    def test_record_verdict_skipped_when_no_model_id(self, temp_state_dir, clear_state_before):
+        """Should not call record_verdict (and not add 'unknown' row) when no model ID is available."""
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = []
+        # No modelId on state
+
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            _enter_approve_patch_flow_mocks(stack, review_state, mock_save)
+            self._setup_state(set_value)
+            approve_file()
+
+        # No spurious 'unknown' row should exist
+        file_entry = review_state.files["/src/main.py"]
+        assert all(mv.modelId != "unknown" for mv in file_entry.modelVerdicts)

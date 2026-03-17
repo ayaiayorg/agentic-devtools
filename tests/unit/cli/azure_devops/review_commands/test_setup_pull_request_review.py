@@ -1718,9 +1718,7 @@ class TestSetupPullRequestReviewPersistence:
         ) as mock_is_safe_dir_segment:
             with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
-                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
-                        pr_details_with_commit
-                    )
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(pr_details_with_commit)
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",

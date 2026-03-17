@@ -1044,3 +1044,87 @@ class TestRequestChangesLegacyFallback:
         assert "legacy" in captured.out.lower()
         # Summary + 1 suggestion = 2 POSTs
         assert mock_requests.post.call_count == 2
+
+
+class TestRequestChangesRecordVerdict:
+    """Tests for record_verdict integration in request_changes PATCH flow."""
+
+    def _setup_state(self, set_value):
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Error handling risk.")
+        set_value("file_review.suggestions", _SUGGESTIONS)
+
+    def test_record_verdict_called_when_session_model_id_present(self, temp_state_dir, clear_state_before):
+        """Should call record_verdict with the session model ID when sessions exist."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict, ReviewSession
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = [
+            ReviewSession(sessionId="s1", modelId="claude-opus-4", startedUtc="2026-01-01T00:00:00Z")
+        ]
+        review_state.files["/src/main.py"].modelVerdicts = [ModelVerdict(modelId="claude-opus-4", status="unreviewed")]
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = MagicMock(
+            raise_for_status=MagicMock(),
+            json=MagicMock(return_value={"id": 1, "comments": [{"id": 1}]}),
+        )
+
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests)
+            self._setup_state(set_value)
+            request_changes()
+
+        verdict = review_state.files["/src/main.py"].get_model_verdict("claude-opus-4")
+        assert verdict is not None
+        assert verdict.status == "needs-work"
+
+    def test_record_verdict_falls_back_to_state_model_id(self, temp_state_dir, clear_state_before):
+        """Should use state.modelId when sessions list is empty."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = []
+        review_state.modelId = "fallback-model"
+        review_state.files["/src/main.py"].modelVerdicts = [ModelVerdict(modelId="fallback-model", status="unreviewed")]
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = MagicMock(
+            raise_for_status=MagicMock(),
+            json=MagicMock(return_value={"id": 1, "comments": [{"id": 1}]}),
+        )
+
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests)
+            self._setup_state(set_value)
+            request_changes()
+
+        verdict = review_state.files["/src/main.py"].get_model_verdict("fallback-model")
+        assert verdict is not None
+        assert verdict.status == "needs-work"
+
+    def test_record_verdict_skipped_when_no_model_id(self, temp_state_dir, clear_state_before):
+        """Should not call record_verdict (no 'unknown' row) when no model ID is available."""
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        review_state.sessions = []
+        # No modelId on state
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = MagicMock(
+            raise_for_status=MagicMock(),
+            json=MagicMock(return_value={"id": 1, "comments": [{"id": 1}]}),
+        )
+
+        with ExitStack() as stack:
+            _enter_patch_flow_mocks(stack, review_state, mock_requests)
+            self._setup_state(set_value)
+            request_changes()
+
+        # No spurious 'unknown' row should exist
+        file_entry = review_state.files["/src/main.py"]
+        assert all(mv.modelId != "unknown" for mv in file_entry.modelVerdicts)

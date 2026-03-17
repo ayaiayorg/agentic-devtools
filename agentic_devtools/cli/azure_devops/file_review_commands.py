@@ -13,7 +13,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
@@ -27,6 +27,9 @@ from .helpers import (
 )
 from .mark_reviewed import mark_file_reviewed
 
+if TYPE_CHECKING:
+    from .review_state import ReviewState
+
 
 def _normalize_repo_path(path: Optional[str]) -> Optional[str]:
     """Normalize a file path to repository format (/path/to/file)."""
@@ -36,6 +39,65 @@ def _normalize_repo_path(path: Optional[str]) -> Optional[str]:
     if not clean:  # pragma: no cover
         return None
     return f"/{clean}"
+
+
+def _get_attribution_params(
+    review_state: "ReviewState",
+    config: AzureDevOpsConfig,
+    file_path: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
+    """Extract attribution parameters from ReviewState for comment rendering.
+
+    Returns a dict with keys ``model_name``, ``commit_hash``, and ``commit_url``
+    that can be unpacked as keyword arguments into ``render_file_summary()`` and
+    ``render_overall_summary()``.  Any value may be ``None`` when the required
+    data is absent (e.g. no sessions recorded, no commit hash stored yet).
+
+    Args:
+        review_state: Current ReviewState instance.
+        config: AzureDevOpsConfig with org/project/repository.
+        file_path: Optional file path for per-file URL (overall PR URL used when absent).
+
+    Returns:
+        Dict with ``model_name``, ``commit_hash``, and ``commit_url``.
+    """
+    from .review_attribution import build_commit_file_url, build_commit_pr_url
+    from .review_state import normalize_file_path
+
+    # Prefer the latest session model ID when available, but fall back to the
+    # top-level ReviewState.modelId for backward/partial states where sessions
+    # may be empty while the model is still known.
+    model_name: Optional[str]
+    if getattr(review_state, "sessions", None):
+        model_name = review_state.sessions[-1].modelId
+    else:
+        model_name = getattr(review_state, "modelId", None)
+
+    commit_hash = review_state.commitHash
+    commit_url: Optional[str] = None
+    if commit_hash and review_state.latestIterationId:
+        try:
+            if file_path:
+                normalized = normalize_file_path(file_path)
+                commit_url = build_commit_file_url(
+                    config.organization,
+                    config.project,
+                    config.repository,
+                    review_state.prId,
+                    normalized,
+                    review_state.latestIterationId,
+                )
+            else:
+                commit_url = build_commit_pr_url(
+                    config.organization,
+                    config.project,
+                    config.repository,
+                    review_state.prId,
+                    review_state.latestIterationId,
+                )
+        except Exception:
+            commit_url = None
+    return {"model_name": model_name, "commit_hash": commit_hash, "commit_url": commit_url}
 
 
 def _get_thread_file_path(thread: dict) -> Optional[str]:
@@ -81,9 +143,7 @@ def _get_queue_path(pull_request_id: int) -> Path:
     # is absent but an old-format queue still exists.  This prevents silent queue
     # loss (empty/default status) when upgrading mid-review.
     if not new_path.exists():
-        legacy_path = (
-            state_dir / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
-        )
+        legacy_path = state_dir / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
         if legacy_path.exists():
             return legacy_path
     return new_path
@@ -511,7 +571,18 @@ def trigger_in_progress_for_file(
         auth_headers = get_auth_headers(get_pat())
 
     # PATCH file summary comment content; file thread status stays "active" per spec
-    file_content = render_file_summary(file_entry, file_entry.suggestions, base_url)
+    attrs = _get_attribution_params(review_state, config, file_path=file_path)
+
+    # Ensure the current model's verdict reflects that review is in progress.
+    # attrs["model_name"] holds the model ID derived from the review session.
+    model_id = attrs.get("model_name")
+    if model_id is not None:
+        current_verdict = file_entry.get_model_verdict(model_id)
+        if current_verdict is not None:
+            current_verdict.status = ReviewStatus.IN_PROGRESS.value
+            current_verdict.verdictType = None
+
+    file_content = render_file_summary(file_entry, file_entry.suggestions, base_url, **attrs)
     patch_comment(
         requests_module=requests_module,
         headers=auth_headers,
@@ -528,7 +599,8 @@ def trigger_in_progress_for_file(
     # review_state even if downstream cascade execution fails, so the
     # local state reflects the already-PATCHed file comment.
     try:
-        ops = cascade_status_update(review_state, file_path, base_url)
+        cascade_attrs = _get_attribution_params(review_state, config)
+        ops = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
         execute_cascade(ops, requests_module, auth_headers, config, repo_id, pull_request_id, dry_run=dry_run)
     finally:
         if not dry_run:
@@ -1059,8 +1131,20 @@ def approve_file() -> None:  # pragma: no cover
             )
             sys.exit(1)
 
+        # Record verdict for model progress table; skip when no model ID is known
+        # to avoid polluting the review state with a spurious "unknown" row.
+        from .verdict_protocol import VerdictType, record_verdict
+
+        if review_state.sessions:
+            model_id = review_state.sessions[-1].modelId
+        else:
+            model_id = getattr(review_state, "modelId", None)
+        if model_id:
+            record_verdict(file_entry, model_id, VerdictType.AGREE, ReviewStatus.APPROVED.value)
+
         # PATCH file summary comment with regenerated markdown
-        file_content = render_file_summary(file_entry, [], base_url)
+        attrs = _get_attribution_params(review_state, config, file_path=file_path)
+        file_content = render_file_summary(file_entry, [], base_url, **attrs)
         patch_comment(
             requests_module=requests,
             headers=headers,
@@ -1098,7 +1182,8 @@ def approve_file() -> None:  # pragma: no cover
         # review_state even if downstream cascade execution fails, so the
         # local state reflects the already-PATCHed file comment.
         try:
-            patch_operations = cascade_status_update(review_state, file_path, base_url)
+            cascade_attrs = _get_attribution_params(review_state, config)
+            patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
             execute_cascade(
                 patch_operations=patch_operations,
                 requests_module=requests,
@@ -1573,8 +1658,20 @@ def request_changes() -> None:
 
             file_entry = review_state.files[normalized]
 
+            # Record verdict for model progress table; skip when no model ID is known
+            # to avoid polluting the review state with a spurious "unknown" row.
+            from .verdict_protocol import VerdictType, record_verdict
+
+            if review_state.sessions:
+                model_id = review_state.sessions[-1].modelId
+            else:
+                model_id = getattr(review_state, "modelId", None)
+            if model_id:
+                record_verdict(file_entry, model_id, VerdictType.AGREE, ReviewStatus.NEEDS_WORK.value)
+
             # PATCH file summary comment with regenerated markdown
-            file_content = render_file_summary(file_entry, file_entry.suggestions, base_url)
+            attrs = _get_attribution_params(review_state, config, file_path=file_path)
+            file_content = render_file_summary(file_entry, file_entry.suggestions, base_url, **attrs)
             patch_comment(
                 requests_module=requests,
                 headers=headers,
@@ -1609,7 +1706,8 @@ def request_changes() -> None:
             )
 
             # Cascade folder and overall summary updates
-            patch_operations = cascade_status_update(review_state, file_path, base_url)
+            cascade_attrs = _get_attribution_params(review_state, config)
+            patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
             execute_cascade(
                 patch_operations=patch_operations,
                 requests_module=requests,

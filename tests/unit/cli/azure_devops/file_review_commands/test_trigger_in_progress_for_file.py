@@ -193,7 +193,9 @@ class TestTriggerInProgressForFile:
             with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state"):
                 trigger_in_progress_for_file(42, _FILE_PATH)
 
-        api_mocks["cascade"].assert_called_once_with(state, _FILE_PATH, _BASE_URL)
+        api_mocks["cascade"].assert_called_once_with(
+            state, _FILE_PATH, _BASE_URL, model_name=None, commit_hash=None, commit_url=None
+        )
 
     def test_dry_run_skips_api_calls(self):
         """Should skip network calls (require_requests) in dry-run mode."""
@@ -332,3 +334,65 @@ class TestTriggerInProgressForFile:
         # State should still be saved despite the cascade failure
         mock_save.assert_called_once_with(state)
         assert state.files[_FILE_PATH].status == ReviewStatus.IN_PROGRESS.value
+
+
+class TestTriggerInProgressModelVerdictUpdate:
+    """Tests for model-verdict in-progress status update in trigger_in_progress_for_file."""
+
+    def _make_state_with_verdict(self) -> ReviewState:
+        """Build a ReviewState with a pre-initialized model verdict entry."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict, ReviewSession
+
+        state = _make_review_state()
+        state.sessions = [ReviewSession(sessionId="sess-1", modelId="claude-opus-4", startedUtc="2026-01-01T00:00:00Z")]
+        state.files[_FILE_PATH].modelVerdicts = [
+            ModelVerdict(modelId="claude-opus-4", status=ReviewStatus.UNREVIEWED.value)
+        ]
+        return state
+
+    def test_updates_model_verdict_status_to_in_progress(self, api_mocks):
+        """Should update the model's verdict status from unreviewed to in-progress."""
+        state = self._make_state_with_verdict()
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/org"
+        mock_config.project = "proj"
+        mock_config.repository = "repo"
+        api_mocks["config"].organization = "https://dev.azure.com/org"
+        api_mocks["config"].project = "proj"
+        api_mocks["config"].repository = "repo"
+
+        with patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=state):
+            with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state"):
+                trigger_in_progress_for_file(42, _FILE_PATH)
+
+        verdict = state.files[_FILE_PATH].modelVerdicts[0]
+        assert verdict.status == ReviewStatus.IN_PROGRESS.value
+        assert verdict.verdictType is None
+
+    def test_no_op_when_no_sessions(self, api_mocks):
+        """Should skip model verdict update gracefully when no sessions exist."""
+        state = _make_review_state()
+        state.sessions = []
+
+        with patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=state):
+            with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state"):
+                # Should not raise even with empty sessions
+                trigger_in_progress_for_file(42, _FILE_PATH)
+
+        assert state.files[_FILE_PATH].status == ReviewStatus.IN_PROGRESS.value
+
+    def test_no_op_when_model_verdict_not_found(self, api_mocks):
+        """Should skip verdict update when the model has no entry in modelVerdicts."""
+        from agentic_devtools.cli.azure_devops.review_state import ModelVerdict, ReviewSession
+
+        state = _make_review_state()
+        state.sessions = [ReviewSession(sessionId="s", modelId="model-a", startedUtc="2026-01-01T00:00:00Z")]
+        # modelVerdicts has a different model, not "model-a"
+        state.files[_FILE_PATH].modelVerdicts = [ModelVerdict(modelId="model-b", status=ReviewStatus.UNREVIEWED.value)]
+
+        with patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=state):
+            with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state"):
+                trigger_in_progress_for_file(42, _FILE_PATH)
+
+        # model-b verdict should remain unchanged
+        assert state.files[_FILE_PATH].modelVerdicts[0].status == ReviewStatus.UNREVIEWED.value

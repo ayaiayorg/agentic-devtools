@@ -120,6 +120,7 @@ class TestGetOrRefreshIdentity:
     def test_supplied_email_used_for_cache_hit(self, tmp_path):
         """Supplied _email is compared against cache without subprocess call."""
         import json as _json
+
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
         (agdt_dir / "identity.json").write_text(

@@ -8,6 +8,7 @@ from agentic_devtools.cli.azure_devops.review_scaffold import _incremental_resca
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     FolderGroup,
+    ModelVerdict,
     OverallSummary,
     ReviewState,
     ReviewStatus,
@@ -69,7 +70,7 @@ def _make_existing_state(files=None, commit_hash="old_hash"):
 class TestIncrementalRescaffold:
     """Tests for _incremental_rescaffold."""
 
-    def _run_rescaffold(self, existing_state, current_files, changed_paths=None):
+    def _run_rescaffold(self, existing_state, current_files, changed_paths=None, model_id="gpt-5"):
         """Run _incremental_rescaffold with mocked detect_file_changes."""
         requests_mock = MagicMock()
         id_gen = count(1000)
@@ -122,7 +123,7 @@ class TestIncrementalRescaffold:
                     headers={},
                     dry_run=False,
                     commit_hash="new_hash",
-                    model_id="gpt-5",
+                    model_id=model_id,
                 )
 
         return result, requests_mock, save_mock
@@ -160,6 +161,56 @@ class TestIncrementalRescaffold:
 
         assert result.files["/src/a.ts"].suggestions == []
         assert result.files["/src/a.ts"].previousSuggestions == []
+
+    def test_modified_file_model_verdicts_reset_to_unreviewed(self):
+        """Modified files have modelVerdicts reset to unreviewed status and verdictType=None."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value, verdictType="agree"),
+        ]
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"], changed_paths=["/src/a.ts"])
+
+        mv = result.files["/src/a.ts"].modelVerdicts[0]
+        assert mv.modelId == "gpt-5"
+        assert mv.status == ReviewStatus.UNREVIEWED.value
+        assert mv.verdictType is None
+
+    def test_modified_file_consolidation_status_cleared(self):
+        """Modified files have consolidationStatus cleared to None."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].consolidationStatus = "complete"
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value),
+        ]
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"], changed_paths=["/src/a.ts"])
+
+        assert result.files["/src/a.ts"].consolidationStatus is None
+
+    def test_modified_file_rendered_content_shows_reset_verdict(self):
+        """The PATCH content for a modified file shows the reset (unreviewed) verdict, not the old terminal one."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value, verdictType="agree"),
+        ]
+        result, requests_mock, _ = self._run_rescaffold(
+            existing, ["/src/a.ts"], changed_paths=["/src/a.ts"]
+        )
+        assert result is not None
+
+        # The rendered content is PATCHed as the new main comment — collect all PATCH call bodies
+        patch_bodies = [
+            call.kwargs.get("json", {})
+            for call in requests_mock.patch.call_args_list
+        ]
+        # Find any PATCH that updated a comment content (single {"content": ...} body)
+        comment_patch_contents = [b.get("content", "") for b in patch_bodies if "content" in b]
+        assert any("### Model Review Progress" in c for c in comment_patch_contents), (
+            "Model Review Progress table should appear in the PATCH content"
+        )
+        # The table should show the unreviewed status, not the old "Approved" status
+        assert not any("✅ Approved" in c for c in comment_patch_contents), (
+            "Approved status should not appear in the re-rendered comment"
+        )
 
     def test_deleted_files_marked_approved(self):
         """Deleted files are marked as approved with 'File removed' summary."""
@@ -252,6 +303,47 @@ class TestIncrementalRescaffold:
         result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"])
 
         assert result.commitHash == "new_hash"
+
+    def test_new_file_model_verdicts_initialized_when_model_id_truthy(self):
+        """New file entries have modelVerdicts when model_id is a non-empty string."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="gpt-5")
+        entry = result.files["/src/new.ts"]
+        assert len(entry.modelVerdicts) == 1
+        assert entry.modelVerdicts[0].modelId == "gpt-5"
+
+    def test_new_file_model_verdicts_empty_when_model_id_falsy(self):
+        """New file entries have no modelVerdicts when model_id is an empty string."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="")
+        entry = result.files["/src/new.ts"]
+        assert entry.modelVerdicts == []
+
+    def test_initial_new_file_thread_content_includes_progress_table_when_model_id_truthy(self):
+        """Initial content posted for a new file thread includes the Model Review Progress table."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, requests_mock, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="gpt-5")
+        assert result is not None
+        # Thread-shaped POSTs have a "comments" list in the JSON body
+        thread_post_contents = [
+            call.kwargs["json"]["comments"][0]["content"]
+            for call in requests_mock.post.call_args_list
+            if "comments" in call.kwargs.get("json", {})
+        ]
+        assert any("### Model Review Progress" in c for c in thread_post_contents)
+        assert any("gpt-5" in c for c in thread_post_contents)
+
+    def test_initial_new_file_thread_content_excludes_progress_table_when_model_id_empty(self):
+        """Initial content posted for a new file thread has no Model Review Progress table when model_id empty."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, requests_mock, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="")
+        assert result is not None
+        thread_post_contents = [
+            call.kwargs["json"]["comments"][0]["content"]
+            for call in requests_mock.post.call_args_list
+            if "comments" in call.kwargs.get("json", {})
+        ]
+        assert not any("### Model Review Progress" in c for c in thread_post_contents)
 
 
 class TestIncrementalRescaffoldDryRun:
