@@ -13,10 +13,6 @@ class TestEnsureBootstrapIdentity:
 
     def test_calls_set_bootstrap_state_when_no_env_override(self, temp_state_dir):
         """Should call set_bootstrap_state() when no env-var override is set."""
-        with patch("agentic_devtools.cli.workflows.commands.os.getenv", return_value=None):
-            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity.__wrapped__", create=True):
-                pass
-
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
             os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)

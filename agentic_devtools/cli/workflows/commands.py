@@ -632,6 +632,7 @@ def _execute_planning_step(
             "branch_name": branch_name,
             "issue_summary": issue_summary,
         },
+        skip_bootstrap_init=True,
     )
 
 
@@ -1029,6 +1030,7 @@ def initiate_create_jira_issue_workflow(
                     "jira.issue_type",
                     "jira.user_request",
                 ],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1216,6 +1218,7 @@ def initiate_create_jira_epic_workflow(
                     "jira.issue_key",
                     "jira.user_request",
                 ],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1386,6 +1389,7 @@ def initiate_create_jira_subtask_workflow(
                 workflow_name="create-jira-subtask",
                 required_state_keys=["jira.parent_key"],
                 optional_state_keys=["jira.summary", "jira.description", "jira.issue_key", "jira.user_request"],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1587,6 +1591,7 @@ def initiate_update_jira_issue_workflow(
         workflow_name="update-jira-issue",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.summary", "jira.description", "jira.comment", "jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Start a Copilot CLI session after the workflow is initiated.
@@ -1740,6 +1745,7 @@ Examples:
         workflow_name="apply-pull-request-review-suggestions",
         required_state_keys=["pull_request_id"],
         optional_state_keys=["jira.issue_key"],
+        skip_bootstrap_init=True,
     )
 
     # Auto-copy review state into the apply-suggestions directory
@@ -1937,6 +1943,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         workflow_name="optimize-issue-for-ai-agent",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
@@ -2084,6 +2091,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
         workflow_name="break-down-issue-into-subtasks",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.

@@ -139,6 +139,7 @@ def initiate_workflow(
     additional_variables: Optional[Dict[str, Any]] = None,
     step_name: str = "initiate",
     context: Optional[Dict[str, Any]] = None,
+    skip_bootstrap_init: bool = False,
 ) -> str:
     """
     Common workflow initiation logic.
@@ -157,6 +158,9 @@ def initiate_workflow(
         additional_variables: Extra variables to include (not from state)
         step_name: Name of the step (default "initiate")
         context: Workflow context to store in state
+        skip_bootstrap_init: Set to True when the caller has already called
+            _ensure_bootstrap_identity() to avoid a redundant second call to
+            set_bootstrap_state() (extra git subprocess + disk writes).
 
     Returns:
         The generated prompt content
@@ -172,8 +176,10 @@ def initiate_workflow(
     # When the state directory is overridden via environment variables, scoped
     # bootstrap is not used, so we can skip this initialization to avoid
     # redundant git subprocesses and .agdt/* side effects.
+    # skip_bootstrap_init=True when _ensure_bootstrap_identity() was already
+    # called before any state I/O in the same command invocation.
     env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
-    if not env_state_override:
+    if not env_state_override and not skip_bootstrap_init:
         try:
             set_bootstrap_state()
         except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
