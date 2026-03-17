@@ -142,7 +142,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     #    already handled (or is currently handling) auto-start. Before
     #    exiting, attempt best-effort cleanup of any stale auto-start task.
     if os.path.exists(sentinel_path):
-        _cleanup_auto_start_task(worktree_path, task_label, True)
+        _cleanup_auto_start_task(worktree_path, task_label, created_new)
         sys.exit(0)
 
     # 3. Pre-flight: bail out early if the copilot CLI is not available.

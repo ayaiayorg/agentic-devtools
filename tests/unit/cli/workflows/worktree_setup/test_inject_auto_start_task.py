@@ -334,15 +334,23 @@ class TestInjectAutoStartTask:
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     def test_sentinel_guard_deletes_file_when_only_stale_task_remains(self, mock_available, tmp_path):
-        """When sentinel exists and tasks.json has only the stale task, delete the file."""
+        """When sentinel exists and tasks.json has only the stale task with --created-new, delete the file."""
         sentinel_dir = tmp_path / ".agdt"
         sentinel_dir.mkdir(parents=True)
         (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
         vscode_dir = tmp_path / ".vscode"
         vscode_dir.mkdir()
+        # New-format stale task includes --created-new in args
         tasks_data = {
             "version": "2.0.0",
-            "tasks": [{"label": "agdt-copilot-auto-start", "type": "shell", "command": "agdt-copilot-auto-start"}],
+            "tasks": [
+                {
+                    "label": "agdt-copilot-auto-start",
+                    "type": "process",
+                    "command": "agdt-copilot-auto-start",
+                    "args": ["--worktree-path", str(tmp_path), "--start-prompt", "hello", "--created-new"],
+                }
+            ],
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
 
@@ -352,6 +360,38 @@ class TestInjectAutoStartTask:
         assert not (vscode_dir / "tasks.json").exists()
         # .vscode/ should be removed too (it's now empty)
         assert not vscode_dir.exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_sentinel_guard_rewrites_file_when_only_stale_task_remains_and_no_created_new(
+        self, mock_available, tmp_path
+    ):
+        """When sentinel exists and the stale task does NOT have --created-new, rewrite instead of delete."""
+        sentinel_dir = tmp_path / ".agdt"
+        sentinel_dir.mkdir(parents=True)
+        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        # Stale task without --created-new (e.g. an old-format task or file pre-existed)
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [
+                {
+                    "label": "agdt-copilot-auto-start",
+                    "type": "process",
+                    "command": "agdt-copilot-auto-start",
+                    "args": ["--worktree-path", str(tmp_path), "--start-prompt", "hello"],
+                }
+            ],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        result = inject_auto_start_task(str(tmp_path), "test prompt")
+
+        assert result is False
+        # File is rewritten (not deleted) because --created-new was absent
+        assert (vscode_dir / "tasks.json").exists()
+        data = json.loads((vscode_dir / "tasks.json").read_text(encoding="utf-8"))
+        assert data["tasks"] == []
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     def test_sentinel_guard_noop_when_no_stale_task(self, mock_available, tmp_path):
@@ -443,9 +483,17 @@ class TestInjectAutoStartTask:
         (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
         vscode_dir = tmp_path / ".vscode"
         vscode_dir.mkdir()
+        # New-format stale task with --created-new so deletion is attempted
         tasks_data = {
             "version": "2.0.0",
-            "tasks": [{"label": "agdt-copilot-auto-start", "type": "shell", "command": "agdt-copilot-auto-start"}],
+            "tasks": [
+                {
+                    "label": "agdt-copilot-auto-start",
+                    "type": "process",
+                    "command": "agdt-copilot-auto-start",
+                    "args": ["--worktree-path", str(tmp_path), "--start-prompt", "hello", "--created-new"],
+                }
+            ],
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
         # Add another file so rmdir fails

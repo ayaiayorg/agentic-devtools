@@ -937,16 +937,37 @@ def _remove_stale_auto_start_task(
     removed:
 
     * When other tasks remain the file is rewritten.
-    * When no tasks remain **and** the file has no other top-level keys
-      besides ``version`` and ``tasks``, the file is **deleted** and
-      ``.vscode/`` is removed if empty.
-    * When no tasks remain but other top-level keys exist (e.g. ``inputs``,
-      ``options``), the file is rewritten preserving those keys.
+    * When no tasks remain **and** the stale task's ``"args"`` list contained
+      ``"--created-new"`` (meaning the file was created fresh by the injection)
+      **and** the file has no other top-level keys besides ``version`` and
+      ``tasks``, the file is **deleted** and ``.vscode/`` is removed if empty.
+    * In all other cases (old-format tasks without ``"args"``, missing flag, or
+      extra top-level keys) the file is rewritten, never deleted — this prevents
+      inadvertent deletion of a pre-existing user ``tasks.json``.
 
     All errors are silently caught so this never prevents the caller from
     proceeding.
     """
-    remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=True)
+    # Infer delete_if_empty by inspecting the stale task's "args" list.
+    # Default to False (conservative) when the task cannot be read, has no
+    # "args", or the "--created-new" flag is absent — this prevents inadvertent
+    # deletion of a pre-existing user tasks.json.
+    delete_if_empty = False
+    try:
+        if os.path.isfile(tasks_path):
+            with open(tasks_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                tasks_list = data.get("tasks")
+                if isinstance(tasks_list, list):
+                    for task in tasks_list:
+                        if isinstance(task, dict) and task.get("label") == task_label:
+                            args = task.get("args", [])
+                            delete_if_empty = isinstance(args, list) and "--created-new" in args
+                            break
+    except Exception:
+        pass
+    remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
 def inject_auto_start_task(

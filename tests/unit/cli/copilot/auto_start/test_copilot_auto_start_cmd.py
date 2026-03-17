@@ -69,7 +69,7 @@ class TestCopilotAutoStartCmd:
         assert exc_info.value.code == 0
 
     def test_calls_remove_auto_start_task_when_sentinel_exists(self, tmp_path):
-        """When sentinel exists, remove_auto_start_task is called for cleanup."""
+        """When sentinel exists, remove_auto_start_task is called for cleanup with delete_if_empty=False."""
         sentinel = tmp_path / ".agdt" / ".copilot-auto-start-triggered"
         sentinel.parent.mkdir(parents=True)
         sentinel.write_text("", encoding="utf-8")
@@ -82,6 +82,32 @@ class TestCopilotAutoStartCmd:
             with pytest.raises(SystemExit):
                 copilot_auto_start_cmd(
                     ["--worktree-path", str(tmp_path), "--start-prompt", "hello", "--task-label", "my-label"]
+                )
+
+        mock_remove.assert_called_once_with(str(tasks_path), str(vscode_dir), "my-label", delete_if_empty=False)
+
+    def test_calls_remove_with_delete_if_empty_true_when_created_new_and_sentinel_exists(self, tmp_path):
+        """When sentinel exists and --created-new is set, calls remove with delete_if_empty=True."""
+        sentinel = tmp_path / ".agdt" / ".copilot-auto-start-triggered"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_text("", encoding="utf-8")
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_path = vscode_dir / "tasks.json"
+
+        with patch(_REMOVE) as mock_remove:
+            with pytest.raises(SystemExit):
+                copilot_auto_start_cmd(
+                    [
+                        "--worktree-path",
+                        str(tmp_path),
+                        "--start-prompt",
+                        "hello",
+                        "--task-label",
+                        "my-label",
+                        "--created-new",
+                    ]
                 )
 
         mock_remove.assert_called_once_with(str(tasks_path), str(vscode_dir), "my-label", delete_if_empty=True)
