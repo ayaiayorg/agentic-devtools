@@ -25,7 +25,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
-        mock_inject.assert_called_once_with(str(tmp_path), ["copilot", "-i", "prompt"])
+        mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT)
         captured = capsys.readouterr()
         assert "auto-start task injected" in captured.out
         assert result is True
