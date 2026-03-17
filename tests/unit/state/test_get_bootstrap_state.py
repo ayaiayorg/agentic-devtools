@@ -131,3 +131,35 @@ class TestGetBootstrapState:
             result = state.get_bootstrap_state()
 
         assert result == {}
+
+    def test_reads_identity_from_identity_json(self, tmp_path):
+        """Reads identity from identity.json (new cache) instead of bootstrap."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+
+        (agdt_dir / "identity.json").write_text(json.dumps({"identity": "ama", "email": "a@b.com"}), encoding="utf-8")
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "DFLY-42"}), encoding="utf-8")
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {"identity": "ama", "worktree_key": "DFLY-42"}
+
+    def test_identity_json_takes_precedence_over_bootstrap_identity(self, tmp_path):
+        """identity.json identity overrides legacy identity in runtime-bootstrap.json."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+
+        (agdt_dir / "identity.json").write_text(
+            json.dumps({"identity": "new", "email": "new@example.com"}), encoding="utf-8"
+        )
+        # Legacy bootstrap still has old identity
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "old", "worktree_key": "DFLY-1"}), encoding="utf-8"
+        )
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result["identity"] == "new"  # identity.json wins
+        assert result["worktree_key"] == "DFLY-1"

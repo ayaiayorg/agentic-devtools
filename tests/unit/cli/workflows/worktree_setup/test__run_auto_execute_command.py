@@ -166,13 +166,33 @@ class TestRunAutoExecuteCommand:
         assert "Permission denied" in captured.out
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
-    def test_uses_scoped_state_dir_when_bootstrap_has_identity(self, mock_run, tmp_path):
-        """Test that AGENTIC_DEVTOOLS_STATE_DIR uses identity/worktree_key when bootstrap exists."""
+    def test_uses_scoped_state_dir_when_identity_json_exists(self, mock_run, tmp_path):
+        """Test that AGENTIC_DEVTOOLS_STATE_DIR uses identity/worktree_key when identity.json exists."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         worktree = tmp_path / "my-worktree"
         worktree.mkdir()
         agdt_dir = worktree / ".agdt"
         agdt_dir.mkdir(parents=True)
+        # New-style: identity in identity.json, worktree_key in runtime-bootstrap.json
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        expected = str(worktree / ".agdt" / "workflows" / "ama" / "PR123")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_uses_scoped_state_dir_when_bootstrap_has_identity(self, mock_run, tmp_path):
+        """Test legacy fallback: identity/worktree_key both in runtime-bootstrap.json."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "my-worktree"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # Legacy format: identity stored in bootstrap (no identity.json)
         bootstrap = agdt_dir / "runtime-bootstrap.json"
         bootstrap.write_text('{"identity": "ama", "worktree_key": "PR123"}')
 
@@ -181,6 +201,26 @@ class TestRunAutoExecuteCommand:
         call_kwargs = mock_run.call_args[1]
         env = call_kwargs["env"]
         expected = str(worktree / ".agdt" / "workflows" / "ama" / "PR123")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_identity_json_takes_precedence_over_bootstrap_identity(self, mock_run, tmp_path):
+        """Test that identity.json identity overrides legacy identity in runtime-bootstrap.json."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # identity.json has "new" identity; bootstrap has stale "old" identity
+        (agdt_dir / "identity.json").write_text('{"identity": "new", "email": "n@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"identity": "old", "worktree_key": "PR999"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        # identity.json wins → "new" is used, not "old"
+        expected = str(worktree / ".agdt" / "workflows" / "new" / "PR999")
         assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
@@ -331,3 +371,23 @@ class TestRunAutoExecuteCommand:
         assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
         captured = capsys.readouterr()
         assert "unsafe bootstrap" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    def test_falls_back_gracefully_when_identity_json_malformed(self, mock_run, tmp_path):
+        """Test fallback to legacy bootstrap when identity.json contains invalid JSON."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # Malformed identity.json → falls back to legacy bootstrap
+        (agdt_dir / "identity.json").write_text("NOT VALID JSON{{{")
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"identity": "ama", "worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_run.call_args[1]
+        env = call_kwargs["env"]
+        # Malformed identity.json → legacy fallback resolves identity from bootstrap
+        expected = str(worktree / ".agdt" / "workflows" / "ama" / "PR123")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected

@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from agentic_devtools.state import IDENTITY_CACHE_FILENAME
+
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
 
@@ -484,6 +486,21 @@ def create_worktree(
             )
 
         print(f"Worktree created successfully at {worktree_path}")
+
+        # Propagate identity.json from main repo to new worktree so the
+        # worktree starts with a valid identity without re-resolving.
+        try:
+            main_repo = get_main_repo_root()
+            if main_repo:
+                src_identity = Path(main_repo) / ".agdt" / IDENTITY_CACHE_FILENAME
+                if src_identity.is_file():
+                    dst_agdt = Path(worktree_path) / ".agdt"
+                    dst_agdt.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(src_identity), str(dst_agdt / IDENTITY_CACHE_FILENAME))
+        except (OSError, ValueError) as exc:
+            # Identity propagation failure is non-fatal, but log for debugging.
+            print(f"Warning: failed to propagate identity cache to worktree: {exc}", file=sys.stderr)
+
         return WorktreeSetupResult(
             success=True,
             worktree_path=worktree_path,
@@ -1329,9 +1346,7 @@ def get_ai_agent_continuation_prompt(
         )
     elif workflow_name == "break-down-issue-into-subtasks":
         task_description = "assigned to break down a Jira issue into subtasks"
-        action_description = (
-            "analyze the Jira issue and create subtasks via agdt-initiate-create-jira-subtask-workflow"
-        )
+        action_description = "analyze the Jira issue and create subtasks via agdt-initiate-create-jira-subtask-workflow"
     else:
         task_description = "assigned an issue to work on"
         action_description = "work on the issue until you have completed the workflow"
@@ -1376,28 +1391,43 @@ def _run_auto_execute_command(
     """
     print(f"\n--- Executing command in worktree: {' '.join(command)} ---")
     # Inherit current environment and pin AGENTIC_DEVTOOLS_STATE_DIR to the
-    # target worktree's identity-scoped state directory when the bootstrap
-    # file contains both ``identity`` and ``worktree_key``.  Falls back to
-    # ``_unscoped`` when the bootstrap file is missing, unreadable, or
-    # malformed, when either key is absent or empty, or when either segment
-    # fails ``is_safe_dir_segment()`` validation.  This propagates into
-    # any nested background tasks spawned by the auto-execute command so
-    # that prompt files and state are written to the correct worktree location
-    # instead of falling back to a Python-install-relative temp directory.
+    # target worktree's identity-scoped state directory whenever a valid
+    # ``identity`` (read from ``.agdt/identity.json`` when present, otherwise
+    # from ``runtime-bootstrap.json``) and ``worktree_key`` (from
+    # ``runtime-bootstrap.json``) can be resolved. Falls back to ``_unscoped``
+    # when either file is missing, unreadable, or malformed, when either key
+    # is absent or empty, or when either segment fails ``is_safe_dir_segment()``
+    # validation. This propagates into any nested background tasks spawned by
+    # the auto-execute command so that prompt files and state are written to
+    # the correct worktree location instead of falling back to a
+    # Python-install-relative temp directory.
     env = os.environ.copy()
 
-    # Read bootstrap file to resolve identity-scoped state directory
-    bootstrap_path = Path(worktree_path) / ".agdt" / "runtime-bootstrap.json"
+    # Read identity from the identity cache file (new) with fallback to runtime-bootstrap.json (legacy).
+    # worktree_key always comes from runtime-bootstrap.json.
+    identity_cache_path = Path(worktree_path) / ".agdt" / IDENTITY_CACHE_FILENAME
     identity = ""
     worktree_key = ""
+    try:
+        if identity_cache_path.is_file():
+            data = json.loads(identity_cache_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                raw_id = data.get("identity", "")
+                identity = raw_id.strip() if isinstance(raw_id, str) else ""
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        pass
+
+    bootstrap_path = Path(worktree_path) / ".agdt" / "runtime-bootstrap.json"
     try:
         if bootstrap_path.is_file():
             data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
-                raw_id = data.get("identity", "")
                 raw_wk = data.get("worktree_key", "")
-                identity = raw_id.strip() if isinstance(raw_id, str) else ""
                 worktree_key = raw_wk.strip() if isinstance(raw_wk, str) else ""
+                # Legacy fallback: read identity from bootstrap when identity.json absent
+                if not identity:
+                    raw_id = data.get("identity", "")
+                    identity = raw_id.strip() if isinstance(raw_id, str) else ""
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         pass
 

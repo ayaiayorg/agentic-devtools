@@ -8,12 +8,15 @@ This module provides common functionality for all workflow commands:
 - State clearing for fresh workflow starts
 """
 
+import json
+import logging
+import subprocess
 import sys
 import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import get_value, load_state, save_state, set_value, set_workflow_state
+from ...state import get_value, load_state, save_state, set_bootstrap_state, set_value, set_workflow_state
 
 
 def clear_state_for_workflow_initiation() -> None:
@@ -155,6 +158,17 @@ def initiate_workflow(
         FileNotFoundError: If no template exists
         TemplateValidationError: If override template is invalid
     """
+    # Ensure identity.json is populated before any set_value() calls so that
+    # _update_bootstrap_worktree_key() (called by set_value()) finds a valid
+    # identity and get_state_dir() resolves to the scoped path immediately.
+    try:
+        set_bootstrap_state()
+    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize bootstrap state; proceeding with unscoped workflow state: %s",
+            exc,
+        )
+
     # Validate required state
     required_values = {}
     if required_state_keys:

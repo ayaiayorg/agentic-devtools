@@ -278,3 +278,30 @@ class TestResolveIdentityEdgeCases:
 
         # Only option B (alma) is unique at first iteration
         assert result == "alma"
+
+    def test_email_with_plus_tag_produces_safe_identity(self, tmp_path):
+        """Email local part with '+' tag (e.g. doe+work) is sanitized to alphanumeric only."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("doe+work@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        # "doe+work" → split on [.-_] → ["doe+work"] → sanitize → ["doework"]
+        # first="doework", candidate = first[:3] = "doe"
+        assert result == "doe"
+        assert state.is_safe_dir_segment(result)
+
+    def test_email_with_equals_char_produces_safe_identity(self, tmp_path):
+        """Email local part with '=' char is sanitized to alphanumeric only."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("user=tag@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        # "user=tag" → split on [.-_] → ["user=tag"] → sanitize → ["usertag"]
+        # first="usertag", candidate = first[:3] = "use"
+        assert result == "use"
+        assert state.is_safe_dir_segment(result)
+
+    def test_email_with_only_special_chars_after_sanitize_returns_default(self, tmp_path):
+        """Email local part that reduces to empty after sanitization returns 'default'."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("+=!@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        assert result == "default"
