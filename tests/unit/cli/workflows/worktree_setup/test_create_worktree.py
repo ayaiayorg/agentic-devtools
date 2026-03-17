@@ -802,6 +802,43 @@ class TestCreateWorktree:
         assert result.success is False
         assert "Failed to rename" in result.error_message
 
+    @patch("agentic_devtools.cli.git.operations.rename_local_branch")
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_temp_rename_raises_returns_error(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_fetch,
+        mock_safety_check,
+        mock_rename,
+    ):
+        """When initial rename_local_branch raises OSError, return error (no revert needed)."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN,
+            "Diverged.",
+            "feature/DFLY-1234/pr-review",
+        )
+        mock_rename.side_effect = OSError("git not found")
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is False
+        assert "Failed to rename" in result.error_message
+        assert "git not found" in result.error_message
+
     # -------------------------------------------------------------------------
     # BRANCH_NOT_ON_ORIGIN with local branch — rename, try, revert, fail
     # -------------------------------------------------------------------------

@@ -508,7 +508,18 @@ def create_worktree(
                 temp_branch_name = f"{branch_name}-tmp-{temp_suffix}"
 
                 print(f"Local branch '{branch_name}' has local work. Temporarily renaming to '{temp_branch_name}'...")
-                if not rename_local_branch(branch_name, temp_branch_name):
+                try:
+                    rename_ok = rename_local_branch(branch_name, temp_branch_name)
+                except (FileNotFoundError, OSError) as exc:
+                    return WorktreeSetupResult(
+                        success=False,
+                        worktree_path=worktree_path,
+                        branch_name=resolved_branch_name,
+                        error_message=(
+                            f"Failed to rename local branch '{branch_name}' to '{temp_branch_name}': {exc}"
+                        ),
+                    )
+                if not rename_ok:
                     return WorktreeSetupResult(
                         success=False,
                         worktree_path=worktree_path,
