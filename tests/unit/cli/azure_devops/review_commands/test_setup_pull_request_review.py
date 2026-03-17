@@ -92,7 +92,8 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     ):
                                                         with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         return captured_variables
 
@@ -177,7 +178,8 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     ):
                                                         with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
                                                                 mock_load.assert_called_once_with("/repo/root")
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_git_fails(self):
@@ -233,7 +235,8 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     ):
                                                         with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
                                                                 mock_load.assert_called_once_with(str(Path.cwd()))
 
     def test_load_review_focus_areas_falls_back_to_cwd_when_run_safe_raises(self):
@@ -285,7 +288,8 @@ class TestSetupPullRequestReviewFocusAreas:
                                                     ):
                                                         with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
                                                                 mock_load.assert_called_once_with(str(Path.cwd()))
 
 
@@ -368,7 +372,8 @@ class TestSetupPullRequestReview:
                                             with patch("agdt_ai_helpers.state.set_workflow_state"):
                                                 with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                                     with patch("agdt_ai_helpers.state.set_value"):
-                                                        setup_pull_request_review()
+                                                        with patch("agdt_ai_helpers.state.delete_value"):
+                                                            setup_pull_request_review()
                                                         mock_fetch_jira.assert_called_once_with("DFLY-1234")
 
     def test_exits_when_pr_details_file_missing(self, capsys):
@@ -439,12 +444,13 @@ class TestSetupPullRequestReview:
                         ):
                             with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                 with patch("agdt_ai_helpers.state.set_value"):
-                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
-                                        setup_pull_request_review,
-                                    )
+                                    with patch("agdt_ai_helpers.state.delete_value"):
+                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                            setup_pull_request_review,
+                                        )
 
-                                    with pytest.raises(SystemExit) as exc_info:
-                                        setup_pull_request_review()
+                                        with pytest.raises(SystemExit) as exc_info:
+                                            setup_pull_request_review()
                                     assert exc_info.value.code == 1
 
     def test_warns_when_no_source_branch(self, capsys):
@@ -492,7 +498,8 @@ class TestSetupPullRequestReview:
                                     with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
                                         with patch("agdt_ai_helpers.state.set_bootstrap_state"):
                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                setup_pull_request_review()
+                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                    setup_pull_request_review()
                                                 captured = capsys.readouterr()
                                                 assert "Could not determine source branch" in captured.err
 
@@ -522,7 +529,7 @@ class TestSetupPullRequestReviewPersistence:
         return mapping.get(key, default)
 
     def _run_setup_with_captures(self):
-        """Run setup_pull_request_review and capture set_bootstrap_state/set_value calls."""
+        """Run setup_pull_request_review and capture set_bootstrap_state/set_value/delete_value calls."""
         from agentic_devtools.cli.azure_devops.review_commands import (
             setup_pull_request_review,
         )
@@ -538,6 +545,7 @@ class TestSetupPullRequestReviewPersistence:
 
         mock_set_bootstrap = MagicMock()
         mock_set_value = MagicMock()
+        mock_delete_value = MagicMock()
 
         with patch(
             "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
@@ -585,13 +593,17 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                setup_pull_request_review()
+                                                                with patch(
+                                                                    "agdt_ai_helpers.state.delete_value",
+                                                                    mock_delete_value,
+                                                                ):
+                                                                    setup_pull_request_review()
 
-        return mock_set_bootstrap, mock_set_value
+        return mock_set_bootstrap, mock_set_value, mock_delete_value
 
     def test_calls_set_bootstrap_state_with_pr_worktree_key(self):
         """Regression: set_bootstrap_state() must be called with worktree_key=PR{id}."""
-        mock_set_bootstrap, _ = self._run_setup_with_captures()
+        mock_set_bootstrap, _, _ = self._run_setup_with_captures()
 
         mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
 
@@ -599,7 +611,7 @@ class TestSetupPullRequestReviewPersistence:
         """Regression: agdt_run_id must be stored as a 12-character hex string."""
         import re
 
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         run_id_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "agdt_run_id"]
         assert len(run_id_calls) == 1
@@ -614,7 +626,7 @@ class TestSetupPullRequestReviewPersistence:
         target the wrong -agdt branch.  Let persist_if_dirty() resolve it
         from git at runtime instead.
         """
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         branch_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "versionControl.currentBranch"]
         assert len(branch_calls) == 0
@@ -677,7 +689,8 @@ class TestSetupPullRequestReviewPersistence:
                                                             side_effect=OSError("disk full"),
                                                         ):
                                                             with patch("agdt_ai_helpers.state.set_value"):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         captured = capsys.readouterr()
         assert "WARNING: bootstrap state init failed" in captured.err
@@ -685,7 +698,7 @@ class TestSetupPullRequestReviewPersistence:
 
     def test_resets_pull_request_id_in_scoped_state(self):
         """Regression: pull_request_id must be re-set after bootstrap changes state dir."""
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         pr_id_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "pull_request_id"]
         assert len(pr_id_calls) == 1
@@ -759,7 +772,8 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         jira_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "jira.issue_key"]
         assert len(jira_calls) >= 1
@@ -767,7 +781,7 @@ class TestSetupPullRequestReviewPersistence:
 
     def test_does_not_set_jira_issue_key_when_absent(self):
         """Regression: jira.issue_key must NOT be re-set when it was not in state."""
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         jira_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "jira.issue_key"]
         assert len(jira_calls) == 0
@@ -840,7 +854,8 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         include_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "include_reviewed"]
         assert len(include_calls) == 1
@@ -915,7 +930,8 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.model_id"]
         assert len(model_calls) >= 1
@@ -923,7 +939,7 @@ class TestSetupPullRequestReviewPersistence:
 
     def test_does_not_set_review_model_id_when_absent(self):
         """Regression: review.model_id must NOT be re-set when it was not in state."""
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.model_id"]
         assert len(model_calls) == 0
@@ -997,7 +1013,8 @@ class TestSetupPullRequestReviewPersistence:
                                                                 "agdt_ai_helpers.state.set_value",
                                                                 mock_set_value,
                                                             ):
-                                                                setup_pull_request_review()
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
 
         dry_run_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "dry_run"]
         assert len(dry_run_calls) >= 1
@@ -1005,7 +1022,376 @@ class TestSetupPullRequestReviewPersistence:
 
     def test_does_not_set_dry_run_when_absent(self):
         """Regression: dry_run must NOT be re-set when it was not in state."""
-        _, mock_set_value = self._run_setup_with_captures()
+        _, mock_set_value, _ = self._run_setup_with_captures()
 
         dry_run_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "dry_run"]
         assert len(dry_run_calls) == 0
+
+    def test_stores_commit_hash_short_when_pr_has_source_commit(self):
+        """Regression: review.commit_hash_short must be stored from lastMergeSourceCommit.commitId[:8]."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        pr_details_with_commit = {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {
+                    "commitId": "abcdef1234567890abcdef1234567890abcdef12",
+                },
+            },
+            "files": [],
+            "threads": [],
+        }
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(pr_details_with_commit)
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                with patch("agdt_ai_helpers.state.delete_value"):
+                                                                    setup_pull_request_review()
+
+        commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(commit_hash_calls) == 1
+        assert commit_hash_calls[0][0][1] == "abcdef12"
+
+    def test_does_not_store_commit_hash_when_no_source_commit(self):
+        """review.commit_hash_short must NOT be set when lastMergeSourceCommit is absent.
+
+        delete_value clears any stale value.
+        """
+        _, mock_set_value, mock_delete_value = self._run_setup_with_captures()
+
+        commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(commit_hash_calls) == 0
+
+        delete_calls = [c for c in mock_delete_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(delete_calls) == 1
+
+    def test_handles_non_string_commit_id(self, capsys):
+        """When lastMergeSourceCommit.commitId is not a string, emits a warning and deletes stale key."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        pr_details_with_int_commit_id = {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {
+                    "commitId": 12345,  # non-string: should trigger the isinstance guard
+                },
+            },
+            "files": [],
+            "threads": [],
+        }
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+        mock_delete_value = MagicMock()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        pr_details_with_int_commit_id
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                with patch(
+                                                                    "agdt_ai_helpers.state.delete_value",
+                                                                    mock_delete_value,
+                                                                ):
+                                                                    setup_pull_request_review()
+
+        # commit_hash_short must NOT be set — non-str commitId is treated as absent
+        commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(commit_hash_calls) == 0
+
+        # delete_value should have been called to clear any stale key
+        delete_calls = [c for c in mock_delete_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(delete_calls) == 1
+
+        # A warning should have been emitted to stderr
+        captured = capsys.readouterr()
+        assert "unexpected type" in captured.err
+
+    def test_handles_non_dict_last_merge_source_commit(self, capsys):
+        """When lastMergeSourceCommit is not a dict (e.g. JSON null → None), no AttributeError; stale key is cleared."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        pr_details_with_null_last_merge = {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": None,  # JSON null: must not raise AttributeError
+            },
+            "files": [],
+            "threads": [],
+        }
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+        mock_delete_value = MagicMock()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        pr_details_with_null_last_merge
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                with patch(
+                                                                    "agdt_ai_helpers.state.delete_value",
+                                                                    mock_delete_value,
+                                                                ):
+                                                                    setup_pull_request_review()
+
+        # commit_hash_short must NOT be set — null lastMergeSourceCommit treated as absent
+        commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(commit_hash_calls) == 0
+
+        # delete_value should have been called to clear any stale key
+        delete_calls = [c for c in mock_delete_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(delete_calls) == 1
+
+        # No type warning for None (it's simply absent, not an unexpected type)
+        captured = capsys.readouterr()
+        assert "unexpected type" not in captured.err
+
+    def test_warns_on_non_null_non_dict_last_merge_source_commit(self, capsys):
+        """When lastMergeSourceCommit is not a dict and not None, emits warning and clears stale key."""
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        pr_details_with_invalid_last_merge = {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": [],  # non-null, non-dict: should trigger warning
+            },
+            "files": [],
+            "threads": [],
+        }
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+        mock_delete_value = MagicMock()
+
+        with patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            side_effect=self._default_get_value,
+        ), patch(
+            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
+        ):
+            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        pr_details_with_invalid_last_merge
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set()),
+                        ):
+                            with patch(
+                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock()),
+                            ):
+                                with patch(
+                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
+                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agdt_ai_helpers.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agdt_ai_helpers.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agdt_ai_helpers.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agdt_ai_helpers.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                with patch(
+                                                                    "agdt_ai_helpers.state.delete_value",
+                                                                    mock_delete_value,
+                                                                ):
+                                                                    setup_pull_request_review()
+
+        commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(commit_hash_calls) == 0
+
+        delete_calls = [c for c in mock_delete_value.call_args_list if c[0][0] == "review.commit_hash_short"]
+        assert len(delete_calls) == 1
+
+        captured = capsys.readouterr()
+        assert "unexpected type" in captured.err
+        assert "list" in captured.err
