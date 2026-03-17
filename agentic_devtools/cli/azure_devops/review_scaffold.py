@@ -996,6 +996,8 @@ def _fresh_scaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
+        if model_id:
+            initialize_model_verdicts(temp_entry, [model_id])
         commit_url_file = (
             build_commit_file_url(
                 config.organization, config.project, repo_name, pull_request_id, normalized, latest_iteration_id
@@ -1277,6 +1279,8 @@ def _incremental_rescaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
+        if model_id:
+            initialize_model_verdicts(temp_entry, [model_id])
         commit_url_file = (
             build_commit_file_url(
                 config.organization, config.project, repo_name, pull_request_id, file_path, latest_iteration_id

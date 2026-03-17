@@ -268,6 +268,32 @@ class TestIncrementalRescaffold:
         entry = result.files["/src/new.ts"]
         assert entry.modelVerdicts == []
 
+    def test_initial_new_file_thread_content_includes_progress_table_when_model_id_truthy(self):
+        """Initial content posted for a new file thread includes the Model Review Progress table."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, requests_mock, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="gpt-5")
+        assert result is not None
+        # Thread-shaped POSTs have a "comments" list in the JSON body
+        thread_post_contents = [
+            call.kwargs["json"]["comments"][0]["content"]
+            for call in requests_mock.post.call_args_list
+            if "comments" in call.kwargs.get("json", {})
+        ]
+        assert any("### Model Review Progress" in c for c in thread_post_contents)
+        assert any("gpt-5" in c for c in thread_post_contents)
+
+    def test_initial_new_file_thread_content_excludes_progress_table_when_model_id_empty(self):
+        """Initial content posted for a new file thread has no Model Review Progress table when model_id empty."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, requests_mock, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="")
+        assert result is not None
+        thread_post_contents = [
+            call.kwargs["json"]["comments"][0]["content"]
+            for call in requests_mock.post.call_args_list
+            if "comments" in call.kwargs.get("json", {})
+        ]
+        assert not any("### Model Review Progress" in c for c in thread_post_contents)
+
 
 class TestIncrementalRescaffoldDryRun:
     """Tests for dry-run mode in _incremental_rescaffold."""

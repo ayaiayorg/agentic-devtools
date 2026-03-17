@@ -171,3 +171,21 @@ class TestFreshScaffold:
         result, _, _ = _run_fresh_scaffold(["/src/a.ts"], model_id="")
         entry = result.files["/src/a.ts"]
         assert entry.modelVerdicts == []
+
+    def test_initial_file_thread_content_includes_progress_table_when_model_id_truthy(self):
+        """Initial posted file thread content includes the Model Review Progress table."""
+        result, requests_mock, _ = _run_fresh_scaffold(["/src/a.ts"], model_id="gpt-5")
+        assert result is not None
+        # The first POST is the first file thread
+        first_post_call = requests_mock.post.call_args_list[0]
+        posted_content = first_post_call.kwargs["json"]["comments"][0]["content"]
+        assert "### Model Review Progress" in posted_content
+        assert "gpt-5" in posted_content
+
+    def test_initial_file_thread_content_excludes_progress_table_when_model_id_empty(self):
+        """Initial posted file thread content has no Model Review Progress table when model_id is empty."""
+        result, requests_mock, _ = _run_fresh_scaffold(["/src/a.ts"], model_id="")
+        assert result is not None
+        first_post_call = requests_mock.post.call_args_list[0]
+        posted_content = first_post_call.kwargs["json"]["comments"][0]["content"]
+        assert "### Model Review Progress" not in posted_content
