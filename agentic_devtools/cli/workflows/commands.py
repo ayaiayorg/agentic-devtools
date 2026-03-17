@@ -1778,7 +1778,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234
 
         # With optional user request:
-        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 --user-request "Focus on acceptance criteria"
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 \
+            --user-request "Focus on acceptance criteria"
 
         # With interactive mode:
         agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 --interactive true
@@ -1921,7 +1922,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234
 
         # With optional user request:
-        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 --user-request "Split into 3 subtasks"
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 \
+            --user-request "Split into 3 subtasks"
 
         # With interactive mode:
         agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 --interactive true

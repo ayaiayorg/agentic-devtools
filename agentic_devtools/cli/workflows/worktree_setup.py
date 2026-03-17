@@ -16,7 +16,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from agentic_devtools.state import IDENTITY_CACHE_FILENAME
 
@@ -119,7 +118,7 @@ def is_vscode_available() -> bool:
     return shutil.which("code") is not None
 
 
-def find_workspace_file(directory: str) -> Optional[str]:
+def find_workspace_file(directory: str) -> str | None:
     """
     Find a VS Code workspace file in the given directory.
 
@@ -149,7 +148,7 @@ def generate_workflow_branch_name(
     issue_key: str,
     issue_type: str,
     workflow_name: str,
-    parent_key: Optional[str] = None,
+    parent_key: str | None = None,
 ) -> str:
     """
     Generate a branch name based on issue type and workflow.
@@ -196,7 +195,7 @@ class WorktreeSetupResult:
     success: bool
     worktree_path: str
     branch_name: str
-    error_message: Optional[str] = None
+    error_message: str | None = None
     vscode_opened: bool = False
 
 
@@ -239,7 +238,7 @@ def is_in_worktree() -> bool:
         return False
 
 
-def get_current_branch() -> Optional[str]:
+def get_current_branch() -> str | None:
     """
     Get the current git branch name.
 
@@ -279,7 +278,7 @@ def switch_to_main_branch() -> bool:
         return False
 
 
-def get_main_repo_root() -> Optional[str]:
+def get_main_repo_root() -> str | None:
     """
     Get the root directory of the main git repository (not worktree).
 
@@ -317,7 +316,7 @@ def get_main_repo_root() -> Optional[str]:
         return None
 
 
-def get_repos_parent_dir() -> Optional[str]:
+def get_repos_parent_dir() -> str | None:
     """
     Get the parent directory where repos are stored.
 
@@ -335,7 +334,7 @@ def get_repos_parent_dir() -> Optional[str]:
 def create_worktree(
     issue_key: str,
     branch_prefix: str = "feature",
-    branch_name: Optional[str] = None,
+    branch_name: str | None = None,
     use_existing_branch: bool = False,
 ) -> WorktreeSetupResult:
     """
@@ -852,7 +851,7 @@ def _remove_stale_auto_start_task(
 
 def inject_auto_start_task(
     worktree_path: str,
-    command: List[str],
+    command: list[str],
     task_label: str = _AUTO_START_TASK_LABEL,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
@@ -1109,7 +1108,7 @@ def run_worktree_setup_script(worktree_path: str) -> None:
 def setup_worktree_environment(
     issue_key: str,
     branch_prefix: str = "feature",
-    branch_name: Optional[str] = None,
+    branch_name: str | None = None,
     use_existing_branch: bool = False,
     open_vscode: bool = True,
 ) -> WorktreeSetupResult:
@@ -1160,7 +1159,7 @@ def setup_worktree_environment(
     return result
 
 
-def check_worktree_exists(issue_key: str) -> Optional[str]:
+def check_worktree_exists(issue_key: str) -> str | None:
     """
     Check if a worktree for the given issue key already exists.
 
@@ -1188,8 +1187,8 @@ def check_worktree_exists(issue_key: str) -> Optional[str]:
 def get_worktree_continuation_prompt(
     issue_key: str,
     workflow_name: str,
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
 ) -> str:
     """
     Generate a prompt for continuing a workflow in a new VS Code window.
@@ -1268,8 +1267,8 @@ This command is a fallback — normally the session starts automatically.
 def get_ai_agent_continuation_prompt(
     issue_key: str,
     workflow_name: str = "work-on-jira-issue",
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
 ) -> str:
     """
     Generate a detailed prompt for AI agents to continue working on an issue.
@@ -1972,12 +1971,12 @@ def _maybe_inject_auto_start_before_vscode(
 def setup_worktree_in_background_sync(
     issue_key: str,
     branch_prefix: str = "feature",
-    branch_name: Optional[str] = None,
+    branch_name: str | None = None,
     use_existing_branch: bool = False,
     workflow_name: str = "work-on-jira-issue",
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
-    auto_execute_command: Optional[list[str]] = None,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
+    auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 300,
     interactive: bool = False,
 ) -> None:
@@ -2165,12 +2164,12 @@ def _setup_worktree_from_state() -> None:
 def start_worktree_setup_background(
     issue_key: str,
     branch_prefix: str = "feature",
-    branch_name: Optional[str] = None,
+    branch_name: str | None = None,
     use_existing_branch: bool = False,
     workflow_name: str = "work-on-jira-issue",
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
-    auto_execute_command: Optional[list[str]] = None,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
+    auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 300,
     interactive: bool = False,
 ) -> str:
@@ -2256,14 +2255,14 @@ class PlaceholderIssueResult:
     """Result of placeholder issue creation."""
 
     success: bool
-    issue_key: Optional[str] = None
-    error_message: Optional[str] = None
+    issue_key: str | None = None
+    error_message: str | None = None
 
 
 def create_placeholder_issue(
     project_key: str,
     issue_type: str = "Task",
-    parent_key: Optional[str] = None,
+    parent_key: str | None = None,
 ) -> PlaceholderIssueResult:
     """
     Create a placeholder Jira issue with minimal fields.
@@ -2327,11 +2326,11 @@ def create_placeholder_issue(
 def create_placeholder_and_setup_worktree(
     project_key: str,
     issue_type: str = "Task",
-    parent_key: Optional[str] = None,
+    parent_key: str | None = None,
     workflow_name: str = "create-jira-issue",
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
-) -> Tuple[bool, Optional[str]]:
+    user_request: str | None = None,
+    additional_params: dict | None = None,
+) -> tuple[bool, str | None]:
     """
     Create a placeholder issue and set up a worktree for it.
 
