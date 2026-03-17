@@ -17,6 +17,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from agentic_devtools.cli.vscode_tasks import remove_auto_start_task
 from agentic_devtools.state import IDENTITY_CACHE_FILENAME
 
 # Exported for dynamic invocation by run_function_in_background
@@ -921,113 +922,6 @@ def inject_git_path_settings(worktree_path: str) -> None:
 _AUTO_START_TASK_LABEL = "agdt-copilot-auto-start"
 
 
-def _build_cleanup_shell_command(
-    worktree_path: str,
-    task_label: str,
-    created_new: bool = False,
-) -> str:
-    """Build a platform-appropriate shell snippet that removes the injected task.
-
-    The snippet removes only the task identified by *task_label* from
-    ``.vscode/tasks.json``.  When other tasks remain the file is rewritten
-    without the injected entry, preserving top-level keys (e.g. ``inputs``,
-    ``options``).
-
-    When *created_new* is ``True`` and no tasks remain after removal the
-    file is **deleted** (rather than rewritten with an empty ``tasks``
-    array), and the ``.vscode/`` directory is also removed if it is empty.
-    This avoids leaving behind an untracked file in repositories where
-    ``.vscode/`` is not gitignored.  When *created_new* is ``False`` (the
-    default) the file is always rewritten — even with an empty ``tasks``
-    array — so that pre-existing top-level keys are preserved.
-
-    On Unix the snippet uses ``python3``; on Windows it uses ``python``.
-    Both paths use an inline Python one-liner for JSON manipulation so the
-    cleanup does not depend on ``jq``, ``sed``, or PowerShell-specific
-    cmdlets.
-
-    Args:
-        worktree_path: Absolute path to the worktree directory.
-        task_label: The label identifying the task to remove.
-        created_new: ``True`` when ``tasks.json`` was created by the
-            injection (did not exist beforehand).  Enables full file
-            deletion when the tasks array is empty after cleanup.
-
-    Returns:
-        A shell command string suitable for embedding in a VS Code task.
-    """
-    tasks_json_path = os.path.join(worktree_path, ".vscode", "tasks.json")
-    # Use forward slashes universally — Python's ``json``/``os`` on Windows
-    # handles them fine, and it avoids escaping issues in shell strings.
-    tasks_json_path = tasks_json_path.replace("\\", "/")
-
-    python_cmd = "python" if platform.system() == "Windows" else "python3"
-
-    # Inline Python one-liner:
-    #   1. Read tasks.json
-    #   2. Remove the task matching the label
-    #   3a. If tasks remain → rewrite the file (always)
-    #   3b. If no tasks remain AND created_new → delete the file (and
-    #       try to rmdir .vscode/ if empty)
-    #   3c. If no tasks remain AND NOT created_new → rewrite with empty
-    #       tasks array (preserving other top-level keys)
-    # Use repr() for embedded string literals to prevent injection from
-    # paths or labels containing quotes.  Use encoding='utf-8' for all
-    # file I/O to avoid platform-default encoding on Windows.
-    # Note: repr() may produce double-quoted strings (e.g. when the value
-    # contains a single quote).  Shell-special characters ($, `, ", \) in
-    # the resulting py_script are escaped before embedding in the outer
-    # -c "..." argument — see the escaping block below.
-    p_repr = repr(tasks_json_path)
-    label_repr = repr(task_label)
-
-    filter_stmt = f"d['tasks']=[t for t in d.get('tasks',[]) if not isinstance(t,dict) or t.get('label')!={label_repr}]"
-
-    if created_new:
-        # When the file was created solely for auto-start: delete it when
-        # no tasks remain, and try to remove .vscode/ if it's now empty.
-        py_script = (
-            "import json, os; "
-            f"p={p_repr}; "
-            f"d=json.load(open(p,encoding='utf-8')); "
-            f"{filter_stmt}; "
-            "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n') "
-            "if d['tasks'] else os.remove(p); "
-            "not d.get('tasks') and os.path.isdir(os.path.dirname(p)) "
-            "and not os.listdir(os.path.dirname(p)) and os.rmdir(os.path.dirname(p))"
-        )
-    else:
-        # Pre-existing file: always rewrite (preserving other top-level keys).
-        py_script = (
-            "import json, os; "
-            f"p={p_repr}; "
-            f"d=json.load(open(p,encoding='utf-8')); "
-            f"{filter_stmt}; "
-            "open(p,'w',encoding='utf-8').write(json.dumps(d,indent=2)+'\\n')"
-        )
-
-    # Escape py_script for safe embedding in the double-quoted -c "..." arg.
-    # Without this, $ and ` in paths (from repr() output) would trigger
-    # shell variable expansion / command substitution.
-    if platform.system() == "Windows":
-        # PowerShell double-quoted strings: backtick is the escape char.
-        # Order matters: escape backticks first so they don't interact with
-        # the backtick-escapes we add for $ and " in subsequent steps.
-        py_script = py_script.replace("`", "``")
-        py_script = py_script.replace("$", "`$")
-        py_script = py_script.replace('"', '`"')
-    else:
-        # Bash double-quoted strings: backslash is the escape char.
-        # Escape \ first (so existing backslashes don't interact with our
-        # new \$ and \` escapes), then $ and ` which trigger expansion.
-        py_script = py_script.replace("\\", "\\\\")
-        py_script = py_script.replace("$", "\\$")
-        py_script = py_script.replace("`", "\\`")
-        py_script = py_script.replace('"', '\\"')
-
-    return f'{python_cmd} -c "{py_script}"'
-
-
 def _remove_stale_auto_start_task(
     tasks_path: str,
     vscode_dir: str,
@@ -1035,78 +929,68 @@ def _remove_stale_auto_start_task(
 ) -> None:
     """Best-effort remove a stale auto-start task from ``tasks.json``.
 
+    Thin wrapper around :func:`~agentic_devtools.cli.vscode_tasks.remove_auto_start_task`
+    that preserves the original signature used by :func:`inject_auto_start_task`.
+
     Called when the sentinel file already exists, indicating a previous run
     succeeded but its cleanup may have failed.  If the task is found and
     removed:
 
     * When other tasks remain the file is rewritten.
-    * When no tasks remain **and** the file has no other top-level keys
-      besides ``version`` and ``tasks``, the file is **deleted** and
-      ``.vscode/`` is removed if empty.
-    * When no tasks remain but other top-level keys exist (e.g. ``inputs``,
-      ``options``), the file is rewritten preserving those keys.
+    * When no tasks remain **and** the stale task's ``"args"`` list contained
+      ``"--created-new"`` (meaning the file was created fresh by the injection)
+      **and** the file has no other top-level keys besides ``version`` and
+      ``tasks``, the file is **deleted** and ``.vscode/`` is removed if empty.
+    * In all other cases (old-format tasks without ``"args"``, missing flag, or
+      extra top-level keys) the file is rewritten, never deleted — this prevents
+      inadvertent deletion of a pre-existing user ``tasks.json``.
 
     All errors are silently caught so this never prevents the caller from
     proceeding.
     """
-    if not os.path.isfile(tasks_path):
-        return
+    # Infer delete_if_empty by inspecting the stale task's "args" list.
+    # Default to False (conservative) when the task cannot be read, has no
+    # "args", or the "--created-new" flag is absent — this prevents inadvertent
+    # deletion of a pre-existing user tasks.json.
+    delete_if_empty = False
     try:
-        with open(tasks_path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        if not isinstance(data, dict):
-            return
-        tasks_list = data.get("tasks")
-        if not isinstance(tasks_list, list):
-            return
-        original_count = len(tasks_list)
-        data["tasks"] = [t for t in tasks_list if not isinstance(t, dict) or t.get("label") != task_label]
-        if len(data["tasks"]) == original_count:
-            return  # Task was not present — nothing to clean up
-        if data["tasks"]:
-            # Other tasks remain — rewrite the file.
-            with open(tasks_path, "w", encoding="utf-8") as fh:
-                fh.write(json.dumps(data, indent=2) + "\n")
-        else:
-            # No tasks remain.  Only delete the file when it contains no
-            # other top-level keys besides ``version`` and ``tasks`` (i.e.
-            # it was likely created solely for auto-start).  If other keys
-            # exist (e.g. ``inputs``, ``options``) the file belongs to the
-            # user — rewrite it preserving those keys.
-            extra_keys = set(data.keys()) - {"version", "tasks"}
-            if extra_keys:
-                with open(tasks_path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(data, indent=2) + "\n")
-            else:
-                os.remove(tasks_path)
-                try:
-                    os.rmdir(vscode_dir)
-                except OSError:
-                    pass
-    except (json.JSONDecodeError, OSError):
-        pass  # Best-effort — silently ignore errors
+        if os.path.isfile(tasks_path):
+            with open(tasks_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                tasks_list = data.get("tasks")
+                if isinstance(tasks_list, list):
+                    for task in tasks_list:
+                        if isinstance(task, dict) and task.get("label") == task_label:
+                            args = task.get("args", [])
+                            delete_if_empty = isinstance(args, list) and "--created-new" in args
+                            break
+    except Exception:
+        pass
+    remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
 def inject_auto_start_task(
     worktree_path: str,
-    command: list[str],
+    start_prompt: str,
     task_label: str = _AUTO_START_TASK_LABEL,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
 
     The task is configured with ``"runOn": "folderOpen"`` so that VS Code
-    executes the *command* in the integrated terminal immediately when the
-    workspace window opens.  The task also checks for a sentinel file
-    (``.agdt/.copilot-auto-start-triggered``) and exits early if it exists,
-    preventing re-execution on subsequent window opens.  After the command
-    finishes **successfully** the task cleans up by removing itself from
-    ``tasks.json``.  When ``tasks.json`` did not exist before injection and
-    no other tasks remain, the file (and the ``.vscode/`` directory if
-    empty) is **deleted** so no untracked files are left behind.  When
-    ``tasks.json`` was pre-existing the file is rewritten (preserving
-    other top-level keys such as ``inputs`` or ``options``).  On failure
-    the task remains in ``tasks.json`` so the next ``folderOpen`` retries
-    the command.
+    executes ``agdt-copilot-auto-start`` in the integrated terminal immediately
+    when the workspace window opens.  All sentinel-check, copilot-invocation,
+    and cleanup logic is delegated to that CLI command.
+
+    The task uses VS Code's ``"type": "process"`` format, which means VS Code
+    passes ``command`` and each element of ``args`` directly to the OS without
+    going through a shell.  This eliminates all quoting and escaping concerns
+    on both Windows (cmd.exe) and Unix regardless of the characters in the
+    worktree path or start prompt.
+
+    When ``tasks.json`` did not exist before injection the ``--created-new``
+    flag is passed so cleanup can delete the file instead of rewriting when no
+    tasks remain.
 
     The function merges the new task into an existing ``tasks.json`` if one
     is present, preserving any user-defined tasks.
@@ -1115,8 +999,8 @@ def inject_auto_start_task(
 
     Args:
         worktree_path: Absolute path to the worktree directory.
-        command: The command to execute, as a list of strings (e.g.
-            ``["copilot", "-i", "prompt text"]``).
+        start_prompt: The prompt text to pass to the Copilot binary via
+            ``agdt-copilot-auto-start --start-prompt``.
         task_label: Label for the injected task (default:
             ``"agdt-copilot-auto-start"``).  Used to identify the task
             during cleanup.
@@ -1128,8 +1012,8 @@ def inject_auto_start_task(
     if not is_vscode_available():
         return False
 
-    # Validate that the command list is non-empty and contains only strings.
-    if not command or not all(isinstance(c, str) for c in command):
+    # Validate that the start_prompt is a non-empty string.
+    if not start_prompt or not isinstance(start_prompt, str):
         return False
 
     vscode_dir = os.path.join(worktree_path, ".vscode")
@@ -1183,70 +1067,29 @@ def inject_auto_start_task(
         t for t in tasks_config["tasks"] if not isinstance(t, dict) or t.get("label") != task_label
     ]
 
-    # --- Build the composite shell command -----------------------------------
-    # The command: (1) checks sentinel, (2) creates sentinel, (3) runs the
-    # user command, (4) on failure removes sentinel so next open retries,
-    # (5) on success cleans up tasks.json (non-fatal), (6) exits with the
-    # user command's exit code so VS Code reflects the correct status.
-    #
-    # Cleanup only runs on success so that a failed command leaves the task
-    # in tasks.json — the sentinel was already removed (step 4), so the
-    # next ``folderOpen`` will retry the task.
-    sentinel_unix = sentinel_path.replace("\\", "/")
-    cleanup_cmd = _build_cleanup_shell_command(worktree_path, task_label, created_new=not file_existed)
-
-    if platform.system() == "Windows":
-        # PowerShell syntax
-        sentinel_win = sentinel_path.replace("/", "\\")
-        sentinel_dir_win = os.path.dirname(sentinel_win)
-        # Always single-quote every arg so PowerShell metacharacters
-        # (;  &  |  >  etc.) are treated as literals.
-        # Escape embedded single quotes via PowerShell's '' convention.
-        quoted_parts = []
-        for part in command:
-            escaped = part.replace("'", "''")
-            quoted_parts.append(f"'{escaped}'")
-        cmd_str = "& " + " ".join(quoted_parts)
-        # Also escape single quotes in sentinel paths for safe embedding.
-        sentinel_win_safe = sentinel_win.replace("'", "''")
-        sentinel_dir_win_safe = sentinel_dir_win.replace("'", "''")
-        shell_command = (
-            f"if (Test-Path -LiteralPath '{sentinel_win_safe}') {{ exit 0 }}; "
-            f"New-Item -ItemType Directory -Force -LiteralPath '{sentinel_dir_win_safe}' | Out-Null; "
-            f"New-Item -ItemType File -Force -LiteralPath '{sentinel_win_safe}' | Out-Null; "
-            f"{cmd_str}; "
-            f"$agdtExit=$LASTEXITCODE; "
-            f"if ($agdtExit -ne 0) {{ Remove-Item -LiteralPath "
-            f"'{sentinel_win_safe}' -Force -ErrorAction SilentlyContinue }}; "
-            f"if ($agdtExit -eq 0) {{ try {{ {cleanup_cmd} }} catch {{}} }}; "
-            f"exit $agdtExit"
-        )
-    else:
-        # Bash syntax
-        import shlex
-
-        cmd_str = shlex.join(command)
-        sentinel_dir_unix = os.path.dirname(sentinel_unix)
-        # Use shlex.quote() for sentinel paths so that $, backticks, etc.
-        # in worktree paths are not expanded by the shell.
-        sentinel_q = shlex.quote(sentinel_unix)
-        sentinel_dir_q = shlex.quote(sentinel_dir_unix)
-        shell_command = (
-            f"if [ -f {sentinel_q} ]; then exit 0; fi; "
-            f"mkdir -p {sentinel_dir_q}; "
-            f"touch {sentinel_q}; "
-            f"{cmd_str}; "
-            f"agdt_exit=$?; "
-            f"if [ $agdt_exit -ne 0 ]; then rm -f {sentinel_q}; fi; "
-            f"if [ $agdt_exit -eq 0 ]; then {cleanup_cmd} || true; fi; "
-            f"exit $agdt_exit"
-        )
+    # --- Build the simple CLI invocation -------------------------------------
+    # Delegate all sentinel-check, copilot-invocation, and cleanup logic to
+    # agdt-copilot-auto-start.  Using a "process"-type task with a separate
+    # "command" + "args" array means VS Code passes each argument directly to
+    # the process without going through a shell, so no quoting or escaping is
+    # needed regardless of the platform or the characters in the path/prompt.
+    command_args = [
+        "--worktree-path",
+        worktree_path,
+        "--start-prompt",
+        start_prompt,
+        "--task-label",
+        task_label,
+    ]
+    if not file_existed:
+        command_args.append("--created-new")
 
     # --- Build the task definition -------------------------------------------
     task_def = {
         "label": task_label,
-        "type": "shell",
-        "command": shell_command,
+        "type": "process",
+        "command": "agdt-copilot-auto-start",
+        "args": command_args,
         "runOptions": {"runOn": "folderOpen"},
         "presentation": {
             "reveal": "always",
@@ -1254,16 +1097,6 @@ def inject_auto_start_task(
         },
         "problemMatcher": [],
     }
-
-    # On Windows, explicitly use PowerShell to avoid relying on the user's
-    # default shell (which may be cmd.exe or Git Bash).
-    if platform.system() == "Windows":
-        task_def["options"] = {
-            "shell": {
-                "executable": "powershell.exe",
-                "args": ["-Command"],
-            }
-        }
 
     tasks_config["tasks"].append(task_def)
 
@@ -2186,7 +2019,7 @@ def _maybe_inject_auto_start_before_vscode(
     sentinel file check, etc.) prevent inappropriate injection.
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
-    ``None`` (Copilot CLI not found) or ``inject_auto_start_task()`` fails,
+    ``None`` (start prompt exceeds argv limits) or ``inject_auto_start_task()`` fails,
     the caller silently continues without the auto-start task; the existing
     fallback behaviour in the workflow-specific session launcher will
     handle the session.
@@ -2199,7 +2032,7 @@ def _maybe_inject_auto_start_before_vscode(
 
     copilot_args = build_copilot_args(start_prompt, interactive=True)
     if copilot_args is not None:
-        injected = inject_auto_start_task(worktree_path, copilot_args)
+        injected = inject_auto_start_task(worktree_path, start_prompt)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
         return injected
