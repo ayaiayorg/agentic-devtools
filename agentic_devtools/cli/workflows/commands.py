@@ -1751,6 +1751,292 @@ def _copy_review_state_to_apply_suggestions() -> None:
     save_applied_suggestions_state(applied_state)
 
 
+def initiate_optimize_issue_for_ai_agent_workflow(
+    issue_key: Optional[str] = None,
+    user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
+    _argv: Optional[List[str]] = None,
+) -> None:
+    """
+    Initiate the optimize-issue-for-ai-agent workflow.
+
+    If not in the correct worktree/branch context, automatically creates
+    a worktree, installs agentic-devtools, and opens VS Code.
+
+    Usage:
+        # Initial call - sets up worktree if needed:
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234
+
+        # With optional user request:
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 --user-request "Focus on acceptance criteria"
+
+        # With interactive mode:
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 --interactive true
+
+    Args:
+        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        user_request: Optional guidance on what to focus on when optimizing the issue.
+        interactive: Whether to start the Copilot session interactively once session
+            launch is wired (see TODO below). The value is persisted to
+            ``workflow.context.interactive`` in state so future session-launch code
+            can read it with zero CLI changes. On the preflight-fail path it is also
+            forwarded to ``perform_auto_setup``.
+        _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
+
+    Required state:
+    - jira.issue_key: The Jira issue key to optimize
+
+    Optional state:
+    - jira.user_request: Guidance on what to focus on when optimizing
+    """
+    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
+    clear_state_for_workflow_initiation()
+
+    import argparse
+
+    from ...state import get_value, set_value, update_workflow_context
+    from .preflight import check_worktree_and_branch, perform_auto_setup
+
+    # Parse CLI arguments — always parse to pick up --interactive even when
+    # issue_key/user_request are supplied programmatically.
+    parser = argparse.ArgumentParser(description="Initiate the optimize-issue-for-ai-agent workflow")
+    parser.add_argument(
+        "--issue-key",
+        dest="issue_key",
+        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Optional guidance on what to focus on when optimizing the issue.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if issue_key is None:
+        issue_key = args.issue_key
+    if user_request is None:
+        user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
+
+    # If issue_key provided via CLI, set it in state
+    if issue_key:
+        set_value("jira.issue_key", issue_key)
+
+    # If user_request provided via CLI, set it in state
+    if user_request:  # pragma: no cover
+        set_value("jira.user_request", user_request)
+
+    # Get resolved values
+    resolved_issue_key = get_value("jira.issue_key")
+    resolved_user_request = get_value("jira.user_request")
+
+    if not resolved_issue_key:
+        print("ERROR: --issue-key is required.")
+        print("\nUsage:")
+        print("  agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234")
+        sys.exit(1)
+
+    # Check if we're in the correct context
+    preflight_result = check_worktree_and_branch(resolved_issue_key)
+
+    if not preflight_result.passed:
+        print(f"\n⚠️  Not in the correct context for issue {resolved_issue_key}")
+        for reason in preflight_result.failure_reasons:
+            print(f"   - {reason}")
+
+        # Automatically set up the environment
+        auto_execute_command = [
+            "agdt-initiate-optimize-issue-for-ai-agent-workflow",
+            "--issue-key",
+            resolved_issue_key,
+            "--interactive",
+            "true" if interactive else "false",
+        ]
+        if resolved_user_request:
+            auto_execute_command.extend(["--user-request", resolved_user_request])
+
+        if perform_auto_setup(
+            resolved_issue_key,
+            "optimize-issue-for-ai-agent",
+            user_request=resolved_user_request,
+            auto_execute_command=auto_execute_command,
+            interactive=interactive,
+        ):
+            print(_format_auto_setup_success_message("optimize-issue-for-ai-agent", resolved_issue_key))
+            return
+        else:
+            sys.exit(1)  # pragma: no cover
+
+    # We're in the correct context - proceed with the workflow
+    initiate_workflow(
+        workflow_name="optimize-issue-for-ai-agent",
+        required_state_keys=["jira.issue_key"],
+        optional_state_keys=["jira.user_request"],
+    )
+
+    # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
+    update_workflow_context({"interactive": "true" if interactive else "false"})
+
+    # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
+    # session helpers are available
+
+
+def initiate_break_down_issue_into_subtasks_workflow(
+    issue_key: Optional[str] = None,
+    user_request: Optional[str] = None,
+    interactive: Optional[bool] = None,
+    _argv: Optional[List[str]] = None,
+) -> None:
+    """
+    Initiate the break-down-issue-into-subtasks workflow.
+
+    If not in the correct worktree/branch context, automatically creates
+    a worktree, installs agentic-devtools, and opens VS Code.
+
+    Usage:
+        # Initial call - sets up worktree if needed:
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234
+
+        # With optional user request:
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 --user-request "Split into 3 subtasks"
+
+        # With interactive mode:
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 --interactive true
+
+    Args:
+        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        user_request: Optional guidance on how to break down the issue.
+        interactive: Whether to start the Copilot session interactively once session
+            launch is wired (see TODO below). The value is persisted to
+            ``workflow.context.interactive`` in state so future session-launch code
+            can read it with zero CLI changes. On the preflight-fail path it is also
+            forwarded to ``perform_auto_setup``.
+        _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
+
+    Required state:
+    - jira.issue_key: The Jira issue key to break down
+
+    Optional state:
+    - jira.user_request: Guidance on how to break down the issue
+    """
+    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
+    clear_state_for_workflow_initiation()
+
+    import argparse
+
+    from ...state import get_value, set_value, update_workflow_context
+    from .preflight import check_worktree_and_branch, perform_auto_setup
+
+    # Parse CLI arguments — always parse to pick up --interactive even when
+    # issue_key/user_request are supplied programmatically.
+    parser = argparse.ArgumentParser(description="Initiate the break-down-issue-into-subtasks workflow")
+    parser.add_argument(
+        "--issue-key",
+        dest="issue_key",
+        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+    )
+    parser.add_argument(
+        "--user-request",
+        "-u",
+        dest="user_request",
+        help="Optional guidance on how to break down the issue into subtasks.",
+    )
+    parser.add_argument(
+        "--interactive",
+        dest="interactive",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+
+    # CLI values override programmatic values only when not already set
+    if issue_key is None:
+        issue_key = args.issue_key
+    if user_request is None:
+        user_request = args.user_request
+    if interactive is None and args.interactive is not None:
+        interactive = args.interactive == "true"
+    if interactive is None:
+        interactive = False
+
+    # If issue_key provided via CLI, set it in state
+    if issue_key:
+        set_value("jira.issue_key", issue_key)
+
+    # If user_request provided via CLI, set it in state
+    if user_request:  # pragma: no cover
+        set_value("jira.user_request", user_request)
+
+    # Get resolved values
+    resolved_issue_key = get_value("jira.issue_key")
+    resolved_user_request = get_value("jira.user_request")
+
+    if not resolved_issue_key:
+        print("ERROR: --issue-key is required.")
+        print("\nUsage:")
+        print("  agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234")
+        sys.exit(1)
+
+    # Check if we're in the correct context
+    preflight_result = check_worktree_and_branch(resolved_issue_key)
+
+    if not preflight_result.passed:
+        print(f"\n⚠️  Not in the correct context for issue {resolved_issue_key}")
+        for reason in preflight_result.failure_reasons:
+            print(f"   - {reason}")
+
+        # Automatically set up the environment
+        auto_execute_command = [
+            "agdt-initiate-break-down-issue-into-subtasks-workflow",
+            "--issue-key",
+            resolved_issue_key,
+            "--interactive",
+            "true" if interactive else "false",
+        ]
+        if resolved_user_request:
+            auto_execute_command.extend(["--user-request", resolved_user_request])
+
+        if perform_auto_setup(
+            resolved_issue_key,
+            "break-down-issue-into-subtasks",
+            user_request=resolved_user_request,
+            auto_execute_command=auto_execute_command,
+            interactive=interactive,
+        ):
+            print(_format_auto_setup_success_message("break-down-issue-into-subtasks", resolved_issue_key))
+            return
+        else:
+            sys.exit(1)  # pragma: no cover
+
+    # We're in the correct context - proceed with the workflow
+    initiate_workflow(
+        workflow_name="break-down-issue-into-subtasks",
+        required_state_keys=["jira.issue_key"],
+        optional_state_keys=["jira.user_request"],
+    )
+
+    # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
+    update_workflow_context({"interactive": "true" if interactive else "false"})
+
+    # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
+    # session helpers are available
+
+
 # =============================================================================
 # Checklist Commands
 # =============================================================================

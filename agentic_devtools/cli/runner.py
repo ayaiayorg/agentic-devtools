@@ -240,6 +240,14 @@ COMMAND_MAP = {
         "agentic_devtools.cli.workflows",
         "initiate_update_jira_issue_workflow",
     ),
+    "agdt-initiate-optimize-issue-for-ai-agent-workflow": (
+        "agentic_devtools.cli.workflows",
+        "initiate_optimize_issue_for_ai_agent_workflow",
+    ),
+    "agdt-initiate-break-down-issue-into-subtasks-workflow": (
+        "agentic_devtools.cli.workflows",
+        "initiate_break_down_issue_into_subtasks_workflow",
+    ),
     "agdt-initiate-apply-pr-suggestions-workflow": (
         "agentic_devtools.cli.workflows",
         "initiate_apply_pull_request_review_suggestions_workflow",

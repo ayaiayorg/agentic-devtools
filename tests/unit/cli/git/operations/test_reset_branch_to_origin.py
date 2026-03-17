@@ -126,9 +126,7 @@ class TestResetBranchToOrigin:
         with patch.object(operations, "has_local_changes", return_value=False):
             with patch.object(operations, "run_git") as mock_run_git:
                 # HEAD returns a different branch
-                mock_run_git.return_value = MagicMock(
-                    returncode=0, stdout="main\n", stderr=""
-                )
+                mock_run_git.return_value = MagicMock(returncode=0, stdout="main\n", stderr="")
 
                 result = operations.reset_branch_to_origin("feature/test")
 
@@ -143,9 +141,7 @@ class TestResetBranchToOrigin:
         """Test reset aborts when rev-parse HEAD fails."""
         with patch.object(operations, "has_local_changes", return_value=False):
             with patch.object(operations, "run_git") as mock_run_git:
-                mock_run_git.return_value = MagicMock(
-                    returncode=128, stdout="", stderr="fatal: not a git repository"
-                )
+                mock_run_git.return_value = MagicMock(returncode=128, stdout="", stderr="fatal: not a git repository")
 
                 result = operations.reset_branch_to_origin("feature/test")
 

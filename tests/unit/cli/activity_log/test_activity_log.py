@@ -193,3 +193,50 @@ class TestActivityLog:
 
         mock_save.assert_not_called()
         mock_dirty.assert_not_called()
+
+    def test_from_dict_non_dict_posted_commits_is_ignored(self):
+        """Test that from_dict treats non-dict postedCommits as empty."""
+        log = ActivityLog.from_dict({"postedCommits": ["not", "a", "dict"]})
+
+        assert log.postedCommits == {}
+
+    def test_from_dict_skips_non_dict_entry_values(self):
+        """Test that from_dict skips entries whose value is not a dict."""
+        data = {
+            "postedCommits": {
+                "bad-entry": "not-a-dict",
+                "good-entry": {
+                    "postedUtc": "2026-03-13T10:00:00Z",
+                    "branchName": "feature/X",
+                    "worktreeKey": "X",
+                    "prCommentPosted": True,
+                    "jiraCommentPosted": False,
+                },
+            }
+        }
+        log = ActivityLog.from_dict(data)
+
+        assert "bad-entry" not in log.postedCommits
+        assert "good-entry" in log.postedCommits
+
+    def test_from_dict_skips_malformed_entry_missing_required_field(self):
+        """Test that from_dict skips entries that raise KeyError/TypeError."""
+        data = {
+            "postedCommits": {
+                "malformed": {
+                    # missing required fields like postedUtc, branchName, etc.
+                    "unexpectedKey": 42,
+                },
+                "good-entry": {
+                    "postedUtc": "2026-03-13T10:00:00Z",
+                    "branchName": "feature/X",
+                    "worktreeKey": "X",
+                    "prCommentPosted": True,
+                    "jiraCommentPosted": False,
+                },
+            }
+        }
+        log = ActivityLog.from_dict(data)
+
+        assert "malformed" not in log.postedCommits
+        assert "good-entry" in log.postedCommits

@@ -203,9 +203,7 @@ class TestCheckoutAndSyncBranch:
                                 mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                 mock_files.return_value = ["file.ts"]
 
-                                success, error, files = checkout_and_sync_branch(
-                                    "feature/test", dry_run=True
-                                )
+                                success, error, files = checkout_and_sync_branch("feature/test", dry_run=True)
 
                                 assert success is True
                                 mock_checkout.assert_called_once_with("feature/test", dry_run=True)

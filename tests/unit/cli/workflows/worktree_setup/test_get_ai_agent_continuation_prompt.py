@@ -121,3 +121,43 @@ class TestGetAiAgentContinuationPrompt:
         assert "apply the PR review suggestions" in prompt
         # Must NOT fall through to the generic description
         assert "assigned an issue to work on" not in prompt
+
+    def test_optimize_issue_for_ai_agent_uses_correct_command(self):
+        """Test that optimize-issue-for-ai-agent workflow uses the correct initiate command."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="optimize-issue-for-ai-agent",
+        )
+        assert "agdt-initiate-optimize-issue-for-ai-agent-workflow" in prompt
+        assert "--issue-key DFLY-1234" in prompt
+
+    def test_optimize_issue_for_ai_agent_has_workflow_specific_description(self):
+        """Test that optimize-issue-for-ai-agent uses a workflow-specific description."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="optimize-issue-for-ai-agent",
+        )
+        assert "optimize a Jira issue for AI-agent clarity" in prompt
+        assert "agdt-update-jira-issue" in prompt
+        # Must NOT fall through to the generic description
+        assert "assigned an issue to work on" not in prompt
+
+    def test_break_down_issue_into_subtasks_uses_correct_command(self):
+        """Test that break-down-issue-into-subtasks workflow uses the correct initiate command."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="break-down-issue-into-subtasks",
+        )
+        assert "agdt-initiate-break-down-issue-into-subtasks-workflow" in prompt
+        assert "--issue-key DFLY-1234" in prompt
+
+    def test_break_down_issue_into_subtasks_has_workflow_specific_description(self):
+        """Test that break-down-issue-into-subtasks uses a workflow-specific description."""
+        prompt = get_ai_agent_continuation_prompt(
+            issue_key="DFLY-1234",
+            workflow_name="break-down-issue-into-subtasks",
+        )
+        assert "break down a Jira issue into subtasks" in prompt
+        assert "agdt-initiate-create-jira-subtask-workflow" in prompt
+        # Must NOT fall through to the generic description
+        assert "assigned an issue to work on" not in prompt

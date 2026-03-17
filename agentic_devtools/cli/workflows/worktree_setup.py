@@ -1200,6 +1200,8 @@ def get_worktree_continuation_prompt(
         "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
         "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
         "update-jira-issue": "agdt-initiate-update-jira-issue-workflow",
+        "optimize-issue-for-ai-agent": "agdt-initiate-optimize-issue-for-ai-agent-workflow",
+        "break-down-issue-into-subtasks": "agdt-initiate-break-down-issue-into-subtasks-workflow",
     }
 
     base_command = workflow_base_commands.get(workflow_name, "")
@@ -1276,6 +1278,8 @@ def get_ai_agent_continuation_prompt(
         "create-jira-epic": "agdt-initiate-create-jira-epic-workflow",
         "create-jira-subtask": "agdt-initiate-create-jira-subtask-workflow",
         "update-jira-issue": "agdt-initiate-update-jira-issue-workflow",
+        "optimize-issue-for-ai-agent": "agdt-initiate-optimize-issue-for-ai-agent-workflow",
+        "break-down-issue-into-subtasks": "agdt-initiate-break-down-issue-into-subtasks-workflow",
     }
 
     base_command = workflow_base_commands.get(workflow_name, "agdt-initiate-work-on-jira-issue-workflow")
@@ -1317,6 +1321,17 @@ def get_ai_agent_continuation_prompt(
     elif workflow_name == "apply-pull-request-review-suggestions":
         task_description = "assigned to apply pull request review suggestions"
         action_description = "apply the PR review suggestions to the codebase as specified in the workflow prompt"
+    elif workflow_name == "optimize-issue-for-ai-agent":
+        task_description = "assigned to optimize a Jira issue for AI-agent clarity"
+        action_description = (
+            "rewrite the Jira issue to be clear and actionable for an AI agent, "
+            "then apply the update via agdt-update-jira-issue"
+        )
+    elif workflow_name == "break-down-issue-into-subtasks":
+        task_description = "assigned to break down a Jira issue into subtasks"
+        action_description = (
+            "analyze the Jira issue and create subtasks via agdt-initiate-create-jira-subtask-workflow"
+        )
     else:
         task_description = "assigned an issue to work on"
         action_description = "work on the issue until you have completed the workflow"

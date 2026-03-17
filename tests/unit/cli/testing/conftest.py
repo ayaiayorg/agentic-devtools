@@ -5,8 +5,7 @@
 # platforms and test environments. Use make_workspace_root_error()
 # to build the full message for a concrete path.
 WORKSPACE_ROOT_ERROR_TEMPLATE = (
-    "pyproject.toml not found in current directory ({cwd}). "
-    "Run agdt-test commands from the workspace root."
+    "pyproject.toml not found in current directory ({cwd}). Run agdt-test commands from the workspace root."
 )
 
 
