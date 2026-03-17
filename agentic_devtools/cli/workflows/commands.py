@@ -1777,7 +1777,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         # Initial call - sets up worktree if needed:
         agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234
 
-        # With optional user request:
+        # With optional user request (the doubled backslash is intentional: it renders
+        # as a single shell-continuation backslash in CLI help output):
         agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 \\
             --user-request "Focus on acceptance criteria"
 
@@ -1921,7 +1922,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         # Initial call - sets up worktree if needed:
         agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234
 
-        # With optional user request:
+        # With optional user request (the doubled backslash is intentional: it renders
+        # as a single shell-continuation backslash in CLI help output):
         agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 \\
             --user-request "Split into 3 subtasks"
 
