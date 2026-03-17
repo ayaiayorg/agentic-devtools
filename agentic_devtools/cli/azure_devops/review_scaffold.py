@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
+from .review_attribution import build_commit_file_url, build_commit_pr_url
 from .review_state import (
     FileEntry,
     FolderGroup,
@@ -42,6 +43,7 @@ from .suggestion_verification import (
     render_abort_summary,
     render_unaddressed_thread_comment,
 )
+from .verdict_protocol import initialize_model_verdicts
 
 # Stale session threshold: sessions older than this are considered crashed.
 STALE_SESSION_THRESHOLD = timedelta(hours=2)
@@ -977,6 +979,11 @@ def _fresh_scaffold(
 
     # Step 1: Create file summary threads
     file_entries: Dict[str, FileEntry] = {}
+    commit_url_pr = (
+        build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
+        if commit_hash and latest_iteration_id
+        else None
+    )
     for file_path in files:
         normalized = normalize_file_path(file_path)
         folder = _get_folder_for_path(file_path)
@@ -989,17 +996,28 @@ def _fresh_scaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
-        content = render_file_summary(temp_entry, [], base_url)
+        commit_url_file = (
+            build_commit_file_url(
+                config.organization, config.project, repo_name, pull_request_id, normalized, latest_iteration_id
+            )
+            if commit_hash and latest_iteration_id
+            else None
+        )
+        content = render_file_summary(
+            temp_entry, [], base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_file
+        )
 
         print(f"Creating file summary thread for {normalized}...")
         thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=normalized)
-        file_entries[normalized] = FileEntry(
+        file_entry = FileEntry(
             threadId=thread_id,
             commentId=comment_id,
             folder=folder,
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
+        initialize_model_verdicts(file_entry, [model_id])
+        file_entries[normalized] = file_entry
 
     # Step 2: Build lightweight folder groups
     folder_groups: Dict[str, FolderGroup] = {}
@@ -1011,7 +1029,9 @@ def _fresh_scaffold(
 
     # Step 3: Create overall PR summary thread
     temp_state = _build_state(file_entries, folder_groups)
-    overall_content = render_overall_summary(temp_state, base_url)
+    overall_content = render_overall_summary(
+        temp_state, base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_pr
+    )
     print("Creating overall PR summary thread...")
     overall_thread_id, overall_comment_id = _post_thread(requests_module, headers, threads_url, overall_content)
 
@@ -1241,6 +1261,11 @@ def _incremental_rescaffold(
         return None
 
     # Process new files
+    commit_url_pr = (
+        build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
+        if commit_hash and latest_iteration_id
+        else None
+    )
     for file_path in changes.new_files:
         folder = _get_folder_for_path(file_path)
         file_name = _get_file_name(file_path)
@@ -1251,21 +1276,39 @@ def _incremental_rescaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
-        content = render_file_summary(temp_entry, [], base_url)
+        commit_url_file = (
+            build_commit_file_url(
+                config.organization, config.project, repo_name, pull_request_id, file_path, latest_iteration_id
+            )
+            if commit_hash and latest_iteration_id
+            else None
+        )
+        content = render_file_summary(
+            temp_entry, [], base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_file
+        )
         print(f"Scaffolding new file thread for {file_path}...")
         thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=file_path)
-        existing_state.files[file_path] = FileEntry(
+        new_file_entry = FileEntry(
             threadId=thread_id,
             commentId=comment_id,
             folder=folder,
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
+        initialize_model_verdicts(new_file_entry, [model_id])
+        existing_state.files[file_path] = new_file_entry
 
     # Process modified files
     for file_path in changes.modified_files:
         fe = existing_state.files.get(file_path)
         if fe and fe.threadId:
+            commit_url_file = (
+                build_commit_file_url(
+                    config.organization, config.project, repo_name, pull_request_id, file_path, latest_iteration_id
+                )
+                if commit_hash and latest_iteration_id
+                else None
+            )
             try:
                 _demote_main_comment(
                     requests_module,
@@ -1283,6 +1326,9 @@ def _incremental_rescaffold(
                         ),
                         [],
                         base_url,
+                        model_name=model_id,
+                        commit_hash=commit_hash,
+                        commit_url=commit_url_file,
                     ),
                 )
             except Exception as exc:
@@ -1328,7 +1374,9 @@ def _incremental_rescaffold(
     if n_new > 0 or n_mod > 0 or n_del > 0:
         overall = existing_state.overallSummary
         if overall.threadId:
-            new_summary = render_overall_summary(existing_state, base_url)
+            new_summary = render_overall_summary(
+                existing_state, base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_pr
+            )
             try:
                 _demote_main_comment(
                     requests_module,
@@ -1344,7 +1392,9 @@ def _incremental_rescaffold(
         # Rebase with no changes — demote and re-render summary
         overall = existing_state.overallSummary
         if overall.threadId:
-            new_summary = render_overall_summary(existing_state, base_url)
+            new_summary = render_overall_summary(
+                existing_state, base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_pr
+            )
             try:
                 _demote_main_comment(
                     requests_module,

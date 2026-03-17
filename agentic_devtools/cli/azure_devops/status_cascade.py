@@ -7,7 +7,7 @@ Provides functions to:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .config import AzureDevOpsConfig
 from .helpers import patch_comment, patch_thread_status
@@ -63,6 +63,9 @@ def cascade_status_update(
     state: ReviewState,
     file_path: str,
     base_url: str,
+    model_name: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
 ) -> List[PatchOperation]:
     """Compute PATCH operations needed after a file's status has changed.
 
@@ -75,6 +78,9 @@ def cascade_status_update(
         state: Full ReviewState (mutated in-place with new overall status).
         file_path: Path of the file whose status has changed.
         base_url: PR root URL for generating markdown content.
+        model_name: Model identifier for attribution line (optional).
+        commit_hash: Commit hash for attribution line (optional).
+        commit_url: URL to the commit/iteration for attribution line (optional).
 
     Returns:
         List of PatchOperation objects to execute via execute_cascade.
@@ -94,7 +100,9 @@ def cascade_status_update(
     ops: List[PatchOperation] = []
 
     # Overall summary comment PATCH
-    overall_content = render_overall_summary(state, base_url)
+    overall_content = render_overall_summary(
+        state, base_url, model_name=model_name, commit_hash=commit_hash, commit_url=commit_url
+    )
     ops.append(
         PatchOperation(
             thread_id=state.overallSummary.threadId,
@@ -110,6 +118,9 @@ def cascade_status_update(
 def cascade_overall_summary_update(
     state: ReviewState,
     base_url: str,
+    model_name: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
 ) -> List[PatchOperation]:
     """Compute PATCH operations for the overall PR summary without a file context.
 
@@ -120,6 +131,9 @@ def cascade_overall_summary_update(
     Args:
         state: Full ReviewState (mutated in-place with new overall status).
         base_url: PR root URL for generating markdown content.
+        model_name: Model identifier for attribution line (optional).
+        commit_hash: Short commit hash for attribution line (optional).
+        commit_url: URL to the commit/iteration for attribution line (optional).
 
     Returns:
         List of PatchOperation objects to execute via execute_cascade.
@@ -127,7 +141,34 @@ def cascade_overall_summary_update(
     new_overall_status = derive_overall_status(state)
     state.overallSummary.status = new_overall_status
 
-    overall_content = render_overall_summary(state, base_url)
+    # If attribution parameters were not provided explicitly, derive them from
+    # the ReviewState instance so that callers (e.g. workflow completion flows)
+    # that don't pass these parameters still render attribution when the data
+    # is available.
+    if model_name is None:
+        if getattr(state, "sessions", None):
+            model_name = state.sessions[-1].modelId
+        else:
+            model_name = getattr(state, "modelId", None)
+    if commit_hash is None:
+        commit_hash = getattr(state, "commitHash", None)
+    if commit_url is None and commit_hash and getattr(state, "latestIterationId", None):
+        from .review_attribution import build_commit_pr_url
+
+        try:
+            commit_url = build_commit_pr_url(
+                state.organization,
+                state.project,
+                state.repoName,
+                state.prId,
+                state.latestIterationId,
+            )
+        except Exception:
+            commit_url = None
+
+    overall_content = render_overall_summary(
+        state, base_url, model_name=model_name, commit_hash=commit_hash, commit_url=commit_url
+    )
     return [
         PatchOperation(
             thread_id=state.overallSummary.threadId,
