@@ -246,13 +246,15 @@ class TestSetBootstrapStateNormalization:
         assert data["worktree_key"] == "K-2"
         # identity.json was written (empty identity)
         cache = json.loads((agdt / "identity.json").read_text(encoding="utf-8"))
+        assert cache["identity"] == ""
         assert cache["email"] == "u@e.com"
 
     def test_unsafe_resolved_identity_treated_as_absent(self, tmp_path):
         """Unsafe identity from _get_or_refresh_identity() is treated as '' (no owner dir)."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.object(state, "_get_or_refresh_identity", return_value="../../escape"):
-                state.set_bootstrap_state(worktree_key="K-unsafe")
+                with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                    state.set_bootstrap_state(worktree_key="K-unsafe")
 
         # No identity directory should be created for the unsafe value
         assert not (tmp_path / ".agdt" / "workflows" / "../../escape").exists()

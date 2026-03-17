@@ -17,7 +17,14 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
-from ...state import get_value, load_state, save_state, set_bootstrap_state, set_value, set_workflow_state
+from ...state import (
+    get_value,
+    load_state,
+    save_state,
+    set_bootstrap_state,
+    set_value,
+    set_workflow_state,
+)
 
 
 def clear_state_for_workflow_initiation() -> None:
