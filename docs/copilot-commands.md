@@ -92,11 +92,12 @@ instead. Prompt files are documented in [Workflow Prompt Files](workflow-prompts
 
 When a new worktree is opened in VS Code, a `folderOpen` auto-start task starts an
 interactive Copilot session in the integrated terminal regardless of `--interactive`. For
-direct CLI invocations, pass `--interactive false` (the default) to run the Copilot
-session as a detached background process (not an agdt background task — no task ID;
-use the `copilot.*` state keys to locate the session log file), or `--interactive true`
-to attach to an interactive terminal (requires a TTY and VS Code). If the session cannot
-be launched, the rendered prompt is printed to the console as a fallback.
+direct CLI invocations, omit `--interactive` (or pass `--interactive false`) to run the
+Copilot session as a detached background process (not an agdt background task — no task
+ID; use the `copilot.*` state keys to locate the session log file), or pass
+`--interactive true` to attach to an interactive terminal (requires a TTY and VS Code). If
+the session cannot be launched, the rendered prompt is printed to the console as a
+fallback.
 
 ### Work on Jira Issue (11 steps)
 

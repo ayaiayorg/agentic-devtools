@@ -1,10 +1,12 @@
 # Workflow Prompt Files
 
-All `agdt-initiate-*-workflow` commands are driven by prompt files that serve as the
-**sole source of truth** for workflow automation in agentic-devtools. When a workflow is
-initiated, the CLI renders the appropriate prompt template (saving it to the workflow state
-directory), then starts a Copilot CLI session with a short workflow-specific **bootstrap
-prompt**. For most workflows, the bootstrap prompt instructs the agent to run
+All `agdt-initiate-*-workflow` commands are driven by prompt files that are the
+**source of truth for Copilot instructions** — the per-step content and guidance given to
+the AI agent for each workflow. Workflow execution logic (preflight checks, background
+tasks, status transitions) is implemented in Python and is not covered by these files.
+When a workflow is initiated, the CLI renders the appropriate prompt template (saving it to
+the workflow state directory), then starts a Copilot CLI session with a short
+workflow-specific **bootstrap prompt**. For most workflows, the bootstrap prompt instructs the agent to run
 `agdt-get-next-workflow-prompt`, which loads and displays the full rendered prompt. The PR
 review workflow is an exception: its bootstrap prompt instructs
 `agdt-advance-workflow pull-request-overview` instead.
@@ -25,9 +27,11 @@ attachments take precedence.
 
 The table below lists the canonical prompt file names as attached to the
 [#867 source-of-truth comment](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
-These differ from the in-repo template naming scheme
-(`agentic_devtools/prompts/<workflow>/default-<step>-prompt.md`) — the canonical
-attachments are the authoritative reference; the in-repo templates are the editable source.
+This table covers only the subset of workflows tracked there. The full set of in-repo
+workflow templates (including `work-on-jira-issue`, `create-jira-epic`, and
+`create-jira-subtask`) is shown in the [In-Repo Template Index](#in-repo-template-index)
+below. The canonical attachments are the authoritative reference; the in-repo templates
+are the editable source.
 
 | Canonical Attachment Name | Workflow | CLI Command |
 |---------------------------|----------|-------------|
@@ -42,6 +46,24 @@ attachments are the authoritative reference; the in-repo templates are the edita
 
 Download all files from the
 [#867 source-of-truth comment](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+
+---
+
+## In-Repo Template Index
+
+All workflow templates live under `agentic_devtools/prompts/<workflow>/default-<step>-prompt.md`.
+The table below covers every workflow that has in-repo templates, including those not yet
+tracked in the #867 canonical attachments.
+
+| Workflow | In-Repo Template Path(s) | CLI Command |
+|----------|--------------------------|-------------|
+| PR review | `pull-request-review/default-initiate-prompt.md` (+ 4 step prompts) | `agdt-initiate-pull-request-review-workflow` |
+| Apply PR suggestions | `apply-pull-request-review-suggestions/default-initiate-prompt.md` | `agdt-initiate-apply-pr-suggestions-workflow` |
+| Create Jira issue | `create-jira-issue/default-initiate-prompt.md` | `agdt-initiate-create-jira-issue-workflow` |
+| Update Jira issue | `update-jira-issue/default-initiate-prompt.md` | `agdt-initiate-update-jira-issue-workflow` |
+| Create Jira epic | `create-jira-epic/default-initiate-prompt.md` | `agdt-initiate-create-jira-epic-workflow` |
+| Create Jira subtask | `create-jira-subtask/default-initiate-prompt.md` | `agdt-initiate-create-jira-subtask-workflow` |
+| Work on Jira issue | `work-on-jira-issue/default-<step>-prompt.md` (11 steps) | `agdt-initiate-work-on-jira-issue-workflow` |
 
 ---
 
