@@ -25,6 +25,28 @@ class TestApprovePullRequest:
         captured = capsys.readouterr()
         assert "[DRY RUN]" in captured.out
 
+    def test_dry_run_mentions_review_narrative(self, temp_state_dir, clear_state_before, capsys):
+        """Dry-run mentions that the Review Narrative will be updated."""
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        state.set_dry_run(True)
+
+        azure_devops.approve_pull_request()
+
+        captured = capsys.readouterr()
+        assert "Review Narrative" in captured.out
+
+    def test_dry_run_shows_content(self, temp_state_dir, clear_state_before, capsys):
+        """Dry-run output includes the approval content."""
+        state.set_pull_request_id(12345)
+        state.set_value("content", "All criteria met!")
+        state.set_dry_run(True)
+
+        azure_devops.approve_pull_request()
+
+        captured = capsys.readouterr()
+        assert "All criteria met!" in captured.out
+
     def test_missing_pull_request_id(self, temp_state_dir, clear_state_before):
         """Test raises error when pull request ID is missing."""
         state.set_value("content", "LGTM!")
@@ -38,8 +60,58 @@ class TestApprovePullRequestActualCall:
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")
     @patch(f"{COMMANDS_MODULE}.get_repository_id")
-    def test_successful_approval(self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before):
-        """Test successful approval."""
+    def test_successful_approval_via_narrative_update(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys
+    ):
+        """Approval updates Review Narrative via patch when review state exists."""
+        from agentic_devtools.cli.azure_devops.review_state import (
+            FileEntry,
+            OverallSummary,
+            ReviewState,
+        )
+
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 1, "content": "updated"}
+        mock_req_module.patch.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        review_state = ReviewState(
+            prId=12345,
+            repoId="repo-guid-123",
+            repoName="dfly-platform-management",
+            project="DragonflyMgmt",
+            organization="https://dev.azure.com/swica",
+            latestIterationId=1,
+            scaffoldedUtc="2026-01-01T00:00:00Z",
+            overallSummary=OverallSummary(threadId=99, commentId=1),
+            files={
+                "/src/app.py": FileEntry(threadId=10, commentId=1, folder="src", fileName="app.py", status="approved")
+            },
+        )
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM! All files reviewed.")
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.commands.load_review_state",
+            return_value=review_state,
+        ), patch("agentic_devtools.cli.azure_devops.commands.save_review_state"):
+            azure_devops.approve_pull_request()
+
+        # Should have called PATCH to update the summary comment
+        assert mock_req_module.patch.called
+        captured = capsys.readouterr()
+        assert "Review Narrative updated successfully" in captured.out
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_falls_back_when_no_review_state(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys
+    ):
+        """Approval falls back to a new comment thread when review-state.json is missing."""
         mock_get_repo.return_value = "repo-guid-123"
         mock_req_module = MagicMock()
         mock_response = MagicMock()
@@ -51,129 +123,45 @@ class TestApprovePullRequestActualCall:
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM!")
 
-        azure_devops.approve_pull_request()
-
-        # Check that content is posted (no sentinel wrapping)
-        call_args = mock_req_module.post.call_args
-        body = call_args[1]["json"]
-        content = body["comments"][0]["content"]
-        assert "LGTM!" in content
-
-
-class TestFindSummaryThreadId:
-    """Tests for _find_summary_thread_id – review-state.json priority."""
-
-    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
-    def test_uses_review_state_thread_id_when_available(self, temp_state_dir, clear_state_before):
-        """When review-state.json is available it returns overallSummary.threadId directly."""
-        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
-        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-
-        mock_review_state = MagicMock()
-        mock_review_state.overallSummary = MagicMock()
-        mock_review_state.overallSummary.threadId = 162564
-
-        mock_requests = MagicMock()
-        mock_config = MagicMock(spec=AzureDevOpsConfig)
-
         with patch(
-            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-            return_value=mock_review_state,
+            "agentic_devtools.cli.azure_devops.commands.load_review_state",
+            side_effect=FileNotFoundError("no review state"),
         ):
-            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
+            azure_devops.approve_pull_request()
 
-        assert result == 162564
-        # Should NOT have made any HTTP requests
-        mock_requests.get.assert_not_called()
+        # Should warn about narrative update failure and fall back to new comment
+        captured = capsys.readouterr()
+        assert "Could not update Review Narrative" in captured.err
+        assert "Comment added successfully" in captured.out
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
-    def test_falls_back_to_thread_search_when_review_state_missing(self, temp_state_dir, clear_state_before):
-        """Falls back to searching PR threads when review-state.json does not exist."""
-        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
-        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-
-        mock_config = MagicMock(spec=AzureDevOpsConfig)
-        mock_config.build_api_url.return_value = "https://api/threads"
-
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_approval_fallback_clears_stale_path(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
+    ):
+        """Fallback add_pull_request_comment posts PR-level (no file context) because path is cleared."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "value": [
-                {
-                    "id": 99,
-                    "comments": [{"content": "## Overall PR Review Summary\nAll looks good."}],
-                }
-            ]
-        }
-        mock_requests = MagicMock()
-        mock_requests.get.return_value = mock_response
+        mock_response.json.return_value = {"id": 123}
+        mock_req_module.post.return_value = mock_response
+        mock_req_module.patch.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "LGTM!")
+        # Stale path from a previous file-review operation
+        state.set_value("path", "src/reviewed_file.py")
+        state.set_value("line", 10)
 
         with patch(
-            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-            side_effect=FileNotFoundError("not found"),
+            "agentic_devtools.cli.azure_devops.commands.load_review_state",
+            side_effect=FileNotFoundError("no review state"),
         ):
-            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
+            azure_devops.approve_pull_request()
 
-        assert result == 99
-        mock_requests.get.assert_called_once()
-
-    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
-    def test_falls_back_on_corrupt_review_state_json(self, temp_state_dir, clear_state_before):
-        """Falls back to thread search when review-state.json is corrupt (ValueError/JSONDecodeError)."""
-        import json
-
-        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
-        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-
-        mock_config = MagicMock(spec=AzureDevOpsConfig)
-        mock_config.build_api_url.return_value = "https://api/threads"
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "value": [
-                {
-                    "id": 77,
-                    "comments": [{"content": "## Overall PR Review Summary\nCorrupt fallback."}],
-                }
-            ]
-        }
-        mock_requests = MagicMock()
-        mock_requests.get.return_value = mock_response
-
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-            side_effect=json.JSONDecodeError("corrupt", "", 0),
-        ):
-            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
-
-        assert result == 77
-        mock_requests.get.assert_called_once()
-
-    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
-    def test_falls_back_on_os_error_reading_review_state(self, temp_state_dir, clear_state_before):
-        """Falls back to thread search when review-state.json cannot be read (OSError)."""
-        from agentic_devtools.cli.azure_devops.commands import _find_summary_thread_id
-        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-
-        mock_config = MagicMock(spec=AzureDevOpsConfig)
-        mock_config.build_api_url.return_value = "https://api/threads"
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "value": [
-                {
-                    "id": 88,
-                    "comments": [{"content": "## Overall PR Review Summary\nOS error fallback."}],
-                }
-            ]
-        }
-        mock_requests = MagicMock()
-        mock_requests.get.return_value = mock_response
-
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-            side_effect=OSError("permission denied"),
-        ):
-            result = _find_summary_thread_id(mock_requests, {}, mock_config, "repo-id", 25230)
-
-        assert result == 88
-        mock_requests.get.assert_called_once()
+        # The fallback thread should have no file context
+        post_call = mock_req_module.post.call_args_list[-1]
+        body = post_call[1]["json"]
+        assert "threadContext" not in body

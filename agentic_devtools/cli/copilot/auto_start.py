@@ -217,8 +217,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         sys.exit(1)
     except OSError as exc:
         print(
-            f"agdt-copilot-auto-start: error: failed to run Copilot CLI"
-            f" (worktree path: {worktree_path}): {exc}",
+            f"agdt-copilot-auto-start: error: failed to run Copilot CLI (worktree path: {worktree_path}): {exc}",
             file=sys.stderr,
         )
         try:

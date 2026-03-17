@@ -435,3 +435,37 @@ class TestRenderOverallSummary:
         mango_pos = result.index("mango.py")
         zebra_pos = result.index("zebra.py")
         assert alpha_pos < mango_pos < zebra_pos
+
+    def test_deeply_nested_file_uses_full_dict_key_path(self):
+        """Test that deeply nested files display their full repo-relative path, not just folder/file."""
+        # This simulates a file like /mgmt-frontend/dfly-management-ui/.github/copilot-instructions.md
+        # where the top-level folder 'mgmt-frontend' doesn't reflect the full path.
+        full_path = "/mgmt-frontend/dfly-management-ui/.github/copilot-instructions.md"
+        files = {
+            full_path: FileEntry(
+                threadId=10,
+                commentId=20,
+                folder="mgmt-frontend",
+                fileName="copilot-instructions.md",
+                status="approved",
+            )
+        }
+        from agentic_devtools.cli.azure_devops.review_state import FolderGroup, OverallSummary
+
+        state = ReviewState(
+            prId=42,
+            repoId="repo-guid",
+            repoName="repo",
+            project="proj",
+            organization="https://dev.azure.com/org",
+            latestIterationId=1,
+            scaffoldedUtc="2026-01-01T00:00:00Z",
+            overallSummary=OverallSummary(threadId=1, commentId=2),
+            folders={"mgmt-frontend": FolderGroup(files=[full_path])},
+            files=files,
+        )
+        result = render_overall_summary(state, _BASE_URL)
+        # The full path must appear in the file link
+        assert f"[{full_path}]" in result
+        # The incorrect short path must NOT appear as a link
+        assert "[/mgmt-frontend/copilot-instructions.md]" not in result
