@@ -842,7 +842,7 @@ class TestCreateWorktree:
         )
 
         assert result.success is True
-        mock_delete.assert_called_once_with("feature/DFLY-1234/pr-review")
+        mock_delete.assert_called_once_with("feature/DFLY-1234/pr-review", force=True)
         assert mock_run.call_count == 3
 
     # -------------------------------------------------------------------------
@@ -1027,6 +1027,149 @@ class TestCreateWorktree:
         assert "Failed to create worktree" in result.error_message
         assert "Warning: Failed to revert branch rename" in result.error_message
         assert "git branch -m" in result.error_message
+
+    # -------------------------------------------------------------------------
+    # Diverged branch — OSError from rename_local_branch during revert (OSError handler path)
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.rename_local_branch")
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_diverged_branch_os_error_revert_raises_os_error(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_fetch,
+        mock_safety_check,
+        mock_rename,
+    ):
+        """OSError during worktree add AND revert also raises OSError: recovery hint still included."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN,
+            "Diverged.",
+            "feature/DFLY-1234/pr-review",
+        )
+        # First rename (original→temp) succeeds; second (revert) raises OSError
+        mock_rename.side_effect = [True, OSError("git missing")]
+        mock_run.side_effect = OSError("git not found")
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is False
+        assert "Error creating worktree" in result.error_message
+        assert "revert also failed" in result.error_message
+        assert "Warning: Failed to revert branch rename" in result.error_message
+        assert "git branch -m" in result.error_message
+
+    # -------------------------------------------------------------------------
+    # Diverged branch — OSError from rename_local_branch during revert (failure path)
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.rename_local_branch")
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_diverged_branch_worktree_fail_revert_raises_os_error(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_fetch,
+        mock_safety_check,
+        mock_rename,
+    ):
+        """Worktree creation fails AND revert rename raises OSError: recovery hint still included."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN,
+            "Diverged.",
+            "feature/DFLY-1234/pr-review",
+        )
+        # First rename (original→temp) succeeds; revert raises OSError
+        mock_rename.side_effect = [True, OSError("git missing")]
+        mock_run.return_value = MagicMock(returncode=128, stderr="fatal: could not create worktree")
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is False
+        assert "Failed to create worktree" in result.error_message
+        assert "revert also failed" in result.error_message
+        assert "Warning: Failed to revert branch rename" in result.error_message
+        assert "git branch -m" in result.error_message
+
+    # -------------------------------------------------------------------------
+    # Diverged branch — OSError from get_short_commit_hash on success path → non-fatal
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.rename_local_branch")
+    @patch("agentic_devtools.cli.git.operations.get_short_commit_hash")
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_diverged_branch_success_path_os_error_in_final_rename_block_is_non_fatal(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_main_repo,
+        mock_fetch,
+        mock_safety_check,
+        mock_hash,
+        mock_rename,
+    ):
+        """OSError from get_short_commit_hash on success path: worktree still returned as success."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "main"
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN,
+            "Diverged.",
+            "feature/DFLY-1234/pr-review",
+        )
+        mock_run.return_value = MagicMock(returncode=0)
+        # get_short_commit_hash raises; the try/except must swallow it and return success
+        mock_hash.side_effect = OSError("git missing")
+        mock_rename.return_value = True
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is True
 
     # -------------------------------------------------------------------------
     # Diverged branch — final rename (temp → PR review name) fails → warning logged

@@ -532,8 +532,12 @@ def create_worktree(
                 except (FileNotFoundError, OSError) as e:
                     # Revert the rename before propagating the error.
                     # If the revert also fails, include the recovery command in the error message.
-                    revert_ok = rename_local_branch(temp_branch_name, branch_name)
                     error_msg = f"Error creating worktree: {e}"
+                    try:
+                        revert_ok = rename_local_branch(temp_branch_name, branch_name)
+                    except (FileNotFoundError, OSError) as rename_exc:
+                        revert_ok = False
+                        error_msg += f" (revert also failed: {rename_exc})"
                     if not revert_ok:
                         error_msg += (
                             f"\nWarning: Failed to revert branch rename. "
@@ -551,8 +555,12 @@ def create_worktree(
                     # Worktree creation failed — revert temp rename to keep local work intact.
                     # If the revert also fails, include the recovery command in the error message.
                     print("Worktree creation failed. Reverting temp rename...")
-                    revert_ok = rename_local_branch(temp_branch_name, branch_name)
                     error_msg = f"Failed to create worktree: {worktree_result.stderr.strip()}"
+                    try:
+                        revert_ok = rename_local_branch(temp_branch_name, branch_name)
+                    except (FileNotFoundError, OSError) as rename_exc:
+                        revert_ok = False
+                        error_msg += f" (revert also failed: {rename_exc})"
                     if not revert_ok:
                         error_msg += (
                             f"\nWarning: Failed to revert branch rename. "
@@ -566,16 +574,26 @@ def create_worktree(
                         error_message=error_msg,
                     )
 
-                # Worktree created successfully — rename temp branch to final PR review name
+                # Worktree created successfully — rename temp branch to final PR review name.
+                # Wrap in try/except so an unexpected git error here doesn't crash
+                # create_worktree() after the worktree has already been created.
                 print(f"Worktree created successfully at {worktree_path}")
-                commit_hash_short = get_short_commit_hash(temp_branch_name) or "unknown"
-                timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
-                final_review_name = f"{branch_name}-pr-review-{commit_hash_short}-{timestamp}"
-                print(f"Renaming temp branch to final PR review name: '{final_review_name}'...")
-                if not rename_local_branch(temp_branch_name, final_review_name):
+                try:
+                    commit_hash_short = get_short_commit_hash(temp_branch_name) or "unknown"
+                    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+                    final_review_name = f"{branch_name}-pr-review-{commit_hash_short}-{timestamp}"
+                    print(f"Renaming temp branch to final PR review name: '{final_review_name}'...")
+                    if not rename_local_branch(temp_branch_name, final_review_name):
+                        print(
+                            f"Warning: Could not rename temp branch '{temp_branch_name}' to "
+                            f"'{final_review_name}'. Temp branch retained."
+                        )
+                except (FileNotFoundError, OSError) as e:
+                    # Non-fatal: the worktree is functional; only the cleanup rename failed.
                     print(
-                        f"Warning: Could not rename temp branch '{temp_branch_name}' to "
-                        f"'{final_review_name}'. Temp branch retained."
+                        f"Warning: Failed to finalize temp branch name: {e}. "
+                        f"Branch is still named '{temp_branch_name}'.",
+                        file=sys.stderr,
                     )
 
                 _propagate_identity_cache(worktree_path)
@@ -625,7 +643,10 @@ def create_worktree(
                         text=True,
                         check=False,
                     )
-                    if not delete_local_branch(branch_name):
+                    # Use force=True because git branch -d fails for branches not yet
+                    # merged into HEAD.  The safety check already confirmed the local ref
+                    # matches origin, so force-deleting is safe here.
+                    if not delete_local_branch(branch_name, force=True):
                         return WorktreeSetupResult(
                             success=False,
                             worktree_path=worktree_path,
