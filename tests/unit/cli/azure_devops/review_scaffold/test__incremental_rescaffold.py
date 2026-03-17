@@ -8,6 +8,7 @@ from agentic_devtools.cli.azure_devops.review_scaffold import _incremental_resca
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     FolderGroup,
+    ModelVerdict,
     OverallSummary,
     ReviewState,
     ReviewStatus,
@@ -160,6 +161,56 @@ class TestIncrementalRescaffold:
 
         assert result.files["/src/a.ts"].suggestions == []
         assert result.files["/src/a.ts"].previousSuggestions == []
+
+    def test_modified_file_model_verdicts_reset_to_unreviewed(self):
+        """Modified files have modelVerdicts reset to unreviewed status and verdictType=None."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value, verdictType="agree"),
+        ]
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"], changed_paths=["/src/a.ts"])
+
+        mv = result.files["/src/a.ts"].modelVerdicts[0]
+        assert mv.modelId == "gpt-5"
+        assert mv.status == ReviewStatus.UNREVIEWED.value
+        assert mv.verdictType is None
+
+    def test_modified_file_consolidation_status_cleared(self):
+        """Modified files have consolidationStatus cleared to None."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].consolidationStatus = "complete"
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value),
+        ]
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"], changed_paths=["/src/a.ts"])
+
+        assert result.files["/src/a.ts"].consolidationStatus is None
+
+    def test_modified_file_rendered_content_shows_reset_verdict(self):
+        """The PATCH content for a modified file shows the reset (unreviewed) verdict, not the old terminal one."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].modelVerdicts = [
+            ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value, verdictType="agree"),
+        ]
+        result, requests_mock, _ = self._run_rescaffold(
+            existing, ["/src/a.ts"], changed_paths=["/src/a.ts"]
+        )
+        assert result is not None
+
+        # The rendered content is PATCHed as the new main comment — collect all PATCH call bodies
+        patch_bodies = [
+            call.kwargs.get("json", {})
+            for call in requests_mock.patch.call_args_list
+        ]
+        # Find any PATCH that updated a comment content (single {"content": ...} body)
+        comment_patch_contents = [b.get("content", "") for b in patch_bodies if "content" in b]
+        assert any("### Model Review Progress" in c for c in comment_patch_contents), (
+            "Model Review Progress table should appear in the PATCH content"
+        )
+        # The table should show the unreviewed status, not the old "Approved" status
+        assert not any("✅ Approved" in c for c in comment_patch_contents), (
+            "Approved status should not appear in the re-rendered comment"
+        )
 
     def test_deleted_files_marked_approved(self):
         """Deleted files are marked as approved with 'File removed' summary."""

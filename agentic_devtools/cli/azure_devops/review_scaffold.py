@@ -26,6 +26,7 @@ from .review_attribution import build_commit_file_url, build_commit_pr_url
 from .review_state import (
     FileEntry,
     FolderGroup,
+    ModelVerdict,
     OverallSummary,
     ReviewSession,
     ReviewState,
@@ -1328,6 +1329,8 @@ def _incremental_rescaffold(
                             status=ReviewStatus.UNREVIEWED.value,
                             summary=None,
                             suggestions=[],
+                            modelVerdicts=[ModelVerdict(modelId=mv.modelId) for mv in fe.modelVerdicts],
+                            consolidationStatus=None,
                         ),
                         [],
                         base_url,
@@ -1343,6 +1346,10 @@ def _incremental_rescaffold(
             fe.suggestions = []
             fe.status = ReviewStatus.UNREVIEWED.value
             fe.summary = None
+            for mv in fe.modelVerdicts:
+                mv.status = ReviewStatus.UNREVIEWED.value
+                mv.verdictType = None
+            fe.consolidationStatus = None
 
     # Process deleted files
     for file_path in changes.deleted_files:
