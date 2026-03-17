@@ -427,13 +427,17 @@ def create_worktree(
                 error_message=f"Directory {worktree_path} exists but is not a git worktree",
             )
 
-    # Check if we're currently on the target branch in the main repo.
-    # Git doesn't allow creating a worktree for a branch that's already checked out.
-    # If we're on the target branch in main repo, we need to switch to main first.
     current_branch = get_current_branch()
     in_worktree = is_in_worktree()
 
-    if current_branch == resolved_branch_name and not in_worktree:
+    # Check if we're currently on the target branch in the main repo.
+    # Git doesn't allow creating a worktree for a branch that's already checked out.
+    # For new-branch creation (not use_existing_branch), switch to main here.
+    # For PR-review (use_existing_branch=True), the safety check below determines the
+    # right strategy: unsafe branches use temp-rename (which frees the name without
+    # needing a branch switch), while the SAFE path handles the switch just before
+    # the worktree-add call.
+    if current_branch == resolved_branch_name and not in_worktree and not use_existing_branch:
         print(f"Currently on branch '{resolved_branch_name}' in main repo.")
         print("Switching to 'main' branch to allow worktree creation...")
         if not switch_to_main_branch():
@@ -613,6 +617,22 @@ def create_worktree(
                 )
 
         print(f"Safety check passed: {safety_result.message}")
+
+        # SAFE status but currently on the target branch in the main repo:
+        # switch to main so the git worktree add below doesn't fail with
+        # "already checked out".  This is safe here because SAFE guarantees
+        # there are no dirty local changes.
+        if current_branch == resolved_branch_name and not in_worktree:
+            print(f"Currently on branch '{resolved_branch_name}' in main repo.")
+            print("Switching to 'main' branch to allow worktree creation...")
+            if not switch_to_main_branch():
+                return WorktreeSetupResult(
+                    success=False,
+                    worktree_path=worktree_path,
+                    branch_name=resolved_branch_name,
+                    error_message="Failed to switch to main branch. Cannot create worktree while on target branch.",
+                )
+            print("Switched to 'main' branch successfully.")
 
     # Create the worktree
     try:

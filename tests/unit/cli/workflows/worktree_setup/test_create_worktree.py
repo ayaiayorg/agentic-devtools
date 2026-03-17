@@ -241,6 +241,151 @@ class TestCreateWorktree:
         assert result.success is True
         mock_switch.assert_not_called()
 
+    # -------------------------------------------------------------------------
+    # use_existing_branch=True + on target branch: UNCOMMITTED_CHANGES
+    # (previously the early guard hard-failed before the temp-rename path ran)
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.rename_local_branch")
+    @patch("agentic_devtools.cli.git.operations.get_short_commit_hash")
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_use_existing_branch_uncommitted_on_target_uses_temp_rename_not_switch(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_switch,
+        mock_main_repo,
+        mock_fetch,
+        mock_safety_check,
+        mock_hash,
+        mock_rename,
+    ):
+        """use_existing_branch=True with UNCOMMITTED_CHANGES on the target branch:
+        the early switch-to-main guard must NOT fire; the temp-rename path should
+        handle it (rename frees the branch name so worktree-add works without switching)."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        # User is currently ON the target branch with uncommitted changes
+        mock_get_branch.return_value = "feature/DFLY-1234/pr-review"
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.UNCOMMITTED_CHANGES,
+            "You have uncommitted changes.",
+            "feature/DFLY-1234/pr-review",
+        )
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_hash.return_value = "abc1234"
+        mock_rename.return_value = True
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is True
+        # switch_to_main must NOT have been called (temp-rename path doesn't need it)
+        mock_switch.assert_not_called()
+        # First rename call: original → temp
+        assert mock_rename.call_args_list[0][0][0] == "feature/DFLY-1234/pr-review"
+
+    # -------------------------------------------------------------------------
+    # use_existing_branch=True + on target branch + SAFE: switch to main in safe path
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_use_existing_branch_safe_on_target_switches_in_safe_path(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_run,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_switch,
+        mock_main_repo,
+        mock_fetch,
+        mock_safety_check,
+    ):
+        """use_existing_branch=True, SAFE, but currently on the target branch:
+        switch to main happens inside the SAFE path (after safety-check passes)."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "feature/DFLY-1234/pr-review"  # on target branch
+        mock_in_worktree.return_value = False
+        mock_main_repo.return_value = None
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.SAFE,
+            "Branch is safe.",
+            "feature/DFLY-1234/pr-review",
+        )
+        mock_switch.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is True
+        mock_switch.assert_called_once()
+
+    # -------------------------------------------------------------------------
+    # use_existing_branch=True + on target branch + SAFE: switch fails → fail gracefully
+    # -------------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
+    @patch("agentic_devtools.cli.git.operations.fetch_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.switch_to_main_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_in_worktree")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_current_branch")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_use_existing_branch_safe_on_target_switch_fails_returns_error(
+        self,
+        mock_exists,
+        mock_parent,
+        mock_get_branch,
+        mock_in_worktree,
+        mock_switch,
+        mock_fetch,
+        mock_safety_check,
+    ):
+        """use_existing_branch=True, SAFE, on target branch, switch fails → graceful error."""
+        mock_parent.return_value = "/repos"
+        mock_exists.return_value = False
+        mock_get_branch.return_value = "feature/DFLY-1234/pr-review"
+        mock_in_worktree.return_value = False
+        mock_safety_check.return_value = BranchSafetyCheckResult(
+            BranchSafetyCheckResult.SAFE,
+            "Branch is safe.",
+            "feature/DFLY-1234/pr-review",
+        )
+        mock_switch.return_value = False  # switch fails
+
+        result = create_worktree(
+            "DFLY-1234", "feature", branch_name="feature/DFLY-1234/pr-review", use_existing_branch=True
+        )
+
+        assert result.success is False
+        assert "Failed to switch to main branch" in result.error_message
+
     @patch("agentic_devtools.cli.git.operations.check_branch_safe_to_recreate")
     @patch("agentic_devtools.cli.git.operations.fetch_branch")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_main_repo_root")
