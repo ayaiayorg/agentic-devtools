@@ -115,12 +115,16 @@ def ensure_ca_bundle(
 
     The certificate chain is fetched exactly once and cached.  Subsequent
     calls return the cached path immediately when the cache contains at
-    least one certificate — even if only the server cert was available.
+    least two certificates (leaf + at least one CA).  Single-cert (leaf-only)
+    caches are treated as invalid and trigger a re-fetch, because a leaf
+    certificate cannot validate itself and will always fail SSL verification.
 
     On the *first* fetch the function prefers ``openssl`` (which usually
     retrieves the full chain including the root CA).  If ``openssl``
     fails to return any certificates, the :mod:`ssl` module is used as a
-    fallback to obtain at least the server certificate.
+    fallback — but since the :mod:`ssl` module can only retrieve the server
+    certificate (not the chain), a leaf-only result is **not** cached and
+    ``None`` is returned instead.
 
     All certificate fetching targets port 443 (standard HTTPS).  For
     non-standard ports, use :func:`fetch_certificate_chain_openssl` or
@@ -133,7 +137,8 @@ def ensure_ca_bundle(
         force: When ``True``, delete any existing cached file and re-fetch.
 
     Returns:
-        Absolute path to the cached PEM file, or ``None`` if fetching failed.
+        Absolute path to the cached PEM file, or ``None`` if a complete chain
+        (leaf + at least one CA certificate) could not be obtained.
     """
     if cache_file is None:
         # Sanitize hostname to prevent path traversal (e.g. "../" in hostname).
@@ -148,16 +153,16 @@ def ensure_ca_bundle(
         except OSError:
             pass
 
-    # Return cached file when it already contains at least one certificate.
-    # We accept single-cert caches to avoid re-fetching on every call for
-    # hosts that only ever yield one cert (e.g. ssl-module fallback).
+    # Return cached file only when it contains a full chain (>= 2 certs).
+    # A single-cert (leaf-only) cache cannot be used as a CA bundle and will
+    # always fail SSL verification, so treat it as invalid and re-fetch.
     if cache_file.exists():
         try:
             existing = cache_file.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             # Treat unreadable or undecodable cache as missing and refetch.
             existing = ""
-        if count_certificates_in_pem(existing) >= 1:
+        if count_certificates_in_pem(existing) >= 2:
             return str(cache_file)
 
     # Prefer openssl — it retrieves the full chain including the root CA
@@ -167,15 +172,22 @@ def ensure_ca_bundle(
         cache_file.write_text(cert_chain, encoding="utf-8")
         return str(cache_file)
 
-    # Fallback: ssl module (server cert only — may not work as a CA bundle)
+    # Fallback: ssl module (only if openssl returned nothing at all).
+    # The ssl module can only retrieve the server (leaf) certificate, not the
+    # full chain, so we only try it when openssl gave us nothing at all.
     if not cert_chain:
         cert_chain = fetch_certificate_chain_ssl(hostname)
 
-    if cert_chain:
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(cert_chain, encoding="utf-8")
-        return str(cache_file)
+    # If we only have a leaf cert (from either method), do not cache it.
+    # A leaf cert cannot validate itself, so it would always fail verification.
+    if cert_chain and count_certificates_in_pem(cert_chain) < 2:
+        print(
+            f"  ⚠ Only leaf certificate retrieved for {hostname}; chain is incomplete. Will use system CA store.",
+            file=sys.stderr,
+        )
+        return None
 
+    # cert_chain is None — both methods failed
     return None
 
 

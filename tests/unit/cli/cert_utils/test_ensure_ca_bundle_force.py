@@ -27,8 +27,11 @@ class TestEnsureCaBundleForce:
         assert "server" in content
 
     def test_force_false_returns_cached_without_refetch(self, tmp_path):
-        """When force=False (default), returns cached file without re-fetching."""
-        existing = "-----BEGIN CERTIFICATE-----\ncached\n-----END CERTIFICATE-----"
+        """When force=False (default), returns cached file without re-fetching (full chain)."""
+        existing = (
+            "-----BEGIN CERTIFICATE-----\ncached\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"
+        )
         cache_file = tmp_path / "example.com.pem"
         cache_file.write_text(existing, encoding="utf-8")
 
@@ -53,7 +56,7 @@ class TestEnsureCaBundleForce:
         assert result == str(cache_file.resolve())
 
     def test_force_continues_when_unlink_fails(self, tmp_path):
-        """When force=True and unlink raises OSError, returns existing cache."""
+        """When force=True and unlink raises OSError, still fetches and returns a valid path."""
         stale_pem = "-----BEGIN CERTIFICATE-----\nstale\n-----END CERTIFICATE-----"
         fresh_chain = (
             "-----BEGIN CERTIFICATE-----\nserver\n-----END CERTIFICATE-----\n"
@@ -65,7 +68,8 @@ class TestEnsureCaBundleForce:
         with patch.object(type(cache_file), "unlink", side_effect=OSError("permission denied")):
             with patch.object(cert_utils, "fetch_certificate_chain_openssl", return_value=fresh_chain):
                 # Should not raise — the OSError from unlink is caught.
-                # The cache file still contains the old cert, so it's returned from cache.
+                # The single-cert stale cache fails the >= 2 threshold, so openssl is
+                # called and writes the fresh chain to the same path.
                 result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file, force=True)
 
         assert result == str(cache_file.resolve())

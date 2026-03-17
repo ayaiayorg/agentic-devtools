@@ -61,14 +61,18 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
     per-host PEM files, de-duplicates, and writes the result to
     ``~/.agdt/certs/unified-ca-bundle.pem``.
 
+    The bundle is always written even when no extra corporate CA certificates
+    are found — in that case the result is a copy of the certifi bundle.
+    This ensures ``REQUESTS_CA_BUNDLE`` can always be pointed at the unified
+    bundle, giving subsequent requests a known-good CA store to fall back to.
+
     Args:
         per_host_pem_paths: List of paths to per-host PEM files.
 
     Returns:
-        Path to the unified bundle file, or ``None`` if certifi is unavailable,
-        if no additional corporate CA certificates are found in the provided
-        PEM files, or if the certifi bundle cannot be read / the unified file
-        cannot be written.
+        Path to the unified bundle file, or ``None`` if certifi is unavailable
+        or if the certifi bundle cannot be read / the unified file cannot be
+        written.
     """
     try:
         import certifi
@@ -101,10 +105,10 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
                 extra_certs.append(cert)
 
     if not extra_certs:
-        # No additional corporate CAs found — no point writing a copy of the
-        # system bundle.  Return None so the caller can skip the REQUESTS_CA_BUNDLE
-        # hint (pointing users at a file identical to certifi is misleading).
-        return None
+        # No additional corporate CAs found — write a certifi-only bundle so
+        # REQUESTS_CA_BUNDLE is always set to a known-good CA store.  This
+        # prevents requests from falling back to broken per-host leaf-only PEMs.
+        pass
 
     unified_content = system_pem.rstrip("\n") + "\n" + "\n".join(extra_certs) + "\n"
     unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
@@ -444,64 +448,75 @@ def setup_cmd() -> None:
         help="Overwrite existing environment variable lines in shell profile.",
     )
     args = parser.parse_args()
-    if args.no_verify_ssl:
-        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
-        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
+
+    original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
+    try:
+        if args.no_verify_ssl:
+            os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+            print("  ⚠  SSL verification disabled. Use only on trusted networks.")
+            print()
+
+        print(_BANNER)
         print()
 
-    print(_BANNER)
-    print()
+        unified_path = None
+        npmrc_written = False
+        if args.system_only:
+            print("Skipping managed installs (--system-only).")
+            print()
+            copilot_ok = True
+            gh_ok = True
+        else:
+            unified_path = _prefetch_certs()
+            # Check if npmrc was written
+            npmrc_path = Path.home() / ".agdt" / "npmrc"
+            npmrc_written = npmrc_path.exists()
+            print()
 
-    unified_path = None
-    npmrc_written = False
-    if args.system_only:
-        print("Skipping managed installs (--system-only).")
-        print()
-        copilot_ok = True
-        gh_ok = True
-    else:
-        unified_path = _prefetch_certs()
-        # Check if npmrc was written
-        npmrc_path = Path.home() / ".agdt" / "npmrc"
-        npmrc_written = npmrc_path.exists()
-        print()
+            copilot_ok = install_copilot_cli()
+            print()
+            gh_ok = install_gh_cli()
 
-        copilot_ok = install_copilot_cli()
-        print()
-        gh_ok = install_gh_cli()
+        statuses = check_all_dependencies()
+        print_dependency_report(statuses)
 
-    statuses = check_all_dependencies()
-    print_dependency_report(statuses)
-
-    persist_env = not args.no_persist_env and not args.system_only
-    _persist_env_vars_to_profile(
-        npmrc_path=Path.home() / ".agdt" / "npmrc" if npmrc_written else None,
-        unified_path=unified_path,
-        persist_env=persist_env,
-        overwrite_env=args.overwrite_env,
-    )
-
-    any_required_missing = any(s.required and not s.found for s in statuses)
-
-    # Ensure .agdt/.gitignore exists in the current repo (if any)
-    from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
-    from agentic_devtools.state import _get_git_repo_root
-
-    git_root = _get_git_repo_root()
-    if ensure_agdt_gitignore(git_root):
-        print(
-            "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
-            "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
+        persist_env = not args.no_persist_env and not args.system_only
+        _persist_env_vars_to_profile(
+            npmrc_path=Path.home() / ".agdt" / "npmrc" if npmrc_written else None,
+            unified_path=unified_path,
+            persist_env=persist_env,
+            overwrite_env=args.overwrite_env,
         )
-    elif git_root is not None:
-        print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 
-    print()
-    if not copilot_ok or not gh_ok or any_required_missing:
-        print("Setup complete with warnings. See above for details.")
-        sys.exit(1)
-    else:
-        print("Setup complete! ✅")
+        any_required_missing = any(s.required and not s.found for s in statuses)
+
+        # Ensure .agdt/.gitignore exists in the current repo (if any)
+        from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
+        from agentic_devtools.state import _get_git_repo_root
+
+        git_root = _get_git_repo_root()
+        if ensure_agdt_gitignore(git_root):
+            print(
+                "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
+                "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
+            )
+        elif git_root is not None:
+            print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
+
+        print()
+        if not copilot_ok or not gh_ok or any_required_missing:
+            print("Setup complete with warnings. See above for details.")
+            sys.exit(1)
+        else:
+            print("Setup complete! ✅")
+    finally:
+        # Restore the original AGDT_NO_VERIFY_SSL state so that the env var does
+        # not leak into the calling process when agdt-setup is invoked from within
+        # a larger script or automation pipeline.
+        if original_no_verify is None:
+            os.environ.pop("AGDT_NO_VERIFY_SSL", None)
+        else:
+            os.environ["AGDT_NO_VERIFY_SSL"] = original_no_verify
 
 
 def setup_copilot_cli_cmd() -> None:
@@ -546,28 +561,37 @@ def setup_copilot_cli_cmd() -> None:
         help="Overwrite existing environment variable lines in shell profile.",
     )
     args = parser.parse_args()
-    if args.no_verify_ssl:
-        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
-        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    if args.system_only:
-        print("Skipping managed install of Copilot CLI (--system-only).")
-        return
+    original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
+    try:
+        if args.no_verify_ssl:
+            os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+            print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    unified_path = _prefetch_certs()
-    print()
+        if args.system_only:
+            print("Skipping managed install of Copilot CLI (--system-only).")
+            return
 
-    ok = install_copilot_cli()
-    if not ok:
-        sys.exit(1)
+        unified_path = _prefetch_certs()
+        print()
 
-    npmrc_path = Path.home() / ".agdt" / "npmrc"
-    _persist_env_vars_to_profile(
-        npmrc_path=npmrc_path if npmrc_path.exists() else None,
-        unified_path=unified_path,
-        persist_env=not args.no_persist_env,
-        overwrite_env=args.overwrite_env,
-    )
+        ok = install_copilot_cli()
+        if not ok:
+            sys.exit(1)
+
+        npmrc_path = Path.home() / ".agdt" / "npmrc"
+        _persist_env_vars_to_profile(
+            npmrc_path=npmrc_path if npmrc_path.exists() else None,
+            unified_path=unified_path,
+            persist_env=not args.no_persist_env,
+            overwrite_env=args.overwrite_env,
+        )
+    finally:
+        # Restore the original AGDT_NO_VERIFY_SSL state.
+        if original_no_verify is None:
+            os.environ.pop("AGDT_NO_VERIFY_SSL", None)
+        else:
+            os.environ["AGDT_NO_VERIFY_SSL"] = original_no_verify
 
 
 def setup_gh_cli_cmd() -> None:
@@ -612,28 +636,37 @@ def setup_gh_cli_cmd() -> None:
         help="Overwrite existing environment variable lines in shell profile.",
     )
     args = parser.parse_args()
-    if args.no_verify_ssl:
-        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
-        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    if args.system_only:
-        print("Skipping managed install of GitHub CLI (--system-only).")
-        return
+    original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
+    try:
+        if args.no_verify_ssl:
+            os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+            print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    unified_path = _prefetch_certs()
-    print()
+        if args.system_only:
+            print("Skipping managed install of GitHub CLI (--system-only).")
+            return
 
-    ok = install_gh_cli()
-    if not ok:
-        sys.exit(1)
+        unified_path = _prefetch_certs()
+        print()
 
-    npmrc_path = Path.home() / ".agdt" / "npmrc"
-    _persist_env_vars_to_profile(
-        npmrc_path=npmrc_path if npmrc_path.exists() else None,
-        unified_path=unified_path,
-        persist_env=not args.no_persist_env,
-        overwrite_env=args.overwrite_env,
-    )
+        ok = install_gh_cli()
+        if not ok:
+            sys.exit(1)
+
+        npmrc_path = Path.home() / ".agdt" / "npmrc"
+        _persist_env_vars_to_profile(
+            npmrc_path=npmrc_path if npmrc_path.exists() else None,
+            unified_path=unified_path,
+            persist_env=not args.no_persist_env,
+            overwrite_env=args.overwrite_env,
+        )
+    finally:
+        # Restore the original AGDT_NO_VERIFY_SSL state.
+        if original_no_verify is None:
+            os.environ.pop("AGDT_NO_VERIFY_SSL", None)
+        else:
+            os.environ["AGDT_NO_VERIFY_SSL"] = original_no_verify
 
 
 def setup_certs_cmd() -> None:
@@ -674,22 +707,31 @@ def setup_certs_cmd() -> None:
         help="Overwrite existing environment variable lines in shell profile.",
     )
     args = parser.parse_args()
-    if args.no_verify_ssl:
-        os.environ["AGDT_NO_VERIFY_SSL"] = "1"
-        print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    print("Refreshing CA certificate bundles...")
-    print()
-    unified_path = _prefetch_certs()
+    original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
+    try:
+        if args.no_verify_ssl:
+            os.environ["AGDT_NO_VERIFY_SSL"] = "1"
+            print("  ⚠  SSL verification disabled. Use only on trusted networks.")
 
-    npmrc_path = Path.home() / ".agdt" / "npmrc"
-    npmrc_written = npmrc_path.exists()
-    _persist_env_vars_to_profile(
-        npmrc_path=npmrc_path if npmrc_written else None,
-        unified_path=unified_path,
-        persist_env=not args.no_persist_env,
-        overwrite_env=args.overwrite_env,
-    )
+        print("Refreshing CA certificate bundles...")
+        print()
+        unified_path = _prefetch_certs()
+
+        npmrc_path = Path.home() / ".agdt" / "npmrc"
+        npmrc_written = npmrc_path.exists()
+        _persist_env_vars_to_profile(
+            npmrc_path=npmrc_path if npmrc_written else None,
+            unified_path=unified_path,
+            persist_env=not args.no_persist_env,
+            overwrite_env=args.overwrite_env,
+        )
+    finally:
+        # Restore the original AGDT_NO_VERIFY_SSL state.
+        if original_no_verify is None:
+            os.environ.pop("AGDT_NO_VERIFY_SSL", None)
+        else:
+            os.environ["AGDT_NO_VERIFY_SSL"] = original_no_verify
 
 
 def setup_check_cmd() -> None:
