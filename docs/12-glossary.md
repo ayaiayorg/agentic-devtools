@@ -11,6 +11,20 @@
 **Auto-approval**
 : VS Code feature that remembers command approvals; the goal is to minimize required approvals
 
+**Auto-session**
+: Behavior where an `agdt-initiate-*-workflow` command automatically launches a Copilot
+CLI session after workflow initiation (and auto-setup when needed). The session starts
+with a short static workflow-specific **bootstrap prompt** (not the full rendered prompt).
+For most workflows it instructs Copilot to run `agdt-get-next-workflow-prompt`, which then
+loads the rendered workflow prompt. The PR review workflow is an exception: its bootstrap
+prompt instructs `agdt-advance-workflow pull-request-overview` instead. When a new
+worktree is opened in VS Code, a `folderOpen` auto-start task always starts an interactive
+Copilot session regardless of `--interactive`. For direct CLI invocations, `--interactive`
+controls whether the session attaches to a terminal (`true`, requires TTY + VS Code) or
+runs as a detached background process (`false`, default; not an agdt background task —
+use `copilot.*` state keys to locate the session log file). Falls back to printing the
+rendered prompt to the console when a session cannot be started.
+
 **Azure DevOps (ADO)**
 : Microsoft's DevOps platform providing Git repositories, pull requests, work items, and CI/CD pipelines
 
@@ -117,6 +131,18 @@
 
 **PAT**
 : Personal Access Token; authentication credential for APIs
+
+**Prompt File (Workflow)**
+: Markdown file that serves as the source of truth for a workflow step's Copilot session
+prompt. Template files live in `agentic_devtools/prompts/<workflow>/default-<step>-prompt.md`;
+the canonical versions are attached to
+[issue #867](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+At runtime, variables are interpolated by `loader.py` (Jinja2) and the rendered prompt is
+saved to the workflow state directory. A Copilot session is then started with a
+workflow-specific bootstrap prompt that instructs the agent to run the first workflow
+command: `agdt-get-next-workflow-prompt` for most workflows, or
+`agdt-advance-workflow pull-request-overview` for the PR review workflow. The rendered
+prompt is then loaded and displayed by that command.
 
 **Pull Request (PR)**
 : Code review request in Azure DevOps or GitHub
@@ -280,13 +306,13 @@
 
 | Command | Purpose |
 |---------|---------|
-| `agdt-initiate-work-on-jira-issue-workflow` | Start Jira issue workflow |
-| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow |
-| `agdt-initiate-create-jira-issue-workflow` | Start create Jira issue workflow |
-| `agdt-initiate-create-jira-epic-workflow` | Start create Jira epic workflow |
-| `agdt-initiate-create-jira-subtask-workflow` | Start create Jira subtask workflow |
-| `agdt-initiate-update-jira-issue-workflow` | Start update Jira issue workflow |
-| `agdt-initiate-apply-pr-suggestions-workflow` | Start apply PR suggestions workflow |
+| `agdt-initiate-work-on-jira-issue-workflow` | Start Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-pull-request-review-workflow` | Start PR review workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-issue-workflow` | Start create Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-epic-workflow` | Start create Jira epic workflow (auto-launches Copilot session) |
+| `agdt-initiate-create-jira-subtask-workflow` | Start create Jira subtask workflow (auto-launches Copilot session) |
+| `agdt-initiate-update-jira-issue-workflow` | Start update Jira issue workflow (auto-launches Copilot session) |
+| `agdt-initiate-apply-pr-suggestions-workflow` | Start apply PR suggestions workflow (auto-launches Copilot session) |
 | `agdt-advance-workflow` | Manually advance workflow step |
 | `agdt-get-next-workflow-prompt` | Get next step prompt |
 

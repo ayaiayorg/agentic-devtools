@@ -82,6 +82,23 @@ workflow. Run them in order for a new feature.
 
 ## AGDT Workflow Commands
 
+All `agdt-initiate-*-workflow` commands automatically launch a Copilot CLI session after
+workflow initiation (and auto-setup when needed). The rendered prompt is saved to the
+workflow state directory; the session starts with a short workflow-specific **bootstrap
+prompt**. For most workflows the bootstrap prompt instructs the agent to run
+`agdt-get-next-workflow-prompt`, which loads the full rendered prompt. For the PR review
+workflow the bootstrap prompt instructs `agdt-advance-workflow pull-request-overview`
+instead. Prompt files are documented in [Workflow Prompt Files](workflow-prompts.md).
+
+When a new worktree is opened in VS Code, a `folderOpen` auto-start task starts an
+interactive Copilot session in the integrated terminal regardless of `--interactive`. For
+direct CLI invocations, omit `--interactive` (or pass `--interactive false`) to run the
+Copilot session as a detached background process (not an agdt background task — no task
+ID; use the `copilot.*` state keys to locate the session log file), or pass
+`--interactive true` to attach to an interactive terminal (requires a TTY and VS Code). If
+the session cannot be launched, the rendered prompt is printed to the console as a
+fallback.
+
 ### Work on Jira Issue (11 steps)
 
 Full end-to-end workflow for implementing a Jira issue.
@@ -129,6 +146,17 @@ directly if needed.
 | `/agdt.create-jira-subtask.initiate` | Create a Jira subtask |
 | `/agdt.update-jira-issue.initiate` | Update an existing Jira issue |
 | `/agdt.apply-pr-suggestions.initiate` | Apply PR review suggestions |
+
+> **Note:** All `initiate` commands above auto-launch a Copilot session with a workflow-specific
+> bootstrap prompt. For Jira / apply-suggestions workflows the first command is
+> `agdt-get-next-workflow-prompt`; for PR review it is
+> `agdt-advance-workflow pull-request-overview`. Pass `--interactive true` for an interactive
+> terminal session (TTY + VS Code required); omit the flag for non-interactive execution
+> (default, runs as a detached background process — not an agdt background task, so
+> `agdt-task-*` commands do not apply; use `copilot.*` state keys to find the log file).
+> When a new worktree is opened in VS Code, a `folderOpen` task starts an interactive session
+> automatically regardless of `--interactive`. See
+> [Workflow Prompt Files](workflow-prompts.md) for prompt file details.
 
 ---
 
@@ -230,5 +258,10 @@ To add a new slash command/agent:
 2. Create `.github/prompts/<name>.prompt.md` with an `agent: <name>` frontmatter field
 3. For terminal CLI support, add a `agdt-speckit-*` entry in
    `agentic_devtools/cli/speckit/commands.py`, `runner.py`, and `pyproject.toml`
+4. For workflow prompt templates, add a default template in
+   `agentic_devtools/prompts/<workflow>/default-<step>-prompt.md` and upload the
+   canonical version as an attachment on the
+   [#867 source-of-truth comment](https://github.com/ayaiayorg/agentic-devtools/issues/867#issuecomment-4055694012).
+   See [Workflow Prompt Files](workflow-prompts.md) for the full prompt lifecycle.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for full details.
