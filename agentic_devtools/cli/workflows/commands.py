@@ -14,7 +14,10 @@ The work-on-jira-issue workflow uses a state-machine approach with:
 - Automatic workflow advancement from commands
 """
 
+import json
+import logging
 import os
+import subprocess
 import sys
 from typing import List, Optional
 
@@ -91,6 +94,27 @@ def _format_auto_setup_success_message(workflow_name: str, issue_key: str) -> st
     )
 
 
+def _ensure_bootstrap_identity() -> None:
+    """Resolve identity via set_bootstrap_state() before any state I/O.
+
+    Follows the same guard and error-handling pattern as initiate_workflow()
+    in base.py: skipped when state directory is overridden via env vars,
+    and failures are logged as warnings without blocking the workflow.
+    """
+    from ...state import set_bootstrap_state
+
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    if env_state_override:
+        return
+    try:
+        set_bootstrap_state()
+    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize bootstrap state before workflow clear; proceeding with unscoped state: %s",
+            exc,
+        )
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -125,6 +149,8 @@ def initiate_pull_request_review_workflow(
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -352,6 +378,8 @@ def initiate_work_on_jira_issue_workflow(
         interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -604,6 +632,7 @@ def _execute_planning_step(
             "branch_name": branch_name,
             "issue_summary": issue_summary,
         },
+        skip_bootstrap_init=True,
     )
 
 
@@ -899,6 +928,8 @@ def initiate_create_jira_issue_workflow(
     - jira.description: Issue description (AI-generated from user_request)
     - jira.issue_type: Issue type (defaults to "Story")
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -999,6 +1030,7 @@ def initiate_create_jira_issue_workflow(
                     "jira.issue_type",
                     "jira.user_request",
                 ],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1095,6 +1127,8 @@ def initiate_create_jira_epic_workflow(
     - jira.desired_outcome: Desired outcome for the user story
     - jira.benefit: Benefit for the user story
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1184,6 +1218,7 @@ def initiate_create_jira_epic_workflow(
                     "jira.issue_key",
                     "jira.user_request",
                 ],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1275,6 +1310,8 @@ def initiate_create_jira_subtask_workflow(
     - jira.summary: Subtask summary (AI-generated from user_request)
     - jira.description: Subtask description (AI-generated from user_request)
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1352,6 +1389,7 @@ def initiate_create_jira_subtask_workflow(
                 workflow_name="create-jira-subtask",
                 required_state_keys=["jira.parent_key"],
                 optional_state_keys=["jira.summary", "jira.description", "jira.issue_key", "jira.user_request"],
+                skip_bootstrap_init=True,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -1456,6 +1494,8 @@ def initiate_update_jira_issue_workflow(
     - jira.description: New description (AI-generated from user_request)
     - jira.comment: Comment to add
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1551,6 +1591,7 @@ def initiate_update_jira_issue_workflow(
         workflow_name="update-jira-issue",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.summary", "jira.description", "jira.comment", "jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Start a Copilot CLI session after the workflow is initiated.
@@ -1592,6 +1633,8 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     Optional state:
     - jira.issue_key: Jira issue key for context
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1702,6 +1745,7 @@ Examples:
         workflow_name="apply-pull-request-review-suggestions",
         required_state_keys=["pull_request_id"],
         optional_state_keys=["jira.issue_key"],
+        skip_bootstrap_init=True,
     )
 
     # Auto-copy review state into the apply-suggestions directory
@@ -1801,6 +1845,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     Optional state:
     - jira.user_request: Guidance on what to focus on when optimizing
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
@@ -1897,6 +1943,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         workflow_name="optimize-issue-for-ai-agent",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
@@ -1946,6 +1993,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
     Optional state:
     - jira.user_request: Guidance on how to break down the issue
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
@@ -2042,6 +2091,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
         workflow_name="break-down-issue-into-subtasks",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.user_request"],
+        skip_bootstrap_init=True,
     )
 
     # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.

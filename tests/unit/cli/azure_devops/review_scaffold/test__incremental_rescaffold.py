@@ -192,16 +192,11 @@ class TestIncrementalRescaffold:
         existing.files["/src/a.ts"].modelVerdicts = [
             ModelVerdict(modelId="gpt-5", status=ReviewStatus.APPROVED.value, verdictType="agree"),
         ]
-        result, requests_mock, _ = self._run_rescaffold(
-            existing, ["/src/a.ts"], changed_paths=["/src/a.ts"]
-        )
+        result, requests_mock, _ = self._run_rescaffold(existing, ["/src/a.ts"], changed_paths=["/src/a.ts"])
         assert result is not None
 
         # The rendered content is PATCHed as the new main comment — collect all PATCH call bodies
-        patch_bodies = [
-            call.kwargs.get("json", {})
-            for call in requests_mock.patch.call_args_list
-        ]
+        patch_bodies = [call.kwargs.get("json", {}) for call in requests_mock.patch.call_args_list]
         # Find any PATCH that updated a comment content (single {"content": ...} body)
         comment_patch_contents = [b.get("content", "") for b in patch_bodies if "content" in b]
         assert any("### Model Review Progress" in c for c in comment_patch_contents), (
