@@ -185,6 +185,11 @@ Examples:
             delete_value("jira.issue_key")
     if issue_key:
         set_value("jira.issue_key", issue_key)
+        if not pull_request_id:
+            # --issue-key was given without --pull-request-id: clear any stale PR ID
+            # left by a prior run so the cross-lookup below searches for the correct PR
+            # instead of silently reusing an unrelated pull request.
+            delete_value("pull_request_id")
 
     # Get resolved values from state
     resolved_pr_id = get_value("pull_request_id")
