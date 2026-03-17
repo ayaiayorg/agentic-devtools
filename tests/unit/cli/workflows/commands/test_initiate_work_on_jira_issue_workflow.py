@@ -42,14 +42,16 @@ def clear_state_before(temp_state_dir):
 
 @pytest.fixture
 def mock_workflow_state_clearing():
-    """Mock clear_state_for_workflow_initiation to be a no-op.
+    """Mock clear_state_for_workflow_initiation and _ensure_bootstrap_identity to be no-ops.
 
-    Workflow initiation commands reset workflow tracking keys (workflow,
-    agdt_run_id) at the start.  This fixture prevents that reset, which
-    is useful when tests pre-set workflow state before calling the command.
+    Workflow initiation commands resolve bootstrap identity and reset workflow
+    tracking keys (workflow, agdt_run_id) at the start.  This fixture prevents
+    both operations, which is useful when tests pre-set workflow state before
+    calling the command and want to avoid real filesystem/git operations.
     """
     with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
-        yield
+        with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity"):
+            yield
 
 
 class TestInitiateWorkOnJiraIssueInteractive:

@@ -159,11 +159,12 @@ def mock_preflight_pass():
 
 @pytest.fixture
 def mock_workflow_state_clearing():
-    """Mock clear_state_for_workflow_initiation to be a no-op.
+    """Mock clear_state_for_workflow_initiation and _ensure_bootstrap_identity to be no-ops.
 
-    Workflow initiation commands reset workflow tracking keys (workflow,
-    agdt_run_id) at the start.  This fixture prevents that reset, which
-    is useful when tests pre-set workflow state before calling the command.
+    Workflow initiation commands resolve bootstrap identity and reset workflow
+    tracking keys (workflow, agdt_run_id) at the start.  This fixture prevents
+    both operations, which is useful when tests pre-set workflow state before
+    calling the command and want to avoid real filesystem/git operations.
 
     Prefer passing required values via _argv instead of relying on this
     fixture — that keeps tests more representative of real CLI usage.
@@ -174,7 +175,12 @@ def mock_workflow_state_clearing():
         autospec=True,
         return_value=None,
     ):
-        yield
+        with patch(
+            "agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity",
+            autospec=True,
+            return_value=None,
+        ):
+            yield
 
 
 @pytest.fixture

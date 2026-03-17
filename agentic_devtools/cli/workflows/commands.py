@@ -1125,6 +1125,8 @@ def initiate_create_jira_epic_workflow(
     - jira.desired_outcome: Desired outcome for the user story
     - jira.benefit: Benefit for the user story
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1305,6 +1307,8 @@ def initiate_create_jira_subtask_workflow(
     - jira.summary: Subtask summary (AI-generated from user_request)
     - jira.description: Subtask description (AI-generated from user_request)
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1486,6 +1490,8 @@ def initiate_update_jira_issue_workflow(
     - jira.description: New description (AI-generated from user_request)
     - jira.comment: Comment to add
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1622,6 +1628,8 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     Optional state:
     - jira.issue_key: Jira issue key for context
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Clear all previous state to ensure fresh workflow start
     clear_state_for_workflow_initiation()
 
@@ -1831,6 +1839,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     Optional state:
     - jira.user_request: Guidance on what to focus on when optimizing
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
@@ -1976,6 +1986,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
     Optional state:
     - jira.user_request: Guidance on how to break down the issue
     """
+    # Resolve identity before any state I/O to prevent _unscoped writes
+    _ensure_bootstrap_identity()
     # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     clear_state_for_workflow_initiation()
