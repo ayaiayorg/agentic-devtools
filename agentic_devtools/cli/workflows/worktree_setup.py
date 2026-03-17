@@ -335,9 +335,10 @@ def get_repos_parent_dir() -> str | None:
 def _propagate_identity_cache(worktree_path: str) -> None:
     """Copy identity.json from the main repo into the new worktree.
 
-    Non-fatal: any exception is logged to stderr and the worktree setup
-    continues.  Both the temp-rename success path and the standard worktree
-    creation success path call this helper to ensure consistent behaviour.
+    Non-fatal: ``OSError`` and ``ValueError`` exceptions are logged to stderr
+    and the worktree setup continues.  Both the temp-rename success path and
+    the standard worktree creation success path call this helper to ensure
+    consistent behaviour.
     """
     try:
         main_repo = get_main_repo_root()
