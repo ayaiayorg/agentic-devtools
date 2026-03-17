@@ -325,8 +325,11 @@ def _read_identity_cache(agdt_dir: Path) -> Optional[Dict[str, str]]:
         if is_safe_dir_segment(identity_stripped):
             return {"identity": identity_stripped, "email": email}
 
-        # Cached identity is present but fails the safety check; return None
-        # so the caller re-resolves and overwrites the poisoned cache entry.
+        # Cached identity is present but fails the safety check; return None to
+        # signal that the entry is unusable. Callers that perform identity
+        # resolution (e.g. _get_or_refresh_identity) may choose to re-resolve
+        # and rewrite the cache, while simpler callers like get_state_dir() /
+        # get_bootstrap_state() will just fall back without modifying it.
         return None
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, OSError):
         return None
@@ -352,13 +355,14 @@ def _get_or_refresh_identity(git_root: Path, *, _email: Optional[str] = None) ->
     """Get identity from cache (``.agdt/identity.json``) or resolve and cache it.
 
     Validates the cache by comparing the stored email with the current
-    ``git config user.email``.  When they match, returns the cached identity
-    without calling ``_resolve_identity()`` (avoids the filesystem collision
-    scan under ``.agdt/workflows/``).  When they differ or the cache is
-    absent, calls ``_resolve_identity()`` and writes the result to
-    ``.agdt/identity.json``.
+    ``git config user.email``.  When they match (including when both are empty
+    strings), returns the cached identity without calling ``_resolve_identity()``
+    (avoids the filesystem collision scan under ``.agdt/workflows/``).  When
+    they differ or the cache is absent, calls ``_resolve_identity()`` and writes
+    the result to ``.agdt/identity.json``.
 
-    Returns ``"default"`` when ``git config user.email`` is unavailable.
+    On a cache miss, the resolved identity will be ``"default"`` when
+    ``git config user.email`` is unavailable.
 
     *_email* is an optional keyword-only argument.  When provided it is used
     directly, skipping the ``git config user.email`` subprocess call.
