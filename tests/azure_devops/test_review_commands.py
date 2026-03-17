@@ -928,6 +928,8 @@ class TestGenerateReviewPrompts:
         assert "PR42" in captured.err
         assert "unsafe" in captured.err
 
+
+class TestGetLinkedPullRequestFromJira:
     """Tests for _get_linked_pull_request_from_jira function."""
 
     def test_returns_none_when_requests_not_available(self):
