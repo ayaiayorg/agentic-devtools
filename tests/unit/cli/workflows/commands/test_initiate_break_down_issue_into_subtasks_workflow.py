@@ -40,7 +40,7 @@ class TestInitiateBreakDownIssueIntoSubtasksWorkflowBranches:
 
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
-        assert "continue the workflow in the new VS Code window" in captured.out
+        assert "Worktree setup started" in captured.out
 
         # Verify auto_execute_command includes --user-request
         call_kwargs = mock_setup.call_args[1]
@@ -189,7 +189,7 @@ class TestWorkflowCommands:
                 _argv=["--issue-key", "DFLY-1234", "--interactive", "true"]
             )
 
-        assert state.get_value("workflow.interactive") == "true"
+        assert state.get_value("workflow.context.interactive") == "true"
 
     def test_preflight_passes_persists_interactive_false_by_default(
         self,
@@ -221,4 +221,4 @@ class TestWorkflowCommands:
 
             commands.initiate_break_down_issue_into_subtasks_workflow(_argv=["--issue-key", "DFLY-1234"])
 
-        assert state.get_value("workflow.interactive") == "false"
+        assert state.get_value("workflow.context.interactive") == "false"

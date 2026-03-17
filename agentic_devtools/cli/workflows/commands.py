@@ -1795,7 +1795,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
 
     import argparse
 
-    from ...state import get_value, set_value
+    from ...state import get_value, set_value, update_workflow_context
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
     # Parse CLI arguments — always parse to pick up --interactive even when
@@ -1875,9 +1875,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
             auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
-            print("\n" + "=" * 80)
-            print("Please continue the workflow in the new VS Code window.")
-            print("=" * 80)
+            print(_format_auto_setup_success_message("optimize-issue-for-ai-agent", resolved_issue_key))
             return
         else:
             sys.exit(1)  # pragma: no cover
@@ -1889,8 +1887,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         optional_state_keys=["jira.user_request"],
     )
 
-    # Persist interactive preference so future session-launch code can read it from state.
-    set_value("workflow.interactive", "true" if interactive else "false")
+    # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
+    update_workflow_context({"interactive": "true" if interactive else "false"})
 
     # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
     # session helpers are available
@@ -1940,7 +1938,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
 
     import argparse
 
-    from ...state import get_value, set_value
+    from ...state import get_value, set_value, update_workflow_context
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
     # Parse CLI arguments — always parse to pick up --interactive even when
@@ -2020,9 +2018,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
             auto_execute_command=auto_execute_command,
             interactive=interactive,
         ):
-            print("\n" + "=" * 80)
-            print("Please continue the workflow in the new VS Code window.")
-            print("=" * 80)
+            print(_format_auto_setup_success_message("break-down-issue-into-subtasks", resolved_issue_key))
             return
         else:
             sys.exit(1)  # pragma: no cover
@@ -2034,8 +2030,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         optional_state_keys=["jira.user_request"],
     )
 
-    # Persist interactive preference so future session-launch code can read it from state.
-    set_value("workflow.interactive", "true" if interactive else "false")
+    # Persist interactive preference in workflow context so it survives set_workflow_state() overwrites.
+    update_workflow_context({"interactive": "true" if interactive else "false"})
 
     # TODO: Wire Copilot session launch here after ayaiayorg/agentic-devtools#869/#871
     # session helpers are available
