@@ -130,7 +130,7 @@ def initiate_pull_request_review_workflow(
 
     import argparse
 
-    from ...state import get_value, set_value
+    from ...state import delete_value, get_value, set_value
     from ..azure_devops.helpers import find_jira_issue_from_pr, find_pr_from_jira_issue, get_pull_request_source_branch
     from .preflight import perform_auto_setup
 
@@ -178,6 +178,11 @@ Examples:
     # Set provided values in state (use set_value directly since we handle cross-lookup below)
     if pull_request_id:
         set_value("pull_request_id", pull_request_id)
+        if not issue_key:
+            # --pull-request-id was given without --issue-key: clear any stale issue key
+            # left by a prior run so the cross-lookup below derives a fresh value from
+            # the PR instead of silently reusing an unrelated Jira issue.
+            delete_value("jira.issue_key")
     if issue_key:
         set_value("jira.issue_key", issue_key)
 
