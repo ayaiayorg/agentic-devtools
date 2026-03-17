@@ -1016,7 +1016,8 @@ def _fresh_scaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
-        initialize_model_verdicts(file_entry, [model_id])
+        if model_id:
+            initialize_model_verdicts(file_entry, [model_id])
         file_entries[normalized] = file_entry
 
     # Step 2: Build lightweight folder groups
@@ -1295,7 +1296,8 @@ def _incremental_rescaffold(
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
         )
-        initialize_model_verdicts(new_file_entry, [model_id])
+        if model_id:
+            initialize_model_verdicts(new_file_entry, [model_id])
         existing_state.files[file_path] = new_file_entry
 
     # Process modified files

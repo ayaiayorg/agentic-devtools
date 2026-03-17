@@ -69,7 +69,7 @@ def _make_existing_state(files=None, commit_hash="old_hash"):
 class TestIncrementalRescaffold:
     """Tests for _incremental_rescaffold."""
 
-    def _run_rescaffold(self, existing_state, current_files, changed_paths=None):
+    def _run_rescaffold(self, existing_state, current_files, changed_paths=None, model_id="gpt-5"):
         """Run _incremental_rescaffold with mocked detect_file_changes."""
         requests_mock = MagicMock()
         id_gen = count(1000)
@@ -122,7 +122,7 @@ class TestIncrementalRescaffold:
                     headers={},
                     dry_run=False,
                     commit_hash="new_hash",
-                    model_id="gpt-5",
+                    model_id=model_id,
                 )
 
         return result, requests_mock, save_mock
@@ -252,6 +252,21 @@ class TestIncrementalRescaffold:
         result, _, _ = self._run_rescaffold(existing, ["/src/a.ts"])
 
         assert result.commitHash == "new_hash"
+
+    def test_new_file_model_verdicts_initialized_when_model_id_truthy(self):
+        """New file entries have modelVerdicts when model_id is a non-empty string."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="gpt-5")
+        entry = result.files["/src/new.ts"]
+        assert len(entry.modelVerdicts) == 1
+        assert entry.modelVerdicts[0].modelId == "gpt-5"
+
+    def test_new_file_model_verdicts_empty_when_model_id_falsy(self):
+        """New file entries have no modelVerdicts when model_id is an empty string."""
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, _, _ = self._run_rescaffold(existing, ["/src/a.ts", "/src/new.ts"], model_id="")
+        entry = result.files["/src/new.ts"]
+        assert entry.modelVerdicts == []
 
 
 class TestIncrementalRescaffoldDryRun:

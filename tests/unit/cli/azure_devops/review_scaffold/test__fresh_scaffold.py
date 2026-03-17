@@ -158,3 +158,16 @@ class TestFreshScaffold:
         assert "Warning: Could not post initial activity log entry" in err
         assert result is not None
         assert isinstance(result, ReviewState)
+
+    def test_model_verdicts_initialized_when_model_id_truthy(self):
+        """File entries have modelVerdicts when model_id is a non-empty string."""
+        result, _, _ = _run_fresh_scaffold(["/src/a.ts"], model_id="gpt-5")
+        entry = result.files["/src/a.ts"]
+        assert len(entry.modelVerdicts) == 1
+        assert entry.modelVerdicts[0].modelId == "gpt-5"
+
+    def test_model_verdicts_not_initialized_when_model_id_empty(self):
+        """File entries have no modelVerdicts when model_id is an empty string."""
+        result, _, _ = _run_fresh_scaffold(["/src/a.ts"], model_id="")
+        entry = result.files["/src/a.ts"]
+        assert entry.modelVerdicts == []

@@ -76,24 +76,27 @@ def _get_attribution_params(
     commit_hash = review_state.commitHash
     commit_url: Optional[str] = None
     if commit_hash and review_state.latestIterationId:
-        if file_path:
-            normalized = normalize_file_path(file_path)
-            commit_url = build_commit_file_url(
-                config.organization,
-                config.project,
-                config.repository,
-                review_state.prId,
-                normalized,
-                review_state.latestIterationId,
-            )
-        else:
-            commit_url = build_commit_pr_url(
-                config.organization,
-                config.project,
-                config.repository,
-                review_state.prId,
-                review_state.latestIterationId,
-            )
+        try:
+            if file_path:
+                normalized = normalize_file_path(file_path)
+                commit_url = build_commit_file_url(
+                    config.organization,
+                    config.project,
+                    config.repository,
+                    review_state.prId,
+                    normalized,
+                    review_state.latestIterationId,
+                )
+            else:
+                commit_url = build_commit_pr_url(
+                    config.organization,
+                    config.project,
+                    config.repository,
+                    review_state.prId,
+                    review_state.latestIterationId,
+                )
+        except Exception:
+            commit_url = None
     return {"model_name": model_name, "commit_hash": commit_hash, "commit_url": commit_url}
 
 

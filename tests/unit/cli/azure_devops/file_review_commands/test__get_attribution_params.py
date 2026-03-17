@@ -163,3 +163,38 @@ class TestGetAttributionParams:
         assert result["model_name"] == "claude-opus-4"
         assert result["commit_hash"] == _COMMIT
         assert result["commit_url"] == "https://example.com/pr"
+
+    def test_commit_url_none_on_url_build_exception_pr_level(self):
+        """Should fall back to commit_url=None when build_commit_pr_url raises."""
+        state = _make_review_state(commit_hash=_COMMIT)
+        config = _make_config()
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_attribution.build_commit_pr_url",
+            side_effect=Exception("URL build failed"),
+        ):
+            result = _get_attribution_params(state, config)
+
+        assert result["commit_url"] is None
+        assert result["commit_hash"] == _COMMIT  # hash still propagated
+
+    def test_commit_url_none_on_url_build_exception_file_level(self):
+        """Should fall back to commit_url=None when build_commit_file_url raises."""
+        state = _make_review_state(commit_hash=_COMMIT)
+        config = _make_config()
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_attribution.build_commit_file_url",
+            side_effect=Exception("URL build failed"),
+        ):
+            result = _get_attribution_params(state, config, file_path="/src/app.py")
+
+        assert result["commit_url"] is None
+        assert result["commit_hash"] == _COMMIT  # hash still propagated
+
+    def test_model_name_falls_back_to_state_model_id_when_sessions_empty(self):
+        """Should return ReviewState.modelId when sessions list is empty but modelId is set."""
+        state = _make_review_state(sessions=[])
+        # Manually set modelId on the state (the field is Optional[str] = None by default)
+        state.modelId = "claude-opus-4"
+        config = _make_config()
+        result = _get_attribution_params(state, config)
+        assert result["model_name"] == "claude-opus-4"
