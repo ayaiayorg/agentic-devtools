@@ -331,6 +331,30 @@ def get_repos_parent_dir() -> str | None:
     return None
 
 
+
+def _propagate_identity_cache(worktree_path: str) -> None:
+    """Copy identity.json from the main repo into the new worktree.
+
+    Non-fatal: ``OSError`` and ``ValueError`` exceptions are logged to stderr
+    and the worktree setup continues.  Both the temp-rename success path and
+    the standard worktree creation success path call this helper to ensure
+    consistent behaviour.
+    """
+    try:
+        main_repo = get_main_repo_root()
+        if main_repo:
+            src_identity = Path(main_repo) / ".agdt" / IDENTITY_CACHE_FILENAME
+            if src_identity.is_file():
+                dst_agdt = Path(worktree_path) / ".agdt"
+                dst_agdt.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(src_identity), str(dst_agdt / IDENTITY_CACHE_FILENAME))
+    except (OSError, ValueError) as exc:
+        print(
+            f"Warning: failed to propagate identity cache to worktree: {exc}",
+            file=sys.stderr,
+        )
+
+
 def create_worktree(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -356,9 +380,16 @@ def create_worktree(
     Returns:
         WorktreeSetupResult with success status and paths
     """
+    import uuid
+    from datetime import datetime, timezone
+
     from ..git.operations import (
+        BranchSafetyCheckResult,
         check_branch_safe_to_recreate,
+        delete_local_branch,
         fetch_branch,
+        get_short_commit_hash,
+        rename_local_branch,
     )
 
     repos_parent = get_repos_parent_dir()
@@ -397,13 +428,17 @@ def create_worktree(
                 error_message=f"Directory {worktree_path} exists but is not a git worktree",
             )
 
-    # Check if we're currently on the target branch in the main repo.
-    # Git doesn't allow creating a worktree for a branch that's already checked out.
-    # If we're on the target branch in main repo, we need to switch to main first.
     current_branch = get_current_branch()
     in_worktree = is_in_worktree()
 
-    if current_branch == resolved_branch_name and not in_worktree:
+    # Check if we're currently on the target branch in the main repo.
+    # Git doesn't allow creating a worktree for a branch that's already checked out.
+    # For new-branch creation (not use_existing_branch), switch to main here.
+    # For PR-review (use_existing_branch=True), the safety check below determines the
+    # right strategy: unsafe branches use temp-rename (which frees the name without
+    # needing a branch switch), while the SAFE path handles the switch just before
+    # the worktree-add call.
+    if current_branch == resolved_branch_name and not in_worktree and not use_existing_branch:
         print(f"Currently on branch '{resolved_branch_name}' in main repo.")
         print("Switching to 'main' branch to allow worktree creation...")
         if not switch_to_main_branch():
@@ -426,14 +461,190 @@ def create_worktree(
         safety_result = check_branch_safe_to_recreate(branch_name)
 
         if not safety_result.is_safe:
-            return WorktreeSetupResult(
-                success=False,
-                worktree_path=worktree_path,
-                branch_name=resolved_branch_name,
-                error_message=f"Cannot safely create worktree:\n{safety_result.message}",
+            status = safety_result.status
+
+            # For BRANCH_NOT_ON_ORIGIN, check whether a local branch with this
+            # name already exists.  Wrap the check in try/except so that an
+            # environment problem (git missing, OS error) is treated as "no
+            # local branch found" rather than crashing create_worktree().
+            local_branch_exists = False
+            if status == BranchSafetyCheckResult.BRANCH_NOT_ON_ORIGIN:
+                try:
+                    local_branch_exists = (
+                        subprocess.run(
+                            ["git", "rev-parse", "--verify", branch_name],
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                        ).returncode
+                        == 0
+                    )
+                except (FileNotFoundError, OSError):
+                    local_branch_exists = False
+
+            # When UNCOMMITTED_CHANGES is reported, it refers to the current
+            # branch (HEAD), which might not be the target branch for the
+            # worktree. Resolve the current branch name so we only treat this
+            # as local work on the target branch when the names match.
+            current_branch_name: str | None = None
+            if status == BranchSafetyCheckResult.UNCOMMITTED_CHANGES:
+                current_branch_name = get_current_branch()
+
+            # Determine if we need the temp-rename flow to preserve local work
+            needs_temp_rename = (
+                status == BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN
+                or (
+                    status == BranchSafetyCheckResult.UNCOMMITTED_CHANGES
+                    and current_branch_name == branch_name
+                )
+                or (
+                    status == BranchSafetyCheckResult.BRANCH_NOT_ON_ORIGIN
+                    and local_branch_exists
+                )
             )
 
+            if needs_temp_rename:
+                temp_suffix = uuid.uuid4().hex[:8]
+                temp_branch_name = f"{branch_name}-tmp-{temp_suffix}"
+
+                print(f"Local branch '{branch_name}' has local work. Temporarily renaming to '{temp_branch_name}'...")
+                try:
+                    rename_ok = rename_local_branch(branch_name, temp_branch_name)
+                except (FileNotFoundError, OSError) as exc:
+                    return WorktreeSetupResult(
+                        success=False,
+                        worktree_path=worktree_path,
+                        branch_name=resolved_branch_name,
+                        error_message=(
+                            f"Failed to rename local branch '{branch_name}' to '{temp_branch_name}': {exc}"
+                        ),
+                    )
+                if not rename_ok:
+                    return WorktreeSetupResult(
+                        success=False,
+                        worktree_path=worktree_path,
+                        branch_name=resolved_branch_name,
+                        error_message=(f"Failed to rename local branch '{branch_name}' to '{temp_branch_name}'."),
+                    )
+
+                # Attempt worktree creation using the original branch name from origin
+                try:
+                    print(f"Creating worktree at {worktree_path}...")
+                    worktree_result = subprocess.run(
+                        [
+                            "git",
+                            "worktree",
+                            "add",
+                            worktree_path,
+                            "--track",
+                            "-b",
+                            branch_name,
+                            f"origin/{branch_name}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                except (FileNotFoundError, OSError) as e:
+                    # Revert the rename before propagating the error.
+                    # If the revert also fails, include the recovery command in the error message.
+                    error_msg = f"Error creating worktree: {e}"
+                    try:
+                        revert_ok = rename_local_branch(temp_branch_name, branch_name)
+                    except (FileNotFoundError, OSError) as rename_exc:
+                        revert_ok = False
+                        error_msg += f" (revert also failed: {rename_exc})"
+                    if not revert_ok:
+                        error_msg += (
+                            f"\nWarning: Failed to revert branch rename. "
+                            f"Branch is still named '{temp_branch_name}'. "
+                            f"Manually rename it back with: git branch -m {temp_branch_name} {branch_name}"
+                        )
+                    return WorktreeSetupResult(
+                        success=False,
+                        worktree_path=worktree_path,
+                        branch_name=resolved_branch_name,
+                        error_message=error_msg,
+                    )
+
+                if worktree_result.returncode != 0:
+                    # Worktree creation failed — revert temp rename to keep local work intact.
+                    # If the revert also fails, include the recovery command in the error message.
+                    print("Worktree creation failed. Reverting temp rename...")
+                    error_msg = f"Failed to create worktree: {worktree_result.stderr.strip()}"
+                    try:
+                        revert_ok = rename_local_branch(temp_branch_name, branch_name)
+                    except (FileNotFoundError, OSError) as rename_exc:
+                        revert_ok = False
+                        error_msg += f" (revert also failed: {rename_exc})"
+                    if not revert_ok:
+                        error_msg += (
+                            f"\nWarning: Failed to revert branch rename. "
+                            f"Branch is still named '{temp_branch_name}'. "
+                            f"Manually rename it back with: git branch -m {temp_branch_name} {branch_name}"
+                        )
+                    return WorktreeSetupResult(
+                        success=False,
+                        worktree_path=worktree_path,
+                        branch_name=resolved_branch_name,
+                        error_message=error_msg,
+                    )
+
+                # Worktree created successfully — rename temp branch to final PR review name.
+                # Wrap in try/except so an unexpected git error here doesn't crash
+                # create_worktree() after the worktree has already been created.
+                print(f"Worktree created successfully at {worktree_path}")
+                try:
+                    commit_hash_short = get_short_commit_hash(temp_branch_name) or "unknown"
+                    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+                    final_review_name = f"{branch_name}-pr-review-{commit_hash_short}-{timestamp}"
+                    print(f"Renaming temp branch to final PR review name: '{final_review_name}'...")
+                    if not rename_local_branch(temp_branch_name, final_review_name):
+                        print(
+                            f"Warning: Could not rename temp branch '{temp_branch_name}' to "
+                            f"'{final_review_name}'. Temp branch retained."
+                        )
+                except (FileNotFoundError, OSError) as e:
+                    # Non-fatal: the worktree is functional; only the cleanup rename failed.
+                    print(
+                        f"Warning: Failed to finalize temp branch name: {e}. "
+                        f"Branch is still named '{temp_branch_name}'.",
+                        file=sys.stderr,
+                    )
+
+                _propagate_identity_cache(worktree_path)
+
+                return WorktreeSetupResult(
+                    success=True,
+                    worktree_path=worktree_path,
+                    branch_name=resolved_branch_name,
+                )
+            else:
+                # NOT_ON_BRANCH, or BRANCH_NOT_ON_ORIGIN with no local branch — fail immediately
+                return WorktreeSetupResult(
+                    success=False,
+                    worktree_path=worktree_path,
+                    branch_name=resolved_branch_name,
+                    error_message=f"Cannot safely create worktree:\n{safety_result.message}",
+                )
+
         print(f"Safety check passed: {safety_result.message}")
+
+        # SAFE status but currently on the target branch in the main repo:
+        # switch to main so the git worktree add below doesn't fail with
+        # "already checked out".  This is safe here because SAFE guarantees
+        # there are no dirty local changes.
+        if current_branch == resolved_branch_name and not in_worktree:
+            print(f"Currently on branch '{resolved_branch_name}' in main repo.")
+            print("Switching to 'main' branch to allow worktree creation...")
+            if not switch_to_main_branch():
+                return WorktreeSetupResult(
+                    success=False,
+                    worktree_path=worktree_path,
+                    branch_name=resolved_branch_name,
+                    error_message="Failed to switch to main branch. Cannot create worktree while on target branch.",
+                )
+            print("Switched to 'main' branch successfully.")
 
     # Create the worktree
     try:
@@ -449,9 +660,48 @@ def create_worktree(
             )
 
             if result.returncode != 0:
-                # Try tracking the remote branch
+                # If the branch is already checked out elsewhere, it may be due to a
+                # stale worktree association.  Run `git worktree prune` first to remove
+                # stale entries, then delete the local ref and retry.
+                if "already checked out" in result.stderr.lower():
+                    print(
+                        f"Branch '{branch_name}' is already checked out. "
+                        "Pruning stale worktree entries and deleting local ref before retrying..."
+                    )
+                    # Best-effort prune — non-fatal if it fails
+                    subprocess.run(
+                        ["git", "worktree", "prune"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    # Use force=True because git branch -d fails for branches not yet
+                    # merged into HEAD.  The safety check already confirmed the local ref
+                    # matches origin, so force-deleting is safe here.
+                    if not delete_local_branch(branch_name, force=True):
+                        return WorktreeSetupResult(
+                            success=False,
+                            worktree_path=worktree_path,
+                            branch_name=resolved_branch_name,
+                            error_message=(
+                                f"Branch '{branch_name}' is already checked out in another worktree "
+                                f"and the local ref could not be deleted. "
+                                f"Please remove the existing worktree or detach the branch manually."
+                            ),
+                        )
+                # Try tracking the remote branch (covers both the delete+retry case and
+                # the case where no local branch exists at all)
                 result = subprocess.run(
-                    ["git", "worktree", "add", worktree_path, "--track", "-b", branch_name, f"origin/{branch_name}"],
+                    [
+                        "git",
+                        "worktree",
+                        "add",
+                        worktree_path,
+                        "--track",
+                        "-b",
+                        branch_name,
+                        f"origin/{branch_name}",
+                    ],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -486,19 +736,7 @@ def create_worktree(
 
         print(f"Worktree created successfully at {worktree_path}")
 
-        # Propagate identity.json from main repo to new worktree so the
-        # worktree starts with a valid identity without re-resolving.
-        try:
-            main_repo = get_main_repo_root()
-            if main_repo:
-                src_identity = Path(main_repo) / ".agdt" / IDENTITY_CACHE_FILENAME
-                if src_identity.is_file():
-                    dst_agdt = Path(worktree_path) / ".agdt"
-                    dst_agdt.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(str(src_identity), str(dst_agdt / IDENTITY_CACHE_FILENAME))
-        except (OSError, ValueError) as exc:
-            # Identity propagation failure is non-fatal, but log for debugging.
-            print(f"Warning: failed to propagate identity cache to worktree: {exc}", file=sys.stderr)
+        _propagate_identity_cache(worktree_path)
 
         return WorktreeSetupResult(
             success=True,

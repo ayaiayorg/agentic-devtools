@@ -531,6 +531,67 @@ def fetch_branch(branch_name: str, dry_run: bool = False) -> bool:
     return True
 
 
+def rename_local_branch(old_name: str, new_name: str) -> bool:
+    """
+    Rename a local git branch.
+
+    Args:
+        old_name: Current branch name
+        new_name: New branch name
+
+    Returns:
+        True if rename succeeded, False otherwise
+    """
+    result = run_git("branch", "-m", old_name, new_name, check=False)
+    if result.returncode != 0:
+        print(f"Failed to rename branch '{old_name}' to '{new_name}'.")
+        if result.stderr:
+            print(result.stderr.strip())
+        return False
+
+    print(f"Renamed branch '{old_name}' to '{new_name}'.")
+    return True
+
+
+def delete_local_branch(branch_name: str, force: bool = False) -> bool:
+    """
+    Delete a local git branch.
+
+    Args:
+        branch_name: Name of the branch to delete
+        force: If True, use -D (force delete) instead of -d (safe delete)
+
+    Returns:
+        True if deletion succeeded, False otherwise
+    """
+    flag = "-D" if force else "-d"
+    result = run_git("branch", flag, branch_name, check=False)
+    if result.returncode != 0:
+        print(f"Failed to delete branch '{branch_name}'.")
+        if result.stderr:
+            print(result.stderr.strip())
+        return False
+
+    print(f"Deleted branch '{branch_name}'.")
+    return True
+
+
+def get_short_commit_hash(ref: str) -> Optional[str]:
+    """
+    Get the short commit hash for a git ref.
+
+    Args:
+        ref: A git ref (branch name, commit hash, tag, etc.)
+
+    Returns:
+        Short commit hash string, or None on failure
+    """
+    result = run_git("rev-parse", "--short", ref, check=False)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def reset_branch_to_origin(branch_name: str, dry_run: bool = False) -> bool:
     """
     Reset the current branch to match origin/<branch_name>.
