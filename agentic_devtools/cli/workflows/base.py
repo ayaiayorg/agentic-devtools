@@ -10,6 +10,7 @@ This module provides common functionality for all workflow commands:
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import uuid
@@ -161,13 +162,18 @@ def initiate_workflow(
     # Ensure identity.json is populated before any set_value() calls so that
     # _update_bootstrap_worktree_key() (called by set_value()) finds a valid
     # identity and get_state_dir() resolves to the scoped path immediately.
-    try:
-        set_bootstrap_state()
-    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
-        logging.getLogger(__name__).warning(
-            "Failed to initialize bootstrap state; proceeding with unscoped workflow state: %s",
-            exc,
-        )
+    # When the state directory is overridden via environment variables, scoped
+    # bootstrap is not used, so we can skip this initialization to avoid
+    # redundant git subprocesses and .agdt/* side effects.
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    if not env_state_override:
+        try:
+            set_bootstrap_state()
+        except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+            logging.getLogger(__name__).warning(
+                "Failed to initialize bootstrap state; proceeding with unscoped workflow state: %s",
+                exc,
+            )
 
     # Validate required state
     required_values = {}
