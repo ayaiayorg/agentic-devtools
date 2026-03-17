@@ -110,8 +110,7 @@ def _ensure_bootstrap_identity() -> None:
         set_bootstrap_state()
     except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
         logging.getLogger(__name__).warning(
-            "Failed to initialize bootstrap state before workflow clear; "
-            "proceeding with unscoped state: %s",
+            "Failed to initialize bootstrap state before workflow clear; proceeding with unscoped state: %s",
             exc,
         )
 
