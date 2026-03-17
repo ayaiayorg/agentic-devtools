@@ -1330,7 +1330,7 @@ def get_ai_agent_continuation_prompt(
     elif workflow_name == "break-down-issue-into-subtasks":
         task_description = "assigned to break down a Jira issue into subtasks"
         action_description = (
-            "analyse the Jira issue and create subtasks via agdt-initiate-create-jira-subtask-workflow"
+            "analyze the Jira issue and create subtasks via agdt-initiate-create-jira-subtask-workflow"
         )
     else:
         task_description = "assigned an issue to work on"
