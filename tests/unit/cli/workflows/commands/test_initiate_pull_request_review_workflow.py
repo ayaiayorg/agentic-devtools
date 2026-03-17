@@ -143,6 +143,55 @@ class TestInitiatePRReviewWorkflowBranches:
         assert "Could not fetch PR source branch" in captured.err
         assert "Unable to determine source branch" in captured.err
 
+    def test_stale_issue_key_cleared_when_not_provided(
+        self, temp_state_dir, clear_state_before
+    ):
+        """Test that a stale jira.issue_key from a prior run is NOT reused.
+
+        When --pull-request-id is provided without --issue-key, any jira.issue_key
+        left in state from a previous run must be cleared before the cross-lookup,
+        so an unrelated Jira issue cannot contaminate the new review session.
+        """
+        # Simulate stale state left over from a prior run
+        state.set_value("jira.issue_key", "STALE-999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+            mock_find.return_value = None  # cross-lookup finds nothing
+
+            with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                mock_src.side_effect = Exception("stop early")
+
+                with pytest.raises(SystemExit):
+                    commands.initiate_pull_request_review_workflow(_argv=["--pull-request-id", "123"])
+
+        # The stale issue key must have been deleted, not silently reused
+        assert state.get_value("jira.issue_key") is None
+        # The PR→issue cross-lookup must have been called (proving resolved_issue_key was None)
+        mock_find.assert_called_once_with(123)
+
+    def test_stale_pull_request_id_cleared_when_not_provided(
+        self, temp_state_dir, clear_state_before
+    ):
+        """Test that a stale pull_request_id from a prior run is NOT reused.
+
+        When --issue-key is provided without --pull-request-id, any pull_request_id
+        left in state from a previous run must be cleared before the cross-lookup,
+        so an unrelated PR cannot contaminate the new review session.
+        """
+        # Simulate stale state left over from a prior run
+        state.set_value("pull_request_id", "STALE-42")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find_pr:
+            mock_find_pr.return_value = None  # cross-lookup finds nothing
+
+            with pytest.raises(SystemExit):
+                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+
+        # The stale PR ID must have been deleted, not silently reused
+        assert state.get_value("pull_request_id") is None
+        # The issue→PR cross-lookup must have been called (proving resolved_pr_id was None)
+        mock_find_pr.assert_called_once_with("DFLY-1234", verbose=True)
+
 
 @pytest.fixture
 def mock_copilot_session():
