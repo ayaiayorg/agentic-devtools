@@ -1778,8 +1778,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         user_request: Optional guidance on what to focus on when optimizing the issue.
         interactive: Whether to start the Copilot session interactively once session
             launch is wired (see TODO below). The value is persisted to
-            ``workflow.interactive`` in state so future session-launch code can
-            read it with zero CLI changes. On the preflight-fail path it is also
+            ``workflow.context.interactive`` in state so future session-launch code
+            can read it with zero CLI changes. On the preflight-fail path it is also
             forwarded to ``perform_auto_setup``.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
@@ -1921,8 +1921,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         user_request: Optional guidance on how to break down the issue.
         interactive: Whether to start the Copilot session interactively once session
             launch is wired (see TODO below). The value is persisted to
-            ``workflow.interactive`` in state so future session-launch code can
-            read it with zero CLI changes. On the preflight-fail path it is also
+            ``workflow.context.interactive`` in state so future session-launch code
+            can read it with zero CLI changes. On the preflight-fail path it is also
             forwarded to ``perform_auto_setup``.
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
 
