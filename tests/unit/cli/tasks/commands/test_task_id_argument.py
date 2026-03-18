@@ -9,6 +9,7 @@ Tests the task monitoring CLI commands that use the actual task_state API:
 - task.start_time (not task.created_at)
 """
 
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -161,3 +162,24 @@ class TestTaskIdArgument:
         captured = capsys.readouterr()
         # Should show the other failed task
         assert "other tasks failed" in captured.out.lower() or "agdt-other-cmd" in captured.out
+
+    def test_task_wait_picks_up_id_from_sys_argv(self, mock_state_dir, capsys, monkeypatch):
+        """Test task_wait reads --id from sys.argv when _argv is not provided (real CLI behavior).
+
+        This is the bug fix test: previously _parse_wait_args used `_argv or []`
+        which silently dropped sys.argv when _argv was None. Now it uses
+        parse_known_args(_argv) which falls back to sys.argv[1:] when _argv is None.
+        """
+        task = _create_and_add_task("agdt-test-cmd")
+        task.mark_running()
+        task.mark_completed(exit_code=0)
+        update_task(task)
+
+        # Simulate the real CLI invocation: agdt-task-wait --id <task-id>
+        monkeypatch.setattr(sys, "argv", ["agdt-task-wait", "--id", task.id])
+
+        # Call without _argv (as the CLI entry point does)
+        task_wait()
+
+        captured = capsys.readouterr()
+        assert "completed" in captured.out.lower()

@@ -2,9 +2,19 @@
 
 from unittest.mock import patch
 
+import pytest
+
+from agentic_devtools import state
 from agentic_devtools.cli.workflows.preflight import (
     perform_auto_setup,
 )
+
+
+@pytest.fixture
+def temp_state_dir(tmp_path):
+    """Fixture to redirect state writes to a temp directory."""
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+        yield tmp_path
 
 
 class TestPerformAutoSetup:
@@ -152,3 +162,20 @@ class TestPerformAutoSetup:
         mock_start_background.assert_called_once()
         call_kwargs = mock_start_background.call_args[1]
         assert call_kwargs["interactive"] is False
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_saves_task_id_to_state(self, mock_start_background, temp_state_dir):
+        """Test that background.task_id is saved to state after spawning the background task.
+
+        This is the bug fix test: previously perform_auto_setup only printed the task ID
+        but did not persist it to state, causing agdt-task-wait (without --id) to fail
+        with "Error: No task ID specified".
+        """
+        mock_start_background.return_value = "task-auto-set-check"
+
+        perform_auto_setup(
+            issue_key="DFLY-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        assert state.get_value("background.task_id") == "task-auto-set-check"
