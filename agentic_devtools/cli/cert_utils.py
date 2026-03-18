@@ -154,9 +154,14 @@ def ensure_ca_bundle(
     if force and cache_file.exists():
         try:
             cache_file.unlink()
-        except OSError:
+        except OSError as exc:
             # Even if deletion fails, skip using the existing cache when force=True.
-            pass
+            print(
+                f"  ⚠ Could not delete CA bundle cache at {cache_file} during forced refresh: {exc}. "
+                "The existing file may still be referenced by external tools (for example, an npmrc cafile). "
+                "Consider removing or replacing it manually.",
+                file=sys.stderr,
+            )
 
     # Return cached file only when it contains a full chain (>= 2 certs).
     # A single-cert (leaf-only) cache cannot be used as a CA bundle and will
