@@ -2,30 +2,32 @@
 
 Copilot session-triggering decision tree
 -----------------------------------------
-The function ``setup_worktree_in_background_sync`` decides whether and how to
-start a Copilot session according to the following rules:
+The function ``setup_worktree_in_background_sync`` prepares the worktree and
+VS Code environment according to the following rules. It never starts a
+Copilot session directly; any Copilot startup is handled by VS Code tasks
+(for example, an ``agdt-copilot-auto-start`` task) configured elsewhere.
 
-1. ``auto_execute_command`` is **not** None
+1. ``auto_execute_command`` is truthy (for example, a non-empty string)
    a. Run ``_run_auto_execute_command()`` **first** (before injecting the VS Code
       auto-start task and before opening VS Code), so that all workflow context
       data (PR details, Jira issue, etc.) is available when VS Code's
       ``folderOpen`` event fires the ``agdt-copilot-auto-start`` task.
    b. ``_maybe_inject_auto_start_before_vscode()`` is called after auto-execute.
    c. ``open_vscode_workspace()`` is called last.
-   d. ``_start_copilot_session_for_pr_review()`` is **NOT** called — the
-      auto-start task injected in step (b) handles session startup.
-   e. If ``_run_auto_execute_command()`` returns a non-zero exit code,
-      ``_start_copilot_session_for_pr_review()`` is **still NOT** called.
+   d. No Copilot session helper is called directly from this function; the
+      auto-start task injected in step (b) is responsible for any session
+      startup, regardless of the exit code from ``_run_auto_execute_command()``.
 
-2. ``auto_execute_command`` is **None**
+2. ``auto_execute_command`` is falsy (for example, ``None`` or an empty string)
    a. ``_maybe_inject_auto_start_before_vscode()`` is called first.
    b. ``open_vscode_workspace()`` is called next.
-   c. ``_start_copilot_session_for_pr_review()`` is **NOT** called (no auto-
-      execute means the workflow is not a PR review that needs a session).
+   c. As in case (1), this function does **not** start any Copilot sessions
+      directly.
 
 3. Non-PR-review workflows (``workflow_name != "pull-request-review"``)
-   ``_start_copilot_session_for_pr_review()`` is never called regardless of
-   ``auto_execute_command``.
+   This helper still only manages the worktree and VS Code workspace; Copilot
+   sessions, if any, are orchestrated by external tooling and not by this
+   function.
 """
 
 from unittest.mock import patch
@@ -538,16 +540,31 @@ class TestSetupWorktreeInBackgroundSync:
         mock_run_cmd.side_effect = lambda *a, **kw: call_order.append("auto_execute") or 0
         mock_open_vscode.side_effect = lambda *a, **kw: call_order.append("open_vscode") or True
 
-        setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
-            workflow_name="work-on-jira-issue",
-            auto_execute_command=["agdt-review", "--pr-id", "42"],
-        )
+        # Patch _maybe_inject_auto_start_before_vscode so the test is deterministic
+        # and to track that it is called between auto_execute and open_vscode.
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode"
+        ) as mock_inject_auto_start:
+            mock_inject_auto_start.side_effect = (
+                lambda *a, **kw: call_order.append("inject_auto_start") or None
+            )
 
+            setup_worktree_in_background_sync(
+                issue_key="DFLY-1234",
+                workflow_name="work-on-jira-issue",
+                auto_execute_command=["agdt-review", "--pr-id", "42"],
+            )
+
+        # Verify that all three steps ran and in the intended order:
+        # auto_execute → inject_auto_start → open_vscode.
         assert "auto_execute" in call_order, "_run_auto_execute_command was not called"
+        assert "inject_auto_start" in call_order, "_maybe_inject_auto_start_before_vscode was not called"
         assert "open_vscode" in call_order, "open_vscode_workspace was not called"
-        assert call_order.index("auto_execute") < call_order.index("open_vscode"), (
-            "_run_auto_execute_command must be called before open_vscode_workspace"
+        assert call_order.index("auto_execute") < call_order.index("inject_auto_start"), (
+            "_run_auto_execute_command must be called before _maybe_inject_auto_start_before_vscode"
+        )
+        assert call_order.index("inject_auto_start") < call_order.index("open_vscode"), (
+            "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
         )
 
     @patch("agentic_devtools.state.set_value")

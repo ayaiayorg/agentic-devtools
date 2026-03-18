@@ -2080,7 +2080,6 @@ def setup_worktree_in_background_sync(
     existing_path = check_worktree_exists(issue_key)
     if existing_path:
         print(f"\nWorktree already exists at: {existing_path}")
-        print("Opening VS Code in the existing worktree (using the workspace file if available)...")
 
         wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
 
@@ -2097,6 +2096,7 @@ def setup_worktree_in_background_sync(
         _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt)
 
         # Open VS Code
+        print("Opening VS Code in the existing worktree (using the workspace file if available)...")
         vscode_opened = open_vscode_workspace(existing_path)
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
 
