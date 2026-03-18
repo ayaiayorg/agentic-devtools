@@ -249,20 +249,21 @@ Examples:
     # is set; load_state()/save_state() will use the correctly scoped directory.
     clear_state_for_workflow_initiation()
 
-    # Set provided values in state.  When both issue_key and pull_request_id are provided,
-    # write jira.issue_key FIRST so that the engine-side priority guard in set_value()
-    # (which checks the loaded state dict) sees the issue key and skips overwriting the
-    # bootstrap scope when pull_request_id is written immediately after.
-    if issue_key:
-        set_value("jira.issue_key", issue_key)
-        if not pull_request_id:
+    # Set provided values in state using the NORMALIZED identifiers.  When both issue_key
+    # and pull_request_id are provided, write jira.issue_key FIRST so that the engine-side
+    # priority guard in set_value() (which checks the loaded state dict) sees the issue key
+    # and skips overwriting the bootstrap scope when pull_request_id is written immediately
+    # after.  Whitespace-only inputs normalize to an empty string and are treated as absent.
+    if _issue_key_norm:
+        set_value("jira.issue_key", _issue_key_norm)
+        if not _pr_id_norm:
             # --issue-key was given without --pull-request-id: clear any stale PR ID
             # left by a prior run so the cross-lookup below searches for the correct PR
             # instead of silently reusing an unrelated pull request.
             delete_value("pull_request_id")
-    if pull_request_id:
-        set_value("pull_request_id", pull_request_id)
-        if not issue_key:
+    if _pr_id_norm:
+        set_value("pull_request_id", _pr_id_norm)
+        if not _issue_key_norm:
             # --pull-request-id was given without --issue-key: clear any stale issue key
             # left by a prior run so the cross-lookup below derives a fresh value from
             # the PR instead of silently reusing an unrelated Jira issue.
@@ -1756,16 +1757,18 @@ Examples:
     # write jira.issue_key FIRST so that the engine-side priority guard in set_value()
     # (which checks the loaded state dict) sees the issue key and skips overwriting the
     # bootstrap scope when pull_request_id is written immediately after.
-    if issue_key:
-        set_value("jira.issue_key", issue_key)
-        if not pull_request_id:
+    # Use the normalized values for both presence checks and state writes so that
+    # whitespace-only inputs are treated as absent and state remains canonical.
+    if _issue_key_norm:
+        set_value("jira.issue_key", _issue_key_norm)
+        if not _pr_id_norm:
             # --issue-key was given without --pull-request-id: clear any stale PR ID
             # left by a prior run so it is not silently reused.
             delete_value("pull_request_id")
 
-    if pull_request_id:
-        set_value("pull_request_id", pull_request_id)
-        if not issue_key:
+    if _pr_id_norm:
+        set_value("pull_request_id", _pr_id_norm)
+        if not _issue_key_norm:
             # --pull-request-id was given without --issue-key: clear any stale issue key
             # left by a prior run so the derive-from-PR path below is not bypassed by
             # an unrelated Jira issue that happened to be stored in state.
