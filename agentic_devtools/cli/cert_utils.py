@@ -173,8 +173,13 @@ def ensure_ca_bundle(
         # linger on disk and get picked up by external configs (e.g. npmrc cafile).
         try:
             cache_file.unlink()
-        except OSError:
-            pass
+        except OSError as exc:
+            print(
+                f"  ⚠ Could not delete stale CA bundle cache at {cache_file}: {exc}. "
+                "The invalid file may still be referenced by external tools (for example, an npmrc cafile). "
+                "Consider removing or replacing it manually.",
+                file=sys.stderr,
+            )
 
     # Prefer openssl — it retrieves the full chain including the root CA
     cert_chain = fetch_certificate_chain_openssl(hostname)
