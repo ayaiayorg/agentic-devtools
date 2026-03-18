@@ -380,6 +380,24 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert "The full prompt is also saved at:" in cmd[-1]
         assert result.prompt_file  # prompt file is still written to disk
 
+    def test_standalone_interactive_autopilot_false_excludes_flag(
+        self, temp_state, mock_available, mock_popen_interactive
+    ):
+        """When autopilot=False, --autopilot is NOT included for standalone interactive sessions."""
+        mock_popen, _ = mock_popen_interactive
+        with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
+            start_copilot_session(
+                prompt="Use standalone",
+                working_directory=str(temp_state),
+                interactive=True,
+                autopilot=False,
+            )
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        assert cmd[0] == "/usr/local/bin/copilot"
+        assert "--autopilot" not in cmd
+        assert "-i" in cmd
+
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
         self, temp_state, mock_available, mock_popen_noninteractive
     ):

@@ -435,6 +435,8 @@ def start_copilot_session(
     working_directory: str,
     interactive: bool = True,
     session_id: Optional[str] = None,
+    *,
+    autopilot: bool = True,
 ) -> CopilotSessionResult:
     """Start a ``gh copilot`` CLI session with the given prompt.
 
@@ -476,6 +478,13 @@ def start_copilot_session(
             detached in the background.
         session_id: Optional pre-generated session ID.  A new UUID4 hex
             string is generated when this is ``None``.
+        autopilot: When ``True`` (default) and ``interactive=True``, the
+            standalone binary receives ``--autopilot`` so that the agent
+            executes tasks autonomously without requiring the user to press
+            Tab.  Has no effect for non-interactive mode.  When the
+            ``gh copilot`` extension fallback is used and both
+            ``interactive=True`` and ``autopilot=True``, a warning is
+            emitted because the fallback does not support ``--autopilot``.
 
     Returns:
         A :class:`CopilotSessionResult` with session metadata.
@@ -518,7 +527,7 @@ def start_copilot_session(
     # separators) for both interactive and non-interactive modes.  The file
     # on disk still contains the multi-line version for manual reuse.
     argv_prompt = _inline_prompt(prompt, prompt_file)
-    args = _build_copilot_args(argv_prompt, interactive=interactive)
+    args = _build_copilot_args(argv_prompt, interactive=interactive, autopilot=autopilot)
 
     # When the prompt is too large for safe argv passing, fall back to
     # printing the prompt.  This applies regardless of binary variant.
