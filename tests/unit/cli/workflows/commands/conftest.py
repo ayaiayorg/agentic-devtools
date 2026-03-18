@@ -51,3 +51,35 @@ def mock_workflow_state_clearing():
         with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity"):
             with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
                 yield
+
+
+@pytest.fixture(autouse=True)
+def prevent_real_workflow_side_effects():
+    """Prevent real VS Code/Copilot/background launches from command tests.
+
+    Some workflow command tests intentionally exercise high-level control flow.
+    If a branch is left unpatched in an individual test, these guards ensure
+    the test suite still cannot open a VS Code window, start a Copilot session,
+    or spawn real background setup tasks.
+    """
+    with patch(
+        "agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace",
+        return_value=True,
+    ):
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review",
+            return_value=False,
+        ):
+            with patch(
+                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow",
+                return_value=False,
+            ):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background",
+                    return_value="test-task-id",
+                ):
+                    with patch(
+                        "agentic_devtools.cli.copilot.session.start_copilot_session",
+                        return_value=None,
+                    ):
+                        yield

@@ -52,6 +52,17 @@ class TestSetupGhCliCmd:
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
 
+    def test_original_no_verify_ssl_restored_after_setup(self, monkeypatch):
+        """Pre-existing AGDT_NO_VERIFY_SSL value is restored after setup_gh_cli_cmd completes."""
+        monkeypatch.setenv("AGDT_NO_VERIFY_SSL", "original_value")
+        monkeypatch.setattr("sys.argv", ["agdt-setup-gh-cli", "--no-verify-ssl"])
+
+        with patch.object(commands, "install_gh_cli", return_value=True):
+            with patch.object(commands, "_persist_env_vars_to_profile"):
+                commands.setup_gh_cli_cmd()
+
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "original_value"
+
     def test_calls_prefetch_certs_before_install(self):
         """Calls _prefetch_certs before install_gh_cli when not --system-only."""
         call_order = []

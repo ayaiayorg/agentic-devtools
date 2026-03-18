@@ -13,10 +13,17 @@ _BUILD = "agentic_devtools.cli.copilot.auto_start.build_copilot_args"
 _SUBPROC = "agentic_devtools.cli.copilot.auto_start.subprocess.run"
 _CLEANUP = "agentic_devtools.cli.copilot.auto_start._cleanup_auto_start_task"
 _REMOVE = "agentic_devtools.cli.copilot.auto_start.remove_auto_start_task"
+_WHICH = "agentic_devtools.cli.copilot.auto_start.shutil.which"
 
 
 class TestCopilotAutoStartCmd:
     """Tests for the copilot_auto_start_cmd entry point."""
+
+    @pytest.fixture(autouse=True)
+    def mock_agdt_which(self):
+        """Patch shutil.which so agdt-advance-workflow appears on PATH by default."""
+        with patch(_WHICH, return_value="/usr/local/bin/agdt-advance-workflow"):
+            yield
 
     # ------------------------------------------------------------------
     # Early worktree_path validation (before any filesystem writes)
@@ -131,6 +138,32 @@ class TestCopilotAutoStartCmd:
         with patch(_AVAIL, return_value=False):
             with pytest.raises(SystemExit):
                 copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
+
+        sentinel = tmp_path / ".agdt" / ".copilot-auto-start-triggered"
+        assert not sentinel.exists()
+
+    # ------------------------------------------------------------------
+    # agdt-advance-workflow not on PATH (new pre-flight check 3b)
+    # ------------------------------------------------------------------
+
+    def test_exits_1_when_agdt_advance_workflow_not_on_path(self, tmp_path, capsys):
+        """Exits 1 with error message when agdt-advance-workflow is not found on PATH."""
+        with patch(_AVAIL, return_value=True):
+            with patch(_WHICH, return_value=None):
+                with pytest.raises(SystemExit) as exc_info:
+                    copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "agdt-advance-workflow" in captured.err
+        assert "not found on PATH" in captured.err
+
+    def test_no_sentinel_created_when_agdt_advance_workflow_not_on_path(self, tmp_path):
+        """Sentinel file is NOT created when agdt-advance-workflow is not found on PATH."""
+        with patch(_AVAIL, return_value=True):
+            with patch(_WHICH, return_value=None):
+                with pytest.raises(SystemExit):
+                    copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         sentinel = tmp_path / ".agdt" / ".copilot-auto-start-triggered"
         assert not sentinel.exists()

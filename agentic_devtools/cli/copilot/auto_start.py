@@ -10,6 +10,7 @@ Responsibilities
 1. Validate ``--worktree-path`` is an existing directory — exit 1 if not.
 2. Check for the sentinel file — exit early (0) if already triggered.
 3. Check copilot CLI availability — exit 1 if unavailable (before creating sentinel).
+3b. Check ``agdt-advance-workflow`` reachability — exit 1 if not found on PATH.
 4. Build copilot args — exit 1 if the prompt exceeds argv limits.
 5. Create the sentinel file atomically (``O_CREAT|O_EXCL``) — exit 0 without
    starting a session if another process already created it (race-free guard).
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
@@ -85,6 +87,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     2. Sentinel check — exit 0 immediately if already triggered (best-effort
        stale task cleanup first).
     3. Pre-flight: check copilot CLI availability; exit 1 if not available.
+    3b. Pre-flight: check ``agdt-advance-workflow`` reachability; exit 1 if not found.
     4. Build copilot args; exit 1 if prompt exceeds argv limits.
     5. Create sentinel file atomically (``O_CREAT|O_EXCL``); exit 0 without
        running if another concurrent invocation already created it.
@@ -151,6 +154,20 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     if not is_gh_copilot_available():
         print(
             "agdt-copilot-auto-start: error: copilot CLI not available; cannot start session.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # 3b. Pre-flight: bail out early if agdt-* CLI commands are not on PATH.
+    #     This check prevents a confusing "command not found" error inside the
+    #     Copilot session after it has already started.
+    if not shutil.which("agdt-advance-workflow"):
+        print(
+            "agdt-copilot-auto-start: error: agdt-advance-workflow not found on PATH; "
+            "agentic-devtools CLI commands are not available. "
+            "Ensure agentic-devtools is installed and the Scripts directory is on your PATH. "
+            "Install options: 'pip install agentic-devtools', 'pipx install agentic-devtools', "
+            "or see the managed install at $HOME/.agdt/bin (or %USERPROFILE%\\.agdt\\bin on Windows).",
             file=sys.stderr,
         )
         sys.exit(1)

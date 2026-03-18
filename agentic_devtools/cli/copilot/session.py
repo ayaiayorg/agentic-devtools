@@ -227,9 +227,7 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(
-    prompt: str, *, interactive: bool = True, autopilot: bool = True
-) -> Optional[List[str]]:
+def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -287,16 +285,13 @@ def _build_copilot_args(
         return args
     if interactive and autopilot:
         warnings.warn(
-            "--autopilot is not supported by the gh copilot extension fallback; "
-            "autopilot mode will not be activated.",
+            "--autopilot is not supported by the gh copilot extension fallback; autopilot mode will not be activated.",
             stacklevel=2,
         )
     return ["gh", "copilot", "suggest", prompt]
 
 
-def build_copilot_args(
-    prompt: str, *, interactive: bool = True, autopilot: bool = True
-) -> Optional[List[str]]:
+def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list (public API).
 
     Public wrapper around the internal argument builder.  Use this when you

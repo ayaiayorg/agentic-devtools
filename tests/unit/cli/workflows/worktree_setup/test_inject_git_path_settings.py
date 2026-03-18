@@ -180,20 +180,122 @@ class TestInjectGitPathSettings:
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")
     @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
-    def test_handles_corrupt_settings_json(self, mock_system, mock_git_root, mock_available, tmp_path):
-        """Test graceful handling of corrupt settings.json."""
+    def test_handles_corrupt_settings_json(self, mock_system, mock_git_root, mock_available, tmp_path, capsys):
+        """Corrupt settings.json is left untouched (no-op) so JSONC files are preserved."""
         mock_system.return_value = "Windows"
         mock_git_root.return_value = r"C:\Program Files\Git"
 
         vscode_dir = tmp_path / ".vscode"
         vscode_dir.mkdir()
-        (vscode_dir / "settings.json").write_text("not valid json", encoding="utf-8")
+        original_content = "not valid json"
+        (vscode_dir / "settings.json").write_text(original_content, encoding="utf-8")
 
-        # Should not raise; should write a fresh settings file
+        inject_git_path_settings(str(tmp_path))
+
+        # File must not be modified — it may be valid JSONC that stdlib json can't parse.
+        assert (vscode_dir / "settings.json").read_text(encoding="utf-8") == original_content
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
+    def test_skips_when_settings_root_is_not_a_dict(self, mock_system, mock_git_root, mock_available, tmp_path, capsys):
+        """No-op when settings.json contains valid JSON but not a root object (e.g. an array)."""
+        mock_system.return_value = "Windows"
+        mock_git_root.return_value = r"C:\Program Files\Git"
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        original_content = json.dumps([1, 2, 3])
+        (vscode_dir / "settings.json").write_text(original_content, encoding="utf-8")
+
+        inject_git_path_settings(str(tmp_path))
+
+        assert (vscode_dir / "settings.json").read_text(encoding="utf-8") == original_content
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
+    def test_skips_when_env_windows_is_not_a_dict(self, mock_system, mock_git_root, mock_available, tmp_path, capsys):
+        """No-op when terminal.integrated.env.windows exists but is not a JSON object."""
+        mock_system.return_value = "Windows"
+        mock_git_root.return_value = r"C:\Program Files\Git"
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        original = {"terminal.integrated.env.windows": "not-an-object"}
+        (vscode_dir / "settings.json").write_text(json.dumps(original), encoding="utf-8")
+
+        inject_git_path_settings(str(tmp_path))
+
+        assert json.loads((vscode_dir / "settings.json").read_text(encoding="utf-8")) == original
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
+    def test_falls_back_when_windows_path_is_not_a_string(
+        self, mock_system, mock_git_root, mock_available, tmp_path, capsys
+    ):
+        """Falls back to ${env:PATH} and warns when PATH is stored as a non-string value."""
+        mock_system.return_value = "Windows"
+        mock_git_root.return_value = r"C:\Program Files\Git"
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        existing = {"terminal.integrated.env.windows": {"PATH": [r"C:\already\bad"]}}
+        (vscode_dir / "settings.json").write_text(json.dumps(existing), encoding="utf-8")
+
         inject_git_path_settings(str(tmp_path))
 
         settings = json.loads((vscode_dir / "settings.json").read_text(encoding="utf-8"))
-        assert "terminal.integrated.env.windows" in settings
+        path_value = settings["terminal.integrated.env.windows"]["PATH"]
+        assert path_value.startswith("${env:PATH}")
+        assert r"C:\Program Files\Git\cmd" in path_value
+        assert r"C:\Program Files\Git\usr\bin" in path_value
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.platform.system")
+    def test_prints_already_configured_after_write_when_exists_check_flips(
+        self, mock_system, mock_git_root, mock_available, tmp_path, capsys
+    ):
+        """Covers the post-write already-configured branch when settings exists check changes between calls."""
+        mock_system.return_value = "Windows"
+        mock_git_root.return_value = r"C:\Program Files\Git"
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        settings_path = vscode_dir / "settings.json"
+        existing = {
+            "terminal.integrated.env.windows": {
+                "PATH": r"${env:PATH};C:\Program Files\Git\cmd;C:\Program Files\Git\usr\bin"
+            }
+        }
+        settings_path.write_text(json.dumps(existing), encoding="utf-8")
+
+        exists_calls = {"count": 0}
+
+        def fake_exists(path):
+            if path == str(settings_path):
+                exists_calls["count"] += 1
+                if exists_calls["count"] == 1:
+                    return True
+                if exists_calls["count"] == 2:
+                    return False
+            return False
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.os.path.exists", side_effect=fake_exists):
+            inject_git_path_settings(str(tmp_path))
+
+        captured = capsys.readouterr()
+        assert "already configured" in captured.out
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._detect_git_root")

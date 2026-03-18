@@ -402,9 +402,7 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
 class TestInitiateApplyPRSuggestionsBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""
 
-    def test_both_pr_id_and_issue_key_uses_issue_key_as_worktree_key(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_both_pr_id_and_issue_key_uses_issue_key_as_worktree_key(self, temp_state_dir, clear_state_before):
         """When both --pull-request-id and --issue-key are provided, worktree_key is the issue key.
 
         Issue key takes priority over PR ID, matching resolve_worktree_key() in agdt_branch.py.
@@ -460,9 +458,7 @@ class TestInitiateApplyPRSuggestionsStaleKeyCleanup:
     silently bleed into the new session.
     """
 
-    def test_stale_issue_key_cleared_when_only_pr_id_provided(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_stale_issue_key_cleared_when_only_pr_id_provided(self, temp_state_dir, clear_state_before):
         """When only --pull-request-id is given, a stale jira.issue_key must be deleted.
 
         Without this cleanup the derive-from-PR path (which attempts to extract
@@ -486,9 +482,7 @@ class TestInitiateApplyPRSuggestionsStaleKeyCleanup:
         # The stale issue key must have been deleted, not silently reused
         assert state.get_value("jira.issue_key") is None
 
-    def test_stale_pr_id_cleared_when_only_issue_key_provided(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_stale_pr_id_cleared_when_only_issue_key_provided(self, temp_state_dir, clear_state_before):
         """When only --issue-key is given, a stale pull_request_id must be deleted."""
         # Simulate stale state left over from a prior run
         state.set_value("pull_request_id", "STALE-42")

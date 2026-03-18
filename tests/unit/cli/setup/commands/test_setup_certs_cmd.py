@@ -54,3 +54,12 @@ class TestSetupCertsCmd:
         assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
         out = capsys.readouterr().out
         assert "SSL verification disabled" in out
+
+    def test_original_no_verify_ssl_restored_after_setup(self, monkeypatch):
+        """Pre-existing AGDT_NO_VERIFY_SSL value is restored after setup_certs_cmd completes."""
+        monkeypatch.setenv("AGDT_NO_VERIFY_SSL", "original_value")
+        with patch("sys.argv", ["agdt-setup-certs", "--no-verify-ssl"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "_persist_env_vars_to_profile"):
+                    commands.setup_certs_cmd()
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "original_value"

@@ -46,16 +46,20 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_existing_worktree_reuses_and_opens(
         self,
         mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
         capsys,
     ):
-        """Test that existing worktree is reused and opened."""
+        """Test that existing worktree is reused, PATH settings injected, and VS Code opened."""
         mock_check_exists.return_value = "/repos/DFLY-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
@@ -68,6 +72,8 @@ class TestSetupWorktreeInBackgroundSync:
         )
 
         mock_check_exists.assert_called_once_with("DFLY-1234")
+        mock_inject_git.assert_called_once_with("/repos/DFLY-1234")
+        mock_inject_python.assert_called_once_with("/repos/DFLY-1234")
         mock_open_vscode.assert_called_once_with("/repos/DFLY-1234")
         captured = capsys.readouterr()
         assert "Worktree already exists" in captured.out
@@ -545,9 +551,7 @@ class TestSetupWorktreeInBackgroundSync:
         with patch(
             "agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode"
         ) as mock_inject_auto_start:
-            mock_inject_auto_start.side_effect = (
-                lambda *a, **kw: call_order.append("inject_auto_start") or None
-            )
+            mock_inject_auto_start.side_effect = lambda *a, **kw: call_order.append("inject_auto_start") or None
 
             setup_worktree_in_background_sync(
                 issue_key="DFLY-1234",
@@ -608,9 +612,7 @@ class TestSetupWorktreeInBackgroundSync:
         with patch(
             "agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode"
         ) as mock_inject_auto_start:
-            mock_inject_auto_start.side_effect = (
-                lambda *a, **kw: call_order.append("inject_auto_start") or None
-            )
+            mock_inject_auto_start.side_effect = lambda *a, **kw: call_order.append("inject_auto_start") or None
 
             setup_worktree_in_background_sync(
                 issue_key="DFLY-1234",
