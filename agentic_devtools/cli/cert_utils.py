@@ -169,9 +169,16 @@ def ensure_ca_bundle(
     # Prefer openssl — it retrieves the full chain including the root CA
     cert_chain = fetch_certificate_chain_openssl(hostname)
     if cert_chain and count_certificates_in_pem(cert_chain) >= 2:
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(cert_chain, encoding="utf-8")
-        return str(cache_file)
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(cert_chain, encoding="utf-8")
+            return str(cache_file)
+        except OSError as exc:
+            print(
+                f"  ⚠ Could not cache CA bundle for {hostname}: {exc}. Will use system CA store.",
+                file=sys.stderr,
+            )
+            return None
 
     # Fallback: ssl module (only if openssl returned nothing at all).
     # The ssl module can only retrieve the server (leaf) certificate, not the

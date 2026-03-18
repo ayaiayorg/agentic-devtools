@@ -137,11 +137,12 @@ class TestSetupCmd:
         monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
         monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
 
-        with patch.object(commands, "install_copilot_cli", return_value=True):
-            with patch.object(commands, "install_gh_cli", return_value=True):
-                with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_persist_env_vars_to_profile"):
-                        commands.setup_cmd()
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            commands.setup_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
 
@@ -240,11 +241,12 @@ class TestSetupCmd:
         monkeypatch.setenv("AGDT_NO_VERIFY_SSL", "pre-existing")
         monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
 
-        with patch.object(commands, "install_copilot_cli", return_value=True):
-            with patch.object(commands, "install_gh_cli", return_value=True):
-                with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_persist_env_vars_to_profile"):
-                        commands.setup_cmd()
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            commands.setup_cmd()
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") == "pre-existing"
 
@@ -253,13 +255,14 @@ class TestSetupCmd:
         monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
         monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
 
-        with patch.object(commands, "install_copilot_cli", return_value=False):
-            with patch.object(commands, "install_gh_cli", return_value=True):
-                with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_persist_env_vars_to_profile"):
-                        try:
-                            commands.setup_cmd()
-                        except SystemExit:
-                            pass
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=False):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            try:
+                                commands.setup_cmd()
+                            except SystemExit:
+                                pass
 
         assert os.environ.get("AGDT_NO_VERIFY_SSL") is None

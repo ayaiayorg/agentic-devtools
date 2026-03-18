@@ -199,3 +199,19 @@ class TestEnsureCaBundle:
         err = capsys.readouterr().err
         assert "Only leaf certificate retrieved for example.com" in err
         assert "chain is incomplete" in err
+
+    def test_returns_none_gracefully_on_write_oserror(self, tmp_path, capsys):
+        """Returns None and prints a warning when the cache file cannot be written (OSError)."""
+        complete_chain = (
+            "-----BEGIN CERTIFICATE-----\nserver\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"
+        )
+        cache_file = tmp_path / "example.com.pem"
+
+        with patch.object(cert_utils, "fetch_certificate_chain_openssl", return_value=complete_chain):
+            with patch.object(type(cache_file), "write_text", side_effect=OSError("disk full")):
+                result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file)
+
+        assert result is None
+        err = capsys.readouterr().err
+        assert "Could not cache CA bundle" in err
