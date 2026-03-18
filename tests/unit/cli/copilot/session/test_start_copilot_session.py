@@ -373,10 +373,11 @@ class TestStartCopilotSessionWithStandaloneBinary:
         assert cmd[0] == "/usr/local/bin/copilot"
         assert "suggest" not in cmd
         assert "--file" not in cmd
-        assert cmd[1] == "-i"
+        assert "--autopilot" in cmd
+        assert cmd.index("--autopilot") < cmd.index("-i")
         # The prompt is inlined with <br> and backup reference
-        assert "Use standalone" in cmd[2]
-        assert "The full prompt is also saved at:" in cmd[2]
+        assert "Use standalone" in cmd[-1]
+        assert "The full prompt is also saved at:" in cmd[-1]
         assert result.prompt_file  # prompt file is still written to disk
 
     def test_standalone_binary_uses_prompt_flag_for_noninteractive(
