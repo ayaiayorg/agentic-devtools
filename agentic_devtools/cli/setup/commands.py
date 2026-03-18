@@ -104,12 +104,9 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
                 system_certs.add(cert)
                 extra_certs.append(cert)
 
-    if not extra_certs:
-        # No additional corporate CAs found — write a certifi-only bundle so
-        # REQUESTS_CA_BUNDLE is always set to a known-good CA store.  This
-        # prevents requests from falling back to broken per-host leaf-only PEMs.
-        pass
-
+    # Always write a unified bundle: if no additional corporate CAs are found
+    # this is effectively a certifi-only bundle, ensuring REQUESTS_CA_BUNDLE
+    # always points at a known-good CA store instead of per-host leaf-only PEMs.
     unified_content = system_pem.rstrip("\n") + "\n" + "\n".join(extra_certs) + "\n"
     unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
     try:
