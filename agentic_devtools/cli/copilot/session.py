@@ -29,6 +29,14 @@ grants the full set of permissions required for autonomous workflow execution.
 list for the standalone-binary non-interactive path.  The ``gh copilot``
 extension fallback does not support these flags and is left unchanged.
 
+The standalone binary also supports ``--autopilot`` for interactive sessions.
+When ``--autopilot`` is passed the agent executes tasks autonomously without
+requiring the user to press Tab to activate autopilot mode.  This flag is only
+meaningful for interactive (``-i``) sessions; non-interactive (``-p``) sessions
+already run autonomously via ``--allow-all``.  The ``gh copilot`` extension
+fallback does not support ``--autopilot``; a warning is emitted when autopilot
+is requested but only the fallback is available.
+
 For non-interactive sessions the full prompt text is written to a file on
 disk, and a short file-reference instruction is passed via ``-p`` instead of
 the raw prompt content.  This avoids reliability issues with multiline /
@@ -219,7 +227,9 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[List[str]]:
+def _build_copilot_args(
+    prompt: str, *, interactive: bool = True, autopilot: bool = True
+) -> Optional[List[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -247,6 +257,14 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[Li
             ``-i``; when ``False`` it receives ``-p`` and
             ``--allow-all``.  Ignored for the ``gh copilot``
             extension path which always uses a positional arg.
+        autopilot: When ``True`` (default) and ``interactive=True``, the
+            standalone binary receives ``--autopilot`` so that the agent
+            executes tasks autonomously without requiring the user to press
+            Tab.  Has no effect when ``interactive=False`` (non-interactive
+            sessions are already autonomous via ``--allow-all``).  When the
+            ``gh copilot`` extension fallback is used and both
+            ``interactive=True`` and ``autopilot=True``, a warning is emitted
+            because the fallback does not support ``--autopilot``.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
@@ -257,21 +275,28 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[Li
     standalone = _get_copilot_binary()
     if standalone:
         flag = "-i" if interactive else "-p"
-        # --allow-all must come before -p/-i so that argument parsers
-        # which stop processing flags after the first positional argument
-        # still recognise it.  Placing it after the prompt causes some
-        # copilot binary versions to silently ignore it, leaving shell
-        # commands (agdt-*, python, gh, etc.) blocked with "Permission
-        # denied and could not request permission from user".
+        # --autopilot and --allow-all must come before -p/-i so that argument
+        # parsers which stop processing flags after the first positional
+        # argument still recognise them.
         args = [standalone]
+        if interactive and autopilot:
+            args.append("--autopilot")
         if not interactive:
             args.append("--allow-all")
         args.extend([flag, prompt])
         return args
+    if interactive and autopilot:
+        warnings.warn(
+            "--autopilot is not supported by the gh copilot extension fallback; "
+            "autopilot mode will not be activated.",
+            stacklevel=2,
+        )
     return ["gh", "copilot", "suggest", prompt]
 
 
-def build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[List[str]]:
+def build_copilot_args(
+    prompt: str, *, interactive: bool = True, autopilot: bool = True
+) -> Optional[List[str]]:
     """Build the copilot argument list (public API).
 
     Public wrapper around the internal argument builder.  Use this when you
@@ -283,12 +308,24 @@ def build_copilot_args(prompt: str, *, interactive: bool = True) -> Optional[Lis
         interactive: When ``True`` (default) the standalone binary receives
             ``-i``; when ``False`` it receives ``-p`` and
             ``--allow-all``.
+        autopilot: When ``True`` (default) and ``interactive=True``, the
+            standalone binary receives ``--autopilot`` so that the agent
+            executes tasks autonomously without requiring the user to press
+            Tab.  Has no effect for non-interactive mode.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
         when the prompt is too large for the argv path.
+
+    Note:
+        When ``interactive=True`` and ``autopilot=True`` but only the
+        ``gh copilot`` fallback is available (for example, when the
+        standalone Copilot CLI binary is not installed), this function may
+        emit a warning message to :data:`sys.stderr` describing the degraded
+        behavior.  Callers should be prepared for this additional stderr
+        output in that configuration.
     """
-    return _build_copilot_args(prompt, interactive=interactive)
+    return _build_copilot_args(prompt, interactive=interactive, autopilot=autopilot)
 
 
 def _persist_session_state(result: CopilotSessionResult) -> None:
@@ -398,6 +435,8 @@ def start_copilot_session(
     working_directory: str,
     interactive: bool = True,
     session_id: Optional[str] = None,
+    *,
+    autopilot: bool = True,
 ) -> CopilotSessionResult:
     """Start a ``gh copilot`` CLI session with the given prompt.
 
@@ -439,6 +478,13 @@ def start_copilot_session(
             detached in the background.
         session_id: Optional pre-generated session ID.  A new UUID4 hex
             string is generated when this is ``None``.
+        autopilot: When ``True`` (default) and ``interactive=True``, the
+            standalone binary receives ``--autopilot`` so that the agent
+            executes tasks autonomously without requiring the user to press
+            Tab.  Has no effect for non-interactive mode.  When the
+            ``gh copilot`` extension fallback is used and both
+            ``interactive=True`` and ``autopilot=True``, a warning is
+            emitted because the fallback does not support ``--autopilot``.
 
     Returns:
         A :class:`CopilotSessionResult` with session metadata.
@@ -481,7 +527,7 @@ def start_copilot_session(
     # separators) for both interactive and non-interactive modes.  The file
     # on disk still contains the multi-line version for manual reuse.
     argv_prompt = _inline_prompt(prompt, prompt_file)
-    args = _build_copilot_args(argv_prompt, interactive=interactive)
+    args = _build_copilot_args(argv_prompt, interactive=interactive, autopilot=autopilot)
 
     # When the prompt is too large for safe argv passing, fall back to
     # printing the prompt.  This applies regardless of binary variant.

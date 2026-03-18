@@ -11,12 +11,12 @@ class TestBuildCopilotArgs:
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
     def test_delegates_to_internal_function(self, mock_internal):
         """build_copilot_args delegates to the internal _build_copilot_args."""
-        mock_internal.return_value = ["copilot", "-i", "hello"]
+        mock_internal.return_value = ["copilot", "--autopilot", "-i", "hello"]
 
         result = build_copilot_args("hello", interactive=True)
 
-        mock_internal.assert_called_once_with("hello", interactive=True)
-        assert result == ["copilot", "-i", "hello"]
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True)
+        assert result == ["copilot", "--autopilot", "-i", "hello"]
 
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
     def test_passes_interactive_false(self, mock_internal):
@@ -25,7 +25,7 @@ class TestBuildCopilotArgs:
 
         result = build_copilot_args("prompt", interactive=False)
 
-        mock_internal.assert_called_once_with("prompt", interactive=False)
+        mock_internal.assert_called_once_with("prompt", interactive=False, autopilot=True)
         assert result == ["copilot", "--allow-all", "-p", "prompt"]
 
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=None)
@@ -34,3 +34,22 @@ class TestBuildCopilotArgs:
         result = build_copilot_args("x" * 100_000)
 
         assert result is None
+
+    @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
+    def test_delegates_autopilot_parameter(self, mock_internal):
+        """build_copilot_args forwards autopilot=False to _build_copilot_args."""
+        mock_internal.return_value = ["copilot", "-i", "hello"]
+
+        result = build_copilot_args("hello", interactive=True, autopilot=False)
+
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=False)
+        assert result == ["copilot", "-i", "hello"]
+
+    @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
+    def test_defaults_autopilot_to_true(self, mock_internal):
+        """build_copilot_args defaults autopilot=True when not specified."""
+        mock_internal.return_value = ["copilot", "--autopilot", "-i", "hello"]
+
+        build_copilot_args("hello")
+
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True)
