@@ -316,6 +316,14 @@ def build_copilot_args(
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
         when the prompt is too large for the argv path.
+
+    Note:
+        When ``interactive=True`` and ``autopilot=True`` but only the
+        ``gh copilot`` fallback is available (for example, when the
+        standalone Copilot CLI binary is not installed), this function may
+        emit a warning message to :data:`sys.stderr` describing the degraded
+        behavior.  Callers should be prepared for this additional stderr
+        output in that configuration.
     """
     return _build_copilot_args(prompt, interactive=interactive, autopilot=autopilot)
 
