@@ -108,12 +108,12 @@ class TestBuildUnifiedCaBundle:
         content = result.read_text(encoding="utf-8")
         assert content.count(_FAKE_CERT_INTERMEDIATE) == 1
 
-    def test_returns_none_when_no_extra_certs(self, tmp_path):
-        """Returns None when no non-leaf certs are found (avoids misleading bundle)."""
+    def test_writes_certifi_only_bundle_when_no_extra_certs(self, tmp_path):
+        """Writes a certifi-only unified bundle and returns its path when no corporate CAs are found."""
         certifi_pem_path = tmp_path / "cacert.pem"
         certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
 
-        # Host PEM with only a leaf cert — nothing to add
+        # Host PEM with only a leaf cert — nothing to add as extra CA
         host_pem = tmp_path / "host.pem"
         host_pem.write_text(_FAKE_CERT_B, encoding="utf-8")
 
@@ -121,7 +121,14 @@ class TestBuildUnifiedCaBundle:
             with patch.object(Path, "home", return_value=tmp_path):
                 result = _build_unified_ca_bundle([str(host_pem)])
 
-        assert result is None
+        # Returns a valid path (certifi-only bundle) even when no extra certs were found
+        assert result is not None
+        assert result.exists()
+        content = result.read_text(encoding="utf-8")
+        # Certifi cert must be present
+        assert _FAKE_CERT_A in content
+        # Leaf cert must NOT be present (it was at index 0 in the host PEM)
+        assert _FAKE_CERT_B not in content
 
     def test_skips_unreadable_pem_files(self, tmp_path, capsys):
         """OSError when reading a per-host PEM file is skipped with a warning."""
@@ -135,8 +142,8 @@ class TestBuildUnifiedCaBundle:
                 # Should not raise even though the file doesn't exist
                 result = _build_unified_ca_bundle([nonexistent_path])
 
-        # No extra certs found, so returns None
-        assert result is None
+        # No extra certs found, but certifi-only bundle is still written
+        assert result is not None
         err = capsys.readouterr().err
         assert "Could not read CA bundle" in err
 

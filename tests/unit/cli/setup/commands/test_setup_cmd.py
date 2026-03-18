@@ -132,18 +132,19 @@ class TestSetupCmd:
         out = capsys.readouterr().out
         assert "--system-only" in out
 
-    def test_no_verify_ssl_sets_env_var(self, monkeypatch):
-        """Sets AGDT_NO_VERIFY_SSL when --no-verify-ssl is passed."""
+    def test_no_verify_ssl_cleaned_up_after_setup(self, monkeypatch):
+        """AGDT_NO_VERIFY_SSL is removed from env after setup_cmd completes."""
         monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
         monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
 
-        with patch.object(commands, "install_copilot_cli", return_value=True):
-            with patch.object(commands, "install_gh_cli", return_value=True):
-                with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
-                    with patch.object(commands, "_persist_env_vars_to_profile"):
-                        commands.setup_cmd()
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            commands.setup_cmd()
 
-        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
 
     def test_no_verify_ssl_prints_warning(self, capsys, monkeypatch):
         """Prints a warning when --no-verify-ssl is used."""
@@ -234,3 +235,34 @@ class TestSetupCmd:
 
         err = capsys.readouterr().err
         assert "Failed to create/update .agdt/.gitignore" in err
+
+    def test_no_verify_ssl_restored_after_setup_when_previously_set(self, monkeypatch):
+        """Restores pre-existing AGDT_NO_VERIFY_SSL value after setup_cmd completes."""
+        monkeypatch.setenv("AGDT_NO_VERIFY_SSL", "pre-existing")
+        monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
+
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=True):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            commands.setup_cmd()
+
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "pre-existing"
+
+    def test_no_verify_ssl_cleaned_up_on_error(self, monkeypatch):
+        """AGDT_NO_VERIFY_SSL is cleaned up even when setup_cmd raises."""
+        monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
+        monkeypatch.setattr("sys.argv", ["agdt-setup", "--no-verify-ssl"])
+
+        with patch.object(commands, "_prefetch_certs"):
+            with patch.object(commands, "install_copilot_cli", return_value=False):
+                with patch.object(commands, "install_gh_cli", return_value=True):
+                    with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                        with patch.object(commands, "_persist_env_vars_to_profile"):
+                            try:
+                                commands.setup_cmd()
+                            except SystemExit:
+                                pass
+
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") is None

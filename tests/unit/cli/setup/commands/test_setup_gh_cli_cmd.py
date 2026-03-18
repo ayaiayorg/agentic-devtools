@@ -41,8 +41,8 @@ class TestSetupGhCliCmd:
         out = capsys.readouterr().out
         assert "--system-only" in out
 
-    def test_no_verify_ssl_sets_env_var(self, monkeypatch):
-        """Sets AGDT_NO_VERIFY_SSL when --no-verify-ssl is passed."""
+    def test_no_verify_ssl_cleaned_up_after_setup(self, monkeypatch):
+        """AGDT_NO_VERIFY_SSL is removed from env after setup_gh_cli_cmd completes."""
         monkeypatch.delenv("AGDT_NO_VERIFY_SSL", raising=False)
         monkeypatch.setattr("sys.argv", ["agdt-setup-gh-cli", "--no-verify-ssl"])
 
@@ -50,7 +50,7 @@ class TestSetupGhCliCmd:
             with patch.object(commands, "_persist_env_vars_to_profile"):
                 commands.setup_gh_cli_cmd()
 
-        assert os.environ.get("AGDT_NO_VERIFY_SSL") == "1"
+        assert os.environ.get("AGDT_NO_VERIFY_SSL") is None
 
     def test_calls_prefetch_certs_before_install(self):
         """Calls _prefetch_certs before install_gh_cli when not --system-only."""
