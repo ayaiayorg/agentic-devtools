@@ -2082,18 +2082,23 @@ def setup_worktree_in_background_sync(
         print(f"\nWorktree already exists at: {existing_path}")
         print("Opening VS Code in the existing worktree (using the workspace file if available)...")
 
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
+
+        # When a data-fetching command is provided, run it first so that all
+        # workflow context is ready before VS Code opens.  The auto-start task
+        # fires on ``folderOpen``, so completing data-fetching before opening
+        # the window ensures the Copilot agent starts with full context.
+        if auto_execute_command:
+            exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
+            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
         _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt)
 
         # Open VS Code
         vscode_opened = open_vscode_workspace(existing_path)
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
-
-        if auto_execute_command:
-            exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
-            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
 
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
@@ -2123,17 +2128,22 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
     )
 
     if result.success:
+        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
+
+        # When a data-fetching command is provided, run it first so that all
+        # workflow context is ready before VS Code opens.  The auto-start task
+        # fires on ``folderOpen``, so completing data-fetching before opening
+        # the window ensures the Copilot agent starts with full context.
+        if auto_execute_command:
+            exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
+            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
         _maybe_inject_auto_start_before_vscode(result.worktree_path, start_prompt=wf_prompt)
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
-
-        if auto_execute_command:
-            exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
-            set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
 
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
