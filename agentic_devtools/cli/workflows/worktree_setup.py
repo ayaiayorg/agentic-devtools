@@ -839,6 +839,90 @@ def _detect_git_root() -> str:
     return fallback
 
 
+def _detect_python_scripts_dir() -> str | None:
+    """
+    Detect the directory containing ``agdt-*`` CLI entry points.
+
+    Tries candidates in priority order and returns the first directory that
+    contains an ``agdt-advance-workflow`` executable.  Returns ``None`` if no
+    candidate directory contains the entry point.
+
+    Candidate priority:
+    1. ``shutil.which("agdt-advance-workflow")`` — if already on PATH, derive
+       the directory from the result.
+    2. ``~/.agdt/bin`` — the managed install location.
+    3. ``sysconfig.get_path("scripts")`` — the Scripts directory of the active
+       Python installation (may be a venv).
+    4. Directory of ``sys.executable`` and, on Windows, its ``Scripts``
+       subdirectory — covers standard CPython layout where the Scripts dir sits
+       next to ``python.exe``.
+
+    Returns:
+        Absolute path to the directory containing ``agdt-advance-workflow``,
+        or ``None`` if not found.
+    """
+    import sysconfig
+
+    entry_point = "agdt-advance-workflow"
+    if sys.platform == "win32":
+        entry_point_exe = entry_point + ".exe"
+    else:
+        entry_point_exe = entry_point
+
+    # Candidate 1: already on PATH — derive directory from which result.
+    which_result = shutil.which("agdt-advance-workflow")
+    if which_result:
+        return os.path.dirname(os.path.realpath(which_result))
+
+    # Candidates 2-4: check directory existence and entry-point presence.
+    # entry_point_exe is already platform-appropriate (with or without .exe),
+    # so we can use a single path build on all platforms, but also validate
+    # executability on POSIX to avoid accepting non-executable files.
+    def _contains_entry_point(directory: str) -> bool:
+        try:
+            candidate_path = os.path.join(directory, entry_point_exe)
+            if not os.path.isfile(candidate_path):
+                return False
+            # On Windows, existence of the .exe file is typically sufficient.
+            if os.name == "nt":
+                return True
+            # On POSIX, require execute permission as well.
+            return os.access(candidate_path, os.X_OK)
+        except OSError:
+            return False
+
+    candidates: list[str] = []
+
+    # Candidate 2: ~/.agdt/bin
+    candidates.append(os.path.join(os.path.expanduser("~"), ".agdt", "bin"))
+
+    # Candidate 3: sysconfig Scripts directory
+    try:
+        scripts_dir = sysconfig.get_path("scripts")
+        if scripts_dir:
+            candidates.append(scripts_dir)
+    except Exception:
+        pass
+
+    # Candidate 4: directory containing sys.executable, and on Windows also
+    # the ``Scripts`` subdirectory next to it (standard CPython layout:
+    # <python_root>\python.exe  +  <python_root>\Scripts\agdt-*.exe).
+    if sys.executable:
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(exe_dir)
+        if sys.platform == "win32":
+            candidates.append(os.path.join(exe_dir, "Scripts"))
+
+    for candidate in candidates:
+        try:
+            if os.path.isdir(candidate) and _contains_entry_point(candidate):
+                return candidate
+        except OSError:
+            continue
+
+    return None
+
+
 def inject_git_path_settings(worktree_path: str) -> None:
     """
     Inject ``.vscode/settings.json`` into the worktree with Git for Windows PATH entries.
@@ -878,20 +962,59 @@ def inject_git_path_settings(worktree_path: str) -> None:
     if os.path.exists(settings_path):
         try:
             with open(settings_path, encoding="utf-8") as fh:
-                settings = json.load(fh)
+                loaded = json.load(fh)
         except (json.JSONDecodeError, OSError) as exc:
+            # Don't overwrite a file we can't parse — it may be JSONC (with
+            # comments or trailing commas) which is valid in VS Code but not
+            # in stdlib json.  Silently wiping it would destroy user settings.
             print(f"Warning: could not read {settings_path}: {exc}", file=sys.stderr)
-            settings = {}
+            return
+        if not isinstance(loaded, dict):
+            # A JSON array, string, or other non-object root would cause
+            # settings.setdefault(...) to raise AttributeError.
+            print(
+                f"Warning: {settings_path} does not contain a JSON object at the root; "
+                "skipping Git PATH settings injection",
+                file=sys.stderr,
+            )
+            return
+        settings = loaded
 
-    env_windows: dict = settings.setdefault("terminal.integrated.env.windows", {})
-    existing_path: str = env_windows.get("PATH", "${env:PATH}")
+    # Ensure terminal.integrated.env.windows is a dict before modifying it.
+    existing_env_windows = settings.get("terminal.integrated.env.windows")
+    if existing_env_windows is None:
+        env_windows: dict = {}
+        settings["terminal.integrated.env.windows"] = env_windows
+    elif isinstance(existing_env_windows, dict):
+        env_windows = existing_env_windows
+    else:
+        print(
+            "Warning: terminal.integrated.env.windows is not a JSON object; skipping Git PATH settings injection",
+            file=sys.stderr,
+        )
+        return
+
+    existing_path = env_windows.get("PATH", "${env:PATH}")
+    if not isinstance(existing_path, str):
+        print(
+            "Warning: terminal.integrated.env.windows.PATH is not a string; "
+            "falling back to ${env:PATH} for Git PATH settings injection",
+            file=sys.stderr,
+        )
+        existing_path = "${env:PATH}"
     # Split PATH into segments and compare case-insensitively to avoid both
     # false positives from substring matches and missed entries on the
     # case-insensitive Windows filesystem.
-    path_segments = {seg.casefold() for seg in existing_path.split(";") if seg}
+    path_segments = {seg.strip().casefold() for seg in existing_path.split(";") if seg.strip()}
     missing_dirs = [d for d in (git_cmd_dir, git_usr_bin_dir) if d.casefold() not in path_segments]
     if missing_dirs:
         env_windows["PATH"] = existing_path + ";" + ";".join(missing_dirs)
+
+    # Avoid unnecessary rewriting of settings.json when no changes are needed
+    # and the file already exists, to prevent file churn and noisy diffs.
+    if not missing_dirs and os.path.exists(settings_path):
+        print(f"Git PATH settings already configured in {settings_path}")
+        return
 
     try:
         os.makedirs(vscode_dir, exist_ok=True)
@@ -902,6 +1025,167 @@ def inject_git_path_settings(worktree_path: str) -> None:
             print(f"Injected Git PATH settings into {settings_path}")
         else:
             print(f"Git PATH settings already configured in {settings_path}")
+    except OSError as exc:
+        print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
+
+
+def inject_python_path_settings(worktree_path: str) -> None:
+    """
+    Inject ``.vscode/settings.json`` with the Python Scripts directory that contains ``agdt-*`` entry points.
+
+    When VS Code opens a worktree window, the Python extension may not have
+    activated yet (or the user dismisses the "relaunch terminal" prompt),
+    leaving the ``agdt-*`` CLI entry points invisible to the Copilot agent.
+    This function creates or merges into ``.vscode/settings.json`` a
+    ``terminal.integrated.env.*`` entry for the **current runtime platform**
+    that prepends the detected Scripts directory to PATH.
+
+    Only the key matching the current runtime platform is injected:
+
+    - ``terminal.integrated.env.windows`` on Windows (``sys.platform == "win32"``)
+    - ``terminal.integrated.env.osx`` on macOS (``sys.platform == "darwin"``)
+    - ``terminal.integrated.env.linux`` on all other platforms
+
+    This prevents a Windows-style path (e.g. ``C:\\Python...``) from being
+    written into the Linux/macOS keys where the drive-letter colon would be
+    treated as a PATH separator, corrupting the PATH value in Remote/WSL
+    terminals.  Each platform that runs worktree setup contributes its own key.
+
+    The ``is_vscode_available()`` check is intentionally **not** applied here.
+    The ``code`` CLI not being on PATH does not prevent VS Code from being
+    installed and opening the worktree — VS Code can run integrated terminals
+    without the ``code`` command-line utility.  Writing ``.vscode/settings.json``
+    is always safe and is picked up the next time VS Code opens the folder.
+
+    A no-op (with a warning to stderr) when:
+    - :func:`_detect_python_scripts_dir` cannot find the Scripts directory, or
+    - an existing ``settings.json`` cannot be parsed (e.g. JSONC with comments
+      or trailing commas) — the file is left untouched so that valid JSONC
+      settings are never silently discarded, or
+    - ``settings.json`` contains valid JSON but not a root object, or
+    - the existing OS-specific env block exists but is not a JSON object.
+
+    When the existing ``PATH`` value is not a string, a warning is emitted and
+    the Scripts dir is still injected using ``${env:PATH}`` as the base.
+
+    Args:
+        worktree_path: Path to the worktree directory.
+    """
+    scripts_dir = _detect_python_scripts_dir()
+    if scripts_dir is None:
+        print(
+            "Warning: could not detect Python Scripts directory containing agdt-* entry points; "
+            "skipping Python PATH settings injection",
+            file=sys.stderr,
+        )
+        return
+
+    vscode_dir = os.path.join(worktree_path, ".vscode")
+    settings_path = os.path.join(vscode_dir, "settings.json")
+
+    settings: dict = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, encoding="utf-8") as fh:
+                loaded = json.load(fh)
+        except (json.JSONDecodeError, OSError) as exc:
+            # Don't overwrite a file we can't parse — it may be JSONC (with
+            # comments or trailing commas) which is valid in VS Code but not
+            # in stdlib json.  Silently wiping it would destroy user settings.
+            print(f"Warning: could not read {settings_path}: {exc}", file=sys.stderr)
+            return
+        if not isinstance(loaded, dict):
+            # A JSON array, string, or other non-object root would cause
+            # settings.setdefault / env_block.get to raise AttributeError.
+            print(
+                f"Warning: {settings_path} does not contain a JSON object at the root; "
+                "skipping Python PATH settings injection",
+                file=sys.stderr,
+            )
+            return
+        settings = loaded
+
+    # Only inject the terminal env key that matches the current runtime
+    # platform.  Writing a Windows path into terminal.integrated.env.linux
+    # (or vice versa) would corrupt PATH on the other platform.
+    if sys.platform == "win32":
+        os_key = "terminal.integrated.env.windows"
+        sep = ";"
+        case_insensitive = True
+    elif sys.platform == "darwin":
+        os_key = "terminal.integrated.env.osx"
+        sep = ":"
+        case_insensitive = False
+    else:
+        os_key = "terminal.integrated.env.linux"
+        sep = ":"
+        case_insensitive = False
+
+    # Retrieve or create the env block for this platform, guarding against
+    # non-dict values stored under the key (e.g. a JSON string or array).
+    existing_env_block = settings.get(os_key)
+    if existing_env_block is None:
+        env_block: dict = {}
+        settings[os_key] = env_block
+    elif not isinstance(existing_env_block, dict):
+        print(
+            f"Warning: {os_key} in {settings_path} is not a JSON object; skipping Python PATH settings injection",
+            file=sys.stderr,
+        )
+        return
+    else:
+        env_block = existing_env_block
+
+    existing_path_raw = env_block.get("PATH", "${env:PATH}")
+    if not isinstance(existing_path_raw, str):
+        # PATH stored as a non-string (e.g. list or number) — fall back to the
+        # VS Code env-expansion placeholder and warn, but still inject so the
+        # agdt-* entry points are on PATH rather than abandoning the operation.
+        print(
+            f"Warning: PATH value in {os_key} of {settings_path} is not a string "
+            f"(got {type(existing_path_raw).__name__!r}); "
+            "falling back to ${env:PATH} as the base PATH",
+            file=sys.stderr,
+        )
+        existing_path: str = "${env:PATH}"
+    else:
+        existing_path = existing_path_raw
+    existing_segments = [seg.strip() for seg in existing_path.split(sep) if seg.strip()]
+
+    def _normalize_segment(segment: str) -> str:
+        # Normalize a PATH segment for comparison/deduplication:
+        # 1. Strip surrounding whitespace.
+        # 2. Strip a single pair of surrounding quotes (common on Windows when
+        #    PATH entries contain spaces), if present.
+        # 3. Apply os.path.normpath.
+        cleaned = segment.strip()
+        if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ("'", '"'):
+            cleaned = cleaned[1:-1]
+        normalized = os.path.normpath(cleaned)
+        if case_insensitive:
+            return normalized.casefold()
+        return normalized
+
+    normalized_existing = {_normalize_segment(s) for s in existing_segments}
+    normalized_scripts_dir = _normalize_segment(scripts_dir)
+    already_present = normalized_scripts_dir in normalized_existing
+
+    modified = False
+
+    if not already_present:
+        env_block["PATH"] = scripts_dir + sep + existing_path
+        modified = True
+
+    if not modified and os.path.exists(settings_path):
+        print(f"Python PATH settings already configured in {settings_path}")
+        return
+
+    try:
+        os.makedirs(vscode_dir, exist_ok=True)
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump(settings, fh, indent=2)
+            fh.write("\n")
+        print(f"Injected Python PATH settings into {settings_path}")
     except OSError as exc:
         print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
 
@@ -1181,8 +1465,9 @@ def setup_worktree_environment(
     for an issue. It:
     1. Creates a git worktree for the issue
     2. Injects ``.vscode/settings.json`` with Git for Windows PATH entries (Windows only)
-    3. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
-    4. Opens VS Code with the workspace file
+    3. Injects ``.vscode/settings.json`` with Python Scripts directory PATH entries (all platforms)
+    4. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
+    5. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "DFLY-1234")
@@ -1211,10 +1496,13 @@ def setup_worktree_environment(
     # Step 2: Inject VS Code settings for Windows Git PATH
     inject_git_path_settings(result.worktree_path)
 
-    # Step 3: Run project-specific worktree setup script if present
+    # Step 3: Inject VS Code settings for Python/agdt-* Scripts PATH (all platforms)
+    inject_python_path_settings(result.worktree_path)
+
+    # Step 4: Run project-specific worktree setup script if present
     run_worktree_setup_script(result.worktree_path)
 
-    # Step 4: Open VS Code
+    # Step 5: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
@@ -2082,6 +2370,13 @@ def setup_worktree_in_background_sync(
         print(f"\nWorktree already exists at: {existing_path}")
 
         wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
+
+        # Inject VS Code PATH settings so agdt-* commands are on PATH even when
+        # the Python extension hasn't activated.  Do this every time VS Code is
+        # opened (not only on first creation) so that worktrees created before
+        # this feature, or opened on a different machine, also benefit.
+        inject_git_path_settings(existing_path)
+        inject_python_path_settings(existing_path)
 
         # When a data-fetching command is provided, run it first so that all
         # workflow context is ready before VS Code opens.  The auto-start task

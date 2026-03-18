@@ -594,9 +594,7 @@ class TestInitiatePRReviewWorkflowCopilotSession:
 class TestInitiatePRReviewWorkflowBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""
 
-    def test_both_pr_id_and_issue_key_uses_issue_key_as_worktree_key(
-        self, temp_state_dir, clear_state_before
-    ):
+    def test_both_pr_id_and_issue_key_uses_issue_key_as_worktree_key(self, temp_state_dir, clear_state_before):
         """When both --pull-request-id and --issue-key are provided, worktree_key is the issue key.
 
         Issue key takes priority over PR ID so that all state is written to a single
@@ -631,9 +629,7 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
                         mock_src.side_effect = Exception("stop after scope call")
 
                         with pytest.raises(SystemExit):
-                            commands.initiate_pull_request_review_workflow(
-                                _argv=["--pull-request-id", "25858"]
-                            )
+                            commands.initiate_pull_request_review_workflow(_argv=["--pull-request-id", "25858"])
 
         mock_scope.assert_called_once_with("PR25858")
 
@@ -645,9 +641,7 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
                     mock_find_pr.return_value = None  # no PR found → sys.exit(1)
 
                     with pytest.raises(SystemExit):
-                        commands.initiate_pull_request_review_workflow(
-                            _argv=["--issue-key", "DFLY-2779"]
-                        )
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-2779"])
 
         mock_scope.assert_called_once_with("DFLY-2779")
 

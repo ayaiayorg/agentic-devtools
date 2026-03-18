@@ -236,7 +236,11 @@ Examples:
     # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
     # and fall back to _unscoped.
     _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
-    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    _pr_id_norm = (
+        pull_request_id.strip()
+        if isinstance(pull_request_id, str)
+        else (str(pull_request_id) if pull_request_id is not None else "")
+    )
     if _issue_key_norm:
         _ensure_bootstrap_identity_and_scope(_issue_key_norm)
     elif _pr_id_norm:
@@ -1741,7 +1745,11 @@ Examples:
     # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
     # and fall back to _unscoped.
     _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
-    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    _pr_id_norm = (
+        pull_request_id.strip()
+        if isinstance(pull_request_id, str)
+        else (str(pull_request_id) if pull_request_id is not None else "")
+    )
     if _issue_key_norm:
         _ensure_bootstrap_identity_and_scope(_issue_key_norm)
     elif _pr_id_norm:
