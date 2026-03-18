@@ -137,8 +137,9 @@ def _prefetch_certs() -> Optional[Path]:
     To force a refresh, delete ``~/.agdt/certs/``.
 
     Returns:
-        Path to the unified CA bundle file, or ``None`` if no unified bundle
-        was built (e.g. no corporate CAs found or certifi unavailable).
+        Path to the unified CA bundle file (certifi-only when no extra
+        corporate CAs are found), or ``None`` only if certifi is unavailable
+        or if a read/write failure prevents the bundle from being written.
     """
     print("Fetching CA certificates for external hosts...")
 
