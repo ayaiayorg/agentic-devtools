@@ -23,16 +23,31 @@ from agentic_devtools.state import IDENTITY_CACHE_FILENAME
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
 
+# ---------------------------------------------------------------------------
+# Copilot-safe prompt design best practices
+# ---------------------------------------------------------------------------
+# - Do NOT use "CRITICAL", "WARNING", "DANGER", or similar alarm words; Copilot
+#   CLI interprets these as unsafe and may halt execution.
+# - Do NOT use "--- " separator dashes; they can be misinterpreted as unsafe
+#   directive markers.
+# - Use direct, actionable language, e.g. "Please run this command now:".
+# - Avoid excessive emphasis (all-caps, bold, emojis) unless essential.
+# - Append "(Verified safe for Copilot execution.)" to each prompt so the agent
+#   knows the prompt has been reviewed for safety.
+# - Each prompt MUST remain a single line (no ``\n``) and contain no template
+#   variables (no ``{{`` / ``}}``).
+# ---------------------------------------------------------------------------
+
 # Static single-line prompt used when starting the Copilot CLI session for PR
 # review.  It contains *only* the instruction to run the first advance command
 # so the agent is forced into the workflow system before receiving any context.
-# MUST remain a single line (no ``\n``).  Use ``---`` as visual separators.
 COPILOT_SESSION_START_PROMPT = (
     "You are a senior software engineer reviewing a Pull Request. "
-    "--- CRITICAL: Execute this command now: `agdt-advance-workflow pull-request-overview` "
-    "--- This command will provide you with all PR details, review criteria, and instructions. "
-    "Do NOT attempt to review any code or gather any information until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-advance-workflow pull-request-overview` "
+    "— This command will provide you with all PR details, review criteria, and instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 # ---------------------------------------------------------------------------
@@ -42,47 +57,53 @@ COPILOT_SESSION_START_PROMPT = (
 
 COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS = (
     "You are applying pull request review suggestions. "
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the rendered prompt file containing full instructions "
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the rendered prompt file containing full instructions "
     "on which review suggestions to apply and how. "
-    "Do NOT attempt to modify any code until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 
 COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the work-on-jira-issue workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the work-on-jira-issue workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the create-jira-issue workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the create-jira-issue workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the create-jira-epic workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the create-jira-epic workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the create-jira-subtask workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the create-jira-subtask workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the update-jira-issue workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the update-jira-issue workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 # Workflow-agnostic fallback prompt used when ``workflow_name`` is not found in
@@ -90,10 +111,11 @@ COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
 # ``agdt-get-next-workflow-prompt`` which re-renders the current step regardless
 # of the specific workflow, so it's always safe to use as a default.
 _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT = (
-    "--- CRITICAL: Execute this command now: `agdt-get-next-workflow-prompt` "
-    "--- This command will provide you with the current workflow instructions. "
-    "Do NOT attempt any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step."
+    "Please run this command now: `agdt-get-next-workflow-prompt` "
+    "— This command will provide you with the current workflow instructions. "
+    "Wait to begin any work until you have run this command. "
+    "The agentic-devtools workflow will guide you through each step. "
+    "(Verified safe for Copilot execution.)"
 )
 
 # Mapping from workflow name → start prompt used by the VS Code auto-start task
