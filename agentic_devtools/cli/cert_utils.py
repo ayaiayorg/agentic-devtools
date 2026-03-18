@@ -113,18 +113,21 @@ def ensure_ca_bundle(
 ) -> Optional[str]:
     """Ensure a CA bundle PEM file exists for *hostname* and return its path.
 
-    The certificate chain is fetched exactly once and cached.  Subsequent
-    calls return the cached path immediately when the cache contains at
-    least two certificates (leaf + at least one CA).  Single-cert (leaf-only)
-    caches are treated as invalid and trigger a re-fetch, because a leaf
-    certificate cannot validate itself and will always fail SSL verification.
+    When a complete certificate chain is successfully fetched and written to
+    the cache file, subsequent calls return the cached path immediately as
+    long as the cache contains at least two certificates (leaf + at least
+    one CA).  Single-cert (leaf-only) caches are treated as invalid and
+    trigger a re-fetch, because a leaf certificate cannot validate itself
+    and will always fail SSL verification.
 
     On the *first* fetch the function prefers ``openssl`` (which usually
     retrieves the full chain including the root CA).  If ``openssl``
     fails to return any certificates, the :mod:`ssl` module is used as a
     fallback — but since the :mod:`ssl` module can only retrieve the server
     certificate (not the chain), a leaf-only result is **not** cached and
-    ``None`` is returned instead.
+    ``None`` is returned instead.  In any case where no complete chain can
+    be cached (because only a leaf certificate is available or the cache
+    file cannot be written), future calls may re-fetch the certificates.
 
     All certificate fetching targets port 443 (standard HTTPS).  For
     non-standard ports, use :func:`fetch_certificate_chain_openssl` or
@@ -138,7 +141,8 @@ def ensure_ca_bundle(
 
     Returns:
         Absolute path to the cached PEM file, or ``None`` if a complete chain
-        (leaf + at least one CA certificate) could not be obtained.
+        (leaf + at least one CA certificate) could not be obtained or the
+        cache file could not be written.
     """
     if cache_file is None:
         # Sanitize hostname to prevent path traversal (e.g. "../" in hostname).
