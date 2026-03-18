@@ -165,6 +165,12 @@ def ensure_ca_bundle(
             existing = ""
         if count_certificates_in_pem(existing) >= 2:
             return str(cache_file)
+        # Stale/leaf-only cache — remove it before refetching so it doesn't
+        # linger on disk and get picked up by external configs (e.g. npmrc cafile).
+        try:
+            cache_file.unlink()
+        except OSError:
+            pass
 
     # Prefer openssl — it retrieves the full chain including the root CA
     cert_chain = fetch_certificate_chain_openssl(hostname)
@@ -175,7 +181,7 @@ def ensure_ca_bundle(
             return str(cache_file)
         except OSError as exc:
             print(
-                f"  ⚠ Could not cache CA bundle for {hostname}: {exc}. Will use system CA store.",
+                f"  ⚠ Could not cache CA bundle for {hostname}: {exc}. Will use requests' default CA bundle.",
                 file=sys.stderr,
             )
             return None
@@ -190,7 +196,8 @@ def ensure_ca_bundle(
     # A leaf cert cannot validate itself, so it would always fail verification.
     if cert_chain and count_certificates_in_pem(cert_chain) < 2:
         print(
-            f"  ⚠ Only leaf certificate retrieved for {hostname}; chain is incomplete. Will use system CA store.",
+            f"  ⚠ Only leaf certificate retrieved for {hostname}; "
+            "chain is incomplete. Will use requests' default CA bundle.",
             file=sys.stderr,
         )
         return None

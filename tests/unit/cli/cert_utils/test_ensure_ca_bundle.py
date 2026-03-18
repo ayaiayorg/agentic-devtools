@@ -49,6 +49,8 @@ class TestEnsureCaBundle:
 
         mock_openssl.assert_called_once()
         assert result is None
+        # Stale leaf-only cache must be deleted so it doesn't linger on disk.
+        assert not cache_file.exists()
 
     def test_does_not_cache_leaf_only_from_ssl_fallback(self, tmp_path):
         """Does not cache and returns None when openssl fails and ssl returns single cert."""
@@ -115,6 +117,38 @@ class TestEnsureCaBundle:
         mock_openssl.assert_called_once_with("example.com")
         mock_ssl.assert_not_called()
         assert result is None
+
+    def test_stale_cache_deleted_and_replaced_when_refetch_succeeds(self, tmp_path):
+        """Stale leaf-only cache is removed and overwritten when a complete chain is fetched."""
+        single_cert = "-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----"
+        complete_chain = (
+            "-----BEGIN CERTIFICATE-----\nserver\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"
+        )
+        cache_file = tmp_path / "example.com.pem"
+        cache_file.write_text(single_cert, encoding="utf-8")
+
+        with patch.object(cert_utils, "fetch_certificate_chain_openssl", return_value=complete_chain):
+            result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file)
+
+        assert result == str(cache_file.resolve())
+        assert cache_file.read_text(encoding="utf-8") == complete_chain
+
+    def test_stale_cache_unlink_failure_does_not_block_refetch(self, tmp_path):
+        """Refetch still proceeds (and succeeds) even if unlink of stale cache raises OSError."""
+        single_cert = "-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----"
+        complete_chain = (
+            "-----BEGIN CERTIFICATE-----\nserver\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"
+        )
+        cache_file = tmp_path / "example.com.pem"
+        cache_file.write_text(single_cert, encoding="utf-8")
+
+        with patch.object(cert_utils, "fetch_certificate_chain_openssl", return_value=complete_chain):
+            with patch.object(type(cache_file), "unlink", side_effect=OSError("locked")):
+                result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file)
+
+        assert result == str(cache_file.resolve())
 
     def test_refetches_when_cached_file_has_no_certificates(self, tmp_path):
         """Re-fetches when cached file exists but contains no certificates."""
