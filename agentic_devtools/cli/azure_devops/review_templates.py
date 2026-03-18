@@ -4,7 +4,7 @@ Provides functions to generate and regenerate full markdown content for
 file summaries and the overall PR summary at each status.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .review_attribution import format_status, render_attribution_line
 from .review_state import (
@@ -46,14 +46,6 @@ def build_discussion_url(base_url: str, thread_id: int, comment_id: int) -> str:
         Full URL with discussionId and commentId query parameters.
     """
     return f"{base_url}?discussionId={thread_id}&commentId={comment_id}"
-
-
-def _file_display_path(file_entry: FileEntry) -> str:
-    """Get the display path for a file entry (e.g. /src/app.py)."""
-    folder = file_entry.folder
-    if not folder or folder.lower() == "root":
-        return f"/{file_entry.fileName}"
-    return f"/{folder}/{file_entry.fileName}"
 
 
 def _format_severity_counts(suggestions: List[SuggestionEntry]) -> str:
@@ -162,7 +154,6 @@ def render_file_summary(
     Returns:
         Markdown string for the file review summary.
     """
-    complete_path = _file_display_path(file_entry)
     status = file_entry.status
     status_display = format_status(status, use_emoji=True)
 
@@ -176,8 +167,6 @@ def render_file_summary(
         lines += [attribution, ""]
 
     lines += [
-        f"*Complete Path:* {complete_path}",
-        "",
         f"*Status:* {status_display}",
         "",
         "### Summary of Changes",
@@ -257,8 +246,8 @@ def render_overall_summary(
     Returns:
         Markdown string for the overall PR review summary.
     """
-    # Build per-status, per-folder file groups: status → folder → [FileEntry]
-    status_folder_files: Dict[str, Dict[str, List[FileEntry]]] = {
+    # Build per-status, per-folder file groups: status → folder → [(full_path, FileEntry)]
+    status_folder_files: Dict[str, Dict[str, List[Tuple[str, FileEntry]]]] = {
         ReviewStatus.NEEDS_WORK.value: {},
         ReviewStatus.IN_PROGRESS.value: {},
         ReviewStatus.APPROVED.value: {},
@@ -266,12 +255,12 @@ def render_overall_summary(
     }
 
     known_statuses = set(status_folder_files.keys())
-    for fe in state.files.values():
+    for file_key, fe in state.files.items():
         # Normalize unknown statuses into the unreviewed bucket so every
         # file appears in a rendered section.
         status = fe.status if fe.status in known_statuses else ReviewStatus.UNREVIEWED.value
         folder = fe.folder if fe.folder else "root"
-        status_folder_files[status].setdefault(folder, []).append(fe)
+        status_folder_files[status].setdefault(folder, []).append((file_key, fe))
 
     # Overall status derived from file statuses, with the same unknown→unreviewed
     # normalization so the header status matches the rendered sections.
@@ -309,13 +298,12 @@ def render_overall_summary(
         lines.extend(["", f"### {section_title}"])
         for folder_name in sorted(folder_files.keys()):
             lines.append(f"- {folder_name}")
-            for fe in sorted(folder_files[folder_name], key=_file_display_path):
+            for file_key, fe in sorted(folder_files[folder_name], key=lambda x: x[0]):
                 # Use the section status for emoji so unknown statuses
                 # normalized into Unreviewed still get the ⏳ prefix.
                 file_emoji = _STATUS_EMOJI.get(status_val, "")
                 url = build_discussion_url(base_url, fe.threadId, fe.commentId)
-                display = _file_display_path(fe)
-                item = f"   - {file_emoji} [{display}]({url})"
+                item = f"   - {file_emoji} [{file_key}]({url})"
                 if status_val == ReviewStatus.NEEDS_WORK.value:
                     counts = _format_severity_counts(fe.suggestions)
                     if counts:

@@ -332,7 +332,6 @@ def get_repos_parent_dir() -> str | None:
     return None
 
 
-
 def _propagate_identity_cache(worktree_path: str) -> None:
     """Copy identity.json from the main repo into the new worktree.
 
@@ -494,14 +493,8 @@ def create_worktree(
             # Determine if we need the temp-rename flow to preserve local work
             needs_temp_rename = (
                 status == BranchSafetyCheckResult.DIVERGED_FROM_ORIGIN
-                or (
-                    status == BranchSafetyCheckResult.UNCOMMITTED_CHANGES
-                    and current_branch_name == branch_name
-                )
-                or (
-                    status == BranchSafetyCheckResult.BRANCH_NOT_ON_ORIGIN
-                    and local_branch_exists
-                )
+                or (status == BranchSafetyCheckResult.UNCOMMITTED_CHANGES and current_branch_name == branch_name)
+                or (status == BranchSafetyCheckResult.BRANCH_NOT_ON_ORIGIN and local_branch_exists)
             )
 
             if needs_temp_rename:
@@ -516,9 +509,7 @@ def create_worktree(
                         success=False,
                         worktree_path=worktree_path,
                         branch_name=resolved_branch_name,
-                        error_message=(
-                            f"Failed to rename local branch '{branch_name}' to '{temp_branch_name}': {exc}"
-                        ),
+                        error_message=(f"Failed to rename local branch '{branch_name}' to '{temp_branch_name}': {exc}"),
                     )
                 if not rename_ok:
                     return WorktreeSetupResult(

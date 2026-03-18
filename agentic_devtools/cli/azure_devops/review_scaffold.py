@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
+from .helpers import patch_thread_status
 from .review_attribution import build_commit_file_url, build_commit_pr_url
 from .review_state import (
     FileEntry,
@@ -1077,6 +1078,20 @@ def _fresh_scaffold(
         )
     except Exception as exc:
         print(f"Warning: Could not post initial activity log entry: {exc}", file=sys.stderr)
+
+    # Always resolve the activity log thread so it doesn't block merging
+    try:
+        patch_thread_status(
+            requests_module=requests_module,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=activity_log_thread_id,
+            status="closed",
+        )
+    except Exception as exc:
+        print(f"Warning: Could not resolve activity log thread: {exc}", file=sys.stderr)
 
     print(f"Scaffolding complete. Review state saved for PR {pull_request_id}.")
     return review_state

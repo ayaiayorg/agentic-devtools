@@ -43,12 +43,6 @@ class TestRenderFileSummary:
         result = render_file_summary(fe, [], _BASE_URL)
         assert "## File Review Summary: app.py" in result
 
-    def test_unreviewed_complete_path(self):
-        """Test unreviewed status includes complete path."""
-        fe = _make_file_entry(status="unreviewed", folder="src", fileName="app.py")
-        result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Complete Path:* /src/app.py" in result
-
     def test_unreviewed_status_line(self):
         """Test unreviewed status line reads Unreviewed with emoji."""
         fe = _make_file_entry(status="unreviewed")
@@ -196,23 +190,11 @@ class TestRenderFileSummary:
         assert "Should Fix" not in result
         assert "Could Fix" not in result
 
-    def test_complete_path_with_folder(self):
-        """Test complete path rendered as /folder/fileName."""
+    def test_complete_path_not_in_output(self):
+        """Complete Path line is not included in file summary output."""
         fe = _make_file_entry(folder="mgmt-backend", fileName="SomeFile.cs", status="unreviewed")
         result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Complete Path:* /mgmt-backend/SomeFile.cs" in result
-
-    def test_complete_path_root_folder(self):
-        """Test complete path rendered as /fileName for root folder."""
-        fe = _make_file_entry(folder="root", fileName="App.cs", status="unreviewed")
-        result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Complete Path:* /App.cs" in result
-
-    def test_complete_path_empty_folder(self):
-        """Test complete path rendered as /fileName when folder is empty string."""
-        fe = _make_file_entry(folder="", fileName="README.md", status="unreviewed")
-        result = render_file_summary(fe, [], _BASE_URL)
-        assert "*Complete Path:* /README.md" in result
+        assert "Complete Path:" not in result
 
     def test_approved_none_summary_renders_empty(self):
         """Test approved status with None summary renders empty summary line."""

@@ -189,3 +189,57 @@ class TestFreshScaffold:
         first_post_call = requests_mock.post.call_args_list[0]
         posted_content = first_post_call.kwargs["json"]["comments"][0]["content"]
         assert "### Model Review Progress" not in posted_content
+
+    def test_activity_log_thread_resolved(self, capsys):
+        """Activity log thread is resolved (status 'closed') after scaffolding."""
+        result, requests_mock, _ = _run_fresh_scaffold(["/src/a.ts"])
+        assert result is not None
+        # The activity log thread ID
+        activity_log_thread_id = result.activityLogThreadId
+        assert activity_log_thread_id != 0
+        # There must be a PATCH call with status="closed" targeting the activity log thread
+        patch_calls = requests_mock.patch.call_args_list
+        assert patch_calls, "Expected at least one PATCH call to resolve the activity log thread"
+        resolve_call = patch_calls[-1]
+        url = resolve_call[0][0]
+        assert f"/threads/{activity_log_thread_id}" in url
+        body = resolve_call[1]["json"]
+        assert body.get("status") == "closed"
+
+    def test_activity_log_resolve_failure_does_not_prevent_scaffold(self, capsys):
+        """Scaffolding returns a valid ReviewState even when the activity log thread resolve call fails."""
+        requests_mock = MagicMock()
+        id_gen = count(1)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json.return_value = {"id": i * 100, "comments": [{"id": i * 100 + 1}]}
+            return resp
+
+        requests_mock.post.side_effect = make_resp
+        # GET fails → activity log entry POST also fails (acceptable)
+        # PATCH fails → resolve call fails
+        requests_mock.patch.side_effect = Exception("Network error")
+
+        save_mock = MagicMock()
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+            result = _fresh_scaffold(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=5,
+                requests_module=requests_mock,
+                headers={},
+                dry_run=False,
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        err = capsys.readouterr().err
+        assert "Warning: Could not resolve activity log thread" in err
+        assert result is not None
+        assert isinstance(result, ReviewState)

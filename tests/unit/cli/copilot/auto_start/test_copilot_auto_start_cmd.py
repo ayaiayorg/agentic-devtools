@@ -237,9 +237,7 @@ class TestCopilotAutoStartCmd:
                 with patch(_SUBPROC, return_value=mock_result):
                     with patch(_CLEANUP):
                         with pytest.raises(SystemExit):
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         sentinel = tmp_path / ".agdt" / ".copilot-auto-start-triggered"
         assert sentinel.exists()
@@ -285,9 +283,7 @@ class TestCopilotAutoStartCmd:
                 with patch(_SUBPROC, return_value=mock_result):
                     with patch(_CLEANUP) as mock_cleanup:
                         with pytest.raises(SystemExit):
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         mock_cleanup.assert_not_called()
 
@@ -325,9 +321,7 @@ class TestCopilotAutoStartCmd:
                 with patch(_SUBPROC, side_effect=OSError("No such file or directory")):
                     with patch(_CLEANUP) as mock_cleanup:
                         with pytest.raises(SystemExit):
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         mock_cleanup.assert_not_called()
 
@@ -369,9 +363,7 @@ class TestCopilotAutoStartCmd:
     # FileNotFoundError (binary not found) vs missing cwd (worktree removed)
     # ------------------------------------------------------------------
 
-    def test_exits_1_with_binary_not_found_message_when_subprocess_raises_filenotfounderror(
-        self, tmp_path, capsys
-    ):
+    def test_exits_1_with_binary_not_found_message_when_subprocess_raises_filenotfounderror(self, tmp_path, capsys):
         """Exits 1 with 'executable not found' message when the Copilot binary is missing from PATH."""
         with patch(_AVAIL, return_value=True):
             with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
@@ -400,9 +392,7 @@ class TestCopilotAutoStartCmd:
             with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
                 with patch(_SUBPROC, side_effect=fake_subprocess_run):
                     with pytest.raises(SystemExit) as exc_info:
-                        copilot_auto_start_cmd(
-                            ["--worktree-path", str(worktree_path), "--start-prompt", "hello"]
-                        )
+                        copilot_auto_start_cmd(["--worktree-path", str(worktree_path), "--start-prompt", "hello"])
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -435,9 +425,7 @@ class TestCopilotAutoStartCmd:
                 with patch(_SUBPROC, return_value=mock_result):
                     with patch(_CLEANUP) as mock_cleanup:
                         with pytest.raises(SystemExit):
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         # Default label is used
         mock_cleanup.assert_called_once_with(str(tmp_path), "agdt-copilot-auto-start", False)
@@ -446,9 +434,7 @@ class TestCopilotAutoStartCmd:
     # Sentinel removal failure (best-effort OSError guards, 100% coverage)
     # ------------------------------------------------------------------
 
-    def test_exits_1_gracefully_when_sentinel_removal_fails_after_subprocess_filenotfounderror(
-        self, tmp_path, capsys
-    ):
+    def test_exits_1_gracefully_when_sentinel_removal_fails_after_subprocess_filenotfounderror(self, tmp_path, capsys):
         """Exits 1 even when sentinel removal fails inside the FileNotFoundError handler."""
         with patch(_AVAIL, return_value=True):
             with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
@@ -458,9 +444,7 @@ class TestCopilotAutoStartCmd:
                         side_effect=OSError("sentinel already gone"),
                     ):
                         with pytest.raises(SystemExit) as exc_info:
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -476,9 +460,7 @@ class TestCopilotAutoStartCmd:
                         side_effect=OSError("sentinel already gone"),
                     ):
                         with pytest.raises(SystemExit) as exc_info:
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -497,9 +479,7 @@ class TestCopilotAutoStartCmd:
                         side_effect=OSError("sentinel already gone"),
                     ):
                         with pytest.raises(SystemExit) as exc_info:
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         assert exc_info.value.code == 5
 
@@ -535,9 +515,7 @@ class TestCopilotAutoStartCmd:
                 with patch(_SUBPROC, side_effect=KeyboardInterrupt):
                     with patch(_CLEANUP) as mock_cleanup:
                         with pytest.raises(SystemExit):
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         mock_cleanup.assert_not_called()
 
@@ -551,9 +529,7 @@ class TestCopilotAutoStartCmd:
                         side_effect=OSError("sentinel already gone"),
                     ):
                         with pytest.raises(SystemExit) as exc_info:
-                            copilot_auto_start_cmd(
-                                ["--worktree-path", str(tmp_path), "--start-prompt", "hello"]
-                            )
+                            copilot_auto_start_cmd(["--worktree-path", str(tmp_path), "--start-prompt", "hello"])
 
         assert exc_info.value.code == 130
 
