@@ -270,3 +270,83 @@ class TestWorkflowCommands:
         # Verify
         workflow = state.get_workflow_state()
         assert workflow["active"] == "create-jira-subtask"
+
+
+class TestResolvedParentKeyPersist:
+    """Tests for the resolved parent key persistence guards in the workflow."""
+
+    def test_resolved_parent_key_is_persisted_to_state(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Test that resolved_parent_key is written to state when provided via CLI.
+
+        When --parent-key is passed explicitly, resolved_parent_key is truthy and
+        set_value("jira.parent_key", ...) must be called by the workflow implementation.
+        """
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        workflow_dir = temp_prompts_dir / "create-jira-subtask"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(
+            "Creating subtask for {{jira_parent_key}}", encoding="utf-8"
+        )
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="DFLY-1235",
+                branch_name="feature/DFLY-1234/DFLY-1235/impl",
+                issue_key="DFLY-1235",
+            )
+            with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_create_jira_subtask"):
+                commands.initiate_create_jira_subtask_workflow(
+                    _argv=["--issue-key", "DFLY-1235", "--parent-key", "DFLY-1234"]
+                )
+
+        assert state.get_value("jira.parent_key") == "DFLY-1234"
+
+    def test_issue_key_write_guard_triggers_when_current_differs(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Cover line 1499: set_value executes when current_issue_key != resolved_issue_key.
+
+        Simulates the bootstrap-missing scenario by mocking set_value as a no-op so the
+        initial write at line 1472 does not persist to state.  A subsequent get_value at
+        line 1497 therefore returns None, making current_issue_key != resolved_issue_key
+        True and executing the guarded set_value at line 1499.
+        """
+        from unittest.mock import call as mock_call
+
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        with patch("agentic_devtools.state.set_value") as mock_set_value:
+            with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="DFLY-1235",
+                        branch_name="feature/DFLY-1234/DFLY-1235/impl",
+                        issue_key="DFLY-1235",
+                    )
+                    commands.initiate_create_jira_subtask_workflow(
+                        _argv=["--issue-key", "DFLY-1235", "--parent-key", "DFLY-1234"]
+                    )
+
+        # set_value("jira.issue_key", "DFLY-1235") must be called at least twice:
+        # once at the initial persist (line 1472) and once inside the write guard (line 1499).
+        issue_key_calls = [c for c in mock_set_value.call_args_list if c == mock_call("jira.issue_key", "DFLY-1235")]
+        assert len(issue_key_calls) >= 2, (
+            f"Expected set_value('jira.issue_key', ...) called ≥2 times, got {issue_key_calls}"
+        )

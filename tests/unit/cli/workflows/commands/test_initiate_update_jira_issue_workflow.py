@@ -204,3 +204,84 @@ class TestWorkflowCommands:
         # Verify
         workflow = state.get_workflow_state()
         assert workflow["active"] == "update-jira-issue"
+
+
+class TestStateDirShiftUpdateJiraIssue:
+    """Tests for the state-dir shift guard in initiate_update_jira_issue_workflow."""
+
+    def test_state_dir_shift_triggers_second_issue_key_write(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """Test that when get_state_dir() changes after set_value, the issue key is written
+        to the final state directory.
+
+        Simulates the bootstrap race where set_value("jira.issue_key", ...) runs before
+        runtime-bootstrap.json exists, and a subsequent get_state_dir() call resolves to
+        a different, scoped path. The guard must detect this change and re-write the key
+        into the new state-dir so the workflow sees a consistent jira.issue_key value.
+        """
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        shifted_dir = temp_state_dir / "shifted"
+        shifted_dir.mkdir()
+
+        with patch(
+            "agentic_devtools.cli.workflows.commands.get_state_dir",
+            side_effect=[temp_state_dir, shifted_dir],
+        ):
+            call_count = {"n": 0}
+
+            def _state_get_state_dir_side_effect():
+                # First two calls (one load + one save) use the original temp_state_dir.
+                # Subsequent calls use shifted_dir to simulate the bootstrap shift
+                # happening between separate set_value() calls, not mid-call.
+                call_count["n"] += 1
+                if call_count["n"] <= 2:
+                    return temp_state_dir
+                return shifted_dir
+
+            with patch(
+                "agentic_devtools.state.get_state_dir",
+                side_effect=_state_get_state_dir_side_effect,
+            ), patch(
+                "agentic_devtools.state.set_value",
+                wraps=state.set_value,
+            ) as mock_set_value:
+                with patch(
+                    "agentic_devtools.cli.workflows.preflight.check_worktree_and_branch"
+                ) as mock_pf:
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="DFLY-1234",
+                        branch_name="feature/DFLY-1234/impl",
+                        issue_key="DFLY-1234",
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.initiate_workflow"
+                    ) as mock_iw:
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                        ):
+                            commands.initiate_update_jira_issue_workflow(
+                                _argv=["--issue-key", "DFLY-1234"]
+                            )
+
+        # initiate_workflow should have been called (function completed successfully)
+        mock_iw.assert_called_once()
+
+        # set_value should have been called twice for jira.issue_key
+        jira_issue_key_calls = [
+            call
+            for call in mock_set_value.call_args_list
+            if call.args and call.args[0] == "jira.issue_key"
+        ]
+        assert len(jira_issue_key_calls) >= 2
+
+        # The shifted state file must exist, proving at least one write landed in
+        # the final resolved state directory after the shift.
+        shifted_state_file = shifted_dir / "state.json"
+        assert shifted_state_file.exists()

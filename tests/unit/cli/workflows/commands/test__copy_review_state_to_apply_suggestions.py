@@ -19,9 +19,10 @@ class TestCopyReviewStateToApplySuggestions:
         review_data = {"prId": 12345, "files": {"/src/app.ts": {"status": "needs-work"}}}
         (review_dir / "review-state.json").write_text(json.dumps(review_data), encoding="utf-8")
 
-        with patch.object(state, "get_state_dir", return_value=tmp_path):
-            with patch.object(state, "get_value", return_value="12345"):
-                _copy_review_state_to_apply_suggestions()
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_state_dir", return_value=tmp_path):
+                with patch.object(state, "get_value", return_value="12345"):
+                    _copy_review_state_to_apply_suggestions()
 
         applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
         assert applied_path.exists()
@@ -31,8 +32,9 @@ class TestCopyReviewStateToApplySuggestions:
 
     def test_does_nothing_when_no_review_state(self, tmp_path):
         """Test that function is a no-op when review-state.json doesn't exist."""
-        with patch.object(state, "get_state_dir", return_value=tmp_path):
-            _copy_review_state_to_apply_suggestions()
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_state_dir", return_value=tmp_path):
+                _copy_review_state_to_apply_suggestions()
 
         applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
         assert not applied_path.exists()
@@ -43,8 +45,9 @@ class TestCopyReviewStateToApplySuggestions:
         review_dir.mkdir()
         (review_dir / "review-state.json").write_text("not json", encoding="utf-8")
 
-        with patch.object(state, "get_state_dir", return_value=tmp_path):
-            _copy_review_state_to_apply_suggestions()
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_state_dir", return_value=tmp_path):
+                _copy_review_state_to_apply_suggestions()
 
         applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
         assert not applied_path.exists()
@@ -56,9 +59,10 @@ class TestCopyReviewStateToApplySuggestions:
         review_data = {"prId": 0}
         (review_dir / "review-state.json").write_text(json.dumps(review_data), encoding="utf-8")
 
-        with patch.object(state, "get_state_dir", return_value=tmp_path):
-            with patch.object(state, "get_value", return_value=None):
-                _copy_review_state_to_apply_suggestions()
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_state_dir", return_value=tmp_path):
+                with patch.object(state, "get_value", return_value=None):
+                    _copy_review_state_to_apply_suggestions()
 
         applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
         assert applied_path.exists()
@@ -72,9 +76,10 @@ class TestCopyReviewStateToApplySuggestions:
         review_data = {"prId": 0}
         (review_dir / "review-state.json").write_text(json.dumps(review_data), encoding="utf-8")
 
-        with patch.object(state, "get_state_dir", return_value=tmp_path):
-            with patch.object(state, "get_value", return_value="abc"):
-                _copy_review_state_to_apply_suggestions()
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=tmp_path):
+            with patch.object(state, "get_state_dir", return_value=tmp_path):
+                with patch.object(state, "get_value", return_value="abc"):
+                    _copy_review_state_to_apply_suggestions()
 
         applied_path = tmp_path / "apply-suggestions" / "applied-suggestions.json"
         assert applied_path.exists()

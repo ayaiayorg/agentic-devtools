@@ -21,6 +21,8 @@ import subprocess
 import sys
 from typing import List, Optional
 
+from agentic_devtools.state import get_state_dir
+
 from .base import (
     advance_workflow_step,
     clear_state_for_workflow_initiation,
@@ -273,9 +275,17 @@ Examples:
             # the PR instead of silently reusing an unrelated Jira issue.
             delete_value("jira.issue_key")
 
-    # Get resolved values from state
-    resolved_pr_id = get_value("pull_request_id")
-    resolved_issue_key = get_value("jira.issue_key")
+    # Resolve values using the local variable (already holding the parsed CLI arg) as the
+    # primary source. Falling back to get_value() handles the case where neither CLI arg
+    # was provided but a prior cross-lookup or background task wrote the value to state.
+    # Note: `or` treats any falsy value (None, "") as absent; argparse returns None when
+    # an optional arg is omitted, and "" only when explicitly passed (e.g. --pull-request-id "").
+    # Both are correctly treated as "not provided" here.
+    # This avoids the bug where set_value() shifts the state directory (by creating
+    # runtime-bootstrap.json) and a subsequent get_value() reads from the *new* directory
+    # where the value was never written, producing None and a misleading error.
+    resolved_pr_id = _pr_id_norm or get_value("pull_request_id")
+    resolved_issue_key = _issue_key_norm or get_value("jira.issue_key")
 
     # Cross-lookup: If we have one but not the other, look up the missing one
     if resolved_pr_id and not resolved_issue_key:
@@ -305,6 +315,22 @@ Examples:
             print("\nTo find a completed PR, use:")
             print(f"  agdt-find-pr-by-issue --issue-key {resolved_issue_key} --status all")
             sys.exit(1)
+
+    # At this point, resolved_pr_id / resolved_issue_key hold the authoritative values.
+    # Re-persist them into the *current* state directory so that any earlier writes to
+    # the _unscoped dir (before runtime-bootstrap.json existed) don't leave the active
+    # scoped state.json missing these keys for downstream commands.
+    #
+    # IMPORTANT: Persist jira.issue_key into the *current* directory before writing
+    # pull_request_id. set_value() saves first and only then updates
+    # runtime-bootstrap.json based on the loaded state. Ensuring the issue key is
+    # present before we write the PR ID prevents a scope flip back to PR scope.
+    if resolved_issue_key:
+        existing_issue_key = get_value("jira.issue_key")
+        if existing_issue_key != resolved_issue_key:
+            set_value("jira.issue_key", resolved_issue_key)
+    if resolved_pr_id:
+        set_value("pull_request_id", str(resolved_pr_id))
 
     # Validate we have a PR ID now
     if not resolved_pr_id:
@@ -559,8 +585,6 @@ def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
 
     # Get issue details from the temp file (get_issue saves full JSON there)
     # The state only stores metadata reference, not the actual issue data
-    from ...state import get_state_dir
-
     issue_file = get_state_dir() / "temp-get-issue-details-response.json"
     issue_data = {}
     if issue_file.exists():
@@ -1060,15 +1084,26 @@ def initiate_create_jira_issue_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values from state
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_project_key = get_value("jira.project_key") or "DFLY"
-    resolved_issue_type = get_value("jira.issue_type") or "Story"
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
+    resolved_issue_type = issue_type or get_value("jira.issue_type") or "Story"
+    resolved_user_request = user_request or get_value("jira.user_request")
 
     # Persist the resolved default so initiate_workflow's required_state_keys check passes
     if not get_value("jira.project_key"):
         set_value("jira.project_key", resolved_project_key)
+
+    # Persist the resolved issue key into the current state directory so that
+    # initiate_workflow() can read it from optional_state_keys even if an earlier
+    # set_value() wrote to a different (e.g. _unscoped) state dir. Overwrite any
+    # differing value so the resolved key is authoritative in the active state dir.
+    current_issue_key = get_value("jira.issue_key")
+    if resolved_issue_key and resolved_issue_key != current_issue_key:
+        set_value("jira.issue_key", resolved_issue_key)
 
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
@@ -1247,10 +1282,20 @@ def initiate_create_jira_epic_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values from state
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_project_key = get_value("jira.project_key") or "DFLY"
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
+    resolved_user_request = user_request or get_value("jira.user_request")
+
+    # Persist the resolved issue key into the current state dir so that
+    # initiate_workflow() and prompt templates can reliably see jira.issue_key
+    if resolved_issue_key:
+        current_issue_key = get_value("jira.issue_key")
+        if current_issue_key != resolved_issue_key:
+            set_value("jira.issue_key", resolved_issue_key)
 
     # Persist the resolved default so initiate_workflow's required_state_keys check passes
     if not get_value("jira.project_key"):
@@ -1430,10 +1475,30 @@ def initiate_create_jira_subtask_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values from state
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_parent_key = get_value("jira.parent_key")
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_parent_key = parent_key or get_value("jira.parent_key")
+    resolved_user_request = user_request or get_value("jira.user_request")
+
+    # Re-persist keys into the current state directory.
+    # set_value("jira.issue_key") above may have shifted get_state_dir() from
+    # _unscoped to scoped (by creating runtime-bootstrap.json), so re-writing here
+    # guarantees validate_required_state() inside initiate_workflow() finds them in
+    # the correct location.
+    #
+    # To avoid a bootstrap race where jira.parent_key is only written to the old
+    # (_unscoped) state.json, ensure that any potential scope-shifting write for
+    # jira.issue_key happens first, and only when the value actually changes. Then
+    # re-write jira.parent_key so it is guaranteed to exist in the active directory.
+    if resolved_issue_key:
+        current_issue_key = get_value("jira.issue_key")
+        if current_issue_key != resolved_issue_key:
+            set_value("jira.issue_key", resolved_issue_key)
+    if resolved_parent_key:
+        set_value("jira.parent_key", resolved_parent_key)
 
     # If we have an issue key, check if we're in the right context
     if resolved_issue_key:
@@ -1601,9 +1666,12 @@ def initiate_update_jira_issue_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
@@ -1643,6 +1711,17 @@ def initiate_update_jira_issue_workflow(
             sys.exit(1)
 
     # We're in the correct context - proceed with the workflow
+    # Ensure jira.issue_key is persisted in the same state directory that
+    # initiate_workflow() will validate against. When runtime-bootstrap.json
+    # is created lazily, a call to get_state_dir() inside set_value() can
+    # cause the active state directory to "shift" after the first write.
+    # Detect that situation and re-write the key so both scopes are consistent.
+    original_state_dir = get_state_dir()
+    set_value("jira.issue_key", resolved_issue_key)
+    new_state_dir = get_state_dir()
+    if new_state_dir != original_state_dir:
+        set_value("jira.issue_key", resolved_issue_key)
+
     initiate_workflow(
         workflow_name="update-jira-issue",
         required_state_keys=["jira.issue_key"],
@@ -1782,9 +1861,12 @@ Examples:
             # an unrelated Jira issue that happened to be stored in state.
             delete_value("jira.issue_key")
 
-    # Get resolved values from state
-    resolved_pr_id = get_value("pull_request_id")
-    resolved_issue_key = get_value("jira.issue_key")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_pr_id = _pr_id_norm or get_value("pull_request_id")
+    resolved_issue_key = _issue_key_norm or get_value("jira.issue_key")
 
     # If we don't have an issue key, try to derive it from the PR
     if not resolved_issue_key and resolved_pr_id:
@@ -1830,6 +1912,13 @@ Examples:
             else:
                 sys.exit(1)  # pragma: no cover
 
+    # Re-persist identifiers so validate_required_state() and optional_state_keys
+    # inside initiate_workflow() find them even if get_state_dir() shifted after
+    # earlier set_value() calls above.
+    if resolved_issue_key:
+        set_value("jira.issue_key", resolved_issue_key)
+    if resolved_pr_id:
+        set_value("pull_request_id", str(resolved_pr_id))
     initiate_workflow(
         workflow_name="apply-pull-request-review-suggestions",
         required_state_keys=["pull_request_id"],
@@ -1865,7 +1954,7 @@ def _copy_review_state_to_apply_suggestions() -> None:
     """
     import json
 
-    from ...state import get_state_dir, get_value
+    from ...state import get_value
     from ..azure_devops.review_state import REVIEW_STATE_FILENAME, REVIEW_STATE_SUBDIR
     from .applied_suggestions import (
         AppliedSuggestionsState,
@@ -1986,9 +2075,12 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
@@ -2027,7 +2119,15 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         else:
             sys.exit(1)  # pragma: no cover
 
-    # We're in the correct context - proceed with the workflow
+    # We're in the correct context - proceed with the workflow.
+    # Only re-persist jira.issue_key when the current state does not already
+    # contain the same value. This avoids an unnecessary write that could
+    # create/update runtime-bootstrap.json and shift get_state_dir(), which
+    # would cause initiate_workflow(validate_required_state=["jira.issue_key"])
+    # to look in a different directory that does not yet contain the key.
+    current_issue_key = get_value("jira.issue_key")
+    if current_issue_key != resolved_issue_key:
+        set_value("jira.issue_key", resolved_issue_key)
     initiate_workflow(
         workflow_name="optimize-issue-for-ai-agent",
         required_state_keys=["jira.issue_key"],
@@ -2134,9 +2234,12 @@ def initiate_break_down_issue_into_subtasks_workflow(
     if user_request:  # pragma: no cover
         set_value("jira.user_request", user_request)
 
-    # Get resolved values
-    resolved_issue_key = get_value("jira.issue_key")
-    resolved_user_request = get_value("jira.user_request")
+    # Resolve values using local variables first, falling back to state.
+    # Avoids the bootstrap-race bug where set_value() may shift the state
+    # directory so that the subsequent get_value() reads from a different
+    # location and returns None, producing a misleading error.
+    resolved_issue_key = issue_key or get_value("jira.issue_key")
+    resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
@@ -2176,6 +2279,17 @@ def initiate_break_down_issue_into_subtasks_workflow(
             sys.exit(1)  # pragma: no cover
 
     # We're in the correct context - proceed with the workflow
+    # Re-persist jira.issue_key so validate_required_state() inside
+    # initiate_workflow() finds it even if get_state_dir() shifts due to
+    # bootstrap/scope initialization during this write.
+    before_state_dir = get_state_dir()
+    set_value("jira.issue_key", resolved_issue_key)
+    after_state_dir = get_state_dir()
+    if after_state_dir != before_state_dir:
+        # State directory changed (e.g., runtime bootstrap was initialized).
+        # Re-write jira.issue_key so it exists in the new scoped directory
+        # that initiate_workflow() will validate against.
+        set_value("jira.issue_key", resolved_issue_key)
     initiate_workflow(
         workflow_name="break-down-issue-into-subtasks",
         required_state_keys=["jira.issue_key"],
