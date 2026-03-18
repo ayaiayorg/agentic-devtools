@@ -51,7 +51,8 @@ def mock_workflow_state_clearing():
     """
     with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
         with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity"):
-            yield
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
+                yield
 
 
 class TestInitiateUpdateJiraIssueWorkflowBranches:

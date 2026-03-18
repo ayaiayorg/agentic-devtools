@@ -115,6 +115,37 @@ def _ensure_bootstrap_identity() -> None:
         )
 
 
+def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
+    """Resolve identity and set worktree_key scope via set_bootstrap_state() before any state I/O.
+
+    Combines identity resolution and worktree scoping into a single call so that
+    the state directory is locked to the correct scoped path before any ``set_value()``
+    calls are made.  This prevents the ``_unscoped`` folder from being created when
+    identity resolution succeeds.
+
+    Follows the same guard and error-handling pattern as ``_ensure_bootstrap_identity()``:
+    skipped when state directory is overridden via env vars, and failures are logged as
+    warnings without blocking the workflow.
+
+    Args:
+        worktree_key: The worktree key to use for scoping (e.g. ``"DFLY-1234"`` or
+            ``"PR25858"``).  Issue key takes priority over PR ID when both are available,
+            matching the ``resolve_worktree_key()`` priority in ``agdt_branch.py``.
+    """
+    from ...state import set_bootstrap_state
+
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    if env_state_override:
+        return
+    try:
+        set_bootstrap_state(worktree_key=worktree_key)
+    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize bootstrap state; proceeding with unscoped state: %s",
+            exc,
+        )
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -149,17 +180,13 @@ def initiate_pull_request_review_workflow(
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import delete_value, get_value, set_value
     from ..azure_devops.helpers import find_jira_issue_from_pr, find_pr_from_jira_issue, get_pull_request_source_branch
     from .preflight import perform_auto_setup
 
+    # Parse CLI arguments first — no state I/O at this point, so no _unscoped dir is created.
     parser = argparse.ArgumentParser(
         description="Initiate the pull request review workflow",
         epilog="""
@@ -201,21 +228,46 @@ Examples:
     if interactive is None:
         interactive = False
 
-    # Set provided values in state (use set_value directly since we handle cross-lookup below)
-    if pull_request_id:
-        set_value("pull_request_id", pull_request_id)
-        if not issue_key:
-            # --pull-request-id was given without --issue-key: clear any stale issue key
-            # left by a prior run so the cross-lookup below derives a fresh value from
-            # the PR instead of silently reusing an unrelated Jira issue.
-            delete_value("jira.issue_key")
-    if issue_key:
-        set_value("jira.issue_key", issue_key)
-        if not pull_request_id:
+    # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
+    # the clear below), so that get_state_dir() resolves to the correct scoped directory
+    # and never creates the _unscoped fallback folder.
+    # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
+    # Normalize both values (strip whitespace) before building the worktree_key so that
+    # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
+    # and fall back to _unscoped.
+    _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
+    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    if _issue_key_norm:
+        _ensure_bootstrap_identity_and_scope(_issue_key_norm)
+    elif _pr_id_norm:
+        _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
+    else:
+        # Neither provided — fall back to identity-only; the error path below will exit.
+        _ensure_bootstrap_identity()
+
+    # Clear workflow tracking state (workflow, agdt_run_id) now that the bootstrap scope
+    # is set; load_state()/save_state() will use the correctly scoped directory.
+    clear_state_for_workflow_initiation()
+
+    # Set provided values in state using the NORMALIZED identifiers.  When both issue_key
+    # and pull_request_id are provided, write jira.issue_key FIRST so that the engine-side
+    # priority guard in set_value() (which checks the loaded state dict) sees the issue key
+    # and skips overwriting the bootstrap scope when pull_request_id is written immediately
+    # after.  Whitespace-only inputs normalize to an empty string and are treated as absent.
+    if _issue_key_norm:
+        set_value("jira.issue_key", _issue_key_norm)
+        if not _pr_id_norm:
             # --issue-key was given without --pull-request-id: clear any stale PR ID
             # left by a prior run so the cross-lookup below searches for the correct PR
             # instead of silently reusing an unrelated pull request.
             delete_value("pull_request_id")
+    if _pr_id_norm:
+        set_value("pull_request_id", _pr_id_norm)
+        if not _issue_key_norm:
+            # --pull-request-id was given without --issue-key: clear any stale issue key
+            # left by a prior run so the cross-lookup below derives a fresh value from
+            # the PR instead of silently reusing an unrelated Jira issue.
+            delete_value("jira.issue_key")
 
     # Get resolved values from state
     resolved_pr_id = get_value("pull_request_id")
@@ -1633,18 +1685,14 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     Optional state:
     - jira.issue_key: Jira issue key for context
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
-    from ...state import get_value, set_value
+    from ...state import delete_value, get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # pull_request_id/issue_key are supplied programmatically.
+    # Parse CLI arguments first — no state I/O at this point, so no _unscoped dir is created.
+    # Always parse to pick up --interactive even when pull_request_id/issue_key are supplied
+    # programmatically.
     parser = argparse.ArgumentParser(
         description="Initiate the apply-pull-request-review-suggestions workflow",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1685,13 +1733,46 @@ Examples:
     if interactive is None:
         interactive = False
 
-    # If pull_request_id provided via CLI, set it in state
-    if pull_request_id:
-        set_value("pull_request_id", pull_request_id)
+    # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
+    # the clear below), so that get_state_dir() resolves to the correct scoped directory
+    # and never creates the _unscoped fallback folder.
+    # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
+    # Normalize both values (strip whitespace) before building the worktree_key so that
+    # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
+    # and fall back to _unscoped.
+    _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
+    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    if _issue_key_norm:
+        _ensure_bootstrap_identity_and_scope(_issue_key_norm)
+    elif _pr_id_norm:
+        _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
+    else:
+        _ensure_bootstrap_identity()
 
-    # If issue_key provided via CLI, set it in state
-    if issue_key:
-        set_value("jira.issue_key", issue_key)
+    # Clear workflow tracking state (workflow, agdt_run_id) now that the bootstrap scope
+    # is set; load_state()/save_state() will use the correctly scoped directory.
+    clear_state_for_workflow_initiation()
+
+    # Set provided values in state.  When both issue_key and pull_request_id are provided,
+    # write jira.issue_key FIRST so that the engine-side priority guard in set_value()
+    # (which checks the loaded state dict) sees the issue key and skips overwriting the
+    # bootstrap scope when pull_request_id is written immediately after.
+    # Use the normalized values for both presence checks and state writes so that
+    # whitespace-only inputs are treated as absent and state remains canonical.
+    if _issue_key_norm:
+        set_value("jira.issue_key", _issue_key_norm)
+        if not _pr_id_norm:
+            # --issue-key was given without --pull-request-id: clear any stale PR ID
+            # left by a prior run so it is not silently reused.
+            delete_value("pull_request_id")
+
+    if _pr_id_norm:
+        set_value("pull_request_id", _pr_id_norm)
+        if not _issue_key_norm:
+            # --pull-request-id was given without --issue-key: clear any stale issue key
+            # left by a prior run so the derive-from-PR path below is not bypassed by
+            # an unrelated Jira issue that happened to be stored in state.
+            delete_value("jira.issue_key")
 
     # Get resolved values from state
     resolved_pr_id = get_value("pull_request_id")

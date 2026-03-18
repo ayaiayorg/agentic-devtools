@@ -803,7 +803,15 @@ def set_value(key: str, value: Any) -> None:
                 if candidate.isdigit():
                     pr_id_str = candidate
             if pr_id_str:
-                _update_bootstrap_worktree_key(f"PR{pr_id_str}")
+                # Skip the bootstrap update when jira.issue_key is already set —
+                # the issue key has higher priority as worktree_key (matching the
+                # resolve_worktree_key() priority in agdt_branch.py).  This prevents
+                # set_value("pull_request_id", ...) from overwriting the issue-key
+                # scope after set_value("jira.issue_key", ...) has already set it.
+                jira_val = state.get("jira")
+                existing_issue_key = jira_val.get("issue_key", "") if isinstance(jira_val, dict) else ""
+                if not (isinstance(existing_issue_key, str) and existing_issue_key.strip()):
+                    _update_bootstrap_worktree_key(f"PR{pr_id_str}")
     except Exception:  # noqa: BLE001 – bootstrap failure is non-fatal
         pass
 
