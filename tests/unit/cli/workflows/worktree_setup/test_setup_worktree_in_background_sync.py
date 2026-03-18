@@ -1,4 +1,34 @@
-"""Tests for SetupWorktreeInBackgroundSync."""
+"""Tests for SetupWorktreeInBackgroundSync.
+
+Copilot session-triggering decision tree
+-----------------------------------------
+The function ``setup_worktree_in_background_sync`` prepares the worktree and
+VS Code environment according to the following rules. It never starts a
+Copilot session directly; any Copilot startup is handled by VS Code tasks
+(for example, an ``agdt-copilot-auto-start`` task) configured elsewhere.
+
+1. ``auto_execute_command`` is truthy (for example, a non-empty list)
+   a. Run ``_run_auto_execute_command()`` **first** (before injecting the VS Code
+      auto-start task and before opening VS Code), so that all workflow context
+      data (PR details, Jira issue, etc.) is available when VS Code's
+      ``folderOpen`` event fires the ``agdt-copilot-auto-start`` task.
+   b. ``_maybe_inject_auto_start_before_vscode()`` is called after auto-execute.
+   c. ``open_vscode_workspace()`` is called last.
+   d. No Copilot session helper is called directly from this function; the
+      auto-start task injected in step (b) is responsible for any session
+      startup, regardless of the exit code from ``_run_auto_execute_command()``.
+
+2. ``auto_execute_command`` is falsy (for example, ``None`` or an empty string)
+   a. ``_maybe_inject_auto_start_before_vscode()`` is called first.
+   b. ``open_vscode_workspace()`` is called next.
+   c. As in case (1), this function does **not** start any Copilot sessions
+      directly.
+
+3. Non-PR-review workflows (``workflow_name != "pull-request-review"``)
+   This helper still only manages the worktree and VS Code workspace; Copilot
+   sessions, if any, are orchestrated by external tooling and not by this
+   function.
+"""
 
 from unittest.mock import patch
 
@@ -479,3 +509,123 @@ class TestSetupWorktreeInBackgroundSync:
         )
 
         mock_copilot.assert_not_called()
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_auto_execute_runs_before_vscode_opens_existing_worktree(
+        self,
+        mock_check_exists,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_run_cmd,
+        mock_open_vscode,
+        mock_set_value,
+    ):
+        """Verify _run_auto_execute_command is called before open_vscode_workspace (existing worktree).
+
+        This ensures that when VS Code's folderOpen event fires the
+        agdt-copilot-auto-start task, all workflow context data has already
+        been fetched by _run_auto_execute_command.
+        """
+        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_open_vscode.return_value = True
+
+        call_order: list[str] = []
+        mock_run_cmd.side_effect = lambda *a, **kw: call_order.append("auto_execute") or 0
+        mock_open_vscode.side_effect = lambda *a, **kw: call_order.append("open_vscode") or True
+
+        # Patch _maybe_inject_auto_start_before_vscode so the test is deterministic
+        # and to track that it is called between auto_execute and open_vscode.
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode"
+        ) as mock_inject_auto_start:
+            mock_inject_auto_start.side_effect = (
+                lambda *a, **kw: call_order.append("inject_auto_start") or None
+            )
+
+            setup_worktree_in_background_sync(
+                issue_key="DFLY-1234",
+                workflow_name="work-on-jira-issue",
+                auto_execute_command=["agdt-review", "--pr-id", "42"],
+            )
+
+        # Verify that all three steps ran and in the intended order:
+        # auto_execute → inject_auto_start → open_vscode.
+        assert "auto_execute" in call_order, "_run_auto_execute_command was not called"
+        assert "inject_auto_start" in call_order, "_maybe_inject_auto_start_before_vscode was not called"
+        assert "open_vscode" in call_order, "open_vscode_workspace was not called"
+        assert call_order.index("auto_execute") < call_order.index("inject_auto_start"), (
+            "_run_auto_execute_command must be called before _maybe_inject_auto_start_before_vscode"
+        )
+        assert call_order.index("inject_auto_start") < call_order.index("open_vscode"), (
+            "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
+        )
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_auto_execute_runs_before_vscode_opens_new_worktree(
+        self,
+        mock_check_exists,
+        mock_setup,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_run_cmd,
+        mock_open_vscode,
+        mock_set_value,
+    ):
+        """Verify _run_auto_execute_command is called before open_vscode_workspace (new worktree).
+
+        This ensures that when VS Code's folderOpen event fires the
+        agdt-copilot-auto-start task, all workflow context data has already
+        been fetched by _run_auto_execute_command.
+        """
+        mock_check_exists.return_value = None
+        mock_setup.return_value = WorktreeSetupResult(
+            success=True,
+            worktree_path="/repos/DFLY-1234",
+            branch_name="feature/DFLY-1234/implementation",
+        )
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+
+        call_order: list[str] = []
+        mock_run_cmd.side_effect = lambda *a, **kw: call_order.append("auto_execute") or 0
+        mock_open_vscode.side_effect = lambda *a, **kw: call_order.append("open_vscode") or True
+
+        # Patch _maybe_inject_auto_start_before_vscode so the test is deterministic
+        # and to track that it is called between auto_execute and open_vscode.
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode"
+        ) as mock_inject_auto_start:
+            mock_inject_auto_start.side_effect = (
+                lambda *a, **kw: call_order.append("inject_auto_start") or None
+            )
+
+            setup_worktree_in_background_sync(
+                issue_key="DFLY-1234",
+                workflow_name="work-on-jira-issue",
+                auto_execute_command=["agdt-review", "--pr-id", "42"],
+            )
+
+        # Verify that all three steps ran and in the intended order:
+        # auto_execute → inject_auto_start → open_vscode.
+        assert "auto_execute" in call_order, "_run_auto_execute_command was not called"
+        assert "inject_auto_start" in call_order, "_maybe_inject_auto_start_before_vscode was not called"
+        assert "open_vscode" in call_order, "open_vscode_workspace was not called"
+        assert call_order.index("auto_execute") < call_order.index("inject_auto_start"), (
+            "_run_auto_execute_command must be called before _maybe_inject_auto_start_before_vscode"
+        )
+        assert call_order.index("inject_auto_start") < call_order.index("open_vscode"), (
+            "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
+        )
