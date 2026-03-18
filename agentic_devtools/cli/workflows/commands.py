@@ -115,6 +115,37 @@ def _ensure_bootstrap_identity() -> None:
         )
 
 
+def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
+    """Resolve identity and set worktree_key scope via set_bootstrap_state() before any state I/O.
+
+    Combines identity resolution and worktree scoping into a single call so that
+    the state directory is locked to the correct scoped path before any ``set_value()``
+    calls are made.  This prevents the ``_unscoped`` folder from being created when
+    identity resolution succeeds.
+
+    Follows the same guard and error-handling pattern as ``_ensure_bootstrap_identity()``:
+    skipped when state directory is overridden via env vars, and failures are logged as
+    warnings without blocking the workflow.
+
+    Args:
+        worktree_key: The worktree key to use for scoping (e.g. ``"DFLY-1234"`` or
+            ``"PR25858"``).  Issue key takes priority over PR ID when both are available,
+            matching the ``resolve_worktree_key()`` priority in ``agdt_branch.py``.
+    """
+    from ...state import set_bootstrap_state
+
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    if env_state_override:
+        return
+    try:
+        set_bootstrap_state(worktree_key=worktree_key)
+    except (OSError, json.JSONDecodeError, UnicodeError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).warning(
+            "Failed to initialize bootstrap state before workflow clear; proceeding with unscoped state: %s",
+            exc,
+        )
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -149,9 +180,9 @@ def initiate_pull_request_review_workflow(
     Either pull_request_id or issue_key must be provided via CLI/programmatic arguments;
     any existing state is cleared at the start of this command to ensure a fresh workflow.
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
+    # Clear all previous state to ensure fresh workflow start.
+    # This must happen before bootstrap identity/scope is set so that stale
+    # context keys from a prior run do not influence the new workflow.
     clear_state_for_workflow_initiation()
 
     import argparse
@@ -200,6 +231,17 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+
+    # Resolve identity and set the worktree_key scope BEFORE any set_value() calls
+    # so that all state writes land in a single scoped directory.
+    # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
+    if issue_key:
+        _ensure_bootstrap_identity_and_scope(issue_key)
+    elif pull_request_id:
+        _ensure_bootstrap_identity_and_scope(f"PR{pull_request_id}")
+    else:
+        # Neither provided — fall back to identity-only; the error path below will exit.
+        _ensure_bootstrap_identity()
 
     # Set provided values in state (use set_value directly since we handle cross-lookup below)
     if pull_request_id:
@@ -1633,9 +1675,9 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     Optional state:
     - jira.issue_key: Jira issue key for context
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
+    # Clear all previous state to ensure fresh workflow start.
+    # This must happen before bootstrap identity/scope is set so that stale
+    # context keys from a prior run do not influence the new workflow.
     clear_state_for_workflow_initiation()
 
     import argparse
@@ -1684,6 +1726,16 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+
+    # Resolve identity and set the worktree_key scope BEFORE any set_value() calls
+    # so that all state writes land in a single scoped directory.
+    # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
+    if issue_key:
+        _ensure_bootstrap_identity_and_scope(issue_key)
+    elif pull_request_id:
+        _ensure_bootstrap_identity_and_scope(f"PR{pull_request_id}")
+    else:
+        _ensure_bootstrap_identity()
 
     # If pull_request_id provided via CLI, set it in state
     if pull_request_id:

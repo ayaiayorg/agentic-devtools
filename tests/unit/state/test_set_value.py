@@ -258,3 +258,49 @@ class TestSetValueBootstrapWiring:
             state.set_value("jira.issue_key", None)
 
         mock_update.assert_not_called()
+
+
+class TestSetValueBootstrapPriorityAware:
+    """Tests for priority-aware bootstrap sync in set_value().
+
+    When jira.issue_key is already present in state, set_value("pull_request_id", ...)
+    must NOT overwrite the bootstrap worktree_key because the issue key has higher
+    priority (matching resolve_worktree_key() in agdt_branch.py).
+    """
+
+    def test_set_pull_request_id_skips_bootstrap_when_issue_key_exists(self, temp_state_dir):
+        """set_value('pull_request_id', ...) skips bootstrap update when jira.issue_key exists."""
+        # Pre-set the issue key in state — it has higher priority
+        state.set_value("jira.issue_key", "DFLY-2779")
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 25858)
+
+        mock_update.assert_not_called()
+
+    def test_set_pull_request_id_updates_bootstrap_when_no_issue_key(self, temp_state_dir):
+        """set_value('pull_request_id', ...) updates bootstrap when no jira.issue_key exists."""
+        # Ensure no issue key in state
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 42)
+
+        mock_update.assert_called_once_with("PR42")
+
+    def test_set_pull_request_id_skips_bootstrap_when_issue_key_is_string(self, temp_state_dir):
+        """set_value('pull_request_id', ...) skips bootstrap for string PR ID when issue key set."""
+        state.set_value("jira.issue_key", "PROJ-100")
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", "999")
+
+        mock_update.assert_not_called()
+
+    def test_set_jira_issue_key_still_updates_bootstrap_regardless(self, temp_state_dir):
+        """set_value('jira.issue_key', ...) always updates bootstrap — it is the priority key."""
+        # Even if pull_request_id is already set, jira.issue_key must update bootstrap
+        state.set_value("pull_request_id", "12345")  # may or may not update bootstrap
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("jira.issue_key", "DFLY-5678")
+
+        mock_update.assert_called_once_with("DFLY-5678")

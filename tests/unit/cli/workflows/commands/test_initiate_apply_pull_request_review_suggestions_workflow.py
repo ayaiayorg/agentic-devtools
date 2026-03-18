@@ -51,7 +51,8 @@ def mock_workflow_state_clearing():
     """
     with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
         with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity"):
-            yield
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
+                yield
 
 
 class TestInitiateApplyPRSuggestionsWorkflowBranches:
@@ -396,3 +397,55 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         """Session is called with interactive=True when --interactive true."""
         mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999", argv=["--interactive", "true"])
         mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
+
+
+class TestInitiateApplyPRSuggestionsBootstrapScope:
+    """Tests that the correct worktree_key scope is set before any set_value() calls."""
+
+    def test_both_pr_id_and_issue_key_uses_issue_key_as_worktree_key(
+        self, temp_state_dir, clear_state_before
+    ):
+        """When both --pull-request-id and --issue-key are provided, worktree_key is the issue key.
+
+        Issue key takes priority over PR ID, matching resolve_worktree_key() in agdt_branch.py.
+        _ensure_bootstrap_identity_and_scope must be called with the issue key BEFORE any
+        set_value() calls.
+        """
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope") as mock_scope:
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+                    from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="DFLY-2779",
+                        branch_name="feature/DFLY-2779/test",
+                        issue_key="DFLY-2779",
+                    )
+
+                    with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                        with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
+                            ):
+                                commands.initiate_apply_pull_request_review_suggestions_workflow(
+                                    _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                                )
+
+        mock_scope.assert_called_once_with("DFLY-2779")
+
+    def test_only_pr_id_uses_pr_worktree_key(self, temp_state_dir, clear_state_before):
+        """When only --pull-request-id is provided, worktree_key is PR{id}."""
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope") as mock_scope:
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                    with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
+                        ):
+                            commands.initiate_apply_pull_request_review_suggestions_workflow(
+                                _argv=["--pull-request-id", "25858"]
+                            )
+
+        mock_scope.assert_called_once_with("PR25858")
