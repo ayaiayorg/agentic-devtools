@@ -151,12 +151,13 @@ def ensure_ca_bundle(
         try:
             cache_file.unlink()
         except OSError:
+            # Even if deletion fails, skip using the existing cache when force=True.
             pass
 
     # Return cached file only when it contains a full chain (>= 2 certs).
     # A single-cert (leaf-only) cache cannot be used as a CA bundle and will
     # always fail SSL verification, so treat it as invalid and re-fetch.
-    if cache_file.exists():
+    if cache_file.exists() and not force:
         try:
             existing = cache_file.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
