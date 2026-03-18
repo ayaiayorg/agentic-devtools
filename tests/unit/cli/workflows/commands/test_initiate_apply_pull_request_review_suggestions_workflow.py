@@ -449,3 +449,70 @@ class TestInitiateApplyPRSuggestionsBootstrapScope:
                             )
 
         mock_scope.assert_called_once_with("PR25858")
+
+
+class TestInitiateApplyPRSuggestionsStaleKeyCleanup:
+    """Tests that stale context keys from a prior run are cleaned up appropriately.
+
+    clear_state_for_workflow_initiation() only removes workflow tracking keys
+    (workflow, agdt_run_id) and preserves context keys like jira.issue_key and
+    pull_request_id.  Without explicit cleanup, a stale key from a prior run can
+    silently bleed into the new session.
+    """
+
+    def test_stale_issue_key_cleared_when_only_pr_id_provided(
+        self, temp_state_dir, clear_state_before
+    ):
+        """When only --pull-request-id is given, a stale jira.issue_key must be deleted.
+
+        Without this cleanup the derive-from-PR path (which attempts to extract
+        an issue key from the PR source branch) is never reached, because
+        resolved_issue_key is truthy from the stale value.
+        """
+        # Simulate stale state left over from a prior run
+        state.set_value("jira.issue_key", "STALE-999")
+
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                    with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
+                        ):
+                            commands.initiate_apply_pull_request_review_suggestions_workflow(
+                                _argv=["--pull-request-id", "123"]
+                            )
+
+        # The stale issue key must have been deleted, not silently reused
+        assert state.get_value("jira.issue_key") is None
+
+    def test_stale_pr_id_cleared_when_only_issue_key_provided(
+        self, temp_state_dir, clear_state_before
+    ):
+        """When only --issue-key is given, a stale pull_request_id must be deleted."""
+        # Simulate stale state left over from a prior run
+        state.set_value("pull_request_id", "STALE-42")
+
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+                    from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="DFLY-1234",
+                        branch_name="feature/DFLY-1234/impl",
+                        issue_key="DFLY-1234",
+                    )
+                    with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                        with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
+                            ):
+                                commands.initiate_apply_pull_request_review_suggestions_workflow(
+                                    _argv=["--issue-key", "DFLY-1234"]
+                                )
+
+        # The stale PR ID must have been deleted, not silently reused
+        assert state.get_value("pull_request_id") is None

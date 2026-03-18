@@ -1681,7 +1681,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     """
     import argparse
 
-    from ...state import get_value, set_value
+    from ...state import delete_value, get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
     # Parse CLI arguments first — no state I/O at this point, so no _unscoped dir is created.
@@ -1748,9 +1748,18 @@ Examples:
     # bootstrap scope when pull_request_id is written immediately after.
     if issue_key:
         set_value("jira.issue_key", issue_key)
+        if not pull_request_id:
+            # --issue-key was given without --pull-request-id: clear any stale PR ID
+            # left by a prior run so it is not silently reused.
+            delete_value("pull_request_id")
 
     if pull_request_id:
         set_value("pull_request_id", pull_request_id)
+        if not issue_key:
+            # --pull-request-id was given without --issue-key: clear any stale issue key
+            # left by a prior run so the derive-from-PR path below is not bypassed by
+            # an unrelated Jira issue that happened to be stored in state.
+            delete_value("jira.issue_key")
 
     # Get resolved values from state
     resolved_pr_id = get_value("pull_request_id")
