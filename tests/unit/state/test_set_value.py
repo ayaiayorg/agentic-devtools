@@ -304,3 +304,28 @@ class TestSetValueBootstrapPriorityAware:
             state.set_value("jira.issue_key", "DFLY-5678")
 
         mock_update.assert_called_once_with("DFLY-5678")
+
+    def test_set_pull_request_id_still_updates_bootstrap_when_state_empty_despite_scoped_bootstrap(
+        self, temp_state_dir
+    ):
+        """Documents a known limitation: the engine-side guard only checks the state dict.
+
+        When bootstrap is already scoped to an issue key (via _ensure_bootstrap_identity_and_scope),
+        but jira.issue_key has NOT yet been written to state (e.g., state was just cleared),
+        set_value("pull_request_id", ...) WILL still update the bootstrap to PR<id> because the
+        state dict is empty and the guard finds no issue key.
+
+        This is why workflow initiation commands MUST:
+        1. Call _ensure_bootstrap_identity_and_scope() BEFORE clear_state_for_workflow_initiation()
+        2. Write jira.issue_key to state BEFORE pull_request_id when both are provided
+
+        The caller-side ordering fix is therefore essential and cannot be replaced by
+        the engine-side guard alone.
+        """
+        # State is empty (simulating just-cleared state after clear_state_for_workflow_initiation)
+        # The bootstrap is scoped to DFLY-2779, but state.json has no jira.issue_key yet
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 25858)  # state is empty — guard sees no issue key
+
+        # The bootstrap IS overwritten because the guard only checks state dict, not bootstrap file
+        mock_update.assert_called_once_with("PR25858")

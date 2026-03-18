@@ -69,11 +69,13 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
     clear_state_for_workflow_initiation in each initiate_*_workflow function.
 
     For initiate_pull_request_review_workflow and
-    initiate_apply_pull_request_review_suggestions_workflow the ordering changed:
-    clear is now called first (to prevent stale state from polluting the new
-    session), then bootstrap identity/scope is resolved after arg parsing so that
-    the worktree_key can be determined from the resolved arguments before any
-    state writes occur.
+    initiate_apply_pull_request_review_suggestions_workflow the correct order is:
+    1. Parse args (no state I/O)
+    2. _ensure_bootstrap_identity_and_scope() — lock state directory scope
+    3. clear_state_for_workflow_initiation() — clear in the correctly scoped dir
+
+    This ensures that clear's load_state()/save_state() calls resolve to the
+    scoped directory rather than falling back to _unscoped.
 
     All other workflow initiation commands retain the original order (ensure → clear).
     """
@@ -85,13 +87,13 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
         clear_mock = MagicMock(side_effect=lambda: calls.append("clear"))
         return calls, ensure_mock, clear_mock
 
-    def test_pull_request_review_calls_clear_before_ensure(self, temp_state_dir, clear_state_before):
-        """clear_state_for_workflow_initiation must be called before _ensure_bootstrap_identity.
+    def test_pull_request_review_calls_ensure_before_clear(self, temp_state_dir, clear_state_before):
+        """_ensure_bootstrap_identity_and_scope must be called before clear_state_for_workflow_initiation.
 
-        The PR review workflow computes the worktree_key from CLI args so that
-        state is scoped correctly before any set_value() calls.  This requires
-        arg parsing to happen first, which in turn requires the state clear to
-        happen before identity resolution (not after).
+        The PR review workflow parses CLI args first (no state I/O), then calls
+        _ensure_bootstrap_identity_and_scope() to lock the state directory scope, and
+        ONLY THEN calls clear_state_for_workflow_initiation() so that clear operates
+        in the correctly scoped directory (not _unscoped).
         """
         from agentic_devtools.cli.workflows import commands
 
@@ -104,7 +106,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                         # Missing required args → exits, but ordering has already happened
                         commands.initiate_pull_request_review_workflow(_argv=[])
 
-        assert calls == ["clear", "ensure"], f"Expected clear before ensure, got: {calls}"
+        assert calls == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
     def test_work_on_jira_issue_calls_ensure_before_clear(self, temp_state_dir, clear_state_before):
         """_ensure_bootstrap_identity must be called before clear_state_for_workflow_initiation."""
@@ -119,11 +121,11 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
 
         assert calls == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
-    def test_apply_pr_suggestions_calls_clear_before_ensure(self, temp_state_dir, clear_state_before):
-        """clear_state_for_workflow_initiation must be called before _ensure_bootstrap_identity.
+    def test_apply_pr_suggestions_calls_ensure_before_clear(self, temp_state_dir, clear_state_before):
+        """_ensure_bootstrap_identity_and_scope must be called before clear_state_for_workflow_initiation.
 
-        Same reasoning as for initiate_pull_request_review_workflow: the worktree_key
-        is determined from CLI args, so the state clear must precede identity resolution.
+        Same reasoning as for initiate_pull_request_review_workflow: parse args first (no
+        state I/O), lock the scope, then clear in the correctly scoped directory.
         """
         from agentic_devtools.cli.workflows import commands
 
@@ -135,7 +137,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     with pytest.raises(SystemExit):
                         commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
 
-        assert calls == ["clear", "ensure"], f"Expected clear before ensure, got: {calls}"
+        assert calls == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
     def test_create_jira_issue_calls_ensure_before_clear(self, temp_state_dir, clear_state_before):
         """_ensure_bootstrap_identity must be called before clear_state_for_workflow_initiation."""
