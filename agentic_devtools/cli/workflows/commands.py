@@ -232,10 +232,15 @@ Examples:
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
     # and never creates the _unscoped fallback folder.
     # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
-    if issue_key:
-        _ensure_bootstrap_identity_and_scope(issue_key)
-    elif pull_request_id:
-        _ensure_bootstrap_identity_and_scope(f"PR{pull_request_id}")
+    # Normalize both values (strip whitespace) before building the worktree_key so that
+    # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
+    # and fall back to _unscoped.
+    _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
+    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    if _issue_key_norm:
+        _ensure_bootstrap_identity_and_scope(_issue_key_norm)
+    elif _pr_id_norm:
+        _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
     else:
         # Neither provided — fall back to identity-only; the error path below will exit.
         _ensure_bootstrap_identity()
@@ -1731,10 +1736,15 @@ Examples:
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
     # and never creates the _unscoped fallback folder.
     # Priority: issue_key > pull_request_id (matching resolve_worktree_key() in agdt_branch.py).
-    if issue_key:
-        _ensure_bootstrap_identity_and_scope(issue_key)
-    elif pull_request_id:
-        _ensure_bootstrap_identity_and_scope(f"PR{pull_request_id}")
+    # Normalize both values (strip whitespace) before building the worktree_key so that
+    # leading/trailing whitespace does not cause is_safe_dir_segment() to reject the segment
+    # and fall back to _unscoped.
+    _issue_key_norm = issue_key.strip() if isinstance(issue_key, str) else ""
+    _pr_id_norm = pull_request_id.strip() if isinstance(pull_request_id, str) else (str(pull_request_id) if pull_request_id is not None else "")
+    if _issue_key_norm:
+        _ensure_bootstrap_identity_and_scope(_issue_key_norm)
+    elif _pr_id_norm:
+        _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
     else:
         _ensure_bootstrap_identity()
 

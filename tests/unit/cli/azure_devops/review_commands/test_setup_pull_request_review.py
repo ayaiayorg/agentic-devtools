@@ -1868,3 +1868,13 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
         """When only pull_request_id is in state (no jira.issue_key), worktree_key is PR{id}."""
         mock_set_bootstrap = self._run_setup_with_issue_key(None)
         mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
+
+    def test_falls_back_to_pr_id_when_issue_key_is_whitespace_only(self):
+        """When jira.issue_key is whitespace-only, worktree_key falls back to PR{id}."""
+        mock_set_bootstrap = self._run_setup_with_issue_key("   ")
+        mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
+
+    def test_falls_back_to_pr_id_when_issue_key_is_non_string(self):
+        """When jira.issue_key is a non-string truthy value, worktree_key falls back to PR{id}."""
+        mock_set_bootstrap = self._run_setup_with_issue_key(42)
+        mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")

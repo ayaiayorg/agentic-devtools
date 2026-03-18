@@ -650,3 +650,43 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
                         )
 
         mock_scope.assert_called_once_with("DFLY-2779")
+
+
+class TestInitiatePRReviewWorkflowWorktreeKeyNormalization:
+    """Tests that issue_key and pull_request_id are stripped before building worktree_key.
+
+    Leading/trailing whitespace in either value would cause is_safe_dir_segment() to
+    reject the segment and fall back to _unscoped, reintroducing state scattering.
+    """
+
+    def test_whitespace_padded_issue_key_is_stripped(self, temp_state_dir, clear_state_before):
+        """A whitespace-padded issue key is normalized before _ensure_bootstrap_identity_and_scope."""
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope") as mock_scope:
+                with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find_pr:
+                    mock_find_pr.return_value = None  # no PR found → sys.exit(1)
+
+                    with pytest.raises(SystemExit):
+                        commands.initiate_pull_request_review_workflow(
+                            issue_key="  DFLY-2779  ",
+                            _argv=[],
+                        )
+
+        mock_scope.assert_called_once_with("DFLY-2779")
+
+    def test_whitespace_padded_pr_id_is_stripped(self, temp_state_dir, clear_state_before):
+        """A whitespace-padded pull_request_id is normalized before _ensure_bootstrap_identity_and_scope."""
+        with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope") as mock_scope:
+                with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+                    mock_find.return_value = None
+                    with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                        mock_src.side_effect = Exception("stop after scope call")
+
+                        with pytest.raises(SystemExit):
+                            commands.initiate_pull_request_review_workflow(
+                                pull_request_id="  25858  ",
+                                _argv=[],
+                            )
+
+        mock_scope.assert_called_once_with("PR25858")

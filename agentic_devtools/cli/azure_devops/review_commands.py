@@ -717,7 +717,7 @@ def setup_pull_request_review() -> None:
 
         from ...state import set_bootstrap_state
 
-        set_bootstrap_state(worktree_key=jira_issue_key if jira_issue_key else f"PR{pull_request_id}")
+        set_bootstrap_state(worktree_key=jira_issue_key if (isinstance(jira_issue_key, str) and jira_issue_key.strip()) else f"PR{pull_request_id}")
 
         # Re-set context keys that were read from the old (_unscoped) state
         # directory.  set_bootstrap_state() may have changed the resolved

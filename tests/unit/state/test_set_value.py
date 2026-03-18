@@ -329,3 +329,43 @@ class TestSetValueBootstrapPriorityAware:
 
         # The bootstrap IS overwritten because the guard only checks state dict, not bootstrap file
         mock_update.assert_called_once_with("PR25858")
+
+
+class TestSetValueBootstrapPriorityAwareNonDictJira:
+    """Tests for defensive handling of non-dict state['jira'] in the priority guard.
+
+    If state['jira'] exists but is not a dict (e.g., corrupted/stale state where someone
+    set 'jira' to a string), the guard must treat it as "no issue key present" and allow
+    the bootstrap update for pull_request_id to proceed.
+    """
+
+    def test_set_pull_request_id_updates_bootstrap_when_jira_is_string(self, temp_state_dir):
+        """set_value('pull_request_id', ...) updates bootstrap when state['jira'] is a non-dict.
+
+        If state['jira'] is a string (corrupted state), the guard must not raise and
+        must not silently suppress the bootstrap update — it should treat it as "no
+        issue key" and allow the PR-based update to proceed.
+        """
+        # Force jira to be a non-dict value (simulates corrupted state)
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            # Manually inject a non-dict 'jira' into the state dict via load/save
+            # We bypass set_value to avoid the normal nesting behaviour
+            current = state.load_state()
+            current["jira"] = "corrupted-string"
+            state.save_state(current)
+
+            state.set_value("pull_request_id", 99)
+
+        # Bootstrap must be updated — non-dict jira does not block the update
+        mock_update.assert_called_once_with("PR99")
+
+    def test_set_pull_request_id_updates_bootstrap_when_jira_is_list(self, temp_state_dir):
+        """set_value('pull_request_id', ...) updates bootstrap when state['jira'] is a list."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            current = state.load_state()
+            current["jira"] = ["some", "list"]
+            state.save_state(current)
+
+            state.set_value("pull_request_id", 100)
+
+        mock_update.assert_called_once_with("PR100")
