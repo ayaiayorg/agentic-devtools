@@ -283,6 +283,7 @@ def perform_auto_setup(
     Returns:
         True if the background task was started, False otherwise
     """
+    from ...state import set_value
     from .worktree_setup import start_worktree_setup_background
 
     print(f"\n{'=' * 80}")
@@ -303,6 +304,10 @@ def perform_auto_setup(
             auto_execute_timeout=auto_execute_timeout,
             interactive=interactive,
         )
+
+        # Automatically save the task ID to state so agdt-task-wait works
+        # without requiring the user to manually set background.task_id.
+        set_value("background.task_id", task_id)
 
         print(f"\n✅ Background task started: {task_id}")
         print("\n" + "=" * 80)

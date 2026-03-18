@@ -311,7 +311,8 @@ def _parse_wait_args(_argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Maximum seconds since task start before timeout (default: 300)",
     )
 
-    return parser.parse_args(_argv or [])
+    args, _ = parser.parse_known_args(_argv)
+    return args
 
 
 def _check_task_timeout(task: BackgroundTask, timeout: float) -> bool:
