@@ -723,7 +723,10 @@ def setup_pull_request_review() -> None:
         else:
             jira_issue_key_norm = None
 
-        worktree_key = jira_issue_key_norm if jira_issue_key_norm else f"PR{pull_request_id}"
+        # Ensure all subsequent uses in this function see the normalized value.
+        jira_issue_key = jira_issue_key_norm
+
+        worktree_key = jira_issue_key if jira_issue_key else f"PR{pull_request_id}"
         set_bootstrap_state(worktree_key=worktree_key)
 
         # Re-set context keys that were read from the old (_unscoped) state
