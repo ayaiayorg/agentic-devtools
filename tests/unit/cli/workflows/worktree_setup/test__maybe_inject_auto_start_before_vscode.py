@@ -8,14 +8,18 @@ from agentic_devtools.cli.workflows.worktree_setup import (
     _maybe_inject_auto_start_before_vscode,
 )
 
+_MODULE = "agentic_devtools.cli.workflows.worktree_setup"
+
 
 class TestMaybeInjectAutoStartBeforeVscode:
     """Tests for _maybe_inject_auto_start_before_vscode helper."""
 
-    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_injects_task_when_copilot_args_available(
         self,
+        mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
@@ -30,10 +34,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         assert "auto-start task injected" in captured.out
         assert result is True
 
-    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task")
+    @patch(f"{_MODULE}.inject_auto_start_task")
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=None)
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_skips_when_build_copilot_args_returns_none(
         self,
+        mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
@@ -45,10 +51,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject.assert_not_called()
         assert result is False
 
-    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=False)
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=False)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_does_not_print_when_injection_fails(
         self,
+        mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
@@ -62,10 +70,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         assert "auto-start task injected" not in captured.out
         assert result is False
 
-    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_auto_start_task", return_value=True)
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "custom"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_passes_custom_start_prompt_to_build_copilot_args(
         self,
+        mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
@@ -78,3 +88,15 @@ class TestMaybeInjectAutoStartBeforeVscode:
 
         mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True)
         mock_inject.assert_called_once()
+
+    def test_returns_false_in_pytest_environment(self, tmp_path):
+        """Returns False without calling build_copilot_args when running in test environment.
+
+        On Windows, mock paths like /repos/DFLY-1234 resolve to C:\\repos\\DFLY-1234
+        which may be a real worktree. Writing a runOn:folderOpen task there causes
+        VS Code to open unexpected windows during test runs.
+        """
+        # _in_test_environment() returns True by default during pytest runs
+        result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        assert result is False

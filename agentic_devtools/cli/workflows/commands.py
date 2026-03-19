@@ -148,6 +148,43 @@ def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
         )
 
 
+def _ensure_scoped_bootstrap_and_clear(issue_key: Optional[str]) -> Optional[str]:
+    """Normalize ``issue_key``, set bootstrap scope, then clear workflow state.
+
+    Jira workflow initiators must resolve bootstrap identity/scope before
+    ``clear_state_for_workflow_initiation()`` runs so state I/O happens in the
+    correct scoped directory. This helper keeps that ordering centralized.
+
+    Validation behavior:
+    - ``None`` means "not provided" and is allowed.
+    - A provided string is stripped; empty/whitespace-only input is rejected
+      with a clear error message.
+
+    Args:
+        issue_key: Optional Jira issue key provided via CLI or programmatic call.
+
+    Returns:
+        Normalized issue key when provided; otherwise ``None``.
+    """
+    normalized_issue_key: Optional[str] = None
+    if isinstance(issue_key, str):
+        normalized_issue_key = issue_key.strip()
+        if not normalized_issue_key:
+            print("ERROR: --issue-key cannot be empty or whitespace-only.", file=sys.stderr)
+            print("\nPlease pass a valid Jira issue key, for example:", file=sys.stderr)
+            print("  --issue-key DFLY-1234", file=sys.stderr)
+            sys.exit(1)
+
+    if normalized_issue_key:
+        _ensure_bootstrap_identity_and_scope(normalized_issue_key)
+    else:
+        _ensure_bootstrap_identity()
+
+    # Reset workflow-tracking keys now that scope is initialized.
+    clear_state_for_workflow_initiation()
+    return normalized_issue_key
+
+
 def initiate_pull_request_review_workflow(
     pull_request_id: Optional[str] = None,
     issue_key: Optional[str] = None,
@@ -460,18 +497,12 @@ def initiate_work_on_jira_issue_workflow(
         interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import set_value
     from .preflight import perform_auto_setup
 
-    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
-    # point (all programmatic params are None).
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the work-on-jira-issue workflow")
     parser.add_argument(
         "--issue-key",
@@ -495,6 +526,9 @@ def initiate_work_on_jira_issue_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If issue_key provided via CLI, set it in state
     if issue_key:  # pragma: no cover
         set_value("jira.issue_key", issue_key)
@@ -502,6 +536,15 @@ def initiate_work_on_jira_issue_workflow(
         # Validate required state if no issue_key provided
         required_values = validate_required_state(["jira.issue_key"])
         issue_key = required_values["jira.issue_key"]
+        if isinstance(issue_key, str):
+            issue_key = issue_key.strip()
+        if not issue_key:
+            print("ERROR: jira.issue_key cannot be empty or whitespace-only.", file=sys.stderr)
+            print("\nPlease set a valid value using:", file=sys.stderr)
+            print("  agdt-set jira.issue_key DFLY-1234", file=sys.stderr)
+            sys.exit(1)
+        if isinstance(issue_key, str):
+            set_value("jira.issue_key", issue_key)
 
     # Run pre-flight checks
     preflight_result = check_worktree_and_branch(issue_key)
@@ -1008,19 +1051,13 @@ def initiate_create_jira_issue_workflow(
     - jira.description: Issue description (AI-generated from user_request)
     - jira.issue_type: Issue type (defaults to "Story")
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
-    # point (all programmatic params are None).
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-issue workflow")
     parser.add_argument(
         "--project-key",
@@ -1068,6 +1105,9 @@ def initiate_create_jira_issue_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
         set_value("jira.project_key", project_key)
@@ -1089,6 +1129,8 @@ def initiate_create_jira_issue_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
     resolved_issue_type = issue_type or get_value("jira.issue_type") or "Story"
     resolved_user_request = user_request or get_value("jira.user_request")
@@ -1218,19 +1260,13 @@ def initiate_create_jira_epic_workflow(
     - jira.desired_outcome: Desired outcome for the user story
     - jira.benefit: Benefit for the user story
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
-    # point (all programmatic params are None).
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-epic workflow")
     parser.add_argument(
         "--project-key",
@@ -1270,6 +1306,9 @@ def initiate_create_jira_epic_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
         set_value("jira.project_key", project_key)
@@ -1287,6 +1326,8 @@ def initiate_create_jira_epic_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
     resolved_user_request = user_request or get_value("jira.user_request")
 
@@ -1411,19 +1452,13 @@ def initiate_create_jira_subtask_workflow(
     - jira.summary: Subtask summary (AI-generated from user_request)
     - jira.description: Subtask description (AI-generated from user_request)
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
     from .worktree_setup import create_placeholder_and_setup_worktree
 
-    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
-    # point (all programmatic params are None).
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-subtask workflow")
     parser.add_argument(
         "--parent-key",
@@ -1463,6 +1498,9 @@ def initiate_create_jira_subtask_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If parent_key provided via CLI, set it in state
     if parent_key:
         set_value("jira.parent_key", parent_key)
@@ -1480,6 +1518,8 @@ def initiate_create_jira_subtask_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_parent_key = parent_key or get_value("jira.parent_key")
     resolved_user_request = user_request or get_value("jira.user_request")
 
@@ -1615,18 +1655,12 @@ def initiate_update_jira_issue_workflow(
     - jira.description: New description (AI-generated from user_request)
     - jira.comment: Comment to add
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Clear all previous state to ensure fresh workflow start
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments — only reads sys.argv when used as a CLI entry
-    # point (all programmatic params are None).
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the update-jira-issue workflow")
     parser.add_argument(
         "--issue-key",
@@ -1658,6 +1692,9 @@ def initiate_update_jira_issue_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If issue_key provided via CLI, set it in state
     if issue_key:
         set_value("jira.issue_key", issue_key)
@@ -1671,6 +1708,8 @@ def initiate_update_jira_issue_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:
@@ -2023,19 +2062,12 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     Optional state:
     - jira.user_request: Guidance on what to focus on when optimizing
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
-    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value, update_workflow_context
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # issue_key/user_request are supplied programmatically.
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the optimize-issue-for-ai-agent workflow")
     parser.add_argument(
         "--issue-key",
@@ -2067,6 +2099,10 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If issue_key provided via CLI, set it in state
     if issue_key:
         set_value("jira.issue_key", issue_key)
@@ -2080,6 +2116,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:
@@ -2182,19 +2220,12 @@ def initiate_break_down_issue_into_subtasks_workflow(
     Optional state:
     - jira.user_request: Guidance on how to break down the issue
     """
-    # Resolve identity before any state I/O to prevent _unscoped writes
-    _ensure_bootstrap_identity()
-    # Reset workflow tracking keys (workflow, agdt_run_id) for a fresh workflow start.
-    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
-    clear_state_for_workflow_initiation()
-
     import argparse
 
     from ...state import get_value, set_value, update_workflow_context
     from .preflight import check_worktree_and_branch, perform_auto_setup
 
-    # Parse CLI arguments — always parse to pick up --interactive even when
-    # issue_key/user_request are supplied programmatically.
+    # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the break-down-issue-into-subtasks workflow")
     parser.add_argument(
         "--issue-key",
@@ -2226,6 +2257,10 @@ def initiate_break_down_issue_into_subtasks_workflow(
     if interactive is None:
         interactive = False
 
+    # Resolve identity/scope and clear state in the correct order.
+    # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
+    issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
     # If issue_key provided via CLI, set it in state
     if issue_key:
         set_value("jira.issue_key", issue_key)
@@ -2239,6 +2274,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
     # directory so that the subsequent get_value() reads from a different
     # location and returns None, producing a misleading error.
     resolved_issue_key = issue_key or get_value("jira.issue_key")
+    if isinstance(resolved_issue_key, str):
+        resolved_issue_key = resolved_issue_key.strip()
     resolved_user_request = user_request or get_value("jira.user_request")
 
     if not resolved_issue_key:

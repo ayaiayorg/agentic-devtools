@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agentic_devtools.cli.vscode_tasks import remove_auto_start_task
-from agentic_devtools.state import IDENTITY_CACHE_FILENAME
+from agentic_devtools.state import BOOTSTRAP_FILENAME, IDENTITY_CACHE_FILENAME
 
 # Exported for dynamic invocation by run_function_in_background
 __all__ = ["_setup_worktree_from_state"]
@@ -130,6 +130,21 @@ _WORKFLOW_START_PROMPTS: dict[str, str] = {
     "create-jira-subtask": COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
     "update-jira-issue": COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
 }
+
+
+def _in_test_environment() -> bool:
+    """Check if running inside a pytest session.
+
+    Returns ``True`` when ``PYTEST_CURRENT_TEST`` is set in the
+    environment.  Used as a guard in functions that launch VS Code
+    windows or write ``tasks.json`` with ``runOn: folderOpen`` to
+    prevent unexpected side-effects during test runs.
+
+    The check is isolated in its own function so that tests which
+    need to exercise the guarded logic can ``@patch`` it to return
+    ``False`` while keeping the guard active for all other tests.
+    """
+    return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
 def is_vscode_available() -> bool:
@@ -354,8 +369,13 @@ def get_repos_parent_dir() -> str | None:
     return None
 
 
-def _propagate_identity_cache(worktree_path: str) -> None:
-    """Copy identity.json from the main repo into the new worktree.
+def _propagate_agdt_cache(worktree_path: str, worktree_key: str | None = None) -> None:
+    """Copy identity.json and runtime-bootstrap.json from the main repo into the new worktree.
+
+    When *worktree_key* is provided, ``runtime-bootstrap.json`` is written with
+    ``{"worktree_key": "<worktree_key>"}`` instead of being copied from the main
+    repo, ensuring the worktree gets the correct key even if the main repo's
+    bootstrap file has a stale value.
 
     Non-fatal: ``OSError`` and ``ValueError`` exceptions are logged to stderr
     and the worktree setup continues.  Both the temp-rename success path and
@@ -364,15 +384,38 @@ def _propagate_identity_cache(worktree_path: str) -> None:
     """
     try:
         main_repo = get_main_repo_root()
-        if main_repo:
-            src_identity = Path(main_repo) / ".agdt" / IDENTITY_CACHE_FILENAME
-            if src_identity.is_file():
-                dst_agdt = Path(worktree_path) / ".agdt"
-                dst_agdt.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(str(src_identity), str(dst_agdt / IDENTITY_CACHE_FILENAME))
+        if not main_repo:
+            return
+
+        main_repo_path = Path(main_repo)
+        src_identity = main_repo_path / ".agdt" / IDENTITY_CACHE_FILENAME
+        src_bootstrap = main_repo_path / ".agdt" / BOOTSTRAP_FILENAME
+
+        # If there is nothing to propagate and no explicit worktree_key override,
+        # retain the previous no-op behaviour and avoid creating .agdt/ at all.
+        if worktree_key is None and not src_identity.is_file() and not src_bootstrap.is_file():
+            return
+
+        dst_agdt = Path(worktree_path) / ".agdt"
+        dst_agdt.mkdir(parents=True, exist_ok=True)
+
+        # Best-effort copy of identity.json; failure here should not block
+        # propagation of the runtime bootstrap file.
+        if src_identity.is_file():
+            shutil.copy2(str(src_identity), str(dst_agdt / IDENTITY_CACHE_FILENAME))
+
+        # Propagate runtime-bootstrap.json so that the worktree resolves
+        # to the correct scoped state directory. This is independent of
+        # whether identity.json was present or successfully copied.
+        dst_bootstrap = dst_agdt / BOOTSTRAP_FILENAME
+        if worktree_key is not None:
+            bootstrap_data = json.dumps({"worktree_key": worktree_key})
+            dst_bootstrap.write_text(bootstrap_data, encoding="utf-8")
+        elif src_bootstrap.is_file():
+            shutil.copy2(str(src_bootstrap), str(dst_bootstrap))
     except (OSError, ValueError) as exc:
         print(
-            f"Warning: failed to propagate identity cache to worktree: {exc}",
+            f"Warning: failed to propagate AGDT cache (identity/bootstrap) to worktree: {exc}",
             file=sys.stderr,
         )
 
@@ -436,6 +479,9 @@ def create_worktree(
         # Verify it's a valid git worktree
         git_file = os.path.join(worktree_path, ".git")
         if os.path.exists(git_file):
+            # Keep reused worktrees aligned with current scoped runtime bootstrap
+            # so re-invocations do not fall back to _unscoped state.
+            _propagate_agdt_cache(worktree_path, worktree_key=issue_key)
             return WorktreeSetupResult(
                 success=True,
                 worktree_path=worktree_path,
@@ -626,7 +672,7 @@ def create_worktree(
                         file=sys.stderr,
                     )
 
-                _propagate_identity_cache(worktree_path)
+                _propagate_agdt_cache(worktree_path, worktree_key=issue_key)
 
                 return WorktreeSetupResult(
                     success=True,
@@ -750,7 +796,7 @@ def create_worktree(
 
         print(f"Worktree created successfully at {worktree_path}")
 
-        _propagate_identity_cache(worktree_path)
+        _propagate_agdt_cache(worktree_path, worktree_key=issue_key)
 
         return WorktreeSetupResult(
             success=True,
@@ -781,6 +827,13 @@ def open_vscode_workspace(worktree_path: str) -> bool:
     Returns:
         True if VS Code was opened, False otherwise
     """
+    # Guard: skip launching external VS Code windows during tests to keep them
+    # hermetic.  On Windows, mock paths like /repos/DFLY-1234 resolve to
+    # C:\repos\DFLY-1234 which may be a real worktree.
+    if _in_test_environment():
+        print("Detected test environment (PYTEST_CURRENT_TEST) - skipping VS Code window opening")
+        return False
+
     if not is_vscode_available():
         print("VS Code not found on PATH — skipping window opening", file=sys.stderr)
         return False
@@ -2329,6 +2382,13 @@ def _maybe_inject_auto_start_before_vscode(
         ``True`` if the auto-start task was successfully written to
         ``tasks.json``, ``False`` otherwise.
     """
+    # Guard: skip writing tasks.json to real filesystem paths during tests to
+    # keep them hermetic.  On Windows, mock paths like /repos/DFLY-1234 resolve
+    # to C:\repos\DFLY-1234 which may be a real worktree — writing
+    # runOn:folderOpen tasks there causes VS Code to open unexpected windows.
+    if _in_test_environment():
+        return False
+
     from ..copilot import build_copilot_args
 
     copilot_args = build_copilot_args(start_prompt, interactive=True)
