@@ -146,9 +146,14 @@ directly if needed.
 | `/agdt.create-jira-subtask.initiate` | Create a Jira subtask |
 | `/agdt.update-jira-issue.initiate` | Update an existing Jira issue |
 | `/agdt.apply-pr-suggestions.initiate` | Apply PR review suggestions |
+| `/agdt.optimize-issue-for-ai-agent.initiate` | Optimize a Jira issue for AI agent consumption |
+| `/agdt.break-down-issue-into-subtasks.initiate` | Break down a Jira issue into subtasks |
 
-> **Note:** All `initiate` commands above auto-launch a Copilot session with a workflow-specific
-> bootstrap prompt. For Jira / apply-suggestions workflows the first command is
+> **Note:** Most `initiate` commands above auto-launch a Copilot session with a workflow-specific
+> bootstrap prompt. Current exceptions are `agdt-initiate-optimize-issue-for-ai-agent-workflow`
+> and `agdt-initiate-break-down-issue-into-subtasks-workflow`, which currently initialize
+> workflow state but do not start a session yet. For Jira / apply-suggestions workflows that
+> do auto-launch, the first command is
 > `agdt-get-next-workflow-prompt`; for PR review it is
 > `agdt-advance-workflow pull-request-overview`. Pass `--interactive true` for an interactive
 > terminal session (TTY + VS Code required); omit the flag for non-interactive execution
@@ -162,12 +167,9 @@ directly if needed.
 
 ### Standalone Utility Prompts
 
-These are stateless, ad-hoc prompts for common git tasks. They are implemented
-as prompt files under `.github/prompts/` rather than full agents in
-`.github/agents/`, so they do not have agent definitions or handoff buttons.
-Their appearance as `/` commands in the VS Code Copilot Chat slash menu depends
-on Copilot prompt-file support in your environment — when available, you can
-invoke them directly from VS Code Copilot Chat.
+These prompts cover common git tasks. Each has both an `.agent.md` file in
+`.github/agents/` and a detailed `.prompt.md` file in `.github/prompts/`.
+The agent delegates to the prompt for full instructions.
 
 | Command | Description |
 |---------|-------------|
@@ -181,6 +183,194 @@ invoke them directly from VS Code Copilot Chat.
 | Command | Description |
 |---------|-------------|
 | `/security-scan` | Scan code for vulnerabilities and security issues |
+
+---
+
+### Individual CLI Command Agents
+
+Every `agdt-*` CLI command has a corresponding agent in `.github/agents/` and a
+prompt stub in `.github/prompts/`. Most of these wrappers are invoked from
+VS Code Copilot Chat via `/agdt.<command-name>`, while `agdt-speckit-*`
+commands are exposed via `/speckit.*` (for example, `/speckit.plan`).
+
+#### State Management
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.set` | `agdt-set` | Set a key-value pair in the agdt state |
+| `/agdt.get` | `agdt-get` | Retrieve a value from the agdt state |
+| `/agdt.delete` | `agdt-delete` | Remove a key from the agdt state |
+| `/agdt.clear` | `agdt-clear` | Remove all values from the agdt state |
+| `/agdt.show` | `agdt-show` | Display all current state values |
+
+#### Workflow State
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.get-workflow` | `agdt-get-workflow` | Display current workflow state |
+| `/agdt.clear-workflow` | `agdt-clear-workflow` | Clear the current workflow state |
+
+#### Workflow Management
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.advance-workflow` | `agdt-advance-workflow` | Advance to next workflow step |
+| `/agdt.get-next-workflow-prompt` | `agdt-get-next-workflow-prompt` | Get the next workflow step prompt |
+| `/agdt.create-checklist` | `agdt-create-checklist` | Create a workflow checklist |
+| `/agdt.update-checklist` | `agdt-update-checklist` | Update checklist items |
+| `/agdt.show-checklist` | `agdt-show-checklist` | Display current checklist |
+| `/agdt.setup-worktree-background` | `agdt-setup-worktree-background` | Set up a git worktree in the background |
+
+#### Azure DevOps
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.add-pull-request-comment` | `agdt-add-pull-request-comment` | Post a comment on a pull request |
+| `/agdt.approve-pull-request` | `agdt-approve-pull-request` | Approve a pull request with sentinel banner |
+| `/agdt.create-pull-request` | `agdt-create-pull-request` | Create a new pull request |
+| `/agdt.get-pull-request-threads` | `agdt-get-pull-request-threads` | Retrieve all comment threads |
+| `/agdt.reply-to-pull-request-thread` | `agdt-reply-to-pull-request-thread` | Reply to a comment thread |
+| `/agdt.resolve-thread` | `agdt-resolve-thread` | Resolve a PR comment thread |
+| `/agdt.mark-pull-request-draft` | `agdt-mark-pull-request-draft` | Mark a pull request as draft |
+| `/agdt.publish-pull-request` | `agdt-publish-pull-request` | Publish a draft pull request |
+| `/agdt.get-pull-request-details` | `agdt-get-pull-request-details` | Retrieve full pull request details |
+| `/agdt.approve-file` | `agdt-approve-file` | Approve a file during PR review |
+| `/agdt.submit-file-review` | `agdt-submit-file-review` | Submit batched file review |
+| `/agdt.request-changes` | `agdt-request-changes` | Request changes on a file |
+| `/agdt.request-changes-with-suggestion` | `agdt-request-changes-with-suggestion` | Request changes with code suggestions |
+| `/agdt.mark-file-reviewed` | `agdt-mark-file-reviewed` | Mark a file as reviewed |
+| `/agdt.confirm-suggestion-addressed` | `agdt-confirm-suggestion-addressed` | Confirm a review suggestion was addressed |
+| `/agdt.reject-suggestion-resolution` | `agdt-reject-suggestion-resolution` | Reject a suggestion resolution |
+| `/agdt.run-e2e-tests-synapse` | `agdt-run-e2e-tests-synapse` | Trigger Synapse E2E test pipeline |
+| `/agdt.run-e2e-tests-fabric` | `agdt-run-e2e-tests-fabric` | Trigger Fabric E2E test pipeline |
+| `/agdt.run-wb-patch` | `agdt-run-wb-patch` | Trigger workbench patch pipeline |
+| `/agdt.get-run-details` | `agdt-get-run-details` | Retrieve pipeline run details |
+| `/agdt.wait-for-run` | `agdt-wait-for-run` | Wait for a pipeline run to complete |
+| `/agdt.list-pipelines` | `agdt-list-pipelines` | List Azure DevOps pipelines |
+| `/agdt.get-pipeline-id` | `agdt-get-pipeline-id` | Retrieve a pipeline ID by name |
+| `/agdt.create-pipeline` | `agdt-create-pipeline` | Create an Azure DevOps pipeline |
+| `/agdt.update-pipeline` | `agdt-update-pipeline` | Update an Azure DevOps pipeline |
+
+#### Azure CLI (App Insights)
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.query-app-insights` | `agdt-query-app-insights` | Run an Azure App Insights query |
+| `/agdt.query-fabric-dap-errors` | `agdt-query-fabric-dap-errors` | Query Fabric DAP error logs |
+| `/agdt.query-fabric-dap-provisioning` | `agdt-query-fabric-dap-provisioning` | Query Fabric DAP provisioning logs |
+| `/agdt.query-fabric-dap-timeline` | `agdt-query-fabric-dap-timeline` | Query Fabric DAP timeline logs |
+
+#### VPN
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.vpn-off` | `agdt-vpn-off` | Disconnect from VPN |
+| `/agdt.vpn-on` | `agdt-vpn-on` | Connect to VPN |
+| `/agdt.vpn-status` | `agdt-vpn-status` | Check VPN connection status |
+
+#### Jira (Individual Commands)
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.create-epic` | `agdt-create-epic` | Create a new Jira epic |
+| `/agdt.create-issue` | `agdt-create-issue` | Create a new Jira issue |
+| `/agdt.create-subtask` | `agdt-create-subtask` | Create a new Jira subtask |
+| `/agdt.add-jira-comment` | `agdt-add-jira-comment` | Add a comment to a Jira issue |
+| `/agdt.get-jira-issue` | `agdt-get-jira-issue` | Retrieve Jira issue details |
+| `/agdt.update-jira-issue` | `agdt-update-jira-issue` | Update Jira issue fields |
+| `/agdt.list-project-roles` | `agdt-list-project-roles` | List Jira project roles |
+| `/agdt.get-project-role-details` | `agdt-get-project-role-details` | Get Jira project role details |
+| `/agdt.add-users-to-project-role` | `agdt-add-users-to-project-role` | Add users to a Jira project role |
+| `/agdt.add-users-to-project-role-batch` | `agdt-add-users-to-project-role-batch` | Batch add users to a role |
+| `/agdt.find-role-id-by-name` | `agdt-find-role-id-by-name` | Find a Jira role ID by name |
+| `/agdt.check-user-exists` | `agdt-check-user-exists` | Check if a Jira user exists |
+| `/agdt.check-users-exist` | `agdt-check-users-exist` | Check if multiple Jira users exist |
+| `/agdt.parse-jira-error-report` | `agdt-parse-jira-error-report` | Parse a Jira error report |
+
+#### Git
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.git-save-work` | `agdt-git-save-work` | Stage, commit/amend, and push changes |
+| `/agdt.git-sync` | `agdt-git-sync` | Sync local branch with remote |
+| `/agdt.git-stage` | `agdt-git-stage` | Stage all changes |
+| `/agdt.git-push` | `agdt-git-push` | Push to origin |
+| `/agdt.git-force-push` | `agdt-git-force-push` | Force push to origin |
+| `/agdt.git-publish` | `agdt-git-publish` | Publish branch upstream |
+
+#### Testing
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.test` | `agdt-test` | Run full test suite with coverage |
+| `/agdt.test-quick` | `agdt-test-quick` | Run tests without coverage |
+| `/agdt.test-file` | `agdt-test-file` | Run tests for a specific source file |
+| `/agdt.test-pattern` | `agdt-test-pattern` | Run specific tests by pattern |
+
+#### Background Tasks
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.tasks` | `agdt-tasks` | List all background tasks |
+| `/agdt.task-status` | `agdt-task-status` | Show detailed task status |
+| `/agdt.task-log` | `agdt-task-log` | Display task output log |
+| `/agdt.task-wait` | `agdt-task-wait` | Wait for task completion |
+| `/agdt.tasks-clean` | `agdt-tasks-clean` | Clean up expired tasks |
+| `/agdt.show-other-incomplete-tasks` | `agdt-show-other-incomplete-tasks` | Show incomplete background tasks |
+
+#### GitHub Issue Creation
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.create-agdt-issue` | `agdt-create-agdt-issue` | Create a GitHub issue in agentic-devtools |
+| `/agdt.create-agdt-bug-issue` | `agdt-create-agdt-bug-issue` | Create a bug issue |
+| `/agdt.create-agdt-feature-issue` | `agdt-create-agdt-feature-issue` | Create a feature issue |
+| `/agdt.create-agdt-documentation-issue` | `agdt-create-agdt-documentation-issue` | Create a documentation issue |
+| `/agdt.create-agdt-task-issue` | `agdt-create-agdt-task-issue` | Create a task issue |
+
+#### Setup
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.setup` | `agdt-setup` | Run full agentic-devtools setup |
+| `/agdt.setup-copilot-cli` | `agdt-setup-copilot-cli` | Set up GitHub Copilot CLI |
+| `/agdt.setup-gh-cli` | `agdt-setup-gh-cli` | Set up GitHub CLI |
+| `/agdt.setup-check` | `agdt-setup-check` | Verify setup configuration |
+| `/agdt.setup-certs` | `agdt-setup-certs` | Set up SSL certificates |
+
+#### Azure Context
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.azure-context-use` | `agdt-azure-context-use` | Switch Azure context |
+| `/agdt.azure-context-status` | `agdt-azure-context-status` | Show Azure context status |
+| `/agdt.azure-context-current` | `agdt-azure-context-current` | Show current Azure context |
+| `/agdt.azure-context-ensure-login` | `agdt-azure-context-ensure-login` | Ensure Azure CLI is logged in |
+
+#### Network
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.network-status` | `agdt-network-status` | Check network connectivity |
+| `/agdt.vpn-run` | `agdt-vpn-run` | Run a command through VPN |
+
+#### Release
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.release-pypi` | `agdt-release-pypi` | Publish package to PyPI |
+
+#### Copilot
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.copilot-auto-start` | `agdt-copilot-auto-start` | Auto-start a Copilot session |
+
+#### Review
+
+| Command | CLI | Description |
+|---------|-----|-------------|
+| `/agdt.review` | `agdt-review` | Review command group; use a subcommand (for example `dispatch`, `status`, `config-get`, or `config-validate`) |
 
 ---
 

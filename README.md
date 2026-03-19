@@ -106,6 +106,8 @@ Agents are available in two contexts:
 /speckit.implement                         ← SDD: execute tasks
 /agdt.work-on-jira-issue.initiate DFLY-1  ← Jira workflow (11 steps)
 /agdt.pull-request-review.initiate        ← PR review (5 steps)
+/agdt.git-save-work                       ← individual CLI command agent
+/agdt.squash-commits                      ← standalone utility agent
 ```
 
 **Terminal Copilot CLI** — ask naturally or use shell commands:
@@ -114,6 +116,9 @@ Agents are available in two contexts:
 agdt-speckit-analyze      # renders + prints the speckit.analyze prompt
 agdt-speckit-specify "add dark mode"
 ```
+
+Every `agdt-*` CLI command has a corresponding agent (`.agent.md`) and prompt
+stub (`.prompt.md`) in `.github/agents/` and `.github/prompts/`.
 
 📖 **Full reference**: [docs/copilot-commands.md](docs/copilot-commands.md)
 
