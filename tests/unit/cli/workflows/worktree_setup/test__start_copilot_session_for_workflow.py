@@ -470,7 +470,7 @@ class TestStartCopilotSessionForWorkflow:
         tmp_path,
         monkeypatch,
     ):
-        """Verify True is returned when auto-start task sentinel appears."""
+        """Verify True is returned when auto-start task run ID appears in state."""
         _setup_prompt_file(tmp_path)
         mock_wait.return_value = True
 
@@ -483,28 +483,32 @@ class TestStartCopilotSessionForWorkflow:
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
 
-        sentinel_dir = tmp_path / ".agdt"
+        _patch_no_tty(monkeypatch)
 
-        mock_stdin = MagicMock()
-        mock_stdin.isatty.return_value = False
-        mock_stdout = MagicMock()
-        mock_stdout.isatty.return_value = False
-        monkeypatch.setattr("sys.stdin", mock_stdin)
-        monkeypatch.setattr("sys.stdout", mock_stdout)
+        run_id = "test-auto-run-123"
 
-        # Simulate sentinel appearing during wait loop
-        def create_sentinel_on_sleep(_duration):
-            sentinel_dir.mkdir(parents=True, exist_ok=True)
-            (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        # Simulate run ID appearing in state during the wait loop
+        def mark_run_triggered_on_sleep(_duration):
+            # Write the run ID into state to simulate the VS Code task firing
+            state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+            state_dir.mkdir(parents=True, exist_ok=True)
+            state_file = state_dir / "state.json"
+            state = {"copilot": {"auto_start_triggered_runs": [run_id]}}
+            state_file.write_text(json.dumps(state), encoding="utf-8")
 
-        with patch("time.sleep", side_effect=create_sentinel_on_sleep):
-            result = _start_copilot_session_for_workflow(
-                worktree_path=str(tmp_path),
-                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
-                start_prompt=_CUSTOM_START_PROMPT,
-                workflow_name=_CUSTOM_WORKFLOW_NAME,
-                interactive=True,
-            )
+        with patch("time.sleep", side_effect=mark_run_triggered_on_sleep):
+            with patch(
+                "agentic_devtools.state.get_state_file_path",
+                return_value=tmp_path / ".agdt" / "workflows" / "_test" / "_test" / "state.json",
+            ):
+                with patch("agentic_devtools.state.get_value", return_value=run_id):
+                    result = _start_copilot_session_for_workflow(
+                        worktree_path=str(tmp_path),
+                        prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                        start_prompt=_CUSTOM_START_PROMPT,
+                        workflow_name=_CUSTOM_WORKFLOW_NAME,
+                        interactive=True,
+                    )
 
         assert result is True
         mock_copilot.assert_not_called()
@@ -512,7 +516,7 @@ class TestStartCopilotSessionForWorkflow:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_sentinel_check_runs_when_not_interactive(
+    def test_run_id_check_runs_when_not_interactive(
         self,
         mock_wait,
         mock_vscode,
@@ -520,7 +524,7 @@ class TestStartCopilotSessionForWorkflow:
         tmp_path,
         monkeypatch,
     ):
-        """Sentinel check runs even when interactive=False, so VS Code auto-start is detected."""
+        """Run-ID check runs even when interactive=False, so VS Code auto-start is detected."""
         _setup_prompt_file(tmp_path)
         mock_wait.return_value = True
 
@@ -533,30 +537,33 @@ class TestStartCopilotSessionForWorkflow:
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
 
-        sentinel_dir = tmp_path / ".agdt"
+        _patch_no_tty(monkeypatch)
 
-        mock_stdin = MagicMock()
-        mock_stdin.isatty.return_value = False
-        mock_stdout = MagicMock()
-        mock_stdout.isatty.return_value = False
-        monkeypatch.setattr("sys.stdin", mock_stdin)
-        monkeypatch.setattr("sys.stdout", mock_stdout)
+        run_id = "test-auto-run-456"
 
-        # Simulate sentinel appearing during wait loop
-        def create_sentinel_on_sleep(_duration):
-            sentinel_dir.mkdir(parents=True, exist_ok=True)
-            (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        # Simulate run ID appearing during wait loop
+        def mark_run_triggered_on_sleep(_duration):
+            state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+            state_dir.mkdir(parents=True, exist_ok=True)
+            state_file = state_dir / "state.json"
+            state = {"copilot": {"auto_start_triggered_runs": [run_id]}}
+            state_file.write_text(json.dumps(state), encoding="utf-8")
 
-        with patch("time.sleep", side_effect=create_sentinel_on_sleep):
-            result = _start_copilot_session_for_workflow(
-                worktree_path=str(tmp_path),
-                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
-                start_prompt=_CUSTOM_START_PROMPT,
-                workflow_name=_CUSTOM_WORKFLOW_NAME,
-                interactive=False,  # Key: interactive=False must not skip sentinel check
-            )
+        with patch("time.sleep", side_effect=mark_run_triggered_on_sleep):
+            with patch(
+                "agentic_devtools.state.get_state_file_path",
+                return_value=tmp_path / ".agdt" / "workflows" / "_test" / "_test" / "state.json",
+            ):
+                with patch("agentic_devtools.state.get_value", return_value=run_id):
+                    result = _start_copilot_session_for_workflow(
+                        worktree_path=str(tmp_path),
+                        prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                        start_prompt=_CUSTOM_START_PROMPT,
+                        workflow_name=_CUSTOM_WORKFLOW_NAME,
+                        interactive=False,  # Key: interactive=False must not skip run-ID check
+                    )
 
-        # VS Code confirmed via sentinel — no background session started
+        # VS Code confirmed via run ID in state — no background session started
         assert result is True
         mock_copilot.assert_not_called()
 
@@ -642,7 +649,7 @@ class TestStartCopilotSessionForWorkflow:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_pre_existing_sentinel_falls_through_to_background(
+    def test_pre_existing_triggered_run_id_falls_through_to_background(
         self,
         mock_wait,
         mock_vscode,
@@ -650,7 +657,7 @@ class TestStartCopilotSessionForWorkflow:
         tmp_path,
         monkeypatch,
     ):
-        """Pre-existing sentinel causes fallback to background Copilot session."""
+        """Pre-existing triggered run ID causes fallback to background Copilot session."""
         _setup_prompt_file(tmp_path)
         mock_wait.return_value = True
 
@@ -662,29 +669,36 @@ class TestStartCopilotSessionForWorkflow:
         }
         (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
 
-        sentinel_dir = tmp_path / ".agdt"
-        sentinel_dir.mkdir(parents=True, exist_ok=True)
-        (sentinel_dir / ".copilot-auto-start-triggered").write_text("", encoding="utf-8")
+        run_id = "already-triggered-run"
+
+        # Create state with run ID already triggered
+        state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_file = state_dir / "state.json"
+        state = {"copilot": {"auto_start_triggered_runs": [run_id]}}
+        state_file.write_text(json.dumps(state), encoding="utf-8")
 
         _patch_no_tty(monkeypatch)
 
-        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            result = _start_copilot_session_for_workflow(
-                worktree_path=str(tmp_path),
-                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
-                start_prompt=_CUSTOM_START_PROMPT,
-                workflow_name=_CUSTOM_WORKFLOW_NAME,
-                interactive=False,
-            )
+        with patch("agentic_devtools.state.get_state_file_path", return_value=state_file):
+            with patch("agentic_devtools.state.get_value", return_value=run_id):
+                with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+                    result = _start_copilot_session_for_workflow(
+                        worktree_path=str(tmp_path),
+                        prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                        start_prompt=_CUSTOM_START_PROMPT,
+                        workflow_name=_CUSTOM_WORKFLOW_NAME,
+                        interactive=False,
+                    )
 
         assert result is True
-        # Falls through to background session because sentinel already existed
+        # Falls through to background session because run ID was already triggered
         mock_copilot.assert_called_once()
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
-    def test_sentinel_timeout_falls_through_to_background(
+    def test_run_id_timeout_falls_through_to_background(
         self,
         mock_wait,
         mock_vscode,
@@ -692,7 +706,7 @@ class TestStartCopilotSessionForWorkflow:
         tmp_path,
         monkeypatch,
     ):
-        """When the sentinel never appears, the function falls through to a background session."""
+        """When the run ID never appears in state, the function falls through to a background session."""
         _setup_prompt_file(tmp_path)
         mock_wait.return_value = True
 
@@ -706,18 +720,26 @@ class TestStartCopilotSessionForWorkflow:
 
         _patch_no_tty(monkeypatch)
 
+        # Create empty state file (run ID never appears)
+        state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_file = state_dir / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+
         with patch("time.sleep"):
-            with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-                result = _start_copilot_session_for_workflow(
-                    worktree_path=str(tmp_path),
-                    prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
-                    start_prompt=_CUSTOM_START_PROMPT,
-                    workflow_name=_CUSTOM_WORKFLOW_NAME,
-                    interactive=False,
-                )
+            with patch("agentic_devtools.state.get_state_file_path", return_value=state_file):
+                with patch("agentic_devtools.state.get_value", return_value="some-run-id"):
+                    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+                        result = _start_copilot_session_for_workflow(
+                            worktree_path=str(tmp_path),
+                            prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                            start_prompt=_CUSTOM_START_PROMPT,
+                            workflow_name=_CUSTOM_WORKFLOW_NAME,
+                            interactive=False,
+                        )
 
         assert result is True
-        # Sentinel never appeared — falls through to background session
+        # Run ID never appeared — falls through to background session
         mock_copilot.assert_called_once()
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
@@ -751,4 +773,160 @@ class TestStartCopilotSessionForWorkflow:
             )
 
         assert result is True
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_auto_start_wait_resolves_state_in_target_worktree(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Auto-start confirmation resolves state using the target worktree context."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "wrong-state-dir")
+        _patch_no_tty(monkeypatch)
+
+        run_id = "target-worktree-run-id"
+        captured = {}
+
+        def fake_get_state_file_path():
+            captured["cwd"] = os.getcwd()
+            captured["state_dir"] = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+            return tmp_path / ".agdt" / "workflows" / "_test" / "_test" / "state.json"
+
+        def fake_get_value(key):
+            assert key == "agdt_run_id"
+            captured["value_cwd"] = os.getcwd()
+            captured["value_state_dir"] = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+            return run_id
+
+        def mark_run_triggered_on_sleep(_duration):
+            state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+            state_dir.mkdir(parents=True, exist_ok=True)
+            state_file = state_dir / "state.json"
+            state = {"copilot": {"auto_start_triggered_runs": [run_id]}}
+            state_file.write_text(json.dumps(state), encoding="utf-8")
+
+        with patch("time.sleep", side_effect=mark_run_triggered_on_sleep):
+            with patch("agentic_devtools.state.get_state_file_path", side_effect=fake_get_state_file_path):
+                with patch("agentic_devtools.state.get_value", side_effect=fake_get_value):
+                    result = _start_copilot_session_for_workflow(
+                        worktree_path=str(tmp_path),
+                        prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                        start_prompt=_CUSTOM_START_PROMPT,
+                        workflow_name=_CUSTOM_WORKFLOW_NAME,
+                        interactive=False,
+                    )
+
+        assert result is True
+        assert captured == {
+            "cwd": str(tmp_path),
+            "state_dir": None,
+            "value_cwd": str(tmp_path),
+            "value_state_dir": None,
+        }
+        assert os.getcwd() == str(outside_dir)
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "wrong-state-dir"
+        mock_copilot.assert_not_called()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_auto_start_wait_falls_through_when_state_resolution_fails(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """State-resolution failures in the wait branch fall through to the background session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        _patch_no_tty(monkeypatch)
+
+        with patch("agentic_devtools.state.get_state_file_path", side_effect=RuntimeError("boom")):
+            with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+                result = _start_copilot_session_for_workflow(
+                    worktree_path=str(tmp_path),
+                    prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                    start_prompt=_CUSTOM_START_PROMPT,
+                    workflow_name=_CUSTOM_WORKFLOW_NAME,
+                    interactive=False,
+                )
+
+        assert result is True
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_prints_no_run_id_message_and_falls_through(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        """When auto-start task exists but run ID is empty, prints fallback message and starts background session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = False
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._resolve_state_context_in_worktree",
+            return_value=(tmp_path / ".agdt" / "workflows" / "_test" / "_test" / "state.json", ""),
+        ):
+            with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+                result = _start_copilot_session_for_workflow(
+                    worktree_path=str(tmp_path),
+                    prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                    start_prompt=_CUSTOM_START_PROMPT,
+                    workflow_name=_CUSTOM_WORKFLOW_NAME,
+                    interactive=False,
+                )
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "no run ID is available in state" in captured.out
         mock_copilot.assert_called_once()
