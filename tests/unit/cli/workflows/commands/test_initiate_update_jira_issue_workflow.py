@@ -250,9 +250,7 @@ class TestStateDirShiftUpdateJiraIssue:
                 "agentic_devtools.state.set_value",
                 wraps=state.set_value,
             ) as mock_set_value:
-                with patch(
-                    "agentic_devtools.cli.workflows.preflight.check_worktree_and_branch"
-                ) as mock_pf:
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
                     mock_pf.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
@@ -260,24 +258,18 @@ class TestStateDirShiftUpdateJiraIssue:
                         branch_name="feature/DFLY-1234/impl",
                         issue_key="DFLY-1234",
                     )
-                    with patch(
-                        "agentic_devtools.cli.workflows.commands.initiate_workflow"
-                    ) as mock_iw:
+                    with patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock_iw:
                         with patch(
                             "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
                         ):
-                            commands.initiate_update_jira_issue_workflow(
-                                _argv=["--issue-key", "DFLY-1234"]
-                            )
+                            commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         # initiate_workflow should have been called (function completed successfully)
         mock_iw.assert_called_once()
 
         # set_value should have been called twice for jira.issue_key
         jira_issue_key_calls = [
-            call
-            for call in mock_set_value.call_args_list
-            if call.args and call.args[0] == "jira.issue_key"
+            call for call in mock_set_value.call_args_list if call.args and call.args[0] == "jira.issue_key"
         ]
         assert len(jira_issue_key_calls) >= 2
 

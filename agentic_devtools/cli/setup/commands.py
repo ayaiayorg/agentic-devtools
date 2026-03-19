@@ -501,6 +501,29 @@ def setup_cmd() -> None:
         elif git_root is not None:
             print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 
+        # Inject bundled agent/prompt skills where supported. Skill injection is a
+        # best-effort optional feature: guard the import so that agdt-setup still
+        # works even if the module is missing or uses syntax/features not supported
+        # by the current interpreter.
+        inject_skills = None  # type: ignore[assignment]
+        try:
+            from agentic_devtools.skill_injector import inject_skills as _inject_skills
+            inject_skills = _inject_skills
+        except (SyntaxError, ImportError) as exc:
+            if git_root is not None:
+                print(
+                    f"  ⚠ Failed to import skill injector ({exc!r}) — skipping agent/prompt skill injection",
+                    file=sys.stderr,
+                )
+
+        if inject_skills is not None and inject_skills(git_root):
+            print("  ✓ Injected agent/prompt skills into .github/agents/.agdt/ and .github/prompts/.agdt/")
+        elif git_root is not None and inject_skills is not None:
+            print(
+                "  ⚠ Failed to inject agent/prompt skills — this may be due to directory permissions or missing/corrupted bundled skills",
+                file=sys.stderr,
+            )
+
         print()
         if not copilot_ok or not gh_ok or any_required_missing:
             print("Setup complete with warnings. See above for details.")

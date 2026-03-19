@@ -31,10 +31,11 @@ class TestSetupCmd:
 
     @pytest.fixture(autouse=True)
     def _isolate_gitignore(self):
-        """Prevent setup_cmd() from writing .agdt/.gitignore to the real repo."""
+        """Prevent setup_cmd() from writing .agdt/.gitignore or injecting skills into the real repo."""
         with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
             with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
-                yield
+                with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
+                    yield
 
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""
@@ -235,6 +236,71 @@ class TestSetupCmd:
 
         err = capsys.readouterr().err
         assert "Failed to create/update .agdt/.gitignore" in err
+
+    def test_inject_skills_success_prints_message(self, capsys, tmp_path):
+        """Prints success message when agent/prompt skills are injected."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=True):
+                                            commands.setup_cmd()
+
+        out = capsys.readouterr().out
+        assert "Injected agent/prompt skills" in out
+
+    def test_inject_skills_failure_warns_on_stderr(self, capsys, tmp_path):
+        """Prints neutral warning to stderr when skill injection fails."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
+                                            commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        assert "Failed to inject agent/prompt skills" in err
+        assert "missing/corrupted bundled skills" in err
+
+    def test_skill_injector_import_failure_warns_and_skips_injection(self, capsys, tmp_path):
+        """Prints a warning and skips injection when the lazy skill injector import fails."""
+        import builtins
+
+        original_import = builtins.__import__
+
+        def _raising_import(name, *args, **kwargs):
+            if name == "agentic_devtools.skill_injector":
+                raise SyntaxError("simulated syntax error in skill_injector")
+            return original_import(name, *args, **kwargs)
+
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch("builtins.__import__", side_effect=_raising_import):
+                                            commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        assert "Failed to import skill injector" in err
+        assert "skipping agent/prompt skill injection" in err
 
     def test_no_verify_ssl_restored_after_setup_when_previously_set(self, monkeypatch):
         """Restores pre-existing AGDT_NO_VERIFY_SSL value after setup_cmd completes."""

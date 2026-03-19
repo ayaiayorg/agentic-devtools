@@ -224,7 +224,6 @@ class TestWorkflowCommands:
         assert state.get_value("workflow.context.interactive") == "false"
 
 
-
 class TestStateDirShiftBreakDownIssue:
     """Tests for the state-dir shift guard in initiate_break_down_issue_into_subtasks_workflow."""
 
@@ -272,9 +271,7 @@ class TestStateDirShiftBreakDownIssue:
                 "agentic_devtools.state.get_state_dir",
                 side_effect=_state_get_state_dir_side_effect,
             ):
-                with patch(
-                    "agentic_devtools.cli.workflows.preflight.check_worktree_and_branch"
-                ) as mock_pf:
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
                     mock_pf.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
@@ -282,15 +279,12 @@ class TestStateDirShiftBreakDownIssue:
                         branch_name="feature/DFLY-1234/breakdown",
                         issue_key="DFLY-1234",
                     )
-                    with patch(
-                        "agentic_devtools.cli.workflows.commands.initiate_workflow"
-                    ) as mock_iw:
+                    with patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock_iw:
                         with patch("agentic_devtools.state.update_workflow_context"):
                             # Wrap state.set_value so we can assert how often jira.issue_key is written,
                             # while still executing the real implementation.
-                            with patch(
-                                "agentic_devtools.state.set_value"
-                            ) as mock_set_value:
+                            with patch("agentic_devtools.state.set_value") as mock_set_value:
+
                                 def _set_value_side_effect(*args, **kwargs):
                                     return original_set_value(*args, **kwargs)
 
@@ -306,9 +300,7 @@ class TestStateDirShiftBreakDownIssue:
         # The guard should have caused at least a second write of jira.issue_key (before and
         # after the state-dir shift). Additional writes (e.g. initial CLI persist) are allowed.
         jira_issue_key_calls = [
-            call
-            for call in mock_set_value.call_args_list
-            if call.args and call.args[0] == "jira.issue_key"
+            call for call in mock_set_value.call_args_list if call.args and call.args[0] == "jira.issue_key"
         ]
         assert len(jira_issue_key_calls) >= 2
 
