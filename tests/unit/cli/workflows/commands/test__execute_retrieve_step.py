@@ -90,7 +90,8 @@ class TestExecuteRetrieveStep:
         """Test that recent comments are formatted correctly.
 
         Patches commands.get_state_dir so the module-level binding uses temp_state_dir
-        and finds the pre-populated issue file (covering lines 591-594 and 608-613).
+        and reads the pre-populated temp issue-details response file instead of relying
+        on a live Jira response.
         """
         import json
 

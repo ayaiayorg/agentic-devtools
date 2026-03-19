@@ -319,12 +319,12 @@ class TestResolvedParentKeyPersist:
         mock_workflow_state_clearing,
         capsys,
     ):
-        """Cover line 1499: set_value executes when current_issue_key != resolved_issue_key.
+        """Guard re-writes jira.issue_key when current state differs from resolved issue key.
 
-        Simulates the bootstrap-missing scenario by mocking set_value as a no-op so the
-        initial write at line 1472 does not persist to state.  A subsequent get_value at
-        line 1497 therefore returns None, making current_issue_key != resolved_issue_key
-        True and executing the guarded set_value at line 1499.
+        This simulates a bootstrap-missing scenario by mocking state.set_value as a no-op
+        so the initial write of jira.issue_key does not persist to state. A subsequent
+        get_value therefore returns None, making current_issue_key != resolved_issue_key
+        truthy and exercising the guarded set_value path that re-writes jira.issue_key.
         """
         from unittest.mock import call as mock_call
 
@@ -345,7 +345,8 @@ class TestResolvedParentKeyPersist:
                     )
 
         # set_value("jira.issue_key", "DFLY-1235") must be called at least twice:
-        # once at the initial persist (line 1472) and once inside the write guard (line 1499).
+        # once during the initial persist and once inside the write guard when the
+        # current_issue_key read from state differs from the resolved_issue_key.
         issue_key_calls = [c for c in mock_set_value.call_args_list if c == mock_call("jira.issue_key", "DFLY-1235")]
         assert len(issue_key_calls) >= 2, (
             f"Expected set_value('jira.issue_key', ...) called ≥2 times, got {issue_key_calls}"
