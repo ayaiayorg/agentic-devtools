@@ -1,0 +1,3 @@
+---
+agent: agdt.list-pipelines
+---
