@@ -222,3 +222,45 @@ class TestWorkflowCommands:
             commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
 
         assert state.get_value("workflow.context.interactive") == "false"
+
+
+class TestIssueKeyWriteGuardOptimize:
+    """Tests for the issue-key write guard in initiate_optimize_issue_for_ai_agent_workflow."""
+
+    def test_issue_key_write_guard_triggers_when_current_differs(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Exercise the write guard when current_issue_key != resolved_issue_key.
+
+        Simulates the bootstrap-missing scenario by mocking set_value as a no-op so the
+        initial write does not persist to state. A subsequent get_value therefore returns
+        None, making current_issue_key != resolved_issue_key True and causing the guarded
+        set_value call to execute.
+        """
+        from unittest.mock import call as mock_call
+
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        with patch("agentic_devtools.state.set_value") as mock_set_value:
+            with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                with patch("agentic_devtools.state.update_workflow_context"):
+                    with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+                        mock_pf.return_value = PreflightResult(
+                            folder_valid=True,
+                            branch_valid=True,
+                            folder_name="DFLY-1234",
+                            branch_name="feature/DFLY-1234/optimize",
+                            issue_key="DFLY-1234",
+                        )
+                        commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+
+        # set_value("jira.issue_key", "DFLY-1234") must be called at least twice:
+        # once for the initial persist and once inside the write guard.
+        issue_key_calls = [c for c in mock_set_value.call_args_list if c == mock_call("jira.issue_key", "DFLY-1234")]
+        assert len(issue_key_calls) >= 2, (
+            f"Expected set_value('jira.issue_key', ...) called ≥2 times, got {issue_key_calls}"
+        )

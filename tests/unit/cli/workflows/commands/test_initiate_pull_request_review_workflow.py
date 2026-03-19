@@ -1,5 +1,6 @@
 """Tests for TestInitiatePRReviewWorkflowBranches."""
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -190,6 +191,76 @@ class TestInitiatePRReviewWorkflowBranches:
         assert state.get_value("pull_request_id") is None
         # The issue→PR cross-lookup must have been called (proving resolved_pr_id was None)
         mock_find_pr.assert_called_once_with("DFLY-1234", verbose=True)
+
+    def test_pr_review_with_both_args_uses_cli_values_not_state(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Regression: both --pull-request-id and --issue-key avoid the 'missing args' error.
+
+        Validates the core fix: resolved_pr_id/resolved_issue_key are derived from the
+        already-parsed CLI local variables (not via a get_value() state round-trip), so
+        the function proceeds correctly even if the state directory changes after set_value()
+        or bootstrap-related behavior differs.
+        """
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/DFLY-2779/implementation"
+
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=True,
+                    branch_valid=True,
+                    folder_name="DFLY-2779",
+                    branch_name="feature/DFLY-2779/implementation",
+                    issue_key="DFLY-2779",
+                )
+
+                with patch(
+                    "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                    return_value="/fake/repo-root",
+                ):
+                    with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                        with patch(
+                            "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                        ):
+                            # Should NOT raise SystemExit with "Either --pull-request-id or
+                            # --issue-key must be provided" — the fix ensures CLI local vars
+                            # are used directly rather than relying on a state round-trip.
+                            commands.initiate_pull_request_review_workflow(
+                                _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                            )
+
+        captured = capsys.readouterr()
+        assert "Either --pull-request-id or --issue-key must be provided" not in captured.out
+
+    def test_pr_review_with_only_pr_id_and_missing_bootstrap(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Only --pull-request-id triggers cross-lookup (not a missing-args error).
+
+        Validates that resolved_pr_id is derived from the CLI local variable so the
+        PR→Jira cross-lookup branch is entered when only --pull-request-id is given,
+        rather than erroring with "Either --pull-request-id or --issue-key must be
+        provided" due to a state-directory shift.
+        """
+        with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+            mock_find.return_value = None  # cross-lookup finds nothing
+
+            with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                mock_src.side_effect = Exception("stop early")
+
+                # Should reach the cross-lookup (and then fail on source branch), NOT the
+                # "Either --pull-request-id or --issue-key must be provided" error.
+                with pytest.raises(SystemExit) as exc_info:
+                    commands.initiate_pull_request_review_workflow(_argv=["--pull-request-id", "25858"])
+                assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        # Cross-lookup was attempted, so no "Either ... must be provided" message
+        assert "Either --pull-request-id or --issue-key must be provided" not in captured.out
+        # The PR→Jira cross-lookup must have been called
+        mock_find.assert_called_once_with(25858)
 
 
 @pytest.fixture
@@ -684,3 +755,121 @@ class TestInitiatePRReviewWorkflowWorktreeKeyNormalization:
                             )
 
         mock_scope.assert_called_once_with("PR25858")
+
+
+class TestMissingBootstrapStateShift:
+    """Regression tests that exercise the REAL get_state_dir() to reproduce the
+    state-directory shift described in the bug report.
+
+    These tests deliberately avoid the `temp_state_dir` fixture so that
+    get_state_dir() resolves paths naturally through the git-root / identity /
+    bootstrap logic.  This lets set_value() trigger _update_bootstrap_worktree_key
+    as a side effect and actually shift the resolved state directory mid-command.
+    """
+
+    def test_set_value_shifts_state_dir_when_bootstrap_missing(self, tmp_path, monkeypatch):
+        """Prove the root cause: set_value() creates runtime-bootstrap.json, shifting get_state_dir().
+
+        Before the fix, this shift caused a subsequent get_value() to read from the
+        new scoped directory (where nothing was written) and return None.
+        """
+        from agentic_devtools.state import get_state_dir, get_value, set_value
+
+        # Remove state-dir env var overrides so get_state_dir() uses git-root/bootstrap logic.
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
+
+        # Create fake repo root with identity.json but NO runtime-bootstrap.json
+        fake_repo = tmp_path / "fake-repo"
+        fake_repo.mkdir()
+        agdt_dir = fake_repo / ".agdt"
+        agdt_dir.mkdir()
+        (agdt_dir / "identity.json").write_text(
+            json.dumps({"identity": "testuser", "email": "test@example.com"}),
+            encoding="utf-8",
+        )
+
+        # _update_bootstrap_worktree_key walks up from CWD to find .agdt/
+        monkeypatch.chdir(fake_repo)
+
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=fake_repo):
+            # Before set_value: no bootstrap file → resolves to _unscoped
+            pre_dir = get_state_dir()
+            assert "_unscoped" in str(pre_dir)
+
+            # set_value() creates runtime-bootstrap.json as a side effect
+            set_value("pull_request_id", 25858)
+
+            # The bootstrap file now exists
+            bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+            assert bootstrap_path.exists(), "set_value() should have created runtime-bootstrap.json"
+
+            # After set_value: identity + worktree_key present → scoped directory
+            post_dir = get_state_dir()
+            assert "_unscoped" not in str(post_dir)
+            assert str(pre_dir) != str(post_dir), "get_state_dir() should return a different path now"
+
+            # The state was written to pre_dir; get_value reads from post_dir → None.
+            # This is the root cause of the bug: the value is unreachable after the shift.
+            assert (pre_dir / "state.json").exists(), "state was written to pre_dir"
+            assert not (post_dir / "state.json").exists(), "post_dir has no state.json"
+            assert get_value("pull_request_id") is None, (
+                "get_value() returns None after the dir shift — this is the root cause of the bug"
+            )
+
+    def test_both_args_succeed_despite_state_dir_shift(self, tmp_path, monkeypatch, capsys):
+        """Both --pull-request-id and --issue-key succeed even when set_value() shifts the state dir.
+
+        Exercises the real get_state_dir() to confirm:
+        1. set_value() creates runtime-bootstrap.json (triggering the state-dir shift).
+        2. The fix (using CLI local vars) prevents the misleading "argument not provided" error.
+        """
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        # Remove state-dir env var overrides so get_state_dir() uses git-root/bootstrap logic.
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
+
+        fake_repo = tmp_path / "fake-repo"
+        fake_repo.mkdir()
+        agdt_dir = fake_repo / ".agdt"
+        agdt_dir.mkdir()
+        (agdt_dir / "identity.json").write_text(
+            json.dumps({"identity": "testuser", "email": "test@example.com"}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.chdir(fake_repo)
+
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=fake_repo):
+            with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
+                with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                    mock_src.return_value = "feature/DFLY-2779/impl"
+                    with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                        mock_preflight.return_value = PreflightResult(
+                            folder_valid=True,
+                            branch_valid=True,
+                            folder_name="DFLY-2779",
+                            branch_name="feature/DFLY-2779/impl",
+                            issue_key="DFLY-2779",
+                        )
+                        with patch(
+                            "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                            return_value="/fake/repo",
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                                ):
+                                    commands.initiate_pull_request_review_workflow(
+                                        _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                                    )
+
+        # Confirm the bootstrap file was created (state-dir shift did happen)
+        assert (agdt_dir / "runtime-bootstrap.json").exists(), (
+            "set_value() should have created runtime-bootstrap.json during the call"
+        )
+        captured = capsys.readouterr()
+        assert "Either --pull-request-id or --issue-key must be provided" not in captured.out

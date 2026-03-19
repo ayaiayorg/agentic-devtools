@@ -58,6 +58,39 @@ def mock_workflow_state_clearing():
 class TestInitiateCreateJiraEpicWorkflowBranches:
     """Test additional branches in initiate_create_jira_epic_workflow."""
 
+    def test_resolved_issue_key_overwrites_mismatched_current_state_dir_value(
+        self,
+        mock_workflow_state_clearing,
+    ):
+        """Test that a resolved issue key is persisted when current state points at a different key."""
+        issue_key_reads = iter(["DFLY-1234", "DFLY-0001"])
+
+        def fake_get_value(key, *args, **kwargs):
+            if key == "jira.issue_key":
+                return next(issue_key_reads)
+            if key == "jira.project_key":
+                return "DFLY"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=fake_get_value) as mock_get_value:
+            with patch("agentic_devtools.state.set_value") as mock_set_value:
+                with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+                    from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=False,
+                        branch_valid=False,
+                        folder_name="wrong",
+                        branch_name="main",
+                        issue_key="DFLY-1234",
+                    )
+
+                    with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup", return_value=True):
+                        commands.initiate_create_jira_epic_workflow(_argv=[])
+
+        assert mock_get_value.call_count >= 3
+        assert ("jira.issue_key", "DFLY-1234") in [call.args for call in mock_set_value.call_args_list]
+
     def test_preflight_fails_and_auto_setup_succeeds(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails but auto-setup succeeds (returns early)."""
         state.set_value("jira.issue_key", "DFLY-1234")

@@ -87,7 +87,12 @@ class TestExecuteRetrieveStep:
     def test_formats_recent_comments(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):
-        """Test that recent comments are formatted correctly."""
+        """Test that recent comments are formatted correctly.
+
+        Patches commands.get_state_dir so the module-level binding uses temp_state_dir
+        and reads the pre-populated temp issue-details response file instead of relying
+        on a live Jira response.
+        """
         import json
 
         workflow_dir = temp_prompts_dir / "work-on-jira-issue"
@@ -95,7 +100,6 @@ class TestExecuteRetrieveStep:
         template_file = workflow_dir / "default-planning-prompt.md"
         template_file.write_text("Planning for {{issue_key}}", encoding="utf-8")
 
-        # Set up issue data in temp file (new implementation reads from file, not state)
         issue_data = {
             "fields": {
                 "summary": "Test issue",
@@ -114,10 +118,9 @@ class TestExecuteRetrieveStep:
         issue_file.write_text(json.dumps(issue_data), encoding="utf-8")
 
         with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
-            # get_issue is called but we pre-populated the file
-            mock_get_issue.return_value = None
-
-            commands._execute_retrieve_step("DFLY-1234", "feature/DFLY-1234/test")
+            with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=temp_state_dir):
+                mock_get_issue.return_value = None
+                commands._execute_retrieve_step("DFLY-1234", "feature/DFLY-1234/test")
 
         captured = capsys.readouterr()
         assert "Issue DFLY-1234 retrieved successfully" in captured.out
