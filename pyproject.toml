@@ -159,6 +159,10 @@ version-file = "agentic_devtools/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["agentic_devtools", "agdt_ai_helpers"]
 
+[tool.hatch.build.targets.wheel.force-include]
+".github/agents" = "agentic_devtools/_bundled_skills/agents"
+".github/prompts" = "agentic_devtools/_bundled_skills/prompts"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
