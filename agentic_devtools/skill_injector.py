@@ -319,11 +319,7 @@ def inject_skills(git_root: Optional[Path]) -> bool:
             # overwritten by the generated manifest while still being listed in
             # the manifest, while still allowing nested READMEs (e.g.
             # "foo/README.md") to be mirrored as normal skill docs.
-            source_files = [
-                p
-                for p in source_files
-                if p.relative_to(source_dir) != Path("README.md")
-            ]
+            source_files = [p for p in source_files if p.relative_to(source_dir) != Path("README.md")]
 
             # Build set of relative paths for stale-cleanup comparison.
             source_rel_paths = {p.relative_to(source_dir) for p in source_files}

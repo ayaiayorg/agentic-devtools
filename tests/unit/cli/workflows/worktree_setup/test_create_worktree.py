@@ -1,5 +1,6 @@
 """Tests for CreateWorktree."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.git.operations import BranchSafetyCheckResult
@@ -63,6 +64,23 @@ class TestCreateWorktree:
 
         assert result.success is True
         assert "DFLY-1234" in result.worktree_path
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._propagate_agdt_cache")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
+    @patch("os.path.exists")
+    def test_propagates_agdt_cache_when_reusing_existing_worktree(
+        self, mock_exists, mock_parent, mock_propagate_agdt_cache
+    ):
+        """Test AGDT cache/bootstrap propagation runs when worktree already exists."""
+        mock_parent.return_value = "/repos"
+        # Worktree path exists and is a valid git worktree
+        mock_exists.side_effect = [True, True]
+
+        result = create_worktree("DFLY-1234", "feature")
+
+        assert result.success is True
+        expected_worktree_path = os.path.join("/repos", "DFLY-1234")
+        mock_propagate_agdt_cache.assert_called_once_with(expected_worktree_path, worktree_key="DFLY-1234")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("os.path.exists")

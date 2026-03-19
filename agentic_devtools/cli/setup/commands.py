@@ -508,6 +508,7 @@ def setup_cmd() -> None:
         inject_skills = None  # type: ignore[assignment]
         try:
             from agentic_devtools.skill_injector import inject_skills as _inject_skills
+
             inject_skills = _inject_skills
         except (SyntaxError, ImportError) as exc:
             if git_root is not None:

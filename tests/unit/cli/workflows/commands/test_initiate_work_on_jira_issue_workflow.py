@@ -127,6 +127,19 @@ class TestInitiateWorkOnJiraIssueInteractive:
         # Verify the preflight was called with the CLI-provided issue key
         mock_preflight.assert_called_once_with("DFLY-5555")
 
+    def test_whitespace_only_issue_key_from_cli_fails_fast(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        capsys,
+    ):
+        """Whitespace-only --issue-key should fail with a clear CLI validation error."""
+        with pytest.raises(SystemExit):
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "   "])
+
+        captured = capsys.readouterr()
+        assert "--issue-key cannot be empty or whitespace-only" in captured.err
+
     def test_auto_execute_command_includes_interactive_flag(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
@@ -266,3 +279,19 @@ class TestWorkflowCommands:
         assert workflow["step"] == "planning"
         captured = capsys.readouterr()
         assert "Planning work for DFLY-1234" in captured.out
+
+    def test_whitespace_only_issue_key_in_state_fails_validation(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Whitespace-only jira.issue_key in state is treated as invalid input."""
+        state.set_value("jira.issue_key", "   ")
+
+        with pytest.raises(SystemExit):
+            commands.initiate_work_on_jira_issue_workflow(_argv=[])
+
+        captured = capsys.readouterr()
+        assert "jira.issue_key cannot be empty or whitespace-only" in captured.err
