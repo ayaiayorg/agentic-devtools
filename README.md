@@ -424,8 +424,9 @@ When a workflow creates a new worktree and opens it in VS Code, a Copilot CLI
 session can auto-start in the VS Code **integrated terminal** via a
 `.vscode/tasks.json` entry with `"runOn": "folderOpen"`. This makes the session
 immediately visible to the user as soon as the window opens. The task is
-one-shot: it writes a sentinel file (`.agdt/.copilot-auto-start-triggered`)
-before execution and, **on success**, removes itself from `tasks.json`. When
+one-shot: it marks the current run ID in the workflow state
+(`copilot.auto_start_triggered_runs`) before execution and, **on success**,
+removes itself from `tasks.json`. When
 `tasks.json` was created solely for auto-start and no other tasks remain, the
 file is deleted (along with the `.vscode/` directory if empty) so no untracked
 files are left behind. When `tasks.json` was pre-existing, it is rewritten

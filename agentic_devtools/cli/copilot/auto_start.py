@@ -8,15 +8,18 @@ inline shell command previously embedded in ``.vscode/tasks.json``.
 Responsibilities
 ----------------
 1. Validate ``--worktree-path`` is an existing directory — exit 1 if not.
-2. Check for the sentinel file — exit early (0) if already triggered.
-3. Check copilot CLI availability — exit 1 if unavailable (before creating sentinel).
+2. Check whether the current ``--run-id`` has already been triggered (via
+   ``copilot.auto_start_triggered_runs`` in the workflow state) — exit
+   early (0) if so.
+3. Check copilot CLI availability — exit 1 if unavailable (before marking).
 3b. Check ``agdt-advance-workflow`` reachability — exit 1 if not found on PATH.
 4. Build copilot args — exit 1 if the prompt exceeds argv limits.
-5. Create the sentinel file atomically (``O_CREAT|O_EXCL``) — exit 0 without
-   starting a session if another process already created it (race-free guard).
-6. Run the Copilot CLI command — on OSError or KeyboardInterrupt remove
-   sentinel and exit (1 for OSError, 130 for KeyboardInterrupt).
-7. On failure: remove the sentinel file and exit with the copilot exit code.
+5. Atomically mark the run ID as triggered in state (using
+   ``locked_state_file``) — exit 0 without starting a session if another
+   concurrent process already marked it (race-free guard).
+6. Run the Copilot CLI command — on OSError or KeyboardInterrupt unmark the
+   run ID and exit (1 for OSError, 130 for KeyboardInterrupt).
+7. On failure: unmark the run ID and exit with the copilot exit code.
 8. On success: perform best-effort cleanup of the auto-start task from
    ``.vscode/tasks.json``, then exit 0.
 """
@@ -24,19 +27,131 @@ Responsibilities
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from agentic_devtools.cli.copilot.session import (
     build_copilot_args,
     is_gh_copilot_available,
 )
 from agentic_devtools.cli.vscode_tasks import remove_auto_start_task
+from agentic_devtools.file_locking import FileLockError, locked_state_file
+from agentic_devtools.state import get_state_file_path
 
 _DEFAULT_TASK_LABEL = "agdt-copilot-auto-start"
-_SENTINEL_REL = os.path.join(".agdt", ".copilot-auto-start-triggered")
+_STATE_KEY = "copilot"
+_TRIGGERED_RUNS_KEY = "auto_start_triggered_runs"
+
+
+def _is_run_triggered(state_file_path: Path, run_id: str) -> bool:
+    """Check whether *run_id* has already been auto-triggered.
+
+    Reads ``copilot.auto_start_triggered_runs`` from the state file under an
+    exclusive lock and returns ``True`` when *run_id* is present.  Returns
+    ``False`` on any error (missing file, corrupt JSON, lock timeout).
+    """
+    try:
+        with locked_state_file(state_file_path) as fh:
+            content = fh.read()
+            state = json.loads(content) if content.strip() else {}
+            if not isinstance(state, dict):
+                state = {}
+            copilot = state.get(_STATE_KEY, {})
+            if not isinstance(copilot, dict):
+                copilot = {}
+            triggered = copilot.get(_TRIGGERED_RUNS_KEY, [])
+            return isinstance(triggered, list) and run_id in triggered
+    except (FileLockError, json.JSONDecodeError, OSError, TypeError, AttributeError):
+        return False
+
+
+def _mark_run_triggered(state_file_path: Path, run_id: str) -> bool:
+    """Atomically mark *run_id* as triggered in the state file.
+
+    Uses ``locked_state_file`` for an exclusive-lock read-check-write cycle.
+    Returns ``True`` if *run_id* was newly added, ``False`` if the run ID was
+    already present (concurrent race lost).
+
+    Raises ``FileLockError`` if the lock cannot be acquired.
+    """
+    with locked_state_file(state_file_path) as fh:
+        content = fh.read()
+        try:
+            state = json.loads(content) if content.strip() else {}
+        except json.JSONDecodeError:
+            # Treat corrupt state as empty to avoid crashing the auto-start task.
+            state = {}
+
+        if not isinstance(state, dict):
+            state = {}
+
+        copilot = state.get(_STATE_KEY)
+        if not isinstance(copilot, dict):
+            copilot = {}
+            state[_STATE_KEY] = copilot
+
+        triggered = copilot.get(_TRIGGERED_RUNS_KEY, [])
+        if not isinstance(triggered, list):
+            # Normalise unexpected types to an empty list.
+            triggered = []
+        copilot[_TRIGGERED_RUNS_KEY] = triggered
+
+        if run_id in triggered:
+            return False  # another process won the race
+
+        triggered.append(run_id)
+
+        fh.seek(0)
+        fh.write(json.dumps(state, indent=2, ensure_ascii=False))
+        fh.truncate()
+        return True
+
+
+def _unmark_run_triggered(state_file_path: Path, run_id: str) -> None:
+    """Best-effort removal of *run_id* from the triggered-runs list in state.
+
+    Logs (but otherwise ignores) all errors (lock timeout, corrupt JSON, etc.)
+    so the caller's exit code is never affected.
+    """
+    try:
+        with locked_state_file(state_file_path) as fh:
+            content = fh.read()
+            try:
+                state = json.loads(content) if content.strip() else {}
+            except json.JSONDecodeError:
+                # Treat corrupt state as empty to avoid crashing the auto-start task.
+                state = {}
+
+            if not isinstance(state, dict):
+                state = {}
+
+            copilot = state.get(_STATE_KEY)
+            if not isinstance(copilot, dict):
+                copilot = {}
+                state[_STATE_KEY] = copilot
+
+            triggered = copilot.get(_TRIGGERED_RUNS_KEY, [])
+            if not isinstance(triggered, list):
+                # Normalise unexpected types to an empty list.
+                triggered = []
+            copilot[_TRIGGERED_RUNS_KEY] = triggered
+
+            if run_id in triggered:
+                triggered.remove(run_id)
+
+                fh.seek(0)
+                fh.write(json.dumps(state, indent=2, ensure_ascii=False))
+                fh.truncate()
+    except Exception as exc:
+        print(
+            f"[agentic-devtools] Warning: failed to unmark Copilot auto-start "
+            f"run_id={run_id!r} in state file {state_file_path!s}: {exc!r}",
+            file=sys.stderr,
+        )
 
 
 def _cleanup_auto_start_task(
@@ -84,16 +199,17 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     auto-start flow:
 
     1. Validate ``--worktree-path`` is an existing directory; exit 1 if not.
-    2. Sentinel check — exit 0 immediately if already triggered (best-effort
-       stale task cleanup first).
+    2. Run-ID check — exit 0 immediately if the run ID is already in
+       ``copilot.auto_start_triggered_runs`` (best-effort stale task cleanup
+       first).
     3. Pre-flight: check copilot CLI availability; exit 1 if not available.
     3b. Pre-flight: check ``agdt-advance-workflow`` reachability; exit 1 if not found.
     4. Build copilot args; exit 1 if prompt exceeds argv limits.
-    5. Create sentinel file atomically (``O_CREAT|O_EXCL``); exit 0 without
-       running if another concurrent invocation already created it.
-    6. Run copilot CLI; on OSError remove sentinel and exit 1; on
-       KeyboardInterrupt remove sentinel and exit 130.
-    7. On failure: remove sentinel, exit with copilot exit code.
+    5. Atomically mark the run ID as triggered in state; exit 0 without
+       running if another concurrent invocation already marked it.
+    6. Run copilot CLI; on OSError unmark run ID and exit 1; on
+       KeyboardInterrupt unmark run ID and exit 130.
+    7. On failure: unmark run ID, exit with copilot exit code.
     8. On success: clean up the task from ``tasks.json``, exit 0.
     """
     parser = argparse.ArgumentParser(
@@ -111,6 +227,11 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         help="The prompt text to pass to the Copilot binary.",
     )
     parser.add_argument(
+        "--run-id",
+        required=True,
+        help="Unique run ID for this workflow invocation.",
+    )
+    parser.add_argument(
         "--task-label",
         default=_DEFAULT_TASK_LABEL,
         help="The label identifying the task in tasks.json (default: %(default)s).",
@@ -125,8 +246,23 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
 
     worktree_path: str = args.worktree_path
     start_prompt: str = args.start_prompt
+    run_id: str = args.run_id
     task_label: str = args.task_label
     created_new: bool = args.created_new
+
+    # Validate run_id is not empty or whitespace-only. While argparse enforces
+    # presence of the argument, it does not prevent values like "" or "   ",
+    # which would result in ambiguous entries in copilot.auto_start_triggered_runs.
+    if not run_id.strip():
+        print(
+            "agdt-copilot-auto-start: error: --run-id must be a non-empty, non-whitespace value.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Normalize run_id after validation so all downstream uses (state keys,
+    # comparisons, etc.) operate on a canonical, whitespace-trimmed value.
+    run_id = run_id.strip()
 
     # 1. Validate worktree_path before any filesystem writes.  An invalid path
     #    would cause confusing downstream errors (e.g. makedirs creating stray
@@ -139,18 +275,64 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    sentinel_path = os.path.join(worktree_path, _SENTINEL_REL)
+    # Resolve the state file path in the context of the target worktree. This
+    # ensures that multi-worktree state remains isolated even when this command
+    # is invoked from a different CWD or with AGENTIC_DEVTOOLS_STATE_DIR set.
+    original_cwd = os.getcwd()
+    original_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    original_legacy_state_dir = os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+    os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+    os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+    try:
+        try:
+            os.chdir(worktree_path)
+        except OSError as exc:
+            print(
+                "agdt-copilot-auto-start: error: failed to change directory to worktree "
+                f"{worktree_path!r}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
-    # 2. Sentinel check — if already triggered, assume another process has
-    #    already handled (or is currently handling) auto-start. Before
-    #    exiting, attempt best-effort cleanup of any stale auto-start task.
-    if os.path.exists(sentinel_path):
+        try:
+            state_file_path = get_state_file_path()
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            print(
+                "agdt-copilot-auto-start: error: failed to resolve state file path "
+                f"for worktree {worktree_path!r}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    finally:
+        try:
+            os.chdir(original_cwd)
+        except OSError as exc:
+            # Best-effort warning only; avoid masking earlier exit paths with a traceback.
+            print(
+                "agdt-copilot-auto-start: warning: failed to restore original working "
+                f"directory {original_cwd!r}: {exc}",
+                file=sys.stderr,
+            )
+        if original_state_dir is not None:
+            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = original_state_dir
+        else:
+            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        if original_legacy_state_dir is not None:
+            os.environ["DFLY_AI_HELPERS_STATE_DIR"] = original_legacy_state_dir
+        else:
+            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+
+    # 2. Run-ID check — if the current run ID has already been triggered,
+    #    assume another process has already handled (or is currently handling)
+    #    auto-start.  Before exiting, attempt best-effort cleanup of any stale
+    #    auto-start task.
+    if _is_run_triggered(state_file_path, run_id):
         _cleanup_auto_start_task(worktree_path, task_label, created_new)
         sys.exit(0)
 
     # 3. Pre-flight: bail out early if the copilot CLI is not available.
-    #    Running this check before creating the sentinel prevents an unavailable
-    #    CLI from leaving a stale sentinel that would suppress all future attempts.
+    #    Running this check before marking the run ID prevents an unavailable
+    #    CLI from leaving a stale entry that would suppress all future attempts.
     if not is_gh_copilot_available():
         print(
             "agdt-copilot-auto-start: error: copilot CLI not available; cannot start session.",
@@ -182,30 +364,36 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    # 5. Create sentinel file atomically using O_CREAT|O_EXCL so that two
-    #    concurrent invocations (e.g. VS Code opening the same worktree twice
-    #    in quick succession) cannot both proceed past this point.  If another
-    #    process already created the sentinel we treat it as "already triggered"
-    #    and exit cleanly without starting a duplicate Copilot session.
+    # 5. Atomically mark the run ID as triggered using locked_state_file so
+    #    that two concurrent invocations (e.g. VS Code opening the same
+    #    worktree twice in quick succession) cannot both proceed past this
+    #    point.  If another process already marked the run ID we treat it as
+    #    "already triggered" and exit cleanly without starting a duplicate
+    #    Copilot session.
     try:
-        os.makedirs(os.path.dirname(sentinel_path), exist_ok=True)
-        fd = os.open(sentinel_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.close(fd)
-    except FileExistsError:
-        # Another concurrent invocation created the sentinel first — treat as
-        # "already triggered" and exit without starting a duplicate session.
-        sys.exit(0)
+        newly_marked = _mark_run_triggered(state_file_path, run_id)
+    except FileLockError as exc:
+        print(
+            f"agdt-copilot-auto-start: error: could not acquire state file lock: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     except OSError as exc:
         print(
-            f"agdt-copilot-auto-start: error: could not create sentinel file: {exc}",
+            f"agdt-copilot-auto-start: error: could not update state file: {exc}",
             file=sys.stderr,
         )
         sys.exit(1)
 
+    if not newly_marked:
+        # Another concurrent invocation marked the run ID first — treat as
+        # "already triggered" and exit without starting a duplicate session.
+        sys.exit(0)
+
     # 6. Run the copilot command (interactive — inherit VS Code terminal).
     #    Wrapped in try/except to handle the TOCTOU race where the binary could
     #    disappear from PATH between the availability check and execution, and to
-    #    ensure the sentinel is cleaned up if the user interrupts with Ctrl+C.
+    #    ensure the run ID is unmarked if the user interrupts with Ctrl+C.
     #
     #    FileNotFoundError can arise from two distinct causes:
     #    a) The Copilot CLI binary is missing from PATH.
@@ -227,35 +415,23 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
                 f"agdt-copilot-auto-start: error: Copilot CLI executable not found: {exc}",
                 file=sys.stderr,
             )
-        try:
-            os.remove(sentinel_path)
-        except OSError:
-            pass
+        _unmark_run_triggered(state_file_path, run_id)
         sys.exit(1)
     except OSError as exc:
         print(
             f"agdt-copilot-auto-start: error: failed to run Copilot CLI (worktree path: {worktree_path}): {exc}",
             file=sys.stderr,
         )
-        try:
-            os.remove(sentinel_path)
-        except OSError:
-            pass
+        _unmark_run_triggered(state_file_path, run_id)
         sys.exit(1)
     except KeyboardInterrupt:
-        # User interrupted (Ctrl+C) — remove sentinel so next folderOpen retries.
-        try:
-            os.remove(sentinel_path)
-        except OSError:
-            pass
+        # User interrupted (Ctrl+C) — unmark run ID so next folderOpen retries.
+        _unmark_run_triggered(state_file_path, run_id)
         sys.exit(130)
 
-    # 7a. On failure: remove sentinel so next folderOpen retries.
+    # 7a. On failure: unmark run ID so next folderOpen retries.
     if exit_code != 0:
-        try:
-            os.remove(sentinel_path)
-        except OSError:
-            pass
+        _unmark_run_triggered(state_file_path, run_id)
         sys.exit(exit_code)
 
     # 7b. On success: best-effort cleanup of the task from tasks.json.

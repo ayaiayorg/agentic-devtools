@@ -1282,9 +1282,9 @@ def _remove_stale_auto_start_task(
     Thin wrapper around :func:`~agentic_devtools.cli.vscode_tasks.remove_auto_start_task`
     that preserves the original signature used by :func:`inject_auto_start_task`.
 
-    Called when the sentinel file already exists, indicating a previous run
-    succeeded but its cleanup may have failed.  If the task is found and
-    removed:
+    Called when the current run ID is already in the triggered set, indicating
+    a previous run succeeded but its cleanup may have failed.  If the task is
+    found and removed:
 
     * When other tasks remain the file is rewritten.
     * When no tasks remain **and** the stale task's ``"args"`` list contained
@@ -1320,16 +1320,65 @@ def _remove_stale_auto_start_task(
     remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
+def _resolve_state_context_in_worktree(
+    worktree_path: str,
+    *,
+    include_run_id: bool = False,
+) -> tuple[Path | None, str]:
+    """Resolve workflow state using the target worktree context."""
+    previous_cwd = os.getcwd()
+    previous_state_dir = os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+    previous_legacy_state_dir = os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+
+    try:
+        os.chdir(worktree_path)
+
+        from agentic_devtools.state import get_state_file_path
+
+        state_file_path = get_state_file_path()
+        run_id = ""
+        if include_run_id:
+            from agentic_devtools.state import get_value
+
+            run_id_value = get_value("agdt_run_id")
+            run_id = run_id_value.strip() if isinstance(run_id_value, str) else ""
+        return state_file_path, run_id
+    except Exception:
+        return None, ""
+    finally:
+        try:
+            os.chdir(previous_cwd)
+        except Exception:
+            pass
+
+        try:
+            if previous_state_dir is not None:
+                os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+            else:
+                os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+        except Exception:
+            pass
+
+        try:
+            if previous_legacy_state_dir is not None:
+                os.environ["DFLY_AI_HELPERS_STATE_DIR"] = previous_legacy_state_dir
+            else:
+                os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+        except Exception:
+            pass
+
+
 def inject_auto_start_task(
     worktree_path: str,
     start_prompt: str,
+    run_id: str,
     task_label: str = _AUTO_START_TASK_LABEL,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
 
     The task is configured with ``"runOn": "folderOpen"`` so that VS Code
     executes ``agdt-copilot-auto-start`` in the integrated terminal immediately
-    when the workspace window opens.  All sentinel-check, copilot-invocation,
+    when the workspace window opens.  All run-ID-check, copilot-invocation,
     and cleanup logic is delegated to that CLI command.
 
     The task uses VS Code's ``"type": "process"`` format, which means VS Code
@@ -1351,6 +1400,8 @@ def inject_auto_start_task(
         worktree_path: Absolute path to the worktree directory.
         start_prompt: The prompt text to pass to the Copilot binary via
             ``agdt-copilot-auto-start --start-prompt``.
+        run_id: Unique run ID for this workflow invocation.  Passed
+            through to ``agdt-copilot-auto-start --run-id``.
         task_label: Label for the injected task (default:
             ``"agdt-copilot-auto-start"``).  Used to identify the task
             during cleanup.
@@ -1366,21 +1417,38 @@ def inject_auto_start_task(
     if not start_prompt or not isinstance(start_prompt, str):
         return False
 
+    # Validate that the worktree path exists and is a directory. A bad or
+    # typo path would otherwise cause us to create stray folders when
+    # calling os.makedirs(vscode_dir, ...).
+    if not worktree_path or not os.path.isdir(worktree_path):
+        return False
+
     vscode_dir = os.path.join(worktree_path, ".vscode")
     tasks_path = os.path.join(vscode_dir, "tasks.json")
-    sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
 
-    # Skip injection when the sentinel already exists — the command was
-    # already executed successfully in a previous window open.  Without
+    # Skip injection when the run ID has already been triggered — the command
+    # was already executed successfully in a previous window open.  Without
     # this guard the task would be written but then exit immediately in
-    # the sentinel short-circuit, leaving an orphaned entry in tasks.json.
-    if os.path.exists(sentinel_path):
-        # Best-effort cleanup: remove any stale auto-start task that may
-        # have been left behind from a previous run whose cleanup failed
-        # or was interrupted.  This prevents the orphaned task entry from
-        # persisting permanently in tasks.json.
-        _remove_stale_auto_start_task(tasks_path, vscode_dir, task_label)
-        return False
+    # the run-ID short-circuit, leaving an orphaned entry in tasks.json.
+    normalized_run_id: str | None
+    if isinstance(run_id, str):
+        normalized_run_id = run_id.strip()
+        if not normalized_run_id:
+            normalized_run_id = None
+    else:
+        normalized_run_id = None
+
+    if normalized_run_id:
+        from agentic_devtools.cli.copilot.auto_start import _is_run_triggered
+
+        state_file_path, _ = _resolve_state_context_in_worktree(worktree_path)
+        if state_file_path and _is_run_triggered(state_file_path, normalized_run_id):
+            # Best-effort cleanup: remove any stale auto-start task that may
+            # have been left behind from a previous run whose cleanup failed
+            # or was interrupted.  This prevents the orphaned task entry from
+            # persisting permanently in tasks.json.
+            _remove_stale_auto_start_task(tasks_path, vscode_dir, task_label)
+            return False
 
     # --- Read existing tasks.json (if any) -----------------------------------
     tasks_config: dict = {"version": "2.0.0", "tasks": []}
@@ -1418,11 +1486,23 @@ def inject_auto_start_task(
     ]
 
     # --- Build the simple CLI invocation -------------------------------------
-    # Delegate all sentinel-check, copilot-invocation, and cleanup logic to
+    # Delegate all run-ID-check, copilot-invocation, and cleanup logic to
     # agdt-copilot-auto-start.  Using a "process"-type task with a separate
     # "command" + "args" array means VS Code passes each argument directly to
     # the process without going through a shell, so no quoting or escaping is
     # needed regardless of the platform or the characters in the path/prompt.
+    if not isinstance(run_id, str) or not run_id.strip():
+        # Without a non-empty, non-whitespace string run_id we would generate a
+        # broken auto-start task that fails on every folderOpen.  Instead of
+        # raising (the function is documented as returning bool), log a warning
+        # and skip injection.
+        print(
+            "Warning: inject_auto_start_task called with invalid run_id; "
+            "skipping auto-start task injection.",
+            file=sys.stderr,
+        )
+        return False
+
     command_args = [
         "--worktree-path",
         worktree_path,
@@ -1430,6 +1510,8 @@ def inject_auto_start_task(
         start_prompt,
         "--task-label",
         task_label,
+        "--run-id",
+        run_id.strip(),
     ]
     if not file_existed:
         command_args.append("--created-new")
@@ -1943,14 +2025,15 @@ def _start_copilot_session_for_workflow(
 
     This is the generic helper that all workflow-specific wrappers delegate
     to.  It waits for a prompt file to appear on disk, detects VS Code /
-    TTY availability, handles the auto-start task sentinel check, and
+    TTY availability, handles the auto-start task run-ID check, and
     finally calls :func:`start_copilot_session`.
 
     **Auto-start task handling**: The VS Code auto-start task is injected
     *before* VS Code opens (by :func:`_maybe_inject_auto_start_before_vscode`
     in the background worktree setup flow).  When this function detects the
     task was already injected and there is no TTY attached (background task
-    scenario), it waits for the sentinel file to confirm VS Code handled the
+    scenario), it waits for the run ID to appear in
+    ``copilot.auto_start_triggered_runs`` to confirm VS Code handled the
     session.  This check runs regardless of the *interactive* flag — injection
     is attempted whenever VS Code is available (even when the background setup
     was invoked with ``interactive=False``).
@@ -1997,18 +2080,18 @@ def _start_copilot_session_for_workflow(
     # _maybe_inject_auto_start_before_vscode() injects the task *before* VS
     # Code opens so that ``runOn: folderOpen`` fires with the task present.
     # When that happened and we're in a background context (no TTY), we wait
-    # briefly for the sentinel file to confirm the VS Code task actually
-    # started.  If the sentinel appears, VS Code is handling the session and
-    # we can skip.  If it doesn't appear within a reasonable window (e.g.
-    # VS Code failed to open or the task didn't fire), we fall through and
-    # start the session ourselves as a fallback.
+    # briefly for the run ID to appear in ``copilot.auto_start_triggered_runs``
+    # confirming the VS Code task actually started.  If the run ID appears,
+    # VS Code is handling the session and we can skip.  If it doesn't appear
+    # within a reasonable window (e.g. VS Code failed to open or the task
+    # didn't fire), we fall through and start the session ourselves as a
+    # fallback.
     # NOTE: The check intentionally does NOT require interactive=True.
     # Injection happens regardless of the interactive flag (see
     # _maybe_inject_auto_start_before_vscode), so we must check for the
     # auto-start task even when interactive=False.
     if not has_tty and is_vscode_available():
         tasks_path = os.path.join(worktree_path, ".vscode", "tasks.json")
-        sentinel_path = os.path.join(worktree_path, ".agdt", ".copilot-auto-start-triggered")
         if os.path.exists(tasks_path):
             try:
                 with open(tasks_path, encoding="utf-8") as fh:
@@ -2018,44 +2101,63 @@ def _start_copilot_session_for_workflow(
                     if not isinstance(tasks_list, list):
                         tasks_list = []
                     if any(isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL for t in tasks_list):
-                        # Check whether the sentinel already exists *before*
-                        # we start waiting.  A pre-existing sentinel (e.g.
-                        # left from a previous run) would cause the VS Code
-                        # task to exit immediately without starting a session.
-                        # In that case we must fall through to the background
-                        # session so the user still gets a Copilot session.
-                        if os.path.exists(sentinel_path):
-                            print(
-                                "\n--- Pre-existing sentinel detected. "
-                                "VS Code task will skip; falling back to "
-                                "background Copilot session. ---"
-                            )
-                        else:
-                            print(
-                                "\n--- VS Code auto-start task present. "
-                                "Waiting for VS Code to start the Copilot session... ---"
-                            )
-                            # Wait up to 15 seconds for the sentinel file to appear,
-                            # which means the VS Code task actually executed.
-                            import time
+                        from agentic_devtools.cli.copilot.auto_start import _is_run_triggered
+                        state_file_path, current_run_id = _resolve_state_context_in_worktree(
+                            worktree_path,
+                            include_run_id=True,
+                        )
 
-                            _SENTINEL_WAIT_SECONDS = 15
-                            _SENTINEL_POLL_INTERVAL = 1.0
-                            waited = 0.0
-                            while waited < _SENTINEL_WAIT_SECONDS:
-                                if os.path.exists(sentinel_path):
-                                    print(
-                                        "--- VS Code auto-start task confirmed running. "
-                                        "Copilot session is in the integrated terminal. ---"
-                                    )
-                                    return True
-                                time.sleep(_SENTINEL_POLL_INTERVAL)
-                                waited += _SENTINEL_POLL_INTERVAL
-                            print(
-                                "--- VS Code auto-start task did not fire within "
-                                f"{_SENTINEL_WAIT_SECONDS}s. "
-                                "Falling back to background Copilot session. ---"
-                            )
+                        if state_file_path:
+                            # If we have a state file but no current run ID, there is
+                            # nothing meaningful to wait for. This can happen when a
+                            # stale tasks.json is present but no VS Code task has
+                            # populated the run ID yet. In that case we must fall
+                            # through immediately so the user still gets a Copilot
+                            # session without an unconditional delay.
+                            if not current_run_id:
+                                print(
+                                    "\n--- VS Code auto-start task present but no run ID "
+                                    "is available in state. Falling back to background "
+                                    "Copilot session. ---"
+                                )
+                            # Check whether the run ID is already triggered *before*
+                            # we start waiting.  A pre-existing triggered run ID
+                            # (e.g. from a previous run) would cause the VS Code
+                            # task to exit immediately without starting a session.
+                            # In that case we must fall through to the background
+                            # session so the user still gets a Copilot session.
+                            elif _is_run_triggered(state_file_path, current_run_id):
+                                print(
+                                    "\n--- Run ID already triggered. "
+                                    "VS Code task will skip; falling back to "
+                                    "background Copilot session. ---"
+                                )
+                            else:
+                                print(
+                                    "\n--- VS Code auto-start task present. "
+                                    "Waiting for VS Code to start the Copilot session... ---"
+                                )
+                                # Wait up to 15 seconds for the run ID to appear in state,
+                                # which means the VS Code task actually executed.
+                                import time
+
+                                _TRIGGERED_WAIT_SECONDS = 15
+                                _TRIGGERED_POLL_INTERVAL = 1.0
+                                waited = 0.0
+                                while waited < _TRIGGERED_WAIT_SECONDS:
+                                    if _is_run_triggered(state_file_path, current_run_id):
+                                        print(
+                                            "--- VS Code auto-start task confirmed running. "
+                                            "Copilot session is in the integrated terminal. ---"
+                                        )
+                                        return True
+                                    time.sleep(_TRIGGERED_POLL_INTERVAL)
+                                    waited += _TRIGGERED_POLL_INTERVAL
+                                print(
+                                    "--- VS Code auto-start task did not fire within "
+                                    f"{_TRIGGERED_WAIT_SECONDS}s. "
+                                    "Falling back to background Copilot session. ---"
+                                )
             except (json.JSONDecodeError, OSError):
                 pass  # Fall through to starting the session directly
 
@@ -2370,7 +2472,7 @@ def _maybe_inject_auto_start_before_vscode(
 
     Injection is attempted regardless of the ``interactive`` flag passed to
     the outer worktree-setup flow.  Internal guards (``is_vscode_available()``,
-    sentinel file check, etc.) prevent inappropriate injection.
+    run-ID state check, etc.) prevent inappropriate injection.
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (start prompt exceeds argv limits) or ``inject_auto_start_task()`` fails,
@@ -2391,9 +2493,27 @@ def _maybe_inject_auto_start_before_vscode(
 
     from ..copilot import build_copilot_args
 
+    # Read the current run ID from state to pass through to the task.
+    try:
+        from agentic_devtools.state import get_value
+
+        run_id = get_value("agdt_run_id")
+    except Exception:
+        # Missing or unreadable run ID is a hard stop for auto-start injection.
+        return False
+
+    if not isinstance(run_id, str):
+        # Do not inject an auto-start task without a valid, non-empty string run ID.
+        return False
+
+    run_id_stripped = run_id.strip()
+    if not run_id_stripped:
+        # Do not inject an auto-start task when the run ID is whitespace-only.
+        return False
+
     copilot_args = build_copilot_args(start_prompt, interactive=True)
     if copilot_args is not None:
-        injected = inject_auto_start_task(worktree_path, start_prompt)
+        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
         return injected
