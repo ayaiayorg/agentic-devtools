@@ -503,7 +503,7 @@ def get_state_dir() -> Path:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    # 3/4. Git-based resolution
+    # 2/3. Git-based resolution
     git_root = _get_git_repo_root()
     if git_root:
         agdt_dir = git_root / ".agdt"
@@ -542,7 +542,7 @@ def get_state_dir() -> Path:
         unscoped.mkdir(parents=True, exist_ok=True)
         return unscoped
 
-    # 5. Final fallback — not in a git repo
+    # 4. Final fallback — not in a git repo
     fallback = Path.cwd() / ".agdt-temp"
     fallback.mkdir(exist_ok=True)
     return fallback
