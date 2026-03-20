@@ -7,7 +7,7 @@ name = "agentic-devtools"
 dynamic = ["version"]
 description = "AI assistant helper commands for the Dragonfly platform"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = "MIT"
 authors = [
     { name = "Dragonfly Team" }
@@ -20,6 +20,8 @@ dependencies = [
     "twine>=5.0.0",
     "azure-monitor-query>=1.0.0",
     "azure-identity>=1.0.0",
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint-sqlite>=3.0.1",
 ]
 
 [project.optional-dependencies]
@@ -176,7 +178,7 @@ markers = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [

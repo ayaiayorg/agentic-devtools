@@ -30,6 +30,7 @@ jobs:
       azure: ${{ steps.filter.outputs.azure }}
       workflows: ${{ steps.filter.outputs.workflows }}
       core: ${{ steps.filter.outputs.core }}
+      orchestration: ${{ steps.filter.outputs.orchestration }}
       config: ${{ steps.filter.outputs.config }}
       e2e_smoke: ${{ steps.filter.outputs.e2e_smoke }}
       has_modules: ${{ steps.has-modules.outputs.result }}
@@ -105,6 +106,9 @@ jobs:
               - 'tests/test_version.py'
               - 'tests/test_file_review_commands.py'
               - 'tests/test_file_review_queue_management.py'
+            orchestration:
+              - 'agentic_devtools/orchestration/**'
+              - 'tests/unit/orchestration/**'
             config:
               - 'pyproject.toml'
               - 'scripts/validate_test_structure.py'
@@ -130,6 +134,7 @@ jobs:
                 "${{ steps.filter.outputs.azure }}" == "true" || \
                 "${{ steps.filter.outputs.workflows }}" == "true" || \
                 "${{ steps.filter.outputs.core }}" == "true" || \
+                "${{ steps.filter.outputs.orchestration }}" == "true" || \
                 "${{ steps.filter.outputs.e2e_smoke }}" == "true" ]]; then
             echo "result=true" >> "$GITHUB_OUTPUT"
           else
@@ -268,6 +273,11 @@ jobs:
             COV_FLAGS+=(--cov=agentic_devtools.cli.state)
             COV_FLAGS+=(--cov=agentic_devtools.cli.subprocess_utils)
             COV_FLAGS+=(--cov=agentic_devtools.cli.testing)
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.orchestration }}" = "true" ]; then
+            add_path tests/unit/orchestration
+            COV_FLAGS+=(--cov=agentic_devtools.orchestration)
           fi
 
           echo "Test paths: ${TEST_PATHS[*]}"
