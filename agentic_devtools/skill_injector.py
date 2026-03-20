@@ -392,11 +392,11 @@ def inject_skills(git_root: Optional[Path]) -> bool:
             # filesystems (Windows, macOS default) are caught too.
             source_rel_names: set[str] = set()
             flat_name_origins: dict[str, Path] = {}
-            _seen_ci: dict[str, str] = {}  # casefold → first flat_name
+            _casefold_to_flat: dict[str, str] = {}  # casefold → first flat_name
             for src in source_files:
                 flat_name = _flatten_filename(src.relative_to(source_dir))
                 key = flat_name.casefold()
-                prev_flat = _seen_ci.get(key)
+                prev_flat = _casefold_to_flat.get(key)
                 if prev_flat is not None and prev_flat != flat_name:
                     # Case-insensitive collision (different casing)
                     warnings.warn(
@@ -407,6 +407,9 @@ def inject_skills(git_root: Optional[Path]) -> bool:
                         "case-insensitive filesystems.",
                         RuntimeWarning,
                     )
+                    # Evict old casing entry so the latest variant wins
+                    flat_name_origins.pop(prev_flat, None)
+                    source_rel_names.discard(prev_flat)
                 elif flat_name in flat_name_origins:
                     # Exact duplicate
                     warnings.warn(
@@ -415,11 +418,7 @@ def inject_skills(git_root: Optional[Path]) -> bool:
                         "only the last source will be injected.",
                         RuntimeWarning,
                     )
-                # Remove old casing entry if it differs, so the latest wins
-                if prev_flat is not None and prev_flat != flat_name:
-                    flat_name_origins.pop(prev_flat, None)
-                    source_rel_names.discard(prev_flat)
-                _seen_ci[key] = flat_name
+                _casefold_to_flat[key] = flat_name
                 flat_name_origins[flat_name] = src
                 source_rel_names.add(flat_name)
 
