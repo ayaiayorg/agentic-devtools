@@ -30,11 +30,7 @@ Stage and commit the changes for the Jira issue.
 
 ## Actions
 
-1. Save work with a commit message:
-
-   ```bash
-   agdt-git-save-work
-   ```
+1. Hand off to `@agdt.git-save-work` to save work with a commit message.
 
 ## Expected Outcome
 

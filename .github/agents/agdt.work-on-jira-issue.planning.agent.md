@@ -31,11 +31,7 @@ Analyze the Jira issue and post a planning comment.
 
 ## Actions
 
-1. Post the plan comment:
-
-   ```bash
-   agdt-add-jira-comment
-   ```
+1. Hand off to `@agdt.add-jira-comment` to post the plan comment.
 
 ## Expected Outcome
 

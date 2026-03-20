@@ -30,17 +30,9 @@ Implement the checklist items for the Jira issue.
 
 ## Actions
 
-1. Update checklist progress:
+1. Hand off to `@agdt.update-checklist` to update checklist progress.
 
-   ```bash
-   agdt-update-checklist --completed <item-numbers>
-   ```
-
-2. Save work as needed:
-
-   ```bash
-   agdt-git-save-work
-   ```
+2. Hand off to `@agdt.git-save-work` to save work as needed.
 
 ## Expected Outcome
 

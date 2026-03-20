@@ -30,17 +30,11 @@ Run tests and quality checks before committing.
 
 ## Actions
 
-1. Run the test suite:
+1. Hand off to `@agdt.test` to run the test suite.
 
-   ```bash
-   agdt-test
-   ```
+2. Hand off to `@agdt.task-wait` to wait for test completion and confirm tests passed.
 
-2. Advance the workflow:
-
-   ```bash
-   agdt-advance-workflow
-   ```
+3. Hand off to `@agdt.advance-workflow` to advance the workflow.
 
 ## Expected Outcome
 

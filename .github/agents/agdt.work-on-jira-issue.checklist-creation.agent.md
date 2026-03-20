@@ -30,11 +30,7 @@ Create the implementation checklist for the Jira issue.
 
 ## Actions
 
-1. Create the checklist:
-
-   ```bash
-   agdt-create-checklist
-   ```
+1. Hand off to `@agdt.create-checklist` to create the checklist.
 
 ## Expected Outcome
 

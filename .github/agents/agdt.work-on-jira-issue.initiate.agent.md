@@ -33,11 +33,7 @@ Start the work-on-jira-issue workflow and ensure the Jira issue key is set.
 
 ## Actions
 
-1. Initiate the workflow:
-
-   ```bash
-   agdt-initiate-work-on-jira-issue-workflow
-   ```
+1. Run `agdt-initiate-work-on-jira-issue-workflow` to perform preflight checks and advance to the next step.
 
 ## Expected Outcome
 

@@ -30,11 +30,7 @@ Create the worktree and branch for the Jira issue when preflight checks fail.
 
 ## Actions
 
-1. Run the automated setup:
-
-   ```bash
-   agdt-setup-worktree-background
-   ```
+1. Hand off to `@agdt.setup-worktree-background` to run the automated setup.
 
 ## Expected Outcome
 
