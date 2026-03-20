@@ -3,13 +3,14 @@ Jira create commands: create_epic, create_issue, create_subtask, create_issue_sy
 """
 
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agentic_devtools.state import is_dry_run
+from agentic_devtools.tools.jira import JiraConfig
+from agentic_devtools.tools.jira import create_issue as _tools_create_issue
 
 from .config import (
     DEFAULT_PROJECT_KEY,
-    EPIC_NAME_FIELD,
     get_jira_base_url,
     get_jira_headers,
 )
@@ -24,17 +25,31 @@ from .state_helpers import get_jira_value, set_jira_value
 from .vpn_wrapper import with_jira_vpn_context
 
 
+def _build_jira_config() -> JiraConfig:
+    """Construct a :class:`JiraConfig` from the current environment/state."""
+    return JiraConfig(
+        base_url=get_jira_base_url(),
+        headers=get_jira_headers(),
+        ssl_verify=_get_ssl_verify(),
+        requests_module=_get_requests(),
+    )
+
+
 def create_issue_sync(
     project_key: str,
     summary: str,
     issue_type: str,
     description: str,
-    labels: List[str],
-    epic_name: Optional[str] = None,
-    parent_key: Optional[str] = None,
-) -> Dict[str, Any]:
+    labels: list[str],
+    epic_name: str | None = None,
+    parent_key: str | None = None,
+) -> dict[str, Any]:
     """
     Create a Jira issue synchronously.
+
+    This is a thin backward-compatible wrapper that constructs a
+    :class:`JiraConfig` from the environment and delegates to
+    :func:`agentic_devtools.tools.jira.create_issue`.
 
     Args:
         project_key: Jira project key
@@ -48,34 +63,18 @@ def create_issue_sync(
     Returns:
         API response dictionary
     """
-    requests = _get_requests()
-
-    base_url = get_jira_base_url()
-    url = f"{base_url}/rest/api/2/issue"
-    headers = get_jira_headers()
-
-    fields: Dict[str, Any] = {
-        "project": {"key": project_key},
-        "summary": summary,
-        "issuetype": {"name": issue_type},
-        "description": description,
-        "labels": labels,
-    }
-
-    # Add epic name for Epic type
-    if issue_type.lower() == "epic" and epic_name:
-        fields[EPIC_NAME_FIELD] = epic_name
-
-    # Add parent for Sub-task
-    if parent_key and issue_type.lower() in ("sub-task", "subtask"):
-        fields["parent"] = {"key": parent_key}
-
-    payload = {"fields": fields}
-
-    response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify(), timeout=30)
-    response.raise_for_status()
-
-    return response.json()
+    config = _build_jira_config()
+    result = _tools_create_issue(
+        config=config,
+        project_key=project_key,
+        summary=summary,
+        issue_type=issue_type,
+        description=description,
+        labels=labels,
+        epic_name=epic_name,
+        parent_key=parent_key,
+    )
+    return result["raw_response"]
 
 
 @with_jira_vpn_context

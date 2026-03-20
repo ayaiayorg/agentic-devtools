@@ -4,9 +4,10 @@ Jira comment commands: add_comment.
 
 import argparse
 import sys
-from typing import Optional
 
 from agentic_devtools.state import is_dry_run, set_value
+from agentic_devtools.tools.jira import JiraConfig
+from agentic_devtools.tools.jira import add_comment as _tools_add_comment
 
 from .config import get_jira_base_url, get_jira_headers
 from .helpers import _get_requests, _get_ssl_verify
@@ -15,7 +16,7 @@ from .vpn_wrapper import with_jira_vpn_context
 
 
 @with_jira_vpn_context
-def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) -> None:
+def add_comment(comment: str | None = None, issue_key: str | None = None) -> None:
     """
     Add a comment to an existing Jira issue.
 
@@ -41,8 +42,6 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
     """
     # Import here to avoid circular dependency
     from .get_commands import get_issue
-
-    requests = _get_requests()
 
     # Use parameter if provided, otherwise fall back to state
     resolved_issue_key = issue_key or get_jira_value("issue_key")
@@ -73,20 +72,17 @@ def add_comment(comment: Optional[str] = None, issue_key: Optional[str] = None) 
         print(f"Content:\n{resolved_comment}")
         return
 
-    base_url = get_jira_base_url()
-    url = f"{base_url}/rest/api/2/issue/{resolved_issue_key}/comment"
-    headers = get_jira_headers()
-
-    payload = {"body": resolved_comment}
-
     print(f"Adding comment to {resolved_issue_key}...")
 
     try:
-        response = requests.post(url, headers=headers, json=payload, verify=_get_ssl_verify(), timeout=30)
-        response.raise_for_status()
-
-        result = response.json()
-        print(f"Comment added successfully (ID: {result.get('id')})")
+        config = JiraConfig(
+            base_url=get_jira_base_url(),
+            headers=get_jira_headers(),
+            ssl_verify=_get_ssl_verify(),
+            requests_module=_get_requests(),
+        )
+        result = _tools_add_comment(config=config, issue_key=resolved_issue_key, comment=resolved_comment)
+        print(f"Comment added successfully (ID: {result['comment_id']})")
 
         # Refresh issue details to update cached state (matches PowerShell behavior)
         print("Refreshing issue details...")
