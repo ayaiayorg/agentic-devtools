@@ -1,5 +1,6 @@
 """Tests for get_checkpointer factory function."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -89,5 +90,15 @@ class TestGetCheckpointer:
         saver = get_checkpointer(db_path)
         try:
             assert isinstance(saver, SqliteSaver)
+        finally:
+            saver.conn.close()
+
+    def test_custom_path_expands_user_home(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        saver = get_checkpointer("~/custom.db")
+        try:
+            expected = (tmp_path / "custom.db").resolve()
+            actual = saver.conn.execute("PRAGMA database_list").fetchone()[2]
+            assert Path(actual) == expected
         finally:
             saver.conn.close()

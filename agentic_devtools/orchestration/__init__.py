@@ -11,9 +11,10 @@ while the existing JSON-based CLI state continues to operate in parallel.
 from .checkpointing import get_checkpointer
 from .graph_builder import build_work_on_issue_graph
 from .pilot_workflow import get_mermaid_diagram
-from .state_schema import WorkOnIssueState
+from .state_schema import WorkOnIssueEvent, WorkOnIssueState
 
 __all__ = [
+    "WorkOnIssueEvent",
     "WorkOnIssueState",
     "build_work_on_issue_graph",
     "get_checkpointer",

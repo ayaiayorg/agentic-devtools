@@ -4,6 +4,13 @@ import operator
 from typing import Annotated, TypedDict
 
 
+class WorkOnIssueEvent(TypedDict):
+    """A single event entry in the workflow audit trail."""
+
+    event: str
+    timestamp: str
+
+
 class WorkOnIssueState(TypedDict, total=False):
     """State schema for the work-on-jira-issue workflow.
 
@@ -21,5 +28,5 @@ class WorkOnIssueState(TypedDict, total=False):
     plan: str
     error: str | None
     retry_count: int
-    events: Annotated[list, operator.add]
+    events: Annotated[list[WorkOnIssueEvent], operator.add]
     human_approved: bool

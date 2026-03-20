@@ -3,7 +3,7 @@
 import operator
 from typing import get_type_hints
 
-from agentic_devtools.orchestration.state_schema import WorkOnIssueState
+from agentic_devtools.orchestration.state_schema import WorkOnIssueEvent, WorkOnIssueState
 
 
 class TestWorkOnIssueState:
@@ -40,14 +40,14 @@ class TestWorkOnIssueState:
         assert events_hint.__metadata__[0] is operator.add
 
     def test_events_reducer_appends_with_operator_add(self):
-        existing = [{"event": "a"}]
-        new = [{"event": "b"}]
+        existing: list[WorkOnIssueEvent] = [{"event": "a", "timestamp": "t1"}]
+        new: list[WorkOnIssueEvent] = [{"event": "b", "timestamp": "t2"}]
         result = operator.add(existing, new)
-        assert result == [{"event": "a"}, {"event": "b"}]
+        assert result == [{"event": "a", "timestamp": "t1"}, {"event": "b", "timestamp": "t2"}]
 
     def test_events_reducer_works_with_empty_initial(self):
-        result = operator.add([], [{"event": "first"}])
-        assert result == [{"event": "first"}]
+        result = operator.add([], [{"event": "first", "timestamp": "t1"}])
+        assert result == [{"event": "first", "timestamp": "t1"}]
 
     def test_schema_fields_include_expected_keys(self):
         hints = get_type_hints(WorkOnIssueState, include_extras=True)
@@ -79,3 +79,9 @@ class TestWorkOnIssueState:
             "human_approved": False,
         }
         assert state["error"] == "something went wrong"
+
+    def test_events_field_is_typed_with_workonissueevent(self):
+        hints = get_type_hints(WorkOnIssueState, include_extras=True)
+        events_hint = hints["events"]
+        # The underlying type (before metadata) should be list[WorkOnIssueEvent]
+        assert events_hint.__origin__ is list or hasattr(events_hint, "__args__")
