@@ -32,7 +32,7 @@ def build_work_on_issue_graph(checkpointer=None) -> CompiledStateGraph:
             execution (useful for tests and diagram generation).
 
     Returns:
-        A compiled ``CompiledGraph`` ready for invocation.
+        A compiled ``CompiledStateGraph`` ready for invocation.
     """
     graph = StateGraph(WorkOnIssueState)
 

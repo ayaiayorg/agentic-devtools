@@ -25,7 +25,7 @@ def _utc_now() -> str:
 
 
 def initiate_node(state: WorkOnIssueState) -> dict:
-    """Entry point: validate issue key and set initial status."""
+    """Entry point: set initial step and status (stub — no validation in Phase 1)."""
     return {
         "step": "initiate",
         "status": "active",
