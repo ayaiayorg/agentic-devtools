@@ -596,7 +596,7 @@ class TestInjectSkills:
         assert sentinel.read_text(encoding="utf-8") == "do not delete"
 
     def test_excludes_agdt_readme_from_source_files(self, tmp_path):
-        """agdt.README.md in source is excluded to prevent manifest-as-skill."""
+        """Root-level agdt.README.md is excluded; nested ones are injected."""
         source = tmp_path / "source_agents"
         prompts_source = tmp_path / "source_prompts"
         source.mkdir()
@@ -609,6 +609,13 @@ class TestInjectSkills:
         # Leftover manifest from a previous run (editable-install scenario)
         (source / "agdt.README.md").write_text(
             "# Managed README\n",
+            encoding="utf-8",
+        )
+        # Nested agdt.README.md — legitimate file, should NOT be excluded
+        subdir = source / "sub"
+        subdir.mkdir()
+        (subdir / "agdt.README.md").write_text(
+            "---\ndescription: nested readme\n---\n",
             encoding="utf-8",
         )
 
@@ -625,6 +632,8 @@ class TestInjectSkills:
         readme_text = (target / "agdt.README.md").read_text(encoding="utf-8")
         assert "agdt.foo.agent.md" in readme_text
         assert "# Managed README" not in readme_text
+        # Nested agdt.README.md should have been injected (flattened)
+        assert (target / "agdt.sub.agdt.README.md").exists()
 
     def test_skips_copy_when_source_equals_target(self, tmp_path):
         """No SameFileError when source and target resolve to the same path."""
