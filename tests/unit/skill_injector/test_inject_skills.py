@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from agentic_devtools.skill_injector import inject_skills
 
 
@@ -577,7 +579,10 @@ class TestInjectSkills:
         target_dir = tmp_path / ".github" / "agents"
         target_dir.mkdir(parents=True)
         symlink = target_dir / ".agdt"
-        symlink.symlink_to(real_dir)
+        try:
+            symlink.symlink_to(real_dir)
+        except OSError:
+            pytest.skip("symlink creation not supported on this platform")
 
         with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
             mock_src.side_effect = self._source_selector(agents_source, prompts_source)
@@ -589,3 +594,62 @@ class TestInjectSkills:
         assert real_dir.exists()
         assert sentinel.exists()
         assert sentinel.read_text(encoding="utf-8") == "do not delete"
+
+    def test_excludes_agdt_readme_from_source_files(self, tmp_path):
+        """agdt.README.md in source is excluded to prevent manifest-as-skill."""
+        source = tmp_path / "source_agents"
+        prompts_source = tmp_path / "source_prompts"
+        source.mkdir()
+        prompts_source.mkdir()
+        # Normal managed file
+        (source / "agdt.foo.agent.md").write_text(
+            "---\ndescription: foo agent\n---\n",
+            encoding="utf-8",
+        )
+        # Leftover manifest from a previous run (editable-install scenario)
+        (source / "agdt.README.md").write_text(
+            "# Managed README\n",
+            encoding="utf-8",
+        )
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            mock_src.side_effect = self._source_selector(source, prompts_source)
+            result = inject_skills(tmp_path)
+
+        assert result is True
+        target = tmp_path / ".github" / "agents"
+        # agdt.foo.agent.md should be injected
+        assert (target / "agdt.foo.agent.md").exists()
+        # agdt.README.md in target should be the generated manifest,
+        # NOT a copy of the source agdt.README.md
+        readme_text = (target / "agdt.README.md").read_text(encoding="utf-8")
+        assert "agdt.foo.agent.md" in readme_text
+        assert "# Managed README" not in readme_text
+
+    def test_skips_copy_when_source_equals_target(self, tmp_path):
+        """No SameFileError when source and target resolve to the same path."""
+        # Simulate editable-install: source_dir IS target_dir
+        target_dir = tmp_path / ".github" / "agents"
+        target_dir.mkdir(parents=True)
+        prompts_dir = tmp_path / ".github" / "prompts"
+        prompts_dir.mkdir(parents=True)
+
+        # Place a managed file directly in the target (which is also source)
+        agent_file = target_dir / "agdt.self.agent.md"
+        agent_file.write_text(
+            "---\ndescription: self agent\n---\n",
+            encoding="utf-8",
+        )
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            mock_src.side_effect = self._source_selector(target_dir, prompts_dir)
+            result = inject_skills(tmp_path)
+
+        # Should succeed without SameFileError
+        assert result is True
+        # The file should still be present and intact
+        assert agent_file.exists()
+        assert "self agent" in agent_file.read_text(encoding="utf-8")
+        # Manifest should list the file
+        readme = target_dir / "agdt.README.md"
+        assert "agdt.self.agent.md" in readme.read_text(encoding="utf-8")
