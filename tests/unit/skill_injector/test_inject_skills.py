@@ -205,8 +205,8 @@ class TestInjectSkills:
         assert (target_dir / "agdt.valid.prompt.md").exists()
         assert not (target_dir / "other.md").exists()
 
-    def test_agents_copies_all_non_hidden_md_files(self, tmp_path):
-        """For agents, all non-hidden *.md files are copied."""
+    def test_agents_skips_non_managed_prefix_files(self, tmp_path):
+        """For agents, root-level files without agdt. prefix are not injected."""
         source = tmp_path / "source_agents"
         empty_prompts_source = tmp_path / "source_prompts"
         source.mkdir()
@@ -227,7 +227,8 @@ class TestInjectSkills:
 
         target_dir = tmp_path / ".github" / "agents"
         assert (target_dir / "agdt.foo.agent.md").exists()
-        assert (target_dir / "copilot-instructions.md").exists()
+        # Non-prefixed files must NOT be injected into target repos
+        assert not (target_dir / "copilot-instructions.md").exists()
         assert not (target_dir / ".markdownlint.json").exists()
 
     def test_does_not_remove_readme_during_stale_cleanup(self, tmp_path):

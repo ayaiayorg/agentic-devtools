@@ -359,6 +359,15 @@ def inject_skills(git_root: Optional[Path]) -> bool:
             # available in target repos and are non-functional without the
             # full speckit scaffold.
             source_files = [p for p in source_files if not p.name.startswith(_SPECKIT_PREFIX)]
+            # Only inject files whose flattened filename starts with the
+            # managed prefix (``agdt.``).  Root-level files without the prefix
+            # (e.g. ``copilot-instructions.md``) are repo-specific and must
+            # not be copied into target repos where they could overwrite
+            # user-authored files.  This also keeps the injected file set
+            # aligned with stale cleanup, which only removes ``agdt.*`` files.
+            source_files = [
+                p for p in source_files if _flatten_filename(p.relative_to(source_dir)).startswith(_MANAGED_PREFIX)
+            ]
 
             # Build set of flattened filenames for stale-cleanup comparison.
             source_rel_names = {_flatten_filename(p.relative_to(source_dir)) for p in source_files}
