@@ -279,7 +279,8 @@ def _flatten_filename(rel_path: Path) -> str:
     """Compute the flat target filename for a source file.
 
     Root-level files keep their name unchanged.
-    Files in subdirectories get ``agdt.<sanitized_dir_parts>.<original_name>``.
+    Files in subdirectories get the managed prefix (``_MANAGED_PREFIX``)
+    followed by sanitized directory parts and the original filename.
     Only a-zA-Z characters are kept from directory names.
     """
     parts = rel_path.parts
@@ -290,7 +291,7 @@ def _flatten_filename(rel_path: Path) -> str:
     sanitized = [s for s in sanitized if s]  # drop empty after sanitization
     if not sanitized:
         return parts[-1]
-    return "agdt." + ".".join(sanitized) + "." + parts[-1]
+    return _MANAGED_PREFIX + ".".join(sanitized) + "." + parts[-1]
 
 
 # ---------------------------------------------------------------------------
