@@ -85,5 +85,6 @@ class TestWorkOnIssueState:
         events_hint = hints["events"]
         # Annotated[list[WorkOnIssueEvent], operator.add] — verify the underlying type
         assert get_origin(events_hint) is Annotated
-        underlying_type, metadata = get_args(events_hint)
+        underlying_type, *metadata = get_args(events_hint)
         assert underlying_type == list[WorkOnIssueEvent]
+        assert operator.add in metadata
