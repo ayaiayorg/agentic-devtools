@@ -1,20 +1,25 @@
-"""
-Mirrors bundled agent/prompt skill files into a target repository so that
-Copilot CLI and similar tools can discover them by convention.
+"""Mirrors bundled agent/prompt skill files into a target repository.
 
-The injection creates ``.github/agents/.agdt/`` and
-``.github/prompts/.agdt/`` directories in the target repo, each containing
-a managed ``README.md`` manifest.
+The injection places files directly into ``.github/agents/`` and
+``.github/prompts/`` in the target repo (flat layout — no subdirectories),
+with a managed ``agdt.README.md`` manifest in each.  Files from source
+subdirectories are flattened by encoding the directory name into the
+filename (e.g. ``sub/foo.agent.md`` → ``agdt.sub.foo.agent.md``).
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
+
+_MANAGED_PREFIX = "agdt."
+_SPECKIT_PREFIX = "speckit."
+_ALPHA_ONLY_RE = re.compile(r"[^a-zA-Z]")
 
 # ---------------------------------------------------------------------------
 # Bundled-source resolution
@@ -226,7 +231,7 @@ def _extract_description(frontmatter: dict[str, object], kind: str) -> str:
 
 
 def _generate_readme(files: list[tuple[str, str]], kind: str) -> str:
-    """Produce a managed ``README.md`` for a ``.agdt/`` directory.
+    """Produce a managed ``agdt.README.md`` for the target directory.
 
     Args:
         files: list of ``(filename, description)`` tuples.
@@ -266,6 +271,29 @@ def _generate_readme(files: list[tuple[str, str]], kind: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Filename flattening
+# ---------------------------------------------------------------------------
+
+
+def _flatten_filename(rel_path: Path) -> str:
+    """Compute the flat target filename for a source file.
+
+    Root-level files keep their name unchanged.
+    Files in subdirectories get ``agdt.<sanitized_dir_parts>.<original_name>``.
+    Only a-zA-Z characters are kept from directory names.
+    """
+    parts = rel_path.parts
+    if len(parts) == 1:
+        return parts[0]
+    dir_parts = parts[:-1]
+    sanitized = [_ALPHA_ONLY_RE.sub("", p) for p in dir_parts]
+    sanitized = [s for s in sanitized if s]  # drop empty after sanitization
+    if not sanitized:
+        return parts[-1]
+    return "agdt." + ".".join(sanitized) + "." + parts[-1]
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -273,9 +301,13 @@ def _generate_readme(files: list[tuple[str, str]], kind: str) -> str:
 def inject_skills(git_root: Optional[Path]) -> bool:
     """Mirror bundled agent/prompt files into the target repo.
 
-    Creates ``{git_root}/.github/agents/.agdt/`` and
-    ``{git_root}/.github/prompts/.agdt/``, copying all relevant ``.md``
-    files and generating a managed ``README.md`` manifest in each.
+    Places files directly into ``{git_root}/.github/agents/`` and
+    ``{git_root}/.github/prompts/`` (flat layout), copying all relevant
+    ``.md`` files and generating a managed ``agdt.README.md`` manifest in
+    each.  Files from source subdirectories are flattened by encoding the
+    directory name into the filename.
+
+    As a one-time migration, any old ``.agdt/`` subdirectories are removed.
 
     Args:
         git_root: Repository/worktree root.  When ``None`` (not in a git
@@ -288,15 +320,13 @@ def inject_skills(git_root: Optional[Path]) -> bool:
         - a source directory for a required kind cannot be resolved,
         - a ``UnicodeDecodeError`` occurs while reading source files (non-UTF8
           content), or
-        - an ``OSError`` occurs while writing mirrored files or manifests
-          (excluding best-effort updates to ``.github/.gitignore``).
+        - an ``OSError`` occurs while writing mirrored files or manifests.
     """
     if git_root is None:
         return False
 
     try:
         overall_success = True
-        _ensure_github_gitignore_unignores_agdt(git_root)
         for kind in ("agents", "prompts"):
             source_dir = _get_source_dir(kind)
             if source_dir is None:
@@ -307,29 +337,38 @@ def inject_skills(git_root: Optional[Path]) -> bool:
                 overall_success = False
                 continue
 
-            target_dir = git_root / ".github" / kind / ".agdt"
+            target_dir = git_root / ".github" / kind
             target_dir.mkdir(parents=True, exist_ok=True)
+
+            # One-time migration: remove old .agdt/ subdirectory
+            old_agdt = target_dir / ".agdt"
+            if old_agdt.is_dir():
+                shutil.rmtree(old_agdt)
 
             # Determine which files to inject
             source_files = _list_md_files(source_dir, kind)
             # Reserve the root-level README.md for the managed manifest in the
-            # target .agdt/ directory by excluding only a source file whose
+            # target directory by excluding only a source file whose
             # *relative* path is exactly "README.md". This prevents conflicts
             # where a root README.md would be copied and then immediately
             # overwritten by the generated manifest while still being listed in
             # the manifest, while still allowing nested READMEs (e.g.
             # "foo/README.md") to be mirrored as normal skill docs.
             source_files = [p for p in source_files if p.relative_to(source_dir) != Path("README.md")]
+            # Exclude speckit.* files — they reference .specify/ scripts not
+            # available in target repos and are non-functional without the
+            # full speckit scaffold.
+            source_files = [p for p in source_files if not p.name.startswith(_SPECKIT_PREFIX)]
 
-            # Build set of relative paths for stale-cleanup comparison.
-            source_rel_paths = {p.relative_to(source_dir) for p in source_files}
+            # Build set of flattened filenames for stale-cleanup comparison.
+            source_rel_names = {_flatten_filename(p.relative_to(source_dir)) for p in source_files}
 
-            # Copy files, preserving relative directory structure
+            # Copy files, flattening subdirectory structure into filenames
             manifest: list[tuple[str, str]] = []
             for src in source_files:
                 rel = src.relative_to(source_dir)
-                dest = target_dir / rel
-                dest.parent.mkdir(parents=True, exist_ok=True)
+                flat_name = _flatten_filename(rel)
+                dest = target_dir / flat_name
                 shutil.copy2(src, dest)
                 try:
                     content = src.read_text(encoding="utf-8")
@@ -343,19 +382,20 @@ def inject_skills(git_root: Optional[Path]) -> bool:
                 else:
                     fm = _parse_frontmatter(content)
                     desc = _extract_description(fm, kind)
-                manifest.append((rel.as_posix(), desc))
+                manifest.append((flat_name, desc))
 
-            # Remove stale .md files (not in source), but keep the root README.md
-            for existing in (p for p in target_dir.rglob("*.md") if p.is_file()):
-                rel = existing.relative_to(target_dir)
-                # Preserve only the managed root README.md; treat nested READMEs as normal files
-                if rel == Path("README.md"):
-                    continue
-                if rel not in source_rel_paths:
+            # Remove stale agdt.* files not in current source set
+            for existing in target_dir.iterdir():
+                if (
+                    existing.is_file()
+                    and existing.name.startswith(_MANAGED_PREFIX)
+                    and existing.name != "agdt.README.md"
+                    and existing.name not in source_rel_names
+                ):
                     existing.unlink()
 
-            # Generate README.md
-            readme_path = target_dir / "README.md"
+            # Generate agdt.README.md
+            readme_path = target_dir / "agdt.README.md"
             readme_path.write_text(
                 _generate_readme(manifest, kind),
                 encoding="utf-8",

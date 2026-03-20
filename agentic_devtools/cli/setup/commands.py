@@ -518,7 +518,7 @@ def setup_cmd() -> None:
                 )
 
         if inject_skills is not None and inject_skills(git_root):
-            print("  ✓ Injected agent/prompt skills into .github/agents/.agdt/ and .github/prompts/.agdt/")
+            print("  ✓ Injected agent/prompt skills into .github/agents/ and .github/prompts/")
         elif git_root is not None and inject_skills is not None:
             print(
                 "  ⚠ Failed to inject agent/prompt skills — this may be due to directory permissions or missing/corrupted bundled skills",
