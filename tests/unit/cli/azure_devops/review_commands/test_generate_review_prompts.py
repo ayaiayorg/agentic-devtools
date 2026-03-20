@@ -8,7 +8,7 @@ class TestGenerateReviewPrompts:
         """Test generates prompt files for PR files."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -19,17 +19,17 @@ class TestGenerateReviewPrompts:
         }
 
         # Patch the scripts directory location
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
+        with patch("agentic_devtools.cli.azure_devops.review_commands.Path") as mock_path:
             # Make the path operations work with tmp_path
             mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
             mock_path.return_value.__truediv__ = lambda self, x: tmp_path / x
 
             # Actually call the function but with simplified setup
-            from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+            from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
             # Minimal patching to avoid complex path issues
             with patch.object(
-                __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+                __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
                 "get_state_dir",
                 return_value=tmp_path,
             ):
@@ -48,7 +48,7 @@ class TestGenerateReviewPrompts:
         """Test skips files already marked as reviewed."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -62,7 +62,7 @@ class TestGenerateReviewPrompts:
         }
 
         with patch.object(
-            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
             "get_state_dir",
             return_value=tmp_path,
         ):
@@ -80,7 +80,7 @@ class TestGenerateReviewPrompts:
         """Test skips files not in the branch changes."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -94,7 +94,7 @@ class TestGenerateReviewPrompts:
         files_on_branch = {"/src/file1.ts"}
 
         with patch.object(
-            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
             "get_state_dir",
             return_value=tmp_path,
         ):

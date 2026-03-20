@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from agdt_ai_helpers.cli.jira import get_commands
+from agentic_devtools.cli.jira import get_commands
 
 
 class TestFetchEpic:

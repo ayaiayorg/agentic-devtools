@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers.cli import jira
-from agdt_ai_helpers.cli.jira import comment_commands, get_commands
+from agentic_devtools.cli import jira
+from agentic_devtools.cli.jira import comment_commands, get_commands
 
 
 class TestAddCommentDryRun:

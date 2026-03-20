@@ -10,9 +10,9 @@ class TestCheckUsersExistCommand:
         """Test prints error when users not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agentic_devtools.cli.jira.role_commands import check_users_exist
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value=None):
             check_users_exist()
 
         captured = capsys.readouterr()
@@ -22,9 +22,9 @@ class TestCheckUsersExistCommand:
         """Test prints error for empty users list."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agentic_devtools.cli.jira.role_commands import check_users_exist
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=""):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value=""):
             check_users_exist()
 
         captured = capsys.readouterr()

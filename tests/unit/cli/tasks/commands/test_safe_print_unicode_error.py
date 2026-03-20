@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
 )
@@ -23,7 +23,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -39,7 +39,7 @@ class TestSafePrintUnicodeError:
 
     def test_safe_print_replaces_emoji_on_unicode_error(self, capsys):
         """Test that emoji is replaced when UnicodeEncodeError occurs."""
-        from agdt_ai_helpers.cli.tasks.commands import _safe_print
+        from agentic_devtools.cli.tasks.commands import _safe_print
 
         # We need to simulate a UnicodeEncodeError on the first print call
         call_count = [0]

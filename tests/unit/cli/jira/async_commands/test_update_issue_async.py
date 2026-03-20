@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     update_issue_async,
 )
 
@@ -29,13 +29,13 @@ class TestUpdateIssueAsync:
 
     def test_requires_issue_key(self, mock_background_and_state):
         """Test update_issue_async requires issue_key."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 update_issue_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test update_issue_async spawns a background task."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY-789"):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="DFLY-789"):
             update_issue_async()
 
         captured = capsys.readouterr()

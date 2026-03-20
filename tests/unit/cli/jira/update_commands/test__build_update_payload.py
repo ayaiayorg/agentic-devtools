@@ -4,7 +4,7 @@ Tests for Jira update_commands module.
 Tests for agdt-update-jira-issue command and payload building.
 """
 
-from agdt_ai_helpers.cli.jira.update_commands import _build_update_payload
+from agentic_devtools.cli.jira.update_commands import _build_update_payload
 
 
 class TestBuildUpdatePayload:

@@ -5,7 +5,7 @@ Tests for Jira helper utilities.
 from pathlib import Path
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.jira import helpers as jira_helpers
+from agentic_devtools.cli.jira import helpers as jira_helpers
 
 
 class TestGetJiraPemPaths:
@@ -13,7 +13,7 @@ class TestGetJiraPemPaths:
 
     def test_repo_path_returns_path_in_scripts_dir(self):
         """Test that repo PEM path is in the scripts directory via git root."""
-        with patch("agdt_ai_helpers.cli.jira.helpers._get_git_repo_root") as mock_git_root:
+        with patch("agentic_devtools.cli.jira.helpers._get_git_repo_root") as mock_git_root:
             mock_git_root.return_value = Path("/mock/repo")
             result = jira_helpers._get_repo_jira_pem_path()
             assert result == Path("/mock/repo/scripts/jira_ca_bundle.pem")
@@ -22,7 +22,7 @@ class TestGetJiraPemPaths:
         """Test fallback to state dir when not in a git repo."""
         state_dir = tmp_path / "state"
         state_dir.mkdir()
-        with patch("agdt_ai_helpers.cli.jira.helpers._get_git_repo_root", return_value=None):
-            with patch("agdt_ai_helpers.cli.jira.helpers.get_state_dir", return_value=state_dir):
+        with patch("agentic_devtools.cli.jira.helpers._get_git_repo_root", return_value=None):
+            with patch("agentic_devtools.cli.jira.helpers.get_state_dir", return_value=state_dir):
                 result = jira_helpers._get_repo_jira_pem_path()
                 assert result == state_dir / "jira_ca_bundle.pem"

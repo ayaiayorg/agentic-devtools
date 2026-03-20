@@ -4,7 +4,7 @@ Tests for Jira helper utilities.
 
 from unittest.mock import MagicMock, patch
 
-from agdt_ai_helpers.cli.jira import helpers as jira_helpers
+from agentic_devtools.cli.jira import helpers as jira_helpers
 
 
 class TestFetchCertificateChainOpenssl:
@@ -30,7 +30,7 @@ MIIFakeIntermediateCert456
 -----END CERTIFICATE-----
 ---
 """
-        with patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run") as mock_run:
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout=mock_output)
             result = jira_helpers._fetch_certificate_chain_openssl("jira.swica.ch")
 
@@ -42,7 +42,7 @@ MIIFakeIntermediateCert456
         """Test returns None when subprocess times out."""
         import subprocess
 
-        with patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run") as mock_run:
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="openssl", timeout=10)
             result = jira_helpers._fetch_certificate_chain_openssl("jira.swica.ch")
 
@@ -50,7 +50,7 @@ MIIFakeIntermediateCert456
 
     def test_returns_none_on_file_not_found(self):
         """Test returns None when openssl is not installed."""
-        with patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run") as mock_run:
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("openssl not found")
             result = jira_helpers._fetch_certificate_chain_openssl("jira.swica.ch")
 
@@ -58,7 +58,7 @@ MIIFakeIntermediateCert456
 
     def test_returns_none_on_no_certificates(self):
         """Test returns None when output has no certificates."""
-        with patch("agdt_ai_helpers.cli.subprocess_utils.subprocess.run") as mock_run:
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout=b"CONNECTED\n---\nNo certificates\n---")
             result = jira_helpers._fetch_certificate_chain_openssl("jira.swica.ch")
 

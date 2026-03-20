@@ -13,10 +13,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     task_log,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
 )
@@ -26,7 +26,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -42,7 +42,7 @@ class TestTaskLog:
 
     def test_task_log_no_task_id(self, mock_state_dir, capsys):
         """Test task_log with no task_id in state."""
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             with pytest.raises(SystemExit):
                 task_log()
 
@@ -61,7 +61,7 @@ class TestTaskLog:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.write_text("Test log output\nLine 2\n")
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             try:
                 task_log()
             except SystemExit:
@@ -80,7 +80,7 @@ class TestTaskLog:
         """Test task_log when log file doesn't exist."""
         task = _create_and_add_task("agdt-no-log")
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             try:
                 task_log()
             except SystemExit:

@@ -10,7 +10,7 @@ class TestCheckUsersExistCommandPaths:
         """Test handling of inactive user in check_users_exist."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agentic_devtools.cli.jira.role_commands import check_users_exist
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -19,15 +19,15 @@ class TestCheckUsersExistCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 check_users_exist()
 
         captured = capsys.readouterr()
@@ -37,7 +37,7 @@ class TestCheckUsersExistCommandPaths:
         """Test handling of non-existent user in check_users_exist."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_users_exist
+        from agentic_devtools.cli.jira.role_commands import check_users_exist
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -45,14 +45,14 @@ class TestCheckUsersExistCommandPaths:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="nonexistent.user"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="nonexistent.user"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_users_exist()
 
         captured = capsys.readouterr()

@@ -10,7 +10,7 @@ Covers:
 
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
     _get_iteration_change_tracking_map,
 )
 
@@ -36,7 +36,7 @@ class TestGetIterationChangeTrackingMap:
     def test_returns_empty_dict_when_api_returns_none(self):
         """Should return empty dict when API call fails."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -57,7 +57,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -83,7 +83,7 @@ class TestGetIterationChangeTrackingMap:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -102,7 +102,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -125,7 +125,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -145,7 +145,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -165,7 +165,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -185,7 +185,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -204,7 +204,7 @@ class TestGetIterationChangeTrackingMap:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=response,
         ):
             result = _get_iteration_change_tracking_map("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})

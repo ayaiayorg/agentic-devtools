@@ -8,15 +8,15 @@ class TestCheckoutAndSyncBranch:
         """Test successful checkout and sync returns files."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_fetch_branch.return_value = True
                                 mock_reset.return_value = True
@@ -34,10 +34,10 @@ class TestCheckoutAndSyncBranch:
         """Test checkout failure returns error message."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
             mock_checkout.return_value = CheckoutResult(
                 CheckoutResult.UNCOMMITTED_CHANGES,
                 "You have uncommitted changes",
@@ -55,15 +55,15 @@ class TestCheckoutAndSyncBranch:
         """Test rebase conflict still returns files (review can continue)."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_fetch_branch.return_value = True
                                 mock_reset.return_value = True
@@ -85,14 +85,14 @@ class TestCheckoutAndSyncBranch:
         """Test fetch_main failure doesn't block the workflow."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                             mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                             mock_fetch_branch.return_value = True
                             mock_reset.return_value = True
@@ -110,11 +110,11 @@ class TestCheckoutAndSyncBranch:
         """Test fetch_branch failure for source branch returns error."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                 mock_fetch_branch.return_value = False
 
@@ -130,12 +130,12 @@ class TestCheckoutAndSyncBranch:
         """Test reset_branch_to_origin failure returns error."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
                     mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                     mock_fetch_branch.return_value = True
                     mock_reset.return_value = False
@@ -152,8 +152,8 @@ class TestCheckoutAndSyncBranch:
         """Test fetch_branch and reset_branch_to_origin are called before fetch_main."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
         call_order = []
 
@@ -169,12 +169,12 @@ class TestCheckoutAndSyncBranch:
             call_order.append("fetch_main")
             return True
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch", side_effect=track_fetch_branch):
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin", side_effect=track_reset):
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main", side_effect=track_fetch_main):
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch", side_effect=track_fetch_branch):
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin", side_effect=track_reset):
+                    with patch("agentic_devtools.cli.git.operations.fetch_main", side_effect=track_fetch_main):
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                 mock_files.return_value = []
@@ -187,15 +187,15 @@ class TestCheckoutAndSyncBranch:
         """Test dry_run flag is threaded through to all git operations."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch_main:
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch_main:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_fetch_branch.return_value = True
                                 mock_reset.return_value = True

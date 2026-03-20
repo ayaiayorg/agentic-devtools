@@ -8,9 +8,9 @@ class TestGetJiraIssueKeyFromState:
         """Test returns value when set in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
             result = _get_jira_issue_key_from_state()
 
         assert result == "DFLY-1234"
@@ -19,9 +19,9 @@ class TestGetJiraIssueKeyFromState:
         """Test returns None when not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value=None):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value=None):
             result = _get_jira_issue_key_from_state()
 
         assert result is None

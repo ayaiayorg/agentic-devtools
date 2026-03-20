@@ -2,7 +2,7 @@
 Tests for Jira helper utilities.
 """
 
-from agdt_ai_helpers.cli.jira import helpers as jira_helpers
+from agentic_devtools.cli.jira import helpers as jira_helpers
 
 
 class TestCountCertificatesInPem:

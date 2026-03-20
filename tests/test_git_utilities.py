@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from agdt_ai_helpers.cli.git import operations
+from agentic_devtools.cli.git import operations
 
 
 class TestHasLocalChanges:

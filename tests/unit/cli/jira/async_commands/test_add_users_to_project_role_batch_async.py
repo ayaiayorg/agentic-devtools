@@ -4,7 +4,7 @@ Tests for Jira async commands and write_async_status function.
 
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     add_users_to_project_role_batch_async,
 )
 
@@ -28,7 +28,7 @@ class TestRoleCommandsAsync:
     def test_add_users_batch_spawns_task(self, mock_background_and_state, capsys):
         """Test add_users_to_project_role_batch_async spawns background task."""
         with patch(
-            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agentic_devtools.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "role_id": "10002", "users": "u1,u2"}.get(k),
         ):
             add_users_to_project_role_batch_async()

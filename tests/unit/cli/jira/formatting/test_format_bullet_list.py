@@ -2,7 +2,7 @@
 Tests for Jira formatting utilities.
 """
 
-from agdt_ai_helpers.cli import jira
+from agentic_devtools.cli import jira
 
 
 class TestFormatBulletList:

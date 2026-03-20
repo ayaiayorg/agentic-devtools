@@ -10,9 +10,9 @@ class TestCheckUserExistsCommand:
         """Test prints error when username not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agentic_devtools.cli.jira.role_commands import check_user_exists
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value=None):
             check_user_exists()
 
         captured = capsys.readouterr()
@@ -22,7 +22,7 @@ class TestCheckUserExistsCommand:
         """Test prints success message for active user."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agentic_devtools.cli.jira.role_commands import check_user_exists
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -31,14 +31,14 @@ class TestCheckUserExistsCommand:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="test.user"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="test.user"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_user_exists()
 
         captured = capsys.readouterr()
@@ -48,7 +48,7 @@ class TestCheckUserExistsCommand:
         """Test prints warning for inactive user."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import check_user_exists
+        from agentic_devtools.cli.jira.role_commands import check_user_exists
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -57,14 +57,14 @@ class TestCheckUserExistsCommand:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="inactive.user"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             check_user_exists()
 
         captured = capsys.readouterr()

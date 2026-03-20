@@ -14,10 +14,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     task_wait,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
     get_task_by_id,
@@ -29,7 +29,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -45,7 +45,7 @@ class TestTaskWait:
 
     def test_task_wait_no_task_id(self, mock_state_dir, capsys):
         """Test task_wait with no task_id in state."""
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             with pytest.raises(SystemExit):
                 task_wait()
 
@@ -55,7 +55,7 @@ class TestTaskWait:
         task.mark_completed(exit_code=0)
         update_task(task)
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             # Now returns normally when task completes and all tasks are done
             task_wait()
 
@@ -70,7 +70,7 @@ class TestTaskWait:
         task.mark_failed(exit_code=1)
         update_task(task)
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 task_wait()
             # Exit code should be non-zero for failed task
@@ -85,7 +85,7 @@ class TestTaskWait:
         task.mark_running()
         update_task(task)
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             # Should exit 0 and tell AI to wait again
             with pytest.raises(SystemExit) as exc_info:
                 task_wait(_argv=["--wait-interval", "0.01"])  # Very short wait for testing
@@ -116,8 +116,8 @@ class TestTaskWait:
                 return get_task_by_id(task_id)
             return t
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
-            with patch("agdt_ai_helpers.cli.tasks.commands.get_task_by_id", side_effect=mock_get_task):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
+            with patch("agentic_devtools.cli.tasks.commands.get_task_by_id", side_effect=mock_get_task):
                 task_wait(_argv=["--wait-interval", "0.01"])
 
         captured = capsys.readouterr()
@@ -133,7 +133,7 @@ class TestTaskWait:
         task.start_time = old_time.isoformat()
         update_task(task)
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 # Timeout of 60 seconds, but task started 10 minutes ago
                 task_wait(_argv=["--timeout", "60"])
@@ -151,7 +151,7 @@ class TestTaskWait:
         update_task(task)
 
         start = time.time()
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             with pytest.raises(SystemExit) as exc_info:
                 task_wait(_argv=["--wait-interval", "0.1"])
             assert exc_info.value.code == 0  # Task still running, exit 0 to retry
@@ -172,7 +172,7 @@ class TestTaskWait:
 
         # State timeout of 60s should trigger timeout (task started 2 min ago)
         with patch(
-            "agdt_ai_helpers.state.load_state",
+            "agentic_devtools.state.load_state",
             return_value={"background": {"task_id": task.id, "timeout": "60"}},
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -192,7 +192,7 @@ class TestTaskWait:
 
         start = time.time()
         with patch(
-            "agdt_ai_helpers.state.load_state",
+            "agentic_devtools.state.load_state",
             return_value={"background": {"task_id": task.id, "wait_interval": "0.05"}},
         ):
             with pytest.raises(SystemExit) as exc_info:

@@ -13,10 +13,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     tasks_clean,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
     get_background_tasks,
@@ -28,7 +28,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -55,7 +55,7 @@ class TestTasksClean:
         # task3 stays pending
 
         # Run cleanup
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             tasks_clean()
 
         # Verify cleanup ran - tasks may or may not be removed depending on expiry settings
@@ -70,7 +70,7 @@ class TestTasksClean:
         task.mark_running()
         update_task(task)
 
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             tasks_clean()
 
         remaining = get_background_tasks()
@@ -80,7 +80,7 @@ class TestTasksClean:
 
     def test_tasks_clean_empty(self, mock_state_dir, capsys):
         """Test tasks_clean with no tasks."""
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             tasks_clean()
 
         _ = capsys.readouterr()  # Consume output, not needed for assertion
@@ -100,11 +100,11 @@ class TestTasksClean:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.write_text("Log content")
 
-            with patch("agdt_ai_helpers.state.load_state", return_value={}):
+            with patch("agentic_devtools.state.load_state", return_value={}):
                 tasks_clean()
 
             # Log file may or may not be removed depending on expiry settings
         else:
             # Just run clean without crashing
-            with patch("agdt_ai_helpers.state.load_state", return_value={}):
+            with patch("agentic_devtools.state.load_state", return_value={}):
                 tasks_clean()

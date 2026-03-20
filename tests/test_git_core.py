@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers import state
-from agdt_ai_helpers.cli.git import core
+from agentic_devtools import state
+from agentic_devtools.cli.git import core
 
 # =============================================================================
 # Fixtures

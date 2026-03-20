@@ -10,12 +10,12 @@ class TestFindRoleIdByName:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         def mock_get_jira_value(key):
             return None
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -25,12 +25,12 @@ class TestFindRoleIdByName:
         """Test prints error when role_name not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -40,7 +40,7 @@ class TestFindRoleIdByName:
         """Test finding a single matching role."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -55,14 +55,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Developers"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -73,7 +73,7 @@ class TestFindRoleIdByName:
         """Test finding multiple matching roles."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -89,14 +89,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Dev"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -108,7 +108,7 @@ class TestFindRoleIdByName:
         """Test when no roles match the search."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -122,14 +122,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "NonExistent"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()
@@ -140,7 +140,7 @@ class TestFindRoleIdByName:
         """Test handling of API failure."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import find_role_id_by_name
+        from agentic_devtools.cli.jira.role_commands import find_role_id_by_name
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -152,14 +152,14 @@ class TestFindRoleIdByName:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_name": "Developers"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             find_role_id_by_name()
 
         captured = capsys.readouterr()

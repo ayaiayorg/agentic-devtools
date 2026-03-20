@@ -4,8 +4,8 @@ Tests for Jira configuration and authentication.
 
 from unittest.mock import patch
 
-from agdt_ai_helpers import state
-from agdt_ai_helpers.cli import jira
+from agentic_devtools import state
+from agentic_devtools.cli import jira
 
 
 class TestJiraConfiguration:

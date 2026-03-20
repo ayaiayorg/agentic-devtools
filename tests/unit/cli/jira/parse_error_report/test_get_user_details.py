@@ -7,7 +7,7 @@ Note: Test data contains German text with unicode escapes (e.g., k\\u00f6nnen).
 
 from unittest.mock import MagicMock
 
-from agdt_ai_helpers.cli.jira.parse_error_report import (
+from agentic_devtools.cli.jira.parse_error_report import (
     _get_user_details,
 )
 

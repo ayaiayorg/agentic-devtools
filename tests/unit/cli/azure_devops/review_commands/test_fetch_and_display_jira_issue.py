@@ -8,10 +8,10 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns True when Jira issue fetched successfully."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
-            with patch("agdt_ai_helpers.cli.jira.get_commands.get_issue") as mock_get_issue:
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
+            with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 
@@ -23,13 +23,13 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns False when get_issue raises SystemExit."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
             with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
+                "agentic_devtools.cli.jira.get_commands.get_issue",
                 side_effect=SystemExit(1),
             ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 
@@ -42,13 +42,13 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns False when get_issue raises Exception."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
             with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
+                "agentic_devtools.cli.jira.get_commands.get_issue",
                 side_effect=Exception("API error"),
             ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 

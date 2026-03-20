@@ -2,7 +2,7 @@
 Tests for subprocess_utils module - safe subprocess execution.
 """
 
-from agdt_ai_helpers.cli.subprocess_utils import run_safe
+from agentic_devtools.cli.subprocess_utils import run_safe
 
 
 class TestRunSafeIntegration:

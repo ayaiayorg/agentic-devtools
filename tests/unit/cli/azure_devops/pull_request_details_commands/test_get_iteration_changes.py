@@ -16,7 +16,7 @@ class TestGetIterationChanges:
 
     def test_successful_changes_retrieval(self):
         """Should return change entries on successful response."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
@@ -27,7 +27,7 @@ class TestGetIterationChanges:
             ]
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=mock_response,
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -37,12 +37,12 @@ class TestGetIterationChanges:
 
     def test_returns_none_when_api_fails(self):
         """Should return None when API call returns None."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})
@@ -51,12 +51,12 @@ class TestGetIterationChanges:
 
     def test_returns_none_when_no_change_entries(self):
         """Should return None when response has no changeEntries key."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_iteration_changes,
         )
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"someOtherKey": []},
         ):
             result = _get_iteration_changes("https://dev.azure.com/org", "project", "repo-id", 123, 1, {})

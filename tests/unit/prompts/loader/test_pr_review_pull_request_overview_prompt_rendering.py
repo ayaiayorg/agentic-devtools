@@ -1,6 +1,6 @@
 """Tests for PR review pull-request-overview prompt rendering with repo_review_focus_areas."""
 
-from agdt_ai_helpers.prompts import loader
+from agentic_devtools.prompts import loader
 
 
 class TestPrReviewPullRequestOverviewPromptRendering:

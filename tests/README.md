@@ -532,7 +532,7 @@ All test files under `tests/unit/` must pass `ruff` linting. Common pitfalls to 
    carries every import the old file needed, but the new per-function file may only need a subset.
 
 2. **Sorted imports (I001):** Imports must be sorted (isort-style). The project uses
-   `known-first-party = ["agentic_devtools", "agdt_ai_helpers"]`. Run `ruff check tests/unit/ --fix`
+   `known-first-party = ["agentic_devtools"]`. Run `ruff check tests/unit/ --fix`
    to auto-sort them.
 
 3. **No trailing whitespace:** Blank lines inside function/class bodies must not contain

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli import jira
+from agentic_devtools.cli import jira
 
 
 class TestJiraAuth:

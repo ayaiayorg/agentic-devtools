@@ -5,7 +5,7 @@ Tests for prompt template loader.
 from pathlib import Path
 from unittest.mock import patch
 
-from agdt_ai_helpers.prompts import loader
+from agentic_devtools.prompts import loader
 
 
 class TestGetTempOutputDir:

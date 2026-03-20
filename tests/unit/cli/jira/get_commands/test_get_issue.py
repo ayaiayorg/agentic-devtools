@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers import state
-from agdt_ai_helpers.cli import jira
-from agdt_ai_helpers.cli.jira import get_commands
+from agentic_devtools import state
+from agentic_devtools.cli import jira
+from agentic_devtools.cli.jira import get_commands
 
 
 class TestGetIssueDryRun:

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers.cli import jira
-from agdt_ai_helpers.cli.jira import create_commands
+from agentic_devtools.cli import jira
+from agentic_devtools.cli.jira import create_commands
 
 
 class TestCreateEpicDryRun:
