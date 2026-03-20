@@ -30,6 +30,7 @@ jobs:
       azure: ${{ steps.filter.outputs.azure }}
       workflows: ${{ steps.filter.outputs.workflows }}
       core: ${{ steps.filter.outputs.core }}
+      orchestration: ${{ steps.filter.outputs.orchestration }}
       config: ${{ steps.filter.outputs.config }}
       e2e_smoke: ${{ steps.filter.outputs.e2e_smoke }}
       has_modules: ${{ steps.has-modules.outputs.result }}
