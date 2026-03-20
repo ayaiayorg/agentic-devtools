@@ -88,8 +88,8 @@ class TestCopilotSessionStartPromptCreateJiraEpic:
         assert "\n" not in COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC
 
     def test_prompt_references_workflow_name(self):
-        """The prompt must reference the create-jira-epic workflow."""
-        assert "create-jira-epic" in COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC
+        """The prompt must reference the create-jira-epic workflow via agent handoff."""
+        assert "@agdt.create-jira-epic.initiate" in COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""

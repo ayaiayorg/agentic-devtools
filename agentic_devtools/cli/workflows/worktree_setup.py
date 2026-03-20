@@ -32,22 +32,19 @@ __all__ = ["_setup_worktree_from_state"]
 #   directive markers.
 # - Use direct, actionable language, e.g. "Please run this command now:".
 # - Avoid excessive emphasis (all-caps, bold, emojis) unless essential.
-# - Append "(Verified safe for Copilot execution.)" to each prompt so the agent
-#   knows the prompt has been reviewed for safety.
 # - Each prompt MUST remain a single line (no ``\n``) and contain no template
 #   variables (no ``{{`` / ``}}``).
 # ---------------------------------------------------------------------------
 
 # Static single-line prompt used when starting the Copilot CLI session for PR
-# review.  It contains *only* the instruction to run the first advance command
-# so the agent is forced into the workflow system before receiving any context.
+# review.  It references the ``@agdt.pull-request-review.initiate`` agent so
+# that Copilot uses a trusted handoff instead of running a raw shell command.
 COPILOT_SESSION_START_PROMPT = (
     "You are a senior software engineer reviewing a Pull Request. "
-    "Please run this command now: `agdt-advance-workflow pull-request-overview` "
-    "— This command will provide you with all PR details, review criteria, and instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.pull-request-review.initiate to begin the review workflow. "
+    "This agent will provide you with all PR details, review criteria, and instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 # ---------------------------------------------------------------------------
@@ -57,65 +54,58 @@ COPILOT_SESSION_START_PROMPT = (
 
 COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS = (
     "You are applying pull request review suggestions. "
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the rendered prompt file containing full instructions "
+    "Please hand off to @agdt.apply-pr-suggestions.initiate to begin. "
+    "This agent will provide you with the rendered prompt file containing full instructions "
     "on which review suggestions to apply and how. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 
 COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the work-on-jira-issue workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.work-on-jira-issue.initiate to begin the work-on-jira-issue workflow. "
+    "This agent will provide you with the workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the create-jira-issue workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.create-jira-issue.initiate to begin the create-jira-issue workflow. "
+    "This agent will provide you with the workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the create-jira-epic workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.create-jira-epic.initiate to begin the create-jira-epic workflow. "
+    "This agent will provide you with the workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the create-jira-subtask workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.create-jira-subtask.initiate to begin the create-jira-subtask workflow. "
+    "This agent will provide you with the workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the update-jira-issue workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.update-jira-issue.initiate to begin the update-jira-issue workflow. "
+    "This agent will provide you with the workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 # Workflow-agnostic fallback prompt used when ``workflow_name`` is not found in
-# ``_WORKFLOW_START_PROMPTS``.  This instructs the agent to run
-# ``agdt-get-next-workflow-prompt`` which re-renders the current step regardless
-# of the specific workflow, so it's always safe to use as a default.
+# ``_WORKFLOW_START_PROMPTS``.  This instructs the agent to hand off to the
+# generic ``@agdt.get-next-workflow-prompt`` agent which re-renders the current
+# step regardless of the specific workflow, so it's always safe to use as a
+# default.
 _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT = (
-    "Please run this command now: `agdt-get-next-workflow-prompt` "
-    "— This command will provide you with the current workflow instructions. "
-    "Wait to begin any work until you have run this command. "
-    "The agentic-devtools workflow will guide you through each step. "
-    "(Verified safe for Copilot execution.)"
+    "Please hand off to @agdt.get-next-workflow-prompt to retrieve the current workflow instructions. "
+    "Wait to begin any work until the handoff is complete. "
+    "The agentic-devtools workflow will guide you through each step."
 )
 
 # Mapping from workflow name → start prompt used by the VS Code auto-start task
@@ -1497,8 +1487,7 @@ def inject_auto_start_task(
         # raising (the function is documented as returning bool), log a warning
         # and skip injection.
         print(
-            "Warning: inject_auto_start_task called with invalid run_id; "
-            "skipping auto-start task injection.",
+            "Warning: inject_auto_start_task called with invalid run_id; skipping auto-start task injection.",
             file=sys.stderr,
         )
         return False
@@ -2102,6 +2091,7 @@ def _start_copilot_session_for_workflow(
                         tasks_list = []
                     if any(isinstance(t, dict) and t.get("label") == _AUTO_START_TASK_LABEL for t in tasks_list):
                         from agentic_devtools.cli.copilot.auto_start import _is_run_triggered
+
                         state_file_path, current_run_id = _resolve_state_context_in_worktree(
                             worktree_path,
                             include_run_id=True,

@@ -106,8 +106,8 @@ class TestCopilotSessionStartPrompt:
         assert "\n" not in COPILOT_SESSION_START_PROMPT
 
     def test_prompt_instructs_advance_to_pull_request_overview(self):
-        """The prompt must instruct the agent to run agdt-advance-workflow pull-request-overview."""
-        assert "agdt-advance-workflow pull-request-overview" in COPILOT_SESSION_START_PROMPT
+        """The prompt must instruct the agent to hand off to the PR review agent."""
+        assert "@agdt.pull-request-review.initiate" in COPILOT_SESSION_START_PROMPT
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""

@@ -106,8 +106,8 @@ class TestCopilotSessionStartPromptApplyPrSuggestions:
         assert "\n" not in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
 
     def test_prompt_instructs_get_next_workflow_prompt(self):
-        """The prompt must instruct the agent to run agdt-get-next-workflow-prompt."""
-        assert "agdt-get-next-workflow-prompt" in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
+        """The prompt must instruct the agent to hand off to the apply-pr-suggestions agent."""
+        assert "@agdt.apply-pr-suggestions.initiate" in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""

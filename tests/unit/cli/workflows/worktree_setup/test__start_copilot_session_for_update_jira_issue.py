@@ -88,8 +88,8 @@ class TestCopilotSessionStartPromptUpdateJiraIssue:
         assert "\n" not in COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE
 
     def test_prompt_references_workflow_name(self):
-        """The prompt must reference the update-jira-issue workflow."""
-        assert "update-jira-issue" in COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE
+        """The prompt must reference the update-jira-issue workflow via agent handoff."""
+        assert "@agdt.update-jira-issue.initiate" in COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""
