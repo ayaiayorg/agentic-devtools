@@ -95,6 +95,7 @@ class TestGetCheckpointer:
 
     def test_custom_path_expands_user_home(self, tmp_path, monkeypatch):
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
         saver = get_checkpointer("~/custom.db")
         try:
             expected = (tmp_path / "custom.db").resolve()
