@@ -105,9 +105,9 @@ class TestCopilotSessionStartPromptApplyPrSuggestions:
         """The session start prompt must have no newline characters."""
         assert "\n" not in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
 
-    def test_prompt_instructs_get_next_workflow_prompt(self):
-        """The prompt must instruct the agent to run agdt-get-next-workflow-prompt."""
-        assert "agdt-get-next-workflow-prompt" in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
+    def test_prompt_instructs_handoff_to_apply_pr_suggestions_agent(self):
+        """The prompt must instruct the agent to hand off to the get-next-workflow-prompt agent."""
+        assert "@agdt.get-next-workflow-prompt" in COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""

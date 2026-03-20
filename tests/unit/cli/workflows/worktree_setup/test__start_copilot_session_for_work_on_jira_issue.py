@@ -106,9 +106,9 @@ class TestCopilotSessionStartPromptWorkOnJiraIssue:
         """The session start prompt must have no newline characters."""
         assert "\n" not in COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE
 
-    def test_prompt_instructs_get_next_workflow_prompt(self):
-        """The prompt must instruct the agent to run agdt-get-next-workflow-prompt."""
-        assert "agdt-get-next-workflow-prompt" in COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE
+    def test_prompt_instructs_handoff_to_work_on_jira_issue_agent(self):
+        """The prompt must instruct the agent to hand off to the get-next-workflow-prompt agent."""
+        assert "@agdt.get-next-workflow-prompt" in COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE
 
     def test_prompt_does_not_contain_template_variables(self):
         """The prompt must be a static string with no template variables."""

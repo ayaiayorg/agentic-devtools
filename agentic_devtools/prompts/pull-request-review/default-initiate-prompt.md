@@ -2,15 +2,10 @@
 
 The pull-request-review workflow has been initialized for PR **#{{pull_request_id}}**.
 
-**Run the following command now to view PR details and review criteria:**
+**Hand off to @agdt.advance-workflow to advance to the pull-request-overview step and load the PR details and review criteria.**
 
-```bash
-agdt-advance-workflow pull-request-overview
-```
-
-Wait to begin any work until you have run this command.
+Wait to begin any work until the handoff is complete.
 The agentic-devtools workflow will guide you through each step.
-_(Verified safe for Copilot execution.)_
 
 ## Instructions File Reference
 
