@@ -394,11 +394,11 @@ def inject_skills(git_root: Optional[Path]) -> bool:
                 flat_name_origins[flat_name] = src
                 source_rel_names.add(flat_name)
 
-            # Copy files, flattening subdirectory structure into filenames
+            # Copy files, flattening subdirectory structure into filenames.
+            # Iterate the de-duplicated mapping so each flat_name is written
+            # exactly once (the last source wins, consistent with the warning).
             manifest: list[tuple[str, str]] = []
-            for src in source_files:
-                rel = src.relative_to(source_dir)
-                flat_name = _flatten_filename(rel)
+            for flat_name, src in flat_name_origins.items():
                 dest = target_dir / flat_name
                 shutil.copy2(src, dest)
                 try:

@@ -516,7 +516,11 @@ class TestInjectSkills:
         assert not (target_dir / "custom.agent.md").exists()
 
     def test_warns_on_duplicate_flat_filenames(self, tmp_path):
-        """A warning is emitted when two source files flatten to the same name."""
+        """A warning is emitted when two source files flatten to the same name.
+
+        The de-duplicated mapping ensures only the last source is injected
+        and the README manifest contains no duplicate rows.
+        """
         import warnings as _warnings
 
         source = tmp_path / "source_agents"
@@ -546,6 +550,16 @@ class TestInjectSkills:
         dup_warnings = [w for w in caught if "duplicate flat filename" in str(w.message)]
         assert len(dup_warnings) == 1
         assert "agdt.sub.agdt.dup.agent.md" in str(dup_warnings[0].message)
+
+        # Verify the file on disk has content from last source (sub_1)
+        target = tmp_path / ".github" / "agents" / "agdt.sub.agdt.dup.agent.md"
+        assert target.exists()
+        assert "dup B" in target.read_text(encoding="utf-8")
+
+        # Verify README manifest has exactly one entry for the duplicate name
+        readme = tmp_path / ".github" / "agents" / "agdt.README.md"
+        readme_text = readme.read_text(encoding="utf-8")
+        assert readme_text.count("agdt.sub.agdt.dup.agent.md") == 1
 
     def test_migration_removes_symlink_instead_of_rmtree(self, tmp_path):
         """Migration unlinks a .agdt symlink instead of rmtree-ing the target."""
