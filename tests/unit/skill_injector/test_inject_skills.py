@@ -563,6 +563,55 @@ class TestInjectSkills:
         readme_text = readme.read_text(encoding="utf-8")
         assert readme_text.count("agdt.sub.agdt.dup.agent.md") == 1
 
+    def test_warns_on_case_insensitive_duplicate_flat_filenames(self, tmp_path):
+        """A warning is emitted for case-insensitive flat-name collisions.
+
+        On case-insensitive filesystems (Windows, macOS default), directories
+        that differ only by case produce flat names that collide on disk.
+        """
+        import warnings as _warnings
+
+        source = tmp_path / "source_agents"
+        empty_prompts_source = tmp_path / "source_prompts"
+        source.mkdir()
+        empty_prompts_source.mkdir()
+        # Two subdirectories that differ only by case
+        dir_a = source / "Sub"
+        dir_b = source / "sub"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        (dir_a / "agdt.ci.agent.md").write_text(
+            "---\ndescription: ci upper\n---\n",
+            encoding="utf-8",
+        )
+        (dir_b / "agdt.ci.agent.md").write_text(
+            "---\ndescription: ci lower\n---\n",
+            encoding="utf-8",
+        )
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
+                mock_src.side_effect = self._source_selector(source, empty_prompts_source)
+                inject_skills(tmp_path)
+
+        ci_warnings = [w for w in caught if "case-insensitive" in str(w.message)]
+        assert len(ci_warnings) == 1
+
+        # Only one version should remain on disk (the last one wins)
+        target = tmp_path / ".github" / "agents"
+        # The second directory (sub) overwrites the first (Sub)
+        matching = [f.name for f in target.iterdir() if "agdt.ci.agent.md" in f.name.casefold()]
+        assert len(matching) == 1
+
+        # README manifest has exactly one entry for the colliding name
+        readme = target / "agdt.README.md"
+        readme_text = readme.read_text(encoding="utf-8")
+        ci_entries = [
+            line for line in readme_text.splitlines() if "agdt.ci.agent.md" in line.casefold()
+        ]
+        assert len(ci_entries) == 1
+
     def test_migration_removes_symlink_instead_of_rmtree(self, tmp_path):
         """Migration unlinks a .agdt symlink instead of rmtree-ing the target."""
         agents_source = tmp_path / "source_agents"
