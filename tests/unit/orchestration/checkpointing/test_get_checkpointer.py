@@ -1,5 +1,7 @@
 """Tests for get_checkpointer factory function."""
 
+from unittest.mock import patch
+
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from agentic_devtools.orchestration.checkpointing import get_checkpointer
@@ -33,9 +35,27 @@ class TestGetCheckpointer:
         finally:
             saver.conn.close()
 
-    def test_default_path_uses_agdt_directory(self, tmp_path, monkeypatch):
+    def test_default_path_uses_git_repo_root(self, tmp_path):
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        with patch(
+            "agentic_devtools.orchestration.checkpointing._get_git_repo_root",
+            return_value=fake_root,
+        ):
+            saver = get_checkpointer()
+        try:
+            expected = fake_root / ".agdt" / "orchestration.db"
+            assert expected.exists()
+        finally:
+            saver.conn.close()
+
+    def test_default_path_falls_back_to_cwd_when_no_git_root(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        saver = get_checkpointer()
+        with patch(
+            "agentic_devtools.orchestration.checkpointing._get_git_repo_root",
+            return_value=None,
+        ):
+            saver = get_checkpointer()
         try:
             expected = tmp_path / ".agdt" / "orchestration.db"
             assert expected.exists()
