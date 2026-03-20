@@ -105,7 +105,7 @@ def _ensure_bootstrap_identity() -> None:
     """
     from ...state import set_bootstrap_state
 
-    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR")
     if env_state_override:
         return
     try:
@@ -136,7 +136,7 @@ def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
     """
     from ...state import set_bootstrap_state
 
-    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR")
     if env_state_override:
         return
     try:

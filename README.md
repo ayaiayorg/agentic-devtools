@@ -751,7 +751,6 @@ python scripts/validate_test_structure.py
 | `JIRA_CA_BUNDLE`                 | Path to custom CA bundle PEM file for Jira SSL                                      |
 | `REQUESTS_CA_BUNDLE`             | Standard requests library CA bundle path (fallback)                                 |
 | `AGENTIC_DEVTOOLS_STATE_DIR`     | Override default state directory (e.g., `.agdt/workflows/_unscoped`)                 |
-| `DFLY_AI_HELPERS_STATE_DIR`      | Legacy state directory override (still honored for backward compatibility)          |
 
 ## State File Location
 

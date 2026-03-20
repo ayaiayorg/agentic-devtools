@@ -178,7 +178,7 @@ def initiate_workflow(
     # redundant git subprocesses and .agdt/* side effects.
     # skip_bootstrap_init=True when _ensure_bootstrap_identity() was already
     # called before any state I/O in the same command invocation.
-    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR") or os.getenv("DFLY_AI_HELPERS_STATE_DIR")
+    env_state_override = os.getenv("AGENTIC_DEVTOOLS_STATE_DIR")
     if not env_state_override and not skip_bootstrap_init:
         try:
             set_bootstrap_state()

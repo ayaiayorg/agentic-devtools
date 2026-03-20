@@ -487,18 +487,17 @@ def get_state_dir() -> Path:
 
     Priority:
     1. ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable
-    2. ``DFLY_AI_HELPERS_STATE_DIR`` environment variable (legacy alias)
-    3. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root.
+    2. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root.
        Identity is read from ``.agdt/identity.json``; worktree_key from
        ``.agdt/runtime-bootstrap.json``.  Legacy installations that have not
        yet created ``identity.json`` fall back to reading identity from the
        bootstrap file.
-    4. ``.agdt/workflows/_unscoped/`` relative to git root (when identity or
+    3. ``.agdt/workflows/_unscoped/`` relative to git root (when identity or
        worktree_key is missing or incomplete)
-    5. ``.agdt-temp/`` in CWD (when not in a git repo)
+    4. ``.agdt-temp/`` in CWD (when not in a git repo)
     """
-    # 1/2. Environment variable override (primary + legacy alias)
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+    # 1. Environment variable override
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
@@ -560,9 +559,8 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     Unlike ``set_bootstrap_state()``, this does **not** call ``subprocess``
     (no ``_get_git_repo_root`` / ``_resolve_identity``).  It locates the
     bootstrap file by walking up from a subprocess-free base directory:
-    either ``AGENTIC_DEVTOOLS_STATE_DIR`` / ``DFLY_AI_HELPERS_STATE_DIR``
-    (when set) or the current working directory, looking for a ``.agdt``
-    directory.
+    ``AGENTIC_DEVTOOLS_STATE_DIR`` (when set) or the current working
+    directory, looking for a ``.agdt`` directory.
 
     If the bootstrap file does not exist but the ``.agdt/`` directory does,
     the file is created with just ``{"worktree_key": ...}``.  Identity is
@@ -576,10 +574,9 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     try:
         # Choose a subprocess-free starting point (same priority as
         # get_state_dir()'s env-var check):
-        # 1. AGENTIC_DEVTOOLS_STATE_DIR (primary)
-        # 2. DFLY_AI_HELPERS_STATE_DIR (legacy alias)
-        # 3. Current working directory as a reasonable default inside the repo
-        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") or os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+        # 1. AGENTIC_DEVTOOLS_STATE_DIR
+        # 2. Current working directory as a reasonable default inside the repo
+        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
         if env_dir:
             base_dir = Path(env_dir)
         else:

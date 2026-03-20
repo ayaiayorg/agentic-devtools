@@ -19,7 +19,6 @@ class TestEnsureBootstrapIdentity:
         """Should call set_bootstrap_state() when no env-var override is set."""
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
             with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
                 _ensure_bootstrap_identity()
             mock_bootstrap.assert_called_once()
@@ -31,18 +30,10 @@ class TestEnsureBootstrapIdentity:
                 _ensure_bootstrap_identity()
             mock_bootstrap.assert_not_called()
 
-    def test_skips_set_bootstrap_state_when_DFLY_AI_HELPERS_STATE_DIR_set(self):
-        """Should skip set_bootstrap_state() when DFLY_AI_HELPERS_STATE_DIR is set."""
-        with patch.dict(os.environ, {"DFLY_AI_HELPERS_STATE_DIR": "/some/path"}):
-            with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
-                _ensure_bootstrap_identity()
-            mock_bootstrap.assert_not_called()
-
     def test_graceful_fallback_on_os_error(self, caplog):
         """Should log a warning and not raise when set_bootstrap_state raises OSError."""
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
             with patch("agentic_devtools.state.set_bootstrap_state", side_effect=OSError("disk error")):
                 import logging
 
@@ -56,7 +47,6 @@ class TestEnsureBootstrapIdentity:
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
             with patch(
                 "agentic_devtools.state.set_bootstrap_state",
                 side_effect=subprocess.SubprocessError("git failed"),
@@ -254,7 +244,6 @@ class TestEnsureBootstrapIdentityAndScope:
         """Should call set_bootstrap_state(worktree_key=...) when no env-var override is set."""
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
             with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
                 _ensure_bootstrap_identity_and_scope("DFLY-1234")
             mock_bootstrap.assert_called_once_with(worktree_key="DFLY-1234")
@@ -266,18 +255,10 @@ class TestEnsureBootstrapIdentityAndScope:
                 _ensure_bootstrap_identity_and_scope("DFLY-1234")
             mock_bootstrap.assert_not_called()
 
-    def test_skips_when_DFLY_AI_HELPERS_STATE_DIR_set(self):
-        """Should skip set_bootstrap_state() when DFLY_AI_HELPERS_STATE_DIR is set."""
-        with patch.dict(os.environ, {"DFLY_AI_HELPERS_STATE_DIR": "/some/path"}):
-            with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
-                _ensure_bootstrap_identity_and_scope("PR25858")
-            mock_bootstrap.assert_not_called()
-
     def test_graceful_fallback_on_os_error(self, caplog):
         """Should log a warning and not raise when set_bootstrap_state raises OSError."""
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
             with patch("agentic_devtools.state.set_bootstrap_state", side_effect=OSError("disk error")):
                 import logging
 
