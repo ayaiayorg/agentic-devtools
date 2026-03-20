@@ -238,13 +238,15 @@ def is_in_worktree() -> bool:
         result_dir = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         result_common = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
 
@@ -274,7 +276,8 @@ def get_current_branch() -> str | None:
         result = subprocess.run(
             ["git", "branch", "--show-current"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if result.returncode == 0:
@@ -295,7 +298,8 @@ def switch_to_main_branch() -> bool:
         result = subprocess.run(
             ["git", "switch", "main"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         return result.returncode == 0
@@ -318,7 +322,8 @@ def get_main_repo_root() -> str | None:
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if result.returncode != 0:
@@ -529,7 +534,8 @@ def create_worktree(
                         subprocess.run(
                             ["git", "rev-parse", "--verify", branch_name],
                             capture_output=True,
-                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
                             check=False,
                         ).returncode
                         == 0
@@ -589,7 +595,8 @@ def create_worktree(
                             f"origin/{branch_name}",
                         ],
                         capture_output=True,
-                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         check=False,
                     )
                 except (FileNotFoundError, OSError) as e:
@@ -702,7 +709,8 @@ def create_worktree(
             result = subprocess.run(
                 ["git", "worktree", "add", worktree_path, branch_name],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
 
@@ -719,7 +727,8 @@ def create_worktree(
                     subprocess.run(
                         ["git", "worktree", "prune"],
                         capture_output=True,
-                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         check=False,
                     )
                     # Use force=True because git branch -d fails for branches not yet
@@ -750,7 +759,8 @@ def create_worktree(
                         f"origin/{branch_name}",
                     ],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=False,
                 )
         else:
@@ -758,7 +768,8 @@ def create_worktree(
             result = subprocess.run(
                 ["git", "worktree", "add", worktree_path, "-b", resolved_branch_name],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
 
@@ -769,7 +780,8 @@ def create_worktree(
                     result = subprocess.run(
                         ["git", "worktree", "add", worktree_path, resolved_branch_name],
                         capture_output=True,
-                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         check=False,
                     )
 
@@ -885,7 +897,8 @@ def _detect_git_root() -> str:
         result = subprocess.run(
             ["where.exe", "git"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if result.returncode == 0:
@@ -1949,7 +1962,8 @@ def _run_auto_execute_command(
             command,
             cwd=worktree_path,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             shell=False,  # Security: no shell expansion
             env=env,
@@ -2463,9 +2477,11 @@ def _maybe_inject_auto_start_before_vscode(
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (start prompt exceeds argv limits) or ``inject_auto_start_task()`` fails,
-    the caller silently continues without the auto-start task; the existing
+    the caller continues without the auto-start task; the existing
     fallback behaviour in the workflow-specific session launcher will
-    handle the session.
+    handle the session.  Each non-trivial failure path prints a diagnostic
+    message to stdout so that log files capture why injection was skipped
+    (the ``_in_test_environment()`` guard returns silently).
 
     Returns:
         ``True`` if the auto-start task was successfully written to
@@ -2487,15 +2503,18 @@ def _maybe_inject_auto_start_before_vscode(
         run_id = get_value("agdt_run_id")
     except Exception:
         # Missing or unreadable run ID is a hard stop for auto-start injection.
+        print("Auto-start injection skipped: could not read agdt_run_id from state.")
         return False
 
     if not isinstance(run_id, str):
         # Do not inject an auto-start task without a valid, non-empty string run ID.
+        print("Auto-start injection skipped: agdt_run_id is not a string.")
         return False
 
     run_id_stripped = run_id.strip()
     if not run_id_stripped:
         # Do not inject an auto-start task when the run ID is whitespace-only.
+        print("Auto-start injection skipped: agdt_run_id is empty or whitespace.")
         return False
 
     copilot_args = build_copilot_args(start_prompt, interactive=True)
@@ -2503,7 +2522,13 @@ def _maybe_inject_auto_start_before_vscode(
         injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
+        else:
+            print(
+                "WARNING: VS Code auto-start task injection failed. "
+                "Auto-start is disabled; Copilot session fallback will be used."
+            )
         return injected
+    print("Auto-start injection skipped: Copilot prompt exceeds argv limits.")
     return False
 
 
