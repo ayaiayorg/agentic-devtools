@@ -68,7 +68,7 @@ class TestGetRecentChanges:
 
     @patch("agentic_devtools.cli.git.core.run_safe")
     def test_handles_pipe_in_message(self, mock_run_safe):
-        """Messages with | should be handled correctly (split at max 3 pipes)."""
+        """Lines with extra pipes split into at most 4 parts; extra pipes end up in the date field."""
         mock_run_safe.return_value = MagicMock(
             returncode=0,
             stdout="abc123|feat: add a|b feature|John|2024-01-15\n",

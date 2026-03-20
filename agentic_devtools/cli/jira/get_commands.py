@@ -151,16 +151,15 @@ def get_issue() -> None:
         epic_link = fields.get("customfield_10008")
         if epic_link and not is_subtask and not is_epic:
             print(f"\nDetected epic link {epic_link}, fetching epic...")
-        if epic_issue:
-            epic_key = epic_issue.get("key", "")
-            epic_file = state_dir / "temp-get-epic-details-response.json"
-            epic_file.write_text(json.dumps(epic_issue, indent=2, ensure_ascii=False), encoding="utf-8")
-            print(f"\nDetected epic link {epic_link}, fetching epic...")
-            print(f"Epic details saved to: {epic_file}")
-            set_jira_value(
-                "epic_details",
-                {"location": str(epic_file), "key": epic_link, "retrievalTimestamp": retrieval_timestamp},
-            )
+            if epic_issue:
+                epic_key = epic_issue.get("key", "")
+                epic_file = state_dir / "temp-get-epic-details-response.json"
+                epic_file.write_text(json.dumps(epic_issue, indent=2, ensure_ascii=False), encoding="utf-8")
+                print(f"Epic details saved to: {epic_file}")
+                set_jira_value(
+                    "epic_details",
+                    {"location": str(epic_file), "key": epic_link, "retrievalTimestamp": retrieval_timestamp},
+                )
 
         # Print formatted output
         print(f"\nKey: {issue.get('key', issue_key)}")
