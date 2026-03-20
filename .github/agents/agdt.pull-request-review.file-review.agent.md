@@ -34,17 +34,9 @@ Review files and record approvals or requested changes.
 
 ## Actions
 
-1. Approve the file:
+1. Hand off to `@agdt.approve-file` to approve the file.
 
-   ```bash
-   agdt-approve-file
-   ```
-
-2. Request changes:
-
-   ```bash
-   agdt-request-changes
-   ```
+2. Hand off to `@agdt.request-changes` to request changes.
 
 ## Expected Outcome
 

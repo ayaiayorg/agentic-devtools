@@ -30,11 +30,7 @@ Review the completed checklist items before verification.
 
 ## Actions
 
-1. Advance the workflow:
-
-   ```bash
-   agdt-advance-workflow
-   ```
+1. Hand off to `@agdt.advance-workflow` to advance the workflow.
 
 ## Expected Outcome
 

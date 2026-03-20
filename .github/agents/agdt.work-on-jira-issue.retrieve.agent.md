@@ -30,11 +30,7 @@ Fetch Jira issue details and populate state for planning.
 
 ## Actions
 
-1. Fetch the Jira issue:
-
-   ```bash
-   agdt-get-jira-issue
-   ```
+1. Hand off to `@agdt.get-jira-issue` to fetch the Jira issue.
 
 ## Expected Outcome
 

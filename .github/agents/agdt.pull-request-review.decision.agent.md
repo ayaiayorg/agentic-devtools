@@ -30,17 +30,9 @@ Decide whether to approve or request changes for the pull request.
 
 ## Actions
 
-1. Approve the pull request:
+1. Hand off to `@agdt.approve-pull-request` to approve the pull request.
 
-   ```bash
-   agdt-approve-pull-request
-   ```
-
-2. Request changes with a comment:
-
-   ```bash
-   agdt-add-pull-request-comment
-   ```
+2. Hand off to `@agdt.add-pull-request-comment` to request changes with a comment.
 
 ## Expected Outcome
 

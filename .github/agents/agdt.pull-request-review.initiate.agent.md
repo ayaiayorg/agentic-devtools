@@ -31,11 +31,7 @@ Start the pull-request-review workflow and load PR context.
 
 ## Actions
 
-1. Start the PR review:
-
-   ```bash
-   agdt-review-pull-request
-   ```
+1. Start the pull-request-review workflow to load PR context and prepare the file review queue.
 
 ## Expected Outcome
 

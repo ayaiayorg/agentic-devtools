@@ -31,11 +31,7 @@ Create a pull request for the Jira issue work.
 
 ## Actions
 
-1. Create the pull request:
-
-   ```bash
-   agdt-create-pull-request
-   ```
+1. Hand off to `@agdt.create-pull-request` to create the pull request.
 
 ## Expected Outcome
 
