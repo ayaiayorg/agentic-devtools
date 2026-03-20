@@ -44,6 +44,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args,
         mock_inject,
         tmp_path,
+        capsys,
     ):
         """When build_copilot_args returns None (Copilot CLI not found), skip injection."""
         with patch("agentic_devtools.state.get_value", return_value="run-123"):
@@ -52,11 +53,13 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args.assert_called_once()
         mock_inject.assert_not_called()
         assert result is False
+        captured = capsys.readouterr()
+        assert "Copilot CLI not available" in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=False)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_does_not_print_when_injection_fails(
+    def test_prints_warning_when_injection_fails(
         self,
         mock_in_test,
         mock_build_args,
@@ -64,13 +67,14 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When inject_auto_start_task returns False, no success message should be printed."""
+        """When inject_auto_start_task returns False, a warning message should be printed."""
         with patch("agentic_devtools.state.get_value", return_value="run-123"):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_inject.assert_called_once()
         captured = capsys.readouterr()
         assert "auto-start task injected" not in captured.out
+        assert "auto-start task injection failed" in captured.out
         assert result is False
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
@@ -114,6 +118,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args,
         mock_inject,
         tmp_path,
+        capsys,
     ):
         """When get_value raises, injection is skipped and False is returned."""
         with patch("agentic_devtools.state.get_value", side_effect=RuntimeError("state unavailable")):
@@ -122,6 +127,8 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args.assert_not_called()
         mock_inject.assert_not_called()
         assert result is False
+        captured = capsys.readouterr()
+        assert "could not read agdt_run_id" in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task")
     @patch("agentic_devtools.cli.copilot.build_copilot_args")
@@ -132,6 +139,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args,
         mock_inject,
         tmp_path,
+        capsys,
     ):
         """When agdt_run_id is not a string, helper returns False before building args."""
         with patch("agentic_devtools.state.get_value", return_value=123):
@@ -140,6 +148,8 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args.assert_not_called()
         mock_inject.assert_not_called()
         assert result is False
+        captured = capsys.readouterr()
+        assert "agdt_run_id is not a string" in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task")
     @patch("agentic_devtools.cli.copilot.build_copilot_args")
@@ -150,6 +160,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args,
         mock_inject,
         tmp_path,
+        capsys,
     ):
         """When agdt_run_id is only whitespace, helper returns False before building args."""
         with patch("agentic_devtools.state.get_value", return_value="   "):
@@ -158,3 +169,5 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_build_args.assert_not_called()
         mock_inject.assert_not_called()
         assert result is False
+        captured = capsys.readouterr()
+        assert "agdt_run_id is empty or whitespace" in captured.out

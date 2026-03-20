@@ -26,7 +26,8 @@ class TestRunAutoExecuteCommand:
         assert mock_run.call_args[0][0] == ["echo", "hello"]
         assert call_kwargs["cwd"] == worktree
         assert call_kwargs["capture_output"] is True
-        assert call_kwargs["text"] is True
+        assert call_kwargs["encoding"] == "utf-8"
+        assert call_kwargs["errors"] == "replace"
         assert call_kwargs["timeout"] == 300
         assert call_kwargs["shell"] is False
         assert "env" in call_kwargs
