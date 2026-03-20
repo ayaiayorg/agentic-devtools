@@ -1,10 +1,8 @@
 """
 Shared fixtures for tests/unit/cli/jira/async_status/.
 
-These fixtures patch agentic_devtools (the legacy shim) module paths, as the Jira
-async tests use that import path directly rather than agentic_devtools.
-The temp_state_dir here patches async_status.get_state_dir (the module actually
-used by the async command layer) instead of the top-level state module.
+The temp_state_dir fixture patches async_status.get_state_dir (the module
+actually used by the async command layer) instead of the top-level state module.
 """
 
 from unittest.mock import MagicMock, patch
