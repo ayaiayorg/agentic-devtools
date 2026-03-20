@@ -279,7 +279,7 @@ class TestInjectSkills:
             "---\ndescription: root agent\n---\n",
             encoding="utf-8",
         )
-        (subdir / "nested.agent.md").write_text(
+        (subdir / "agdt.nested.agent.md").write_text(
             "---\ndescription: nested agent\n---\n",
             encoding="utf-8",
         )
@@ -290,7 +290,7 @@ class TestInjectSkills:
 
         target_dir = tmp_path / ".github" / "agents"
         assert (target_dir / "agdt.root.agent.md").exists()
-        assert (target_dir / "agdt.sub.nested.agent.md").exists()
+        assert (target_dir / "agdt.sub.agdt.nested.agent.md").exists()
         # No subdirectory should exist in target
         assert not (target_dir / "sub").exists()
 
@@ -361,7 +361,7 @@ class TestInjectSkills:
         empty_prompts_source.mkdir()
         subdir = source / "sub"
         subdir.mkdir()
-        (subdir / "deep.agent.md").write_text(
+        (subdir / "agdt.deep.agent.md").write_text(
             "---\ndescription: Deep agent\n---\n",
             encoding="utf-8",
         )
@@ -372,7 +372,7 @@ class TestInjectSkills:
 
         readme = tmp_path / ".github" / "agents" / "agdt.README.md"
         content = readme.read_text(encoding="utf-8")
-        assert "agdt.sub.deep.agent.md" in content
+        assert "agdt.sub.agdt.deep.agent.md" in content
 
     def test_sanitizes_directory_name_in_flattened_filename(self, tmp_path):
         """Directory names with spaces/special chars are sanitized to alpha-only."""
@@ -485,3 +485,93 @@ class TestInjectSkills:
 
         assert result is True
         assert not (tmp_path / ".github" / "agents" / ".agdt").exists()
+
+    def test_excludes_non_managed_nested_files(self, tmp_path):
+        """Nested files without agdt. prefix in source filename are not injected."""
+        source = tmp_path / "source_agents"
+        empty_prompts_source = tmp_path / "source_prompts"
+        source.mkdir()
+        empty_prompts_source.mkdir()
+        subdir = source / "sub"
+        subdir.mkdir()
+        # agdt-prefixed file should be injected
+        (subdir / "agdt.good.agent.md").write_text(
+            "---\ndescription: good\n---\n",
+            encoding="utf-8",
+        )
+        # Non-prefixed nested file should NOT be injected
+        (subdir / "custom.agent.md").write_text(
+            "---\ndescription: custom\n---\n",
+            encoding="utf-8",
+        )
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            mock_src.side_effect = self._source_selector(source, empty_prompts_source)
+            inject_skills(tmp_path)
+
+        target_dir = tmp_path / ".github" / "agents"
+        assert (target_dir / "agdt.sub.agdt.good.agent.md").exists()
+        # custom.agent.md should not appear at all (even flattened)
+        assert not (target_dir / "agdt.sub.custom.agent.md").exists()
+        assert not (target_dir / "custom.agent.md").exists()
+
+    def test_warns_on_duplicate_flat_filenames(self, tmp_path):
+        """A warning is emitted when two source files flatten to the same name."""
+        import warnings as _warnings
+
+        source = tmp_path / "source_agents"
+        empty_prompts_source = tmp_path / "source_prompts"
+        source.mkdir()
+        empty_prompts_source.mkdir()
+        # Two subdirectories that sanitize to the same alpha-only string
+        dir_a = source / "sub-1"
+        dir_b = source / "sub_1"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        (dir_a / "agdt.dup.agent.md").write_text(
+            "---\ndescription: dup A\n---\n",
+            encoding="utf-8",
+        )
+        (dir_b / "agdt.dup.agent.md").write_text(
+            "---\ndescription: dup B\n---\n",
+            encoding="utf-8",
+        )
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
+                mock_src.side_effect = self._source_selector(source, empty_prompts_source)
+                inject_skills(tmp_path)
+
+        dup_warnings = [w for w in caught if "duplicate flat filename" in str(w.message)]
+        assert len(dup_warnings) == 1
+        assert "agdt.sub.agdt.dup.agent.md" in str(dup_warnings[0].message)
+
+    def test_migration_removes_symlink_instead_of_rmtree(self, tmp_path):
+        """Migration unlinks a .agdt symlink instead of rmtree-ing the target."""
+        agents_source = tmp_path / "source_agents"
+        prompts_source = tmp_path / "source_prompts"
+        agents_source.mkdir()
+        prompts_source.mkdir()
+
+        # Create a real directory that the symlink will point to
+        real_dir = tmp_path / "real_target"
+        real_dir.mkdir()
+        sentinel = real_dir / "important.txt"
+        sentinel.write_text("do not delete", encoding="utf-8")
+
+        target_dir = tmp_path / ".github" / "agents"
+        target_dir.mkdir(parents=True)
+        symlink = target_dir / ".agdt"
+        symlink.symlink_to(real_dir)
+
+        with patch("agentic_devtools.skill_injector._get_source_dir") as mock_src:
+            mock_src.side_effect = self._source_selector(agents_source, prompts_source)
+            inject_skills(tmp_path)
+
+        # Symlink should be removed
+        assert not symlink.exists()
+        # But the real directory and its contents must be preserved
+        assert real_dir.exists()
+        assert sentinel.exists()
+        assert sentinel.read_text(encoding="utf-8") == "do not delete"

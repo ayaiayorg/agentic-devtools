@@ -60,6 +60,12 @@ def _ensure_github_gitignore_unignores_agdt(git_root: Path) -> None:
     which prevents injected skills from being committed. To avoid mutating the
     root ignore file, we maintain a `.github/.gitignore` file with explicit
     un-ignore rules for these managed directories.
+
+    .. note::
+
+        This function is no longer called by :func:`inject_skills` after the
+        migration from ``.agdt/`` subdirectories to a flat layout.  It is
+        retained for backward compatibility in case external code references it.
     """
 
     github_dir = git_root / ".github"
@@ -341,9 +347,13 @@ def inject_skills(git_root: Optional[Path]) -> bool:
             target_dir = git_root / ".github" / kind
             target_dir.mkdir(parents=True, exist_ok=True)
 
-            # One-time migration: remove old .agdt/ subdirectory
+            # One-time migration: remove old .agdt/ subdirectory.
+            # Guard against symlinks to avoid recursively deleting a
+            # symlink target — just remove the link itself.
             old_agdt = target_dir / ".agdt"
-            if old_agdt.is_dir():
+            if old_agdt.is_symlink():
+                old_agdt.unlink()
+            elif old_agdt.is_dir():
                 shutil.rmtree(old_agdt)
 
             # Determine which files to inject
@@ -360,18 +370,29 @@ def inject_skills(git_root: Optional[Path]) -> bool:
             # available in target repos and are non-functional without the
             # full speckit scaffold.
             source_files = [p for p in source_files if not p.name.startswith(_SPECKIT_PREFIX)]
-            # Only inject files whose flattened filename starts with the
+            # Only inject files whose *source* filename starts with the
             # managed prefix (``agdt.``).  Root-level files without the prefix
             # (e.g. ``copilot-instructions.md``) are repo-specific and must
             # not be copied into target repos where they could overwrite
             # user-authored files.  This also keeps the injected file set
             # aligned with stale cleanup, which only removes ``agdt.*`` files.
-            source_files = [
-                p for p in source_files if _flatten_filename(p.relative_to(source_dir)).startswith(_MANAGED_PREFIX)
-            ]
+            source_files = [p for p in source_files if p.name.startswith(_MANAGED_PREFIX)]
 
             # Build set of flattened filenames for stale-cleanup comparison.
-            source_rel_names = {_flatten_filename(p.relative_to(source_dir)) for p in source_files}
+            # Also detect duplicate flat names — would cause silent overwriting.
+            source_rel_names: set[str] = set()
+            flat_name_origins: dict[str, Path] = {}
+            for src in source_files:
+                flat_name = _flatten_filename(src.relative_to(source_dir))
+                if flat_name in flat_name_origins:
+                    warnings.warn(
+                        f"agentic-devtools: duplicate flat filename {flat_name!r} "
+                        f"from {src!s} (first seen from {flat_name_origins[flat_name]!s}); "
+                        "only the last source will be injected.",
+                        RuntimeWarning,
+                    )
+                flat_name_origins[flat_name] = src
+                source_rel_names.add(flat_name)
 
             # Copy files, flattening subdirectory structure into filenames
             manifest: list[tuple[str, str]] = []
