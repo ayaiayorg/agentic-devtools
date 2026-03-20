@@ -8,11 +8,23 @@ class TestVerificationNode:
         result = verification_node({})
         assert result["step"] == "verification"
 
-    def test_clears_error(self):
-        result = verification_node({"error": "fail"})
+    def test_preserves_existing_error(self):
+        result = verification_node({"error": "test failed"})
+        assert result["error"] == "test failed"
+
+    def test_clears_error_when_none(self):
+        result = verification_node({"error": None})
         assert result["error"] is None
 
-    def test_preserves_retry_count(self):
+    def test_no_error_when_absent(self):
+        result = verification_node({})
+        assert result["error"] is None
+
+    def test_increments_retry_count_on_error(self):
+        result = verification_node({"error": "fail", "retry_count": 1})
+        assert result["retry_count"] == 2
+
+    def test_does_not_increment_retry_count_without_error(self):
         result = verification_node({"retry_count": 2})
         assert result["retry_count"] == 2
 

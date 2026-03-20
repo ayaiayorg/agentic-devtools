@@ -91,11 +91,20 @@ def implementation_review_node(state: WorkOnIssueState) -> dict:
 
 
 def verification_node(state: WorkOnIssueState) -> dict:
-    """Run tests and quality gates."""
+    """Run tests and quality gates.
+
+    The stub preserves any existing ``error`` and increments ``retry_count``
+    so that the downstream ``route_after_verify`` retry path is reachable
+    during compiled-graph execution.
+    """
+    retry_count = state.get("retry_count", 0)
+    existing_error = state.get("error")
+    if existing_error:
+        retry_count += 1
     return {
         "step": "verification",
-        "error": None,
-        "retry_count": state.get("retry_count", 0),
+        "error": existing_error,
+        "retry_count": retry_count,
         "events": [{"event": "verification_completed", "timestamp": _utc_now()}],
     }
 
