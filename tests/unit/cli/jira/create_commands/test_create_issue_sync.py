@@ -1,6 +1,6 @@
 """Tests for create_issue_sync function."""
 
-from agdt_ai_helpers.cli import jira
+from agentic_devtools.cli import jira
 
 
 class TestCreateIssueSyncWithMock:

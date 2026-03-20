@@ -6,7 +6,7 @@ class TestWriteFilePrompt:
 
     def test_writes_prompt_file(self, tmp_path):
         """Test writes prompt file with correct content."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _write_file_prompt
+        from agentic_devtools.cli.azure_devops.review_commands import _write_file_prompt
 
         file_detail = {
             "path": "/src/test.ts",
@@ -24,7 +24,7 @@ class TestWriteFilePrompt:
 
     def test_handles_empty_threads(self, tmp_path):
         """Test handles empty threads list."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _write_file_prompt
+        from agentic_devtools.cli.azure_devops.review_commands import _write_file_prompt
 
         file_detail = {"path": "/src/test.ts"}
 

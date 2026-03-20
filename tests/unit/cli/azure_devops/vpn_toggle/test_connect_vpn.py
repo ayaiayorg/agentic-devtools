@@ -6,10 +6,10 @@ from unittest.mock import patch
 class TestConnectVpn:
     """Tests for connect_vpn function."""
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = False
 
@@ -18,13 +18,13 @@ class TestConnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_successful_connect_via_ui_automation(self, mock_sleep, mock_installed, mock_ui_auto, mock_vpn):
         """Test successful connect via UI automation."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Connect button clicked")
@@ -35,13 +35,13 @@ class TestConnectVpn:
         assert success is True
         assert "connected" in msg.lower() or "automation" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_connect_already_connected(self, mock_sleep, mock_installed, mock_ui_auto, mock_vpn):
         """Test connect returns success when already connected."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Already connected")
@@ -51,13 +51,13 @@ class TestConnectVpn:
         assert success is True
         assert "already" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.subprocess.Popen")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.subprocess.Popen")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_falls_back_to_manual_on_ui_failure(self, mock_installed, mock_ui_auto, mock_gui_path, mock_popen):
         """Test falls back to manual connect when UI automation fails."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_ui_auto.return_value = (False, "UI automation failed")
@@ -72,15 +72,15 @@ class TestConnectVpn:
 class TestConnectVpnTimeoutPaths:
     """Tests for connect_vpn timeout and manual fallback paths."""
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_ui_automation_initiated_but_not_confirmed(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected
     ):
         """Test connect_vpn when UI automation initiates but connection not confirmed."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -95,16 +95,16 @@ class TestConnectVpnTimeoutPaths:
         assert "initiated" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_manual_fallback_success(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn manual fallback path when UI automation fails."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -119,16 +119,16 @@ class TestConnectVpnTimeoutPaths:
         assert "connected" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_manual_fallback_timeout(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn manual fallback when timeout waiting for user."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -141,16 +141,16 @@ class TestConnectVpnTimeoutPaths:
         assert success is False
         assert "timed out" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_gui_not_found(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path
     ):
         """Test connect_vpn when GUI path doesn't exist."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)
@@ -163,16 +163,16 @@ class TestConnectVpnTimeoutPaths:
         assert "not found" in msg.lower()
 
     @patch("subprocess.Popen")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.reconnect_vpn")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.PULSE_GUI_PATH")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._click_connect_button_via_ui_automation")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_connect_vpn_popen_fails(
         self, mock_installed, mock_reconnect, mock_ui_click, mock_is_connected, mock_path, mock_popen
     ):
         """Test connect_vpn when Popen fails to launch GUI."""
-        from agdt_ai_helpers.cli.azure_devops.vpn_toggle import connect_vpn
+        from agentic_devtools.cli.azure_devops.vpn_toggle import connect_vpn
 
         mock_installed.return_value = True
         mock_reconnect.return_value = (False, "No suspended session", 999)

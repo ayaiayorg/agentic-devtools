@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.prompts import loader
+from agentic_devtools.prompts import loader
 
 
 @pytest.fixture

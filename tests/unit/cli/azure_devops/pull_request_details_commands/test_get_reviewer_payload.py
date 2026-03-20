@@ -10,7 +10,7 @@ Covers:
 
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
     _get_reviewer_payload,
 )
 
@@ -34,7 +34,7 @@ class TestGetReviewerPayload:
     def test_returns_none_when_no_viewed_entries(self):
         """Should return None when contribution API returns no entries."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[],
         ):
             result = _get_reviewer_payload(
@@ -53,9 +53,9 @@ class TestGetReviewerPayload:
         iterations = [{"id": 1}, {"id": 5}, {"id": 3}]
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map"
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map"
         ) as mock_map, patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ):
             mock_map.return_value = {"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}}
@@ -77,10 +77,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -101,10 +101,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -124,10 +124,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -147,10 +147,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -172,10 +172,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -194,10 +194,10 @@ class TestGetReviewerPayload:
         ]
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={},  # Empty map
         ):
             result = _get_reviewer_payload(
@@ -220,10 +220,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -243,10 +243,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -265,10 +265,10 @@ class TestGetReviewerPayload:
         }
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=viewed_entries,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value=change_tracking_map,
         ):
             result = _get_reviewer_payload(
@@ -286,10 +286,10 @@ class TestGetReviewerPayload:
     def test_handles_empty_iterations_payload(self):
         """Should handle None iterations payload gracefully."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={},
         ):
             result = _get_reviewer_payload(
@@ -309,13 +309,13 @@ class TestGetReviewerPayload:
     def test_returns_none_when_current_user_is_pr_author(self):
         """Should return None when current user is the PR author (their views are not reviews)."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_current_user_id",
             return_value="author-user-id-abc",
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
         ):
             result = _get_reviewer_payload(
@@ -334,13 +334,13 @@ class TestGetReviewerPayload:
     def test_returns_none_when_current_user_is_pr_author_case_insensitive(self):
         """Should match pr_author_id case-insensitively."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_current_user_id",
             return_value="AUTHOR-USER-ID-ABC",
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
         ):
             result = _get_reviewer_payload(
@@ -359,13 +359,13 @@ class TestGetReviewerPayload:
     def test_proceeds_normally_when_current_user_is_not_pr_author(self):
         """Should return reviewer payload when current user differs from PR author."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_current_user_id",
             return_value="reviewer-user-id-xyz",
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
         ):
             result = _get_reviewer_payload(
@@ -385,13 +385,13 @@ class TestGetReviewerPayload:
     def test_proceeds_normally_when_current_user_id_unavailable(self):
         """Should proceed with normal behavior when current user ID cannot be fetched."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_current_user_id",
             return_value=None,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
         ):
             result = _get_reviewer_payload(
@@ -412,12 +412,12 @@ class TestGetReviewerPayload:
     def test_skips_current_user_check_when_no_pr_author_id(self):
         """Should not call _get_current_user_id when pr_author_id is not provided."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_current_user_id",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_current_user_id",
         ) as mock_get_user, patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_viewed_files_via_contribution",
             return_value=[{"path": "/file.py", "changeTrackingId": "1", "objectHash": "abc"}],
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_iteration_change_tracking_map",
             return_value={"/file.py": {"changeTrackingId": "1", "objectId": "abc123"}},
         ):
             result = _get_reviewer_payload(

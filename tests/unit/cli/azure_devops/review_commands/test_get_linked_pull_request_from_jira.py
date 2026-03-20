@@ -12,10 +12,10 @@ class TestGetLinkedPullRequestFromJira:
             # Force reimport to trigger ImportError
             import importlib
 
-            from agdt_ai_helpers.cli.azure_devops import review_commands
+            from agentic_devtools.cli.azure_devops import review_commands
 
             importlib.reload(review_commands)
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 _get_linked_pull_request_from_jira,
             )
 
@@ -31,10 +31,10 @@ class TestGetLinkedPullRequestFromJira:
         with patch.dict("sys.modules", {"requests": MagicMock()}):
             # Mock Jira module import failure
             with patch(
-                "agdt_ai_helpers.cli.azure_devops.review_commands._get_linked_pull_request_from_jira"
+                "agentic_devtools.cli.azure_devops.review_commands._get_linked_pull_request_from_jira"
             ) as mock_func:
                 mock_func.return_value = None
-                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                from agentic_devtools.cli.azure_devops.review_commands import (
                     _get_linked_pull_request_from_jira,
                 )
 
@@ -50,18 +50,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", return_value=mock_response):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -74,18 +74,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=Exception("Network error")):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -112,18 +112,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -150,18 +150,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -188,18 +188,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 

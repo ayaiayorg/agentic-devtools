@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     get_project_role_details_async,
 )
 
@@ -29,6 +29,6 @@ class TestRoleCommandsAsync:
 
     def test_get_project_role_details_requires_keys(self, mock_background_and_state):
         """Test get_project_role_details_async requires both keys."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 get_project_role_details_async()

@@ -8,9 +8,9 @@ class TestGetPullRequestIdFromState:
         """Test returns integer when valid number in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="123"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="123"):
             result = _get_pull_request_id_from_state()
 
         assert result == 123
@@ -19,9 +19,9 @@ class TestGetPullRequestIdFromState:
         """Test returns None when not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value=None):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value=None):
             result = _get_pull_request_id_from_state()
 
         assert result is None
@@ -30,9 +30,9 @@ class TestGetPullRequestIdFromState:
         """Test returns None for non-numeric value."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="not-a-number"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="not-a-number"):
             result = _get_pull_request_id_from_state()
 
         assert result is None

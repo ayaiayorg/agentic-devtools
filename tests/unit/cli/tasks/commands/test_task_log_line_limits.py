@@ -13,10 +13,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     task_log,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
 )
@@ -26,7 +26,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -42,7 +42,7 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_positive_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log with positive line limit (head mode)."""
-        from agdt_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         # Create task with multi-line log file
         log_file = tmp_path / "test.log"
@@ -65,7 +65,7 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_negative_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log with negative line limit (tail mode)."""
-        from agdt_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         # Create task with multi-line log file
         log_file = tmp_path / "test.log"
@@ -88,7 +88,7 @@ class TestTaskLogLineLimits:
 
     def test_task_log_with_invalid_line_limit(self, mock_state_dir, capsys, tmp_path):
         """Test task_log ignores invalid line limit."""
-        from agdt_ai_helpers.state import set_value
+        from agentic_devtools.state import set_value
 
         # Create task with log file
         log_file = tmp_path / "test.log"
@@ -111,7 +111,7 @@ class TestTaskLogLineLimits:
 
     def test_task_log_nonexistent_task(self, mock_state_dir, capsys):
         """Test task_log with nonexistent task ID."""
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": "fake-task-id"}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": "fake-task-id"}}):
             with pytest.raises(SystemExit):
                 task_log()
 

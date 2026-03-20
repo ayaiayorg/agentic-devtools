@@ -7,7 +7,7 @@ and the VpnToggleContext manager.
 
 from unittest.mock import MagicMock, patch
 
-from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
+from agentic_devtools.cli.azure_devops.vpn_toggle import (
     is_on_corporate_network,
 )
 

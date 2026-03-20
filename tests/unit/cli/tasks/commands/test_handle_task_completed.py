@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
     update_task,
@@ -24,7 +24,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -52,13 +52,13 @@ class TestHandleTaskCompleted:
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
                 return_value=[],
             ), patch(
-                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
                 return_value=[],
             ):
-                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agentic_devtools.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(task, task.id, 300.0)
 
@@ -84,13 +84,13 @@ class TestHandleTaskCompleted:
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
                 return_value=[incomplete_task],
             ), patch(
-                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
                 return_value=[],
             ):
-                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agentic_devtools.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(completed_task, completed_task.id, 300.0)
 
@@ -116,13 +116,13 @@ class TestHandleTaskCompleted:
 
         with pytest.raises(SystemExit) as exc_info:
             with patch(
-                "agdt_ai_helpers.task_state.get_incomplete_most_recent_per_command",
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
                 return_value=[],
             ), patch(
-                "agdt_ai_helpers.task_state.get_failed_most_recent_per_command",
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
                 return_value=[failed_task],
             ):
-                from agdt_ai_helpers.cli.tasks.commands import _handle_task_completed
+                from agentic_devtools.cli.tasks.commands import _handle_task_completed
 
                 _handle_task_completed(completed_task, completed_task.id, 300.0)
 

@@ -2,7 +2,7 @@
 Tests for Atlassian Document Format (ADF) conversion.
 """
 
-from agdt_ai_helpers.cli import jira
+from agentic_devtools.cli import jira
 
 
 class TestProcessAdfChildren:

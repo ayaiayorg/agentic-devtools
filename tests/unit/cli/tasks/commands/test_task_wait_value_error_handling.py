@@ -13,10 +13,10 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     task_wait,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
     update_task,
@@ -27,7 +27,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -49,7 +49,7 @@ class TestTaskWaitValueErrorHandling:
 
         # Set invalid timeout in state
         with patch(
-            "agdt_ai_helpers.state.load_state",
+            "agentic_devtools.state.load_state",
             return_value={"background": {"task_id": task.id, "timeout": "not-a-number"}},
         ):
             # Should not crash, uses default timeout
@@ -66,7 +66,7 @@ class TestTaskWaitValueErrorHandling:
 
         # Set invalid wait_interval in state
         with patch(
-            "agdt_ai_helpers.state.load_state",
+            "agentic_devtools.state.load_state",
             return_value={"background": {"task_id": task.id, "wait_interval": "invalid"}},
         ):
             # Should not crash, uses default wait interval

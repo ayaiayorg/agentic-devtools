@@ -10,12 +10,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return None
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -25,12 +25,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when role_id not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -40,12 +40,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when users not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -55,12 +55,12 @@ class TestAddUsersToProjectRoleBatch:
         """Test prints error when users parses to empty list."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "   ,  ,  "}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -70,7 +70,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add with mix of existing and non-existing users."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - first user exists, second doesn't
         def mock_user_response(url, *args, **kwargs):
@@ -95,15 +95,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "existing.user,nonexistent.user"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -114,7 +114,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add when no users exist."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - all users don't exist
         mock_response = MagicMock()
@@ -126,15 +126,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "nonexistent1,nonexistent2"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()
@@ -144,7 +144,7 @@ class TestAddUsersToProjectRoleBatch:
         """Test batch add when role add fails for some users."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role_batch
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
 
         # Mock user existence check - both users exist
         def mock_user_response(url, *args, **kwargs):
@@ -173,15 +173,15 @@ class TestAddUsersToProjectRoleBatch:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1,user2"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
-                            with patch("agdt_ai_helpers.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
                                 add_users_to_project_role_batch()
 
         captured = capsys.readouterr()

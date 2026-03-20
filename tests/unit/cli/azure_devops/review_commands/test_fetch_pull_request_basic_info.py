@@ -9,8 +9,8 @@ class TestFetchPullRequestBasicInfo:
         import json
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         pr_data = {"pullRequestId": 123, "title": "Test PR"}
         mock_result = MagicMock()
@@ -23,9 +23,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is not None
@@ -35,8 +35,8 @@ class TestFetchPullRequestBasicInfo:
         """Test returns None when az CLI fails."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -48,9 +48,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is None
@@ -59,8 +59,8 @@ class TestFetchPullRequestBasicInfo:
         """Test returns None when output is not valid JSON."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -72,9 +72,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is None

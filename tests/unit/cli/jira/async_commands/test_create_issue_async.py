@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     create_issue_async,
 )
 
@@ -29,14 +29,14 @@ class TestCreateIssueAsync:
 
     def test_requires_project_key(self, mock_background_and_state):
         """Test create_issue_async requires project_key."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 create_issue_async()
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test create_issue_async spawns a background task."""
         with patch(
-            "agdt_ai_helpers.cli.jira.async_commands.get_jira_value",
+            "agentic_devtools.cli.jira.async_commands.get_jira_value",
             side_effect=lambda k: {"project_key": "DFLY", "summary": "Issue"}.get(k),
         ):
             create_issue_async()

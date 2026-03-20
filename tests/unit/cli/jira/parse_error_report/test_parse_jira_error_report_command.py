@@ -13,9 +13,9 @@ class TestParseJiraErrorReportCommand:
         """Test prints error when error_file_path not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.parse_error_report import parse_jira_error_report
+        from agentic_devtools.cli.jira.parse_error_report import parse_jira_error_report
 
-        with patch("agdt_ai_helpers.cli.jira.parse_error_report.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.parse_error_report.get_jira_value", return_value=None):
             parse_jira_error_report()
 
         captured = capsys.readouterr()
@@ -25,9 +25,9 @@ class TestParseJiraErrorReportCommand:
         """Test prints error when file doesn't exist."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.parse_error_report import parse_jira_error_report
+        from agentic_devtools.cli.jira.parse_error_report import parse_jira_error_report
 
-        with patch("agdt_ai_helpers.cli.jira.parse_error_report.get_jira_value", return_value="/nonexistent/path.txt"):
+        with patch("agentic_devtools.cli.jira.parse_error_report.get_jira_value", return_value="/nonexistent/path.txt"):
             parse_jira_error_report()
 
         captured = capsys.readouterr()
@@ -37,13 +37,13 @@ class TestParseJiraErrorReportCommand:
         """Test prints message when no entries found."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.parse_error_report import parse_jira_error_report
+        from agentic_devtools.cli.jira.parse_error_report import parse_jira_error_report
 
         # Create empty file
         empty_file = tmp_path / "empty.txt"
         empty_file.write_text("", encoding="utf-8")
 
-        with patch("agdt_ai_helpers.cli.jira.parse_error_report.get_jira_value", return_value=str(empty_file)):
+        with patch("agentic_devtools.cli.jira.parse_error_report.get_jira_value", return_value=str(empty_file)):
             parse_jira_error_report()
 
         captured = capsys.readouterr()
@@ -53,7 +53,7 @@ class TestParseJiraErrorReportCommand:
         """Test full parsing and output generation."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.parse_error_report import parse_jira_error_report
+        from agentic_devtools.cli.jira.parse_error_report import parse_jira_error_report
 
         # Create test error file with unicode escapes
         error_content = """
@@ -73,15 +73,15 @@ class TestParseJiraErrorReportCommand:
         mock_requests.get.return_value = mock_response
 
         # Patch TEMP_DIR to use tmp_path
-        with patch("agdt_ai_helpers.cli.jira.parse_error_report.get_jira_value", return_value=str(error_file)):
-            with patch("agdt_ai_helpers.cli.jira.parse_error_report._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.parse_error_report._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.parse_error_report.get_jira_value", return_value=str(error_file)):
+            with patch("agentic_devtools.cli.jira.parse_error_report._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.parse_error_report._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.parse_error_report.get_jira_base_url",
+                        "agentic_devtools.cli.jira.parse_error_report.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.parse_error_report.get_jira_headers", return_value={}):
-                            with patch("agdt_ai_helpers.cli.jira.parse_error_report.TEMP_DIR", str(tmp_path)):
+                        with patch("agentic_devtools.cli.jira.parse_error_report.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.parse_error_report.TEMP_DIR", str(tmp_path)):
                                 parse_jira_error_report()
 
         captured = capsys.readouterr()

@@ -2,7 +2,7 @@
 
 import pytest
 
-from agdt_ai_helpers.cli.azure_devops.review_helpers import (
+from agentic_devtools.cli.azure_devops.review_helpers import (
     JIRA_ISSUE_KEY_PATTERN,
     build_reviewed_paths_set,
     convert_to_prompt_filename,
@@ -426,42 +426,42 @@ class TestNormalizePathForComparison:
 
     def test_basic_path(self):
         """Test normalization of basic path."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("src/app/file.ts")
         assert result == "src/app/file.ts"
 
     def test_path_with_leading_slash(self):
         """Test path with leading slash has it stripped."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("/src/app/file.ts")
         assert result == "src/app/file.ts"
 
     def test_path_with_backslashes(self):
         """Test path with Windows backslashes converted."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("src\\app\\file.ts")
         assert result == "src/app/file.ts"
 
     def test_lowercase_normalization(self):
         """Test path is lowercased."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("SRC/App/File.ts")
         assert result == "src/app/file.ts"
 
     def test_empty_path(self):
         """Test empty path returns empty."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("")
         assert result == ""
 
     def test_mixed_normalization(self):
         """Test combination of normalizations."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _normalize_path_for_comparison
+        from agentic_devtools.cli.azure_devops.review_commands import _normalize_path_for_comparison
 
         result = _normalize_path_for_comparison("/SRC\\App/File.ts")
         assert result == "src/app/file.ts"
@@ -479,15 +479,15 @@ class TestCheckoutAndSyncBranch:
         """Test successful checkout and sync returns files."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_fetch_branch.return_value = True
                                 mock_reset.return_value = True
@@ -505,10 +505,10 @@ class TestCheckoutAndSyncBranch:
         """Test checkout failure returns error message."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
             mock_checkout.return_value = CheckoutResult(
                 CheckoutResult.UNCOMMITTED_CHANGES,
                 "You have uncommitted changes",
@@ -526,15 +526,15 @@ class TestCheckoutAndSyncBranch:
         """Test rebase conflict still returns files (review can continue)."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult, RebaseResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.rebase_onto_main") as mock_rebase:
-                            with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                                 mock_fetch_branch.return_value = True
                                 mock_reset.return_value = True
@@ -556,14 +556,14 @@ class TestCheckoutAndSyncBranch:
         """Test fetch_main failure doesn't block the workflow."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import checkout_and_sync_branch
-        from agdt_ai_helpers.cli.git.operations import CheckoutResult
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult
 
-        with patch("agdt_ai_helpers.cli.git.operations.checkout_branch") as mock_checkout:
-            with patch("agdt_ai_helpers.cli.git.operations.fetch_branch") as mock_fetch_branch:
-                with patch("agdt_ai_helpers.cli.git.operations.reset_branch_to_origin") as mock_reset:
-                    with patch("agdt_ai_helpers.cli.git.operations.fetch_main") as mock_fetch:
-                        with patch("agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch") as mock_files:
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
                             mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                             mock_fetch_branch.return_value = True
                             mock_reset.return_value = True
@@ -585,9 +585,9 @@ class TestGetJiraIssueKeyFromState:
         """Test returns value when set in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
             result = _get_jira_issue_key_from_state()
 
         assert result == "DFLY-1234"
@@ -596,9 +596,9 @@ class TestGetJiraIssueKeyFromState:
         """Test returns None when not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value=None):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value=None):
             result = _get_jira_issue_key_from_state()
 
         assert result is None
@@ -611,9 +611,9 @@ class TestGetPullRequestIdFromState:
         """Test returns integer when valid number in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="123"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="123"):
             result = _get_pull_request_id_from_state()
 
         assert result == 123
@@ -622,9 +622,9 @@ class TestGetPullRequestIdFromState:
         """Test returns None when not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value=None):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value=None):
             result = _get_pull_request_id_from_state()
 
         assert result is None
@@ -633,9 +633,9 @@ class TestGetPullRequestIdFromState:
         """Test returns None for non-numeric value."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _get_pull_request_id_from_state
+        from agentic_devtools.cli.azure_devops.review_commands import _get_pull_request_id_from_state
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value", return_value="not-a-number"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="not-a-number"):
             result = _get_pull_request_id_from_state()
 
         assert result is None
@@ -649,8 +649,8 @@ class TestFetchPullRequestBasicInfo:
         import json
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         pr_data = {"pullRequestId": 123, "title": "Test PR"}
         mock_result = MagicMock()
@@ -663,9 +663,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is not None
@@ -675,8 +675,8 @@ class TestFetchPullRequestBasicInfo:
         """Test returns None when az CLI fails."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -688,9 +688,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is None
@@ -699,8 +699,8 @@ class TestFetchPullRequestBasicInfo:
         """Test returns None when output is not valid JSON."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.azure_devops.config import AzureDevOpsConfig
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.review_commands import _fetch_pull_request_basic_info
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -712,9 +712,9 @@ class TestFetchPullRequestBasicInfo:
             repository="TestRepo",
         )
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.verify_az_cli"):
-            with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
-                with patch("agdt_ai_helpers.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.verify_az_cli"):
+            with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat", return_value="test-pat"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.run_safe", return_value=mock_result):
                     result = _fetch_pull_request_basic_info(123, config)
 
         assert result is None
@@ -725,7 +725,7 @@ class TestWriteFilePrompt:
 
     def test_writes_prompt_file(self, tmp_path):
         """Test writes prompt file with correct content."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _write_file_prompt
+        from agentic_devtools.cli.azure_devops.review_commands import _write_file_prompt
 
         file_detail = {
             "path": "/src/test.ts",
@@ -743,7 +743,7 @@ class TestWriteFilePrompt:
 
     def test_handles_empty_threads(self, tmp_path):
         """Test handles empty threads list."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import _write_file_prompt
+        from agentic_devtools.cli.azure_devops.review_commands import _write_file_prompt
 
         file_detail = {"path": "/src/test.ts"}
 
@@ -759,7 +759,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_basic_info(self, tmp_path, capsys):
         """Test prints basic review information."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import print_review_instructions
+        from agentic_devtools.cli.azure_devops.review_commands import print_review_instructions
 
         print_review_instructions(
             pull_request_id=123,
@@ -775,7 +775,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_skipped_not_on_branch(self, tmp_path, capsys):
         """Test prints skipped not on branch count when non-zero."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import print_review_instructions
+        from agentic_devtools.cli.azure_devops.review_commands import print_review_instructions
 
         print_review_instructions(
             pull_request_id=123,
@@ -797,7 +797,7 @@ class TestGenerateReviewPrompts:
         """Test generates prompt files for PR files."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -808,17 +808,17 @@ class TestGenerateReviewPrompts:
         }
 
         # Patch the scripts directory location
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.Path") as mock_path:
+        with patch("agentic_devtools.cli.azure_devops.review_commands.Path") as mock_path:
             # Make the path operations work with tmp_path
             mock_path.return_value.parent.parent.parent.parent.parent = tmp_path
             mock_path.return_value.__truediv__ = lambda self, x: tmp_path / x
 
             # Actually call the function but with simplified setup
-            from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+            from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
             # Minimal patching to avoid complex path issues
             with patch.object(
-                __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+                __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
                 "get_state_dir",
                 return_value=tmp_path,
             ):
@@ -837,7 +837,7 @@ class TestGenerateReviewPrompts:
         """Test skips files already marked as reviewed."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -851,7 +851,7 @@ class TestGenerateReviewPrompts:
         }
 
         with patch.object(
-            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
             "get_state_dir",
             return_value=tmp_path,
         ):
@@ -869,7 +869,7 @@ class TestGenerateReviewPrompts:
         """Test skips files not in the branch changes."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [
@@ -883,7 +883,7 @@ class TestGenerateReviewPrompts:
         files_on_branch = {"/src/file1.ts"}
 
         with patch.object(
-            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
             "get_state_dir",
             return_value=tmp_path,
         ):
@@ -901,7 +901,7 @@ class TestGenerateReviewPrompts:
         """When review.commit_hash_short contains path traversal chars, falls back to PR<id>."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
 
         pr_details = {
             "files": [{"path": "/src/file1.ts", "changeType": "edit"}],
@@ -909,11 +909,11 @@ class TestGenerateReviewPrompts:
         }
 
         with patch.object(
-            __import__("agdt_ai_helpers.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
             "get_state_dir",
             return_value=tmp_path,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=lambda key, *a, **kw: "../../evil" if key == "review.commit_hash_short" else None,
         ):
             _, _, _, prompts_dir = generate_review_prompts(
@@ -940,10 +940,10 @@ class TestGetLinkedPullRequestFromJira:
             # Force reimport to trigger ImportError
             import importlib
 
-            from agdt_ai_helpers.cli.azure_devops import review_commands
+            from agentic_devtools.cli.azure_devops import review_commands
 
             importlib.reload(review_commands)
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 _get_linked_pull_request_from_jira,
             )
 
@@ -959,10 +959,10 @@ class TestGetLinkedPullRequestFromJira:
         with patch.dict("sys.modules", {"requests": MagicMock()}):
             # Mock Jira module import failure
             with patch(
-                "agdt_ai_helpers.cli.azure_devops.review_commands._get_linked_pull_request_from_jira"
+                "agentic_devtools.cli.azure_devops.review_commands._get_linked_pull_request_from_jira"
             ) as mock_func:
                 mock_func.return_value = None
-                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                from agentic_devtools.cli.azure_devops.review_commands import (
                     _get_linked_pull_request_from_jira,
                 )
 
@@ -978,18 +978,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", return_value=mock_response):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -1002,18 +1002,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=Exception("Network error")):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -1040,18 +1040,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -1078,18 +1078,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -1116,18 +1116,18 @@ class TestGetLinkedPullRequestFromJira:
 
         with patch("requests.get", side_effect=mock_get):
             with patch(
-                "agdt_ai_helpers.cli.jira.config.get_jira_base_url",
+                "agentic_devtools.cli.jira.config.get_jira_base_url",
                 return_value="https://jira.example.com",
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.jira.config.get_jira_headers",
+                    "agentic_devtools.cli.jira.config.get_jira_headers",
                     return_value={"Authorization": "Bearer token"},
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.helpers._get_ssl_verify",
+                        "agentic_devtools.cli.jira.helpers._get_ssl_verify",
                         return_value=True,
                     ):
-                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                        from agentic_devtools.cli.azure_devops.review_commands import (
                             _get_linked_pull_request_from_jira,
                         )
 
@@ -1142,10 +1142,10 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns True when Jira issue fetched successfully."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
-            with patch("agdt_ai_helpers.cli.jira.get_commands.get_issue") as mock_get_issue:
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
+            with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 
@@ -1157,13 +1157,13 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns False when get_issue raises SystemExit."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
             with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
+                "agentic_devtools.cli.jira.get_commands.get_issue",
                 side_effect=SystemExit(1),
             ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 
@@ -1176,13 +1176,13 @@ class TestFetchAndDisplayJiraIssue:
         """Test returns False when get_issue raises Exception."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_value"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value"):
             with patch(
-                "agdt_ai_helpers.cli.jira.get_commands.get_issue",
+                "agentic_devtools.cli.jira.get_commands.get_issue",
                 side_effect=Exception("API error"),
             ):
-                with patch("agdt_ai_helpers.cli.jira.state_helpers.set_jira_value"):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         _fetch_and_display_jira_issue,
                     )
 
@@ -1203,26 +1203,26 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_checkout_result.is_success = True
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=False,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                            "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                             return_value=["file1.ts"],
                         ):
-                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                            from agentic_devtools.cli.azure_devops.review_commands import (
                                 checkout_and_sync_branch,
                             )
 
@@ -1244,30 +1244,30 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_rebase_result.needs_manual_resolution = True
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=True,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            "agentic_devtools.cli.git.operations.rebase_onto_main",
                             return_value=mock_rebase_result,
                         ):
                             with patch(
-                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts"],
                             ):
-                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                from agentic_devtools.cli.azure_devops.review_commands import (
                                     checkout_and_sync_branch,
                                 )
 
@@ -1290,30 +1290,30 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_rebase_result.message = "Unknown rebase error"
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=True,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            "agentic_devtools.cli.git.operations.rebase_onto_main",
                             return_value=mock_rebase_result,
                         ):
                             with patch(
-                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts"],
                             ):
-                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                from agentic_devtools.cli.azure_devops.review_commands import (
                                     checkout_and_sync_branch,
                                 )
 
@@ -1335,40 +1335,40 @@ class TestCheckoutAndSyncBranchEdgeCases:
         commit_hash_short = "abc12345"
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=True,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            "agentic_devtools.cli.git.operations.rebase_onto_main",
                             return_value=mock_rebase_result,
                         ):
                             with patch(
-                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts", "file2.ts"],
                             ):
                                 with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    "agentic_devtools.cli.azure_devops.review_commands.get_value",
                                     side_effect=lambda key, *a, **kw: (
                                         commit_hash_short if key == "review.commit_hash_short" else None
                                     ),
                                 ):
                                     with patch(
-                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        "agentic_devtools.cli.azure_devops.review_commands.get_state_dir",
                                         return_value=tmp_path,
                                     ):
-                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        from agentic_devtools.cli.azure_devops.review_commands import (
                                             checkout_and_sync_branch,
                                         )
 
@@ -1399,38 +1399,38 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_rebase_result.is_success = True
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=True,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            "agentic_devtools.cli.git.operations.rebase_onto_main",
                             return_value=mock_rebase_result,
                         ):
                             with patch(
-                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts"],
                             ):
                                 with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    "agentic_devtools.cli.azure_devops.review_commands.get_value",
                                     return_value=None,  # commit_hash_short absent
                                 ):
                                     with patch(
-                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        "agentic_devtools.cli.azure_devops.review_commands.get_state_dir",
                                         return_value=tmp_path,
                                     ):
-                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        from agentic_devtools.cli.azure_devops.review_commands import (
                                             checkout_and_sync_branch,
                                         )
 
@@ -1459,40 +1459,40 @@ class TestCheckoutAndSyncBranchEdgeCases:
         mock_rebase_result.is_success = True
 
         with patch(
-            "agdt_ai_helpers.cli.git.operations.checkout_branch",
+            "agentic_devtools.cli.git.operations.checkout_branch",
             return_value=mock_checkout_result,
         ):
             with patch(
-                "agdt_ai_helpers.cli.git.operations.fetch_branch",
+                "agentic_devtools.cli.git.operations.fetch_branch",
                 return_value=True,
             ):
                 with patch(
-                    "agdt_ai_helpers.cli.git.operations.reset_branch_to_origin",
+                    "agentic_devtools.cli.git.operations.reset_branch_to_origin",
                     return_value=True,
                 ):
                     with patch(
-                        "agdt_ai_helpers.cli.git.operations.fetch_main",
+                        "agentic_devtools.cli.git.operations.fetch_main",
                         return_value=True,
                     ):
                         with patch(
-                            "agdt_ai_helpers.cli.git.operations.rebase_onto_main",
+                            "agentic_devtools.cli.git.operations.rebase_onto_main",
                             return_value=mock_rebase_result,
                         ):
                             with patch(
-                                "agdt_ai_helpers.cli.git.operations.get_files_changed_on_branch",
+                                "agentic_devtools.cli.git.operations.get_files_changed_on_branch",
                                 return_value=["file1.ts"],
                             ):
                                 with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+                                    "agentic_devtools.cli.azure_devops.review_commands.get_value",
                                     side_effect=lambda key, *a, **kw: (
                                         "../evil" if key == "review.commit_hash_short" else None
                                     ),
                                 ):
                                     with patch(
-                                        "agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir",
+                                        "agentic_devtools.cli.azure_devops.review_commands.get_state_dir",
                                         return_value=tmp_path,
                                     ):
-                                        from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        from agentic_devtools.cli.azure_devops.review_commands import (
                                             checkout_and_sync_branch,
                                         )
 
@@ -1520,10 +1520,10 @@ class TestSetupPullRequestReview:
         from unittest.mock import patch
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             return_value=None,
         ):
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 setup_pull_request_review,
             )
 
@@ -1559,34 +1559,34 @@ class TestSetupPullRequestReview:
             return mapping.get(key, default)
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
             return_value=False,
         ):
             with patch(
-                "agdt_ai_helpers.cli.azure_devops.review_commands._fetch_and_display_jira_issue"
+                "agentic_devtools.cli.azure_devops.review_commands._fetch_and_display_jira_issue"
             ) as mock_fetch_jira:
-                with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                     with patch("builtins.open", create=True) as mock_open:
                         mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_pr_details)
                         with patch("pathlib.Path.exists", return_value=True):
                             with patch(
-                                "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                                "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
                                 return_value=(True, None, set()),
                             ):
                                 with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                    "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
                                     return_value=(5, 0, 0, MagicMock()),
                                 ):
                                     with patch(
-                                        "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                        "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
                                     ):
-                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
-                                            with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                                with patch("agdt_ai_helpers.state.delete_value"):
-                                                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch("agentic_devtools.state.set_workflow_state"):
+                                                with patch("agentic_devtools.state.delete_value"):
+                                                    from agentic_devtools.cli.azure_devops.review_commands import (
                                                         setup_pull_request_review,
                                                     )
 
@@ -1606,12 +1606,12 @@ class TestSetupPullRequestReview:
             return mapping.get(key, default)
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
         ):
-            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("pathlib.Path.exists", return_value=False):
-                    from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                    from agentic_devtools.cli.azure_devops.review_commands import (
                         setup_pull_request_review,
                     )
 
@@ -1643,22 +1643,22 @@ class TestSetupPullRequestReview:
             return mapping.get(key, default)
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
         ), patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.is_dry_run",
+            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
             return_value=False,
         ):
-            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_pr_details)
                     with patch("pathlib.Path.exists", return_value=True):
-                        with patch("agdt_ai_helpers.state.delete_value"):
+                        with patch("agentic_devtools.state.delete_value"):
                             with patch(
-                                "agdt_ai_helpers.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                                "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
                                 return_value=(False, "Checkout error", set()),
                             ):
-                                from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                from agentic_devtools.cli.azure_devops.review_commands import (
                                     setup_pull_request_review,
                                 )
 
@@ -1691,24 +1691,24 @@ class TestSetupPullRequestReview:
             return mapping.get(key, default)
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=get_value_side_effect,
         ):
-            with patch("agdt_ai_helpers.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_pr_details)
                     with patch("pathlib.Path.exists", return_value=True):
-                        with patch("agdt_ai_helpers.state.delete_value"):
+                        with patch("agentic_devtools.state.delete_value"):
                             with patch(
-                                "agdt_ai_helpers.cli.azure_devops.review_commands.generate_review_prompts",
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
                                 return_value=(5, 0, 0, MagicMock()),
                             ):
                                 with patch(
-                                    "agdt_ai_helpers.cli.azure_devops.review_commands.print_review_instructions"
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
                                 ):
-                                    with patch("agdt_ai_helpers.state.set_workflow_state"):
-                                        with patch("agdt_ai_helpers.prompts.loader.load_and_render_prompt"):
-                                            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            from agentic_devtools.cli.azure_devops.review_commands import (
                                                 setup_pull_request_review,
                                             )
 
@@ -1722,7 +1722,7 @@ class TestPrintReviewInstructionsZeroPrompts:
 
     def test_prints_warning_when_zero_prompts(self, tmp_path, capsys):
         """Test prints warning when no prompts generated."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import print_review_instructions
+        from agentic_devtools.cli.azure_devops.review_commands import print_review_instructions
 
         print_review_instructions(
             pull_request_id=123,
@@ -1752,8 +1752,8 @@ class TestGenerateReviewPromptsEdgeCases:
         with open(details_path, "w") as f:
             json.dump(pr_details, f)
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir):
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir):
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
 
@@ -1787,11 +1787,11 @@ class TestGenerateReviewPromptsEdgeCases:
             "threads": [],
         }
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir), patch(
-            "agdt_ai_helpers.cli.azure_devops.review_commands.get_value",
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir), patch(
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
             side_effect=lambda key, *args, **kwargs: commit_hash_short if key == "review.commit_hash_short" else None,
         ):
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
 
@@ -1808,8 +1808,8 @@ class TestGenerateReviewPromptsEdgeCases:
         """Test raises FileNotFoundError when PR details file missing."""
         from unittest.mock import patch
 
-        with patch("agdt_ai_helpers.cli.azure_devops.review_commands.get_state_dir", return_value=tmp_path):
-            from agdt_ai_helpers.cli.azure_devops.review_commands import (
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_state_dir", return_value=tmp_path):
+            from agentic_devtools.cli.azure_devops.review_commands import (
                 generate_review_prompts,
             )
 

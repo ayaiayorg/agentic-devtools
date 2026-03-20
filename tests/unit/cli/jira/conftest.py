@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.jira import (
+from agentic_devtools.cli.jira import (
     comment_commands,
     create_commands,
     get_commands,

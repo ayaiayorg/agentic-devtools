@@ -2,7 +2,7 @@
 Tests for Jira async commands and write_async_status function.
 """
 
-from agdt_ai_helpers.cli import jira
+from agentic_devtools.cli import jira
 
 
 def _get_script_from_call(mock_popen):

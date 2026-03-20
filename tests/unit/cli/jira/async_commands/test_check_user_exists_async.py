@@ -4,7 +4,7 @@ Tests for Jira async commands and write_async_status function.
 
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     check_user_exists_async,
 )
 
@@ -27,7 +27,7 @@ class TestRoleCommandsAsync:
 
     def test_check_user_exists_spawns_task(self, mock_background_and_state, capsys):
         """Test check_user_exists_async spawns background task."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="testuser"):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="testuser"):
             check_user_exists_async()
 
         captured = capsys.readouterr()

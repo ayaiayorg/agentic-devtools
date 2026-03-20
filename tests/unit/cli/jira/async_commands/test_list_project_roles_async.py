@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.jira.async_commands import (
+from agentic_devtools.cli.jira.async_commands import (
     list_project_roles_async,
 )
 
@@ -29,13 +29,13 @@ class TestRoleCommandsAsync:
 
     def test_list_project_roles_requires_project_key(self, mock_background_and_state):
         """Test list_project_roles_async requires project_key."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value=None):
             with pytest.raises(SystemExit):
                 list_project_roles_async()
 
     def test_list_project_roles_spawns_task(self, mock_background_and_state, capsys):
         """Test list_project_roles_async spawns background task."""
-        with patch("agdt_ai_helpers.cli.jira.async_commands.get_jira_value", return_value="DFLY"):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="DFLY"):
             list_project_roles_async()
 
         captured = capsys.readouterr()

@@ -6,7 +6,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_basic_info(self, tmp_path, capsys):
         """Test prints basic review information."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import print_review_instructions
+        from agentic_devtools.cli.azure_devops.review_commands import print_review_instructions
 
         print_review_instructions(
             pull_request_id=123,
@@ -22,7 +22,7 @@ class TestPrintReviewInstructions:
 
     def test_prints_skipped_not_on_branch(self, tmp_path, capsys):
         """Test prints skipped not on branch count when non-zero."""
-        from agdt_ai_helpers.cli.azure_devops.review_commands import print_review_instructions
+        from agentic_devtools.cli.azure_devops.review_commands import print_review_instructions
 
         print_review_instructions(
             pull_request_id=123,

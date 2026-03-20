@@ -10,7 +10,7 @@ Covers:
 
 from unittest.mock import MagicMock, patch
 
-from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
     _invoke_ado_rest,
 )
 

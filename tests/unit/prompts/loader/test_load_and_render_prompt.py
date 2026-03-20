@@ -4,7 +4,7 @@ Tests for prompt template loader.
 
 import pytest
 
-from agdt_ai_helpers.prompts import loader
+from agentic_devtools.prompts import loader
 
 
 class TestLoadAndRenderPrompt:

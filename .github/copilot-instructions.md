@@ -1121,7 +1121,7 @@ Ruff enforces isort-style import ordering (rule set `I`). All Python files must 
 
 1. **Standard library** imports
 2. **Third-party** imports (e.g., `pytest`, `requests`)
-3. **First-party** imports (`agentic_devtools.*`, `agdt_ai_helpers.*`)
+3. **First-party** imports (`agentic_devtools.*`)
 
 Within each group, `import X` lines come before `from X import Y` lines.
 

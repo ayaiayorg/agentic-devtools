@@ -16,13 +16,13 @@ class TestGetPullRequestThreads:
 
     def test_successful_threads_retrieval(self):
         """Should return threads list on successful response."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         mock_response = {"value": [{"id": 1, "comments": []}, {"id": 2, "comments": []}]}
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=mock_response,
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -31,12 +31,12 @@ class TestGetPullRequestThreads:
 
     def test_returns_none_when_api_fails(self):
         """Should return None when API call returns None."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value=None,
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -45,12 +45,12 @@ class TestGetPullRequestThreads:
 
     def test_returns_none_when_no_value_key(self):
         """Should return None when response has no 'value' key."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"someOtherKey": []},
         ):
             result = _get_pull_request_threads("https://dev.azure.com/org", "project", "repo-id", 123, {})
@@ -59,12 +59,12 @@ class TestGetPullRequestThreads:
 
     def test_encodes_project_name_spaces(self):
         """Should URL-encode project names with spaces."""
-        from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+        from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
             _get_pull_request_threads,
         )
 
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest",
             return_value={"value": []},
         ) as mock_rest:
             _get_pull_request_threads("https://dev.azure.com/org", "My Project Name", "repo-id", 123, {})

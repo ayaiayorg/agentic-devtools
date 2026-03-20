@@ -10,9 +10,9 @@ class TestListProjectRoles:
         """Test prints error when project_id_or_key not in state."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agentic_devtools.cli.jira.role_commands import list_project_roles
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value=None):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value=None):
             list_project_roles()
 
         captured = capsys.readouterr()
@@ -22,7 +22,7 @@ class TestListProjectRoles:
         """Test prints roles table on success."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agentic_devtools.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -34,14 +34,14 @@ class TestListProjectRoles:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="PROJ"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()
@@ -54,7 +54,7 @@ class TestListProjectRoles:
         """Test prints error on API failure."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import list_project_roles
+        from agentic_devtools.cli.jira.role_commands import list_project_roles
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -63,14 +63,14 @@ class TestListProjectRoles:
         mock_requests = MagicMock()
         mock_requests.get.return_value = mock_response
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", return_value="INVALID"):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", return_value="INVALID"):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             list_project_roles()
 
         captured = capsys.readouterr()

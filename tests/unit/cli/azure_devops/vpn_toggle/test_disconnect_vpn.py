@@ -7,7 +7,7 @@ and the VpnToggleContext manager.
 
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
+from agentic_devtools.cli.azure_devops.vpn_toggle import (
     disconnect_vpn,
 )
 
@@ -15,7 +15,7 @@ from agdt_ai_helpers.cli.azure_devops.vpn_toggle import (
 class TestDisconnectVpn:
     """Tests for disconnect_vpn function."""
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_fails_when_not_installed(self, mock_installed):
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
@@ -25,9 +25,9 @@ class TestDisconnectVpn:
         assert success is False
         assert "not installed" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_vpn_connected")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("time.sleep")
     def test_successful_disconnect(self, mock_sleep, mock_installed, mock_cmd, mock_vpn):
         """Test successful VPN disconnect."""
@@ -40,8 +40,8 @@ class TestDisconnectVpn:
         assert success is True
         assert "verified disconnected" in msg.lower() or "suspend" in msg.lower()
 
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle._run_pulse_command")
-    @patch("agdt_ai_helpers.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle._run_pulse_command")
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     def test_command_failure(self, mock_installed, mock_cmd):
         """Test handles command failure."""
         mock_installed.return_value = True

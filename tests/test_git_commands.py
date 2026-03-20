@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agdt_ai_helpers import state
-from agdt_ai_helpers.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
-from agdt_ai_helpers.cli.git import commands, core, operations
+from agentic_devtools import state
+from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
+from agentic_devtools.cli.git import commands, core, operations
 
 # =============================================================================
 # Fixtures
@@ -46,7 +46,7 @@ def mock_run_safe():
 @pytest.fixture
 def mock_should_amend():
     """Mock should_amend_instead_of_commit to always return False (new commit)."""
-    with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock:
+    with patch("agentic_devtools.cli.git.commands.should_amend_instead_of_commit") as mock:
         mock.return_value = False
         yield mock
 
@@ -58,7 +58,7 @@ def mock_sync_with_main():
     Returns False by default (no rebase occurred), meaning the push type
     depends on should_amend. Set return_value=True to simulate a rebase.
     """
-    with patch("agdt_ai_helpers.cli.git.commands._sync_with_main") as mock:
+    with patch("agentic_devtools.cli.git.commands._sync_with_main") as mock:
         mock.return_value = False  # No rebase occurred by default
         yield mock
 
@@ -170,7 +170,7 @@ class TestCommitCommand:
         # Mock _sync_with_main to return True (rebase occurred)
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
-        with patch("agdt_ai_helpers.cli.git.commands._sync_with_main", return_value=True):
+        with patch("agentic_devtools.cli.git.commands._sync_with_main", return_value=True):
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_run_safe.side_effect = (
                     [MagicMock(returncode=0, stdout="", stderr="")]  # add
@@ -388,7 +388,7 @@ class TestSmartCommitAmendDetection:
         # Mock should_amend to return True
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
-        with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
+        with patch("agentic_devtools.cli.git.commands.should_amend_instead_of_commit") as mock_should:
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_should.return_value = True
                 mock_run_safe.side_effect = (
@@ -417,7 +417,7 @@ class TestSmartCommitAmendDetection:
 
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
-        with patch("agdt_ai_helpers.cli.git.commands.should_amend_instead_of_commit") as mock_should:
+        with patch("agentic_devtools.cli.git.commands.should_amend_instead_of_commit") as mock_should:
             with patch.object(operations, "get_current_branch", return_value="main"):
                 mock_should.return_value = False
                 mock_run_safe.side_effect = (
@@ -488,7 +488,7 @@ class TestCommitCompletedParameter:
                 commands.commit_cmd()
 
         # Verify checklist was updated
-        from agdt_ai_helpers.cli.workflows.checklist import get_checklist
+        from agentic_devtools.cli.workflows.checklist import get_checklist
 
         checklist = get_checklist()
         assert checklist is not None
@@ -641,7 +641,7 @@ class TestSyncWithMain:
         captured = capsys.readouterr()
         assert "Skipping rebase" in captured.out
 
-    @patch("agdt_ai_helpers.cli.git.commands.fetch_main")
+    @patch("agentic_devtools.cli.git.commands.fetch_main")
     def test_continues_on_fetch_failure(self, mock_fetch, temp_state_dir, clear_state_before, capsys):
         """Test continues when fetch from main fails."""
         mock_fetch.return_value = False
@@ -652,8 +652,8 @@ class TestSyncWithMain:
         captured = capsys.readouterr()
         assert "Could not fetch from origin/main" in captured.out
 
-    @patch("agdt_ai_helpers.cli.git.commands.rebase_onto_main")
-    @patch("agdt_ai_helpers.cli.git.commands.fetch_main")
+    @patch("agentic_devtools.cli.git.commands.rebase_onto_main")
+    @patch("agentic_devtools.cli.git.commands.fetch_main")
     def test_handles_rebase_success(self, mock_fetch, mock_rebase, temp_state_dir, clear_state_before):
         """Test returns True on successful rebase (history was rewritten)."""
         mock_fetch.return_value = True
@@ -663,8 +663,8 @@ class TestSyncWithMain:
 
         assert result is True  # Rebase occurred
 
-    @patch("agdt_ai_helpers.cli.git.commands.rebase_onto_main")
-    @patch("agdt_ai_helpers.cli.git.commands.fetch_main")
+    @patch("agentic_devtools.cli.git.commands.rebase_onto_main")
+    @patch("agentic_devtools.cli.git.commands.fetch_main")
     def test_returns_false_when_no_rebase_needed(self, mock_fetch, mock_rebase, temp_state_dir, clear_state_before):
         """Test returns False when already up-to-date (no rebase needed)."""
         mock_fetch.return_value = True

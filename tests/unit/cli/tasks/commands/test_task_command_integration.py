@@ -13,12 +13,12 @@ from unittest.mock import patch
 
 import pytest
 
-from agdt_ai_helpers.cli.tasks.commands import (
+from agentic_devtools.cli.tasks.commands import (
     list_tasks,
     task_status,
     tasks_clean,
 )
-from agdt_ai_helpers.task_state import (
+from agentic_devtools.task_state import (
     BackgroundTask,
     add_task,
     update_task,
@@ -29,7 +29,7 @@ from agdt_ai_helpers.task_state import (
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
     # Patch get_state_dir in the state module (where it's defined)
-    with patch("agdt_ai_helpers.state.get_state_dir", return_value=tmp_path):
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
         yield tmp_path
 
 
@@ -58,7 +58,7 @@ class TestTaskCommandIntegration:
         update_task(task)
 
         # Status should show running
-        with patch("agdt_ai_helpers.state.load_state", return_value={"background": {"task_id": task.id}}):
+        with patch("agentic_devtools.state.load_state", return_value={"background": {"task_id": task.id}}):
             task_status()
         captured = capsys.readouterr()
         assert "running" in captured.out.lower()
@@ -68,7 +68,7 @@ class TestTaskCommandIntegration:
         update_task(task)
 
         # Clean should work without error
-        with patch("agdt_ai_helpers.state.load_state", return_value={}):
+        with patch("agentic_devtools.state.load_state", return_value={}):
             tasks_clean()
 
         # List - task may or may not be removed depending on expiry

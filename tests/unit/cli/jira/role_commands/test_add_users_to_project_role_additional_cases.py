@@ -10,7 +10,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on 401 Unauthorized response."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -21,14 +21,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -38,7 +38,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on 404 Not Found response."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 404
@@ -50,14 +50,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "INVALID", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -67,7 +67,7 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test prints error on unexpected status code."""
         from unittest.mock import MagicMock, patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -79,14 +79,14 @@ class TestAddUsersToProjectRoleAdditionalCases:
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1"}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
-            with patch("agdt_ai_helpers.cli.jira.role_commands._get_requests", return_value=mock_requests):
-                with patch("agdt_ai_helpers.cli.jira.role_commands._get_ssl_verify", return_value=True):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
                     with patch(
-                        "agdt_ai_helpers.cli.jira.role_commands.get_jira_base_url",
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
                         return_value="https://jira.example.com",
                     ):
-                        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_headers", return_value={}):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
                             add_users_to_project_role()
 
         captured = capsys.readouterr()
@@ -96,12 +96,12 @@ class TestAddUsersToProjectRoleAdditionalCases:
         """Test error when users parses to empty list."""
         from unittest.mock import patch
 
-        from agdt_ai_helpers.cli.jira.role_commands import add_users_to_project_role
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role
 
         def mock_get_jira_value(key):
             return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "   ,  ,  "}.get(key)
 
-        with patch("agdt_ai_helpers.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
             add_users_to_project_role()
 
         captured = capsys.readouterr()

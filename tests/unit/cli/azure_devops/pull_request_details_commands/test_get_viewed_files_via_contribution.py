@@ -11,7 +11,7 @@ Covers:
 import json
 from unittest.mock import patch
 
-from agdt_ai_helpers.cli.azure_devops.pull_request_details_commands import (
+from agentic_devtools.cli.azure_devops.pull_request_details_commands import (
     _get_viewed_files_via_contribution,
 )
 
@@ -37,7 +37,7 @@ class TestGetViewedFilesViaContribution:
     def test_returns_empty_list_when_api_returns_none(self):
         """Should return empty list when API call fails."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=None,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -46,7 +46,7 @@ class TestGetViewedFilesViaContribution:
     def test_returns_empty_list_when_no_data_providers(self):
         """Should return empty list when response has no dataProviders."""
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value={"someOtherKey": {}},
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -62,7 +62,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -76,7 +76,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -98,7 +98,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -136,7 +136,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -167,7 +167,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
@@ -185,7 +185,7 @@ class TestGetViewedFilesViaContribution:
             }
         }
         with patch(
-            "agdt_ai_helpers.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
+            "agentic_devtools.cli.azure_devops.pull_request_details_commands._invoke_ado_rest_post",
             return_value=response,
         ):
             result = _get_viewed_files_via_contribution("https://dev.azure.com/org", "project-id", "repo-id", 123, {})
