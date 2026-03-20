@@ -1,7 +1,7 @@
 """Tests for WorkOnIssueState TypedDict schema."""
 
 import operator
-from typing import get_type_hints
+from typing import Annotated, get_args, get_origin, get_type_hints
 
 from agentic_devtools.orchestration.state_schema import WorkOnIssueEvent, WorkOnIssueState
 
@@ -83,5 +83,7 @@ class TestWorkOnIssueState:
     def test_events_field_is_typed_with_workonissueevent(self):
         hints = get_type_hints(WorkOnIssueState, include_extras=True)
         events_hint = hints["events"]
-        # The underlying type (before metadata) should be list[WorkOnIssueEvent]
-        assert events_hint.__origin__ is list or hasattr(events_hint, "__args__")
+        # Annotated[list[WorkOnIssueEvent], operator.add] — verify the underlying type
+        assert get_origin(events_hint) is Annotated
+        underlying_type, metadata = get_args(events_hint)
+        assert underlying_type == list[WorkOnIssueEvent]
