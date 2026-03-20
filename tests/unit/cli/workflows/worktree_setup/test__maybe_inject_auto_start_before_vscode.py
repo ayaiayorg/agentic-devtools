@@ -46,7 +46,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When build_copilot_args returns None (Copilot CLI not found), skip injection."""
+        """When build_copilot_args returns None (prompt too large), skip injection."""
         with patch("agentic_devtools.state.get_value", return_value="run-123"):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
@@ -54,7 +54,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject.assert_not_called()
         assert result is False
         captured = capsys.readouterr()
-        assert "Copilot CLI not available" in captured.out
+        assert "Copilot prompt exceeds argv limits" in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=False)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])

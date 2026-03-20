@@ -2479,8 +2479,9 @@ def _maybe_inject_auto_start_before_vscode(
     ``None`` (start prompt exceeds argv limits) or ``inject_auto_start_task()`` fails,
     the caller continues without the auto-start task; the existing
     fallback behaviour in the workflow-specific session launcher will
-    handle the session.  Each failure path prints a diagnostic message to
-    stdout so that log files capture why injection was skipped.
+    handle the session.  Each non-trivial failure path prints a diagnostic
+    message to stdout so that log files capture why injection was skipped
+    (the ``_in_test_environment()`` guard returns silently).
 
     Returns:
         ``True`` if the auto-start task was successfully written to
@@ -2527,7 +2528,7 @@ def _maybe_inject_auto_start_before_vscode(
                 "Auto-start is disabled; Copilot session fallback will be used."
             )
         return injected
-    print("Auto-start injection skipped: Copilot CLI not available or prompt exceeds limits.")
+    print("Auto-start injection skipped: Copilot prompt exceeds argv limits.")
     return False
 
 
