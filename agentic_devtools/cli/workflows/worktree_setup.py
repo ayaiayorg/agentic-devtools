@@ -2477,9 +2477,10 @@ def _maybe_inject_auto_start_before_vscode(
 
     This is a best-effort helper: if ``build_copilot_args()`` returns
     ``None`` (start prompt exceeds argv limits) or ``inject_auto_start_task()`` fails,
-    the caller silently continues without the auto-start task; the existing
+    the caller continues without the auto-start task; the existing
     fallback behaviour in the workflow-specific session launcher will
-    handle the session.
+    handle the session.  Each failure path prints a diagnostic message to
+    stdout so that log files capture why injection was skipped.
 
     Returns:
         ``True`` if the auto-start task was successfully written to
