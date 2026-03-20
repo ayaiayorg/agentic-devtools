@@ -37,11 +37,13 @@ __all__ = ["_setup_worktree_from_state"]
 # ---------------------------------------------------------------------------
 
 # Static single-line prompt used when starting the Copilot CLI session for PR
-# review.  It references the ``@agdt.pull-request-review.initiate`` agent so
-# that Copilot uses a trusted handoff instead of running a raw shell command.
+# review.  It references the ``@agdt.advance-workflow`` agent so that Copilot
+# advances to the pull-request-overview step via a trusted handoff instead of
+# running a raw shell command.  The workflow is already initiated by the time
+# this prompt is used, so we advance rather than re-initiate.
 COPILOT_SESSION_START_PROMPT = (
     "You are a senior software engineer reviewing a Pull Request. "
-    "Please hand off to @agdt.pull-request-review.initiate to begin the review workflow. "
+    "Please hand off to @agdt.advance-workflow to advance to the pull-request-overview step. "
     "This agent will provide you with all PR details, review criteria, and instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
@@ -54,8 +56,8 @@ COPILOT_SESSION_START_PROMPT = (
 
 COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS = (
     "You are applying pull request review suggestions. "
-    "Please hand off to @agdt.apply-pr-suggestions.initiate to begin. "
-    "This agent will provide you with the rendered prompt file containing full instructions "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the current workflow step prompt. "
+    "This agent will load the rendered prompt file containing full instructions "
     "on which review suggestions to apply and how. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
@@ -63,36 +65,31 @@ COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS = (
 
 
 COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE = (
-    "Please hand off to @agdt.work-on-jira-issue.initiate to begin the work-on-jira-issue workflow. "
-    "This agent will provide you with the workflow instructions. "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the work-on-jira-issue workflow instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE = (
-    "Please hand off to @agdt.create-jira-issue.initiate to begin the create-jira-issue workflow. "
-    "This agent will provide you with the workflow instructions. "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the create-jira-issue workflow instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC = (
-    "Please hand off to @agdt.create-jira-epic.initiate to begin the create-jira-epic workflow. "
-    "This agent will provide you with the workflow instructions. "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the create-jira-epic workflow instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK = (
-    "Please hand off to @agdt.create-jira-subtask.initiate to begin the create-jira-subtask workflow. "
-    "This agent will provide you with the workflow instructions. "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the create-jira-subtask workflow instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
 )
 
 COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE = (
-    "Please hand off to @agdt.update-jira-issue.initiate to begin the update-jira-issue workflow. "
-    "This agent will provide you with the workflow instructions. "
+    "Please hand off to @agdt.get-next-workflow-prompt to display the update-jira-issue workflow instructions. "
     "Wait to begin any work until the handoff is complete. "
     "The agentic-devtools workflow will guide you through each step."
 )
