@@ -56,12 +56,25 @@ def _capture(func, *args, **kwargs) -> str:  # type: ignore[no-untyped-def]
 
 
 def _run_op(func, *args, **kwargs) -> GitOperationResult:  # type: ignore[no-untyped-def]
-    """Run a git operation function, capturing stdout into a result dict."""
+    """Run a git operation function, capturing stdout/stderr into a result dict.
+
+    Stderr is captured so that when underlying git helpers print diagnostics
+    (e.g. via ``run_git``) before raising ``SystemExit``, the error details
+    are preserved in the result message rather than lost.
+    """
+    err_buf = io.StringIO()
     try:
-        output = _capture(func, *args, **kwargs)
+        with contextlib.redirect_stderr(err_buf):
+            output = _capture(func, *args, **kwargs)
         return GitOperationResult(success=True, message=output.strip())
-    except SystemExit:
-        return GitOperationResult(success=False, message="Operation failed (SystemExit)")
+    except SystemExit as exc:
+        code = exc.code if exc.code is not None else 1
+        stderr_text = err_buf.getvalue().strip()
+        detail = stderr_text if stderr_text else f"exit code {code}"
+        return GitOperationResult(
+            success=False,
+            message=f"Operation failed: {detail}",
+        )
     except Exception as exc:  # noqa: BLE001
         return GitOperationResult(success=False, message=str(exc))
 
