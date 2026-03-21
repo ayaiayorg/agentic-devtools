@@ -123,9 +123,8 @@ def run_with_vpn_context(
                     if msg:
                         print(msg)
                     if not success:
-                        error_msg = f"VPN connection failed: {msg}" if msg else "VPN connection failed"
                         print("❌ Unable to establish VPN connection; aborting command.")
-                        return 1, "", error_msg
+                        return 1, "", f"VPN connection failed: {msg}"
             # Run command (VPN now connected, or already had access)
             return _execute_command(command, shell)
 
