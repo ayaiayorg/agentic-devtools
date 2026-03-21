@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "agentic-devtools"
 dynamic = ["version"]
-description = "AI assistant helper commands for the Dragonfly platform"
+description = "Agentic devtools integrate Jira, DevOps & more"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    { name = "Dragonfly Team" }
+    { name = "ayaiayorg" }
 ]
 dependencies = [
     "requests>=2.28.0",

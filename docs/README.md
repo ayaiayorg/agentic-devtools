@@ -5,7 +5,7 @@ This directory contains the architecture documentation for the **agentic-devtool
 ## Overview
 
 **agentic-devtools** is a Python CLI package that provides auto-approvable commands for AI assistants (GitHub Copilot) to interact with Git, Azure DevOps,
-Jira, and other services in the Dragonfly platform development workflow.
+Jira, and other services in the development workflow.
 
 ## Documentation Structure
 

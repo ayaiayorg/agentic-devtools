@@ -55,9 +55,6 @@ rendered prompt to the console when a session cannot be started.
 **Dispatcher**
 : Core module that routes commands and handles repo-local virtual environment detection
 
-**Dragonfly Platform**
-: The project ecosystem for which agentic-devtools was built
-
 **Dry Run**
 : Mode where commands show what they would do without actually executing
 

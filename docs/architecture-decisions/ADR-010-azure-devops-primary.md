@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 
-**Context**: Dragonfly team uses Azure DevOps for repositories and project management
+**Context**: The development team uses Azure DevOps for repositories and project management
 
 **Decision**: Azure DevOps integration is first-class; GitHub is secondary
 

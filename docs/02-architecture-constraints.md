@@ -4,11 +4,11 @@
 
 | Constraint | Background and Motivation |
 |-----------|---------------------------|
-| **Python 3.8+** | Target modern Python with type hints, dataclasses, and async/await support |
+| **Python 3.10+** | Target modern Python with type hints, dataclasses, and async/await support |
 | **pip-installable** | Standard Python packaging via PyPI for easy installation |
 | **CLI interface** | Commands must be executable from shell/terminal for VS Code integration |
 | **JSON state file** | Lightweight, human-readable state persistence without database dependencies |
-| **Cross-platform** | Support Windows, macOS, Linux (Dragonfly team uses all three) |
+| **Cross-platform** | Support Windows, macOS, Linux |
 | **No GUI** | Terminal-only interface for automation and CI/CD compatibility |
 
 ## 2.2 Organizational Constraints
