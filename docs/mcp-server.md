@@ -45,6 +45,7 @@ tools for that platform return an error message when called.
 | `AZURE_DEVOPS_ORG` | Yes | Organization URL (e.g. `https://dev.azure.com/myorg`) |
 | `AZURE_DEVOPS_PROJECT` | Yes | Project name |
 | `AZURE_DEVOPS_PAT` | Yes | Personal Access Token |
+| `AZURE_DEVOPS_REPOSITORY` | No | Repository name (auto-detected from git remote if not set) |
 
 ### Git
 

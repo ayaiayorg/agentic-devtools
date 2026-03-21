@@ -17,6 +17,7 @@ Usage::
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
@@ -88,10 +89,17 @@ def _load_azure_devops_config() -> tuple | None:
         - ``AZURE_DEVOPS_PROJECT``
         - ``AZURE_DEVOPS_PAT``
 
+    Optional:
+        - ``AZURE_DEVOPS_REPOSITORY`` — repository name. When not set, the
+          repository is auto-detected from the git remote URL.
+
     Returns a ``(AzureDevOpsConfig, pat, auth_headers)`` tuple, or ``None``
     (with a warning) when required variables are missing.
     """
-    from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+    from agentic_devtools.cli.azure_devops.config import (
+        AzureDevOpsConfig,
+        get_repository_name_from_git_remote,
+    )
 
     org = os.environ.get("AZURE_DEVOPS_ORG", "")
     project = os.environ.get("AZURE_DEVOPS_PROJECT", "")
@@ -101,7 +109,11 @@ def _load_azure_devops_config() -> tuple | None:
         logger.warning(_AZURE_DEVOPS_MISSING_MSG)
         return None
 
-    config = AzureDevOpsConfig(organization=org, project=project, repository="")
+    repository = os.environ.get("AZURE_DEVOPS_REPOSITORY", "")
+    if not repository:
+        repository = get_repository_name_from_git_remote() or ""
+
+    config = AzureDevOpsConfig(organization=org, project=project, repository=repository)
     credentials = base64.b64encode(f":{pat}".encode()).decode()
     auth_headers = {"Authorization": f"Basic {credentials}"}
 
@@ -156,18 +168,18 @@ def create_mcp_server() -> FastMCP:
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}
         try:
-            return dict(
-                tools_jira.create_issue(
-                    config=jira_config,
-                    project_key=project_key,
-                    summary=summary,
-                    issue_type=issue_type,
-                    description=description,
-                    labels=labels,
-                    epic_name=epic_name,
-                    parent_key=parent_key,
-                )
+            result = await asyncio.to_thread(
+                tools_jira.create_issue,
+                config=jira_config,
+                project_key=project_key,
+                summary=summary,
+                issue_type=issue_type,
+                description=description,
+                labels=labels,
+                epic_name=epic_name,
+                parent_key=parent_key,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -191,16 +203,16 @@ def create_mcp_server() -> FastMCP:
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}
         try:
-            return dict(
-                tools_jira.create_epic(
-                    config=jira_config,
-                    project_key=project_key,
-                    summary=summary,
-                    epic_name=epic_name,
-                    description=description,
-                    labels=labels,
-                )
+            result = await asyncio.to_thread(
+                tools_jira.create_epic,
+                config=jira_config,
+                project_key=project_key,
+                summary=summary,
+                epic_name=epic_name,
+                description=description,
+                labels=labels,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -224,16 +236,16 @@ def create_mcp_server() -> FastMCP:
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}
         try:
-            return dict(
-                tools_jira.create_subtask(
-                    config=jira_config,
-                    project_key=project_key,
-                    summary=summary,
-                    description=description,
-                    labels=labels,
-                    parent_key=parent_key,
-                )
+            result = await asyncio.to_thread(
+                tools_jira.create_subtask,
+                config=jira_config,
+                project_key=project_key,
+                summary=summary,
+                description=description,
+                labels=labels,
+                parent_key=parent_key,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -251,13 +263,13 @@ def create_mcp_server() -> FastMCP:
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}
         try:
-            return dict(
-                tools_jira.add_comment(
-                    config=jira_config,
-                    issue_key=issue_key,
-                    comment=comment,
-                )
+            result = await asyncio.to_thread(
+                tools_jira.add_comment,
+                config=jira_config,
+                issue_key=issue_key,
+                comment=comment,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -273,12 +285,12 @@ def create_mcp_server() -> FastMCP:
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}
         try:
-            return dict(
-                tools_jira.fetch_issue_context(
-                    config=jira_config,
-                    issue_key=issue_key,
-                )
+            result = await asyncio.to_thread(
+                tools_jira.fetch_issue_context,
+                config=jira_config,
+                issue_key=issue_key,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -292,7 +304,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.stage_changes(dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.stage_changes, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -305,7 +318,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.create_commit(message=message, dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.create_commit, message=message, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -318,7 +332,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.amend_commit(message=message, dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.amend_commit, message=message, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -330,7 +345,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.push(dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.push, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -342,7 +358,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.force_push(dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.force_push, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -354,7 +371,8 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(tools_git.publish_branch(dry_run=dry_run))
+            result = await asyncio.to_thread(tools_git.publish_branch, dry_run=dry_run)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -376,15 +394,15 @@ def create_mcp_server() -> FastMCP:
             dry_run: Preview without executing.
         """
         try:
-            return dict(
-                tools_git.save_work(
-                    commit_message=commit_message,
-                    amend=amend,
-                    skip_stage=skip_stage,
-                    skip_push=skip_push,
-                    dry_run=dry_run,
-                )
+            result = await asyncio.to_thread(
+                tools_git.save_work,
+                commit_message=commit_message,
+                amend=amend,
+                skip_stage=skip_stage,
+                skip_push=skip_push,
+                dry_run=dry_run,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -396,7 +414,8 @@ def create_mcp_server() -> FastMCP:
             num_commits: Maximum number of commits to return.
         """
         try:
-            return dict(tools_git.get_recent_changes(num_commits=num_commits))
+            result = await asyncio.to_thread(tools_git.get_recent_changes, num_commits=num_commits)
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -423,17 +442,17 @@ def create_mcp_server() -> FastMCP:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
             config, pat, _headers = ado_result
-            return dict(
-                tools_azure_devops.create_pull_request(
-                    config=config,
-                    pat=pat,
-                    source_branch=source_branch,
-                    title=title,
-                    target_branch=target_branch,
-                    description=description,
-                    draft=draft,
-                )
+            result = await asyncio.to_thread(
+                tools_azure_devops.create_pull_request,
+                config=config,
+                pat=pat,
+                source_branch=source_branch,
+                title=title,
+                target_branch=target_branch,
+                description=description,
+                draft=draft,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -456,16 +475,16 @@ def create_mcp_server() -> FastMCP:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
             config, pat, _headers = ado_result
-            return dict(
-                tools_azure_devops.reply_to_pull_request_thread(
-                    config=config,
-                    pat=pat,
-                    pull_request_id=pull_request_id,
-                    thread_id=thread_id,
-                    content=content,
-                    resolve_thread=resolve_thread,
-                )
+            result = await asyncio.to_thread(
+                tools_azure_devops.reply_to_pull_request_thread,
+                config=config,
+                pat=pat,
+                pull_request_id=pull_request_id,
+                thread_id=thread_id,
+                content=content,
+                resolve_thread=resolve_thread,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -492,18 +511,18 @@ def create_mcp_server() -> FastMCP:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
             config, pat, _headers = ado_result
-            return dict(
-                tools_azure_devops.add_pull_request_comment(
-                    config=config,
-                    pat=pat,
-                    pull_request_id=pull_request_id,
-                    content=content,
-                    path=path,
-                    line=line,
-                    end_line=end_line,
-                    resolve_after_posting=resolve_after_posting,
-                )
+            result = await asyncio.to_thread(
+                tools_azure_devops.add_pull_request_comment,
+                config=config,
+                pat=pat,
+                pull_request_id=pull_request_id,
+                content=content,
+                path=path,
+                line=line,
+                end_line=end_line,
+                resolve_after_posting=resolve_after_posting,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -522,14 +541,14 @@ def create_mcp_server() -> FastMCP:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
             config, pat, _headers = ado_result
-            return dict(
-                tools_azure_devops.update_review_narrative(
-                    config=config,
-                    pat=pat,
-                    pull_request_id=pull_request_id,
-                    content=content,
-                )
+            result = await asyncio.to_thread(
+                tools_azure_devops.update_review_narrative,
+                config=config,
+                pat=pat,
+                pull_request_id=pull_request_id,
+                content=content,
             )
+            return dict(result)
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -541,7 +560,7 @@ def create_mcp_server() -> FastMCP:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:  # pragma: no cover
+def main() -> None:
     """Start the AGDT MCP server (stdio transport)."""
     server = create_mcp_server()
     server.run(transport="stdio")

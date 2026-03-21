@@ -540,6 +540,7 @@ class TestMcpToolHandlersAzureDevOps:
         "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
         "AZURE_DEVOPS_PROJECT": "MyProject",
         "AZURE_DEVOPS_PAT": "mypat",
+        "AZURE_DEVOPS_REPOSITORY": "my-repo",
     }
 
     def test_azure_devops_create_pull_request_delegates(self):
