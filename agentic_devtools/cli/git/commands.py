@@ -282,8 +282,8 @@ def amend_cmd() -> None:
     2. Amend the existing commit with updated message
     3. Force push with lease
 
-    Note: This is an internal function invoked by agdt-git-save-work when
-    amend is detected. It is not a public CLI entry point.
+    Note: This function is intended for internal/background use and is not
+    registered as a public CLI entry point.
 
     State keys:
         commit_message (required): The commit message (multiline supported)
