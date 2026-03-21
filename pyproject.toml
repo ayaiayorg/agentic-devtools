@@ -40,6 +40,8 @@ dev = [
 [project.scripts]
 # All entry points route through runner.run_as_script, which derives the
 # command name from sys.argv[0] and handles KeyboardInterrupt gracefully.
+# Exception: agdt-mcp-server is wired directly to agentic_devtools.mcp.server:main
+# because MCP stdio transport requires direct control of stdin/stdout.
 agdt-set = "agentic_devtools.cli.runner:run_as_script"
 agdt-get = "agentic_devtools.cli.runner:run_as_script"
 agdt-delete = "agentic_devtools.cli.runner:run_as_script"

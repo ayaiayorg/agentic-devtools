@@ -21,6 +21,7 @@ import asyncio
 import base64
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
 
@@ -28,6 +29,9 @@ from agentic_devtools.tools import azure_devops as tools_azure_devops
 from agentic_devtools.tools import git as tools_git
 from agentic_devtools.tools import jira as tools_jira
 from agentic_devtools.tools.jira import JiraConfig
+
+if TYPE_CHECKING:
+    from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +106,7 @@ def _load_jira_config() -> JiraConfig | None:
     return JiraConfig(base_url=base_url, headers=headers, ssl_verify=ssl_verify)
 
 
-def _load_azure_devops_config() -> tuple | None:
+def _load_azure_devops_config() -> tuple[AzureDevOpsConfig, str] | None:
     """Build Azure DevOps config from environment variables.
 
     Required:
