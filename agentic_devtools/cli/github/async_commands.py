@@ -7,6 +7,7 @@ with argparse for all agdt-create-agdt-* commands.
 
 import argparse
 import sys
+from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.state import set_value
@@ -39,7 +40,7 @@ def _require_issue_value(key: str, error_example: str) -> str:
     return value
 
 
-def _set_issue_value_if_provided(key: str, value: str | None) -> None:
+def _set_issue_value_if_provided(key: str, value: Optional[str]) -> None:
     """Set an issue state value if provided (not None)."""
     if value is not None:
         set_value(f"issue.{key}", value)
@@ -51,14 +52,14 @@ def _set_issue_value_if_provided(key: str, value: str | None) -> None:
 
 
 def create_agdt_issue_async(
-    title: str | None = None,
-    description: str | None = None,
-    labels: str | None = None,
-    issue_type: str | None = None,
-    assignees: str | None = None,
-    milestone: str | None = None,
-    related_issue: str | None = None,
-    dry_run: bool | None = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    labels: Optional[str] = None,
+    issue_type: Optional[str] = None,
+    assignees: Optional[str] = None,
+    milestone: Optional[str] = None,
+    related_issue: Optional[str] = None,
+    dry_run: Optional[bool] = None,
 ) -> None:
     """
     Create a GitHub issue in ayaiayorg/agentic-devtools (background task).
@@ -175,16 +176,16 @@ def create_agdt_issue_async_cli() -> None:
 
 
 def create_agdt_bug_issue_async(
-    title: str | None = None,
-    steps_to_reproduce: str | None = None,
-    expected_behavior: str | None = None,
-    actual_behavior: str | None = None,
-    workaround: str | None = None,
-    error_output: str | None = None,
-    related_issue: str | None = None,
-    assignees: str | None = None,
-    milestone: str | None = None,
-    dry_run: bool | None = None,
+    title: Optional[str] = None,
+    steps_to_reproduce: Optional[str] = None,
+    expected_behavior: Optional[str] = None,
+    actual_behavior: Optional[str] = None,
+    workaround: Optional[str] = None,
+    error_output: Optional[str] = None,
+    related_issue: Optional[str] = None,
+    assignees: Optional[str] = None,
+    milestone: Optional[str] = None,
+    dry_run: Optional[bool] = None,
 ) -> None:
     """
     Create a bug report in ayaiayorg/agentic-devtools (background task).
@@ -333,16 +334,16 @@ def create_agdt_bug_issue_async_cli() -> None:
 
 
 def create_agdt_feature_issue_async(
-    title: str | None = None,
-    motivation: str | None = None,
-    proposed_solution: str | None = None,
-    alternatives_considered: str | None = None,
-    breaking_changes: str | None = None,
-    examples: str | None = None,
-    related_issue: str | None = None,
-    assignees: str | None = None,
-    milestone: str | None = None,
-    dry_run: bool | None = None,
+    title: Optional[str] = None,
+    motivation: Optional[str] = None,
+    proposed_solution: Optional[str] = None,
+    alternatives_considered: Optional[str] = None,
+    breaking_changes: Optional[str] = None,
+    examples: Optional[str] = None,
+    related_issue: Optional[str] = None,
+    assignees: Optional[str] = None,
+    milestone: Optional[str] = None,
+    dry_run: Optional[bool] = None,
 ) -> None:
     """
     Create a feature request in ayaiayorg/agentic-devtools (background task).
@@ -485,14 +486,14 @@ def create_agdt_feature_issue_async_cli() -> None:
 
 
 def create_agdt_documentation_issue_async(
-    title: str | None = None,
-    whats_missing: str | None = None,
-    suggested_content: str | None = None,
-    affected_commands: str | None = None,
-    related_issue: str | None = None,
-    assignees: str | None = None,
-    milestone: str | None = None,
-    dry_run: bool | None = None,
+    title: Optional[str] = None,
+    whats_missing: Optional[str] = None,
+    suggested_content: Optional[str] = None,
+    affected_commands: Optional[str] = None,
+    related_issue: Optional[str] = None,
+    assignees: Optional[str] = None,
+    milestone: Optional[str] = None,
+    dry_run: Optional[bool] = None,
 ) -> None:
     """
     Create a documentation issue in ayaiayorg/agentic-devtools (background task).
@@ -625,14 +626,14 @@ def create_agdt_documentation_issue_async_cli() -> None:
 
 
 def create_agdt_task_issue_async(
-    title: str | None = None,
-    description: str | None = None,
-    acceptance_criteria: str | None = None,
-    labels: str | None = None,
-    related_issue: str | None = None,
-    assignees: str | None = None,
-    milestone: str | None = None,
-    dry_run: bool | None = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    acceptance_criteria: Optional[str] = None,
+    labels: Optional[str] = None,
+    related_issue: Optional[str] = None,
+    assignees: Optional[str] = None,
+    milestone: Optional[str] = None,
+    dry_run: Optional[bool] = None,
 ) -> None:
     """
     Create a task issue in ayaiayorg/agentic-devtools (background task).

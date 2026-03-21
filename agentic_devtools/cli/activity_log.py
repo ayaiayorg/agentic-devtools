@@ -10,7 +10,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from ..state import get_state_dir, get_value
 
@@ -36,9 +36,9 @@ class ActivityLogEntry:
     worktreeKey: str
     prCommentPosted: bool
     jiraCommentPosted: bool
-    prId: int | None = None
+    prId: Optional[int] = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize the entry to a dictionary.
 
         Returns:
@@ -54,7 +54,7 @@ class ActivityLogEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ActivityLogEntry":
+    def from_dict(cls, data: Dict[str, Any]) -> "ActivityLogEntry":
         """Deserialize an entry from a dictionary.
 
         Args:
@@ -83,9 +83,9 @@ class ActivityLog:
             posted.
     """
 
-    postedCommits: dict[str, ActivityLogEntry] = field(default_factory=dict)
+    postedCommits: Dict[str, ActivityLogEntry] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize the activity log to a dictionary.
 
         Returns:
@@ -96,7 +96,7 @@ class ActivityLog:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ActivityLog":
+    def from_dict(cls, data: Dict[str, Any]) -> "ActivityLog":
         """Deserialize an activity log from a dictionary.
 
         Args:
@@ -109,7 +109,7 @@ class ActivityLog:
         if not isinstance(raw_commits, dict):
             raw_commits = {}
 
-        posted_commits: dict[str, ActivityLogEntry] = {}
+        posted_commits: Dict[str, ActivityLogEntry] = {}
         for commit_hash, entry_data in raw_commits.items():
             if not isinstance(entry_data, dict):
                 # Skip malformed entries with unexpected types rather than failing the entire load.
@@ -147,7 +147,7 @@ class ActivityLog:
         worktree_key: str,
         pr_comment_posted: bool = False,
         jira_comment_posted: bool = False,
-        pr_id: int | None = None,
+        pr_id: Optional[int] = None,
     ) -> None:
         """Record a persist commit as having been posted.
 
@@ -217,9 +217,9 @@ def save_activity_log(log: ActivityLog) -> None:
 
 
 def _load_from_branch(
-    source_branch: str | None,
-    worktree_key: str | None,
-) -> dict | None:
+    source_branch: Optional[str],
+    worktree_key: Optional[str],
+) -> Optional[dict]:
     """Attempt to load activity-log.json from the -agdt branch.
 
     Returns the parsed dict if found, or ``None`` if unavailable.
@@ -277,8 +277,8 @@ def _load_from_branch(
 def load_activity_log(
     *,
     fallback_to_branch: bool = True,
-    source_branch: str | None = None,
-    worktree_key: str | None = None,
+    source_branch: Optional[str] = None,
+    worktree_key: Optional[str] = None,
 ) -> ActivityLog:
     """Load the activity log from disk, with optional branch fallback.
 

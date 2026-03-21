@@ -11,15 +11,12 @@ class TestGetQueuePath:
 
     def test_returns_expected_path_layout(self, tmp_path):
         """Should return <state_dir>/pull-request-review/<commit_hash_short>/queue.json."""
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                side_effect=lambda key, *args, **kwargs: "abc12345" if key == "review.commit_hash_short" else None,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            side_effect=lambda key, *args, **kwargs: "abc12345" if key == "review.commit_hash_short" else None,
         ):
             result = _get_queue_path(25524)
 
@@ -31,15 +28,12 @@ class TestGetQueuePath:
         fake_state_dir = tmp_path / "custom" / "state"
         fake_state_dir.mkdir(parents=True)
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=fake_state_dir,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                side_effect=lambda key, *args, **kwargs: "deadbeef" if key == "review.commit_hash_short" else None,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=fake_state_dir,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            side_effect=lambda key, *args, **kwargs: "deadbeef" if key == "review.commit_hash_short" else None,
         ):
             result = _get_queue_path(12345)
 
@@ -48,15 +42,12 @@ class TestGetQueuePath:
 
     def test_falls_back_to_pr_id_when_no_commit_hash(self, tmp_path, capsys):
         """Should fall back to 'PR<pull_request_id>' when review.commit_hash_short is not set."""
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                return_value=None,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            return_value=None,
         ):
             result = _get_queue_path(99999)
 
@@ -68,15 +59,12 @@ class TestGetQueuePath:
 
     def test_falls_back_to_pr_id_when_commit_hash_is_unsafe(self, tmp_path, capsys):
         """Should fall back to 'PR<id>' when review.commit_hash_short contains path traversal chars."""
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                side_effect=lambda key, *a, **kw: "../evil" if key == "review.commit_hash_short" else None,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            side_effect=lambda key, *a, **kw: "../evil" if key == "review.commit_hash_short" else None,
         ):
             result = _get_queue_path(12345)
 
@@ -87,16 +75,13 @@ class TestGetQueuePath:
 
     def test_normalizes_non_str_commit_hash_to_str(self, tmp_path):
         """Should coerce a valid non-str value (e.g., int) to str without raising TypeError."""
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                # Return an integer that would pass is_safe_dir_segment(str(...))
-                side_effect=lambda key, *a, **kw: 12345678 if key == "review.commit_hash_short" else None,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            # Return an integer that would pass is_safe_dir_segment(str(...))
+            side_effect=lambda key, *a, **kw: 12345678 if key == "review.commit_hash_short" else None,
         ):
             # Should not raise TypeError
             result = _get_queue_path(99)
@@ -111,15 +96,12 @@ class TestGetQueuePath:
         legacy_queue = legacy_dir / "queue.json"
         legacy_queue.write_text("{}")
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                return_value="abc12345",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            return_value="abc12345",
         ):
             result = _get_queue_path(12345)
 
@@ -138,15 +120,12 @@ class TestGetQueuePath:
         legacy_queue = legacy_dir / "queue.json"
         legacy_queue.write_text("{}")
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                return_value="abc12345",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            return_value="abc12345",
         ):
             result = _get_queue_path(12345)
 
@@ -154,15 +133,12 @@ class TestGetQueuePath:
 
     def test_returns_new_path_when_neither_exist(self, tmp_path):
         """Should return the new path (not legacy) when neither file exists yet."""
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                return_value="abc12345",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+            return_value="abc12345",
         ):
             result = _get_queue_path(12345)
 

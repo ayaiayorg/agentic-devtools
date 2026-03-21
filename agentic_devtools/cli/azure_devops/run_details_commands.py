@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from ...state import get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
@@ -22,7 +22,7 @@ DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 
 
-def _save_json(data: dict[str, Any], run_id: int, source: str) -> Path:
+def _save_json(data: Dict[str, Any], run_id: int, source: str) -> Path:
     """
     Save raw JSON response to the workflow state directory.
 
@@ -47,11 +47,11 @@ def _save_json(data: dict[str, Any], run_id: int, source: str) -> Path:
 
 def _fetch_build_timeline(
     requests_module,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     organization: str,
     project: str,
     run_id: int,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Fetch the build timeline to get job/task details.
 
@@ -79,9 +79,9 @@ def _fetch_build_timeline(
 
 def _fetch_task_log(
     requests_module,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     log_url: str,
-) -> tuple[str | None, str | None]:
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Fetch log content from a task's log URL.
 
@@ -103,7 +103,7 @@ def _fetch_task_log(
         return None, str(e)
 
 
-def _get_failed_tasks(timeline_data: dict[str, Any]) -> list[dict[str, Any]]:
+def _get_failed_tasks(timeline_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Extract failed tasks from timeline data.
 
@@ -167,7 +167,7 @@ def fetch_failed_job_logs(
     organization: str = DEFAULT_ORGANIZATION,
     project: str = DEFAULT_PROJECT,
     vpn_toggle: bool = False,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Fetch and save logs from failed jobs/tasks in a build.
 
@@ -247,7 +247,7 @@ def fetch_failed_job_logs(
     return result
 
 
-def _print_failed_logs_summary(log_result: dict[str, Any], run_id: int) -> None:
+def _print_failed_logs_summary(log_result: Dict[str, Any], run_id: int) -> None:
     """
     Print a summary of failed task logs.
 
@@ -282,11 +282,11 @@ def _print_failed_logs_summary(log_result: dict[str, Any], run_id: int) -> None:
 
 def _fetch_pipeline_run(
     requests_module,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     organization: str,
     project: str,
     run_id: int,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Fetch run details from the Pipelines API.
 
@@ -315,11 +315,11 @@ def _fetch_pipeline_run(
 
 def _fetch_build_run(
     requests_module,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     organization: str,
     project: str,
     run_id: int,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Fetch run details from the Build API.
 
@@ -346,7 +346,7 @@ def _fetch_build_run(
         return None, str(e)
 
 
-def _print_parameters(data: dict[str, Any], source: str) -> None:
+def _print_parameters(data: Dict[str, Any], source: str) -> None:
     """
     Print parameters from the run data.
 
@@ -376,7 +376,7 @@ def _print_parameters(data: dict[str, Any], source: str) -> None:
         print("\nParameters: (none)")
 
 
-def _print_summary(data: dict[str, Any], source: str) -> None:
+def _print_summary(data: Dict[str, Any], source: str) -> None:
     """
     Print a formatted summary of the run.
 
@@ -428,7 +428,7 @@ def get_run_details_impl(  # pragma: no cover
     dry_run: bool = False,
     fetch_logs: bool = False,
     vpn_toggle: bool = False,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Fetch details about a pipeline/build run.
 
@@ -627,7 +627,7 @@ def get_run_details() -> None:
         sys.exit(1)
 
 
-def _is_run_finished(data: dict[str, Any]) -> tuple[bool, str | None]:
+def _is_run_finished(data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
     Check if a pipeline/build run has finished.
 
@@ -665,7 +665,7 @@ def wait_for_run_impl(
     dry_run: bool = False,
     fetch_logs: bool = False,
     vpn_toggle: bool = False,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Poll a pipeline/build run until it completes.
 

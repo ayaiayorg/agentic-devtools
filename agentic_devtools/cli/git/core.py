@@ -9,10 +9,10 @@ This module provides low-level helpers used by git operations:
 
 import sys
 import tempfile
-from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from subprocess import CompletedProcess
+from typing import Generator
 
 from ...state import get_value
 from ..subprocess_utils import run_safe

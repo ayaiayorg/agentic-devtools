@@ -10,9 +10,8 @@ from agentic_devtools.background_tasks import create_log_file_path
 @pytest.fixture
 def mock_state_dir(tmp_path):
     """Fixture to mock the state directory."""
-    with (
-        patch("agentic_devtools.state.get_state_dir", return_value=tmp_path),
-        patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path),
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path), patch(
+        "agentic_devtools.task_state.get_state_dir", return_value=tmp_path
     ):
         yield tmp_path
 

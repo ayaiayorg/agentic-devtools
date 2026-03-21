@@ -4,6 +4,7 @@ Azure DevOps authentication utilities.
 
 import base64
 import os
+from typing import Dict
 
 
 def get_pat() -> str:
@@ -24,7 +25,7 @@ def get_pat() -> str:
     return pat
 
 
-def get_auth_headers(pat: str) -> dict[str, str]:
+def get_auth_headers(pat: str) -> Dict[str, str]:
     """Get HTTP headers for Azure DevOps API authentication."""
     encoded = base64.b64encode(f":{pat}".encode("ascii")).decode("ascii")
     return {

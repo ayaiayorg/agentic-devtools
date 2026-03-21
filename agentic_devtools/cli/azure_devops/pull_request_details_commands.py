@@ -8,7 +8,7 @@ and reviewer state from Azure DevOps.
 import json
 import os
 import sys
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from ...state import get_pull_request_id, get_state_dir, is_dry_run
 from ..git.diff import (
@@ -24,7 +24,7 @@ from .config import AzureDevOpsConfig
 from .helpers import verify_az_cli
 
 
-def _invoke_ado_rest(url: str, headers: dict[str, str]) -> dict[str, Any] | None:
+def _invoke_ado_rest(url: str, headers: Dict[str, str]) -> Optional[Dict[str, Any]]:
     """Make an Azure DevOps REST API GET request."""
     try:
         import requests
@@ -50,8 +50,8 @@ def _get_pull_request_threads(
     project: str,
     repo_id: str,
     pull_request_id: int,
-    headers: dict[str, str],
-) -> list[dict[str, Any]] | None:
+    headers: Dict[str, str],
+) -> Optional[List[Dict[str, Any]]]:
     """Fetch pull request comment threads."""
     project_encoded = project.replace(" ", "%20")
     url = (
@@ -69,8 +69,8 @@ def _get_pull_request_iterations(
     project: str,
     repo_id: str,
     pull_request_id: int,
-    headers: dict[str, str],
-) -> list[dict[str, Any]] | None:
+    headers: Dict[str, str],
+) -> Optional[List[Dict[str, Any]]]:
     """Fetch pull request iterations."""
     project_encoded = project.replace(" ", "%20")
     url = (
@@ -89,8 +89,8 @@ def _get_iteration_changes(
     repo_id: str,
     pull_request_id: int,
     iteration_id: int,
-    headers: dict[str, str],
-) -> list[dict[str, Any]] | None:
+    headers: Dict[str, str],
+) -> Optional[List[Dict[str, Any]]]:
     """Fetch changes for a specific pull request iteration.
 
     Args:
@@ -122,8 +122,8 @@ def get_change_tracking_id_for_file(
     pull_request_id: int,
     iteration_id: int,
     file_path: str,
-    headers: dict[str, str],
-) -> int | None:
+    headers: Dict[str, str],
+) -> Optional[int]:
     """Get the changeTrackingId for a specific file in an iteration.
 
     Args:
@@ -154,7 +154,7 @@ def get_change_tracking_id_for_file(
     return None
 
 
-def _invoke_ado_rest_post(url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any] | None:
+def _invoke_ado_rest_post(url: str, headers: Dict[str, str], payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Make an Azure DevOps REST API POST request."""
     try:
         import requests
@@ -174,11 +174,11 @@ def _invoke_ado_rest_post(url: str, headers: dict[str, str], payload: dict[str, 
 
 def _get_viewed_files_via_contribution(
     organization: str,
-    project_id: str | None,
+    project_id: Optional[str],
     repo_id: str,
     pull_request_id: int,
-    headers: dict[str, str],
-) -> list[dict[str, Any]]:
+    headers: Dict[str, str],
+) -> List[Dict[str, Any]]:
     """
     Fetch viewed files state via Azure DevOps Contribution API.
 
@@ -252,9 +252,9 @@ def _get_iteration_change_tracking_map(
     project: str,
     repo_id: str,
     pull_request_id: int,
-    iteration_id: int | None,
-    headers: dict[str, str],
-) -> dict[str, dict[str, str]]:
+    iteration_id: Optional[int],
+    headers: Dict[str, str],
+) -> Dict[str, Dict[str, str]]:
     """
     Get a map of file paths to their change tracking info for a given iteration.
 
@@ -285,7 +285,7 @@ def _get_iteration_change_tracking_map(
         elif isinstance(change_entries, list):
             entries = change_entries
 
-    result: dict[str, dict[str, str]] = {}
+    result: Dict[str, Dict[str, str]] = {}
     for change in entries:
         if not change:  # pragma: no cover
             continue
@@ -308,7 +308,7 @@ def _get_iteration_change_tracking_map(
     return result
 
 
-def _get_current_user_id(organization: str, headers: dict[str, str]) -> str | None:
+def _get_current_user_id(organization: str, headers: Dict[str, str]) -> Optional[str]:
     """
     Get the current authenticated user's ID from Azure DevOps.
 
@@ -332,11 +332,11 @@ def _get_reviewer_payload(
     project: str,
     repo_id: str,
     pull_request_id: int,
-    project_id: str | None,
-    iterations_payload: list[dict[str, Any]] | None,
-    headers: dict[str, str],
-    pr_author_id: str | None = None,
-) -> dict[str, Any] | None:
+    project_id: Optional[str],
+    iterations_payload: Optional[List[Dict[str, Any]]],
+    headers: Dict[str, str],
+    pr_author_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Build the reviewer payload including reviewed files.
 
@@ -388,7 +388,7 @@ def _get_reviewer_payload(
         return None
 
     # Filter viewed files to only include those that match the latest iteration
-    reviewed_files: list[str] = []
+    reviewed_files: List[str] = []
 
     if change_tracking_map:
         # Filter by matching change tracking ID or object hash

@@ -7,6 +7,7 @@ Creates issues in ayaiayorg/agentic-devtools via the gh CLI.
 import platform
 import shutil
 import sys
+from typing import List, Optional
 
 from ..subprocess_utils import run_safe
 from .state_helpers import get_issue_value, set_issue_value
@@ -102,11 +103,11 @@ def _get_environment_info() -> str:
 def _build_gh_create_args(
     title: str,
     body: str,
-    labels: list[str] | None = None,
-    issue_type: str | None = None,
-    assignees: list[str] | None = None,
-    milestone: str | None = None,
-) -> list[str]:
+    labels: Optional[List[str]] = None,
+    issue_type: Optional[str] = None,
+    assignees: Optional[List[str]] = None,
+    milestone: Optional[str] = None,
+) -> List[str]:
     """
     Build the gh issue create argument list.
 
@@ -152,7 +153,7 @@ def _build_gh_create_args(
     return args
 
 
-def _append_related_issues(body: str, related_issues: str | None) -> str:
+def _append_related_issues(body: str, related_issues: Optional[str]) -> str:
     """Append 'Related to #NNN' lines for related issue references."""
     if not related_issues:
         return body
@@ -166,7 +167,7 @@ def _append_related_issues(body: str, related_issues: str | None) -> str:
     return body
 
 
-def _append_terminal_log(body: str, terminal_log: str | None) -> str:
+def _append_terminal_log(body: str, terminal_log: Optional[str]) -> str:
     """Append terminal log output to the issue body."""
     if not terminal_log:
         return body

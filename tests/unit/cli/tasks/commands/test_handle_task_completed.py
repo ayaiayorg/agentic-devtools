@@ -51,15 +51,12 @@ class TestHandleTaskCompleted:
         add_task(task)
 
         with pytest.raises(SystemExit) as exc_info:
-            with (
-                patch(
-                    "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
-                    return_value=[],
-                ),
-                patch(
-                    "agentic_devtools.task_state.get_failed_most_recent_per_command",
-                    return_value=[],
-                ),
+            with patch(
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
+                return_value=[],
+            ), patch(
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
+                return_value=[],
             ):
                 from agentic_devtools.cli.tasks.commands import _handle_task_completed
 
@@ -86,15 +83,12 @@ class TestHandleTaskCompleted:
         update_task(incomplete_task)
 
         with pytest.raises(SystemExit) as exc_info:
-            with (
-                patch(
-                    "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
-                    return_value=[incomplete_task],
-                ),
-                patch(
-                    "agentic_devtools.task_state.get_failed_most_recent_per_command",
-                    return_value=[],
-                ),
+            with patch(
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
+                return_value=[incomplete_task],
+            ), patch(
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
+                return_value=[],
             ):
                 from agentic_devtools.cli.tasks.commands import _handle_task_completed
 
@@ -121,15 +115,12 @@ class TestHandleTaskCompleted:
         update_task(failed_task)
 
         with pytest.raises(SystemExit) as exc_info:
-            with (
-                patch(
-                    "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
-                    return_value=[],
-                ),
-                patch(
-                    "agentic_devtools.task_state.get_failed_most_recent_per_command",
-                    return_value=[failed_task],
-                ),
+            with patch(
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
+                return_value=[],
+            ), patch(
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
+                return_value=[failed_task],
             ):
                 from agentic_devtools.cli.tasks.commands import _handle_task_completed
 

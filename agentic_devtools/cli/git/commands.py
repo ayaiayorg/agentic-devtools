@@ -6,6 +6,7 @@ These are the functions registered as console scripts in pyproject.toml.
 
 import argparse
 import sys
+from typing import List, Optional
 
 from ...state import get_value, is_dry_run
 from .core import (
@@ -28,7 +29,7 @@ from .operations import (
 )
 
 
-def _get_issue_key_from_state() -> str | None:
+def _get_issue_key_from_state() -> Optional[str]:
     """Get the current Jira issue key from state or workflow context."""
     # Check direct state first
     issue_key = get_value("jira.issue_key")
@@ -44,7 +45,7 @@ def _get_issue_key_from_state() -> str | None:
     return None
 
 
-def _mark_checklist_items_completed(item_ids: list[int]) -> None:
+def _mark_checklist_items_completed(item_ids: List[int]) -> None:
     """Mark checklist items as completed and check for workflow advancement."""
     if not item_ids:
         return

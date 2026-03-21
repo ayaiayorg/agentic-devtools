@@ -16,7 +16,7 @@ import ssl
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     import requests
@@ -27,7 +27,7 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 _CERTS_DIR = Path.home() / ".agdt" / "certs"
 
 
-def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | None:
+def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> Optional[str]:
     """Fetch the SSL certificate chain from *hostname* using ``openssl s_client``.
 
     Returns the full chain (all certificates) as a PEM string, or ``None``
@@ -68,7 +68,7 @@ def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | Non
     return None
 
 
-def fetch_certificate_chain_ssl(hostname: str, port: int = 443) -> str | None:
+def fetch_certificate_chain_ssl(hostname: str, port: int = 443) -> Optional[str]:
     """Fetch the SSL certificate from *hostname* using Python's :mod:`ssl` module.
 
     This is a fallback for when ``openssl`` is not available.  Note that the
@@ -108,9 +108,9 @@ def count_certificates_in_pem(pem_content: str) -> int:
 
 def ensure_ca_bundle(
     hostname: str,
-    cache_file: Path | None = None,
+    cache_file: Optional[Path] = None,
     force: bool = False,
-) -> str | None:
+) -> Optional[str]:
     """Ensure a CA bundle PEM file exists for *hostname* and return its path.
 
     When a complete certificate chain is successfully fetched and written to
@@ -220,7 +220,7 @@ def ensure_ca_bundle(
     return None
 
 
-def get_ssl_verify(hostname: str) -> bool | str:
+def get_ssl_verify(hostname: str) -> Union[bool, str]:
     """Return the ``verify`` argument for :func:`requests.get` when connecting to *hostname*.
 
     Priority:

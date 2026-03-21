@@ -18,6 +18,7 @@ GitHub PR UI.
 import os
 import re
 import sys
+from typing import Optional
 from urllib.parse import quote
 
 # Short commit hash display length (standard Git short hash)
@@ -92,7 +93,7 @@ def should_use_emoji() -> bool:
     return encoding.startswith("utf")
 
 
-def get_model_icon(model_name: str | None) -> str:
+def get_model_icon(model_name: Optional[str]) -> str:
     """Return the model family icon for a given model name.
 
     Matches by lowercase prefix against the known model family icon mapping:
@@ -121,8 +122,8 @@ def _build_files_tab_url(
     repo_name: str,
     pr_id: int,
     iteration: int,
-    base: int | None = None,
-    path: str | None = None,
+    base: Optional[int] = None,
+    path: Optional[str] = None,
 ) -> str:
     """Build an Azure DevOps PR files-tab URL.
 
@@ -170,7 +171,7 @@ def build_commit_file_url(
     pr_id: int,
     file_path: str,
     iteration: int,
-    base: int | None = None,
+    base: Optional[int] = None,
 ) -> str:
     """Build a URL to a specific file in the PR file view at a given iteration.
 
@@ -198,7 +199,7 @@ def build_commit_folder_url(
     pr_id: int,
     folder_path: str,
     iteration: int,
-    base: int | None = None,
+    base: Optional[int] = None,
 ) -> str:
     """Build a URL to a folder view in the PR file tab at a given iteration.
 
@@ -229,7 +230,7 @@ def build_commit_pr_url(
     repo_name: str,
     pr_id: int,
     iteration: int,
-    base: int | None = None,
+    base: Optional[int] = None,
 ) -> str:
     """Build a URL to the PR files tab at a given iteration (no file/folder filter).
 
@@ -258,10 +259,10 @@ def _escape_markdown(text: str) -> str:
 
 
 def render_attribution_line(
-    model_name: str | None,
-    model_icon: str | None = None,
-    commit_hash: str | None = None,
-    commit_url: str | None = None,
+    model_name: Optional[str],
+    model_icon: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
 ) -> str:
     """Render the AI model attribution line for embedding in a review comment.
 

@@ -226,22 +226,19 @@ class TestAdvancePullRequestReviewWorkflow:
             "/src/c.py": mock_file_needswork,
         }
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 3,
-                    "pending_count": 0,
-                    "total_count": 3,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                return_value=mock_review_state,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 3,
+                "pending_count": 0,
+                "total_count": 3,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
@@ -379,51 +376,40 @@ class TestAdvancePullRequestReviewWorkflow:
 
         mock_patch_ops = [MagicMock()]
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 1,
-                    "pending_count": 0,
-                    "total_count": 1,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                return_value=mock_review_state,
-            ) as mock_load,
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
-                return_value=mock_patch_ops,
-            ) as mock_cascade,
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
-            ) as mock_execute,
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.save_review_state",
-            ) as mock_save,
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_pat",
-                return_value="fake-pat",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
-                return_value={"Authorization": "Basic fake"},
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.helpers.require_requests",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
-                return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ) as mock_load, patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=mock_patch_ops,
+        ) as mock_cascade, patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+        ) as mock_execute, patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ) as mock_save, patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
@@ -463,51 +449,40 @@ class TestAdvancePullRequestReviewWorkflow:
         mock_review_state.overallSummary = MagicMock()
         mock_review_state.overallSummary.status = "approved"
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 1,
-                    "pending_count": 0,
-                    "total_count": 1,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                return_value=mock_review_state,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.save_review_state",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_pat",
-                return_value="fake-pat",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
-                return_value={"Authorization": "Basic fake"},
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.helpers.require_requests",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
-                return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
@@ -533,22 +508,19 @@ class TestAdvancePullRequestReviewWorkflow:
             context={"pull_request_id": "123"},
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 1,
-                    "pending_count": 0,
-                    "total_count": 1,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                side_effect=FileNotFoundError("review-state.json not found"),
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=FileNotFoundError("review-state.json not found"),
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
@@ -587,52 +559,41 @@ class TestAdvancePullRequestReviewWorkflow:
         mock_review_state.overallSummary = MagicMock()
         mock_review_state.overallSummary.status = "needs-work"
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 1,
-                    "pending_count": 0,
-                    "total_count": 1,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                return_value=mock_review_state,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
-                return_value=[MagicMock()],
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
-                side_effect=RuntimeError("API call failed"),
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.save_review_state",
-            ) as mock_save,
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_pat",
-                return_value="fake-pat",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
-                return_value={"Authorization": "Basic fake"},
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.helpers.require_requests",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
-                return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            return_value=mock_review_state,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+            return_value=[MagicMock()],
+        ), patch(
+            "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+            side_effect=RuntimeError("API call failed"),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+        ) as mock_save, patch(
+            "agentic_devtools.cli.azure_devops.auth.get_pat",
+            return_value="fake-pat",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+            return_value={"Authorization": "Basic fake"},
+        ), patch(
+            "agentic_devtools.cli.azure_devops.helpers.require_requests",
+            return_value=MagicMock(),
+        ), patch(
+            "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
+            return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()
@@ -668,22 +629,19 @@ class TestAdvancePullRequestReviewWorkflow:
             context={"pull_request_id": "123"},
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={
-                    "all_complete": True,
-                    "completed_count": 1,
-                    "pending_count": 0,
-                    "total_count": 1,
-                    "current_file": None,
-                    "prompt_file_path": None,
-                },
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                side_effect=ValueError("malformed review state"),
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value={
+                "all_complete": True,
+                "completed_count": 1,
+                "pending_count": 0,
+                "total_count": 1,
+                "current_file": None,
+                "prompt_file_path": None,
+            },
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=ValueError("malformed review state"),
         ):
             workflow_dir = temp_prompts_dir / "pull-request-review"
             workflow_dir.mkdir()

@@ -123,15 +123,12 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert "agdt-git-commit" in workflow["context"]["pending_transition"]["required_tasks"]
 
         # Now resolve the pending transition via get_next_workflow_prompt
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Pull Request Step\n\nCreate your pull request.",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Pull Request Step\n\nCreate your pull request.",
         ):
             prompt_result = get_next_workflow_prompt()
 
@@ -175,15 +172,12 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert workflow["context"]["pull_request_url"] == "https://example.com/pr/42"
 
         # Resolve the pending transition
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Workflow Complete\n\nCongratulations!",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Workflow Complete\n\nCongratulations!",
         ):
             prompt_result = get_next_workflow_prompt()
 
@@ -237,15 +231,12 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert workflow["context"]["pending_transition"]["to_step"] == "pull-request"
 
         # Resolve pending commit transition -> pull-request
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Pull Request Step",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Pull Request Step",
         ):
             result = get_next_workflow_prompt()
         assert result.step == "pull-request"
@@ -261,15 +252,12 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert workflow["context"]["pending_transition"]["to_step"] == "completion"
 
         # Resolve pending PR transition -> completion
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Workflow Complete",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Workflow Complete",
         ):
             result = get_next_workflow_prompt()
         assert result.step == "completion"
@@ -461,15 +449,12 @@ class TestPullRequestReviewWorkflowEndToEnd:
         assert state.get_workflow_state()["step"] == "decision"
 
         # decision -> completion (manual advance)
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value=complete_queue,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-                side_effect=FileNotFoundError("no review-state.json"),
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+            return_value=complete_queue,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+            side_effect=FileNotFoundError("no review-state.json"),
         ):
             commands.advance_pull_request_review_workflow()
         assert state.get_workflow_state()["step"] == "completion"
@@ -734,15 +719,12 @@ class TestMockAgentBehavior:
         assert "task-git-abc" in first_poll.pending_task_ids
 
         # Second poll: task finished → agent gets SUCCESS response with pull-request prompt
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Pull Request Step\n\nCreate your pull request.",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Pull Request Step\n\nCreate your pull request.",
         ):
             second_poll = get_next_workflow_prompt()
 

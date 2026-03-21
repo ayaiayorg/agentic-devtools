@@ -7,6 +7,7 @@ CLI commands for monitoring and managing background tasks.
 import argparse
 import sys
 from datetime import datetime, timezone
+from typing import List, Optional
 
 from ...background_tasks import get_task_log_content
 from ...task_state import (
@@ -19,7 +20,7 @@ from ...task_state import (
 )
 
 
-def _get_task_id_from_args_or_state(_argv: list[str] | None = None) -> str:
+def _get_task_id_from_args_or_state(_argv: Optional[List[str]] = None) -> str:
     """
     Get task ID from CLI args or state.
 
@@ -84,7 +85,7 @@ def _safe_print(text: str) -> None:
         print(safe_text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode())
 
 
-def _format_timestamp(ts: str | None) -> str:
+def _format_timestamp(ts: Optional[str]) -> str:
     """Format an ISO timestamp for display."""
     if not ts:
         return "N/A"
@@ -178,7 +179,7 @@ def list_tasks() -> None:
     print(f"By status: {status_summary}")
 
 
-def task_status(_argv: list[str] | None = None) -> None:
+def task_status(_argv: Optional[List[str]] = None) -> None:
     """
     Show detailed status of a specific task.
 
@@ -221,7 +222,7 @@ def task_status(_argv: list[str] | None = None) -> None:
     print(f"{'=' * 60}")
 
 
-def task_log(_argv: list[str] | None = None) -> None:
+def task_log(_argv: Optional[List[str]] = None) -> None:
     """
     Display task log contents.
 
@@ -281,7 +282,7 @@ def task_log(_argv: list[str] | None = None) -> None:
     print("-" * 50)
 
 
-def _parse_wait_args(_argv: list[str] | None = None) -> argparse.Namespace:
+def _parse_wait_args(_argv: Optional[List[str]] = None) -> argparse.Namespace:
     """
     Parse arguments for task_wait command.
 
@@ -337,7 +338,7 @@ def _check_task_timeout(task: BackgroundTask, timeout: float) -> bool:
         return False  # Can't determine timeout with invalid start time
 
 
-def task_wait(_argv: list[str] | None = None) -> None:
+def task_wait(_argv: Optional[List[str]] = None) -> None:
     """
     Wait for task completion and auto-progress workflow.
 
@@ -483,7 +484,7 @@ def _handle_task_timeout(task: BackgroundTask, task_id: str, timeout: float) -> 
     sys.exit(2)
 
 
-def _get_task_elapsed_time(task: BackgroundTask) -> float | None:
+def _get_task_elapsed_time(task: BackgroundTask) -> Optional[float]:
     """Get elapsed time in seconds since task started."""
     if not task.start_time:  # pragma: no cover
         return None

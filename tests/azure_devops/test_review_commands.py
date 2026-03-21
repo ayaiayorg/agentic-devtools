@@ -908,16 +908,13 @@ class TestGenerateReviewPrompts:
             "threads": [],
         }
 
-        with (
-            patch.object(
-                __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
-                "get_state_dir",
-                return_value=tmp_path,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.get_value",
-                side_effect=lambda key, *a, **kw: "../../evil" if key == "review.commit_hash_short" else None,
-            ),
+        with patch.object(
+            __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+            "get_state_dir",
+            return_value=tmp_path,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
+            side_effect=lambda key, *a, **kw: "../../evil" if key == "review.commit_hash_short" else None,
         ):
             _, _, _, prompts_dir = generate_review_prompts(
                 pull_request_id=42,
@@ -1561,15 +1558,12 @@ class TestSetupPullRequestReview:
             }
             return mapping.get(key, default)
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.get_value",
-                side_effect=get_value_side_effect,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-                return_value=False,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
+            side_effect=get_value_side_effect,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch(
                 "agentic_devtools.cli.azure_devops.review_commands._fetch_and_display_jira_issue"
@@ -1648,15 +1642,12 @@ class TestSetupPullRequestReview:
             }
             return mapping.get(key, default)
 
-        with (
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.get_value",
-                side_effect=get_value_side_effect,
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-                return_value=False,
-            ),
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
+            side_effect=get_value_side_effect,
+        ), patch(
+            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+            return_value=False,
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1796,14 +1787,9 @@ class TestGenerateReviewPromptsEdgeCases:
             "threads": [],
         }
 
-        with (
-            patch("agentic_devtools.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir),
-            patch(
-                "agentic_devtools.cli.azure_devops.review_commands.get_value",
-                side_effect=lambda key, *args, **kwargs: (
-                    commit_hash_short if key == "review.commit_hash_short" else None
-                ),
-            ),
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_state_dir", return_value=temp_dir), patch(
+            "agentic_devtools.cli.azure_devops.review_commands.get_value",
+            side_effect=lambda key, *args, **kwargs: commit_hash_short if key == "review.commit_hash_short" else None,
         ):
             from agentic_devtools.cli.azure_devops.review_commands import (
                 generate_review_prompts,

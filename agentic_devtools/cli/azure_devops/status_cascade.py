@@ -7,6 +7,7 @@ Provides functions to:
 """
 
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from .config import AzureDevOpsConfig
 from .helpers import patch_comment, patch_thread_status
@@ -14,7 +15,7 @@ from .review_state import ReviewState, ReviewStatus, compute_aggregate_status, n
 from .review_templates import render_overall_summary
 
 # Thread status mapping: review status → Azure DevOps thread status
-_THREAD_STATUS_MAP: dict[str, str] = {
+_THREAD_STATUS_MAP: Dict[str, str] = {
     ReviewStatus.UNREVIEWED.value: "active",
     ReviewStatus.IN_PROGRESS.value: "active",
     ReviewStatus.APPROVED.value: "closed",
@@ -62,10 +63,10 @@ def cascade_status_update(
     state: ReviewState,
     file_path: str,
     base_url: str,
-    model_name: str | None = None,
-    commit_hash: str | None = None,
-    commit_url: str | None = None,
-) -> list[PatchOperation]:
+    model_name: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
+) -> List[PatchOperation]:
     """Compute PATCH operations needed after a file's status has changed.
 
     Updates the overall summary status in the state object, then returns
@@ -96,7 +97,7 @@ def cascade_status_update(
     state.overallSummary.status = new_overall_status
 
     # Build PATCH operations — only the overall summary thread
-    ops: list[PatchOperation] = []
+    ops: List[PatchOperation] = []
 
     # Overall summary comment PATCH
     overall_content = render_overall_summary(
@@ -117,10 +118,10 @@ def cascade_status_update(
 def cascade_overall_summary_update(
     state: ReviewState,
     base_url: str,
-    model_name: str | None = None,
-    commit_hash: str | None = None,
-    commit_url: str | None = None,
-) -> list[PatchOperation]:
+    model_name: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    commit_url: Optional[str] = None,
+) -> List[PatchOperation]:
     """Compute PATCH operations for the overall PR summary without a file context.
 
     Used at workflow completion to ensure the overall summary reflects the
@@ -180,9 +181,9 @@ def cascade_overall_summary_update(
 
 
 def execute_cascade(
-    patch_operations: list[PatchOperation],
+    patch_operations: List[PatchOperation],
     requests_module,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,

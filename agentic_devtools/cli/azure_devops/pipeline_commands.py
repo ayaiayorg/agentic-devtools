@@ -6,6 +6,7 @@ These commands queue, create, and update Azure DevOps pipelines.
 import json
 import os
 import sys
+from typing import Optional
 
 from ...state import get_value, is_dry_run, set_value
 from ..subprocess_utils import run_safe
@@ -14,7 +15,7 @@ from .config import AzureDevOpsConfig
 from .helpers import verify_az_cli
 
 
-def _parse_bool_param(value: str | None, default: bool = False) -> bool:
+def _parse_bool_param(value: Optional[str], default: bool = False) -> bool:
     """Parse a boolean parameter from state value."""
     if value is None:
         return default

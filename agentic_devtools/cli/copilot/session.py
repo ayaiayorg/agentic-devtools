@@ -61,7 +61,7 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import IO
+from typing import IO, List, Optional
 
 from agentic_devtools.state import get_state_dir, set_value
 
@@ -127,8 +127,8 @@ class CopilotSessionResult:
     mode: str
     prompt_file: str
     start_time: str
-    pid: int | None = field(default=None)
-    process: subprocess.Popen | None = field(default=None, repr=False)  # type: ignore[type-arg]
+    pid: Optional[int] = field(default=None)
+    process: Optional[subprocess.Popen] = field(default=None, repr=False)  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +136,7 @@ class CopilotSessionResult:
 # ---------------------------------------------------------------------------
 
 
-def _get_copilot_binary() -> str | None:
+def _get_copilot_binary() -> Optional[str]:
     """Return the path to the copilot binary, or ``None`` if not found.
 
     Checks (in order):
@@ -227,7 +227,7 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> list[str] | None:
+def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -291,7 +291,7 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: boo
     return ["gh", "copilot", "suggest", prompt]
 
 
-def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> list[str] | None:
+def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> Optional[List[str]]:
     """Build the copilot argument list (public API).
 
     Public wrapper around the internal argument builder.  Use this when you
@@ -429,7 +429,7 @@ def start_copilot_session(
     prompt: str,
     working_directory: str,
     interactive: bool = True,
-    session_id: str | None = None,
+    session_id: Optional[str] = None,
     *,
     autopilot: bool = True,
 ) -> CopilotSessionResult:
@@ -602,7 +602,7 @@ def start_copilot_session(
         log_fh = open(log_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
         stdout_ref = sys.stdout
 
-        def _tee(pipe: IO[bytes] | None, log_file: IO[str], stdout: IO[str] | None) -> None:
+        def _tee(pipe: Optional[IO[bytes]], log_file: IO[str], stdout: Optional[IO[str]]) -> None:
             """Read from *pipe* and mirror every line to *log_file* and *stdout*.
 
             Handles *pipe* or *stdout* being ``None`` gracefully, and

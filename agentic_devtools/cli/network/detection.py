@@ -6,6 +6,7 @@ Provides functions to detect whether the developer is on the corporate network
 """
 
 from enum import Enum
+from typing import Tuple
 
 
 class NetworkContext(Enum):
@@ -17,7 +18,7 @@ class NetworkContext(Enum):
     UNKNOWN = "unknown"  # Cannot determine context
 
 
-def detect_network_context() -> tuple[NetworkContext, str]:
+def detect_network_context() -> Tuple[NetworkContext, str]:
     """
     Detect the current network context.
 

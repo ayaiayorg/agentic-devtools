@@ -159,9 +159,7 @@ class TestCopilotAutoStartCmd:
         sf = _state_file(tmp_path, triggered_runs=[_RUN_ID])
 
         with patch(_GET_STATE_FILE, return_value=sf):
-            with patch(
-                "agentic_devtools.cli.copilot.auto_start.os.chdir", side_effect=[None, OSError("restore failed")]
-            ):
+            with patch("agentic_devtools.cli.copilot.auto_start.os.chdir", side_effect=[None, OSError("restore failed")]):
                 with patch(_CLEANUP):
                     with pytest.raises(SystemExit) as exc_info:
                         copilot_auto_start_cmd(

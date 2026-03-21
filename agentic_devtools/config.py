@@ -11,6 +11,7 @@ return safe defaults so the review workflow proceeds without repo-specific conte
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def load_repo_config(repo_path: str) -> dict:
         return {}
 
 
-def load_review_focus_areas(repo_path: str) -> str | None:
+def load_review_focus_areas(repo_path: str) -> Optional[str]:
     """
     Load the review focus areas markdown content referenced in the repo config.
 

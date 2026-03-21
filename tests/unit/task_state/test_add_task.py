@@ -18,11 +18,9 @@ class TestAddTask:
         state_file = tmp_path / "state.json"
         state_file.write_text("{}")
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.save_state") as mock_save,
-            patch("agentic_devtools.task_state._append_to_all_tasks"),
-        ):
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.save_state"
+        ) as mock_save, patch("agentic_devtools.task_state._append_to_all_tasks"):
             mock_load.return_value = {}
 
             task = BackgroundTask.create(command="agdt-test-command")

@@ -11,6 +11,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,10 @@ class ReviewModelsConfig:
             reviewers disagree.
     """
 
-    reviewerModels: list[str] = field(default_factory=lambda: list(_DEFAULT_REVIEWER_MODELS))
+    reviewerModels: List[str] = field(default_factory=lambda: list(_DEFAULT_REVIEWER_MODELS))
     bossModel: str = _DEFAULT_BOSS_MODEL
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "reviewerModels": list(self.reviewerModels),
@@ -47,7 +48,7 @@ class ReviewModelsConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ReviewModelsConfig":
+    def from_dict(cls, data: Dict) -> "ReviewModelsConfig":
         """Deserialize from a dictionary.
 
         Raises:
@@ -105,7 +106,7 @@ def load_review_models_config(repo_path: str) -> ReviewModelsConfig:
     override_path = config_root / _OVERRIDE_FILENAME
     base_path = config_root / _BASE_FILENAME
 
-    chosen_path: Path | None = None
+    chosen_path: Optional[Path] = None
     if override_path.exists():
         chosen_path = override_path
     elif base_path.exists():

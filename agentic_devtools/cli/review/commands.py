@@ -6,7 +6,7 @@ appropriate handler.
 
 import argparse
 import sys
-from collections.abc import Sequence
+from typing import Optional, Sequence
 
 from .config_commands import run_config_get, run_config_validate
 from .consolidate import run_consolidate
@@ -94,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point for ``agdt-review``."""
     parser = build_parser()
     args = parser.parse_args(argv)

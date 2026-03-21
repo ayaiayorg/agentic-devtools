@@ -137,6 +137,10 @@ class TestAddPullRequestComment:
         config.project = "%PROJECT%"
         config.repository = "%REPO%"
 
-        add_pull_request_comment(config=config, pat="pat", pull_request_id=1, content="Comment")
+        add_pull_request_comment(
+            config=config, pat="pat", pull_request_id=1, content="Comment"
+        )
 
-        mock_repo_id.assert_called_once_with("https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%")
+        mock_repo_id.assert_called_once_with(
+            "https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%"
+        )

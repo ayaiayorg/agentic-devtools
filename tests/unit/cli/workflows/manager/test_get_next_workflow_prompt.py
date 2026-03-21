@@ -75,15 +75,12 @@ class TestGetNextWorkflowPrompt:
             },
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Implementation Step\n\nYour implementation prompt here.",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Implementation Step\n\nYour implementation prompt here.",
         ):
             result = get_next_workflow_prompt()
 
@@ -110,15 +107,12 @@ class TestGetNextWorkflowPrompt:
             },
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Workflow Complete\n\nCongratulations!",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Workflow Complete\n\nCongratulations!",
         ):
             result = get_next_workflow_prompt()
 
@@ -136,15 +130,12 @@ class TestGetNextWorkflowPrompt:
             step="implementation",
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                return_value="# Implementation\n\nContinue implementing.",
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            return_value="# Implementation\n\nContinue implementing.",
         ):
             result = get_next_workflow_prompt()
 
@@ -160,15 +151,12 @@ class TestGetNextWorkflowPrompt:
             step="nonexistent-step",
         )
 
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager._render_step_prompt",
-                side_effect=FileNotFoundError("Template not found"),
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager._render_step_prompt",
+            side_effect=FileNotFoundError("Template not found"),
         ):
             result = get_next_workflow_prompt()
 
@@ -209,15 +197,12 @@ class TestGetNextWorkflowPrompt:
         mock_failed_task.error_message = "Tests failed with 3 errors"
         mock_failed_task.log_file = "/tmp/test.log"
 
-        with (
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_active_tasks",
-                return_value=[],
-            ),
-            patch(
-                "agentic_devtools.cli.workflows.manager.get_task_by_id",
-                return_value=mock_failed_task,
-            ),
+        with patch(
+            "agentic_devtools.cli.workflows.manager.get_active_tasks",
+            return_value=[],
+        ), patch(
+            "agentic_devtools.cli.workflows.manager.get_task_by_id",
+            return_value=mock_failed_task,
         ):
             result = get_next_workflow_prompt()
 

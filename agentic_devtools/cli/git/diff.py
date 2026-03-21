@@ -7,6 +7,7 @@ useful for PR analysis and code review workflows.
 
 import re
 from dataclasses import dataclass
+from typing import List, Optional
 
 from ..subprocess_utils import run_safe
 
@@ -18,7 +19,7 @@ class DiffEntry:
     path: str
     status: str
     change_type: str
-    original_path: str | None = None
+    original_path: Optional[str] = None
 
 
 @dataclass
@@ -33,11 +34,11 @@ class AddedLine:
 class AddedLinesInfo:
     """Information about added lines in a file diff."""
 
-    lines: list[AddedLine]
+    lines: List[AddedLine]
     is_binary: bool
 
 
-def normalize_ref_name(ref: str | None) -> str | None:
+def normalize_ref_name(ref: Optional[str]) -> Optional[str]:
     """
     Normalize a git ref by stripping refs/heads/ prefix.
 
@@ -82,7 +83,7 @@ def sync_git_ref(ref: str) -> bool:
     return result.returncode == 0
 
 
-def get_diff_entries(base_ref: str, compare_ref: str) -> list[DiffEntry]:
+def get_diff_entries(base_ref: str, compare_ref: str) -> List[DiffEntry]:
     """
     Get file change entries between two git refs.
 
@@ -183,7 +184,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
     return AddedLinesInfo(lines=added_lines, is_binary=False)
 
 
-def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
+def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> Optional[str]:
     """
     Get the full diff patch for a specific file.
 

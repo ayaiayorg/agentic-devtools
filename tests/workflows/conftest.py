@@ -55,9 +55,8 @@ def temp_output_dir(tmp_path):
     """Redirect all prompt/temp file writes away from the state directory during tests."""
     output_dir = tmp_path / "temp"
     output_dir.mkdir()
-    with (
-        patch.object(loader, "get_temp_output_dir", return_value=output_dir),
-        patch("agentic_devtools.cli.workflows.manager.get_temp_output_dir", return_value=output_dir),
+    with patch.object(loader, "get_temp_output_dir", return_value=output_dir), patch(
+        "agentic_devtools.cli.workflows.manager.get_temp_output_dir", return_value=output_dir
     ):
         yield output_dir
 

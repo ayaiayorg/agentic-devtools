@@ -22,6 +22,7 @@ Repository Detection:
 import re
 import subprocess
 from dataclasses import dataclass
+from typing import Optional
 
 from ...state import get_value
 
@@ -40,7 +41,7 @@ API_VERSION = "7.0"
 # =============================================================================
 
 
-def get_repository_name_from_git_remote() -> str | None:
+def get_repository_name_from_git_remote() -> Optional[str]:
     """
     Extract the repository name from the git remote URL.
 
@@ -106,8 +107,8 @@ class AzureDevOpsConfig:
     organization: str
     project: str
     repository: str
-    pull_request_id: int | None = None
-    thread_id: int | None = None
+    pull_request_id: Optional[int] = None
+    thread_id: Optional[int] = None
 
     @classmethod
     def from_state(cls) -> "AzureDevOpsConfig":

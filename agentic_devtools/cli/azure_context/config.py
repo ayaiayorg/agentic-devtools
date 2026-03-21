@@ -7,6 +7,7 @@ Defines contexts, their configurations, and helper functions.
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Dict
 
 
 class AzureContext(str, Enum):
@@ -52,7 +53,7 @@ def get_context_config(context: AzureContext) -> AzureContextConfig:
     home = Path.home()
     contexts_base = home / ".azure-contexts"
 
-    configs: dict[AzureContext, AzureContextConfig] = {
+    configs: Dict[AzureContext, AzureContextConfig] = {
         AzureContext.DEVOPS: AzureContextConfig(
             name="devops",
             config_dir=contexts_base / "devops",

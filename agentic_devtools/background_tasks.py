@@ -9,7 +9,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from .task_state import (
     BackgroundTask,
@@ -49,7 +49,7 @@ def _build_runner_script(
     command: str,
     task_id: str,
     log_file: Path,
-    cwd: str | None = None,
+    cwd: Optional[str] = None,
 ) -> str:
     """
     Build a Python script that runs the command and updates task state.
@@ -162,8 +162,8 @@ if __name__ == "__main__":
 
 def run_in_background(
     command: str,
-    args: dict[str, Any] | None = None,
-    cwd: str | None = None,
+    args: Optional[Dict[str, Any]] = None,
+    cwd: Optional[str] = None,
 ) -> BackgroundTask:
     """
     Run a CLI command in a detached background process.
@@ -247,7 +247,7 @@ def _build_function_runner_script(
     function_name: str,
     task_id: str,
     log_file: Path,
-    cwd: str | None = None,
+    cwd: Optional[str] = None,
 ) -> str:
     """
     Build a Python script that imports and runs a function, updating task state.
@@ -381,9 +381,9 @@ if __name__ == "__main__":
 def run_function_in_background(
     module_path: str,
     function_name: str,
-    command_display_name: str | None = None,
-    args: dict[str, Any] | None = None,
-    cwd: str | None = None,
+    command_display_name: Optional[str] = None,
+    args: Optional[Dict[str, Any]] = None,
+    cwd: Optional[str] = None,
 ) -> BackgroundTask:
     """
     Run a Python function in a detached background process.
@@ -474,8 +474,8 @@ def run_function_in_background(
 def wait_for_task(
     task_id: str,
     poll_interval: float = 0.5,
-    timeout: float | None = None,
-) -> tuple[bool, int | None]:
+    timeout: Optional[float] = None,
+) -> Tuple[bool, Optional[int]]:
     """
     Wait for a background task to complete.
 
@@ -508,7 +508,7 @@ def wait_for_task(
         time.sleep(poll_interval)
 
 
-def get_task_log_content(task_id: str, tail_lines: int | None = None) -> str | None:
+def get_task_log_content(task_id: str, tail_lines: Optional[int] = None) -> Optional[str]:
     """
     Get the content of a task's log file.
 
@@ -541,7 +541,7 @@ def get_task_log_content(task_id: str, tail_lines: int | None = None) -> str | N
         return None
 
 
-def cleanup_old_logs(max_age_hours: float = 24, max_count: int | None = None) -> int:
+def cleanup_old_logs(max_age_hours: float = 24, max_count: Optional[int] = None) -> int:
     """
     Clean up old log files.
 
@@ -561,7 +561,7 @@ def cleanup_old_logs(max_age_hours: float = 24, max_count: int | None = None) ->
         return 0  # pragma: no cover
 
     # Get all log files with their modification times
-    log_files: list[tuple[Path, float]] = []
+    log_files: List[Tuple[Path, float]] = []
     for log_file in logs_dir.glob("*.log"):
         try:
             mtime = log_file.stat().st_mtime

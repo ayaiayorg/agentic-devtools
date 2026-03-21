@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional, Set
 
 from ...state import get_state_dir, get_value, is_dry_run, is_safe_dir_segment
 from ..subprocess_utils import run_safe
@@ -19,12 +19,12 @@ from .helpers import require_requests, resolve_review_artifact_dir_name, verify_
 # Import helper modules
 
 
-def _get_jira_issue_key_from_state() -> str | None:
+def _get_jira_issue_key_from_state() -> Optional[str]:
     """Get Jira issue key from state."""
     return get_value("jira.issue_key")
 
 
-def _get_pull_request_id_from_state() -> int | None:
+def _get_pull_request_id_from_state() -> Optional[int]:
     """Get pull request ID from state."""
     value = get_value("pull_request_id")
     if value is not None:
@@ -35,7 +35,7 @@ def _get_pull_request_id_from_state() -> int | None:
     return None
 
 
-def _get_linked_pull_request_from_jira(issue_key: str) -> int | None:
+def _get_linked_pull_request_from_jira(issue_key: str) -> Optional[int]:
     """
     Fetch Jira issue and extract linked Azure DevOps pull request ID.
 
@@ -103,10 +103,10 @@ def _get_linked_pull_request_from_jira(issue_key: str) -> int | None:
 
 def checkout_and_sync_branch(
     source_branch: str,
-    pull_request_id: int | None = None,
+    pull_request_id: Optional[int] = None,
     save_files_on_branch: bool = False,
     dry_run: bool = False,
-) -> tuple[bool, str | None, set[str]]:
+) -> tuple[bool, Optional[str], Set[str]]:
     """
     Checkout the PR source branch, sync it with origin, and rebase onto main.
 
@@ -242,7 +242,7 @@ def _normalize_path_for_comparison(path: str) -> str:
     return path.strip().replace("\\", "/").lstrip("/").lower()
 
 
-def _fetch_pull_request_basic_info(pull_request_id: int, config: AzureDevOpsConfig) -> dict[str, Any] | None:
+def _fetch_pull_request_basic_info(pull_request_id: int, config: AzureDevOpsConfig) -> Optional[Dict[str, Any]]:
     """
     Fetch basic pull request info using az CLI.
 
@@ -326,9 +326,9 @@ def _fetch_and_display_jira_issue(issue_key: str) -> bool:
 
 def generate_review_prompts(
     pull_request_id: int,
-    pr_details: dict | None = None,
+    pr_details: Optional[Dict] = None,
     include_reviewed: bool = False,
-    files_on_branch: set[str] | None = None,
+    files_on_branch: Optional[Set[str]] = None,
 ) -> tuple[int, int, int, Path]:
     """
     Generate file review prompts from PR details.
@@ -389,7 +389,7 @@ def generate_review_prompts(
         reviewed_paths = build_reviewed_paths_set(pr_details)
 
     # Normalize files_on_branch for comparison
-    normalized_branch_files: set[str] | None = None
+    normalized_branch_files: Set[str] | None = None
     if files_on_branch is not None:
         normalized_branch_files = {_normalize_path_for_comparison(f) for f in files_on_branch}
 
@@ -465,7 +465,7 @@ def generate_review_prompts(
     return prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir
 
 
-def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: list) -> Path:
+def _write_file_prompt(directory: Path, file_detail: Dict, threads_for_file: list) -> Path:
     """Write a file review prompt to disk."""
     from .review_helpers import convert_to_prompt_filename
 
@@ -589,9 +589,9 @@ def print_review_instructions(
 
 def _scaffold_threads_for_review(
     pull_request_id: int,
-    pr_details: dict[str, Any],
-    pr_info: dict[str, Any],
-    files_on_branch: set[str] | None,
+    pr_details: Dict[str, Any],
+    pr_info: Dict[str, Any],
+    files_on_branch: Optional[Set[str]],
 ) -> None:
     """Scaffold all review threads for a PR.
 
@@ -833,7 +833,7 @@ def setup_pull_request_review() -> None:
 
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
-    files_on_branch: set[str] | None = None
+    files_on_branch: Set[str] | None = None
     if source_branch:
         print(f"\nChecking out source branch '{source_branch}' and syncing with main...")
         checkout_success, checkout_error, files_on_branch = checkout_and_sync_branch(

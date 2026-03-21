@@ -47,10 +47,9 @@ class TestUpdateReviewNarrative:
 
         review_state = _make_review_state(thread_id=99, comment_id=1)
 
-        with (
-            patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state),
-            patch(f"{COMMANDS_MODULE}.save_review_state") as mock_save,
-        ):
+        with patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state), patch(
+            f"{COMMANDS_MODULE}.save_review_state"
+        ) as mock_save:
             update_review_narrative(12345, "PR approved. All files LGTM.")
 
         # PATCH should have been called on the correct thread/comment
@@ -84,9 +83,8 @@ class TestUpdateReviewNarrative:
         review_state = _make_review_state(thread_id=99, comment_id=1)
         review_state.repoId = None
 
-        with (
-            patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state),
-            patch(f"{COMMANDS_MODULE}.save_review_state"),
+        with patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state), patch(
+            f"{COMMANDS_MODULE}.save_review_state"
         ):
             update_review_narrative(12345, "LGTM.")
 
@@ -111,9 +109,8 @@ class TestUpdateReviewNarrative:
 
         review_state = _make_review_state()
 
-        with (
-            patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state),
-            patch(f"{COMMANDS_MODULE}.save_review_state"),
+        with patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state), patch(
+            f"{COMMANDS_MODULE}.save_review_state"
         ):
             update_review_narrative(12345, "Excellent PR — all criteria met.")
 
@@ -155,9 +152,8 @@ class TestUpdateReviewNarrative:
         mock_requests.return_value = mock_req_module
 
         review_state = _make_review_state()
-        with (
-            patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state),
-            patch(f"{COMMANDS_MODULE}.save_review_state"),
+        with patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state), patch(
+            f"{COMMANDS_MODULE}.save_review_state"
         ):
             update_review_narrative(12345, "Approved.")
 

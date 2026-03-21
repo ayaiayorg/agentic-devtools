@@ -17,11 +17,10 @@ class TestRemoveTask:
         """Test removing an existing task."""
         task = BackgroundTask.create(command="cmd")
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.save_state") as mock_save,
-            patch("agentic_devtools.task_state._load_all_tasks_file", return_value=[]),
-            patch("agentic_devtools.task_state._save_all_tasks_file"),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.save_state"
+        ) as mock_save, patch("agentic_devtools.task_state._load_all_tasks_file", return_value=[]), patch(
+            "agentic_devtools.task_state._save_all_tasks_file"
         ):
             mock_load.return_value = {"background": {"recentTasks": [task.to_dict()]}}
 
@@ -34,11 +33,9 @@ class TestRemoveTask:
 
     def test_remove_nonexistent_task(self):
         """Test removing a non-existent task returns False."""
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state._load_all_tasks_file", return_value=[]),
-            patch("agentic_devtools.task_state._save_all_tasks_file"),
-        ):
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state._load_all_tasks_file", return_value=[]
+        ), patch("agentic_devtools.task_state._save_all_tasks_file"):
             mock_load.return_value = {"background": {"recentTasks": []}}
 
             result = remove_task("nonexistent-id", use_locking=False)
@@ -50,11 +47,10 @@ class TestRemoveTask:
         task1 = BackgroundTask.create(command="cmd1")
         task2 = BackgroundTask.create(command="cmd2")
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.save_state") as mock_save,
-            patch("agentic_devtools.task_state._load_all_tasks_file", return_value=[]),
-            patch("agentic_devtools.task_state._save_all_tasks_file"),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.save_state"
+        ) as mock_save, patch("agentic_devtools.task_state._load_all_tasks_file", return_value=[]), patch(
+            "agentic_devtools.task_state._save_all_tasks_file"
         ):
             mock_load.return_value = {"background": {"recentTasks": [task1.to_dict(), task2.to_dict()]}}
 

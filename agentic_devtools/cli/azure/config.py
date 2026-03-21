@@ -6,6 +6,7 @@ Defines Application Insights instances and Azure account mappings per environmen
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class AzureAccount(Enum):
@@ -77,7 +78,7 @@ def get_account_for_environment(environment: str) -> AzureAccount:
     return AzureAccount.AZA
 
 
-def get_app_insights_config(environment: str) -> AppInsightsConfig | None:
+def get_app_insights_config(environment: str) -> Optional[AppInsightsConfig]:
     """
     Get Application Insights configuration for an environment.
 

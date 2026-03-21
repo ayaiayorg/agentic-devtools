@@ -31,12 +31,11 @@ class TestSetupCmd:
 
     @pytest.fixture(autouse=True)
     def _isolate_gitignore(self):
-        """Prevent setup_cmd() from writing .agdt/.gitignore, injecting skills, or prompting for project config."""
+        """Prevent setup_cmd() from writing .agdt/.gitignore or injecting skills into the real repo."""
         with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
             with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
                 with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
-                    with patch.object(commands, "_prompt_project_config"):
-                        yield
+                    yield
 
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""
@@ -215,7 +214,8 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Ensured .agdt/.gitignore" in out
@@ -233,7 +233,8 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
                                     ):
-                                        commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to create/update .agdt/.gitignore" in err
@@ -250,8 +251,11 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=True):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch(
+                                                "agentic_devtools.skill_injector.inject_skills", return_value=True
+                                            ):
+                                                commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Injected agent/prompt skills" in out
@@ -268,8 +272,11 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch(
+                                                "agentic_devtools.skill_injector.inject_skills", return_value=False
+                                            ):
+                                                commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to inject agent/prompt skills" in err
@@ -296,8 +303,9 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("builtins.__import__", side_effect=_raising_import):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch("builtins.__import__", side_effect=_raising_import):
+                                                commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to import skill injector" in err

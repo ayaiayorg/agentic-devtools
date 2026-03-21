@@ -85,6 +85,35 @@ class TestCreateIssueDryRun:
             jira.create_issue()
         assert exc_info.value.code == 1
 
+    def test_create_issue_missing_project_key(self, temp_state_dir, clear_state_before, capsys):
+        """Test create_issue fails with missing project_key and no configured keys."""
+        jira.set_jira_value("summary", "Test")
+        jira.set_jira_value("role", "dev")
+        jira.set_jira_value("desired_outcome", "feature")
+        jira.set_jira_value("benefit", "value")
+
+        with patch.object(create_commands, "get_jira_project_keys", return_value=[]):
+            with pytest.raises(SystemExit) as exc_info:
+                jira.create_issue()
+            assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "No Jira project key configured" in captured.err
+
+    def test_create_issue_uses_configured_project_key(self, temp_state_dir, clear_state_before, capsys):
+        """Test create_issue falls back to configured project keys when jira.project_key is not set."""
+        jira.set_jira_value("summary", "Test Issue")
+        jira.set_jira_value("role", "dev")
+        jira.set_jira_value("desired_outcome", "feature")
+        jira.set_jira_value("benefit", "value")
+        jira.set_jira_value("dry_run", True)
+
+        with patch.object(create_commands, "get_jira_project_keys", return_value=["PROJ"]):
+            jira.create_issue()
+
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+
 
 class TestCreateIssueWithMock:
     """Tests for create_issue with mocked API calls."""

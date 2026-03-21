@@ -18,9 +18,8 @@ class TestGetTaskById:
         """Test retrieving an existing task."""
         task = BackgroundTask.create(command="agdt-cmd")
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.get_task_from_all_tasks", return_value=None),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.get_task_from_all_tasks", return_value=None
         ):
             mock_load.return_value = {"background": {"recentTasks": [task.to_dict()]}}
 
@@ -32,9 +31,8 @@ class TestGetTaskById:
 
     def test_get_nonexistent_task(self):
         """Test retrieving a non-existent task returns None."""
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.get_task_from_all_tasks", return_value=None),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.get_task_from_all_tasks", return_value=None
         ):
             mock_load.return_value = {"background": {"recentTasks": []}}
 
@@ -51,9 +49,8 @@ class TestGetTaskById:
             start_time="2024-01-01T00:00:00+00:00",
         )
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.get_task_from_all_tasks", return_value=None),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.get_task_from_all_tasks", return_value=None
         ):
             mock_load.return_value = {"background": {"recentTasks": [task.to_dict()]}}
 

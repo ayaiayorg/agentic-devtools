@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from .state import get_state_dir, load_state, save_state
 
@@ -50,7 +50,7 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
 
 
-def _sort_tasks(tasks: list["BackgroundTask"]) -> list["BackgroundTask"]:
+def _sort_tasks(tasks: List["BackgroundTask"]) -> List["BackgroundTask"]:
     """
     Sort tasks with custom ordering:
     - Unfinished tasks first (no end_time), sorted by start_time (earliest first)
@@ -105,18 +105,18 @@ class BackgroundTask:
     command: str
     status: TaskStatus
     start_time: str
-    end_time: str | None = None
-    log_file: str | None = None
-    exit_code: int | None = None
-    args: dict[str, Any] = field(default_factory=dict)
-    error_message: str | None = None
+    end_time: Optional[str] = None
+    log_file: Optional[str] = None
+    exit_code: Optional[int] = None
+    args: Dict[str, Any] = field(default_factory=dict)
+    error_message: Optional[str] = None
 
     @classmethod
     def create(
         cls,
         command: str,
-        log_file: Path | None = None,
-        args: dict[str, Any] | None = None,
+        log_file: Optional[Path] = None,
+        args: Optional[Dict[str, Any]] = None,
     ) -> "BackgroundTask":
         """
         Create a new background task with pending status.
@@ -138,7 +138,7 @@ class BackgroundTask:
             args=args or {},
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary for JSON serialization."""
         return {
             "id": self.id,
@@ -153,7 +153,7 @@ class BackgroundTask:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BackgroundTask":
+    def from_dict(cls, data: Dict[str, Any]) -> "BackgroundTask":
         """Create a BackgroundTask from a dictionary."""
         status_value = data.get("status", TaskStatus.PENDING.value)
         if isinstance(status_value, str):
@@ -186,7 +186,7 @@ class BackgroundTask:
         self.exit_code = exit_code
         self.end_time = datetime.now(timezone.utc).isoformat()
 
-    def mark_failed(self, exit_code: int = 1, error_message: str | None = None) -> None:
+    def mark_failed(self, exit_code: int = 1, error_message: Optional[str] = None) -> None:
         """Mark task as failed with exit code and optional error message."""
         self.status = TaskStatus.FAILED
         self.exit_code = exit_code
@@ -241,7 +241,7 @@ class BackgroundTask:
         except (ValueError, TypeError):  # pragma: no cover
             return True  # If we can't parse, keep it
 
-    def duration_seconds(self) -> float | None:
+    def duration_seconds(self) -> Optional[float]:
         """Get task duration in seconds, or None if not completed."""
         if not self.end_time:
             # For running tasks, calculate current duration
@@ -305,7 +305,7 @@ def get_all_tasks_file_path() -> Path:
 # =============================================================================
 
 
-def _get_recent_tasks_from_state(state: dict[str, Any]) -> list[BackgroundTask]:
+def _get_recent_tasks_from_state(state: Dict[str, Any]) -> List[BackgroundTask]:
     """
     Extract recent tasks from state dictionary.
 
@@ -326,7 +326,7 @@ def _get_recent_tasks_from_state(state: dict[str, Any]) -> list[BackgroundTask]:
     return [BackgroundTask.from_dict(task) for task in tasks_data]
 
 
-def _save_recent_tasks_to_state(state: dict[str, Any], tasks: list[BackgroundTask]) -> dict[str, Any]:
+def _save_recent_tasks_to_state(state: Dict[str, Any], tasks: List[BackgroundTask]) -> Dict[str, Any]:
     """
     Save recent tasks to state dictionary (in-place modification).
 
@@ -348,7 +348,7 @@ def _save_recent_tasks_to_state(state: dict[str, Any], tasks: list[BackgroundTas
     return state
 
 
-def get_recent_tasks(use_locking: bool = True) -> list[BackgroundTask]:
+def get_recent_tasks(use_locking: bool = True) -> List[BackgroundTask]:
     """
     Get recent background tasks from state.
 
@@ -363,7 +363,7 @@ def get_recent_tasks(use_locking: bool = True) -> list[BackgroundTask]:
     return _sort_tasks(tasks)
 
 
-def _prune_and_archive_old_tasks(tasks: list[BackgroundTask], use_locking: bool = True) -> list[BackgroundTask]:
+def _prune_and_archive_old_tasks(tasks: List[BackgroundTask], use_locking: bool = True) -> List[BackgroundTask]:
     """
     Separate tasks into recent and old, archive old ones.
 
@@ -395,7 +395,7 @@ def _prune_and_archive_old_tasks(tasks: list[BackgroundTask], use_locking: bool 
 # =============================================================================
 
 
-def _load_all_tasks_file() -> list[dict[str, Any]]:
+def _load_all_tasks_file() -> List[Dict[str, Any]]:
     """
     Load all tasks from the all-background-tasks.json file.
 
@@ -414,7 +414,7 @@ def _load_all_tasks_file() -> list[dict[str, Any]]:
         return []
 
 
-def _save_all_tasks_file(tasks_data: list[dict[str, Any]]) -> None:
+def _save_all_tasks_file(tasks_data: List[Dict[str, Any]]) -> None:
     """
     Save tasks to the all-background-tasks.json file.
 
@@ -432,7 +432,7 @@ def _save_all_tasks_file(tasks_data: list[dict[str, Any]]) -> None:
     file_path.write_text(content, encoding="utf-8")
 
 
-def _append_to_all_tasks(tasks: list[BackgroundTask], use_locking: bool = True) -> None:
+def _append_to_all_tasks(tasks: List[BackgroundTask], use_locking: bool = True) -> None:
     """
     Append tasks to the all-background-tasks.json file.
 
@@ -452,7 +452,7 @@ def _append_to_all_tasks(tasks: list[BackgroundTask], use_locking: bool = True) 
     _save_all_tasks_file(existing_data)
 
 
-def get_all_tasks() -> list[BackgroundTask]:
+def get_all_tasks() -> List[BackgroundTask]:
     """
     Get all tasks from the all-background-tasks.json file.
 
@@ -464,7 +464,7 @@ def get_all_tasks() -> list[BackgroundTask]:
     return _sort_tasks(tasks)
 
 
-def get_task_from_all_tasks(task_id: str) -> BackgroundTask | None:
+def get_task_from_all_tasks(task_id: str) -> Optional[BackgroundTask]:
     """
     Look up a task by ID in the all-background-tasks.json file.
 
@@ -494,7 +494,7 @@ def get_task_from_all_tasks(task_id: str) -> BackgroundTask | None:
 # =============================================================================
 
 
-def get_background_tasks(use_locking: bool = True) -> list[BackgroundTask]:
+def get_background_tasks(use_locking: bool = True) -> List[BackgroundTask]:
     """
     Get all background tasks from recent list (for backward compatibility).
 
@@ -509,7 +509,7 @@ def get_background_tasks(use_locking: bool = True) -> list[BackgroundTask]:
     return get_recent_tasks(use_locking=use_locking)
 
 
-def save_background_tasks(tasks: list[BackgroundTask], use_locking: bool = True) -> None:  # pragma: no cover
+def save_background_tasks(tasks: List[BackgroundTask], use_locking: bool = True) -> None:  # pragma: no cover
     """
     Save background tasks to state (prunes old tasks automatically).
 
@@ -602,7 +602,7 @@ def _update_task_in_all_tasks(task: BackgroundTask) -> None:
     _save_all_tasks_file(tasks_data)
 
 
-def get_task_by_id(task_id: str, use_locking: bool = True) -> BackgroundTask | None:
+def get_task_by_id(task_id: str, use_locking: bool = True) -> Optional[BackgroundTask]:
     """
     Get a specific task by ID.
 
@@ -632,7 +632,7 @@ def get_task_by_id(task_id: str, use_locking: bool = True) -> BackgroundTask | N
     return get_task_from_all_tasks(task_id)
 
 
-def get_tasks_by_status(status: TaskStatus, use_locking: bool = True) -> list[BackgroundTask]:
+def get_tasks_by_status(status: TaskStatus, use_locking: bool = True) -> List[BackgroundTask]:
     """
     Get all tasks with a specific status.
 
@@ -647,7 +647,7 @@ def get_tasks_by_status(status: TaskStatus, use_locking: bool = True) -> list[Ba
     return [task for task in tasks if task.status == status]
 
 
-def get_active_tasks(use_locking: bool = True) -> list[BackgroundTask]:
+def get_active_tasks(use_locking: bool = True) -> List[BackgroundTask]:
     """
     Get all active (pending or running) tasks.
 
@@ -769,7 +769,7 @@ def remove_task(task_id: str, delete_log: bool = False, use_locking: bool = True
 # =============================================================================
 
 
-def get_other_incomplete_tasks(exclude_task_id: str) -> list[BackgroundTask]:
+def get_other_incomplete_tasks(exclude_task_id: str) -> List[BackgroundTask]:
     """
     Get incomplete tasks from recent tasks, excluding the specified task.
 
@@ -787,7 +787,7 @@ def get_other_incomplete_tasks(exclude_task_id: str) -> list[BackgroundTask]:
     return incomplete
 
 
-def get_most_recent_tasks_per_command() -> dict[str, BackgroundTask]:
+def get_most_recent_tasks_per_command() -> Dict[str, BackgroundTask]:
     """
     Get the most recent task for each command type.
 
@@ -796,7 +796,7 @@ def get_most_recent_tasks_per_command() -> dict[str, BackgroundTask]:
         Tasks are sorted by start time (most recent first).
     """
     tasks = get_recent_tasks()
-    most_recent: dict[str, BackgroundTask] = {}
+    most_recent: Dict[str, BackgroundTask] = {}
 
     # Tasks are already sorted by start time (most recent first) from get_recent_tasks
     for task in tasks:
@@ -806,7 +806,7 @@ def get_most_recent_tasks_per_command() -> dict[str, BackgroundTask]:
     return most_recent
 
 
-def get_incomplete_most_recent_per_command(exclude_task_id: str = "") -> list[BackgroundTask]:
+def get_incomplete_most_recent_per_command(exclude_task_id: str = "") -> List[BackgroundTask]:
     """
     Get incomplete tasks that are the most recent of their command type.
 
@@ -833,8 +833,8 @@ def get_incomplete_most_recent_per_command(exclude_task_id: str = "") -> list[Ba
 
 def get_failed_most_recent_per_command(
     exclude_task_id: str = "",
-    exclude_commands: list[str] | None = None,
-) -> list[BackgroundTask]:
+    exclude_commands: Optional[List[str]] = None,
+) -> List[BackgroundTask]:
     """
     Get failed tasks that are the most recent of their command type.
 
@@ -864,7 +864,7 @@ def get_failed_most_recent_per_command(
     return failed
 
 
-def print_task_tracking_info(task: BackgroundTask, action_description: str | None = None) -> None:
+def print_task_tracking_info(task: BackgroundTask, action_description: Optional[str] = None) -> None:
     """
     Print standardized tracking information for a background task.
 

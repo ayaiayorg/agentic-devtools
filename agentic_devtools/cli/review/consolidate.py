@@ -13,6 +13,7 @@ resolution-specific logic, not review logic.
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from agentic_devtools.cli.azure_devops.review_attribution import (
     format_status,
@@ -96,7 +97,7 @@ def _apply_resolution(pr_id: int, resolution: dict) -> None:
     )
 
 
-def run_consolidate(pr_id: int, model_id: str | None = None) -> None:
+def run_consolidate(pr_id: int, model_id: Optional[str] = None) -> None:
     """Execute consolidation for a PR.
 
     Args:

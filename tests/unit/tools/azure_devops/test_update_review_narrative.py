@@ -134,11 +134,10 @@ class TestUpdateReviewNarrative:
         config.repository = "%REPO%"
 
         update_review_narrative(
-            config=config,
-            pat="pat",
-            pull_request_id=1,
-            content="Narrative",
+            config=config, pat="pat", pull_request_id=1, content="Narrative",
             review_state=mock_review_state,
         )
 
-        mock_repo_id.assert_called_once_with("https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%")
+        mock_repo_id.assert_called_once_with(
+            "https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%"
+        )

@@ -13,7 +13,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Optional
 
 from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from .review_state import ReviewState
 
 
-def _normalize_repo_path(path: str | None) -> str | None:
+def _normalize_repo_path(path: Optional[str]) -> Optional[str]:
     """Normalize a file path to repository format (/path/to/file)."""
     if not path or not path.strip():
         return None
@@ -44,8 +44,8 @@ def _normalize_repo_path(path: str | None) -> str | None:
 def _get_attribution_params(
     review_state: "ReviewState",
     config: AzureDevOpsConfig,
-    file_path: str | None = None,
-) -> dict[str, str | None]:
+    file_path: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
     """Extract attribution parameters from ReviewState for comment rendering.
 
     Returns a dict with keys ``model_name``, ``commit_hash``, and ``commit_url``
@@ -67,14 +67,14 @@ def _get_attribution_params(
     # Prefer the latest session model ID when available, but fall back to the
     # top-level ReviewState.modelId for backward/partial states where sessions
     # may be empty while the model is still known.
-    model_name: str | None
+    model_name: Optional[str]
     if getattr(review_state, "sessions", None):
         model_name = review_state.sessions[-1].modelId
     else:
         model_name = getattr(review_state, "modelId", None)
 
     commit_hash = review_state.commitHash
-    commit_url: str | None = None
+    commit_url: Optional[str] = None
     if commit_hash and review_state.latestIterationId:
         try:
             if file_path:
@@ -100,7 +100,7 @@ def _get_attribution_params(
     return {"model_name": model_name, "commit_hash": commit_hash, "commit_url": commit_url}
 
 
-def _get_thread_file_path(thread: dict) -> str | None:
+def _get_thread_file_path(thread: dict) -> Optional[str]:
     """Extract the file path from a thread's context."""
     context = thread.get("threadContext")
     if not context:

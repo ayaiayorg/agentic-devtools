@@ -13,6 +13,7 @@ import re
 import shutil
 import warnings
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -28,7 +29,7 @@ _ALPHA_ONLY_RE = re.compile(r"[^a-zA-Z]")
 _BUNDLED_DIR = Path(__file__).parent / "_bundled_skills"
 
 
-def _get_source_dir(kind: str) -> Path | None:
+def _get_source_dir(kind: str) -> Optional[Path]:
     """Return the directory that contains the bundled *kind* files.
 
     For wheel installs the files live under ``_bundled_skills/<kind>/``.
@@ -81,7 +82,7 @@ def _ensure_github_gitignore_unignores_agdt(git_root: Path) -> None:
         "!prompts/.agdt/**",
     ]
 
-    existing_lines: list[str] = []
+    existing_lines: List[str] = []
     if github_gitignore.exists():
         try:
             existing_lines = github_gitignore.read_text(encoding="utf-8").splitlines()
@@ -119,7 +120,7 @@ def _ensure_github_gitignore_unignores_agdt(git_root: Path) -> None:
             return
 
 
-def _list_md_files(source_dir: Path, kind: str) -> list[Path]:
+def _list_md_files(source_dir: Path, kind: str) -> List[Path]:
     """Return the ``.md`` files that should be injected for *kind*.
 
     Uses ``rglob`` so that future subdirectory structures are preserved.
@@ -146,7 +147,7 @@ def _list_md_files(source_dir: Path, kind: str) -> list[Path]:
 # ---------------------------------------------------------------------------
 
 
-def _derive_fallback_description_from_markdown(content: str) -> str | None:
+def _derive_fallback_description_from_markdown(content: str) -> Optional[str]:
     """Derive a short description from Markdown *content*.
 
     Prefers the first heading line (``#``-prefixed); otherwise uses the first
@@ -165,7 +166,7 @@ def _derive_fallback_description_from_markdown(content: str) -> str | None:
     return None
 
 
-def _parse_frontmatter(content: str) -> dict[str, object]:
+def _parse_frontmatter(content: str) -> Dict[str, object]:
     """Extract YAML front-matter from *content*.
 
     Returns a dictionary of parsed front-matter keys. When no valid
@@ -305,7 +306,7 @@ def _flatten_filename(rel_path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def inject_skills(git_root: Path | None) -> bool:
+def inject_skills(git_root: Optional[Path]) -> bool:
     """Mirror bundled agent/prompt files into the target repo.
 
     Places files directly into ``{git_root}/.github/agents/`` and
@@ -368,7 +369,11 @@ def inject_skills(git_root: Path | None) -> bool:
             # Note: a plain ``README.md`` (without the managed prefix) is
             # already excluded by the ``p.name.startswith(_MANAGED_PREFIX)``
             # filter below, so no separate check is needed.
-            source_files = [p for p in source_files if p.relative_to(source_dir) != Path(_MANAGED_README)]
+            source_files = [
+                p
+                for p in source_files
+                if p.relative_to(source_dir) != Path(_MANAGED_README)
+            ]
             # Exclude speckit.* files — they reference .specify/ scripts not
             # available in target repos and are non-functional without the
             # full speckit scaffold.

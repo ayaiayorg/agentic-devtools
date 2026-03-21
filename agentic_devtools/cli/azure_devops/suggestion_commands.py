@@ -12,7 +12,7 @@ Both commands read state keys and perform Azure DevOps API calls.
 """
 
 import sys
-from typing import Any
+from typing import Any, Dict
 
 from ...state import get_pull_request_id, get_thread_id, get_value, is_dry_run
 from .auth import get_auth_headers, get_pat
@@ -22,7 +22,7 @@ from .helpers import get_repository_id, require_requests, resolve_thread_by_id
 
 def _post_thread_reply(
     requests_module: Any,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,
@@ -52,7 +52,7 @@ def _post_thread_reply(
 
 def _set_thread_status(
     requests_module: Any,
-    headers: dict[str, str],
+    headers: Dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,

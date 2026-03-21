@@ -8,9 +8,8 @@ access the state file concurrently. Uses fcntl on Unix and msvcrt on Windows.
 import contextlib
 import sys
 import time
-from collections.abc import Iterator
 from pathlib import Path
-from typing import IO
+from typing import IO, Iterator, Optional
 
 
 class FileLockError(Exception):
@@ -130,7 +129,7 @@ def locked_file(
     mode: str = "r+",
     exclusive: bool = True,
     timeout: float = 5.0,
-    encoding: str | None = "utf-8",
+    encoding: Optional[str] = "utf-8",
 ) -> Iterator[IO]:
     """
     Context manager for accessing a file with locking.

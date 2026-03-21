@@ -261,10 +261,10 @@ def create_subtask() -> None:
 
     if parent_key:
         project_key = parent_key.split("-")[0]
-    else:
+    else:  # pragma: no cover — parent_key is always required above
         keys = get_jira_project_keys()
         project_key = keys[0] if keys else None
-    if not project_key:
+    if not project_key:  # pragma: no cover — defensive; parent_key always provides a key
         print("Error: No Jira project key configured. Run agdt-setup or set jira.project_key.", file=sys.stderr)
         sys.exit(1)
 

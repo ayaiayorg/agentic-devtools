@@ -11,6 +11,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import AzureCliCredential
@@ -90,8 +91,8 @@ union traces, requests
 
 def _build_combined_filter(
     timespan: str,
-    dataproduct_id: str | None = None,
-    workbench: str | None = None,
+    dataproduct_id: Optional[str] = None,
+    workbench: Optional[str] = None,
     include_mgmt: bool = True,
 ) -> str:
     """
@@ -149,8 +150,8 @@ def _format_query(
     query_template: str,
     timespan: str = "1h",
     limit: int = 100,
-    dataproduct_id: str | None = None,
-    workbench: str | None = None,
+    dataproduct_id: Optional[str] = None,
+    workbench: Optional[str] = None,
     include_mgmt: bool = True,
 ) -> str:
     """Format a query template with combined filter for optimal Kusto execution."""
@@ -171,9 +172,9 @@ def _run_app_insights_query(  # pragma: no cover
     query: str,
     dry_run: bool = False,
     auto_switch_account: bool = True,
-    output_file: Path | None = None,
+    output_file: Optional[Path] = None,
     timeout_seconds: int = 120,
-) -> dict | None:
+) -> Optional[dict]:
     """
     Run a KQL query against Application Insights using the azure-monitor-query SDK.
 
@@ -671,7 +672,7 @@ def query_fabric_dap_timeline() -> None:  # pragma: no cover
 # Async wrappers for CLI entry points with argparse support
 
 
-def _set_if_provided(key: str, value: str | None) -> None:
+def _set_if_provided(key: str, value: Optional[str]) -> None:
     """Set a state value if provided (not None)."""
     if value is not None:
         set_value(key, value)

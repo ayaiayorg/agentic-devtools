@@ -6,6 +6,7 @@ Functions for fetching Jira issues and extracting linked PRs.
 
 import os
 import re
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -15,7 +16,7 @@ JIRA_BASE_URL_ENV = "JIRA_BASE_URL"
 JIRA_BASE_URL_DEFAULT = "https://jira.swica.ch"
 
 
-def _get_jira_ssl_verify() -> bool | str:
+def _get_jira_ssl_verify() -> Union[bool, str]:
     """Get SSL verification setting for Jira API calls.
 
     Delegates to the Jira helpers module which handles the full priority chain
@@ -34,7 +35,7 @@ def _get_jira_ssl_verify() -> bool | str:
         return True
 
 
-def get_jira_credentials() -> tuple[str | None, str]:
+def get_jira_credentials() -> Tuple[Optional[str], str]:
     """
     Get Jira credentials from environment.
 
@@ -46,7 +47,7 @@ def get_jira_credentials() -> tuple[str | None, str]:
     return pat, base_url
 
 
-def fetch_jira_issue(issue_key: str, verbose: bool = False) -> dict | None:
+def fetch_jira_issue(issue_key: str, verbose: bool = False) -> Optional[Dict]:
     """
     Fetch Jira issue details via REST API.
 
@@ -86,7 +87,7 @@ def fetch_jira_issue(issue_key: str, verbose: bool = False) -> dict | None:
     return None
 
 
-def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> list[dict]:
+def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> List[Dict]:
     """
     Fetch PRs from Jira Development panel via the dev-status API.
 
@@ -170,7 +171,7 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> list[d
         return []
 
 
-def extract_pr_id_from_development_panel(pull_requests: list[dict]) -> int | None:
+def extract_pr_id_from_development_panel(pull_requests: List[Dict]) -> Optional[int]:
     """
     Extract Azure DevOps PR ID from development panel PR data.
 
@@ -207,7 +208,7 @@ def extract_pr_id_from_development_panel(pull_requests: list[dict]) -> int | Non
     return None
 
 
-def extract_linked_pr_from_issue(issue_data: dict) -> int | None:
+def extract_linked_pr_from_issue(issue_data: Dict) -> Optional[int]:
     """
     Extract linked Azure DevOps PR ID from Jira issue comments/description.
 
@@ -250,7 +251,7 @@ def extract_linked_pr_from_issue(issue_data: dict) -> int | None:
     return None
 
 
-def get_linked_pull_request_from_jira(issue_key: str, verbose: bool = False) -> int | None:
+def get_linked_pull_request_from_jira(issue_key: str, verbose: bool = False) -> Optional[int]:
     """
     Get linked PR ID from a Jira issue using text pattern matching.
 
@@ -272,7 +273,7 @@ def get_linked_pull_request_from_jira(issue_key: str, verbose: bool = False) -> 
     return extract_linked_pr_from_issue(issue_data)
 
 
-def get_pr_from_development_panel(issue_key: str, verbose: bool = False) -> int | None:
+def get_pr_from_development_panel(issue_key: str, verbose: bool = False) -> Optional[int]:
     """
     Get linked PR ID from Jira Development panel.
 
@@ -290,7 +291,7 @@ def get_pr_from_development_panel(issue_key: str, verbose: bool = False) -> int 
     return extract_pr_id_from_development_panel(pull_requests)
 
 
-def display_jira_issue_summary(issue_data: dict) -> None:
+def display_jira_issue_summary(issue_data: Dict) -> None:
     """
     Print a formatted summary of a Jira issue.
 
@@ -315,7 +316,7 @@ def display_jira_issue_summary(issue_data: dict) -> None:
         print(f"   Labels: {', '.join(labels)}")
 
 
-def fetch_and_display_jira_issue(issue_key: str, verbose: bool = False) -> dict | None:
+def fetch_and_display_jira_issue(issue_key: str, verbose: bool = False) -> Optional[Dict]:
     """
     Fetch a Jira issue and display its summary.
 

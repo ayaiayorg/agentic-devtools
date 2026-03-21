@@ -17,11 +17,10 @@ class TestUpdateTask:
         """Test updating an existing task."""
         task = BackgroundTask.create(command="cmd")
 
-        with (
-            patch("agentic_devtools.task_state.load_state") as mock_load,
-            patch("agentic_devtools.task_state.save_state") as mock_save,
-            patch("agentic_devtools.task_state._update_task_in_all_tasks"),
-            patch("agentic_devtools.task_state._append_to_all_tasks"),
+        with patch("agentic_devtools.task_state.load_state") as mock_load, patch(
+            "agentic_devtools.task_state.save_state"
+        ) as mock_save, patch("agentic_devtools.task_state._update_task_in_all_tasks"), patch(
+            "agentic_devtools.task_state._append_to_all_tasks"
         ):
             mock_load.return_value = {"background": {"recentTasks": [task.to_dict()]}}
 

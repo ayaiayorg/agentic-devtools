@@ -18,7 +18,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional, Set
 
 from ...prompts import get_temp_output_dir, load_and_render_prompt
 from ...state import get_value, get_workflow_state, set_workflow_state
@@ -87,8 +87,8 @@ class WorkflowTransition:
 
     from_step: str
     to_step: str
-    trigger_events: set[WorkflowEvent] = field(default_factory=set)
-    required_tasks: list[str] = field(default_factory=list)  # Command names
+    trigger_events: Set[WorkflowEvent] = field(default_factory=set)
+    required_tasks: List[str] = field(default_factory=list)  # Command names
     auto_advance: bool = True
 
 
@@ -104,17 +104,17 @@ class WorkflowDefinition:
     """
 
     name: str
-    transitions: list[WorkflowTransition]
+    transitions: List[WorkflowTransition]
     initial_step: str = "initiate"
 
-    def get_transition(self, from_step: str, event: WorkflowEvent) -> WorkflowTransition | None:
+    def get_transition(self, from_step: str, event: WorkflowEvent) -> Optional[WorkflowTransition]:
         """Find a transition that matches the current step and event."""
         for t in self.transitions:
             if t.from_step == from_step and event in t.trigger_events:
                 return t
         return None
 
-    def get_next_step(self, current_step: str) -> str | None:
+    def get_next_step(self, current_step: str) -> Optional[str]:
         """Get the default next step from current step (for manual advancement)."""
         for t in self.transitions:
             if t.from_step == current_step and WorkflowEvent.MANUAL_ADVANCE in t.trigger_events:
@@ -247,7 +247,7 @@ PULL_REQUEST_REVIEW_WORKFLOW = WorkflowDefinition(
 )
 
 # Registry of all workflow definitions
-WORKFLOW_REGISTRY: dict[str, WorkflowDefinition] = {
+WORKFLOW_REGISTRY: Dict[str, WorkflowDefinition] = {
     "work-on-jira-issue": WORK_ON_JIRA_ISSUE_WORKFLOW,
     "pull-request-review": PULL_REQUEST_REVIEW_WORKFLOW,
     # Other workflows use simple single-step patterns
@@ -259,7 +259,7 @@ WORKFLOW_REGISTRY: dict[str, WorkflowDefinition] = {
 # =============================================================================
 
 
-def get_workflow_definition(workflow_name: str) -> WorkflowDefinition | None:
+def get_workflow_definition(workflow_name: str) -> Optional[WorkflowDefinition]:
     """Get the workflow definition by name."""
     return WORKFLOW_REGISTRY.get(workflow_name)
 
@@ -271,13 +271,13 @@ class NotifyEventResult:
     triggered: bool
     immediate_advance: bool = False
     prompt_rendered: bool = False
-    new_step: str | None = None
+    new_step: Optional[str] = None
 
 
 def notify_workflow_event(
     event: WorkflowEvent,
-    task_id: str | None = None,
-    context_updates: dict[str, Any] | None = None,
+    task_id: Optional[str] = None,
+    context_updates: Optional[Dict[str, Any]] = None,
 ) -> NotifyEventResult:
     """
     Notify the workflow manager that an event occurred.
@@ -411,9 +411,9 @@ class NextPromptResult:
 
     status: PromptStatus
     content: str
-    step: str | None = None
-    pending_task_ids: list[str] | None = None
-    failed_task_ids: list[str] | None = None
+    step: Optional[str] = None
+    pending_task_ids: Optional[List[str]] = None
+    failed_task_ids: Optional[List[str]] = None
 
 
 def get_next_workflow_prompt() -> NextPromptResult:
@@ -512,7 +512,7 @@ def get_next_workflow_prompt() -> NextPromptResult:
         )
 
 
-def _check_required_tasks_status(required_task_commands: list[str], context: dict[str, Any]) -> list[dict[str, Any]]:
+def _check_required_tasks_status(required_task_commands: List[str], context: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Check if any required tasks failed.
 
@@ -548,7 +548,7 @@ def _build_command_hint(
     command_name: str,
     param_name: str,
     state_key: str,
-    current_value: str | None,
+    current_value: Optional[str],
     is_required: bool = True,
 ) -> str:
     """
@@ -579,7 +579,7 @@ def _build_command_hint(
         return f"`{param_name}` (optional - `{state_key}` not set)"
 
 
-def _render_step_prompt(workflow_name: str, step_name: str, context: dict[str, Any]) -> str:
+def _render_step_prompt(workflow_name: str, step_name: str, context: Dict[str, Any]) -> str:
     """
     Render the prompt for a workflow step.
 
@@ -695,7 +695,7 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: dict[str, A
     )
 
 
-def _render_waiting_prompt(workflow_name: str, step_name: str, pending_tasks: list[Any]) -> str:
+def _render_waiting_prompt(workflow_name: str, step_name: str, pending_tasks: List[Any]) -> str:
     """Render a prompt indicating tasks are still in progress."""
     task_lines = []
     for task in pending_tasks:
@@ -727,7 +727,7 @@ agdt-get-next-workflow-prompt
 """
 
 
-def _render_failure_prompt(workflow_name: str, step_name: str, failed_tasks: list[dict[str, Any]]) -> str:
+def _render_failure_prompt(workflow_name: str, step_name: str, failed_tasks: List[Dict[str, Any]]) -> str:
     """Render a prompt indicating task failure."""
     task_lines = []
     for task in failed_tasks:

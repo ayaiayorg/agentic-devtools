@@ -9,6 +9,7 @@ arguments the user supplied on the CLI, then starts an interactive
 
 import re
 import sys
+from typing import Optional
 
 from ...state import _get_git_repo_root, get_state_dir
 
@@ -84,7 +85,7 @@ def _run(name: str, arguments: str) -> None:
     print(save_notice)
 
 
-def _parse_args(argv: list | None = None) -> str:
+def _parse_args(argv: Optional[list] = None) -> str:
     """Return remaining CLI args joined as a single string."""
     args = argv if argv is not None else sys.argv[1:]
     return " ".join(args)
@@ -95,46 +96,46 @@ def _parse_args(argv: list | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def speckit_specify(argv: list | None = None) -> None:
+def speckit_specify(argv: Optional[list] = None) -> None:
     """agdt-speckit-specify — create or update a feature specification."""
     _run("specify", _parse_args(argv))
 
 
-def speckit_plan(argv: list | None = None) -> None:
+def speckit_plan(argv: Optional[list] = None) -> None:
     """agdt-speckit-plan — generate an implementation plan."""
     _run("plan", _parse_args(argv))
 
 
-def speckit_tasks(argv: list | None = None) -> None:
+def speckit_tasks(argv: Optional[list] = None) -> None:
     """agdt-speckit-tasks — generate actionable tasks from design artifacts."""
     _run("tasks", _parse_args(argv))
 
 
-def speckit_implement(argv: list | None = None) -> None:
+def speckit_implement(argv: Optional[list] = None) -> None:
     """agdt-speckit-implement — execute the implementation plan."""
     _run("implement", _parse_args(argv))
 
 
-def speckit_clarify(argv: list | None = None) -> None:
+def speckit_clarify(argv: Optional[list] = None) -> None:
     """agdt-speckit-clarify — identify underspecified areas in the spec."""
     _run("clarify", _parse_args(argv))
 
 
-def speckit_checklist(argv: list | None = None) -> None:
+def speckit_checklist(argv: Optional[list] = None) -> None:
     """agdt-speckit-checklist — generate a custom checklist for the feature."""
     _run("checklist", _parse_args(argv))
 
 
-def speckit_analyze(argv: list | None = None) -> None:
+def speckit_analyze(argv: Optional[list] = None) -> None:
     """agdt-speckit-analyze — cross-artifact consistency and quality analysis."""
     _run("analyze", _parse_args(argv))
 
 
-def speckit_constitution(argv: list | None = None) -> None:
+def speckit_constitution(argv: Optional[list] = None) -> None:
     """agdt-speckit-constitution — create or update the project constitution."""
     _run("constitution", _parse_args(argv))
 
 
-def speckit_taskstoissues(argv: list | None = None) -> None:
+def speckit_taskstoissues(argv: Optional[list] = None) -> None:
     """agdt-speckit-taskstoissues — convert tasks to GitHub issues."""
     _run("taskstoissues", _parse_args(argv))
