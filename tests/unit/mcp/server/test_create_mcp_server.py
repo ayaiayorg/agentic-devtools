@@ -13,7 +13,7 @@ from agentic_devtools.mcp.server import (
 )
 
 
-def _tool_names(server: FastMCP) -> set[str]:
+def get_tool_names(server: FastMCP) -> set[str]:
     """Return the set of tool names registered on *server*."""
     tools = asyncio.run(server.list_tools())
     return {t.name for t in tools}
@@ -30,7 +30,7 @@ class TestCreateMcpServer:
     def test_registers_jira_tools(self):
         with patch.dict(os.environ, {}, clear=True):
             server = create_mcp_server()
-        names = _tool_names(server)
+        names = get_tool_names(server)
         expected = {
             "jira_create_issue",
             "jira_create_epic",
@@ -43,7 +43,7 @@ class TestCreateMcpServer:
     def test_registers_git_tools(self):
         with patch.dict(os.environ, {}, clear=True):
             server = create_mcp_server()
-        names = _tool_names(server)
+        names = get_tool_names(server)
         expected = {
             "git_stage_changes",
             "git_create_commit",
@@ -59,7 +59,7 @@ class TestCreateMcpServer:
     def test_registers_azure_devops_tools(self):
         with patch.dict(os.environ, {}, clear=True):
             server = create_mcp_server()
-        names = _tool_names(server)
+        names = get_tool_names(server)
         expected = {
             "azure_devops_create_pull_request",
             "azure_devops_reply_to_thread",
@@ -71,7 +71,7 @@ class TestCreateMcpServer:
     def test_does_not_register_stub_tools(self):
         with patch.dict(os.environ, {}, clear=True):
             server = create_mcp_server()
-        names = _tool_names(server)
+        names = get_tool_names(server)
         # Stubs that raise NotImplementedError must NOT be registered
         assert "add_reviewer" not in names
         assert "complete_pull_request" not in names
@@ -84,7 +84,7 @@ class TestCreateMcpServer:
     def test_total_tool_count(self):
         with patch.dict(os.environ, {}, clear=True):
             server = create_mcp_server()
-        names = _tool_names(server)
+        names = get_tool_names(server)
         # 5 Jira + 8 Git + 4 Azure DevOps = 17
         assert len(names) == 17
 
