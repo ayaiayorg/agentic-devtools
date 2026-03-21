@@ -52,7 +52,7 @@ tools for that platform return an error message when called.
 > infer the repository name from the current git remote (typically `origin`).
 > If auto-detection fails (e.g. running outside a git repo or when the remote
 > URL cannot be parsed), Azure DevOps tools will be treated as not configured.
-> If the git remote points to a non–Azure DevOps host (for example GitHub),
+> If the git remote points to a non-Azure DevOps host (for example GitHub),
 > a repository name may still be inferred but Azure DevOps operations will
 > typically fail at call time; in such cases, or in non-git contexts, set
 > `AZURE_DEVOPS_REPOSITORY` explicitly to the Azure DevOps repository name.
