@@ -499,7 +499,7 @@ def get_vpn_hostnames() -> list[str]:
         raw = get_project_config_value("vpn_hostnames")
     if not raw:
         return []
-    return [h.strip() for h in raw.split(",") if h.strip()]
+    return [h.strip().lower() for h in raw.split(",") if h.strip()]
 
 
 def is_on_corporate_network(timeout_seconds: int = 3) -> bool:

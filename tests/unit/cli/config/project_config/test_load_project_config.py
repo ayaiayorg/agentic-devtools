@@ -39,3 +39,23 @@ class TestLoadProjectConfig:
         assert result == {}
         captured = capsys.readouterr()
         assert "Malformed JSON" in captured.err
+
+    def test_returns_empty_dict_on_non_dict_json(self, tmp_path, capsys):
+        """Should return empty dict and warn when JSON root is not an object."""
+        config_file = tmp_path / "project.json"
+        config_file.write_text('["a", "b"]', encoding="utf-8")
+        with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=config_file):
+            result = load_project_config()
+        assert result == {}
+        captured = capsys.readouterr()
+        assert "Expected JSON object" in captured.err
+
+    def test_returns_empty_dict_on_read_error(self, tmp_path, capsys):
+        """Should return empty dict and warn on I/O read error."""
+        config_file = tmp_path / "project.json"
+        config_file.mkdir()  # directory, not a file — will cause OSError on read_text
+        with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=config_file):
+            result = load_project_config()
+        assert result == {}
+        captured = capsys.readouterr()
+        assert "Cannot read" in captured.err

@@ -36,13 +36,26 @@ def load_project_config() -> dict[str, Any]:
     if config_path is None or not config_path.exists():
         return {}
     try:
-        return json.loads(config_path.read_text(encoding="utf-8"))
+        parsed = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         print(
             f"Warning: Malformed JSON in {config_path}. Using empty config.",
             file=sys.stderr,
         )
         return {}
+    except OSError:
+        print(
+            f"Warning: Cannot read {config_path}. Using empty config.",
+            file=sys.stderr,
+        )
+        return {}
+    if not isinstance(parsed, dict):
+        print(
+            f"Warning: Expected JSON object in {config_path}, got {type(parsed).__name__}. Using empty config.",
+            file=sys.stderr,
+        )
+        return {}
+    return parsed
 
 
 def save_project_config(config: dict[str, Any]) -> Path:
