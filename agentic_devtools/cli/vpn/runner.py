@@ -112,19 +112,24 @@ def run_with_vpn_context(
         if requirement == VpnRequirement.REQUIRE_VPN:
             # Command needs VPN - ensure it's connected
             if context == NetworkContext.REMOTE_WITHOUT_VPN:
-                print("🔌 Command needs VPN - connecting...")
-                # VpnToggleContext will connect if needed
-                with VpnToggleContext(vpn_url=vpn_url, ensure_connected=True, verbose=True):
-                    return _execute_command(command, shell)
-            else:
-                # Already have access (VPN or corporate network)
-                return _execute_command(command, shell)
+                if vpn_url is None:
+                    print("⚠️  Command needs VPN but no VPN URL configured")
+                    print("   Run agdt-setup to configure VPN URL")
+                    print("   Attempting to run anyway...")
+                else:
+                    from ..azure_devops.vpn_toggle import smart_connect_vpn
+
+                    print("🔌 Command needs VPN - connecting...")
+                    smart_connect_vpn(vpn_url)
+            # Run command (VPN now connected, or already had access)
+            return _execute_command(command, shell)
 
         elif requirement == VpnRequirement.REQUIRE_PUBLIC:
             # Command needs public access - disconnect VPN if connected
             if context == NetworkContext.REMOTE_WITH_VPN:
                 print("📡 Command needs public access - temporarily disconnecting VPN...")
-                with VpnToggleContext(vpn_url=vpn_url, ensure_connected=False, verbose=True):
+                # VpnToggleContext(auto_toggle=True) disconnects on enter, reconnects on exit
+                with VpnToggleContext(vpn_url=vpn_url, auto_toggle=True, verbose=True):
                     return _execute_command(command, shell)
             else:
                 # Not on VPN (or on corporate network) - run as-is

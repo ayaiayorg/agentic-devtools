@@ -68,10 +68,15 @@ class TestPromptProjectConfig:
         assert "No project configuration values provided" in out
 
     def test_removes_cleared_values(self, capsys):
-        """Should remove keys from config when user provides empty value for existing key."""
-        existing = {"jira_project_keys": "DFLY", "jira_base_url": "https://jira.example.com"}
-        # Provide a space (which strips to empty) for jira_project_keys, keep jira_base_url
-        inputs = iter([" ", "", "", "", ""])
+        """Should remove optional keys when user enters empty for allow_clear fields."""
+        existing = {
+            "jira_project_keys": "DFLY",
+            "jira_base_url": "https://jira.example.com",
+            "vpn_url": "https://vpn.example.com",
+        }
+        # Enter empty for all: jira_project_keys and jira_base_url keep existing (not allow_clear),
+        # corporate_network_test_host/vpn_url/vpn_hostnames clear (allow_clear=True)
+        inputs = iter(["", "", "", "", ""])
 
         with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
             with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
@@ -82,8 +87,8 @@ class TestPromptProjectConfig:
 
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
-        # jira_project_keys was cleared (empty input with existing value reverts to existing)
-        # Actually, _ask returns existing value when answer is empty, so jira_project_keys stays
-        # Let me re-read: input returns " " which strips to "" which is falsy -> returns current "DFLY"
+        # Non-clearable fields keep existing values
         assert saved["jira_project_keys"] == "DFLY"
         assert saved["jira_base_url"] == "https://jira.example.com"
+        # Clearable field with existing value was removed (empty input + allow_clear)
+        assert "vpn_url" not in saved

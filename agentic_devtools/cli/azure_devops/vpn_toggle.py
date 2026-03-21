@@ -1116,6 +1116,9 @@ def vpn_off_cmd() -> None:
         return
 
     vpn_url = get_vpn_url_from_state()
+    if vpn_url is None:
+        print("❌ VPN URL not configured. Run agdt-setup to set the VPN portal URL.")
+        return
     success, msg = disconnect_vpn(vpn_url)
 
     if success:
@@ -1155,6 +1158,9 @@ def vpn_on_cmd() -> None:
         return
 
     vpn_url = get_vpn_url_from_state()
+    if vpn_url is None:
+        print("❌ VPN URL not configured. Run agdt-setup to set the VPN portal URL.")
+        return
     success, msg = smart_connect_vpn(vpn_url)
 
     if success:
