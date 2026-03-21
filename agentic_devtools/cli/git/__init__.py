@@ -2,7 +2,7 @@
 Git workflow CLI commands and helpers.
 
 Commands provide a streamlined interface for the single-commit workflow:
-1. agdt-git-commit / agdt-git-sync: Fetch, rebase onto main, stage, commit, and publish
+1. agdt-git-save-work (alias: agdt-git-sync): Fetch, rebase onto main, stage, commit, and publish
    - Fetches latest from origin/main and rebases if behind
    - Auto-aborts rebase on conflicts with manual resolution instructions
    - Detects if branch already has commits ahead of main for same issue

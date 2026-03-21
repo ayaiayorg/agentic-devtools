@@ -3,7 +3,7 @@ Workflow Manager - Event-driven workflow orchestration.
 
 This module provides:
 - Workflow transition definitions (what action triggers which next step)
-- Event notification from commands (agdt-add-jira-comment, agdt-git-commit, etc.)
+- Event notification from commands (agdt-add-jira-comment, agdt-git-save-work, etc.)
 - Status checking (pending tasks, failures, success)
 - Prompt delivery based on current state
 
@@ -720,7 +720,7 @@ agdt-get-next-workflow-prompt
 Or wait for a specific task:
 
 ```bash
-agdt-set task_id {pending_tasks[0].id}
+agdt-set background.task_id {pending_tasks[0].id}
 agdt-task-wait
 agdt-get-next-workflow-prompt
 ```
