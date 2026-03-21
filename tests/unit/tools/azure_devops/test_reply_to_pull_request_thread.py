@@ -65,3 +65,31 @@ class TestReplyToPullRequestThread:
 
         assert result["thread_resolved"] is True
         mock_resolve.assert_called_once()
+
+    @patch("agentic_devtools.tools.azure_devops.sys")
+    @patch("agentic_devtools.cli.azure_devops.helpers.resolve_thread_by_id")
+    @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
+    @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
+    def test_escapes_config_args_for_get_repository_id_on_windows(
+        self, mock_req, mock_auth, mock_repo_id, mock_resolve, mock_sys
+    ):
+        """Config-derived values are escaped before passing to get_repository_id on Windows."""
+        mock_sys.platform = "win32"
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 42}
+        mock_requests.post.return_value = mock_response
+        mock_req.return_value = mock_requests
+        config = self._make_config()
+        config.organization = "https://dev.azure.com/%ORG%"
+        config.project = "%PROJECT%"
+        config.repository = "%REPO%"
+
+        reply_to_pull_request_thread(
+            config=config, pat="pat", pull_request_id=1, thread_id=10, content="Hi"
+        )
+
+        mock_repo_id.assert_called_once_with(
+            "https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%"
+        )

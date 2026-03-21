@@ -250,7 +250,11 @@ def reply_to_pull_request_thread(
 
     requests = _get_requests()
     headers = get_auth_headers(pat)
-    repo_id = get_repository_id(config.organization, config.project, config.repository)
+    repo_id = get_repository_id(
+        _escape_for_cmd(config.organization),
+        _escape_for_cmd(config.project),
+        _escape_for_cmd(config.repository),
+    )
 
     comment_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id, "comments")
     comment_body: dict[str, Any] = {
@@ -318,7 +322,11 @@ def add_pull_request_comment(
 
     requests = _get_requests()
     headers = get_auth_headers(pat)
-    repo_id = get_repository_id(config.organization, config.project, config.repository)
+    repo_id = get_repository_id(
+        _escape_for_cmd(config.organization),
+        _escape_for_cmd(config.project),
+        _escape_for_cmd(config.repository),
+    )
 
     thread_context = build_thread_context(path, line, end_line)
 
@@ -407,7 +415,11 @@ def update_review_narrative(
 
     repo_id = getattr(review_state, "repoId", None)
     if not repo_id:
-        repo_id = get_repository_id(config.organization, config.project, config.repository)
+        repo_id = get_repository_id(
+            _escape_for_cmd(config.organization),
+            _escape_for_cmd(config.project),
+            _escape_for_cmd(config.repository),
+        )
         # Persist repo_id back so future calls skip the lookup
         review_state.repoId = repo_id
 

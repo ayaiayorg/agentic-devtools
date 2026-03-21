@@ -108,3 +108,36 @@ class TestUpdateReviewNarrative:
         # Verify repo_id came from review_state, not from get_repository_id
         call_args = mock_patch.call_args
         assert call_args[0][3] == "existing-repo-id"
+
+    @patch("agentic_devtools.tools.azure_devops.sys")
+    @patch("agentic_devtools.cli.azure_devops.review_state.save_review_state")
+    @patch("agentic_devtools.cli.azure_devops.helpers.patch_comment")
+    @patch("agentic_devtools.cli.azure_devops.review_templates.render_overall_summary", return_value="rendered")
+    @patch(
+        "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url", return_value="https://example.com/pr/1"
+    )
+    @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
+    @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
+    def test_escapes_config_args_for_get_repository_id_on_windows(
+        self, mock_req, mock_auth, mock_repo_id, mock_base_url, mock_render, mock_patch, mock_save, mock_sys
+    ):
+        """Config-derived values are escaped before passing to get_repository_id on Windows."""
+        mock_sys.platform = "win32"
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = None  # Forces get_repository_id call
+        mock_review_state.overallSummary.threadId = 1
+        mock_review_state.overallSummary.commentId = 2
+        config = self._make_config()
+        config.organization = "https://dev.azure.com/%ORG%"
+        config.project = "%PROJECT%"
+        config.repository = "%REPO%"
+
+        update_review_narrative(
+            config=config, pat="pat", pull_request_id=1, content="Narrative",
+            review_state=mock_review_state,
+        )
+
+        mock_repo_id.assert_called_once_with(
+            "https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%"
+        )
