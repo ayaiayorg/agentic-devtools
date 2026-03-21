@@ -80,7 +80,7 @@ class TestGetSslVerify:
 
     def test_ssl_verify_ignores_nonexistent_ca_bundle(self):
         """Test ignores CA bundle path if file doesn't exist and falls back to auto-gen."""
-        with patch.dict("os.environ", {"JIRA_CA_BUNDLE": "/nonexistent/ca.pem"}, clear=True):
+        with patch.dict("os.environ", {"JIRA_CA_BUNDLE": "/nonexistent/ca.pem", "JIRA_BASE_URL": "https://jira.test.example.com"}, clear=True):
             with patch("os.path.exists") as mock_exists:
                 with patch("agentic_devtools.cli.jira.helpers._get_repo_jira_pem_path") as mock_repo_pem:
                     with patch("agentic_devtools.cli.jira.helpers._ensure_jira_pem") as mock_ensure:
@@ -96,7 +96,7 @@ class TestGetSslVerify:
 
     def test_ssl_verify_uses_repo_committed_pem(self):
         """Test SSL verification uses repo-committed PEM when it exists."""
-        with patch.dict("os.environ", {}, clear=True):
+        with patch.dict("os.environ", {"JIRA_BASE_URL": "https://jira.test.example.com"}, clear=True):
             with patch("agentic_devtools.cli.jira.helpers._get_repo_jira_pem_path") as mock_repo_pem:
                 mock_path = MagicMock()
                 mock_path.exists.return_value = True

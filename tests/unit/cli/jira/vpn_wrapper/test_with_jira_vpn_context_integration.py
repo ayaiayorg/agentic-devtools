@@ -13,8 +13,9 @@ from agentic_devtools.cli.jira.vpn_wrapper import with_jira_vpn_context
 class TestWithJiraVpnContextIntegration:
     """Integration tests for the VPN wrapper with mocked VPN toggle module."""
 
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.get_vpn_url_from_state", return_value="https://test.vpn")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_on_corporate_network")
-    def test_decorator_works_on_corporate_network(self, mock_corp):
+    def test_decorator_works_on_corporate_network(self, mock_corp, _mock_url):
         """Test decorator works when on corporate network."""
         mock_corp.return_value = True
 
@@ -27,13 +28,14 @@ class TestWithJiraVpnContextIntegration:
         assert result == {"key": "value"}
         mock_corp.assert_called()
 
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.get_vpn_url_from_state", return_value="https://test.vpn")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.disconnect_vpn")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.smart_connect_vpn")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_on_corporate_network")
     def test_decorator_connects_and_disconnects_vpn(
-        self, mock_corp, mock_installed, mock_vpn, mock_connect, mock_disconnect
+        self, mock_corp, mock_installed, mock_vpn, mock_connect, mock_disconnect, _mock_url
     ):
         """Test decorator connects VPN before and disconnects after function call."""
         mock_corp.return_value = False

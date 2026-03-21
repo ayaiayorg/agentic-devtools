@@ -31,11 +31,12 @@ class TestSetupCmd:
 
     @pytest.fixture(autouse=True)
     def _isolate_gitignore(self):
-        """Prevent setup_cmd() from writing .agdt/.gitignore or injecting skills into the real repo."""
+        """Prevent setup_cmd() from writing .agdt/.gitignore, injecting skills, or prompting for project config."""
         with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
             with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
                 with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
-                    yield
+                    with patch.object(commands, "_prompt_project_config"):
+                        yield
 
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""

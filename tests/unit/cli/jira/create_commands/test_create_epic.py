@@ -13,6 +13,7 @@ class TestCreateEpicDryRun:
 
     def test_create_epic_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test create_epic in dry run mode."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Epic")
         jira.set_jira_value("epic_name", "TEST-EPIC")
         jira.set_jira_value("role", "developer")
@@ -95,6 +96,7 @@ class TestCreateEpicWithMock:
         capsys,
     ):
         """Test successful epic creation."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Epic")
         jira.set_jira_value("epic_name", "TEST-EPIC")
         jira.set_jira_value("role", "developer")
@@ -109,6 +111,7 @@ class TestCreateEpicWithMock:
 
     def test_create_epic_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test create_epic handles API error."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Epic")
         jira.set_jira_value("epic_name", "TEST-EPIC")
         jira.set_jira_value("role", "developer")
