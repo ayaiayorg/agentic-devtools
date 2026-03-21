@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -12,7 +12,7 @@ from agentic_devtools.cli.azure_devops.review_config import (
 )
 
 
-def _resolve_repo_root(config_path: Optional[str]) -> Path:
+def _resolve_repo_root(config_path: str | None) -> Path:
     """Derive the repo root from an optional config path or repo root override.
 
     The argument may be either:
@@ -64,7 +64,7 @@ def _config_to_dict(config: object) -> Any:
     return config
 
 
-def run_config_get(config_path: Optional[str] = None) -> None:
+def run_config_get(config_path: str | None = None) -> None:
     """Read and display the resolved review config (internal representation).
 
     The output reflects the fully-resolved configuration after defaults and
@@ -89,7 +89,7 @@ def run_config_get(config_path: Optional[str] = None) -> None:
     print(yaml.safe_dump(output, default_flow_style=False, sort_keys=False))
 
 
-def run_config_validate(config_path: Optional[str] = None) -> None:
+def run_config_validate(config_path: str | None = None) -> None:
     """Validate config file syntax, schema, and model references."""
     try:
         repo_root = _resolve_repo_root(config_path)

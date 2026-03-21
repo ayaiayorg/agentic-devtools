@@ -2,7 +2,7 @@
 GitHub issue state namespace helpers.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from agentic_devtools.state import get_value, set_value
 
@@ -10,7 +10,7 @@ from agentic_devtools.state import get_value, set_value
 GITHUB_ISSUE_STATE_NAMESPACE = "issue"
 
 
-def get_issue_value(key: str, required: bool = False) -> Optional[Any]:
+def get_issue_value(key: str, required: bool = False) -> Any | None:
     """
     Get a value from the issue namespace in state.
 

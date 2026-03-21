@@ -64,12 +64,16 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 1
         mock_result.stderr = "Failed to find PR"
 
-        with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
-            return_value="fake-pat",
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
-            return_value=mock_result,
+        with (
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
+                return_value=mock_result,
+            ),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 get_pull_request_details()
@@ -91,12 +95,16 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = "not valid json {{"
 
-        with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
-            return_value="fake-pat",
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
-            return_value=mock_result,
+        with (
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
+                return_value=mock_result,
+            ),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 get_pull_request_details()
@@ -135,28 +143,40 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(pr_data)
 
-        with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
-            return_value="fake-pat",
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
-            return_value=mock_result,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
-            return_value={"Authorization": "Basic xxx"},
-        ), patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
-            return_value=[],
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
-            return_value=[],
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
-            return_value=[{"id": 1}],
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
-            return_value={"reviewedFiles": []},
-        ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
+        with (
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
+                return_value=mock_result,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+                return_value={"Authorization": "Basic xxx"},
+            ),
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+                return_value=[{"id": 1}],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+                return_value={"reviewedFiles": []},
+            ),
+            patch("pathlib.Path.mkdir"),
+            patch("builtins.open", MagicMock()),
+        ):
             get_pull_request_details()
 
         captured = capsys.readouterr()
@@ -186,28 +206,40 @@ class TestGetPullRequestDetailsExecution:
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(pr_data)
 
-        with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
-            return_value="fake-pat",
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
-            return_value=mock_result,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
-            return_value={},
-        ), patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
-            return_value=[],
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
-            return_value=None,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
-            return_value=None,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
-            return_value=None,
-        ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
+        with (
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
+                return_value=mock_result,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+                return_value={},
+            ),
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+                return_value=None,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+                return_value=None,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+                return_value=None,
+            ),
+            patch("pathlib.Path.mkdir"),
+            patch("builtins.open", MagicMock()),
+        ):
             get_pull_request_details()
 
         captured = capsys.readouterr()
@@ -240,28 +272,40 @@ class TestGetPullRequestDetailsExecution:
             captured_args.append(args)
             return mock_result
 
-        with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
-            return_value="fake-pat",
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
-            side_effect=capture_run_safe,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
-            return_value={},
-        ), patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
-            return_value=[],
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
-            return_value=None,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
-            return_value=None,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
-            return_value=None,
-        ), patch("pathlib.Path.mkdir"), patch("builtins.open", MagicMock()):
+        with (
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.verify_az_cli"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.run_safe",
+                side_effect=capture_run_safe,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_auth_headers",
+                return_value={},
+            ),
+            patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.sync_git_ref"),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands.get_diff_entries",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_threads",
+                return_value=None,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_pull_request_iterations",
+                return_value=None,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.pull_request_details_commands._get_reviewer_payload",
+                return_value=None,
+            ),
+            patch("pathlib.Path.mkdir"),
+            patch("builtins.open", MagicMock()),
+        ):
             get_pull_request_details()
 
         # Check that the org was prefixed with https

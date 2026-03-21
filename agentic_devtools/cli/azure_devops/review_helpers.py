@@ -7,14 +7,13 @@ They are easily testable and reusable.
 
 import hashlib
 import re
-from typing import Dict, List, Optional
 
 # Regex to extract Jira issue keys from PR titles
 # Matches patterns like: DFLY-1234, [DFLY-1234], (DFLY-1234), feature(DFLY-1234):
 JIRA_ISSUE_KEY_PATTERN = re.compile(r"\b([A-Z]+-\d+)\b")
 
 
-def extract_jira_issue_key_from_title(title: str) -> Optional[str]:
+def extract_jira_issue_key_from_title(title: str) -> str | None:
     """
     Extract Jira issue key from a PR title.
 
@@ -54,7 +53,7 @@ def convert_to_prompt_filename(file_path: str) -> str:
     return f"file-{hash_str}.md"
 
 
-def normalize_repo_path(path: str) -> Optional[str]:
+def normalize_repo_path(path: str) -> str | None:
     """
     Normalize a repository path to /path/to/file format.
 
@@ -93,7 +92,7 @@ def get_root_folder(file_path: str) -> str:
     return normalized.split("/")[0]
 
 
-def filter_threads(threads: List[Dict]) -> List[Dict]:
+def filter_threads(threads: list[dict]) -> list[dict]:
     """
     Filter out deleted threads and comments.
 
@@ -127,7 +126,7 @@ def filter_threads(threads: List[Dict]) -> List[Dict]:
     return filtered
 
 
-def get_threads_for_file(threads: List[Dict], file_path: str) -> List[Dict]:
+def get_threads_for_file(threads: list[dict], file_path: str) -> list[dict]:
     """
     Get threads that are associated with a specific file.
 
@@ -169,7 +168,7 @@ def get_threads_for_file(threads: List[Dict], file_path: str) -> List[Dict]:
     return matching
 
 
-def build_reviewed_paths_set(pr_details: Dict) -> set:
+def build_reviewed_paths_set(pr_details: dict) -> set:
     """
     Build a set of already-reviewed file paths from PR details.
 

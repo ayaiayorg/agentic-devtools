@@ -76,9 +76,10 @@ class TestExecuteCascade:
 
         op = PatchOperation(thread_id=10, comment_id=20, new_content="Updated markdown", thread_status="closed")
 
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_patch_comment, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_patch_thread:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_patch_comment,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_patch_thread,
+        ):
             mock_patch_comment.return_value = {}
             mock_patch_thread.return_value = {}
 
@@ -109,9 +110,10 @@ class TestExecuteCascade:
 
         op = PatchOperation(thread_id=10, comment_id=20, new_content="content", thread_status="closed")
 
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_patch_comment, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_patch_thread:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_patch_comment,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_patch_thread,
+        ):
             mock_patch_comment.return_value = {}
             mock_patch_thread.return_value = {}
 
@@ -139,9 +141,10 @@ class TestExecuteCascade:
         """patch_comment should be called before patch_thread_status for each op."""
         call_order = []
 
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_pts:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_pts,
+        ):
             mock_pc.side_effect = lambda **kwargs: call_order.append("comment")
             mock_pts.side_effect = lambda **kwargs: call_order.append("thread")
 
@@ -158,9 +161,10 @@ class TestExecuteCascade:
 
     def test_passes_dry_run_true_to_patch_functions(self, mock_azure_devops_env):
         """dry_run=True should be forwarded to both patch functions."""
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_pts:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_pts,
+        ):
             mock_pc.return_value = {}
             mock_pts.return_value = {}
 
@@ -181,9 +185,10 @@ class TestExecuteCascade:
         """All operations in the list should be processed in order."""
         thread_ids_seen = []
 
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_pts:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_pts,
+        ):
             mock_pc.side_effect = lambda **kwargs: thread_ids_seen.append(("comment", kwargs["thread_id"]))
             mock_pts.side_effect = lambda **kwargs: thread_ids_seen.append(("thread", kwargs["thread_id"]))
 
@@ -205,9 +210,10 @@ class TestExecuteCascade:
 
     def test_dry_run_default_is_false(self, mock_azure_devops_env):
         """dry_run defaults to False."""
-        with patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc, patch(
-            "agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status"
-        ) as mock_pts:
+        with (
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_comment") as mock_pc,
+            patch("agentic_devtools.cli.azure_devops.status_cascade.patch_thread_status") as mock_pts,
+        ):
             mock_pc.return_value = {}
             mock_pts.return_value = {}
 

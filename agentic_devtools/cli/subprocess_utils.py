@@ -8,21 +8,21 @@ These utilities ensure subprocess calls complete even when external signals
 import signal
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 
 def run_safe(
-    args: Union[str, List[str]],
+    args: str | list[str],
     *,
     capture_output: bool = False,
     text: bool = False,
     check: bool = False,
-    shell: Optional[bool] = None,
-    env: Optional[Dict[str, str]] = None,
-    cwd: Optional[str] = None,
-    timeout: Optional[float] = None,
-    encoding: Optional[str] = None,
-    errors: Optional[str] = None,
+    shell: bool | None = None,
+    env: dict[str, str] | None = None,
+    cwd: str | None = None,
+    timeout: float | None = None,
+    encoding: str | None = None,
+    errors: str | None = None,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """

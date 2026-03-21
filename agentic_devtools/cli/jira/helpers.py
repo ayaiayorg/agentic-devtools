@@ -5,7 +5,7 @@ Jira utility helpers: request handling, SSL, parsing.
 import os
 import warnings
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any
 
 from agentic_devtools.cli.cert_utils import (
     count_certificates_in_pem as _count_certificates_in_pem,
@@ -63,7 +63,7 @@ def _get_temp_jira_pem_path() -> Path:
     return state_dir / "jira_ca_bundle.pem"
 
 
-def _ensure_jira_pem(hostname: str = "jira.swica.ch") -> Optional[str]:
+def _ensure_jira_pem(hostname: str = "jira.swica.ch") -> str | None:
     """
     Ensure the Jira CA bundle PEM file exists with a complete certificate chain.
 
@@ -106,7 +106,7 @@ def _ensure_jira_pem(hostname: str = "jira.swica.ch") -> Optional[str]:
     return None
 
 
-def _get_ssl_verify() -> Union[bool, str]:
+def _get_ssl_verify() -> bool | str:
     """
     Get SSL verification setting from environment or state.
 
@@ -156,7 +156,7 @@ def _get_ssl_verify() -> Union[bool, str]:
     return False
 
 
-def _parse_multiline_string(value: Any) -> Optional[List[str]]:
+def _parse_multiline_string(value: Any) -> list[str] | None:
     """
     Parse a value that could be a list or newline-separated string.
 
@@ -175,7 +175,7 @@ def _parse_multiline_string(value: Any) -> Optional[List[str]]:
     return None
 
 
-def _parse_comma_separated(value: Any) -> Optional[List[str]]:
+def _parse_comma_separated(value: Any) -> list[str] | None:
     """
     Parse a value that could be a list or comma-separated string.
 

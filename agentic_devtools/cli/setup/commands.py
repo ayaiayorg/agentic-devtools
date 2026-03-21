@@ -17,7 +17,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
 from urllib.parse import urlparse
 
 from agentic_devtools.cli.cert_utils import ensure_ca_bundle as _ensure_ca_bundle
@@ -53,7 +52,7 @@ _SETUP_HOSTS = (
 )
 
 
-def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
+def _build_unified_ca_bundle(per_host_pem_paths: list[str]) -> Path | None:
     """Build a unified CA bundle combining certifi's system CAs and fetched corporate CAs.
 
     Reads the system certifi CA bundle, appends all non-leaf certificates
@@ -90,7 +89,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
         return None
     system_certs = set(re.findall(cert_pattern, system_pem, re.DOTALL))
 
-    extra_certs: List[str] = []
+    extra_certs: list[str] = []
     for pem_path in per_host_pem_paths:
         try:
             content = Path(pem_path).read_text(encoding="utf-8", errors="ignore")
@@ -118,7 +117,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: List[str]) -> Optional[Path]:
     return unified_path
 
 
-def _prefetch_certs() -> Optional[Path]:
+def _prefetch_certs() -> Path | None:
     """Pre-fetch and cache corporate CA certificates for common setup hosts.
 
     Fetches the certificate chain for external hosts used during setup and
@@ -144,7 +143,7 @@ def _prefetch_certs() -> Optional[Path]:
     print("Fetching CA certificates for external hosts...")
 
     # Determine Jira hostname dynamically
-    extra_hosts: List[str] = []
+    extra_hosts: list[str] = []
     try:
         from ..jira.config import get_jira_base_url
 
@@ -161,7 +160,7 @@ def _prefetch_certs() -> Optional[Path]:
     except Exception as exc:  # noqa: BLE001
         print(f"  ⚠ Could not determine Jira hostname (skipping Jira cert): {exc}", file=sys.stderr)
 
-    all_pem_paths: List[str] = []
+    all_pem_paths: list[str] = []
 
     # Fetch certs for fixed setup hosts
     for hostname in _SETUP_HOSTS:
@@ -246,8 +245,8 @@ def _print_path_instructions_if_needed(*, persist_env: bool = False, overwrite_e
 
 def _persist_env_vars_to_profile(
     *,
-    npmrc_path: Optional[Path],
-    unified_path: Optional[Path],
+    npmrc_path: Path | None,
+    unified_path: Path | None,
     persist_env: bool,
     overwrite_env: bool,
     path_only: bool = False,
@@ -331,10 +330,10 @@ def _persist_env_vars_to_profile(
 
 
 def _print_manual_instructions(
-    npmrc_path: Optional[Path],
-    unified_path: Optional[Path],
+    npmrc_path: Path | None,
+    unified_path: Path | None,
     managed_on_path: bool,
-    shell_type: Optional[str],
+    shell_type: str | None,
 ) -> None:
     """Print shell-specific manual instructions for env var persistence."""
     has_vars = bool(npmrc_path or unified_path or not managed_on_path)

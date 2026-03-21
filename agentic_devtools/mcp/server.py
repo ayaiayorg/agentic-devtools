@@ -75,9 +75,7 @@ def _load_jira_config() -> JiraConfig | None:
 
     # Resolve identity for Basic auth — check MCP-style first, then CLI-conventional
     email = (
-        os.environ.get("JIRA_USER_EMAIL", "")
-        or os.environ.get("JIRA_EMAIL", "")
-        or os.environ.get("JIRA_USERNAME", "")
+        os.environ.get("JIRA_USER_EMAIL", "") or os.environ.get("JIRA_EMAIL", "") or os.environ.get("JIRA_USERNAME", "")
     )
     auth_scheme = os.environ.get("JIRA_AUTH_SCHEME", "bearer").lower()
 

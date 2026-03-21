@@ -14,8 +14,6 @@ All verdicts update the per-model entry in ``FileEntry.modelVerdicts`` and
 persist the change to ``review-state.json``.
 """
 
-from typing import List, Optional
-
 from .review_attribution import SHORT_HASH_LENGTH, get_model_icon
 from .review_state import (
     COMPLETE_STATUSES,
@@ -132,10 +130,10 @@ def evaluate_consolidation_need(file_entry: FileEntry) -> str:
 def render_reviewer_addendum(
     model_name: str,
     verdict_type: str,
-    commit_hash: Optional[str] = None,
-    commit_url: Optional[str] = None,
-    supplements: Optional[List[str]] = None,
-    disagreements: Optional[List[str]] = None,
+    commit_hash: str | None = None,
+    commit_url: str | None = None,
+    supplements: list[str] | None = None,
+    disagreements: list[str] | None = None,
 ) -> str:
     """Render a reviewer addendum section for append-only main comment composition.
 
@@ -203,10 +201,10 @@ def render_reviewer_addendum(
 def render_consolidation_decision(
     boss_model: str,
     final_verdict: str,
-    resolved_from: List[str],
-    commit_hash: Optional[str] = None,
-    commit_url: Optional[str] = None,
-    resolution_notes: Optional[List[str]] = None,
+    resolved_from: list[str],
+    commit_hash: str | None = None,
+    commit_url: str | None = None,
+    resolution_notes: list[str] | None = None,
 ) -> str:
     """Render the consolidation decision section appended by the boss model.
 
@@ -247,7 +245,7 @@ def render_consolidation_decision(
     return "\n".join(lines)
 
 
-def initialize_model_verdicts(file_entry: FileEntry, reviewer_models: List[str]) -> None:
+def initialize_model_verdicts(file_entry: FileEntry, reviewer_models: list[str]) -> None:
     """Initialize model verdict entries for all configured reviewer models.
 
     Called during scaffolding to pre-populate the Model Review Progress table

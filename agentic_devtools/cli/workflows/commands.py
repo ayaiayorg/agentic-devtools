@@ -19,7 +19,6 @@ import logging
 import os
 import subprocess
 import sys
-from typing import List, Optional
 
 from agentic_devtools.state import get_state_dir
 
@@ -33,9 +32,9 @@ from .preflight import check_worktree_and_branch, get_git_repo_root
 
 
 def _effective_argv(
-    _argv: Optional[List[str]],
+    _argv: list[str] | None,
     *programmatic_params: object,
-) -> Optional[List[str]]:
+) -> list[str] | None:
     """Return the argv list that :func:`argparse.ArgumentParser.parse_args` should receive.
 
     When ``_argv`` is explicitly provided (including ``[]``), it is returned
@@ -148,7 +147,7 @@ def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
         )
 
 
-def _ensure_scoped_bootstrap_and_clear(issue_key: Optional[str]) -> Optional[str]:
+def _ensure_scoped_bootstrap_and_clear(issue_key: str | None) -> str | None:
     """Normalize ``issue_key``, set bootstrap scope, then clear workflow state.
 
     Jira workflow initiators must resolve bootstrap identity/scope before
@@ -166,7 +165,7 @@ def _ensure_scoped_bootstrap_and_clear(issue_key: Optional[str]) -> Optional[str
     Returns:
         Normalized issue key when provided; otherwise ``None``.
     """
-    normalized_issue_key: Optional[str] = None
+    normalized_issue_key: str | None = None
     if isinstance(issue_key, str):
         normalized_issue_key = issue_key.strip()
         if not normalized_issue_key:
@@ -186,10 +185,10 @@ def _ensure_scoped_bootstrap_and_clear(issue_key: Optional[str]) -> Optional[str
 
 
 def initiate_pull_request_review_workflow(
-    pull_request_id: Optional[str] = None,
-    issue_key: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    pull_request_id: str | None = None,
+    issue_key: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the pull request review workflow.
@@ -380,7 +379,7 @@ Examples:
     # For PR review workflows, we need to know the source branch BEFORE creating
     # the worktree, so we can checkout that branch instead of creating a new one.
     # Fetch PR details early to get the source branch.
-    source_branch: Optional[str] = None
+    source_branch: str | None = None
     try:
         source_branch = get_pull_request_source_branch(int(resolved_pr_id))
         if source_branch:
@@ -467,9 +466,9 @@ Examples:
 
 
 def initiate_work_on_jira_issue_workflow(
-    issue_key: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    issue_key: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the work-on-jira-issue workflow with pre-flight checks.
@@ -759,7 +758,7 @@ def _execute_planning_step(
     )
 
 
-def advance_work_on_jira_issue_workflow(step: Optional[str] = None) -> None:
+def advance_work_on_jira_issue_workflow(step: str | None = None) -> None:
     """
     Advance the work-on-jira-issue workflow to the next step.
 
@@ -827,7 +826,7 @@ def advance_work_on_jira_issue_workflow(step: Optional[str] = None) -> None:
     )
 
 
-def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
+def advance_pull_request_review_workflow(step: str | None = None) -> None:
     """
     Advance the pull-request-review workflow to the next step.
 
@@ -1007,12 +1006,12 @@ def advance_pull_request_review_workflow(step: Optional[str] = None) -> None:
 
 
 def initiate_create_jira_issue_workflow(
-    project_key: Optional[str] = None,
-    issue_key: Optional[str] = None,
-    issue_type: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    project_key: str | None = None,
+    issue_key: str | None = None,
+    issue_type: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the create-jira-issue workflow.
@@ -1219,11 +1218,11 @@ def initiate_create_jira_issue_workflow(
 
 
 def initiate_create_jira_epic_workflow(
-    project_key: Optional[str] = None,
-    issue_key: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    project_key: str | None = None,
+    issue_key: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the create-jira-epic workflow.
@@ -1414,11 +1413,11 @@ def initiate_create_jira_epic_workflow(
 
 
 def initiate_create_jira_subtask_workflow(
-    parent_key: Optional[str] = None,
-    issue_key: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    parent_key: str | None = None,
+    issue_key: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the create-jira-subtask workflow.
@@ -1621,10 +1620,10 @@ def initiate_create_jira_subtask_workflow(
 
 
 def initiate_update_jira_issue_workflow(
-    issue_key: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    issue_key: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the update-jira-issue workflow.
@@ -1776,10 +1775,10 @@ def initiate_update_jira_issue_workflow(
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(
-    pull_request_id: Optional[str] = None,
-    issue_key: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    pull_request_id: str | None = None,
+    issue_key: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the apply-pull-request-review-suggestions workflow.
@@ -2023,10 +2022,10 @@ def _copy_review_state_to_apply_suggestions() -> None:
 
 
 def initiate_optimize_issue_for_ai_agent_workflow(
-    issue_key: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    issue_key: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the optimize-issue-for-ai-agent workflow.
@@ -2181,10 +2180,10 @@ def initiate_optimize_issue_for_ai_agent_workflow(
 
 
 def initiate_break_down_issue_into_subtasks_workflow(
-    issue_key: Optional[str] = None,
-    user_request: Optional[str] = None,
-    interactive: Optional[bool] = None,
-    _argv: Optional[List[str]] = None,
+    issue_key: str | None = None,
+    user_request: str | None = None,
+    interactive: bool | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Initiate the break-down-issue-into-subtasks workflow.
@@ -2406,7 +2405,7 @@ Examples:
             )
 
     # Get items from argument or state
-    items_text: Optional[str] = args.items or get_value("checklist_items")
+    items_text: str | None = args.items or get_value("checklist_items")
 
     if not items_text:
         print("ERROR: No checklist items provided.", file=sys.stderr)
@@ -2635,7 +2634,7 @@ def show_checklist_cmd() -> None:
         print(f"📋 {total - completed} item(s) remaining")
 
 
-def setup_worktree_background_cmd(_argv: Optional[List[str]] = None) -> None:
+def setup_worktree_background_cmd(_argv: list[str] | None = None) -> None:
     """
     Background task command to perform worktree setup.
 

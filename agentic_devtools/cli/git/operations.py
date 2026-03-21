@@ -10,7 +10,6 @@ This module provides the individual git operations:
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
@@ -192,7 +191,7 @@ def push(dry_run: bool) -> None:
     print("Changes pushed successfully.")
 
 
-def get_last_commit_message() -> Optional[str]:
+def get_last_commit_message() -> str | None:
     """
     Get the message of the last commit on the current branch.
 
@@ -258,7 +257,7 @@ def last_commit_contains_issue_key(issue_key: str) -> bool:
     return issue_key.upper() in message.upper()
 
 
-def should_amend_instead_of_commit(issue_key: Optional[str] = None) -> bool:
+def should_amend_instead_of_commit(issue_key: str | None = None) -> bool:
     """
     Determine if we should amend the existing commit instead of creating a new one.
 
@@ -576,7 +575,7 @@ def delete_local_branch(branch_name: str, force: bool = False) -> bool:
     return True
 
 
-def get_short_commit_hash(ref: str) -> Optional[str]:
+def get_short_commit_hash(ref: str) -> str | None:
     """
     Get the short commit hash for a git ref.
 

@@ -5,8 +5,9 @@ Provides a decorator that ensures VPN is connected (or on corporate network)
 before executing Jira API calls, and restores VPN state afterward.
 """
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 F = TypeVar("F", bound=Callable)
 

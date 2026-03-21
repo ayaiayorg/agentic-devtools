@@ -4,7 +4,6 @@ Jira configuration: constants, authentication, and headers.
 
 import base64
 import os
-from typing import Dict
 
 # Constants
 DEFAULT_JIRA_BASE_URL = "https://jira.swica.ch"
@@ -60,7 +59,7 @@ def get_jira_auth_header() -> str:
         raise ValueError(f"Unsupported JIRA_AUTH_SCHEME: {auth_scheme}")
 
 
-def get_jira_headers() -> Dict[str, str]:
+def get_jira_headers() -> dict[str, str]:
     """Get HTTP headers for Jira API requests."""
     return {
         "Authorization": get_jira_auth_header(),

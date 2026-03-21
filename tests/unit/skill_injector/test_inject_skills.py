@@ -607,11 +607,7 @@ class TestInjectSkills:
         # README manifest has exactly one entry for the colliding name
         readme = target / "agdt.README.md"
         readme_text = readme.read_text(encoding="utf-8")
-        ci_entries = [
-            line
-            for line in readme_text.splitlines()
-            if "agdt.sub.agdt.ci.agent.md" in line.casefold()
-        ]
+        ci_entries = [line for line in readme_text.splitlines() if "agdt.sub.agdt.ci.agent.md" in line.casefold()]
         assert len(ci_entries) == 1
 
     def test_migration_removes_symlink_instead_of_rmtree(self, tmp_path):

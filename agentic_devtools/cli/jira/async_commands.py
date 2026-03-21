@@ -10,7 +10,6 @@ not via CLI entry points.
 
 import argparse
 import sys
-from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.state import set_value
@@ -31,7 +30,7 @@ def _require_jira_value(key: str, error_example: str) -> str:
     return value
 
 
-def _set_jira_value_if_provided(key: str, value: Optional[str]) -> None:
+def _set_jira_value_if_provided(key: str, value: str | None) -> None:
     """Set a Jira state value if provided (not None)."""
     if value is not None:
         set_value(f"jira.{key}", value)  # pragma: no cover
@@ -51,8 +50,8 @@ _ROLE_MODULE = "agentic_devtools.cli.jira.role_commands"
 
 
 def add_comment_async(
-    comment: Optional[str] = None,
-    issue_key: Optional[str] = None,
+    comment: str | None = None,
+    issue_key: str | None = None,
 ) -> None:
     """
     Add a Jira comment asynchronously in the background.

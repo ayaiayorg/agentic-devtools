@@ -86,10 +86,6 @@ class TestReplyToPullRequestThread:
         config.project = "%PROJECT%"
         config.repository = "%REPO%"
 
-        reply_to_pull_request_thread(
-            config=config, pat="pat", pull_request_id=1, thread_id=10, content="Hi"
-        )
+        reply_to_pull_request_thread(config=config, pat="pat", pull_request_id=1, thread_id=10, content="Hi")
 
-        mock_repo_id.assert_called_once_with(
-            "https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%"
-        )
+        mock_repo_id.assert_called_once_with("https://dev.azure.com/%%ORG%%", "%%PROJECT%%", "%%REPO%%")

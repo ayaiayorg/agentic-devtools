@@ -12,7 +12,7 @@ This module handles:
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from jinja2 import BaseLoader, Environment, TemplateSyntaxError, Undefined
 
@@ -20,7 +20,7 @@ from jinja2 import BaseLoader, Environment, TemplateSyntaxError, Undefined
 class TemplateValidationError(Exception):
     """Raised when template validation fails (e.g., missing required variables)."""
 
-    def __init__(self, message: str, missing_variables: List[str]):
+    def __init__(self, message: str, missing_variables: list[str]):
         super().__init__(message)
         self.missing_variables = missing_variables
 
@@ -96,7 +96,7 @@ def get_template_path(workflow_name: str, step_name: str = "initiate", is_defaul
     return prompts_dir / workflow_name / filename
 
 
-def get_required_variables(template_content: str) -> Set[str]:
+def get_required_variables(template_content: str) -> set[str]:
     """
     Extract variable names from template content.
 
@@ -177,7 +177,7 @@ _jinja_env = Environment(
 )
 
 
-def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
+def substitute_variables(template: str, variables: dict[str, Any]) -> str:
     """
     Replace {{variable}} placeholders with actual values using Jinja2.
 
@@ -281,7 +281,7 @@ def log_prompt_with_save_notice(
     workflow_name: str,
     step_name: str,
     content: str,
-    saved_path: Optional[Path] = None,
+    saved_path: Path | None = None,
 ) -> None:
     """
     Log the prompt to console with header/footer and save notice.
@@ -337,7 +337,7 @@ def log_prompt_with_save_notice(
 def load_and_render_prompt(
     workflow_name: str,
     step_name: str,
-    variables: Dict[str, Any],
+    variables: dict[str, Any],
     save_to_temp: bool = True,
     log_output: bool = True,
 ) -> str:

@@ -14,7 +14,7 @@ in.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .review_state import SuggestionEntry
 
@@ -35,7 +35,7 @@ class SuggestionVerificationResult:
     thread_status: str  # "active", "closed", etc.
 
 
-def _thread_has_reply(thread_data: Dict[str, Any]) -> bool:
+def _thread_has_reply(thread_data: dict[str, Any]) -> bool:
     """Return True if the thread has at least one reply beyond the original comment.
 
     Azure DevOps thread responses have a "comments" list; the first comment
@@ -45,17 +45,17 @@ def _thread_has_reply(thread_data: Dict[str, Any]) -> bool:
     return len(comments) > 1
 
 
-def _get_thread_status(thread_data: Dict[str, Any]) -> str:
+def _get_thread_status(thread_data: dict[str, Any]) -> str:
     """Return the thread status string (e.g. "active", "closed", "fixed")."""
     return thread_data.get("status", "unknown")
 
 
 def verify_previous_suggestions(
-    previous_suggestions: List[SuggestionEntry],
+    previous_suggestions: list[SuggestionEntry],
     file_path: str,
     file_changed: bool,
-    threads_data: Dict[int, Dict[str, Any]],
-) -> List[SuggestionVerificationResult]:
+    threads_data: dict[int, dict[str, Any]],
+) -> list[SuggestionVerificationResult]:
     """Categorise each previous suggestion as "unaddressed" or "needs_review".
 
     Logic per suggestion:
@@ -82,7 +82,7 @@ def verify_previous_suggestions(
     Returns:
         One ``SuggestionVerificationResult`` per input suggestion.
     """
-    results: List[SuggestionVerificationResult] = []
+    results: list[SuggestionVerificationResult] = []
     for suggestion in previous_suggestions:
         thread = threads_data.get(suggestion.threadId)
         if thread is None:
@@ -121,10 +121,10 @@ def verify_previous_suggestions(
 
 
 def categorize_all_suggestions(
-    files_with_previous: Dict[str, List[SuggestionEntry]],
+    files_with_previous: dict[str, list[SuggestionEntry]],
     changed_files: frozenset,
-    threads_data: Dict[int, Dict[str, Any]],
-) -> List[SuggestionVerificationResult]:
+    threads_data: dict[int, dict[str, Any]],
+) -> list[SuggestionVerificationResult]:
     """Run verification across multiple files and return a flat list.
 
     Args:
@@ -137,21 +137,21 @@ def categorize_all_suggestions(
     Returns:
         Flat list of all ``SuggestionVerificationResult`` across all files.
     """
-    all_results: List[SuggestionVerificationResult] = []
+    all_results: list[SuggestionVerificationResult] = []
     for file_path, suggestions in files_with_previous.items():
         file_changed = file_path in changed_files
         all_results.extend(verify_previous_suggestions(suggestions, file_path, file_changed, threads_data))
     return all_results
 
 
-def has_unaddressed(results: List[SuggestionVerificationResult]) -> bool:
+def has_unaddressed(results: list[SuggestionVerificationResult]) -> bool:
     """Return True if any result is categorised as unaddressed."""
     return any(r.category == CATEGORY_UNADDRESSED for r in results)
 
 
 def partition_results(
-    results: List[SuggestionVerificationResult],
-) -> Tuple[List[SuggestionVerificationResult], List[SuggestionVerificationResult]]:
+    results: list[SuggestionVerificationResult],
+) -> tuple[list[SuggestionVerificationResult], list[SuggestionVerificationResult]]:
     """Split results into (unaddressed, needs_review) lists.
 
     Returns:
@@ -179,8 +179,8 @@ def _reason_text(result: SuggestionVerificationResult) -> str:
 
 
 def render_abort_summary(
-    unaddressed: List[SuggestionVerificationResult],
-    needs_review: List[SuggestionVerificationResult],
+    unaddressed: list[SuggestionVerificationResult],
+    needs_review: list[SuggestionVerificationResult],
     short_hash: str,
     model_name: str = "AI Reviewer",
     model_icon: str = "🤖",
@@ -250,9 +250,9 @@ def render_unaddressed_thread_comment(short_hash: str) -> str:
 
 def fetch_threads_lookup(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
-) -> Optional[Dict[int, Dict[str, Any]]]:
+) -> dict[int, dict[str, Any]] | None:
     """Fetch all PR threads and build a thread_id → thread_data lookup.
 
     Makes a single API call regardless of suggestion count.

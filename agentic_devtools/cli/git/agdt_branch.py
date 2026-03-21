@@ -40,7 +40,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ...state import get_value
 from ..subprocess_utils import run_safe
@@ -84,7 +84,7 @@ class PersistResult:
     commit_hash: str = ""
     worktree_key: str = ""
     workflow_type: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ def persist_if_dirty() -> None:
 # ---------------------------------------------------------------------------
 
 
-def resolve_worktree_key(explicit_key: Optional[str] = None) -> str:
+def resolve_worktree_key(explicit_key: str | None = None) -> str:
     """Resolve the worktree key from an explicit value or current state.
 
     Resolution priority:
@@ -319,7 +319,7 @@ def hash_object(content: bytes) -> str:
             pass
 
 
-def build_tree(entries: Dict[str, str]) -> str:
+def build_tree(entries: dict[str, str]) -> str:
     """Build a git tree object from *{path: blob_sha}* entries.
 
     Uses a temporary ``GIT_INDEX_FILE`` pointing at a non-existent path
@@ -370,7 +370,7 @@ def build_tree(entries: Dict[str, str]) -> str:
 
 def create_commit(
     tree_sha: str,
-    parent_sha: Optional[str],
+    parent_sha: str | None,
     message: str,
 ) -> str:
     """Create a commit object pointing at *tree_sha*.
@@ -422,8 +422,8 @@ def update_ref(branch_name: str, commit_sha: str) -> None:
 
 def read_branch_tree(
     branch_name: str,
-    path_prefix: Optional[str] = None,
-) -> Dict[str, str]:
+    path_prefix: str | None = None,
+) -> dict[str, str]:
     """Read the file tree of *branch_name*.
 
     Resolves the branch to a commit SHA, then runs
@@ -527,10 +527,10 @@ def read_blob(blob_sha: str) -> str:
 
 def load_workflow_artifacts(
     source_branch: str,
-    worktree_key: Optional[str] = None,
-    workflow_type: Optional[str] = None,
-    identity: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    worktree_key: str | None = None,
+    workflow_type: str | None = None,
+    identity: str | None = None,
+) -> dict[str, Any] | None:
     """Read persisted workflow artifacts from the -agdt branch.
 
     Reads file contents from ``{source_branch}-agdt`` via git plumbing
@@ -603,7 +603,7 @@ def load_workflow_artifacts(
         return None
 
     # Read content and attempt JSON parsing
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for path, blob_sha in tree.items():
         content = read_blob(blob_sha)
         try:
@@ -634,7 +634,7 @@ def _get_repo_root() -> Path:
     return Path(toplevel)
 
 
-def _discover_workflow_files(repo_root: Path, identity: str, worktree_key: str) -> Dict[str, str]:
+def _discover_workflow_files(repo_root: Path, identity: str, worktree_key: str) -> dict[str, str]:
     """Walk the workflow directory and hash each file.
 
     Args:
@@ -708,7 +708,7 @@ def _has_matching_run_id(commit_sha: str, run_id: str) -> bool:
     return False
 
 
-def _get_parent_sha(commit_sha: str) -> Optional[str]:
+def _get_parent_sha(commit_sha: str) -> str | None:
     """Return the first parent SHA of *commit_sha*, or ``None`` for root commits.
 
     Uses ``git cat-file -p`` to parse the commit object's parent lines.
@@ -733,7 +733,7 @@ def _get_parent_sha(commit_sha: str) -> Optional[str]:
     return None
 
 
-def _read_tree_for_commit(commit_sha: str) -> Dict[str, str]:
+def _read_tree_for_commit(commit_sha: str) -> dict[str, str]:
     """Read the full file tree of *commit_sha* using ``git ls-tree``.
 
     Unlike :func:`read_branch_tree`, this accepts any commit SHA
@@ -772,9 +772,9 @@ _MAX_PUSH_ATTEMPTS = 3
 
 def persist_workflow_state(
     source_branch: str,
-    worktree_key: Optional[str] = None,
+    worktree_key: str | None = None,
     workflow_type: str = "",
-    identity: Optional[str] = None,
+    identity: str | None = None,
     commit_message: str = "",
 ) -> PersistResult:
     """Persist workflow artifacts to the ``-agdt`` branch.
