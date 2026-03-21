@@ -1,5 +1,5 @@
 """
-agentic-devtools: AI assistant helper commands for the Dragonfly platform.
+agentic-devtools: Agentic devtools integrate Jira, DevOps & more.
 
 This package provides simple CLI commands that can be easily auto-approved
 by VS Code AI assistants.

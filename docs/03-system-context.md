@@ -2,13 +2,13 @@
 
 ## 3.1 Business Context
 
-**agentic-devtools** acts as a bridge between AI assistants (GitHub Copilot) and external development services, enabling automated workflow execution in the Dragonfly platform development process.
+**agentic-devtools** acts as a bridge between AI assistants (GitHub Copilot) and external development services, enabling automated workflow execution across development services.
 
 ```mermaid
 C4Context
     title System Context Diagram - agentic-devtools
 
-    Person(dev, "Developer", "Dragonfly platform developer")
+    Person(dev, "Developer", "Software developer using agentic-devtools")
     Person(ai, "AI Assistant", "GitHub Copilot Chat")
     
     System(agdt, "agentic-devtools", "CLI package for AI workflow automation")

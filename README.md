@@ -1,6 +1,6 @@
 # agentic-devtools
 
-AI assistant helper commands for the Dragonfly platform. This package provides
+Agentic devtools integrate Jira, DevOps & more. This package provides
 simple CLI commands that can be easily auto-approved by VS Code AI assistants.
 
 **Audience**: End users of the AGDT CLI. This README focuses on installation

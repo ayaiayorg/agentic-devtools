@@ -2,7 +2,7 @@
 
 ## 1.1 Requirements Overview
 
-**agentic-devtools** is a Python CLI package designed to enable AI assistants (GitHub Copilot) to perform development workflow operations in the Dragonfly platform ecosystem.
+**agentic-devtools** is a Python CLI package designed to enable AI assistants (GitHub Copilot) to perform development workflow operations.
 
 ### Primary Goals
 
@@ -38,13 +38,13 @@
 | **AI Assistants** | Simple, auto-approvable commands with clear output | Command approval UX, output parsing, error handling |
 | **Developers** | Automated workflow execution, reduced manual steps | Reliability, debugging, state inspection |
 | **DevOps Engineers** | CI/CD integration, release automation | Deployment, versioning, monitoring |
-| **Platform Team** | Azure DevOps/Jira integration consistency | API compatibility, rate limiting, authentication |
+| **Integration Team** | Azure DevOps/Jira integration consistency | API compatibility, rate limiting, authentication |
 
 ## 1.4 Business Context
 
 ```mermaid
 graph TB
-    subgraph "Dragonfly Platform Development"
+    subgraph "Development Environment"
         Dev[Developer]
         Copilot[GitHub Copilot]
     end
