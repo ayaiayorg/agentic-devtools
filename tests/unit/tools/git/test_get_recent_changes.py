@@ -10,11 +10,12 @@ class TestGetRecentChanges:
 
     @patch("agentic_devtools.cli.git.core.run_safe")
     def test_returns_parsed_commits(self, mock_run_safe):
+        sep = "\x1f"
         mock_run_safe.return_value = MagicMock(
             returncode=0,
             stdout=(
-                "abc123|feat: add feature|John Doe|2024-01-15 10:00:00 +0000\n"
-                "def456|fix: bug fix|Jane Doe|2024-01-14 09:00:00 +0000\n"
+                f"abc123{sep}feat: add feature{sep}John Doe{sep}2024-01-15 10:00:00 +0000\n"
+                f"def456{sep}fix: bug fix{sep}Jane Doe{sep}2024-01-14 09:00:00 +0000\n"
             ),
             stderr="",
         )
@@ -56,9 +57,15 @@ class TestGetRecentChanges:
 
     @patch("agentic_devtools.cli.git.core.run_safe")
     def test_handles_malformed_line(self, mock_run_safe):
+        sep = "\x1f"
+        stdout = (
+            f"abc123{sep}feat: add feature{sep}John Doe{sep}2024-01-15\n"
+            f"badline\n"
+            f"def456{sep}fix{sep}Jane{sep}2024-01-14\n"
+        )
         mock_run_safe.return_value = MagicMock(
             returncode=0,
-            stdout="abc123|feat: add feature|John Doe|2024-01-15\nbadline\ndef456|fix|Jane|2024-01-14\n",
+            stdout=stdout,
             stderr="",
         )
 
@@ -68,16 +75,29 @@ class TestGetRecentChanges:
 
     @patch("agentic_devtools.cli.git.core.run_safe")
     def test_handles_pipe_in_message(self, mock_run_safe):
-        """Lines with extra pipes split into at most 4 parts; extra pipes end up in the date field."""
+        """Commit messages containing pipe characters are parsed correctly."""
+        sep = "\x1f"
         mock_run_safe.return_value = MagicMock(
             returncode=0,
-            stdout="abc123|feat: add a|b feature|John|2024-01-15\n",
+            stdout=f"abc123{sep}feat: add a|b feature{sep}John{sep}2024-01-15\n",
             stderr="",
         )
 
         result = get_recent_changes()
 
         assert len(result["commits"]) == 1
-        assert result["commits"][0]["message"] == "feat: add a"
-        assert result["commits"][0]["author"] == "b feature"
-        assert result["commits"][0]["date"] == "John|2024-01-15"
+        assert result["commits"][0]["message"] == "feat: add a|b feature"
+        assert result["commits"][0]["author"] == "John"
+        assert result["commits"][0]["date"] == "2024-01-15"
+
+    @patch("agentic_devtools.cli.git.core.run_safe")
+    def test_uses_unit_separator_format(self, mock_run_safe):
+        """Verify the git log format uses %x1f (unit separator) not pipe."""
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        get_recent_changes()
+
+        cmd = mock_run_safe.call_args[0][0]
+        fmt_arg = [a for a in cmd if a.startswith("--format=")][0]
+        assert "%x1f" in fmt_arg
+        assert "|" not in fmt_arg.replace("--format=", "")

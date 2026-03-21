@@ -15,6 +15,7 @@ from typing_extensions import TypedDict
 
 if TYPE_CHECKING:
     from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+    from agentic_devtools.cli.azure_devops.review_state import ReviewState
 
 # ---------------------------------------------------------------------------
 # Result TypedDicts
@@ -144,7 +145,11 @@ def create_pull_request(
     pull_request_id = pr_data.get("pullRequestId", 0)
 
     repo_web_url = pr_data.get("repository", {}).get("webUrl", "")
-    pr_url = f"{repo_web_url}/pullrequest/{pull_request_id}" if repo_web_url else ""
+    pr_url = (
+        f"{repo_web_url}/pullrequest/{pull_request_id}"
+        if repo_web_url and pull_request_id
+        else ""
+    )
 
     return CreatePullRequestResult(
         pull_request_id=pull_request_id,
@@ -301,7 +306,7 @@ def update_review_narrative(
     pat: str,
     pull_request_id: int,
     content: str,
-    review_state: Any = None,
+    review_state: ReviewState | None = None,
 ) -> UpdateNarrativeResult:
     """Update the Review Narrative in the overall PR summary comment.
 
@@ -313,8 +318,9 @@ def update_review_narrative(
         pat: Azure DevOps Personal Access Token.
         pull_request_id: The PR ID.
         content: New narrative content.
-        review_state: Optional pre-loaded review state object. When *None*,
-            the state is loaded from disk.
+        review_state: Optional pre-loaded
+            :class:`~agentic_devtools.cli.azure_devops.review_state.ReviewState`.
+            When *None*, the state is loaded from disk.
 
     Returns:
         An :class:`UpdateNarrativeResult`.
@@ -342,6 +348,8 @@ def update_review_narrative(
     repo_id = getattr(review_state, "repoId", None)
     if not repo_id:
         repo_id = get_repository_id(config.organization, config.project, config.repository)
+        # Persist repo_id back so future calls skip the lookup
+        review_state.repoId = repo_id
 
     review_state.overallSummary.narrativeSummary = content
     base_url = build_pr_base_url(config, pull_request_id)

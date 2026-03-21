@@ -76,6 +76,8 @@ class TestUpdateReviewNarrative:
         assert result["success"] is True
         mock_load.assert_called_once_with(99)
         mock_repo_id.assert_called_once()
+        # Verify repoId is persisted back onto the review_state
+        assert mock_review_state.repoId == "repo-id"
 
     @patch("agentic_devtools.cli.azure_devops.review_state.save_review_state")
     @patch("agentic_devtools.cli.azure_devops.helpers.patch_comment")

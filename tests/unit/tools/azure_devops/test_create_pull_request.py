@@ -105,3 +105,32 @@ class TestCreatePullRequest:
 
         env = mock_run_safe.call_args[1]["env"]
         assert env["AZURE_DEVOPS_EXT_PAT"] == "my-secret-pat"
+
+    @patch("agentic_devtools.cli.subprocess_utils.run_safe")
+    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
+    def test_returns_empty_url_when_pr_id_is_zero(self, mock_parse, mock_run_safe):
+        """When pullRequestId is missing/zero, url should be empty."""
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+        mock_parse.return_value = {
+            "pullRequestId": 0,
+            "repository": {"webUrl": "https://dev.azure.com/myorg/proj/_git/repo"},
+        }
+        config = self._make_config()
+
+        result = create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
+
+        assert result["url"] == ""
+        assert result["pull_request_id"] == 0
+
+    @patch("agentic_devtools.cli.subprocess_utils.run_safe")
+    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
+    def test_returns_empty_url_when_web_url_missing(self, mock_parse, mock_run_safe):
+        """When repository.webUrl is missing, url should be empty."""
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+        mock_parse.return_value = {"pullRequestId": 42, "repository": {}}
+        config = self._make_config()
+
+        result = create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
+
+        assert result["url"] == ""
+        assert result["pull_request_id"] == 42

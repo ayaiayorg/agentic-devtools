@@ -92,3 +92,35 @@ class TestSaveWork:
 
         assert result["success"] is False
         assert "push" in result["operations"]
+
+    @patch("agentic_devtools.tools.git.push")
+    @patch("agentic_devtools.tools.git.create_commit")
+    @patch("agentic_devtools.tools.git.stage_changes")
+    def test_dry_run_threads_through(self, mock_stage, mock_commit, mock_push):
+        """Verify that dry_run=True is passed to all sub-operations."""
+        mock_stage.return_value = {"success": True, "message": "Staged (dry)"}
+        mock_commit.return_value = {"success": True, "message": "Committed (dry)"}
+        mock_push.return_value = {"success": True, "message": "Pushed (dry)"}
+
+        result = save_work(commit_message="feat: test", dry_run=True)
+
+        assert result["success"] is True
+        mock_stage.assert_called_once_with(dry_run=True)
+        mock_commit.assert_called_once_with("feat: test", dry_run=True)
+        mock_push.assert_called_once_with(dry_run=True)
+
+    @patch("agentic_devtools.tools.git.force_push")
+    @patch("agentic_devtools.tools.git.amend_commit")
+    @patch("agentic_devtools.tools.git.stage_changes")
+    def test_dry_run_threads_through_amend(self, mock_stage, mock_amend, mock_force_push):
+        """Verify that dry_run=True is passed through amend + force-push path."""
+        mock_stage.return_value = {"success": True, "message": "Staged (dry)"}
+        mock_amend.return_value = {"success": True, "message": "Amended (dry)"}
+        mock_force_push.return_value = {"success": True, "message": "Force pushed (dry)"}
+
+        result = save_work(commit_message="feat: update", amend=True, dry_run=True)
+
+        assert result["success"] is True
+        mock_stage.assert_called_once_with(dry_run=True)
+        mock_amend.assert_called_once_with("feat: update", dry_run=True)
+        mock_force_push.assert_called_once_with(dry_run=True)

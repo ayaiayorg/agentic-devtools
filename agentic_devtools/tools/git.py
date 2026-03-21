@@ -162,6 +162,7 @@ def save_work(
     amend: bool = False,
     skip_stage: bool = False,
     skip_push: bool = False,
+    dry_run: bool = False,
 ) -> SaveWorkResult:
     """Composite operation: stage → commit/amend → push/force-push.
 
@@ -173,6 +174,7 @@ def save_work(
         amend: If *True*, amend the existing commit instead of creating a new one.
         skip_stage: If *True*, skip the staging step.
         skip_push: If *True*, skip the push step.
+        dry_run: If *True*, preview operations without executing.
 
     Returns:
         A :class:`SaveWorkResult` listing the operations performed.
@@ -182,7 +184,7 @@ def save_work(
 
     # Stage
     if not skip_stage:
-        result = stage_changes(dry_run=False)
+        result = stage_changes(dry_run=dry_run)
         operations.append("stage_changes")
         messages.append(result["message"])
         if not result["success"]:
@@ -194,10 +196,10 @@ def save_work(
 
     # Commit / amend
     if amend:
-        result = amend_commit(commit_message, dry_run=False)
+        result = amend_commit(commit_message, dry_run=dry_run)
         operations.append("amend_commit")
     else:
-        result = create_commit(commit_message, dry_run=False)
+        result = create_commit(commit_message, dry_run=dry_run)
         operations.append("create_commit")
     messages.append(result["message"])
     if not result["success"]:
@@ -210,10 +212,10 @@ def save_work(
     # Push
     if not skip_push:
         if amend:
-            result = force_push(dry_run=False)
+            result = force_push(dry_run=dry_run)
             operations.append("force_push")
         else:
-            result = push(dry_run=False)
+            result = push(dry_run=dry_run)
             operations.append("push")
         messages.append(result["message"])
         if not result["success"]:
@@ -241,17 +243,21 @@ def get_recent_changes(num_commits: int = 10) -> RecentChangesResult:
     """
     from agentic_devtools.cli.git.core import run_git
 
+    # Use ASCII Unit Separator (\x1f) instead of "|" to avoid corruption
+    # when commit subjects contain pipe characters.
+    _SEP = "\x1f"
+
     result = run_git(
         "log",
         f"--max-count={num_commits}",
-        "--format=%H|%s|%an|%ai",
+        "--format=%H%x1f%s%x1f%an%x1f%ai",
         check=False,
     )
 
     commits: list[dict] = []
     if result.returncode == 0 and result.stdout.strip():
         for line in result.stdout.strip().splitlines():
-            parts = line.split("|", 3)
+            parts = line.split(_SEP, 3)
             if len(parts) == 4:
                 commits.append(
                     {
