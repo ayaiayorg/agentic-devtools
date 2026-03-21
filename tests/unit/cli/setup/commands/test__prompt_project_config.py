@@ -74,8 +74,12 @@ class TestPromptProjectConfig:
             "jira_base_url": "https://jira.example.com",
             "vpn_url": "https://vpn.example.com",
         }
-        # Enter empty for all: jira_project_keys and jira_base_url keep existing (not allow_clear),
-        # corporate_network_test_host/vpn_url/vpn_hostnames clear (allow_clear=True)
+        # Enter empty for all fields:
+        # - jira_project_keys: keeps "DFLY" (allow_clear=False, has existing value)
+        # - jira_base_url: keeps "https://jira.example.com" (allow_clear=False, has existing value)
+        # - corporate_network_test_host: stays empty (allow_clear=True, no existing value)
+        # - vpn_url: cleared/removed (allow_clear=True, had existing value)
+        # - vpn_hostnames: stays empty (allow_clear=True, no existing value)
         inputs = iter(["", "", "", "", ""])
 
         with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):

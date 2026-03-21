@@ -85,6 +85,7 @@ def run_with_vpn_context(
         from ..azure_devops.vpn_toggle import (
             VpnToggleContext,
             get_vpn_url_from_state,
+            smart_connect_vpn,
         )
         from ..network.detection import NetworkContext, detect_network_context
 
@@ -117,8 +118,6 @@ def run_with_vpn_context(
                     print("   Run agdt-setup to configure VPN URL")
                     print("   Attempting to run anyway...")
                 else:
-                    from ..azure_devops.vpn_toggle import smart_connect_vpn
-
                     print("🔌 Command needs VPN - connecting...")
                     smart_connect_vpn(vpn_url)
             # Run command (VPN now connected, or already had access)
