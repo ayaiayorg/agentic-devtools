@@ -53,12 +53,9 @@ def _detect_vpn_requirement_from_command(command: str) -> VpnRequirement:
             return VpnRequirement.REQUIRE_PUBLIC
 
     # Commands/URLs that typically need VPN
-    vpn_patterns = [
-        "jira.swica.ch",
-        "dragonfly.swica.ch",
-        "portal.swica.ch",
-        "esb.swica",
-    ]
+    from agentic_devtools.cli.azure_devops.vpn_toggle import get_vpn_hostnames
+
+    vpn_patterns = get_vpn_hostnames()
 
     for pattern in vpn_patterns:
         if pattern in command_lower:

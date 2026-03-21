@@ -8,7 +8,8 @@ from agentic_devtools.cli.azure_devops.vpn_toggle import get_vpn_url_from_state
 class TestGetVpnUrlFromState:
     """Tests for get_vpn_url_from_state function."""
 
-    def test_returns_url_from_state_when_set(self):
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
+    def test_returns_url_from_state_when_set(self, _mock_config):
         """Should return the VPN URL stored in state."""
         with patch(
             "agentic_devtools.state.get_value",
@@ -18,24 +19,24 @@ class TestGetVpnUrlFromState:
 
         assert result == "https://vpn.example.com"
 
-    def test_returns_default_url_when_state_not_set(self):
-        """Should return the default VPN URL when none is set in state."""
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
+    def test_returns_none_when_state_not_set(self, _mock_config):
+        """Should return None when no VPN URL is configured."""
         with patch(
             "agentic_devtools.state.get_value",
             return_value=None,
         ):
             result = get_vpn_url_from_state()
 
-        assert result is not None
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert result is None
 
-    def test_returns_string(self):
-        """Return value should always be a string."""
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value="https://config.vpn")
+    def test_returns_project_config_value(self, _mock_config):
+        """Should return VPN URL from project config when available."""
         with patch(
             "agentic_devtools.state.get_value",
             return_value=None,
         ):
             result = get_vpn_url_from_state()
 
-        assert isinstance(result, str)
+        assert result == "https://config.vpn"

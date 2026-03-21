@@ -542,8 +542,8 @@ def find_jira_issue_from_pr(
     """
     Find Jira issue key from a pull request.
 
-    Searches for Jira issue key (e.g., DFLY-1234) in:
-    1. PR source branch name (e.g., feature/DFLY-1234/my-feature)
+    Searches for Jira issue key in:
+    1. PR source branch name (e.g., feature/PROJ-1234/my-feature)
     2. PR title
     3. PR description
 
@@ -553,12 +553,12 @@ def find_jira_issue_from_pr(
         headers: Auth headers (defaults to get_auth_headers)
 
     Returns:
-        Jira issue key (e.g., "DFLY-1234") if found, None otherwise.
+        Jira issue key (e.g., "PROJ-1234") if found, None otherwise.
     """
-    import re
+    from agentic_devtools.cli.jira.config import build_jira_issue_pattern, get_jira_project_keys
 
-    # Pattern to match Jira issue keys (DFLY-1234, etc.)
-    jira_pattern = re.compile(r"(DFLY-\d+)", re.IGNORECASE)
+    # Pattern to match Jira issue keys - built from configured project keys
+    jira_pattern = build_jira_issue_pattern(get_jira_project_keys())
 
     # Get full PR details
     pr_details = get_pull_request_details(pull_request_id, config, headers)
@@ -605,7 +605,7 @@ def find_pr_from_jira_issue(
     3. Jira issue comments/description for PR links (least reliable - text patterns)
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJ-1234")
         config: Azure DevOps configuration (defaults to from_state)
         headers: Auth headers (defaults to get_auth_headers)
         verbose: Whether to print debug output

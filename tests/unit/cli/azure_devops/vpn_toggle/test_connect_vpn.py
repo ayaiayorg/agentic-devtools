@@ -13,7 +13,7 @@ class TestConnectVpn:
 
         mock_installed.return_value = False
 
-        success, msg = connect_vpn()
+        success, msg = connect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -30,7 +30,7 @@ class TestConnectVpn:
         mock_ui_auto.return_value = (True, "Connect button clicked")
         mock_vpn.side_effect = [True]  # VPN connects on first check
 
-        success, msg = connect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = connect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "connected" in msg.lower() or "automation" in msg.lower()
@@ -46,7 +46,7 @@ class TestConnectVpn:
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Already connected")
 
-        success, msg = connect_vpn()
+        success, msg = connect_vpn("https://test.vpn")
 
         assert success is True
         assert "already" in msg.lower()
@@ -63,7 +63,7 @@ class TestConnectVpn:
         mock_ui_auto.return_value = (False, "UI automation failed")
         mock_gui_path.exists.return_value = False
 
-        success, msg = connect_vpn(max_wait_seconds=1)
+        success, msg = connect_vpn("https://test.vpn", max_wait_seconds=1)
 
         assert success is False
         assert "not found" in msg.lower() or "manually" in msg.lower()
