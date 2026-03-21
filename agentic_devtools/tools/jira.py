@@ -107,11 +107,19 @@ def create_issue(
         response.
 
     Raises:
-        ValueError: If *config.base_url* is empty.
+        ValueError: If *config.base_url* is empty, if *epic_name* is not
+            provided when *issue_type* is ``"Epic"``, or if *parent_key*
+            is not provided when *issue_type* is ``"Sub-task"``.
         requests.exceptions.HTTPError: On non-2xx API responses.
     """
     if not config.base_url:
         raise ValueError("base_url is required")
+
+    if issue_type.lower() == "epic" and not epic_name:
+        raise ValueError("epic_name is required when issue_type is 'Epic'")
+
+    if issue_type.lower() in ("sub-task", "subtask") and not parent_key:
+        raise ValueError("parent_key is required when issue_type is 'Sub-task'")
 
     requests = _requests(config)
 
@@ -143,11 +151,16 @@ def create_issue(
     response.raise_for_status()
 
     data = response.json()
-    issue_key = data.get("key", "")
+    issue_key = data.get("key") or ""
+
+    if issue_key:
+        browse_url = f"{config.base_url}/browse/{issue_key}"
+    else:
+        browse_url = ""
 
     return CreateIssueResult(
         issue_key=issue_key,
-        url=f"{config.base_url}/browse/{issue_key}",
+        url=browse_url,
         raw_response=data,
     )
 

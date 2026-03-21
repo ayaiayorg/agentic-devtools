@@ -149,6 +149,33 @@ class TestCreateIssue:
         )
 
         assert result["issue_key"] == ""
+        assert result["url"] == ""
+
+    def test_raises_value_error_epic_without_epic_name(self):
+        config = self._make_config()
+
+        with pytest.raises(ValueError, match="epic_name is required"):
+            create_issue(
+                config=config,
+                project_key="PROJ",
+                summary="Epic",
+                issue_type="Epic",
+                description="Desc",
+                labels=[],
+            )
+
+    def test_raises_value_error_subtask_without_parent_key(self):
+        config = self._make_config()
+
+        with pytest.raises(ValueError, match="parent_key is required"):
+            create_issue(
+                config=config,
+                project_key="PROJ",
+                summary="Subtask",
+                issue_type="Sub-task",
+                description="Desc",
+                labels=[],
+            )
 
     def test_no_epic_name_for_non_epic(self):
         mock_requests = MagicMock()

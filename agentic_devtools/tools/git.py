@@ -46,8 +46,8 @@ class RecentChangesResult(TypedDict):
 def _capture(func, *args, **kwargs) -> str:  # type: ignore[no-untyped-def]
     """Call *func* and capture whatever it prints to stdout.
 
-    If *func* raises, partial output captured so far is still returned via
-    the exception's ``__context__``.
+    If *func* raises, the exception propagates and any captured output
+    is discarded.
     """
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):

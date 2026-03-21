@@ -9,9 +9,12 @@ parameters and returns a ``TypedDict`` result.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import TypedDict
+
+if TYPE_CHECKING:
+    from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
 
 # ---------------------------------------------------------------------------
 # Result TypedDicts
@@ -74,7 +77,7 @@ class FileReviewResult(TypedDict):
 
 
 def create_pull_request(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     source_branch: str,
     title: str,
@@ -151,7 +154,7 @@ def create_pull_request(
 
 
 def reply_to_pull_request_thread(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     thread_id: int,
@@ -214,7 +217,7 @@ def reply_to_pull_request_thread(
 
 
 def add_pull_request_comment(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     content: str,
@@ -294,7 +297,7 @@ def add_pull_request_comment(
 
 
 def update_review_narrative(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     content: str,
@@ -361,7 +364,7 @@ def update_review_narrative(
 
 
 def add_reviewer(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     reviewer_id: str,
@@ -384,7 +387,7 @@ def add_reviewer(
 
 
 def complete_pull_request(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     merge_strategy: str = "squash",
@@ -407,7 +410,7 @@ def complete_pull_request(
 
 
 def file_review(
-    config: Any,
+    config: AzureDevOpsConfig,
     pat: str,
     pull_request_id: int,
     file_path: str,

@@ -158,7 +158,7 @@ def get_issue() -> None:
                 print(f"Epic details saved to: {epic_file}")
                 set_jira_value(
                     "epic_details",
-                    {"location": str(epic_file), "key": epic_link, "retrievalTimestamp": retrieval_timestamp},
+                    {"location": str(epic_file), "key": epic_key, "retrievalTimestamp": retrieval_timestamp},
                 )
 
         # Print formatted output
