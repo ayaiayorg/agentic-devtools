@@ -7,12 +7,19 @@ import sys
 from datetime import datetime, timezone
 
 from agentic_devtools.state import get_state_dir
+from agentic_devtools.tools.jira import JiraConfig
+from agentic_devtools.tools.jira import fetch_issue_context as _tools_fetch_issue_context
 
 from .adf import _convert_adf_to_text
 from .config import get_jira_base_url, get_jira_headers
 from .helpers import _get_requests, _get_ssl_verify
 from .state_helpers import get_jira_value, set_jira_value
 from .vpn_wrapper import with_jira_vpn_context
+
+# ---------------------------------------------------------------------------
+# Backward-compatible private helpers — kept so that existing tests that
+# import ``get_commands._fetch_*`` continue to work.
+# ---------------------------------------------------------------------------
 
 
 def _fetch_remote_links(requests, base_url: str, issue_key: str, headers: dict) -> list[dict]:
@@ -22,26 +29,13 @@ def _fetch_remote_links(requests, base_url: str, issue_key: str, headers: dict) 
         response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
         response.raise_for_status()
         result = response.json()
-        # Ensure we return a list (API returns array of remote links)
         return result if isinstance(result, list) else []
     except Exception:
-        # Remote links API may fail silently - not critical
         return []
 
 
 def _fetch_parent_issue(requests, base_url: str, parent_key: str, headers: dict) -> dict | None:
-    """
-    Fetch parent issue details for a subtask.
-
-    Args:
-        requests: The requests module to use
-        base_url: Jira base URL
-        parent_key: The parent issue key
-        headers: Authentication headers
-
-    Returns:
-        Parent issue JSON dict, or None if fetch fails
-    """
+    """Fetch parent issue details for a subtask."""
     fields = "summary,description,comment,labels,issuetype,parent,customfield_10008"
     url = f"{base_url}/rest/api/2/issue/{parent_key}?fields={fields}&comment.maxResults=50"
     try:
@@ -54,18 +48,7 @@ def _fetch_parent_issue(requests, base_url: str, parent_key: str, headers: dict)
 
 
 def _fetch_epic(requests, base_url: str, epic_key: str, headers: dict) -> dict | None:
-    """
-    Fetch epic issue details for an issue linked to an epic.
-
-    Args:
-        requests: The requests module to use
-        base_url: Jira base URL
-        epic_key: The epic issue key
-        headers: Authentication headers
-
-    Returns:
-        Epic issue JSON dict, or None if fetch fails
-    """
+    """Fetch epic issue details for an issue linked to an epic."""
     fields = "summary,description,comment,labels,issuetype,customfield_10008"
     url = f"{base_url}/rest/api/2/issue/{epic_key}?fields={fields}&comment.maxResults=50"
     try:
@@ -107,8 +90,6 @@ def get_issue() -> None:
         agdt-set jira.issue_key DFLY-1234
         agdt-get-jira-issue
     """
-    requests = _get_requests()
-
     issue_key = get_jira_value("issue_key")
 
     if not issue_key:
@@ -118,19 +99,22 @@ def get_issue() -> None:
         )
         sys.exit(1)
 
-    base_url = get_jira_base_url()
-    # Include parent field for subtask detection and customfield_10008 for epic link
-    fields_param = "summary,description,comment,labels,issuetype,parent,customfield_10008"
-    url = f"{base_url}/rest/api/2/issue/{issue_key}?fields={fields_param}&comment.maxResults=50"
-    headers = get_jira_headers()
-
     print(f"Fetching {issue_key}...")
 
     try:
-        response = requests.get(url, headers=headers, verify=_get_ssl_verify(), timeout=30)
-        response.raise_for_status()
+        config = JiraConfig(
+            base_url=get_jira_base_url(),
+            headers=get_jira_headers(),
+            ssl_verify=_get_ssl_verify(),
+            requests_module=_get_requests(),
+        )
+        ctx = _tools_fetch_issue_context(config=config, issue_key=issue_key)
 
-        issue = response.json()
+        issue = ctx["issue"]
+        parent_issue = ctx["parent_issue"]
+        epic_issue = ctx["epic_issue"]
+        remote_links = ctx["remote_links"]
+
         fields = issue.get("fields", {})
         retrieval_timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -147,38 +131,42 @@ def get_issue() -> None:
         issuetype = fields.get("issuetype", {})
         is_subtask = issuetype.get("subtask", False)
         is_epic = issuetype.get("name", "").lower() == "epic"
-        parent_issue = None
-        epic_issue = None
 
         if is_subtask:
             parent_data = fields.get("parent", {})
-            parent_key = parent_data.get("key")
-            if parent_key:
-                print(f"\nDetected subtask of {parent_key}, fetching parent issue...")
-                parent_issue = _fetch_parent_issue(requests, base_url, parent_key, headers)
-                if parent_issue:
-                    parent_file = state_dir / "temp-get-parent-issue-details-response.json"
-                    parent_file.write_text(json.dumps(parent_issue, indent=2, ensure_ascii=False), encoding="utf-8")
-                    print(f"Parent issue details saved to: {parent_file}")
-                    # Store metadata reference for parent (not full JSON)
-                    set_jira_value(
-                        "parent_issue_details",
-                        {"location": str(parent_file), "key": parent_key, "retrievalTimestamp": retrieval_timestamp},
-                    )
+            parent_key_from_fields = parent_data.get("key")
+            if parent_key_from_fields:
+                print(f"\nDetected subtask of {parent_key_from_fields}, fetching parent issue...")
+            if parent_issue:
+                parent_key = parent_issue.get("key", "") or parent_key_from_fields or ""
+                parent_file = state_dir / "temp-get-parent-issue-details-response.json"
+                parent_file.write_text(json.dumps(parent_issue, indent=2, ensure_ascii=False), encoding="utf-8")
+                print(f"Parent issue details saved to: {parent_file}")
+                set_jira_value(
+                    "parent_issue_details",
+                    {"location": str(parent_file), "key": parent_key, "retrievalTimestamp": retrieval_timestamp},
+                )
+            elif parent_key_from_fields:
+                print(
+                    (
+                        f"Warning: Could not fetch parent issue {parent_key_from_fields}. "
+                        "This may indicate a network, VPN, or authentication problem when contacting Jira."
+                    ),
+                    file=sys.stderr,
+                )
 
         # Epic link detection and retrieval (skip for subtasks and epics themselves)
         epic_link = fields.get("customfield_10008")
         if epic_link and not is_subtask and not is_epic:
             print(f"\nDetected epic link {epic_link}, fetching epic...")
-            epic_issue = _fetch_epic(requests, base_url, epic_link, headers)
             if epic_issue:
+                epic_key = epic_issue.get("key", "") or epic_link
                 epic_file = state_dir / "temp-get-epic-details-response.json"
                 epic_file.write_text(json.dumps(epic_issue, indent=2, ensure_ascii=False), encoding="utf-8")
                 print(f"Epic details saved to: {epic_file}")
-                # Store metadata reference for epic (not full JSON)
                 set_jira_value(
                     "epic_details",
-                    {"location": str(epic_file), "key": epic_link, "retrievalTimestamp": retrieval_timestamp},
+                    {"location": str(epic_file), "key": epic_key, "retrievalTimestamp": retrieval_timestamp},
                 )
 
         # Print formatted output
@@ -239,8 +227,7 @@ def get_issue() -> None:
         else:
             print("\nComments: none")
 
-        # Fetch and print remote links (PRs)
-        remote_links = _fetch_remote_links(requests, base_url, issue_key, headers)
+        # Print remote links (PRs)
         pr_links = [
             link
             for link in remote_links

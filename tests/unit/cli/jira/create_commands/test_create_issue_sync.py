@@ -72,19 +72,18 @@ class TestCreateIssueSyncEdgeCases:
     """Edge case tests for create_issue_sync."""
 
     def test_create_issue_sync_no_epic_name_for_epic(self, mock_jira_env, mock_requests_module):
-        """Test creating Epic without epic_name doesn't add field."""
-        jira.create_issue_sync(
-            project_key="DFLY",
-            summary="Test Epic",
-            issue_type="Epic",
-            description="Epic description",
-            labels=[],
-            epic_name=None,
-        )
+        """Test creating Epic without epic_name raises ValueError."""
+        import pytest
 
-        call_args = mock_requests_module.post.call_args
-        payload = call_args[1]["json"]
-        assert jira.EPIC_NAME_FIELD not in payload["fields"]
+        with pytest.raises(ValueError, match="epic_name is required"):
+            jira.create_issue_sync(
+                project_key="DFLY",
+                summary="Test Epic",
+                issue_type="Epic",
+                description="Epic description",
+                labels=[],
+                epic_name=None,
+            )
 
     def test_create_issue_sync_no_parent_for_task(self, mock_jira_env, mock_requests_module):
         """Test creating Task with parent_key doesn't add parent field."""
