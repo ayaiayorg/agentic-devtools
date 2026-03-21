@@ -119,7 +119,13 @@ def run_with_vpn_context(
                     print("   Attempting to run anyway...")
                 else:
                     print("🔌 Command needs VPN - connecting...")
-                    smart_connect_vpn(vpn_url)
+                    success, msg = smart_connect_vpn(vpn_url)
+                    if msg:
+                        print(msg)
+                    if not success:
+                        error_msg = f"VPN connection failed: {msg}" if msg else "VPN connection failed"
+                        print("❌ Unable to establish VPN connection; aborting command.")
+                        return 1, "", error_msg
             # Run command (VPN now connected, or already had access)
             return _execute_command(command, shell)
 
