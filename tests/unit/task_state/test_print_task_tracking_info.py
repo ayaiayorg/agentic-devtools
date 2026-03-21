@@ -36,7 +36,7 @@ class TestPrintTaskTrackingInfo:
             assert "Background task started" in captured.out
             assert "agdt-test-cmd" in captured.out
             assert task.id in captured.out
-            assert "task_id automatically set" in captured.out
+            assert "background.task_id automatically set" in captured.out
 
     def test_prints_action_description(self, tmp_path, capsys):
         """Test that action description is printed."""
