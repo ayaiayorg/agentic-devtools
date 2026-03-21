@@ -2,14 +2,14 @@
 Git workflow CLI commands and helpers.
 
 Commands provide a streamlined interface for the single-commit workflow:
-1. dfly-git-commit / dfly-git-sync: Fetch, rebase onto main, stage, commit, and publish
+1. agdt-git-save-work (alias: agdt-git-sync): Fetch, rebase onto main, stage, commit, and publish
    - Fetches latest from origin/main and rebases if behind
    - Auto-aborts rebase on conflicts with manual resolution instructions
    - Detects if branch already has commits ahead of main for same issue
    - Automatically amends instead of creating new commit when appropriate
-2. dfly-git-stage, dfly-git-push, dfly-git-force-push: Individual operations
+2. agdt-git-stage, agdt-git-push, agdt-git-force-push: Individual operations
 
-The commit message is read from state (set via dfly-set commit_message "...").
+The commit message is read from state (set via agdt-set commit_message "...").
 
 Key advantage over PowerShell: multiline commit messages work natively
 without replacement tokens or line-by-line builders!

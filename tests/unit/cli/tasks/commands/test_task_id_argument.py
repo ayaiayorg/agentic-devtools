@@ -102,12 +102,12 @@ class TestTaskIdArgument:
     def test_task_wait_ignores_older_failed_same_command(self, mock_state_dir, capsys):
         """Test task_wait doesn't report older failed tasks for the same command.
 
-        Bug fix: When a task for dfly-git-save-work succeeds, we should NOT report
-        an older failed dfly-git-save-work task as needing attention.
+        Bug fix: When a task for agdt-git-save-work succeeds, we should NOT report
+        an older failed agdt-git-save-work task as needing attention.
         """
         import time
 
-        # Create an older failed task for dfly-git-save-work
+        # Create an older failed task for agdt-git-save-work
         older_failed = _create_and_add_task("agdt-git-save-work")
         older_failed.mark_running()
         older_failed.mark_failed(exit_code=1)
@@ -116,7 +116,7 @@ class TestTaskIdArgument:
         # Small delay to ensure different timestamps
         time.sleep(0.01)
 
-        # Create a newer successful task for dfly-git-save-work
+        # Create a newer successful task for agdt-git-save-work
         newer_success = _create_and_add_task("agdt-git-save-work")
         newer_success.mark_running()
         newer_success.mark_completed(exit_code=0)
@@ -145,7 +145,7 @@ class TestTaskIdArgument:
         failed_other.mark_failed(exit_code=1)
         update_task(failed_other)
 
-        # Create a successful task for dfly-git-save-work
+        # Create a successful task for agdt-git-save-work
         success_task = _create_and_add_task("agdt-git-save-work")
         success_task.mark_running()
         success_task.mark_completed(exit_code=0)

@@ -604,7 +604,7 @@ def update_pipeline() -> None:
     Update an existing Azure DevOps pipeline (rename, change YAML path, move folder).
 
     State keys read:
-        - pipeline.id: ID of pipeline to update (required, use dfly-get-pipeline-id first)
+        - pipeline.id: ID of pipeline to update (required, use agdt-get-pipeline-id first)
         - pipeline.new_name: New name for the pipeline (optional)
         - pipeline.yaml_path: New YAML file path (optional)
         - pipeline.new_folder_path: New folder to move pipeline to (optional)
@@ -624,7 +624,7 @@ def update_pipeline() -> None:
     if not pipeline_id:
         print(
             "Error: 'pipeline.id' is required. "
-            "Run dfly-get-pipeline-id first, or set it with: agdt-set pipeline.id <id>",
+            "Run agdt-get-pipeline-id first, or set it with: agdt-set pipeline.id <id>",
             file=sys.stderr,
         )
         sys.exit(1)

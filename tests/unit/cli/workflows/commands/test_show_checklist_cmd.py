@@ -131,7 +131,7 @@ class TestShowChecklistCmd:
 
 
 class TestShowChecklistCmdFromChecklistCommands:
-    """Tests for dfly-show-checklist command."""
+    """Tests for agdt-show-checklist command."""
 
     def test_requires_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test that command requires work-on-jira-issue workflow."""

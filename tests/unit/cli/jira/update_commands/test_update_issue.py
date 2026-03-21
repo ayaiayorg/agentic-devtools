@@ -1,7 +1,7 @@
 """
 Tests for Jira update_commands module.
 
-Tests for dfly-update-jira-issue command and payload building.
+Tests for agdt-update-jira-issue command and payload building.
 """
 
 import json

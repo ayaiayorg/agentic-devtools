@@ -52,6 +52,7 @@ htmlcov/
 .tox/
 
 # State files
+.dfly-temp/
 .agdt-temp/
 .agdt/
 *.log

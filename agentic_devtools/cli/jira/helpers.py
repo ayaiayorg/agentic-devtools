@@ -112,7 +112,7 @@ def _get_ssl_verify() -> Union[bool, str]:
 
     Priority:
     1. If JIRA_SSL_VERIFY=0, disable SSL verification
-    2. State value 'jira.ca_bundle_path' (set via dfly-set)
+    2. State value 'jira.ca_bundle_path' (set via agdt-set)
     3. Environment variable JIRA_CA_BUNDLE or REQUESTS_CA_BUNDLE
     4. Try to auto-generate/use cached Jira CA bundle PEM with full chain
     5. Fall back to disabled verification for corporate internal CAs
@@ -124,7 +124,7 @@ def _get_ssl_verify() -> Union[bool, str]:
     if os.environ.get("JIRA_SSL_VERIFY") == "0":
         return False
 
-    # Check state for CA bundle path (allows dfly-set jira.ca_bundle_path)
+    # Check state for CA bundle path (allows agdt-set jira.ca_bundle_path)
     from agentic_devtools.state import get_value
 
     state_ca_bundle = get_value("jira.ca_bundle_path")
