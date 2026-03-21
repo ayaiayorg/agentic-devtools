@@ -417,7 +417,8 @@ def _prompt_project_config() -> None:
 
     print()
     print("─── Project Configuration ───────────────────────────────────")
-    print("  Configure project-specific settings (press Enter to keep current value).")
+    print("  Configure project-specific settings.")
+    print("  Press Enter to keep current value; optional fields can be cleared with Enter.")
     print()
 
     def _ask(prompt: str, key: str, allow_clear: bool = False) -> str:
@@ -432,10 +433,10 @@ def _prompt_project_config() -> None:
 
     jira_keys = _ask("Jira project key(s), comma-separated (e.g. DFLY,PROJ)", "jira_project_keys")
     jira_base_url = _ask("Jira base URL (e.g. https://jira.example.com)", "jira_base_url")
-    corp_host = _ask("Corporate network test host (empty to skip)", "corporate_network_test_host", allow_clear=True)
-    vpn_url = _ask("VPN portal URL (empty to skip)", "vpn_url", allow_clear=True)
+    corp_host = _ask("Corporate network test host (empty to clear)", "corporate_network_test_host", allow_clear=True)
+    vpn_url = _ask("VPN portal URL (empty to clear)", "vpn_url", allow_clear=True)
     vpn_hostnames = _ask(
-        "VPN hostnames for smart detection, comma-separated (empty to skip)",
+        "VPN hostnames for smart detection, comma-separated (empty to clear)",
         "vpn_hostnames",
         allow_clear=True,
     )
