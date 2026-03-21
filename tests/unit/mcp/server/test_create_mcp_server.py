@@ -159,6 +159,30 @@ class TestMcpToolHandlersJira:
             )
         assert any("bad input" in str(item) for item in result)
 
+    def test_jira_create_issue_logs_exception(self):
+        with (
+            patch.dict(os.environ, self._JIRA_ENV, clear=True),
+            patch(
+                "agentic_devtools.mcp.server.tools_jira.create_issue",
+                side_effect=ValueError("bad input"),
+            ),
+            patch("agentic_devtools.mcp.server.logger") as mock_logger,
+        ):
+            server = create_mcp_server()
+            asyncio.run(
+                server.call_tool(
+                    "jira_create_issue",
+                    {
+                        "project_key": "PROJ",
+                        "summary": "Test",
+                        "issue_type": "Task",
+                        "description": "Desc",
+                        "labels": [],
+                    },
+                )
+            )
+        mock_logger.exception.assert_called_once_with("Tool call failed")
+
     def test_jira_create_epic_delegates(self):
         mock_result = {"issue_key": "PROJ-2", "url": "", "raw_response": {}}
         with (

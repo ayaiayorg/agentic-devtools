@@ -108,7 +108,8 @@ class TestLoadAzureDevOpsConfig:
         config, _pat, _headers = result
         assert config.repository == "detected-repo"
 
-    def test_repository_empty_when_no_env_and_no_remote(self):
+    def test_returns_none_when_no_env_and_no_remote(self):
+        """When repository cannot be determined, treat as not configured."""
         env = {
             "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
             "AZURE_DEVOPS_PROJECT": "MyProject",
@@ -123,6 +124,48 @@ class TestLoadAzureDevOpsConfig:
         ):
             result = _load_azure_devops_config()
 
+        assert result is None
+
+    def test_pat_falls_back_to_azure_dev_ops_copilot_pat(self):
+        env = {
+            "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
+            "AZURE_DEVOPS_PROJECT": "MyProject",
+            "AZURE_DEV_OPS_COPILOT_PAT": "copilot-pat",
+            "AZURE_DEVOPS_REPOSITORY": "my-repo",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_azure_devops_config()
+
         assert result is not None
-        config, _pat, _headers = result
-        assert config.repository == ""
+        _config, pat, _headers = result
+        assert pat == "copilot-pat"
+
+    def test_pat_falls_back_to_azure_devops_ext_pat(self):
+        env = {
+            "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
+            "AZURE_DEVOPS_PROJECT": "MyProject",
+            "AZURE_DEVOPS_EXT_PAT": "ext-pat",
+            "AZURE_DEVOPS_REPOSITORY": "my-repo",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_azure_devops_config()
+
+        assert result is not None
+        _config, pat, _headers = result
+        assert pat == "ext-pat"
+
+    def test_pat_prefers_azure_devops_pat_over_fallbacks(self):
+        env = {
+            "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
+            "AZURE_DEVOPS_PROJECT": "MyProject",
+            "AZURE_DEVOPS_PAT": "primary-pat",
+            "AZURE_DEV_OPS_COPILOT_PAT": "copilot-pat",
+            "AZURE_DEVOPS_EXT_PAT": "ext-pat",
+            "AZURE_DEVOPS_REPOSITORY": "my-repo",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_azure_devops_config()
+
+        assert result is not None
+        _config, pat, _headers = result
+        assert pat == "primary-pat"

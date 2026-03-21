@@ -34,7 +34,7 @@ tools for that platform return an error message when called.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `JIRA_BASE_URL` | Yes | Jira instance URL (e.g. `https://jira.example.com`) |
-| `JIRA_API_TOKEN` | Yes | API token or PAT |
+| `JIRA_API_TOKEN` | Yes | API token or PAT (falls back to `JIRA_COPILOT_PAT`) |
 | `JIRA_USER_EMAIL` | No | When set, Basic auth is used instead of Bearer |
 | `JIRA_SSL_VERIFY` | No | `0` or `false` to disable SSL verification; path to CA bundle; default `true` |
 
@@ -44,8 +44,14 @@ tools for that platform return an error message when called.
 |----------|----------|-------------|
 | `AZURE_DEVOPS_ORG` | Yes | Organization URL (e.g. `https://dev.azure.com/myorg`) |
 | `AZURE_DEVOPS_PROJECT` | Yes | Project name |
-| `AZURE_DEVOPS_PAT` | Yes | Personal Access Token |
-| `AZURE_DEVOPS_REPOSITORY` | No | Repository name (auto-detected from git remote if not set) |
+| `AZURE_DEVOPS_PAT` | Yes | Personal Access Token (falls back to `AZURE_DEV_OPS_COPILOT_PAT`, then `AZURE_DEVOPS_EXT_PAT`) |
+| `AZURE_DEVOPS_REPOSITORY` | No* | Repository name (auto-detected from git remote if not set) |
+
+> \*When `AZURE_DEVOPS_REPOSITORY` is not set, the MCP server attempts to
+> infer the repository name from the current git remote (typically `origin`).
+> If auto-detection fails (e.g. running outside a git repo or the remote does
+> not point to Azure DevOps), Azure DevOps tools will be treated as not
+> configured. In non-git contexts, set `AZURE_DEVOPS_REPOSITORY` explicitly.
 
 ### Git
 

@@ -126,3 +126,26 @@ class TestLoadJiraConfig:
 
         assert result is not None
         assert result.ssl_verify is True
+
+    def test_token_falls_back_to_jira_copilot_pat(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_COPILOT_PAT": "copilot-tok",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        assert result.headers == {"Authorization": "Bearer copilot-tok"}
+
+    def test_token_prefers_jira_api_token_over_fallback(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "primary-tok",
+            "JIRA_COPILOT_PAT": "copilot-tok",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        assert result.headers == {"Authorization": "Bearer primary-tok"}

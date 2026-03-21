@@ -35,10 +35,13 @@ logger = logging.getLogger(__name__)
 # Config loaders
 # ---------------------------------------------------------------------------
 
-_JIRA_MISSING_MSG = "Jira is not configured. Set JIRA_BASE_URL and JIRA_API_TOKEN environment variables."
+_JIRA_MISSING_MSG = (
+    "Jira is not configured. Set JIRA_BASE_URL and JIRA_API_TOKEN (or JIRA_COPILOT_PAT) environment variables."
+)
 _AZURE_DEVOPS_MISSING_MSG = (
     "Azure DevOps is not configured. "
-    "Set AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_PAT environment variables."
+    "Set AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_PAT "
+    "(or AZURE_DEV_OPS_COPILOT_PAT) environment variables."
 )
 
 
@@ -47,7 +50,7 @@ def _load_jira_config() -> JiraConfig | None:
 
     Required:
         - ``JIRA_BASE_URL``
-        - ``JIRA_API_TOKEN``
+        - ``JIRA_API_TOKEN`` (falls back to ``JIRA_COPILOT_PAT``)
 
     Optional:
         - ``JIRA_USER_EMAIL`` — when set, Basic auth is used instead of Bearer.
@@ -57,7 +60,8 @@ def _load_jira_config() -> JiraConfig | None:
     Returns ``None`` (with a warning) when required variables are missing.
     """
     base_url = os.environ.get("JIRA_BASE_URL", "")
-    token = os.environ.get("JIRA_API_TOKEN", "")
+    # Support both MCP-style and repo-conventional env var names
+    token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
 
     if not base_url or not token:
         logger.warning(_JIRA_MISSING_MSG)
@@ -87,14 +91,18 @@ def _load_azure_devops_config() -> tuple | None:
     Required:
         - ``AZURE_DEVOPS_ORG``
         - ``AZURE_DEVOPS_PROJECT``
-        - ``AZURE_DEVOPS_PAT``
+        - ``AZURE_DEVOPS_PAT`` (falls back to ``AZURE_DEV_OPS_COPILOT_PAT``,
+          then ``AZURE_DEVOPS_EXT_PAT``)
 
     Optional:
         - ``AZURE_DEVOPS_REPOSITORY`` — repository name. When not set, the
-          repository is auto-detected from the git remote URL.
+          repository is auto-detected from the git remote URL. If neither
+          source provides a repository name, Azure DevOps is treated as
+          not configured (returns ``None``).
 
     Returns a ``(AzureDevOpsConfig, pat, auth_headers)`` tuple, or ``None``
-    (with a warning) when required variables are missing.
+    (with a warning) when required variables are missing or the repository
+    cannot be determined.
     """
     from agentic_devtools.cli.azure_devops.config import (
         AzureDevOpsConfig,
@@ -103,7 +111,12 @@ def _load_azure_devops_config() -> tuple | None:
 
     org = os.environ.get("AZURE_DEVOPS_ORG", "")
     project = os.environ.get("AZURE_DEVOPS_PROJECT", "")
-    pat = os.environ.get("AZURE_DEVOPS_PAT", "")
+    # Support both MCP-style and repo-conventional env var names
+    pat = (
+        os.environ.get("AZURE_DEVOPS_PAT", "")
+        or os.environ.get("AZURE_DEV_OPS_COPILOT_PAT", "")
+        or os.environ.get("AZURE_DEVOPS_EXT_PAT", "")
+    )
 
     if not org or not project or not pat:
         logger.warning(_AZURE_DEVOPS_MISSING_MSG)
@@ -112,6 +125,13 @@ def _load_azure_devops_config() -> tuple | None:
     repository = os.environ.get("AZURE_DEVOPS_REPOSITORY", "")
     if not repository:
         repository = get_repository_name_from_git_remote() or ""
+
+    if not repository:
+        logger.warning(
+            "Azure DevOps repository could not be determined. "
+            "Set AZURE_DEVOPS_REPOSITORY or run from a git repo with an origin remote."
+        )
+        return None
 
     config = AzureDevOpsConfig(organization=org, project=project, repository=repository)
     credentials = base64.b64encode(f":{pat}".encode()).decode()
@@ -181,6 +201,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -214,6 +235,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -247,6 +269,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -271,6 +294,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -292,6 +316,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     # -- Git tools ---------------------------------------------------------
@@ -307,6 +332,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.stage_changes, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -321,6 +347,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.create_commit, message=message, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -335,6 +362,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.amend_commit, message=message, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -348,6 +376,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.push, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -361,6 +390,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.force_push, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -374,6 +404,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.publish_branch, dry_run=dry_run)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -404,6 +435,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -417,6 +449,7 @@ def create_mcp_server() -> FastMCP:
             result = await asyncio.to_thread(tools_git.get_recent_changes, num_commits=num_commits)
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     # -- Azure DevOps tools ------------------------------------------------
@@ -454,6 +487,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -486,6 +520,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -524,6 +559,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -550,6 +586,7 @@ def create_mcp_server() -> FastMCP:
             )
             return dict(result)
         except Exception as exc:
+            logger.exception("Tool call failed")
             return {"error": str(exc)}
 
     return mcp
