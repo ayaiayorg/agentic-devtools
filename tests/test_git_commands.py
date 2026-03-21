@@ -195,7 +195,7 @@ class TestCommitCommand:
 
 
 class TestAmendCommand:
-    """Tests for agdt-git-amend command."""
+    """Tests for the amend_cmd workflow (amend + force-push)."""
 
     def test_amend_cmd_full_workflow(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test full amend workflow."""

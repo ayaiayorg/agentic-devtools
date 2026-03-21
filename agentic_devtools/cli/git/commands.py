@@ -282,6 +282,9 @@ def amend_cmd() -> None:
     2. Amend the existing commit with updated message
     3. Force push with lease
 
+    Note: This is an internal function invoked by agdt-git-save-work when
+    amend is detected. It is not a public CLI entry point.
+
     State keys:
         commit_message (required): The commit message (multiline supported)
         dry_run (optional): If true, show what would happen without executing
@@ -291,11 +294,6 @@ def amend_cmd() -> None:
     CLI args:
         --completed "1,2,3": Mark checklist items as completed
         --commit-message "msg": Override commit message from state
-
-    Example:
-        agdt-set commit_message "feature(DFLY-1234): add feature (updated)"
-        agdt-git-amend
-        agdt-git-amend --completed "1,2"
     """
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description="Git amend commit")
