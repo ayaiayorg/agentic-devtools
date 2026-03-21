@@ -343,6 +343,8 @@ COMMAND_MAP = {
     "agdt-vpn-run": ("agentic_devtools.cli.vpn", "vpn_run_cmd"),
     # Multi-model review pipeline
     "agdt-review": ("agentic_devtools.cli.review", "main"),
+    # MCP Server
+    "agdt-mcp-server": ("agentic_devtools.mcp.server", "main"),
 }
 
 
