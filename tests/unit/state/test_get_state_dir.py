@@ -16,35 +16,6 @@ class TestGetStateDirEnvVar:
             assert result == custom_dir
             assert custom_dir.exists()
 
-    def test_dfly_env_var_legacy_alias(self, tmp_path):
-        """DFLY_AI_HELPERS_STATE_DIR must be honored as a legacy alias."""
-        custom_dir = tmp_path / "legacy_dir"
-        with patch.dict(
-            "os.environ",
-            {"DFLY_AI_HELPERS_STATE_DIR": str(custom_dir)},
-            clear=True,
-        ):
-            result = state.get_state_dir()
-            assert result == custom_dir
-            assert custom_dir.exists()
-
-    def test_agentic_env_var_takes_priority_over_dfly(self, tmp_path):
-        """AGENTIC_DEVTOOLS_STATE_DIR takes priority over DFLY_AI_HELPERS_STATE_DIR."""
-        primary_dir = tmp_path / "primary"
-        legacy_dir = tmp_path / "legacy"
-        with patch.dict(
-            "os.environ",
-            {
-                "AGENTIC_DEVTOOLS_STATE_DIR": str(primary_dir),
-                "DFLY_AI_HELPERS_STATE_DIR": str(legacy_dir),
-            },
-            clear=True,
-        ):
-            result = state.get_state_dir()
-            assert result == primary_dir
-            assert primary_dir.exists()
-            assert not legacy_dir.exists()
-
 
 class TestGetStateDirBootstrap:
     """Tests for bootstrap-based resolution (.agdt/workflows/{identity}/{worktree_key}/)."""

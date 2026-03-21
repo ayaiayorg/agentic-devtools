@@ -775,9 +775,8 @@ class TestMissingBootstrapStateShift:
         """
         from agentic_devtools.state import get_state_dir, get_value, set_value
 
-        # Remove state-dir env var overrides so get_state_dir() uses git-root/bootstrap logic.
+        # Remove state-dir env var override so get_state_dir() uses git-root/bootstrap logic.
         monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
 
         # Create fake repo root with identity.json but NO runtime-bootstrap.json
         fake_repo = tmp_path / "fake-repo"
@@ -826,9 +825,8 @@ class TestMissingBootstrapStateShift:
         """
         from agentic_devtools.cli.workflows.preflight import PreflightResult
 
-        # Remove state-dir env var overrides so get_state_dir() uses git-root/bootstrap logic.
+        # Remove state-dir env var override so get_state_dir() uses git-root/bootstrap logic.
         monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-        monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
 
         fake_repo = tmp_path / "fake-repo"
         fake_repo.mkdir()
