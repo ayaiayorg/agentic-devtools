@@ -228,7 +228,7 @@ def get_project_role_details() -> None:
         return
     if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
-        print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
+        print("Tip: Use agdt-list-project-roles to see available roles and their IDs.")
         return
 
     base_url = get_jira_base_url()
@@ -305,7 +305,7 @@ def add_users_to_project_role() -> None:
         return
     if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
-        print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
+        print("Tip: Use agdt-list-project-roles to see available roles and their IDs.")
         return
     if not users_raw:  # pragma: no cover
         print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")
@@ -382,7 +382,7 @@ def add_users_to_project_role_batch() -> None:
         return
     if not role_id:  # pragma: no cover
         print("Error: role_id not set. Use: agdt-set jira.role_id <ROLE_ID>")
-        print("Tip: Use dfly-list-project-roles to see available roles and their IDs.")
+        print("Tip: Use agdt-list-project-roles to see available roles and their IDs.")
         return
     if not users_raw:  # pragma: no cover
         print("Error: users not set. Use: agdt-set jira.users 'user1,user2,user3'")

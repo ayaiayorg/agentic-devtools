@@ -891,7 +891,7 @@ def print_task_tracking_info(task: BackgroundTask, action_description: Optional[
     print()
     print(
         f"Background task started (command: {task.command}, id: {task.id}), "
-        f"task_id automatically set in dfly-state.json for progress tracking."
+        f"task_id automatically set in agdt-state.json for progress tracking."
     )
     print()
     print(f"{action_description}...")

@@ -167,7 +167,7 @@ def amend_async(
     2. Amend the existing commit with updated message
     3. Force push with lease
 
-    Note: This function is primarily for internal use. The dfly-git-save-work
+    Note: This function is primarily for internal use. The agdt-git-save-work
     command now auto-detects when to amend based on branch state.
 
     Args:
@@ -285,7 +285,7 @@ sync_async = commit_async
 """
 Alias for commit_async.
 
-dfly-git-sync is a more descriptive name for the full workflow:
+agdt-git-sync is a more descriptive name for the full workflow:
 1. Fetch latest from origin/main
 2. Rebase onto main if behind
 3. Stage, commit (or amend), push

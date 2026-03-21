@@ -1,9 +1,9 @@
 """
-Tests for git CLI commands (dfly-git-save-work, dfly-git-amend, etc.).
+Tests for git CLI commands (agdt-git-save-work, agdt-git-amend, etc.).
 
 Tests cover:
-- commit_cmd workflow (dfly-git-save-work)
-- amend_cmd workflow (dfly-git-amend)
+- commit_cmd workflow (agdt-git-save-work)
+- amend_cmd workflow (agdt-git-amend)
 - stage_cmd, push_cmd, force_push_cmd, publish_cmd
 - State flags (skip_stage, skip_push, skip_rebase, dry_run)
 """
@@ -69,7 +69,7 @@ def mock_sync_with_main():
 
 
 class TestCommitCommand:
-    """Tests for dfly-git-save-work command."""
+    """Tests for agdt-git-save-work command."""
 
     def test_commit_cmd_full_workflow(
         self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main
@@ -195,7 +195,7 @@ class TestCommitCommand:
 
 
 class TestAmendCommand:
-    """Tests for dfly-git-amend command."""
+    """Tests for agdt-git-amend command."""
 
     def test_amend_cmd_full_workflow(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test full amend workflow."""
@@ -280,7 +280,7 @@ class TestAmendCommand:
 
 
 class TestStageCommand:
-    """Tests for dfly-git-stage command."""
+    """Tests for agdt-git-stage command."""
 
     def test_stage_cmd(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test stage command."""
@@ -307,7 +307,7 @@ class TestStageCommand:
 
 
 class TestPushCommand:
-    """Tests for dfly-git-push command."""
+    """Tests for agdt-git-push command."""
 
     def test_push_cmd(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test push command."""
@@ -326,7 +326,7 @@ class TestPushCommand:
 
 
 class TestForcePushCommand:
-    """Tests for dfly-git-force-push command."""
+    """Tests for agdt-git-force-push command."""
 
     def test_force_push_cmd(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test force push command."""
@@ -345,7 +345,7 @@ class TestForcePushCommand:
 
 
 class TestPublishCommand:
-    """Tests for dfly-git-publish command."""
+    """Tests for agdt-git-publish command."""
 
     def test_publish_cmd(self, temp_state_dir, clear_state_before, mock_run_safe):
         """Test publish command."""

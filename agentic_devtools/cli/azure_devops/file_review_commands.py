@@ -640,7 +640,7 @@ def print_next_file_prompt(pull_request_id: int) -> None:
         print("     (e.g., fix line numbers, content formatting)")
         print("  3. If error appears transient/external, simply resubmit as-is")
         print("")
-        print("Resubmit using: agdt-approve-file, dfly-request-changes, or")
+        print("Resubmit using: agdt-approve-file, agdt-request-changes, or")
         print("                agdt-request-changes-with-suggestion")
         print("")
         return

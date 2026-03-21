@@ -24,8 +24,8 @@ npm run build
 ### 2. Test Suite
 
 ```bash
-# For dfly-ai-helpers
-dfly-test
+# For agentic-devtools
+agdt-test
 
 # For .NET projects
 dotnet test
@@ -63,7 +63,7 @@ cspell "**/*.{ts,py,md}"
 When all checks pass, proceed to commit:
 
 ```bash
-dfly-advance-workflow commit
+agdt-advance-workflow commit
 ```
 
 If issues are found, return to implementation to fix them.

@@ -121,7 +121,7 @@ def _sync_with_main(dry_run: bool, skip_rebase: bool) -> bool:
         print("=" * 60)
         print(result.message)
         print("=" * 60)
-        print("\nPlease resolve conflicts manually and then re-run dfly-git-save-work.")
+        print("\nPlease resolve conflicts manually and then re-run agdt-git-save-work.")
         sys.exit(1)
 
     # Other error
@@ -277,7 +277,7 @@ def amend_cmd() -> None:
     """
     Stage, amend commit, and force push.
 
-    This is the explicit amend workflow (use dfly-git-save-work for smart detection):
+    This is the explicit amend workflow (use agdt-git-save-work for smart detection):
     1. Stage all changes (git add .)
     2. Amend the existing commit with updated message
     3. Force push with lease
@@ -390,7 +390,7 @@ sync_cmd = commit_cmd
 """
 Alias for commit_cmd.
 
-dfly-git-sync is a more descriptive name for the full workflow:
+agdt-git-sync is a more descriptive name for the full workflow:
 1. Fetch latest from origin/main
 2. Rebase onto main if behind
 3. Stage, commit (or amend), push

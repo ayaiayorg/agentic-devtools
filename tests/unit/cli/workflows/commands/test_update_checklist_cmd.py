@@ -354,7 +354,7 @@ class TestUpdateChecklistCmd:
 
 
 class TestUpdateChecklistCmdFromChecklistCommands:
-    """Tests for dfly-update-checklist command."""
+    """Tests for agdt-update-checklist command."""
 
     def test_requires_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test that command requires work-on-jira-issue workflow."""

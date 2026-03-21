@@ -77,13 +77,13 @@ class TestGetFailedMostRecentPerCommand:
     def test_exclude_commands_skips_matching_command(self, tmp_path):
         """Test that exclude_commands parameter skips tasks with matching commands.
 
-        This is the bug fix scenario: when a task for dfly-git-save-work succeeds,
-        we should not report an older failed dfly-git-save-work task.
+        This is the bug fix scenario: when a task for agdt-git-save-work succeeds,
+        we should not report an older failed agdt-git-save-work task.
         """
         import time
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
-            # Create an older failed task for dfly-git-save-work
+            # Create an older failed task for agdt-git-save-work
             older_failed = BackgroundTask.create(command="agdt-git-save-work")
             older_failed.mark_running()
             older_failed.mark_failed(exit_code=1)
@@ -92,7 +92,7 @@ class TestGetFailedMostRecentPerCommand:
             # Small delay to ensure different timestamps
             time.sleep(0.01)
 
-            # Create a newer successful task for dfly-git-save-work
+            # Create a newer successful task for agdt-git-save-work
             newer_success = BackgroundTask.create(command="agdt-git-save-work")
             newer_success.mark_running()
             newer_success.mark_completed(exit_code=0)
@@ -104,7 +104,7 @@ class TestGetFailedMostRecentPerCommand:
             other_failed.mark_failed(exit_code=1)
             add_task(other_failed)
 
-            # When excluding the dfly-git-save-work command, we should not see the older failed task
+            # When excluding the agdt-git-save-work command, we should not see the older failed task
             result = get_failed_most_recent_per_command(
                 exclude_task_id=newer_success.id,
                 exclude_commands=["agdt-git-save-work"],

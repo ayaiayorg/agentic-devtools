@@ -58,7 +58,7 @@ class TestPrintTaskTrackingInfo:
             print_task_tracking_info(task, "Testing")
 
             captured = capsys.readouterr()
-            # Simplified output now just shows dfly-task-wait
+            # Simplified output now just shows agdt-task-wait
             assert "agdt-task-wait" in captured.out
             # Should NOT show the verbose commands anymore
             assert '--id "<task-id>"' not in captured.out
@@ -81,7 +81,7 @@ class TestPrintTaskTrackingInfo:
             # Other tasks are now NOT shown in print_task_tracking_info
             # They are handled by task_wait instead
             assert "Other recent incomplete background tasks:" not in captured.out
-            # Just shows simple dfly-task-wait instruction
+            # Just shows simple agdt-task-wait instruction
             assert "agdt-task-wait" in captured.out
 
     def test_none_action_description_uses_default(self, tmp_path, capsys):

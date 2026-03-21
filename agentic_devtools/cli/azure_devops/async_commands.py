@@ -810,7 +810,7 @@ def update_pipeline_async() -> None:  # pragma: no cover
     Update an existing Azure DevOps pipeline asynchronously in the background.
 
     State keys:
-        pipeline.id (required): ID of pipeline to update (use dfly-get-pipeline-id first)
+        pipeline.id (required): ID of pipeline to update (use agdt-get-pipeline-id first)
         pipeline.new_name (optional): New name for the pipeline
         pipeline.yaml_path (optional): New YAML file path
         pipeline.new_folder_path (optional): New folder to move pipeline to

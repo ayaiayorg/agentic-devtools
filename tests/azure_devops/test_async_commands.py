@@ -598,7 +598,7 @@ class TestAzureDevOpsAsyncIntegration:
             captured = capsys.readouterr()
             assert "Background task started" in captured.out
             assert "task_id automatically set" in captured.out
-            # Simplified output now only shows dfly-task-wait
+            # Simplified output now only shows agdt-task-wait
             assert "agdt-task-wait" in captured.out
 
     def test_task_ids_are_unique(self, mock_background_and_state, capsys):

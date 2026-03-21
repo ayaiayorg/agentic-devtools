@@ -68,7 +68,7 @@ class TestCommitAsync:
         commit_async()
 
         captured = capsys.readouterr()
-        # Simplified output now only shows dfly-task-wait
+        # Simplified output now only shows agdt-task-wait
         assert "agdt-task-wait" in captured.out
 
     def test_message_parameter_saves_to_state(self, mock_background_and_state, capsys):
@@ -151,7 +151,7 @@ class TestAmendAsync:
         amend_async()
 
         captured = capsys.readouterr()
-        # Simplified output now only shows dfly-task-wait
+        # Simplified output now only shows agdt-task-wait
         assert "agdt-task-wait" in captured.out
 
     def test_message_parameter_saves_to_state(self, mock_background_and_state, capsys):

@@ -1,7 +1,7 @@
 """
 Jira update commands: update_issue.
 
-Provides the dfly-update-jira-issue command for updating issue fields.
+Provides the agdt-update-jira-issue command for updating issue fields.
 """
 
 import json
