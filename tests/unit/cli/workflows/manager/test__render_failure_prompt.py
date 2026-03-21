@@ -41,6 +41,7 @@ class TestRenderFailurePrompt:
         assert "3 tests failed" in result
         assert "/tmp/test.log" in result
         assert "agdt-task-log" in result
+        assert "background.task_id" in result
 
     def test_renders_multiple_failures(self):
         """Should render failure prompt with multiple failed tasks."""

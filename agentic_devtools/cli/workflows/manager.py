@@ -748,7 +748,7 @@ def _render_failure_prompt(workflow_name: str, step_name: str, failed_tasks: Lis
 
 1. **View the full log**:
    ```bash
-   agdt-set task_id <task-id>
+   agdt-set background.task_id <task-id>
    agdt-task-log
    ```
 
