@@ -7,7 +7,7 @@ They are parameterless for easy auto-approval.
 import os
 import re
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ...state import (
     delete_value,
@@ -41,7 +41,7 @@ from .review_state import load_review_state, save_review_state
 from .review_templates import render_overall_summary
 
 
-def _extract_issue_key_from_branch(branch_name: str) -> Optional[str]:
+def _extract_issue_key_from_branch(branch_name: str) -> str | None:
     """
     Extract a Jira issue key from a branch name.
 
@@ -289,7 +289,7 @@ def add_pull_request_comment() -> None:
     # Create thread with comment
     thread_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
 
-    thread_body: Dict[str, Any] = {
+    thread_body: dict[str, Any] = {
         "comments": [
             {
                 "content": content,

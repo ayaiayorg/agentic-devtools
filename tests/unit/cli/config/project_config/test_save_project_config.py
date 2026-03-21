@@ -1,7 +1,6 @@
 """Tests for save_project_config function."""
 
 import json
-
 from unittest.mock import patch
 
 import pytest

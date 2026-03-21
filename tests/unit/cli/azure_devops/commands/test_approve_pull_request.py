@@ -94,10 +94,13 @@ class TestApprovePullRequestActualCall:
         state.set_pull_request_id(12345)
         state.set_value("content", "LGTM! All files reviewed.")
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.commands.load_review_state",
-            return_value=review_state,
-        ), patch("agentic_devtools.cli.azure_devops.commands.save_review_state"):
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.load_review_state",
+                return_value=review_state,
+            ),
+            patch("agentic_devtools.cli.azure_devops.commands.save_review_state"),
+        ):
             azure_devops.approve_pull_request()
 
         # Should have called PATCH to update the summary comment

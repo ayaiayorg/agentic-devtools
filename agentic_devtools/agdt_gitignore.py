@@ -8,7 +8,6 @@ The constant ``AGDT_GITIGNORE_ENTRIES`` is the single source of truth for:
 """
 
 from pathlib import Path
-from typing import Optional
 
 # Paths (relative to .agdt/) that must be git-ignored on code branches.
 # Used both for writing .agdt/.gitignore and for defense-in-depth unstaging
@@ -21,7 +20,7 @@ AGDT_GITIGNORE_HEADER = (
 )
 
 
-def ensure_agdt_gitignore(git_root: Optional[Path]) -> bool:
+def ensure_agdt_gitignore(git_root: Path | None) -> bool:
     """Write (or overwrite) ``.agdt/.gitignore`` with the managed entries.
 
     Args:

@@ -9,7 +9,6 @@ not via CLI entry points.
 
 import argparse
 import sys
-from typing import List, Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.state import set_value
@@ -22,7 +21,7 @@ _GIT_COMMANDS_MODULE = "agentic_devtools.cli.git.commands"
 STATE_COMMIT_MESSAGE = "commit_message"
 
 
-def _set_value_if_provided(key: str, value: Optional[str]) -> None:
+def _set_value_if_provided(key: str, value: str | None) -> None:
     """Set a state value if provided (not None)."""
     if value is not None:
         set_value(key, value)
@@ -85,11 +84,11 @@ Behavior:
 
 
 def commit_async(
-    message: Optional[str] = None,
-    completed: Optional[str] = None,
+    message: str | None = None,
+    completed: str | None = None,
     skip_rebase: bool = False,
     dry_run: bool = False,
-    _argv: Optional[List[str]] = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Save work: stage, commit, rebase onto main, and push asynchronously in background.
@@ -156,8 +155,8 @@ def commit_async(
 
 
 def amend_async(
-    message: Optional[str] = None,
-    _argv: Optional[List[str]] = None,
+    message: str | None = None,
+    _argv: list[str] | None = None,
 ) -> None:
     """
     Stage, amend commit, and force push asynchronously in the background.

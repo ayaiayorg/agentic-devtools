@@ -15,7 +15,6 @@ import subprocess
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
 
 # Path to pulselauncher.exe - the CLI tool for Pulse Secure/Ivanti
 PULSE_LAUNCHER_PATH = Path(r"C:\Program Files (x86)\Common Files\Pulse Secure\Integration\pulselauncher.exe")
@@ -47,7 +46,7 @@ def is_pulse_secure_installed() -> bool:
     return PULSE_LAUNCHER_PATH.exists()
 
 
-def _get_pulse_window_handle() -> Optional[int]:  # pragma: no cover
+def _get_pulse_window_handle() -> int | None:  # pragma: no cover
     """
     Get the window handle for the Pulse GUI if it's running.
 
@@ -203,7 +202,7 @@ def _launch_pulse_gui(bring_to_foreground: bool = False) -> bool:  # pragma: no 
     return False
 
 
-def _click_connect_button_via_ui_automation() -> Tuple[bool, str]:  # pragma: no cover
+def _click_connect_button_via_ui_automation() -> tuple[bool, str]:  # pragma: no cover
     """
     Use Windows UI Automation to click the Connect button in Pulse GUI.
 
@@ -390,7 +389,7 @@ def _click_connect_button_via_ui_automation() -> Tuple[bool, str]:  # pragma: no
         return False, f"UI automation error: {e}"
 
 
-def _run_pulse_command(args: list[str], timeout: int = VPN_OPERATION_TIMEOUT_SECONDS) -> Tuple[bool, str, int]:
+def _run_pulse_command(args: list[str], timeout: int = VPN_OPERATION_TIMEOUT_SECONDS) -> tuple[bool, str, int]:
     """
     Run a pulselauncher command.
 
@@ -467,7 +466,7 @@ def is_vpn_connected() -> bool:
     return False
 
 
-def get_corporate_network_test_host() -> Optional[str]:
+def get_corporate_network_test_host() -> str | None:
     """Return the corporate network test host from project config or state.
 
     Returns ``None`` when no host is configured.
@@ -477,7 +476,9 @@ def get_corporate_network_test_host() -> Optional[str]:
     try:
         from ...state import get_value
 
-        return get_project_config_value("corporate_network_test_host") or get_value("corporate_network_test_host") or None
+        return (
+            get_project_config_value("corporate_network_test_host") or get_value("corporate_network_test_host") or None
+        )
     except ImportError:  # pragma: no cover
         return get_project_config_value("corporate_network_test_host") or None
 
@@ -561,7 +562,7 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
         return False
 
 
-def check_network_status(verbose: bool = False) -> Tuple[NetworkStatus, str]:
+def check_network_status(verbose: bool = False) -> tuple[NetworkStatus, str]:
     """
     Check network status for external access (npm registry, Azure DevOps logs, etc.).
 
@@ -599,7 +600,7 @@ def disconnect_vpn(
     url: str,
     max_wait_seconds: int = 15,
     check_interval: float = 1.0,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Disconnect from VPN using suspend command.
 
@@ -644,7 +645,7 @@ def reconnect_vpn(
     url: str,
     max_wait_seconds: int = 20,
     check_interval: float = 2.0,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Reconnect to VPN using resume command.
 
@@ -689,7 +690,7 @@ def connect_vpn(
     url: str,
     max_wait_seconds: int = 30,
     check_interval: float = 2.0,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Connect to VPN when fully disconnected (not just suspended).
 
@@ -791,7 +792,7 @@ def smart_connect_vpn(
     url: str,
     max_wait_seconds: int = 30,
     check_interval: float = 2.0,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Smart VPN connection - detects state and routes to appropriate command.
 
@@ -867,7 +868,7 @@ class VpnToggleContext:
     def __init__(
         self,
         auto_toggle: bool = False,
-        vpn_url: Optional[str] = None,
+        vpn_url: str | None = None,
         verbose: bool = True,
     ):
         """
@@ -937,7 +938,7 @@ class VpnToggleContext:
         return False
 
 
-def get_vpn_url_from_state() -> Optional[str]:
+def get_vpn_url_from_state() -> str | None:
     """Get VPN URL from project config, state, or ``None``.
 
     Priority:
@@ -974,7 +975,7 @@ class JiraVpnContext:
     minimizing the time spent with VPN active (which blocks external access).
     """
 
-    def __init__(self, vpn_url: Optional[str] = None, verbose: bool = True):
+    def __init__(self, vpn_url: str | None = None, verbose: bool = True):
         """
         Initialize Jira VPN context.
 

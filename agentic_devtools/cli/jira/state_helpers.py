@@ -2,7 +2,7 @@
 Jira state namespace helpers.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from agentic_devtools.state import get_value, set_value
 
@@ -10,7 +10,7 @@ from agentic_devtools.state import get_value, set_value
 JIRA_STATE_NAMESPACE = "jira"
 
 
-def get_jira_value(key: str, required: bool = False) -> Optional[Any]:
+def get_jira_value(key: str, required: bool = False) -> Any | None:
     """
     Get a value from the jira namespace in state.
 

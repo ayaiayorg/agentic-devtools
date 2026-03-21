@@ -51,12 +51,15 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_config.project = "TestProject"
         mock_config.repository = "test-repo"
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -142,12 +145,15 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_config.project = "TestProject"
         mock_config.repository = "test-repo"
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -199,12 +205,15 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_config.project = "TestProject"
         mock_config.repository = "test-repo"
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -252,12 +261,15 @@ class TestSetupPullRequestReviewFocusAreas:
         mock_config.project = "TestProject"
         mock_config.repository = "test-repo"
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -343,12 +355,15 @@ class TestSetupPullRequestReview:
             }
             return mapping.get(key, default)
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_side_effect,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_side_effect,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch(
                 "agentic_devtools.cli.azure_devops.review_commands._fetch_and_display_jira_issue"
@@ -427,12 +442,15 @@ class TestSetupPullRequestReview:
             }
             return mapping.get(key, default)
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_side_effect,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_side_effect,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -547,12 +565,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -646,12 +667,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_config.project = "TestProject"
         mock_config.repository = "test-repo"
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -731,12 +755,15 @@ class TestSetupPullRequestReviewPersistence:
 
         pr_details = self._make_pr_details()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_with_jira,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_with_jira,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -813,12 +840,15 @@ class TestSetupPullRequestReviewPersistence:
 
         pr_details = self._make_pr_details()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_with_include_reviewed,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_with_include_reviewed,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -889,12 +919,15 @@ class TestSetupPullRequestReviewPersistence:
 
         pr_details = self._make_pr_details()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_with_model_id,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_with_model_id,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -972,12 +1005,15 @@ class TestSetupPullRequestReviewPersistence:
 
         pr_details = self._make_pr_details()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_with_dry_run,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_with_dry_run,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1059,12 +1095,15 @@ class TestSetupPullRequestReviewPersistence:
 
         mock_set_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1153,12 +1192,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1244,12 +1286,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1338,12 +1383,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1428,12 +1476,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1520,12 +1571,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1612,12 +1666,15 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
@@ -1706,16 +1763,20 @@ class TestSetupPullRequestReviewPersistence:
         mock_set_value = MagicMock()
         mock_delete_value = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=self._default_get_value,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_safe_dir_segment",
-            return_value=False,
-        ) as mock_is_safe_dir_segment:
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_safe_dir_segment",
+                return_value=False,
+            ) as mock_is_safe_dir_segment,
+        ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(pr_details_with_commit)
@@ -1807,12 +1868,15 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
 
         mock_set_bootstrap = MagicMock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_commands.get_value",
-            side_effect=get_value_with_issue_key,
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
-            return_value=False,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=get_value_with_issue_key,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
         ):
             with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
                 with patch("builtins.open", create=True) as mock_open:

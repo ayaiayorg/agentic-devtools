@@ -6,7 +6,7 @@ Provides the agdt-update-jira-issue command for updating issue fields.
 
 import json
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from agentic_devtools.state import is_dry_run
 
@@ -17,14 +17,14 @@ from .vpn_wrapper import with_jira_vpn_context
 
 
 def _build_update_payload(
-    summary: Optional[str] = None,
-    description: Optional[str] = None,
-    labels: Optional[list[str]] = None,
-    labels_add: Optional[list[str]] = None,
-    labels_remove: Optional[list[str]] = None,
-    assignee: Optional[str] = None,
-    priority: Optional[str] = None,
-    custom_fields: Optional[dict[str, Any]] = None,
+    summary: str | None = None,
+    description: str | None = None,
+    labels: list[str] | None = None,
+    labels_add: list[str] | None = None,
+    labels_remove: list[str] | None = None,
+    assignee: str | None = None,
+    priority: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build the payload for updating a Jira issue.

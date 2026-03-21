@@ -6,7 +6,6 @@ Functions for creating review prompts and instructions.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from .review_helpers import (
     build_reviewed_paths_set,
@@ -32,9 +31,9 @@ def build_file_prompt_content(
     change_type: str,
     pr_id: int,
     file_content: str,
-    threads: List[Dict],
-    jira_issue_key: Optional[str] = None,
-    timestamp: Optional[str] = None,
+    threads: list[dict],
+    jira_issue_key: str | None = None,
+    timestamp: str | None = None,
 ) -> str:
     """
     Build the markdown content for a file review prompt.
@@ -113,9 +112,9 @@ def write_file_prompt(
     change_type: str,
     pr_id: int,
     file_content: str,
-    threads: List[Dict],
+    threads: list[dict],
     output_dir: Path,
-    jira_issue_key: Optional[str] = None,
+    jira_issue_key: str | None = None,
 ) -> Path:
     """
     Write a review prompt file for a single changed file.
@@ -149,11 +148,11 @@ def write_file_prompt(
 
 
 def generate_review_prompts(
-    pr_details: Dict,
+    pr_details: dict,
     output_dir: Path,
-    jira_issue_key: Optional[str] = None,
+    jira_issue_key: str | None = None,
     verbose: bool = False,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Generate review prompt files for all changed files in a PR.
 
@@ -229,9 +228,9 @@ def generate_review_prompts(
 
 
 def print_review_instructions(
-    pr_details: Dict,
+    pr_details: dict,
     output_dir: Path,
-    results: List[Dict],
+    results: list[dict],
 ) -> None:
     """
     Print instructions for reviewing the generated prompts.

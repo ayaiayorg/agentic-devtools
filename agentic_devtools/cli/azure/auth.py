@@ -7,13 +7,12 @@ is active before running Azure CLI commands.
 
 import json
 import sys
-from typing import Optional, Tuple
 
 from ..subprocess_utils import run_safe
 from .config import AzureAccount
 
 
-def get_current_azure_account() -> Optional[Tuple[str, str]]:
+def get_current_azure_account() -> tuple[str, str] | None:
     """
     Get the currently logged in Azure account.
 

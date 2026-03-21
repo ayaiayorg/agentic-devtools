@@ -10,7 +10,7 @@ import reprlib
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...state import is_safe_dir_segment
 from ..subprocess_utils import run_safe
@@ -90,7 +90,7 @@ def get_repository_id(
 
 def resolve_thread_by_id(
     requests_module,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,
@@ -119,7 +119,7 @@ _PATCH_MAX_RETRIES = 3
 
 def patch_comment(
     requests_module,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,
@@ -127,7 +127,7 @@ def patch_comment(
     comment_id: int,
     new_content: str,
     dry_run: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Edit an existing comment's content via PATCH.
 
@@ -171,14 +171,14 @@ def patch_comment(
 
 def patch_thread_status(
     requests_module,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,
     thread_id: int,
     status: str,
     dry_run: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Change a pull request thread's status via PATCH.
 
@@ -243,10 +243,10 @@ def convert_to_pull_request_title(title: str) -> str:
 
 
 def build_thread_context(
-    path: Optional[str],
-    line: Optional[int],
-    end_line: Optional[int],
-) -> Optional[Dict[str, Any]]:
+    path: str | None,
+    line: int | None,
+    end_line: int | None,
+) -> dict[str, Any] | None:
     """
     Build thread context for file-level PR comments.
 
@@ -261,7 +261,7 @@ def build_thread_context(
     if not path:
         return None
 
-    thread_context: Dict[str, Any] = {"filePath": path}
+    thread_context: dict[str, Any] = {"filePath": path}
 
     if line is not None:
         # For line comments, we need right-side positioning (after changes)
@@ -307,7 +307,7 @@ def verify_az_cli() -> None:
         sys.exit(1)
 
 
-def parse_json_response(response_text: str, context: str) -> Dict[str, Any]:
+def parse_json_response(response_text: str, context: str) -> dict[str, Any]:
     """Parse JSON response, exiting with error on failure."""
     try:
         return json.loads(response_text)
@@ -316,7 +316,7 @@ def parse_json_response(response_text: str, context: str) -> Dict[str, Any]:
         sys.exit(1)
 
 
-def print_threads(threads: List[Dict[str, Any]]) -> None:
+def print_threads(threads: list[dict[str, Any]]) -> None:
     """Format and print PR threads."""
     print(f"\nFound {len(threads)} thread(s):\n")
 
@@ -343,10 +343,10 @@ def print_threads(threads: List[Dict[str, Any]]) -> None:
 
 def find_pull_request_by_issue_key(
     issue_key: str,
-    config: Optional[AzureDevOpsConfig] = None,
-    headers: Optional[Dict[str, str]] = None,
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
     status: str = "active",
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Find a pull request by Jira issue key in the source branch, title, or description.
 
@@ -448,9 +448,9 @@ def find_pull_request_by_issue_key(
 
 def get_pull_request_details(
     pull_request_id: int,
-    config: Optional[AzureDevOpsConfig] = None,
-    headers: Optional[Dict[str, str]] = None,
-) -> Optional[Dict[str, Any]]:
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
     """
     Get full details for a pull request.
 
@@ -506,9 +506,9 @@ def get_pull_request_details(
 
 def get_pull_request_source_branch(
     pull_request_id: int,
-    config: Optional[AzureDevOpsConfig] = None,
-    headers: Optional[Dict[str, str]] = None,
-) -> Optional[str]:
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
+) -> str | None:
     """
     Get the source branch name for a pull request.
 
@@ -536,9 +536,9 @@ def get_pull_request_source_branch(
 
 def find_jira_issue_from_pr(
     pull_request_id: int,
-    config: Optional[AzureDevOpsConfig] = None,
-    headers: Optional[Dict[str, str]] = None,
-) -> Optional[str]:
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
+) -> str | None:
     """
     Find Jira issue key from a pull request.
 
@@ -592,10 +592,10 @@ def find_jira_issue_from_pr(
 
 def find_pr_from_jira_issue(
     issue_key: str,
-    config: Optional[AzureDevOpsConfig] = None,
-    headers: Optional[Dict[str, str]] = None,
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
     verbose: bool = False,
-) -> Optional[int]:
+) -> int | None:
     """
     Find active PR from a Jira issue key.
 

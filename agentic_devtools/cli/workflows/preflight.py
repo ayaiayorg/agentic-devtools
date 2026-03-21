@@ -9,7 +9,6 @@ git branch match the expected Jira issue key.
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -21,7 +20,7 @@ class PreflightResult:
     folder_name: str
     branch_name: str
     issue_key: str
-    repo_root: Optional[str] = None
+    repo_root: str | None = None
     # For PR review workflows, tracks if we matched by source branch instead of issue key
     matched_by_source_branch: bool = False
 
@@ -44,7 +43,7 @@ class PreflightResult:
         return reasons
 
 
-def get_current_git_branch() -> Optional[str]:
+def get_current_git_branch() -> str | None:
     """
     Get the current git branch name.
 
@@ -65,7 +64,7 @@ def get_current_git_branch() -> Optional[str]:
         return None
 
 
-def get_git_repo_root() -> Optional[str]:
+def get_git_repo_root() -> str | None:
     """
     Get the root directory of the current git repository.
 
@@ -88,7 +87,7 @@ def get_git_repo_root() -> Optional[str]:
 
 def check_worktree_and_branch(
     issue_key: str,
-    source_branch: Optional[str] = None,
+    source_branch: str | None = None,
 ) -> PreflightResult:
     """
     Check if the current worktree folder and git branch contain the issue key.
@@ -241,11 +240,11 @@ def perform_auto_setup(
     issue_key: str,
     workflow_name: str,
     branch_prefix: str = "feature",
-    branch_name: Optional[str] = None,
+    branch_name: str | None = None,
     use_existing_branch: bool = False,
-    user_request: Optional[str] = None,
-    additional_params: Optional[dict] = None,
-    auto_execute_command: Optional[list[str]] = None,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
+    auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 300,
     interactive: bool = False,
 ) -> bool:

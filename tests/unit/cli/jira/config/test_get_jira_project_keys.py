@@ -1,7 +1,6 @@
 """Tests for get_jira_project_keys function."""
 
 import os
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.jira.config import get_jira_project_keys

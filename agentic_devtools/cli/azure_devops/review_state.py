@@ -9,7 +9,6 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from ...state import get_state_dir
 
@@ -30,7 +29,7 @@ class ReviewStatus(str, Enum):
 COMPLETE_STATUSES = frozenset({ReviewStatus.APPROVED.value, ReviewStatus.NEEDS_WORK.value})
 
 
-def compute_aggregate_status(statuses: List[str]) -> str:
+def compute_aggregate_status(statuses: list[str]) -> str:
     """Compute an aggregate status from a list of child statuses.
 
     This is the single source of truth for status derivation rules:
@@ -74,7 +73,7 @@ class SuggestionEntry:
     linkText: str
     content: str
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "threadId": self.threadId,
@@ -88,7 +87,7 @@ class SuggestionEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "SuggestionEntry":
+    def from_dict(cls, data: dict) -> "SuggestionEntry":
         """Deserialize from a dictionary."""
         return cls(
             threadId=data["threadId"],
@@ -109,9 +108,9 @@ class OverallSummary:
     threadId: int
     commentId: int
     status: str = ReviewStatus.UNREVIEWED.value
-    narrativeSummary: Optional[str] = None
+    narrativeSummary: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "threadId": self.threadId,
@@ -121,7 +120,7 @@ class OverallSummary:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "OverallSummary":
+    def from_dict(cls, data: dict) -> "OverallSummary":
         """Deserialize from a dictionary."""
         return cls(
             threadId=data["threadId"],
@@ -141,16 +140,16 @@ class FolderGroup:
     PR summary comment.
     """
 
-    files: List[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "files": self.files,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "FolderGroup":
+    def from_dict(cls, data: dict) -> "FolderGroup":
         """Deserialize from a dictionary.
 
         File paths in the files list are normalized to ensure leading slash.
@@ -197,9 +196,9 @@ class ModelVerdict:
 
     modelId: str
     status: str = ReviewStatus.UNREVIEWED.value
-    verdictType: Optional[str] = None
+    verdictType: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "modelId": self.modelId,
@@ -208,7 +207,7 @@ class ModelVerdict:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ModelVerdict":
+    def from_dict(cls, data: dict) -> "ModelVerdict":
         """Deserialize from a dictionary."""
         return cls(
             modelId=data["modelId"],
@@ -226,15 +225,15 @@ class FileEntry:
     folder: str
     fileName: str
     status: str = ReviewStatus.UNREVIEWED.value
-    summary: Optional[str] = None
-    changeTrackingId: Optional[int] = None
-    suggestions: List[SuggestionEntry] = field(default_factory=list)
-    previousSuggestions: Optional[List[SuggestionEntry]] = None
-    suggestionVerificationStatus: Optional[str] = None
-    modelVerdicts: List[ModelVerdict] = field(default_factory=list)
-    consolidationStatus: Optional[str] = None
+    summary: str | None = None
+    changeTrackingId: int | None = None
+    suggestions: list[SuggestionEntry] = field(default_factory=list)
+    previousSuggestions: list[SuggestionEntry] | None = None
+    suggestionVerificationStatus: str | None = None
+    modelVerdicts: list[ModelVerdict] = field(default_factory=list)
+    consolidationStatus: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         result = {
             "threadId": self.threadId,
@@ -257,7 +256,7 @@ class FileEntry:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "FileEntry":
+    def from_dict(cls, data: dict) -> "FileEntry":
         """Deserialize from a dictionary."""
         suggestions = [SuggestionEntry.from_dict(s) for s in data.get("suggestions", [])]
         raw_prev = data.get("previousSuggestions")
@@ -278,7 +277,7 @@ class FileEntry:
             consolidationStatus=data.get("consolidationStatus"),
         )
 
-    def get_model_verdict(self, model_id: str) -> Optional[ModelVerdict]:
+    def get_model_verdict(self, model_id: str) -> ModelVerdict | None:
         """Get the verdict entry for a specific model, or None if not found."""
         for mv in self.modelVerdicts:
             if mv.modelId == model_id:
@@ -311,11 +310,11 @@ class ReviewSession:
     sessionId: str
     modelId: str
     startedUtc: str
-    completedUtc: Optional[str] = None
+    completedUtc: str | None = None
     status: str = "pending"
-    commitHash: Optional[str] = None
+    commitHash: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         return {
             "sessionId": self.sessionId,
@@ -327,7 +326,7 @@ class ReviewSession:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ReviewSession":
+    def from_dict(cls, data: dict) -> "ReviewSession":
         """Deserialize from a dictionary."""
         return cls(
             sessionId=data["sessionId"],
@@ -351,16 +350,16 @@ class ReviewState:
     latestIterationId: int
     scaffoldedUtc: str
     overallSummary: OverallSummary
-    folders: Dict[str, FolderGroup] = field(default_factory=dict)
-    files: Dict[str, FileEntry] = field(default_factory=dict)
-    commitHash: Optional[str] = None
-    modelId: Optional[str] = None
+    folders: dict[str, FolderGroup] = field(default_factory=dict)
+    files: dict[str, FileEntry] = field(default_factory=dict)
+    commitHash: str | None = None
+    modelId: str | None = None
     activityLogThreadId: int = 0
-    sessions: List[ReviewSession] = field(default_factory=list)
-    reviewerModels: Optional[List[str]] = None
-    bossModel: Optional[str] = None
+    sessions: list[ReviewSession] = field(default_factory=list)
+    reviewerModels: list[str] | None = None
+    bossModel: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
         result = {
             "prId": self.prId,
@@ -385,7 +384,7 @@ class ReviewState:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ReviewState":
+    def from_dict(cls, data: dict) -> "ReviewState":
         """Deserialize from a dictionary.
 
         File dict keys are normalized to ensure leading slash consistency.
@@ -531,9 +530,9 @@ def _validate_and_deserialize(
 
 
 def _load_from_branch(
-    source_branch: Optional[str],
-    worktree_key: Optional[str],
-) -> Optional[dict]:
+    source_branch: str | None,
+    worktree_key: str | None,
+) -> dict | None:
     """Attempt to load review-state.json from the -agdt branch.
 
     Returns the parsed dict if found, or None if unavailable.
@@ -591,8 +590,8 @@ def load_review_state(
     pr_id: int,
     *,
     fallback_to_branch: bool = True,
-    source_branch: Optional[str] = None,
-    worktree_key: Optional[str] = None,
+    source_branch: str | None = None,
+    worktree_key: str | None = None,
 ) -> ReviewState:
     """
     Load review state from JSON file.
@@ -668,7 +667,7 @@ def save_review_state(review_state: ReviewState) -> None:
         pass  # agdt_branch not available (e.g., minimal install)
 
 
-def get_file_entry(review_state: ReviewState, file_path: str) -> Optional[FileEntry]:
+def get_file_entry(review_state: ReviewState, file_path: str) -> FileEntry | None:
     """
     Get a file entry from review state by file path.
 
@@ -683,7 +682,7 @@ def get_file_entry(review_state: ReviewState, file_path: str) -> Optional[FileEn
     return review_state.files.get(normalized)
 
 
-def get_folder_entry(review_state: ReviewState, folder_name: str) -> Optional[FolderGroup]:
+def get_folder_entry(review_state: ReviewState, folder_name: str) -> FolderGroup | None:
     """
     Get a folder entry from review state by folder name.
 
@@ -701,8 +700,8 @@ def update_file_status(
     review_state: ReviewState,
     file_path: str,
     status: str,
-    summary: Optional[str] = None,
-    suggestions: Optional[List[SuggestionEntry]] = None,
+    summary: str | None = None,
+    suggestions: list[SuggestionEntry] | None = None,
 ) -> ReviewState:
     """
     Update the status (and optionally summary/suggestions) of a file in review state.

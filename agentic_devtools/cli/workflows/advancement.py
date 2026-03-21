@@ -7,12 +7,12 @@ to automatically notify the workflow manager of events and trigger transitions.
 All advancement is now event-driven through notify_workflow_event().
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .manager import WorkflowEvent, notify_workflow_event
 
 
-def try_advance_workflow_after_jira_comment(task_id: Optional[str] = None) -> bool:
+def try_advance_workflow_after_jira_comment(task_id: str | None = None) -> bool:
     """
     Notify the workflow manager that a Jira comment was added.
 
@@ -37,8 +37,8 @@ def try_advance_workflow_after_jira_comment(task_id: Optional[str] = None) -> bo
 
 
 def try_advance_workflow_after_jira_issue_retrieved(
-    task_id: Optional[str] = None,
-    issue_data: Optional[Dict[str, Any]] = None,
+    task_id: str | None = None,
+    issue_data: dict[str, Any] | None = None,
 ) -> bool:
     """
     Notify the workflow manager that Jira issue details were retrieved.
@@ -78,8 +78,8 @@ def try_advance_workflow_after_jira_issue_retrieved(
 
 
 def try_advance_workflow_after_commit(
-    task_id: Optional[str] = None,
-    branch_name: Optional[str] = None,
+    task_id: str | None = None,
+    branch_name: str | None = None,
 ) -> bool:
     """
     Notify the workflow manager that a git commit was created.
@@ -111,8 +111,8 @@ def try_advance_workflow_after_commit(
 
 
 def try_advance_workflow_after_branch_pushed(
-    task_id: Optional[str] = None,
-    branch_name: Optional[str] = None,
+    task_id: str | None = None,
+    branch_name: str | None = None,
 ) -> bool:
     """
     Notify the workflow manager that a branch was pushed.
@@ -144,9 +144,9 @@ def try_advance_workflow_after_branch_pushed(
 
 
 def try_advance_workflow_after_pr_creation(
-    pull_request_id: Optional[int] = None,
-    pull_request_url: Optional[str] = None,
-    task_id: Optional[str] = None,
+    pull_request_id: int | None = None,
+    pull_request_url: str | None = None,
+    task_id: str | None = None,
 ) -> bool:
     """
     Notify the workflow manager that a PR was created.
@@ -181,7 +181,7 @@ def try_advance_workflow_after_pr_creation(
 
 
 def try_advance_workflow_after_pr_review(
-    task_id: Optional[str] = None,
+    task_id: str | None = None,
 ) -> bool:
     """
     Notify the workflow manager that a PR was reviewed.

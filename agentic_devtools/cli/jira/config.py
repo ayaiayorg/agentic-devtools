@@ -5,12 +5,11 @@ Jira configuration: constants, authentication, and headers.
 import base64
 import os
 import re
-from typing import Dict, List
 
 EPIC_NAME_FIELD = "customfield_10006"
 
 
-def get_jira_project_keys() -> List[str]:
+def get_jira_project_keys() -> list[str]:
     """Return configured Jira project keys as a list of uppercase strings.
 
     Priority:
@@ -34,7 +33,7 @@ def get_jira_project_keys() -> List[str]:
     return [k.strip().upper() for k in raw.split(",") if k.strip()]
 
 
-def build_jira_issue_pattern(project_keys: List[str]) -> "re.Pattern[str]":
+def build_jira_issue_pattern(project_keys: list[str]) -> "re.Pattern[str]":
     """Build a compiled regex for matching Jira issue keys.
 
     If *project_keys* is non-empty the pattern matches only those projects
@@ -63,11 +62,7 @@ def get_jira_base_url() -> str:
     from agentic_devtools.cli.config.project_config import get_project_config_value
     from agentic_devtools.state import get_value
 
-    url = (
-        get_project_config_value("jira_base_url")
-        or get_value("jira_base_url")
-        or os.environ.get("JIRA_BASE_URL")
-    )
+    url = get_project_config_value("jira_base_url") or get_value("jira_base_url") or os.environ.get("JIRA_BASE_URL")
     if url:
         return url
     raise ValueError("Jira base URL not configured. Run agdt-setup or set JIRA_BASE_URL.")
@@ -106,7 +101,7 @@ def get_jira_auth_header() -> str:
         raise ValueError(f"Unsupported JIRA_AUTH_SCHEME: {auth_scheme}")
 
 
-def get_jira_headers() -> Dict[str, str]:
+def get_jira_headers() -> dict[str, str]:
     """Get HTTP headers for Jira API requests."""
     return {
         "Authorization": get_jira_auth_header(),

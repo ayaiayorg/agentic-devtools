@@ -1,7 +1,6 @@
 """Tests for load_project_config function."""
 
 import json
-
 from unittest.mock import patch
 
 from agentic_devtools.cli.config.project_config import load_project_config

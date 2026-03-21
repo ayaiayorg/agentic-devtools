@@ -9,13 +9,13 @@ corporate/VPN hostnames, and the Jira base URL.
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 _CONFIG_DIR = "config"
 _CONFIG_FILENAME = "project.json"
 
 
-def _get_config_path() -> Optional[Path]:
+def _get_config_path() -> Path | None:
     """Return the path to ``.agdt/config/project.json`` or ``None``."""
     # Deferred import to avoid circular dependency
     from agentic_devtools.state import _get_git_repo_root
@@ -26,7 +26,7 @@ def _get_config_path() -> Optional[Path]:
     return git_root / ".agdt" / _CONFIG_DIR / _CONFIG_FILENAME
 
 
-def load_project_config() -> Dict[str, Any]:
+def load_project_config() -> dict[str, Any]:
     """Read ``.agdt/config/project.json`` and return its contents.
 
     Returns ``{}`` when the file does not exist, the current directory is
@@ -45,7 +45,7 @@ def load_project_config() -> Dict[str, Any]:
         return {}
 
 
-def save_project_config(config: Dict[str, Any]) -> Path:
+def save_project_config(config: dict[str, Any]) -> Path:
     """Write *config* to ``.agdt/config/project.json``, creating directories as needed.
 
     Returns the path that was written.
@@ -60,7 +60,7 @@ def save_project_config(config: Dict[str, Any]) -> Path:
     return config_path
 
 
-def get_project_config_value(key: str) -> Optional[str]:
+def get_project_config_value(key: str) -> str | None:
     """Return a single value from the project config, or ``None``."""
     value = load_project_config().get(key)
     if value is None:

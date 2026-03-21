@@ -35,7 +35,9 @@ class TestJiraConfiguration:
             url = jira.get_jira_base_url()
             assert url == "https://state.jira.com"
 
-    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value="https://config.jira.com")
+    @patch(
+        "agentic_devtools.cli.config.project_config.get_project_config_value", return_value="https://config.jira.com"
+    )
     def test_jira_base_url_from_project_config(self, _mock_config, temp_state_dir, clear_state_before):
         """Test Jira base URL from project config takes highest precedence."""
         state.set_value("jira_base_url", "https://state.jira.com")

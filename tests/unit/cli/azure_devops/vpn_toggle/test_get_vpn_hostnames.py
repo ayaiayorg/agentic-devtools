@@ -8,7 +8,10 @@ from agentic_devtools.cli.azure_devops.vpn_toggle import get_vpn_hostnames
 class TestGetVpnHostnames:
     """Tests for get_vpn_hostnames function."""
 
-    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value="jira.example.com,internal.example.com")
+    @patch(
+        "agentic_devtools.cli.config.project_config.get_project_config_value",
+        return_value="jira.example.com,internal.example.com",
+    )
     @patch("agentic_devtools.state.get_value", return_value=None)
     def test_returns_hostnames_from_config(self, _mock_state, _mock_config):
         """Should return hostnames from project config."""
@@ -29,7 +32,9 @@ class TestGetVpnHostnames:
         result = get_vpn_hostnames()
         assert result == []
 
-    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=" host1.com , host2.com ")
+    @patch(
+        "agentic_devtools.cli.config.project_config.get_project_config_value", return_value=" host1.com , host2.com "
+    )
     @patch("agentic_devtools.state.get_value", return_value=None)
     def test_strips_whitespace(self, _mock_state, _mock_config):
         """Should trim whitespace from hostnames."""

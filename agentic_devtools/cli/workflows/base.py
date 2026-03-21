@@ -14,7 +14,7 @@ import os
 import subprocess
 import sys
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...prompts import TemplateValidationError, load_and_render_prompt
 from ...state import (
@@ -53,7 +53,7 @@ def clear_state_for_workflow_initiation() -> None:
     print("✓ Reset workflow tracking state")
 
 
-def validate_required_state(required_keys: List[str]) -> Dict[str, Any]:
+def validate_required_state(required_keys: list[str]) -> dict[str, Any]:
     """
     Validate that required state keys exist and return their values.
 
@@ -86,7 +86,7 @@ def validate_required_state(required_keys: List[str]) -> Dict[str, Any]:
     return values
 
 
-def collect_variables_from_state(variable_keys: List[str]) -> Dict[str, Any]:
+def collect_variables_from_state(variable_keys: list[str]) -> dict[str, Any]:
     """
     Collect variable values from state.
 
@@ -134,11 +134,11 @@ def _state_key_to_variable_name(state_key: str) -> str:
 
 def initiate_workflow(
     workflow_name: str,
-    required_state_keys: Optional[List[str]] = None,
-    optional_state_keys: Optional[List[str]] = None,
-    additional_variables: Optional[Dict[str, Any]] = None,
+    required_state_keys: list[str] | None = None,
+    optional_state_keys: list[str] | None = None,
+    additional_variables: dict[str, Any] | None = None,
     step_name: str = "initiate",
-    context: Optional[Dict[str, Any]] = None,
+    context: dict[str, Any] | None = None,
     skip_bootstrap_init: bool = False,
 ) -> str:
     """
@@ -254,7 +254,7 @@ def initiate_workflow(
 def advance_workflow_step(
     workflow_name: str,
     step_name: str,
-    variables: Optional[Dict[str, Any]] = None,
+    variables: dict[str, Any] | None = None,
     status: str = "in-progress",
 ) -> str:
     """

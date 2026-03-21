@@ -2,8 +2,8 @@
 Shared fixtures for tests/unit/cli/git/.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
