@@ -33,7 +33,7 @@ def get_jira_project_keys() -> list[str]:
     return [k.strip().upper() for k in raw.split(",") if k.strip()]
 
 
-def build_jira_issue_pattern(project_keys: list[str]) -> "re.Pattern[str]":
+def build_jira_issue_pattern(project_keys: list[str]) -> re.Pattern[str]:
     """Build a compiled regex for matching Jira issue keys.
 
     If *project_keys* is non-empty the pattern matches only those projects
