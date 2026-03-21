@@ -48,7 +48,7 @@ def _get_repo_jira_pem_path() -> Path:
     Get the path to the repo-committed Jira CA bundle PEM file.
 
     This file is version-controlled at scripts/jira_ca_bundle.pem and contains
-    the SSL certificate chain for jira.swica.ch. It's the same for all users.
+    the SSL certificate chain for the configured Jira server. It's the same for all users.
     """
     git_root = _get_git_repo_root()
     if git_root is not None:
@@ -63,7 +63,7 @@ def _get_temp_jira_pem_path() -> Path:
     return state_dir / "jira_ca_bundle.pem"
 
 
-def _ensure_jira_pem(hostname: str = "jira.swica.ch") -> str | None:
+def _ensure_jira_pem(hostname: str) -> str | None:
     """
     Ensure the Jira CA bundle PEM file exists with a complete certificate chain.
 
