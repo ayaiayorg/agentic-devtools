@@ -1,9 +1,9 @@
 """
-Tests for git CLI commands (agdt-git-save-work, agdt-git-amend, etc.).
+Tests for git CLI commands and workflows.
 
 Tests cover:
-- commit_cmd workflow (agdt-git-save-work)
-- amend_cmd workflow (agdt-git-amend)
+- commit_cmd workflow (agdt-git-save-work / agdt-git-sync)
+- amend_cmd workflow (amend + force-push)
 - stage_cmd, push_cmd, force_push_cmd, publish_cmd
 - State flags (skip_stage, skip_push, skip_rebase, dry_run)
 """
