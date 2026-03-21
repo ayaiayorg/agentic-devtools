@@ -178,7 +178,7 @@ Response:
 
 - Verify environment variables are set correctly
 - For Jira: both `JIRA_BASE_URL` and `JIRA_API_TOKEN` are required
-- For Azure DevOps: all three variables (`ORG`, `PROJECT`, `PAT`) are required
+- For Azure DevOps: `ORG`, `PROJECT`, and `PAT` are required, and the server must be able to determine the repository (either set `AZURE_DEVOPS_REPOSITORY` explicitly or run inside a git repo with an Azure DevOps remote so it can be auto-detected)
 - Git tools require no configuration
 
 ### SSL certificate errors (Jira)

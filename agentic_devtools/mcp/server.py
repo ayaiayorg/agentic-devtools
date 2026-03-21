@@ -119,9 +119,9 @@ def _load_azure_devops_config() -> tuple | None:
           source provides a repository name, Azure DevOps is treated as
           not configured (returns ``None``).
 
-    Returns a ``(AzureDevOpsConfig, pat, auth_headers)`` tuple, or ``None``
-    (with a warning) when required variables are missing or the repository
-    cannot be determined.
+    Returns a ``(AzureDevOpsConfig, pat)`` tuple, or ``None`` (with a
+    warning) when required variables are missing or the repository cannot
+    be determined.
     """
     from agentic_devtools.cli.azure_devops.config import (
         AzureDevOpsConfig,
@@ -153,10 +153,8 @@ def _load_azure_devops_config() -> tuple | None:
         return None
 
     config = AzureDevOpsConfig(organization=org, project=project, repository=repository)
-    credentials = base64.b64encode(f":{pat}".encode()).decode()
-    auth_headers = {"Authorization": f"Basic {credentials}"}
 
-    return (config, pat, auth_headers)
+    return (config, pat)
 
 
 # ---------------------------------------------------------------------------
@@ -493,7 +491,7 @@ def create_mcp_server() -> FastMCP:
         if ado_result is None:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
-            config, pat, _headers = ado_result
+            config, pat = ado_result
             result = await asyncio.to_thread(
                 tools_azure_devops.create_pull_request,
                 config=config,
@@ -527,7 +525,7 @@ def create_mcp_server() -> FastMCP:
         if ado_result is None:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
-            config, pat, _headers = ado_result
+            config, pat = ado_result
             result = await asyncio.to_thread(
                 tools_azure_devops.reply_to_pull_request_thread,
                 config=config,
@@ -564,7 +562,7 @@ def create_mcp_server() -> FastMCP:
         if ado_result is None:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
-            config, pat, _headers = ado_result
+            config, pat = ado_result
             result = await asyncio.to_thread(
                 tools_azure_devops.add_pull_request_comment,
                 config=config,
@@ -595,7 +593,7 @@ def create_mcp_server() -> FastMCP:
         if ado_result is None:
             return {"error": _AZURE_DEVOPS_MISSING_MSG}
         try:
-            config, pat, _headers = ado_result
+            config, pat = ado_result
             result = await asyncio.to_thread(
                 tools_azure_devops.update_review_narrative,
                 config=config,

@@ -1,6 +1,5 @@
 """Tests for agentic_devtools.mcp.server._load_azure_devops_config."""
 
-import base64
 import os
 from unittest.mock import patch
 
@@ -20,7 +19,7 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        config, pat, headers = result
+        config, pat = result
         assert config.organization == "https://dev.azure.com/myorg"
         assert config.project == "MyProject"
         assert pat == "mypat123"
@@ -61,20 +60,6 @@ class TestLoadAzureDevOpsConfig:
 
         assert result is None
 
-    def test_auth_headers_format(self):
-        env = {
-            "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
-            "AZURE_DEVOPS_PROJECT": "MyProject",
-            "AZURE_DEVOPS_PAT": "mypat123",
-        }
-        with patch.dict(os.environ, env, clear=True):
-            result = _load_azure_devops_config()
-
-        assert result is not None
-        _config, _pat, headers = result
-        expected = base64.b64encode(b":mypat123").decode()
-        assert headers == {"Authorization": f"Basic {expected}"}
-
     def test_repository_from_env_var(self):
         env = {
             "AZURE_DEVOPS_ORG": "https://dev.azure.com/myorg",
@@ -86,7 +71,7 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        config, _pat, _headers = result
+        config, _pat = result
         assert config.repository == "my-repo"
 
     def test_repository_from_git_remote_when_env_var_not_set(self):
@@ -105,7 +90,7 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        config, _pat, _headers = result
+        config, _pat = result
         assert config.repository == "detected-repo"
 
     def test_returns_none_when_no_env_and_no_remote(self):
@@ -137,7 +122,7 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        _config, pat, _headers = result
+        _config, pat = result
         assert pat == "copilot-pat"
 
     def test_pat_falls_back_to_azure_devops_ext_pat(self):
@@ -151,7 +136,7 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        _config, pat, _headers = result
+        _config, pat = result
         assert pat == "ext-pat"
 
     def test_pat_prefers_azure_devops_pat_over_fallbacks(self):
@@ -167,5 +152,5 @@ class TestLoadAzureDevOpsConfig:
             result = _load_azure_devops_config()
 
         assert result is not None
-        _config, pat, _headers = result
+        _config, pat = result
         assert pat == "primary-pat"
