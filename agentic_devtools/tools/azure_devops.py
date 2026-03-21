@@ -9,6 +9,7 @@ parameters and returns a ``TypedDict`` result.
 from __future__ import annotations
 
 import os
+import sys
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import TypedDict
@@ -16,6 +17,29 @@ from typing_extensions import TypedDict
 if TYPE_CHECKING:
     from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
     from agentic_devtools.cli.azure_devops.review_state import ReviewState
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _escape_for_cmd(value: str) -> str:
+    """Escape percent signs for safe use in Windows ``cmd.exe`` arguments.
+
+    On Windows, ``run_safe`` uses ``shell=True`` for the ``az`` CLI (a
+    ``.cmd`` batch script).  ``cmd.exe`` expands ``%VAR%`` patterns in
+    arguments, which can leak environment variables — including
+    ``AZURE_DEVOPS_EXT_PAT`` — when user-controlled text contains a
+    ``%`` character.
+
+    Doubling every ``%`` → ``%%`` neutralises the expansion.  On
+    non-Windows platforms this is a no-op because ``shell=False`` is used.
+    """
+    if sys.platform == "win32":
+        return value.replace("%", "%%")
+    return value
+
 
 # ---------------------------------------------------------------------------
 # Result TypedDicts
@@ -109,17 +133,24 @@ def create_pull_request(
     env = os.environ.copy()
     env["AZURE_DEVOPS_EXT_PAT"] = pat
 
+    # Escape user-controlled values to prevent Windows cmd.exe %VAR% expansion
+    # when ``az`` runs under ``shell=True`` (required for .cmd batch scripts).
+    safe_source = _escape_for_cmd(source_branch)
+    safe_target = _escape_for_cmd(target_branch)
+    safe_title = _escape_for_cmd(title)
+    safe_description = _escape_for_cmd(description) if description else None
+
     cmd = [
         "az",
         "repos",
         "pr",
         "create",
         "--source-branch",
-        source_branch,
+        safe_source,
         "--target-branch",
-        target_branch,
+        safe_target,
         "--title",
-        title,
+        safe_title,
         "--organization",
         config.organization,
         "--project",
@@ -133,8 +164,8 @@ def create_pull_request(
     if draft:
         cmd.append("--draft")
 
-    if description:
-        cmd.extend(["--description", description])
+    if safe_description:
+        cmd.extend(["--description", safe_description])
 
     result = run_safe(cmd, capture_output=True, text=True, env=env)
 

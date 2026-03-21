@@ -134,3 +134,29 @@ class TestCreatePullRequest:
 
         assert result["url"] == ""
         assert result["pull_request_id"] == 42
+
+    @patch("agentic_devtools.tools.azure_devops.sys")
+    @patch("agentic_devtools.cli.subprocess_utils.run_safe")
+    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
+    def test_escapes_percent_in_user_args_on_windows(self, mock_parse, mock_run_safe, mock_sys):
+        """On Windows, % in user args is doubled to prevent cmd.exe %VAR% expansion."""
+        mock_sys.platform = "win32"
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+        config = self._make_config()
+
+        create_pull_request(
+            config=config,
+            pat="pat",
+            source_branch="feat/%ISSUE%",
+            title="fix(%PAT%): something",
+            description="desc with %SECRET%",
+        )
+
+        cmd = mock_run_safe.call_args[0][0]
+        idx_src = cmd.index("--source-branch")
+        assert cmd[idx_src + 1] == "feat/%%ISSUE%%"
+        idx_title = cmd.index("--title")
+        assert cmd[idx_title + 1] == "fix(%%PAT%%): something"
+        idx_desc = cmd.index("--description")
+        assert cmd[idx_desc + 1] == "desc with %%SECRET%%"
