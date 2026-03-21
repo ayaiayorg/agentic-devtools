@@ -133,12 +133,17 @@ def create_pull_request(
     env = os.environ.copy()
     env["AZURE_DEVOPS_EXT_PAT"] = pat
 
-    # Escape user-controlled values to prevent Windows cmd.exe %VAR% expansion
+    # Escape all variable values to prevent Windows cmd.exe %VAR% expansion
     # when ``az`` runs under ``shell=True`` (required for .cmd batch scripts).
+    # This covers both user-controlled values *and* config-derived strings
+    # (which ultimately come from state/env and can contain ``%…%`` patterns).
     safe_source = _escape_for_cmd(source_branch)
     safe_target = _escape_for_cmd(target_branch)
     safe_title = _escape_for_cmd(title)
     safe_description = _escape_for_cmd(description) if description else None
+    safe_org = _escape_for_cmd(config.organization)
+    safe_project = _escape_for_cmd(config.project)
+    safe_repo = _escape_for_cmd(config.repository)
 
     cmd = [
         "az",
@@ -152,11 +157,11 @@ def create_pull_request(
         "--title",
         safe_title,
         "--organization",
-        config.organization,
+        safe_org,
         "--project",
-        config.project,
+        safe_project,
         "--repository",
-        config.repository,
+        safe_repo,
         "--output",
         "json",
     ]

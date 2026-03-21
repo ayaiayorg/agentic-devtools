@@ -160,3 +160,26 @@ class TestCreatePullRequest:
         assert cmd[idx_title + 1] == "fix(%%PAT%%): something"
         idx_desc = cmd.index("--description")
         assert cmd[idx_desc + 1] == "desc with %%SECRET%%"
+
+    @patch("agentic_devtools.tools.azure_devops.sys")
+    @patch("agentic_devtools.cli.subprocess_utils.run_safe")
+    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
+    def test_escapes_percent_in_config_args_on_windows(self, mock_parse, mock_run_safe, mock_sys):
+        """Config-derived values (org/project/repo) are also escaped on Windows."""
+        mock_sys.platform = "win32"
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+        config = self._make_config()
+        config.organization = "https://dev.azure.com/%ORG%"
+        config.project = "%PROJECT%"
+        config.repository = "%REPO%"
+
+        create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
+
+        cmd = mock_run_safe.call_args[0][0]
+        idx_org = cmd.index("--organization")
+        assert cmd[idx_org + 1] == "https://dev.azure.com/%%ORG%%"
+        idx_proj = cmd.index("--project")
+        assert cmd[idx_proj + 1] == "%%PROJECT%%"
+        idx_repo = cmd.index("--repository")
+        assert cmd[idx_repo + 1] == "%%REPO%%"
