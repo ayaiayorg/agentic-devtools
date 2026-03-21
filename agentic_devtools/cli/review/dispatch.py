@@ -7,7 +7,6 @@ exist.
 
 import logging
 import sys
-from typing import List, Optional
 
 from agentic_devtools.cli.azure_devops.review_attribution import (
     format_status,
@@ -134,7 +133,7 @@ def _invoke_consolidation(
     return True
 
 
-def _check_files_need_consolidation(pr_id: int) -> List[str]:
+def _check_files_need_consolidation(pr_id: int) -> list[str]:
     """Return list of file paths that need consolidation.
 
     .. note::
@@ -149,7 +148,7 @@ def _check_files_need_consolidation(pr_id: int) -> List[str]:
 def run_dispatch(
     pr_id: int,
     label: str,
-    config_path: Optional[str] = None,
+    config_path: str | None = None,
     dry_run: bool = False,
 ) -> None:
     """Execute the multi-model review dispatch.
@@ -191,8 +190,8 @@ def run_dispatch(
     print("=" * 60)
 
     # Phase 1: Dispatch reviewers sequentially
-    completed_reviewers: List[str] = []
-    skipped_reviewers: List[str] = []
+    completed_reviewers: list[str] = []
+    skipped_reviewers: list[str] = []
 
     for rev in config.reviewers:
         success = _invoke_reviewer(pr_id, rev.model_id, rev.role, use_emoji=use_emoji)

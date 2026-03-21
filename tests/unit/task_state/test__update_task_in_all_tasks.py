@@ -15,8 +15,9 @@ class TestUpdateTaskInAllTasks:
 
     def test_updates_existing_task(self, tmp_path):
         """Update a task that already exists in the all-tasks file."""
-        with patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path), patch(
-            "agentic_devtools.state.get_state_dir", return_value=tmp_path
+        with (
+            patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path),
+            patch("agentic_devtools.state.get_state_dir", return_value=tmp_path),
         ):
             task = BackgroundTask.create(command="agdt-test-cmd")
             add_task(task, use_locking=False)

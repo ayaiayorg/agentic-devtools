@@ -8,7 +8,6 @@ their network requirements.
 import shlex
 import subprocess
 from enum import Enum
-from typing import Tuple
 
 
 class VpnRequirement(Enum):
@@ -73,7 +72,7 @@ def run_with_vpn_context(
     command: str,
     requirement: VpnRequirement = VpnRequirement.SMART,
     shell: bool = True,
-) -> Tuple[int, str, str]:
+) -> tuple[int, str, str]:
     """
     Run a command with automatic VPN context management.
 
@@ -148,7 +147,7 @@ def run_with_vpn_context(
         return _execute_command(command, shell)
 
 
-def _execute_command(command: str, shell: bool) -> Tuple[int, str, str]:
+def _execute_command(command: str, shell: bool) -> tuple[int, str, str]:
     """
     Execute a command and return its output.
 

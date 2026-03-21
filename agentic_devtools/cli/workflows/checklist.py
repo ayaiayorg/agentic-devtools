@@ -13,7 +13,7 @@ File location: .agdt/workflows/{identity}/{worktree_key}/implementations/checkli
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Import the state module itself for get_state_dir access, so that
 # fixtures patching ``state.get_state_dir`` are respected everywhere.
@@ -32,7 +32,7 @@ class ChecklistItem:
     text: str
     completed: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "id": self.id,
@@ -41,7 +41,7 @@ class ChecklistItem:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChecklistItem":
+    def from_dict(cls, data: dict[str, Any]) -> "ChecklistItem":
         """Create from dictionary."""
         return cls(
             id=data["id"],
@@ -54,10 +54,10 @@ class ChecklistItem:
 class Checklist:
     """Implementation checklist with items and metadata."""
 
-    items: List[ChecklistItem] = field(default_factory=list)
+    items: list[ChecklistItem] = field(default_factory=list)
     modified_by_agent: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "items": [item.to_dict() for item in self.items],
@@ -65,7 +65,7 @@ class Checklist:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Checklist":
+    def from_dict(cls, data: dict[str, Any]) -> "Checklist":
         """Create from dictionary."""
         items = [ChecklistItem.from_dict(item) for item in data.get("items", [])]
         return cls(
@@ -73,14 +73,14 @@ class Checklist:
             modified_by_agent=data.get("modified_by_agent", False),
         )
 
-    def get_item(self, item_id: int) -> Optional[ChecklistItem]:
+    def get_item(self, item_id: int) -> ChecklistItem | None:
         """Get item by ID."""
         for item in self.items:
             if item.id == item_id:
                 return item
         return None
 
-    def mark_completed(self, item_ids: List[int]) -> List[int]:
+    def mark_completed(self, item_ids: list[int]) -> list[int]:
         """
         Mark items as completed.
 
@@ -177,7 +177,7 @@ def get_checklist_file_path() -> Path:
     return _state_module.get_state_dir() / IMPLEMENTATIONS_SUBDIR / CHECKLIST_FILENAME
 
 
-def get_checklist() -> Optional[Checklist]:
+def get_checklist() -> Checklist | None:
     """
     Get the current checklist.
 
@@ -254,7 +254,7 @@ def save_checklist(checklist: Checklist) -> None:
     )
 
 
-def initialize_checklist(items: List[str]) -> Checklist:
+def initialize_checklist(items: list[str]) -> Checklist:
     """
     Initialize a new checklist with the given items.
 
@@ -268,7 +268,7 @@ def initialize_checklist(items: List[str]) -> Checklist:
     return Checklist(items=checklist_items, modified_by_agent=False)
 
 
-def mark_items_completed(item_ids: List[int]) -> tuple[Checklist, List[int]]:
+def mark_items_completed(item_ids: list[int]) -> tuple[Checklist, list[int]]:
     """
     Mark items as completed in the current checklist.
 
@@ -291,7 +291,7 @@ def mark_items_completed(item_ids: List[int]) -> tuple[Checklist, List[int]]:
     return checklist, marked
 
 
-def parse_completed_items_arg(arg: str) -> List[int]:
+def parse_completed_items_arg(arg: str) -> list[int]:
     """
     Parse the --completed argument value into a list of item IDs.
 

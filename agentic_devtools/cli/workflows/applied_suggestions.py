@@ -10,7 +10,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ... import state as _state_module
 
@@ -36,7 +36,7 @@ class AppliedSuggestionEntry:
     appliedUtc: str = ""
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "suggestionId": self.suggestionId,
@@ -47,7 +47,7 @@ class AppliedSuggestionEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AppliedSuggestionEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "AppliedSuggestionEntry":
         """Create from dictionary."""
         return cls(
             suggestionId=str(data.get("suggestionId", "")),
@@ -70,12 +70,12 @@ class AppliedSuggestionsState:
     """
 
     prId: int = 0
-    entries: List[AppliedSuggestionEntry] = field(default_factory=list)
-    reviewStateSnapshot: Optional[Dict[str, Any]] = None
+    entries: list[AppliedSuggestionEntry] = field(default_factory=list)
+    reviewStateSnapshot: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "prId": self.prId,
             "entries": [e.to_dict() for e in self.entries],
         }
@@ -84,7 +84,7 @@ class AppliedSuggestionsState:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AppliedSuggestionsState":
+    def from_dict(cls, data: dict[str, Any]) -> "AppliedSuggestionsState":
         """Create from dictionary."""
         entries = [AppliedSuggestionEntry.from_dict(e) for e in data.get("entries", [])]
         return cls(
@@ -164,9 +164,9 @@ def save_applied_suggestions_state(state: AppliedSuggestionsState) -> None:
 def load_applied_suggestions_state(
     *,
     fallback_to_branch: bool = True,
-    source_branch: Optional[str] = None,
-    worktree_key: Optional[str] = None,
-) -> Optional[AppliedSuggestionsState]:
+    source_branch: str | None = None,
+    worktree_key: str | None = None,
+) -> AppliedSuggestionsState | None:
     """Load applied-suggestions state from disk, with optional branch fallback.
 
     Reads from the local ``apply-suggestions/applied-suggestions.json``
@@ -207,9 +207,9 @@ def load_applied_suggestions_state(
 
 
 def _load_from_branch(
-    source_branch: Optional[str],
-    worktree_key: Optional[str],
-) -> Optional[dict]:
+    source_branch: str | None,
+    worktree_key: str | None,
+) -> dict | None:
     """Attempt to load applied-suggestions.json from the -agdt branch.
 
     Returns the parsed dict if found, or ``None`` if unavailable.

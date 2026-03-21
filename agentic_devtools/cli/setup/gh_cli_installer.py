@@ -13,7 +13,7 @@ import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -36,7 +36,7 @@ _ALLOWED_DOWNLOAD_HOST = "github.com"
 # ---------------------------------------------------------------------------
 
 
-def get_gh_cli_binary() -> Optional[str]:
+def get_gh_cli_binary() -> str | None:
     """Return the path to the ``gh`` binary, or ``None`` if not found.
 
     Checks (in order):
@@ -52,7 +52,7 @@ def get_gh_cli_binary() -> Optional[str]:
     return shutil.which("gh")
 
 
-def get_installed_version() -> Optional[str]:
+def get_installed_version() -> str | None:
     """Return the version string recorded in the version tracking file.
 
     Returns:
@@ -62,13 +62,13 @@ def get_installed_version() -> Optional[str]:
     if not _VERSION_FILE.exists():
         return None
     try:
-        data: Dict[str, Any] = json.loads(_VERSION_FILE.read_text(encoding="utf-8"))
+        data: dict[str, Any] = json.loads(_VERSION_FILE.read_text(encoding="utf-8"))
         return data.get("version")
     except (json.JSONDecodeError, OSError):
         return None
 
 
-def get_latest_release_info() -> Dict[str, Any]:
+def get_latest_release_info() -> dict[str, Any]:
     """Fetch the latest release metadata from the GitHub API.
 
     Returns:
@@ -79,11 +79,11 @@ def get_latest_release_info() -> Dict[str, Any]:
     """
     response = _ssl_request_with_retry(_RELEASES_URL, "api.github.com", timeout=30)
     response.raise_for_status()
-    result: Dict[str, Any] = response.json()
+    result: dict[str, Any] = response.json()
     return result
 
 
-def detect_platform_asset(assets: List[Dict[str, Any]]) -> str:
+def detect_platform_asset(assets: list[dict[str, Any]]) -> str:
     """Select the release asset that matches the current platform.
 
     The ``gh`` CLI distributes platform-specific archives.  This function
@@ -275,7 +275,7 @@ def install_gh_cli(force: bool = False) -> bool:
         return False
 
     latest_version: str = release.get("tag_name", "")
-    assets: List[Dict[str, Any]] = release.get("assets", [])
+    assets: list[dict[str, Any]] = release.get("assets", [])
 
     if not force and existing and installed_version == latest_version:
         print(f"  ✓ Already up-to-date: gh {installed_version}")
@@ -288,7 +288,7 @@ def install_gh_cli(force: bool = False) -> bool:
         return False
 
     # Find the download URL for the matched asset
-    asset_url: Optional[str] = None
+    asset_url: str | None = None
     for asset in assets:
         if asset["name"] == asset_name:
             asset_url = asset.get("browser_download_url")

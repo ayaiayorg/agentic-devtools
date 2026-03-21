@@ -22,6 +22,7 @@ dependencies = [
     "azure-identity>=1.0.0",
     "langgraph>=0.2.0",
     "langgraph-checkpoint-sqlite>=3.0.1",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +40,8 @@ dev = [
 [project.scripts]
 # All entry points route through runner.run_as_script, which derives the
 # command name from sys.argv[0] and handles KeyboardInterrupt gracefully.
+# Exception: agdt-mcp-server is wired directly to agentic_devtools.mcp.server:main
+# because MCP stdio transport requires direct control of stdin/stdout.
 agdt-set = "agentic_devtools.cli.runner:run_as_script"
 agdt-get = "agentic_devtools.cli.runner:run_as_script"
 agdt-delete = "agentic_devtools.cli.runner:run_as_script"
@@ -151,6 +154,7 @@ agdt-create-agdt-feature-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-documentation-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-task-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-review = "agentic_devtools.cli.runner:run_as_script"
+agdt-mcp-server = "agentic_devtools.mcp.server:main"
 
 [tool.hatch.version]
 source = "vcs"

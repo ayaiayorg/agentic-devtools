@@ -10,7 +10,7 @@ The implementation mirrors the functionality of the original mark-file-reviewed.
 
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import quote
 
 from .auth import get_auth_headers, get_pat
@@ -26,10 +26,10 @@ from .helpers import require_requests
 class AuthenticatedUser:
     """Authenticated Azure DevOps user information."""
 
-    display_name: Optional[str]
-    descriptor: Optional[str]
-    storage_key: Optional[str]
-    subject_descriptor: Optional[str]
+    display_name: str | None
+    descriptor: str | None
+    storage_key: str | None
+    subject_descriptor: str | None
 
 
 @dataclass
@@ -37,7 +37,7 @@ class ChangeEntry:
     """PR iteration change entry for a file."""
 
     change_tracking_id: int
-    object_id: Optional[str]
+    object_id: str | None
     path: str
 
 
@@ -46,7 +46,7 @@ class ChangeEntry:
 # =============================================================================
 
 
-def normalize_repo_path(path: Optional[str]) -> Optional[str]:
+def normalize_repo_path(path: str | None) -> str | None:
     """Normalize a file path to repository format (/path/to/file)."""
     if not path or not path.strip():
         return None
@@ -61,7 +61,7 @@ def normalize_repo_path(path: Optional[str]) -> Optional[str]:
 # =============================================================================
 
 
-def _get_connection_data(requests, headers: Dict[str, str], org_root: str) -> Dict[str, Any]:
+def _get_connection_data(requests, headers: dict[str, str], org_root: str) -> dict[str, Any]:
     """
     Get Azure DevOps connection data including authenticated user info.
 
@@ -77,7 +77,7 @@ def _get_connection_data(requests, headers: Dict[str, str], org_root: str) -> Di
     return response.json()
 
 
-def _extract_authenticated_user(connection_data: Dict[str, Any]) -> AuthenticatedUser:
+def _extract_authenticated_user(connection_data: dict[str, Any]) -> AuthenticatedUser:
     """Extract authenticated user info from connection data."""
     auth_user = connection_data.get("authenticatedUser", {})
 
@@ -94,7 +94,7 @@ def _extract_authenticated_user(connection_data: Dict[str, Any]) -> Authenticate
     )
 
 
-def _get_organization_account_name(org_url: str) -> Optional[str]:
+def _get_organization_account_name(org_url: str) -> str | None:
     """Extract organization account name from URL."""
     from urllib.parse import urlparse
 
@@ -130,10 +130,10 @@ def _get_graph_api_root(org_root: str) -> str:
 
 def _resolve_storage_key_via_graph(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     descriptor: str,
-) -> Optional[str]:
+) -> str | None:
     """
     Resolve storage key (GUID) for a user via the Graph API.
 
@@ -166,7 +166,7 @@ def _resolve_storage_key_via_graph(
 
 def _get_project_id_via_api(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     project: str,
 ) -> str:
@@ -191,13 +191,13 @@ def _get_project_id_via_api(
 
 def _get_reviewer_entry(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     project_encoded: str,
     repo_id: str,
     pull_request_id: int,
     reviewer_id: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get existing reviewer entry for the authenticated user.
 
@@ -254,14 +254,14 @@ def _get_reviewer_entry(
 
 def _update_reviewer_entry(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     project_encoded: str,
     repo_id: str,
     pull_request_id: int,
     reviewer_id: str,
-    existing_entry: Optional[Dict[str, Any]],
-    updated_reviewed_files: List[str],
+    existing_entry: dict[str, Any] | None,
+    updated_reviewed_files: list[str],
 ) -> None:
     """Update or create reviewer entry with updated reviewedFiles list."""
     encoded_reviewer_id = quote(reviewer_id, safe="")
@@ -306,12 +306,12 @@ def _update_reviewer_entry(
 
 def _get_existing_viewed_state_tokens(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     project_id: str,
     repo_id: str,
     pull_request_id: int,
-) -> List[str]:
+) -> list[str]:
     """
     Get existing viewed state tokens from the PR visit data provider.
 
@@ -360,10 +360,10 @@ def _get_existing_viewed_state_tokens(
 
 def _get_iteration_change_entry(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     base_url: str,
     target_path: str,
-) -> Optional[ChangeEntry]:
+) -> ChangeEntry | None:
     """
     Find the change entry for a file across PR iterations.
 
@@ -409,7 +409,7 @@ def _get_iteration_change_entry(
 
 def _sync_viewed_status(
     requests,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     org_root: str,
     project: str,
     project_id: str,
@@ -417,9 +417,9 @@ def _sync_viewed_status(
     repo_id: str,
     pull_request_id: int,
     normalized_path: str,
-    organization_account_name: Optional[str],
-    instance_id: Optional[str],
-    existing_hash_tokens: List[str],
+    organization_account_name: str | None,
+    instance_id: str | None,
+    existing_hash_tokens: list[str],
 ) -> None:
     """
     Sync the viewed status for a file via the Contribution API.
@@ -529,7 +529,7 @@ def _sync_viewed_status(
         }
 
     # Build contribution payload
-    properties: Dict[str, Any] = {
+    properties: dict[str, Any] = {
         "repositoryId": repo_id,
         "pullRequestId": pull_request_id,
         "projectId": project_id,

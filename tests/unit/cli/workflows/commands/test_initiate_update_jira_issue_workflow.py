@@ -243,13 +243,16 @@ class TestStateDirShiftUpdateJiraIssue:
                     return temp_state_dir
                 return shifted_dir
 
-            with patch(
-                "agentic_devtools.state.get_state_dir",
-                side_effect=_state_get_state_dir_side_effect,
-            ), patch(
-                "agentic_devtools.state.set_value",
-                wraps=state.set_value,
-            ) as mock_set_value:
+            with (
+                patch(
+                    "agentic_devtools.state.get_state_dir",
+                    side_effect=_state_get_state_dir_side_effect,
+                ),
+                patch(
+                    "agentic_devtools.state.set_value",
+                    wraps=state.set_value,
+                ) as mock_set_value,
+            ):
                 with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
                     mock_pf.return_value = PreflightResult(
                         folder_valid=True,

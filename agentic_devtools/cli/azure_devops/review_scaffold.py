@@ -18,7 +18,7 @@ import sys
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
@@ -103,11 +103,11 @@ _build_pr_base_url = build_pr_base_url
 
 def _post_thread(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     content: str,
-    file_path: Optional[str] = None,
-) -> Tuple[int, int]:
+    file_path: str | None = None,
+) -> tuple[int, int]:
     """Post a PR thread and return (thread_id, comment_id).
 
     Args:
@@ -120,7 +120,7 @@ def _post_thread(
     Returns:
         Tuple of (thread_id, comment_id).
     """
-    thread_body: Dict[str, Any] = {
+    thread_body: dict[str, Any] = {
         "comments": [
             {
                 "content": content,
@@ -153,11 +153,11 @@ class FileChangeResult:
     relative to a previous scaffolding run.
     """
 
-    new_files: List[str] = field(default_factory=list)
-    modified_files: List[str] = field(default_factory=list)
-    deleted_files: List[str] = field(default_factory=list)
-    unchanged_files: List[str] = field(default_factory=list)
-    validation_warnings: List[str] = field(default_factory=list)
+    new_files: list[str] = field(default_factory=list)
+    modified_files: list[str] = field(default_factory=list)
+    deleted_files: list[str] = field(default_factory=list)
+    unchanged_files: list[str] = field(default_factory=list)
+    validation_warnings: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ class FileChangeResult:
 
 def _post_reply(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     thread_id: int,
     content: str,
@@ -193,10 +193,10 @@ def _post_reply(
 
 def _get_thread_comments(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     thread_id: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """GET a thread and return its comments list.
 
     Args:
@@ -216,7 +216,7 @@ def _get_thread_comments(
 
 def _patch_comment_content(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     thread_id: int,
     comment_id: int,
@@ -239,7 +239,7 @@ def _patch_comment_content(
 
 def _demote_main_comment(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     thread_id: int,
     comment_id: int,
@@ -326,7 +326,7 @@ def _format_activity_log_entry(
 
 def _post_activity_log_entry(
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     threads_url: str,
     thread_id: int,
     comment_id: int,
@@ -356,9 +356,9 @@ def _post_activity_log_entry(
 
 def _check_session_status(
     existing_state: ReviewState,
-    commit_hash: Optional[str],
+    commit_hash: str | None,
     model_id: str,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> str:
     """Determine the review session status for a given commit + model.
 
@@ -421,7 +421,7 @@ def _mark_stale_sessions_failed(
     existing_state: ReviewState,
     commit_hash: str,
     model_id: str,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> None:
     """Mark all stale in-progress sessions as failed for a commit + model.
 
@@ -447,8 +447,8 @@ def _mark_stale_sessions_failed(
 
 def _create_session(
     model_id: str,
-    commit_hash: Optional[str] = None,
-    now: Optional[datetime] = None,
+    commit_hash: str | None = None,
+    now: datetime | None = None,
 ) -> ReviewSession:
     """Create a new ReviewSession with in_progress status.
 
@@ -478,14 +478,14 @@ def _create_session(
 
 def detect_file_changes(
     existing_state: ReviewState,
-    current_files: List[str],
+    current_files: list[str],
     config: AzureDevOpsConfig,
     repo_id: str,
     pull_request_id: int,
     old_commit_hash: str,
     new_commit_hash: str,
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
 ) -> FileChangeResult:
     """Detect file changes between two commits for incremental re-scaffolding.
 
@@ -607,8 +607,8 @@ def _validate_with_git_diff(
 
 def _print_dry_run_plan(
     pull_request_id: int,
-    files: List[str],
-    folders: Dict[str, List[str]],
+    files: list[str],
+    folders: dict[str, list[str]],
 ) -> None:
     """Print the scaffolding plan without making API calls.
 
@@ -636,17 +636,17 @@ def _print_dry_run_plan(
 
 def scaffold_review_threads(
     pull_request_id: int,
-    files: List[str],
+    files: list[str],
     config: AzureDevOpsConfig,
     repo_id: str,
     repo_name: str,
     latest_iteration_id: int,
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     dry_run: bool = False,
-    commit_hash: Optional[str] = None,
-    model_id: Optional[str] = None,
-) -> Optional[ReviewState]:
+    commit_hash: str | None = None,
+    model_id: str | None = None,
+) -> ReviewState | None:
     """Create all summary threads upfront before reviewing files.
 
     For a PR with N files, creates:
@@ -694,7 +694,7 @@ def scaffold_review_threads(
     # -------------------------------------------------------------------
     # Idempotency check: load existing state and decide on action
     # -------------------------------------------------------------------
-    existing_state: Optional[ReviewState] = None
+    existing_state: ReviewState | None = None
     try:
         existing_state = load_review_state(pull_request_id)
     except FileNotFoundError:
@@ -911,18 +911,18 @@ def scaffold_review_threads(
 
 def _fresh_scaffold(
     pull_request_id: int,
-    files: List[str],
+    files: list[str],
     config: AzureDevOpsConfig,
     repo_id: str,
     repo_name: str,
     latest_iteration_id: int,
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     dry_run: bool,
-    commit_hash: Optional[str],
+    commit_hash: str | None,
     model_id: str,
-    now: Optional[datetime] = None,
-) -> Optional[ReviewState]:
+    now: datetime | None = None,
+) -> ReviewState | None:
     """Perform a first-time full scaffolding of all review threads.
 
     Creates file threads, overall summary, activity log thread, and
@@ -938,7 +938,7 @@ def _fresh_scaffold(
         now = datetime.now(timezone.utc)
 
     # Group files by top-level folder
-    folders: Dict[str, List[str]] = {}
+    folders: dict[str, list[str]] = {}
     for file_path in files:
         folder = _get_folder_for_path(file_path)
         normalized = normalize_file_path(file_path)
@@ -956,8 +956,8 @@ def _fresh_scaffold(
     session = _create_session(model_id, commit_hash=commit_hash, now=now)
 
     def _build_state(
-        file_entries: Dict[str, FileEntry],
-        folder_groups: Dict[str, FolderGroup],
+        file_entries: dict[str, FileEntry],
+        folder_groups: dict[str, FolderGroup],
         overall_thread_id: int = 0,
         overall_comment_id: int = 0,
         activity_log_thread_id: int = 0,
@@ -980,7 +980,7 @@ def _fresh_scaffold(
         )
 
     # Step 1: Create file summary threads
-    file_entries: Dict[str, FileEntry] = {}
+    file_entries: dict[str, FileEntry] = {}
     commit_url_pr = (
         build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
         if commit_hash and latest_iteration_id
@@ -1025,7 +1025,7 @@ def _fresh_scaffold(
         file_entries[normalized] = file_entry
 
     # Step 2: Build lightweight folder groups
-    folder_groups: Dict[str, FolderGroup] = {}
+    folder_groups: dict[str, FolderGroup] = {}
     for folder_name, folder_files in folders.items():
         folder_groups[folder_name] = FolderGroup(files=folder_files)
 
@@ -1105,18 +1105,18 @@ def _fresh_scaffold(
 def _incremental_rescaffold(
     existing_state: ReviewState,
     pull_request_id: int,
-    files: List[str],
+    files: list[str],
     config: AzureDevOpsConfig,
     repo_id: str,
     repo_name: str,
     latest_iteration_id: int,
     requests_module: Any,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     dry_run: bool,
-    commit_hash: Optional[str],
+    commit_hash: str | None,
     model_id: str,
-    now: Optional[datetime] = None,
-) -> Optional[ReviewState]:
+    now: datetime | None = None,
+) -> ReviewState | None:
     """Perform incremental re-scaffolding for a new commit.
 
     Detects file changes between old and new commit, then:
@@ -1387,7 +1387,7 @@ def _incremental_rescaffold(
 
     # Update folder groups
     all_current_files = set(changes.new_files + changes.modified_files + changes.unchanged_files)
-    new_folders: Dict[str, List[str]] = {}
+    new_folders: dict[str, list[str]] = {}
     for f in sorted(all_current_files):
         folder = _get_folder_for_path(f)
         new_folders.setdefault(folder, []).append(f)

@@ -21,14 +21,17 @@ class TestLocalBranchMatchesOrigin:
         mock_behind.returncode = 0
         mock_behind.stdout = "0\n"
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -47,14 +50,17 @@ class TestLocalBranchMatchesOrigin:
         mock_behind.returncode = 0
         mock_behind.stdout = "0\n"
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -73,14 +79,17 @@ class TestLocalBranchMatchesOrigin:
         mock_behind.returncode = 0
         mock_behind.stdout = "2\n"
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead, mock_behind],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -91,14 +100,17 @@ class TestLocalBranchMatchesOrigin:
         mock_origin_not_exists = MagicMock()
         mock_origin_not_exists.returncode = 128
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/new-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            return_value=mock_origin_not_exists,
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/new-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                return_value=mock_origin_not_exists,
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -113,14 +125,17 @@ class TestLocalBranchMatchesOrigin:
         mock_ahead_bad.returncode = 0
         mock_ahead_bad.stdout = "not-a-number\n"
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead_bad],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead_bad],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -139,14 +154,17 @@ class TestLocalBranchMatchesOrigin:
         mock_behind_bad.returncode = 0
         mock_behind_bad.stdout = "invalid\n"
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead, mock_behind_bad],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead, mock_behind_bad],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -160,14 +178,17 @@ class TestLocalBranchMatchesOrigin:
         mock_ahead_fail = MagicMock()
         mock_ahead_fail.returncode = 1
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead_fail],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead_fail],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 
@@ -185,14 +206,17 @@ class TestLocalBranchMatchesOrigin:
         mock_behind_fail = MagicMock()
         mock_behind_fail.returncode = 1
 
-        with patch.object(
-            operations,
-            "get_current_branch",
-            return_value="feature/test-branch",
-        ), patch.object(
-            operations,
-            "run_git",
-            side_effect=[mock_origin_exists, mock_ahead, mock_behind_fail],
+        with (
+            patch.object(
+                operations,
+                "get_current_branch",
+                return_value="feature/test-branch",
+            ),
+            patch.object(
+                operations,
+                "run_git",
+                side_effect=[mock_origin_exists, mock_ahead, mock_behind_fail],
+            ),
         ):
             result = operations.local_branch_matches_origin()
 

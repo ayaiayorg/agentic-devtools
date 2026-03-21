@@ -288,8 +288,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
             os.chdir(worktree_path)
         except OSError as exc:
             print(
-                "agdt-copilot-auto-start: error: failed to change directory to worktree "
-                f"{worktree_path!r}: {exc}",
+                f"agdt-copilot-auto-start: error: failed to change directory to worktree {worktree_path!r}: {exc}",
                 file=sys.stderr,
             )
             sys.exit(1)

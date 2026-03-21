@@ -5,8 +5,8 @@ This module provides fixtures and configuration for end-to-end smoke tests
 that validate CLI commands with mocked HTTP interactions.
 """
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import patch
 
 import pytest

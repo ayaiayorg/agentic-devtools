@@ -3,10 +3,9 @@ Jira description and label formatting utilities.
 """
 
 import os
-from typing import List, Optional
 
 
-def format_bullet_list(items: Optional[List[str]], placeholder: Optional[str] = None) -> str:
+def format_bullet_list(items: list[str] | None, placeholder: str | None = None) -> str:
     """
     Format items as a Jira bullet list.
 
@@ -49,8 +48,8 @@ def build_user_story_description(
     role: str,
     desired_outcome: str,
     benefit: str,
-    acceptance_criteria: Optional[List[str]] = None,
-    additional_information: Optional[List[str]] = None,
+    acceptance_criteria: list[str] | None = None,
+    additional_information: list[str] | None = None,
 ) -> str:
     """
     Build a Jira description in user story format.
@@ -87,11 +86,11 @@ def build_user_story_description(
 
 
 def merge_labels(
-    custom_labels: Optional[List[str]] = None,
+    custom_labels: list[str] | None = None,
     include_zu_priorisieren: bool = True,
     include_created_by_ai: bool = True,
     include_ready_for_ai: bool = True,
-) -> List[str]:
+) -> list[str]:
     """
     Merge custom labels with default labels, removing duplicates.
 

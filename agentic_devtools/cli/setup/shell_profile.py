@@ -12,7 +12,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def _escape_for_double_quotes_posix(value: str) -> str:
@@ -68,7 +67,7 @@ def detect_shell_type() -> str:
     return "unknown"
 
 
-def detect_shell_profile() -> Optional[Path]:
+def detect_shell_profile() -> Path | None:
     """Detect the path to the user's shell profile file.
 
     Returns:

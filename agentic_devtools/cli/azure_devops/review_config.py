@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -51,7 +51,7 @@ class ReviewerConfig:
     model_id: str
     role: str
 
-    def validate(self, errors: List[str], index: int) -> None:
+    def validate(self, errors: list[str], index: int) -> None:
         """Append validation errors for this reviewer to *errors*."""
         if self.model_id not in KNOWN_MODEL_IDS:
             errors.append(f"reviewers[{index}].model_id: unknown model '{self.model_id}'")
@@ -66,7 +66,7 @@ class ConsolidationConfig:
     model_id: str
     role: str = VALID_CONSOLIDATOR_ROLE
 
-    def validate(self, errors: List[str]) -> None:
+    def validate(self, errors: list[str]) -> None:
         """Append validation errors for consolidation to *errors*."""
         if self.model_id not in KNOWN_MODEL_IDS:
             errors.append(f"consolidation.model_id: unknown model '{self.model_id}'")
@@ -82,7 +82,7 @@ class ConsensusConfig:
     min_reviewers: int = 2
     max_reviewers: int = 3
 
-    def validate(self, errors: List[str]) -> None:
+    def validate(self, errors: list[str]) -> None:
         """Append validation errors for consensus to *errors*."""
         if self.strategy not in VALID_STRATEGIES:
             errors.append(f"consensus.strategy: must be one of {sorted(VALID_STRATEGIES)}, got '{self.strategy}'")
@@ -96,11 +96,11 @@ class ConsensusConfig:
 class TriggerOverride:
     """Override settings applied when a specific label triggers the review."""
 
-    max_reviewers: Optional[int] = None
-    skip_consolidation: Optional[bool] = None
-    consensus_strategy: Optional[str] = None
+    max_reviewers: int | None = None
+    skip_consolidation: bool | None = None
+    consensus_strategy: str | None = None
 
-    def validate(self, errors: List[str], label: str) -> None:
+    def validate(self, errors: list[str], label: str) -> None:
         """Append validation errors for this override to *errors*."""
         if self.consensus_strategy is not None and self.consensus_strategy not in VALID_STRATEGIES:
             errors.append(
@@ -118,9 +118,9 @@ class TriggerConfig:
 
     type: str
     label: str
-    override: Optional[TriggerOverride] = None
+    override: TriggerOverride | None = None
 
-    def validate(self, errors: List[str], index: int) -> None:
+    def validate(self, errors: list[str], index: int) -> None:
         """Append validation errors for this trigger to *errors*."""
         if self.type != "pr-label":
             errors.append(f"triggers[{index}].type: must be 'pr-label', got '{self.type}'")
@@ -134,8 +134,8 @@ class TriggerConfig:
 class FileFilterConfig:
     """File include/exclude patterns."""
 
-    include: List[str] = field(default_factory=list)
-    exclude: List[str] = field(default_factory=list)
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -143,10 +143,10 @@ class ReviewConfig:
     """Top-level review pipeline configuration."""
 
     version: int = 1
-    reviewers: List[ReviewerConfig] = field(default_factory=list)
-    consolidation: Optional[ConsolidationConfig] = None
+    reviewers: list[ReviewerConfig] = field(default_factory=list)
+    consolidation: ConsolidationConfig | None = None
     consensus: ConsensusConfig = field(default_factory=ConsensusConfig)
-    triggers: List[TriggerConfig] = field(default_factory=list)
+    triggers: list[TriggerConfig] = field(default_factory=list)
     file_filters: FileFilterConfig = field(default_factory=FileFilterConfig)
 
     # Runtime flag: True when consolidation should be skipped.
@@ -154,7 +154,7 @@ class ReviewConfig:
 
     def validate(self) -> None:
         """Validate entire config. Raises :class:`ReviewConfigError` on failure."""
-        errors: List[str] = []
+        errors: list[str] = []
 
         if self.version != 1:
             errors.append(f"version: must be 1, got {self.version}")
@@ -219,7 +219,7 @@ def _require_str(section: str, field_name: str, value: Any) -> str:
     return value
 
 
-def _parse_reviewer(data: Dict[str, Any]) -> ReviewerConfig:
+def _parse_reviewer(data: dict[str, Any]) -> ReviewerConfig:
     if "model_id" in data:
         model_id = _require_str("reviewer", "model_id", data["model_id"])
     else:
@@ -236,7 +236,7 @@ def _parse_reviewer(data: Dict[str, Any]) -> ReviewerConfig:
     )
 
 
-def _parse_consolidation(data: Dict[str, Any]) -> ConsolidationConfig:
+def _parse_consolidation(data: dict[str, Any]) -> ConsolidationConfig:
     if "model_id" in data:
         model_id = _require_str("consolidation", "model_id", data["model_id"])
     else:
@@ -253,7 +253,7 @@ def _parse_consolidation(data: Dict[str, Any]) -> ConsolidationConfig:
     )
 
 
-def _parse_consensus(data: Dict[str, Any]) -> ConsensusConfig:
+def _parse_consensus(data: dict[str, Any]) -> ConsensusConfig:
     """Parse and type-validate the consensus section from raw YAML data."""
     min_reviewers = _parse_int_field("consensus", "min_reviewers", data.get("min_reviewers", 2))
     max_reviewers = _parse_int_field("consensus", "max_reviewers", data.get("max_reviewers", 3))
@@ -273,11 +273,11 @@ def _parse_consensus(data: Dict[str, Any]) -> ConsensusConfig:
     )
 
 
-def _parse_trigger_override(data: Dict[str, Any]) -> TriggerOverride:
+def _parse_trigger_override(data: dict[str, Any]) -> TriggerOverride:
     """Parse and type-validate a trigger override section from raw YAML data."""
     raw_max = data.get("max_reviewers")
     if raw_max is not None:
-        max_reviewers: Optional[int] = _parse_int_field("trigger override", "max_reviewers", raw_max)
+        max_reviewers: int | None = _parse_int_field("trigger override", "max_reviewers", raw_max)
     else:
         max_reviewers = None
 
@@ -287,7 +287,7 @@ def _parse_trigger_override(data: Dict[str, Any]) -> TriggerOverride:
             raise ReviewConfigError(
                 f"trigger override skip_consolidation must be a boolean, got {type(raw_skip).__name__}"
             )
-        skip_consolidation: Optional[bool] = raw_skip
+        skip_consolidation: bool | None = raw_skip
     else:
         skip_consolidation = None
 
@@ -297,7 +297,7 @@ def _parse_trigger_override(data: Dict[str, Any]) -> TriggerOverride:
             raise ReviewConfigError(
                 f"trigger override consensus_strategy must be a string, got {type(raw_strategy).__name__}"
             )
-        consensus_strategy: Optional[str] = raw_strategy
+        consensus_strategy: str | None = raw_strategy
     else:
         consensus_strategy = None
 
@@ -308,7 +308,7 @@ def _parse_trigger_override(data: Dict[str, Any]) -> TriggerOverride:
     )
 
 
-def _parse_trigger(data: Dict[str, Any]) -> TriggerConfig:
+def _parse_trigger(data: dict[str, Any]) -> TriggerConfig:
     override_data = data.get("override")
     override = None
     if override_data is not None:
@@ -339,7 +339,7 @@ def _parse_trigger(data: Dict[str, Any]) -> TriggerConfig:
     )
 
 
-def _parse_file_filters(data: Dict[str, Any]) -> FileFilterConfig:
+def _parse_file_filters(data: dict[str, Any]) -> FileFilterConfig:
     raw_include = data.get("include", [])
     raw_exclude = data.get("exclude", [])
 
@@ -361,7 +361,7 @@ def _parse_file_filters(data: Dict[str, Any]) -> FileFilterConfig:
     )
 
 
-def _parse_review_config(data: Dict[str, Any]) -> ReviewConfig:
+def _parse_review_config(data: dict[str, Any]) -> ReviewConfig:
     """Parse a raw YAML dict into a :class:`ReviewConfig`."""
     review = data.get("review", {})
     if not isinstance(review, dict):
@@ -371,7 +371,7 @@ def _parse_review_config(data: Dict[str, Any]) -> ReviewConfig:
     raw_reviewers = review.get("reviewers", [])
     if not isinstance(raw_reviewers, list):
         raise ReviewConfigError("review.reviewers must be a list")
-    reviewers: List[ReviewerConfig] = []
+    reviewers: list[ReviewerConfig] = []
     for idx, r in enumerate(raw_reviewers):
         if not isinstance(r, dict):
             raise ReviewConfigError(f"review.reviewers[{idx}] must be a mapping")
@@ -398,7 +398,7 @@ def _parse_review_config(data: Dict[str, Any]) -> ReviewConfig:
     raw_triggers = review.get("triggers", [])
     if not isinstance(raw_triggers, list):
         raise ReviewConfigError("review.triggers must be a list")
-    triggers: List[TriggerConfig] = []
+    triggers: list[TriggerConfig] = []
     for idx, t in enumerate(raw_triggers):
         if not isinstance(t, dict):
             raise ReviewConfigError(f"review.triggers[{idx}] must be a mapping")
@@ -563,7 +563,7 @@ def _matches_pattern(filepath: str, pattern: str) -> bool:
     return False
 
 
-def filter_files(file_paths: List[str], filters: FileFilterConfig) -> List[str]:
+def filter_files(file_paths: list[str], filters: FileFilterConfig) -> list[str]:
     """Apply include/exclude filters to a list of file paths.
 
     Args:
@@ -590,7 +590,7 @@ def filter_files(file_paths: List[str], filters: FileFilterConfig) -> List[str]:
 
 
 def compute_mechanical_consensus(
-    verdicts: List[str],
+    verdicts: list[str],
     strategy: str,
 ) -> str:
     """Determine file status mechanically from reviewer verdicts.

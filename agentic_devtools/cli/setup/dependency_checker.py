@@ -10,7 +10,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 from ..subprocess_utils import run_safe
 
@@ -43,8 +42,8 @@ class DependencyStatus:
 
     name: str
     found: bool
-    path: Optional[str] = field(default=None)
-    version: Optional[str] = field(default=None)
+    path: str | None = field(default=None)
+    version: str | None = field(default=None)
     required: bool = field(default=False)
     install_hint: str = field(default="")
     category: str = field(default="Optional")
@@ -55,7 +54,7 @@ class DependencyStatus:
 # ---------------------------------------------------------------------------
 
 
-def _run_version(args: List[str]) -> Optional[str]:
+def _run_version(args: list[str]) -> str | None:
     """Run *args* and return the first non-empty line of stdout.
 
     Uses ``shell=None`` so that :func:`run_safe` applies its default
@@ -74,7 +73,7 @@ def _run_version(args: List[str]) -> Optional[str]:
     return None
 
 
-def _get_version(name: str, path: str) -> Optional[str]:
+def _get_version(name: str, path: str) -> str | None:
     """Return a version string for *name* at *path*, or ``None``."""
     if name == "git":
         raw = _run_version([path, "--version"])
@@ -114,7 +113,7 @@ def _get_version(name: str, path: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _find_binary(name: str) -> Optional[str]:
+def _find_binary(name: str) -> str | None:
     """Locate *name* in the managed bin dir first, then on ``PATH``."""
     managed = _MANAGED_BIN_DIR / (name + (".exe" if sys.platform == "win32" else ""))
     if managed.is_file():
@@ -156,7 +155,7 @@ def _check_dependency(
 # ---------------------------------------------------------------------------
 
 
-def check_all_dependencies() -> List[DependencyStatus]:
+def check_all_dependencies() -> list[DependencyStatus]:
     """Check all external CLI dependencies.
 
     Returns:
@@ -196,7 +195,7 @@ def check_all_dependencies() -> List[DependencyStatus]:
     ]
 
 
-def print_dependency_report(statuses: List[DependencyStatus]) -> None:
+def print_dependency_report(statuses: list[DependencyStatus]) -> None:
     """Pretty-print a dependency status table to stdout.
 
     Args:

@@ -59,8 +59,7 @@ def _get_requests():  # type: ignore[return]
         return requests
     except ImportError as exc:
         raise ImportError(
-            "The 'requests' package is required for Azure DevOps HTTP "
-            "operations. Install it with: pip install requests"
+            "The 'requests' package is required for Azure DevOps HTTP operations. Install it with: pip install requests"
         ) from exc
 
 
@@ -208,11 +207,7 @@ def create_pull_request(
     pull_request_id = pr_data.get("pullRequestId", 0)
 
     repo_web_url = pr_data.get("repository", {}).get("webUrl", "")
-    pr_url = (
-        f"{repo_web_url}/pullrequest/{pull_request_id}"
-        if repo_web_url and pull_request_id
-        else ""
-    )
+    pr_url = f"{repo_web_url}/pullrequest/{pull_request_id}" if repo_web_url and pull_request_id else ""
 
     return CreatePullRequestResult(
         pull_request_id=pull_request_id,

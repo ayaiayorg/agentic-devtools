@@ -10,14 +10,13 @@ not via CLI entry points.
 
 import argparse
 import sys
-from typing import Optional
 
 from agentic_devtools.background_tasks import run_function_in_background
 from agentic_devtools.state import get_value, set_value
 from agentic_devtools.task_state import print_task_tracking_info
 
 
-def _set_value_if_provided(key: str, value: Optional[str]) -> None:
+def _set_value_if_provided(key: str, value: str | None) -> None:
     """Set a state value if provided (not None)."""
     if value is not None:
         set_value(key, value)
@@ -52,8 +51,8 @@ _SUGGESTION_MODULE = "agentic_devtools.cli.azure_devops.suggestion_commands"
 
 
 def add_pull_request_comment_async(
-    pull_request_id: Optional[str] = None,
-    content: Optional[str] = None,
+    pull_request_id: str | None = None,
+    content: str | None = None,
 ) -> None:
     """
     Add a comment to a pull request asynchronously in the background.
@@ -128,8 +127,8 @@ Examples:
 
 
 def approve_pull_request_async(
-    pull_request_id: Optional[str] = None,
-    content: Optional[str] = None,
+    pull_request_id: str | None = None,
+    content: str | None = None,
 ) -> None:
     """
     Approve a pull request asynchronously in the background.
@@ -201,9 +200,9 @@ Examples:
 
 
 def create_pull_request_async(
-    source_branch: Optional[str] = None,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
+    source_branch: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
 ) -> None:
     """
     Create a pull request asynchronously in the background.
@@ -289,7 +288,7 @@ Examples:
 
 
 def get_pull_request_threads_async(
-    pull_request_id: Optional[str] = None,
+    pull_request_id: str | None = None,
 ) -> None:
     """
     Get pull request threads asynchronously in the background.
@@ -350,9 +349,9 @@ Examples:
 
 
 def reply_to_pull_request_thread_async(
-    pull_request_id: Optional[str] = None,
-    thread_id: Optional[str] = None,
-    content: Optional[str] = None,
+    pull_request_id: str | None = None,
+    thread_id: str | None = None,
+    content: str | None = None,
 ) -> None:
     """
     Reply to a pull request thread asynchronously in the background.
@@ -441,8 +440,8 @@ Examples:
 
 
 def resolve_thread_async(
-    pull_request_id: Optional[str] = None,
-    thread_id: Optional[str] = None,
+    pull_request_id: str | None = None,
+    thread_id: str | None = None,
 ) -> None:
     """
     Resolve a pull request thread asynchronously in the background.
@@ -873,10 +872,10 @@ def _auto_advance_after_submission(
 
 
 def approve_file_async(
-    file_path: Optional[str] = None,
-    content: Optional[str] = None,
-    summary: Optional[str] = None,
-    pull_request_id: Optional[int] = None,
+    file_path: str | None = None,
+    content: str | None = None,
+    summary: str | None = None,
+    pull_request_id: int | None = None,
 ) -> None:
     """
     Approve a file in a pull request asynchronously in the background.
@@ -1024,10 +1023,10 @@ def submit_file_review_async() -> None:
 
 
 def request_changes_async(
-    file_path: Optional[str] = None,
-    summary: Optional[str] = None,
-    suggestions: Optional[str] = None,
-    pull_request_id: Optional[int] = None,
+    file_path: str | None = None,
+    summary: str | None = None,
+    suggestions: str | None = None,
+    pull_request_id: int | None = None,
 ) -> None:
     """
     Request changes on a file asynchronously in the background.
@@ -1146,10 +1145,10 @@ Examples:
 
 
 def request_changes_with_suggestion_async(
-    file_path: Optional[str] = None,
-    summary: Optional[str] = None,
-    suggestions: Optional[str] = None,
-    pull_request_id: Optional[int] = None,
+    file_path: str | None = None,
+    summary: str | None = None,
+    suggestions: str | None = None,
+    pull_request_id: int | None = None,
 ) -> None:
     """
     Request changes with code suggestion(s) asynchronously in the background.
@@ -1399,9 +1398,9 @@ def generate_review_prompts_async() -> None:  # pragma: no cover
 
 
 def setup_pull_request_review_async(  # pragma: no cover
-    pull_request_id: Optional[int] = None,
-    jira_issue_key: Optional[str] = None,
-    model_id: Optional[str] = None,
+    pull_request_id: int | None = None,
+    jira_issue_key: str | None = None,
+    model_id: str | None = None,
 ) -> None:
     """
     Set up a pull request review asynchronously in the background.
@@ -1543,9 +1542,9 @@ def lookup_pr_from_jira_issue_async(issue_key: str) -> None:
 
 
 def confirm_suggestion_addressed_async(
-    pull_request_id: Optional[str] = None,
-    thread_id: Optional[str] = None,
-    commit_hash: Optional[str] = None,
+    pull_request_id: str | None = None,
+    thread_id: str | None = None,
+    commit_hash: str | None = None,
 ) -> None:
     """
     Confirm that a suggestion was addressed, asynchronously in the background.
@@ -1634,9 +1633,9 @@ Examples:
 
 
 def reject_suggestion_resolution_async(
-    pull_request_id: Optional[str] = None,
-    thread_id: Optional[str] = None,
-    explanation: Optional[str] = None,
+    pull_request_id: str | None = None,
+    thread_id: str | None = None,
+    explanation: str | None = None,
 ) -> None:
     """
     Reject a suggestion resolution, asynchronously in the background.

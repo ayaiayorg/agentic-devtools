@@ -24,7 +24,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .file_locking import FileLockError, locked_state_file
 
@@ -38,7 +38,7 @@ IDENTITY_OWNER_FILENAME = ".identity-owner"
 DEFAULT_LOCK_TIMEOUT = 5.0
 
 
-def _get_git_repo_root() -> Optional[Path]:
+def _get_git_repo_root() -> Path | None:
     """
     Get the git repository or worktree root using git rev-parse.
 
@@ -62,7 +62,7 @@ def _get_git_repo_root() -> Optional[Path]:
     return None
 
 
-def _resolve_identity(git_root: Optional[Path] = None, *, _email: Optional[str] = None) -> str:
+def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None) -> str:
     """Derive a compact, collision-resistant identity string from git email.
 
     Algorithm:
@@ -126,7 +126,7 @@ def _resolve_identity(git_root: Optional[Path] = None, *, _email: Optional[str] 
     # by an unknown agent (empty-string sentinel) to avoid cross-agent
     # collisions with pre-existing or manually-created directories.
     workflows_dir = git_root / ".agdt" / "workflows"
-    owner_map: Dict[str, str] = {}  # directory name -> email (or "" for unclaimed)
+    owner_map: dict[str, str] = {}  # directory name -> email (or "" for unclaimed)
     if workflows_dir.is_dir():
         for entry in workflows_dir.iterdir():
             if entry.is_dir():
@@ -153,8 +153,8 @@ def _resolve_identity(git_root: Optional[Path] = None, *, _email: Optional[str] 
 
     max_iters = len(first) + len(last) + 10  # safety bound
     for _ in range(max_iters):
-        opt_a: Optional[str] = None
-        opt_b: Optional[str] = None
+        opt_a: str | None = None
+        opt_b: str | None = None
 
         # Option A: extend last name
         if last_idx < len(last):
@@ -199,7 +199,7 @@ def _resolve_identity(git_root: Optional[Path] = None, *, _email: Optional[str] 
     return "default"  # pragma: no cover
 
 
-def get_bootstrap_state() -> Dict[str, str]:
+def get_bootstrap_state() -> dict[str, str]:
     """Read identity and worktree_key from their respective cache files.
 
     Identity is read from ``.agdt/identity.json`` (new); ``worktree_key``
@@ -217,7 +217,7 @@ def get_bootstrap_state() -> Dict[str, str]:
         return {}
 
     agdt_dir = git_root / ".agdt"
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
 
     # Read identity from identity.json (new approach)
     identity_cache = _read_identity_cache(agdt_dir)
@@ -297,7 +297,7 @@ def is_safe_dir_segment(segment: str) -> bool:
     return True
 
 
-def _read_identity_cache(agdt_dir: Path) -> Optional[Dict[str, str]]:
+def _read_identity_cache(agdt_dir: Path) -> dict[str, str] | None:
     """Read the identity cache from ``.agdt/identity.json``.
 
     Returns a dict with ``"identity"`` and ``"email"`` keys when the file
@@ -351,7 +351,7 @@ def _write_identity_cache(agdt_dir: Path, identity: str, email: str) -> None:
         pass
 
 
-def _get_or_refresh_identity(git_root: Path, *, _email: Optional[str] = None) -> str:
+def _get_or_refresh_identity(git_root: Path, *, _email: str | None = None) -> str:
     """Get identity from cache (``.agdt/identity.json``) or resolve and cache it.
 
     Validates the cache by comparing the stored email with the current
@@ -385,8 +385,8 @@ def _get_or_refresh_identity(git_root: Path, *, _email: Optional[str] = None) ->
 
 
 def set_bootstrap_state(
-    identity: Optional[str] = None,
-    worktree_key: Optional[str] = None,
+    identity: str | None = None,
+    worktree_key: str | None = None,
 ) -> None:
     """Write (or update) the bootstrap file and identity cache.
 
@@ -436,7 +436,7 @@ def set_bootstrap_state(
 
     # Read existing bootstrap to preserve worktree_key
     bootstrap_path = git_root / ".agdt" / BOOTSTRAP_FILENAME
-    existing: Dict[str, str] = {}
+    existing: dict[str, str] = {}
     try:
         content = bootstrap_path.read_text(encoding="utf-8")
         data = json.loads(content)
@@ -450,7 +450,7 @@ def set_bootstrap_state(
         pass
 
     # Normalize caller-provided worktree_key: must be str, stripped, non-empty
-    effective_wk: Optional[str] = None
+    effective_wk: str | None = None
     if worktree_key is not None:
         if isinstance(worktree_key, str):
             stripped_wk = worktree_key.strip()
@@ -516,7 +516,7 @@ def get_state_dir() -> Path:
 
         # Read worktree_key (and legacy identity) from bootstrap file
         bootstrap_path = agdt_dir / BOOTSTRAP_FILENAME
-        bootstrap: Dict[str, Any] = {}
+        bootstrap: dict[str, Any] = {}
         try:
             if bootstrap_path.is_file():
                 bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
@@ -605,7 +605,7 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
         pass
 
 
-def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, Any]:
+def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> dict[str, Any]:
     """
     Load the current state from the JSON file.
 
@@ -638,7 +638,7 @@ def load_state(use_locking: bool = False, lock_timeout: float = DEFAULT_LOCK_TIM
 
 
 def save_state(
-    state: Dict[str, Any],
+    state: dict[str, Any],
     use_locking: bool = False,
     lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
 ) -> Path:
@@ -673,7 +673,7 @@ def save_state(
     return path
 
 
-def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, Any]:
+def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> dict[str, Any]:
     """
     Load state with file locking enabled.
 
@@ -688,7 +688,7 @@ def load_state_locked(lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Dict[str, A
     return load_state(use_locking=True, lock_timeout=lock_timeout)
 
 
-def save_state_locked(state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
+def save_state_locked(state: dict[str, Any], lock_timeout: float = DEFAULT_LOCK_TIMEOUT) -> Path:
     """
     Save state with file locking enabled.
 
@@ -704,7 +704,7 @@ def save_state_locked(state: Dict[str, Any], lock_timeout: float = DEFAULT_LOCK_
     return save_state(state, use_locking=True, lock_timeout=lock_timeout)
 
 
-def get_value(key: str, required: bool = False) -> Optional[Any]:
+def get_value(key: str, required: bool = False) -> Any | None:
     """
     Get a value from state by key.
 
@@ -792,7 +792,7 @@ def set_value(key: str, value: Any) -> None:
             # Use ``type(value) is int`` instead of ``isinstance(value, int)``
             # because bool is a subclass of int — ``isinstance(True, int)``
             # is True, which would write "PR1" / "PR0" for booleans.
-            pr_id_str: Optional[str] = None
+            pr_id_str: str | None = None
             if type(value) is int:  # noqa: E721
                 pr_id_str = str(value)
             elif isinstance(value, str):
@@ -1031,7 +1031,7 @@ def clear_state() -> None:
     save_state({})
 
 
-def get_all_keys() -> List[str]:
+def get_all_keys() -> list[str]:
     """Get list of all keys in state."""
     return list(load_state().keys())
 
@@ -1039,7 +1039,7 @@ def get_all_keys() -> List[str]:
 # Convenience functions for common parameters
 
 
-def get_pull_request_id(required: bool = False) -> Optional[int]:
+def get_pull_request_id(required: bool = False) -> int | None:
     """Get the pull request ID from state."""
     value = get_value("pull_request_id", required=required)
     return int(value) if value is not None else None
@@ -1050,7 +1050,7 @@ def set_pull_request_id(pull_request_id: int) -> None:
     set_value("pull_request_id", pull_request_id)
 
 
-def get_thread_id(required: bool = False) -> Optional[int]:
+def get_thread_id(required: bool = False) -> int | None:
     """Get the thread ID from state."""
     value = get_value("thread_id", required=required)
     return int(value) if value is not None else None
@@ -1076,7 +1076,7 @@ def set_dry_run(enabled: bool) -> None:
     set_value("dry_run", enabled)
 
 
-def get_pypi_package_name(required: bool = False) -> Optional[str]:
+def get_pypi_package_name(required: bool = False) -> str | None:
     """Get the PyPI package name from state."""
     value = get_value("pypi.package_name", required=required)
     return str(value) if value is not None else None
@@ -1087,7 +1087,7 @@ def set_pypi_package_name(package_name: str) -> None:
     set_value("pypi.package_name", package_name)
 
 
-def get_pypi_version(required: bool = False) -> Optional[str]:
+def get_pypi_version(required: bool = False) -> str | None:
     """Get the PyPI version from state."""
     value = get_value("pypi.version", required=required)
     return str(value) if value is not None else None
@@ -1098,7 +1098,7 @@ def set_pypi_version(version: str) -> None:
     set_value("pypi.version", version)
 
 
-def get_pypi_repository(required: bool = False) -> Optional[str]:
+def get_pypi_repository(required: bool = False) -> str | None:
     """Get the PyPI repository from state (pypi/testpypi)."""
     value = get_value("pypi.repository", required=required)
     return str(value) if value is not None else None
@@ -1142,7 +1142,7 @@ def set_resolve_thread(enabled: bool) -> None:
 # Workflow state management
 
 
-def get_workflow_state() -> Optional[Dict[str, Any]]:
+def get_workflow_state() -> dict[str, Any] | None:
     """
     Get the current workflow state.
 
@@ -1162,8 +1162,8 @@ def get_workflow_state() -> Optional[Dict[str, Any]]:
 def set_workflow_state(
     name: str,
     status: str,
-    step: Optional[str] = None,
-    context: Optional[Dict[str, Any]] = None,
+    step: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> None:
     """
     Set the workflow state.
@@ -1184,7 +1184,7 @@ def set_workflow_state(
         else datetime.now(timezone.utc).isoformat()
     )
 
-    workflow_data: Dict[str, Any] = {
+    workflow_data: dict[str, Any] = {
         "active": name,
         "status": status,
         "started_at": started_at,
@@ -1214,7 +1214,7 @@ def clear_workflow_state() -> None:
     delete_value("workflow")
 
 
-def is_workflow_active(workflow_name: Optional[str] = None) -> bool:
+def is_workflow_active(workflow_name: str | None = None) -> bool:
     """
     Check if a workflow is currently active.
 
@@ -1235,7 +1235,7 @@ def is_workflow_active(workflow_name: Optional[str] = None) -> bool:
     return bool(workflow.get("active"))
 
 
-def update_workflow_step(step: str, status: Optional[str] = None) -> None:
+def update_workflow_step(step: str, status: str | None = None) -> None:
     """
     Update the current workflow step (and optionally status).
 
@@ -1258,7 +1258,7 @@ def update_workflow_step(step: str, status: Optional[str] = None) -> None:
     )
 
 
-def update_workflow_context(context: Dict[str, Any]) -> None:
+def update_workflow_context(context: dict[str, Any]) -> None:
     """
     Update the workflow context (merges with existing context).
 

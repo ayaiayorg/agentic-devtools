@@ -4,12 +4,12 @@ Async operation status tracking.
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from agentic_devtools.state import get_state_dir
 
 
-def write_async_status(operation_id: str, status: Dict[str, Any]) -> Path:
+def write_async_status(operation_id: str, status: dict[str, Any]) -> Path:
     """
     Write async operation status to a JSON file.
 
