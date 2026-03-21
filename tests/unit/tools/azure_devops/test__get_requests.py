@@ -18,7 +18,9 @@ class TestGetRequests:
         assert hasattr(result, "post")
 
     def test_raises_import_error_when_not_installed(self):
-        """When ``requests`` is not installed, ImportError is raised."""
+        """When ``requests`` is not installed, ImportError is raised with chaining."""
         with patch.dict("sys.modules", {"requests": None}):
-            with pytest.raises(ImportError, match="'requests' package is required"):
+            with pytest.raises(ImportError, match="'requests' package is required") as exc_info:
                 _get_requests()
+            # Verify exception chaining is present (from exc)
+            assert exc_info.value.__cause__ is not None

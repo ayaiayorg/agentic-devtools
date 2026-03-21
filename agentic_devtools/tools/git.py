@@ -66,7 +66,11 @@ def _run_op(func, *args, **kwargs) -> GitOperationResult:  # type: ignore[no-unt
     try:
         with contextlib.redirect_stderr(err_buf):
             output = _capture(func, *args, **kwargs)
-        return GitOperationResult(success=True, message=output.strip())
+        stderr_text = err_buf.getvalue().strip()
+        message = output.strip()
+        if stderr_text:
+            message = f"{message}\n{stderr_text}" if message else stderr_text
+        return GitOperationResult(success=True, message=message.strip())
     except SystemExit as exc:
         code = exc.code if exc.code is not None else 1
         stderr_text = err_buf.getvalue().strip()

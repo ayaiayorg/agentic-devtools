@@ -57,11 +57,11 @@ def _get_requests():  # type: ignore[return]
         import requests  # type: ignore[import-not-found]
 
         return requests
-    except ImportError:
+    except ImportError as exc:
         raise ImportError(
             "The 'requests' package is required for Azure DevOps HTTP "
             "operations. Install it with: pip install requests"
-        )
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

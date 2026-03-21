@@ -16,6 +16,28 @@ class TestRunOp:
         assert result["success"] is True
         assert result["message"] == "Hello, world!"
 
+    def test_success_includes_stderr_warnings(self):
+        """Non-fatal stderr warnings on success path are preserved."""
+
+        def warn_and_succeed():
+            print("Done.")
+            print("warning: LF will be replaced by CRLF", file=sys.stderr)
+
+        result = _run_op(warn_and_succeed)
+        assert result["success"] is True
+        assert "Done." in result["message"]
+        assert "LF will be replaced by CRLF" in result["message"]
+
+    def test_success_stderr_only(self):
+        """When success produces only stderr (no stdout), message is stderr."""
+
+        def only_warn():
+            print("warning: something odd", file=sys.stderr)
+
+        result = _run_op(only_warn)
+        assert result["success"] is True
+        assert result["message"] == "warning: something odd"
+
     def test_system_exit_with_stderr_captures_diagnostics(self):
         """When the function prints to stderr before raising SystemExit,
         the captured stderr text appears in the failure message."""

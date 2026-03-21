@@ -147,7 +147,13 @@ def get_issue() -> None:
                     {"location": str(parent_file), "key": parent_key, "retrievalTimestamp": retrieval_timestamp},
                 )
             elif parent_key_from_fields:
-                print(f"Warning: Could not fetch parent issue {parent_key_from_fields}", file=sys.stderr)
+                print(
+                    (
+                        f"Warning: Could not fetch parent issue {parent_key_from_fields}. "
+                        "This may indicate a network, VPN, or authentication problem when contacting Jira."
+                    ),
+                    file=sys.stderr,
+                )
 
         # Epic link detection and retrieval (skip for subtasks and epics themselves)
         epic_link = fields.get("customfield_10008")
