@@ -35,7 +35,8 @@ tools for that platform return an error message when called.
 |----------|----------|-------------|
 | `JIRA_BASE_URL` | Yes | Jira instance URL (e.g. `https://jira.example.com`) |
 | `JIRA_API_TOKEN` | Yes | API token or PAT (falls back to `JIRA_COPILOT_PAT`) |
-| `JIRA_USER_EMAIL` | No | When set, Basic auth is used instead of Bearer |
+| `JIRA_USER_EMAIL` | No | When set, Basic auth is used instead of Bearer (falls back to `JIRA_EMAIL`, `JIRA_USERNAME`) |
+| `JIRA_AUTH_SCHEME` | No | `basic` or `bearer` (default). When `basic`, an identity variable must also be set. |
 | `JIRA_SSL_VERIFY` | No | `0` or `false` to disable SSL verification; path to CA bundle; default `true` |
 
 ### Azure DevOps

@@ -39,9 +39,11 @@ _JIRA_MISSING_MSG = (
     "Jira is not configured. Set JIRA_BASE_URL and JIRA_API_TOKEN (or JIRA_COPILOT_PAT) environment variables."
 )
 _AZURE_DEVOPS_MISSING_MSG = (
-    "Azure DevOps is not configured. "
+    "Azure DevOps is not fully configured. "
     "Set AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, and AZURE_DEVOPS_PAT "
-    "(or AZURE_DEV_OPS_COPILOT_PAT) environment variables."
+    "(or AZURE_DEV_OPS_COPILOT_PAT) environment variables, and either set "
+    "AZURE_DEVOPS_REPOSITORY explicitly or run in a git repository where "
+    "the Azure DevOps remote can be auto-detected."
 )
 
 
@@ -54,6 +56,10 @@ def _load_jira_config() -> JiraConfig | None:
 
     Optional:
         - ``JIRA_USER_EMAIL`` — when set, Basic auth is used instead of Bearer.
+          Falls back to ``JIRA_EMAIL`` and ``JIRA_USERNAME`` to match the
+          repo-conventional env vars in ``cli/jira/config.py``.
+        - ``JIRA_AUTH_SCHEME`` — ``"basic"`` forces Basic auth (matching CLI
+          convention); default is ``"bearer"``.
         - ``JIRA_SSL_VERIFY`` — ``"0"``/``"false"`` disables verification;
           any other non-empty string is treated as a CA bundle path.
 
@@ -67,8 +73,21 @@ def _load_jira_config() -> JiraConfig | None:
         logger.warning(_JIRA_MISSING_MSG)
         return None
 
-    email = os.environ.get("JIRA_USER_EMAIL", "")
-    if email:
+    # Resolve identity for Basic auth — check MCP-style first, then CLI-conventional
+    email = (
+        os.environ.get("JIRA_USER_EMAIL", "")
+        or os.environ.get("JIRA_EMAIL", "")
+        or os.environ.get("JIRA_USERNAME", "")
+    )
+    auth_scheme = os.environ.get("JIRA_AUTH_SCHEME", "bearer").lower()
+
+    if email or auth_scheme == "basic":
+        if not email:
+            logger.warning(
+                "JIRA_AUTH_SCHEME=basic but no identity variable set. "
+                "Set JIRA_USER_EMAIL, JIRA_EMAIL, or JIRA_USERNAME for Basic auth."
+            )
+            return None
         credentials = base64.b64encode(f"{email}:{token}".encode()).decode()
         headers = {"Authorization": f"Basic {credentials}"}
     else:

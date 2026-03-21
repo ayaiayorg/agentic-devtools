@@ -149,3 +149,80 @@ class TestLoadJiraConfig:
 
         assert result is not None
         assert result.headers == {"Authorization": "Bearer primary-tok"}
+
+    def test_basic_auth_with_jira_email_fallback(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_EMAIL": "jira-user@example.com",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        expected = base64.b64encode(b"jira-user@example.com:tok123").decode()
+        assert result.headers == {"Authorization": f"Basic {expected}"}
+
+    def test_basic_auth_with_jira_username_fallback(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_USERNAME": "jirauser",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        expected = base64.b64encode(b"jirauser:tok123").decode()
+        assert result.headers == {"Authorization": f"Basic {expected}"}
+
+    def test_jira_user_email_takes_precedence_over_jira_email(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_USER_EMAIL": "user@example.com",
+            "JIRA_EMAIL": "jira-user@example.com",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        expected = base64.b64encode(b"user@example.com:tok123").decode()
+        assert result.headers == {"Authorization": f"Basic {expected}"}
+
+    def test_auth_scheme_basic_forces_basic_auth(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_AUTH_SCHEME": "basic",
+            "JIRA_EMAIL": "user@example.com",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        expected = base64.b64encode(b"user@example.com:tok123").decode()
+        assert result.headers == {"Authorization": f"Basic {expected}"}
+
+    def test_auth_scheme_basic_without_identity_returns_none(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_AUTH_SCHEME": "basic",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is None
+
+    def test_auth_scheme_bearer_uses_bearer_auth(self):
+        env = {
+            "JIRA_BASE_URL": "https://jira.example.com",
+            "JIRA_API_TOKEN": "tok123",
+            "JIRA_AUTH_SCHEME": "bearer",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = _load_jira_config()
+
+        assert result is not None
+        assert result.headers == {"Authorization": "Bearer tok123"}

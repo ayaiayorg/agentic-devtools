@@ -343,8 +343,10 @@ COMMAND_MAP = {
     "agdt-vpn-run": ("agentic_devtools.cli.vpn", "vpn_run_cmd"),
     # Multi-model review pipeline
     "agdt-review": ("agentic_devtools.cli.review", "main"),
-    # MCP Server
-    "agdt-mcp-server": ("agentic_devtools.mcp.server", "main"),
+    # NOTE: agdt-mcp-server is intentionally NOT in COMMAND_MAP.
+    # It is wired directly to agentic_devtools.mcp.server:main in
+    # pyproject.toml because the MCP stdio transport requires direct
+    # control of stdin/stdout (incompatible with run_as_script's wrapper).
 }
 
 
