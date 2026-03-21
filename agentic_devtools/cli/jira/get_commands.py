@@ -138,7 +138,7 @@ def get_issue() -> None:
             if parent_key_from_fields:
                 print(f"\nDetected subtask of {parent_key_from_fields}, fetching parent issue...")
             if parent_issue:
-                parent_key = parent_issue.get("key", "")
+                parent_key = parent_issue.get("key", "") or parent_key_from_fields or ""
                 parent_file = state_dir / "temp-get-parent-issue-details-response.json"
                 parent_file.write_text(json.dumps(parent_issue, indent=2, ensure_ascii=False), encoding="utf-8")
                 print(f"Parent issue details saved to: {parent_file}")
@@ -146,13 +146,15 @@ def get_issue() -> None:
                     "parent_issue_details",
                     {"location": str(parent_file), "key": parent_key, "retrievalTimestamp": retrieval_timestamp},
                 )
+            elif parent_key_from_fields:
+                print(f"Warning: Could not fetch parent issue {parent_key_from_fields}", file=sys.stderr)
 
         # Epic link detection and retrieval (skip for subtasks and epics themselves)
         epic_link = fields.get("customfield_10008")
         if epic_link and not is_subtask and not is_epic:
             print(f"\nDetected epic link {epic_link}, fetching epic...")
             if epic_issue:
-                epic_key = epic_issue.get("key", "")
+                epic_key = epic_issue.get("key", "") or epic_link
                 epic_file = state_dir / "temp-get-epic-details-response.json"
                 epic_file.write_text(json.dumps(epic_issue, indent=2, ensure_ascii=False), encoding="utf-8")
                 print(f"Epic details saved to: {epic_file}")

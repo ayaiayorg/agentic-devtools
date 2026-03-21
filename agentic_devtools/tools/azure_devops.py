@@ -8,6 +8,7 @@ parameters and returns a ``TypedDict`` result.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from typing import TYPE_CHECKING, Any
@@ -39,6 +40,28 @@ def _escape_for_cmd(value: str) -> str:
     if sys.platform == "win32":
         return value.replace("%", "%%")
     return value
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_requests():  # type: ignore[return]
+    """Import and return the ``requests`` module.
+
+    Raises:
+        ImportError: When ``requests`` is not installed.
+    """
+    try:
+        import requests  # type: ignore[import-not-found]
+
+        return requests
+    except ImportError:
+        raise ImportError(
+            "The 'requests' package is required for Azure DevOps HTTP "
+            "operations. Install it with: pip install requests"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -126,8 +149,8 @@ def create_pull_request(
 
     Raises:
         RuntimeError: If the ``az`` CLI command fails.
+        ValueError: If the CLI response is not valid JSON.
     """
-    from agentic_devtools.cli.azure_devops.helpers import parse_json_response
     from agentic_devtools.cli.subprocess_utils import run_safe
 
     env = os.environ.copy()
@@ -177,7 +200,11 @@ def create_pull_request(
     if result.returncode != 0:
         raise RuntimeError(f"az repos pr create failed: {result.stderr}")
 
-    pr_data = parse_json_response(result.stdout, "PR response")
+    try:
+        pr_data = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError(f"Failed to parse PR response JSON: {result.stdout}") from exc
+
     pull_request_id = pr_data.get("pullRequestId", 0)
 
     repo_web_url = pr_data.get("repository", {}).get("webUrl", "")
@@ -218,11 +245,10 @@ def reply_to_pull_request_thread(
     from agentic_devtools.cli.azure_devops.auth import get_auth_headers
     from agentic_devtools.cli.azure_devops.helpers import (
         get_repository_id,
-        require_requests,
         resolve_thread_by_id,
     )
 
-    requests = require_requests()
+    requests = _get_requests()
     headers = get_auth_headers(pat)
     repo_id = get_repository_id(config.organization, config.project, config.repository)
 
@@ -287,11 +313,10 @@ def add_pull_request_comment(
     from agentic_devtools.cli.azure_devops.helpers import (
         build_thread_context,
         get_repository_id,
-        require_requests,
         resolve_thread_by_id,
     )
 
-    requests = require_requests()
+    requests = _get_requests()
     headers = get_auth_headers(pat)
     repo_id = get_repository_id(config.organization, config.project, config.repository)
 
@@ -369,13 +394,12 @@ def update_review_narrative(
     from agentic_devtools.cli.azure_devops.helpers import (
         get_repository_id,
         patch_comment,
-        require_requests,
     )
     from agentic_devtools.cli.azure_devops.review_scaffold import build_pr_base_url
     from agentic_devtools.cli.azure_devops.review_state import load_review_state, save_review_state
     from agentic_devtools.cli.azure_devops.review_templates import render_overall_summary
 
-    requests = require_requests()
+    requests = _get_requests()
     headers = get_auth_headers(pat)
 
     if review_state is None:

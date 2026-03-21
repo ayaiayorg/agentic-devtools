@@ -22,7 +22,7 @@ class TestAddPullRequestComment:
     @patch("agentic_devtools.cli.azure_devops.helpers.build_thread_context", return_value=None)
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_returns_thread_and_comment_id(self, mock_req, mock_auth, mock_repo_id, mock_ctx, mock_resolve):
         mock_requests = MagicMock()
         mock_response = MagicMock()
@@ -49,7 +49,7 @@ class TestAddPullRequestComment:
     @patch("agentic_devtools.cli.azure_devops.helpers.build_thread_context", return_value=None)
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_no_resolve_when_disabled(self, mock_req, mock_auth, mock_repo_id, mock_ctx, mock_resolve):
         mock_requests = MagicMock()
         mock_response = MagicMock()
@@ -72,7 +72,7 @@ class TestAddPullRequestComment:
     @patch("agentic_devtools.cli.azure_devops.helpers.build_thread_context")
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_includes_thread_context_for_file_comment(self, mock_req, mock_auth, mock_repo_id, mock_ctx, mock_resolve):
         mock_ctx.return_value = {"filePath": "/src/main.py", "rightFileStart": {"line": 10}}
         mock_requests = MagicMock()
@@ -98,7 +98,7 @@ class TestAddPullRequestComment:
     @patch("agentic_devtools.cli.azure_devops.helpers.build_thread_context", return_value=None)
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_handles_empty_comments_list(self, mock_req, mock_auth, mock_repo_id, mock_ctx, mock_resolve):
         mock_requests = MagicMock()
         mock_response = MagicMock()

@@ -23,7 +23,7 @@ class TestUpdateReviewNarrative:
     )
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_updates_narrative_with_provided_state(
         self, mock_req, mock_auth, mock_repo_id, mock_base_url, mock_render, mock_patch, mock_save
     ):
@@ -55,7 +55,7 @@ class TestUpdateReviewNarrative:
     @patch("agentic_devtools.cli.azure_devops.review_state.load_review_state")
     @patch("agentic_devtools.cli.azure_devops.helpers.get_repository_id", return_value="repo-id")
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_loads_state_when_not_provided(
         self, mock_req, mock_auth, mock_repo_id, mock_load, mock_base_url, mock_render, mock_patch, mock_save
     ):
@@ -86,7 +86,7 @@ class TestUpdateReviewNarrative:
         "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url", return_value="https://example.com/pr/1"
     )
     @patch("agentic_devtools.cli.azure_devops.auth.get_auth_headers", return_value={"Authorization": "Basic xxx"})
-    @patch("agentic_devtools.cli.azure_devops.helpers.require_requests")
+    @patch("agentic_devtools.tools.azure_devops._get_requests")
     def test_skips_repo_id_lookup_when_in_state(
         self, mock_req, mock_auth, mock_base_url, mock_render, mock_patch, mock_save
     ):

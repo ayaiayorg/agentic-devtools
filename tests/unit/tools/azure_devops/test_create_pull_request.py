@@ -1,5 +1,6 @@
 """Tests for agentic_devtools.tools.azure_devops.create_pull_request."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,13 +19,14 @@ class TestCreatePullRequest:
         return config
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_returns_pr_data_on_success(self, mock_parse, mock_run_safe):
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout='{"pullRequestId": 123}', stderr="")
-        mock_parse.return_value = {
+    def test_returns_pr_data_on_success(self, mock_run_safe):
+        pr_json = {
             "pullRequestId": 123,
             "repository": {"webUrl": "https://dev.azure.com/myorg/proj/_git/repo"},
         }
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(pr_json), stderr=""
+        )
         config = self._make_config()
 
         result = create_pull_request(
@@ -51,10 +53,10 @@ class TestCreatePullRequest:
             )
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_includes_draft_flag(self, mock_parse, mock_run_safe):
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+    def test_includes_draft_flag(self, mock_run_safe):
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         create_pull_request(config=config, pat="pat", source_branch="feat", title="PR", draft=True)
@@ -63,10 +65,10 @@ class TestCreatePullRequest:
         assert "--draft" in cmd
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_no_draft_flag_when_false(self, mock_parse, mock_run_safe):
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+    def test_no_draft_flag_when_false(self, mock_run_safe):
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         create_pull_request(config=config, pat="pat", source_branch="feat", title="PR", draft=False)
@@ -75,10 +77,10 @@ class TestCreatePullRequest:
         assert "--draft" not in cmd
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_includes_description(self, mock_parse, mock_run_safe):
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+    def test_includes_description(self, mock_run_safe):
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         create_pull_request(
@@ -95,10 +97,10 @@ class TestCreatePullRequest:
         assert cmd[idx + 1] == "My description"
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_sets_pat_in_env(self, mock_parse, mock_run_safe):
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+    def test_sets_pat_in_env(self, mock_run_safe):
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         create_pull_request(config=config, pat="my-secret-pat", source_branch="feat", title="PR")
@@ -107,14 +109,15 @@ class TestCreatePullRequest:
         assert env["AZURE_DEVOPS_EXT_PAT"] == "my-secret-pat"
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_returns_empty_url_when_pr_id_is_zero(self, mock_parse, mock_run_safe):
+    def test_returns_empty_url_when_pr_id_is_zero(self, mock_run_safe):
         """When pullRequestId is missing/zero, url should be empty."""
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {
+        pr_json = {
             "pullRequestId": 0,
             "repository": {"webUrl": "https://dev.azure.com/myorg/proj/_git/repo"},
         }
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(pr_json), stderr=""
+        )
         config = self._make_config()
 
         result = create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
@@ -123,11 +126,11 @@ class TestCreatePullRequest:
         assert result["pull_request_id"] == 0
 
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_returns_empty_url_when_web_url_missing(self, mock_parse, mock_run_safe):
+    def test_returns_empty_url_when_web_url_missing(self, mock_run_safe):
         """When repository.webUrl is missing, url should be empty."""
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 42, "repository": {}}
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 42, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         result = create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
@@ -137,12 +140,12 @@ class TestCreatePullRequest:
 
     @patch("agentic_devtools.tools.azure_devops.sys")
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_escapes_percent_in_user_args_on_windows(self, mock_parse, mock_run_safe, mock_sys):
+    def test_escapes_percent_in_user_args_on_windows(self, mock_run_safe, mock_sys):
         """On Windows, % in user args is doubled to prevent cmd.exe %VAR% expansion."""
         mock_sys.platform = "win32"
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
 
         create_pull_request(
@@ -163,12 +166,12 @@ class TestCreatePullRequest:
 
     @patch("agentic_devtools.tools.azure_devops.sys")
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
-    @patch("agentic_devtools.cli.azure_devops.helpers.parse_json_response")
-    def test_escapes_percent_in_config_args_on_windows(self, mock_parse, mock_run_safe, mock_sys):
+    def test_escapes_percent_in_config_args_on_windows(self, mock_run_safe, mock_sys):
         """Config-derived values (org/project/repo) are also escaped on Windows."""
         mock_sys.platform = "win32"
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
-        mock_parse.return_value = {"pullRequestId": 1, "repository": {}}
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"pullRequestId": 1, "repository": {}}), stderr=""
+        )
         config = self._make_config()
         config.organization = "https://dev.azure.com/%ORG%"
         config.project = "%PROJECT%"
@@ -183,3 +186,14 @@ class TestCreatePullRequest:
         assert cmd[idx_proj + 1] == "%%PROJECT%%"
         idx_repo = cmd.index("--repository")
         assert cmd[idx_repo + 1] == "%%REPO%%"
+
+    @patch("agentic_devtools.cli.subprocess_utils.run_safe")
+    def test_raises_value_error_on_invalid_json(self, mock_run_safe):
+        """Malformed JSON response raises ValueError instead of sys.exit."""
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout="not valid json", stderr=""
+        )
+        config = self._make_config()
+
+        with pytest.raises(ValueError, match="Failed to parse PR response JSON"):
+            create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
