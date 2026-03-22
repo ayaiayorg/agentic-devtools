@@ -13,9 +13,10 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 
 from agentic_devtools.config import (
     DEFAULT_CODE_HOSTING,
@@ -67,7 +68,13 @@ class DetectionResult:
     detected_code_hosting: str | None = None
     github_repo: str | None = None
     azure_devops_project: str | None = None
-    confidence: dict[str, str] = field(default_factory=dict)
+    confidence: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Defensively copy and wrap in MappingProxyType to enforce true
+        # immutability, matching the frozen=True contract on the dataclass.
+        if isinstance(self.confidence, dict):
+            object.__setattr__(self, "confidence", MappingProxyType(dict(self.confidence)))
 
 
 # ---------------------------------------------------------------------------

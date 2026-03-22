@@ -390,3 +390,31 @@ class TestDetectionResultDataclass:
             raise AssertionError("Should have raised FrozenInstanceError")  # pragma: no cover
         except dataclasses.FrozenInstanceError:
             pass
+
+    def test_confidence_is_immutable(self):
+        """Confidence mapping cannot be mutated after construction."""
+        from types import MappingProxyType
+
+        result = DetectionResult(confidence={"jira": "high"})
+
+        assert isinstance(result.confidence, MappingProxyType)
+        assert result.confidence["jira"] == "high"
+
+        try:
+            result.confidence["jira"] = "low"  # type: ignore[index]
+            raise AssertionError("Should have raised TypeError")  # pragma: no cover
+        except TypeError:
+            pass
+
+    def test_confidence_wraps_dict_to_mapping_proxy(self):
+        """A plain dict passed as confidence is wrapped in MappingProxyType."""
+        from types import MappingProxyType
+
+        raw = {"github": "medium"}
+        result = DetectionResult(confidence=raw)
+
+        # Wrapped in MappingProxyType
+        assert isinstance(result.confidence, MappingProxyType)
+        # Original dict mutation does not affect the result
+        raw["github"] = "changed"
+        assert result.confidence["github"] == "medium"
