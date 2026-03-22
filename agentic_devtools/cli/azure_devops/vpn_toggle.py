@@ -973,7 +973,7 @@ def get_vpn_url_from_state() -> str | None:
         raw = get_project_config_value("vpn_url") or None
     if raw is not None:
         raw = raw.strip()
-    return raw or None
+    return raw if raw else None
 
 
 class JiraVpnContext:

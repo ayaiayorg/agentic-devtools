@@ -63,8 +63,8 @@ class TestLoadProjectConfig:
     def test_returns_empty_dict_on_unicode_decode_error(self, tmp_path, capsys):
         """Should return empty dict and warn on non-UTF8 file."""
         config_file = tmp_path / "project.json"
-        # Write raw bytes that are invalid UTF-8
-        config_file.write_bytes(b"\xff\xfe{}")
+        # Write raw bytes that are definitively invalid UTF-8
+        config_file.write_bytes(b"\x80\x81\x82")
         with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=config_file):
             result = load_project_config()
         assert result == {}
