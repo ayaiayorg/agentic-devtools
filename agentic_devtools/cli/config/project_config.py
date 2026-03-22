@@ -43,7 +43,7 @@ def load_project_config() -> dict[str, Any]:
             file=sys.stderr,
         )
         return {}
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         print(
             f"Warning: Cannot read {config_path}. Using empty config.",
             file=sys.stderr,

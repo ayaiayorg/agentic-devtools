@@ -908,6 +908,8 @@ class VpnToggleContext:
                 print("  ℹ️  VPN URL not configured. Skipping VPN operations.")
             return self
 
+        vpn_url: str = self.vpn_url  # Narrowed after None guard above
+
         if not is_pulse_secure_installed():
             if self.verbose:
                 print("  ℹ️  Pulse Secure/Ivanti not installed, skipping VPN toggle")
@@ -919,7 +921,7 @@ class VpnToggleContext:
         if self.was_connected:
             if self.verbose:  # pragma: no cover
                 print("  🔌 VPN detected as connected, will temporarily disconnect...")
-            success, msg = disconnect_vpn(self.vpn_url)
+            success, msg = disconnect_vpn(vpn_url)
             if success:
                 self.disconnected = True
                 if self.verbose:  # pragma: no cover
@@ -936,6 +938,7 @@ class VpnToggleContext:
             return False
 
         if self.disconnected:
+            assert self.vpn_url is not None  # Set True only after disconnect_vpn(vpn_url) in __enter__
             if self.verbose:  # pragma: no cover
                 print("  🔌 Reconnecting VPN...")
             success, msg = reconnect_vpn(self.vpn_url)
@@ -956,15 +959,21 @@ def get_vpn_url_from_state() -> str | None:
     1. Project config ``vpn_url``
     2. State value ``vpn_url``
     3. ``None`` (no default)
+
+    Leading/trailing whitespace is stripped; empty/whitespace-only values
+    are treated as ``None``.
     """
     from agentic_devtools.cli.config.project_config import get_project_config_value
 
     try:
         from ...state import get_value
 
-        return get_project_config_value("vpn_url") or get_value("vpn_url") or None
+        raw = get_project_config_value("vpn_url") or get_value("vpn_url") or None
     except ImportError:  # pragma: no cover
-        return get_project_config_value("vpn_url") or None
+        raw = get_project_config_value("vpn_url") or None
+    if raw is not None:
+        raw = raw.strip()
+    return raw or None
 
 
 class JiraVpnContext:
