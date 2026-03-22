@@ -26,22 +26,53 @@ class TestBuildFilePromptContent:
 
     def test_includes_jira_issue_key_when_provided(self):
         """Test that Jira issue key is included when provided."""
+        from unittest.mock import patch
+
         from agentic_devtools.cli.azure_devops.review_prompts import (
             build_file_prompt_content,
         )
 
-        result = build_file_prompt_content(
-            file_path="/src/app.ts",
-            change_type="add",
-            pr_id=123,
-            file_content="new code",
-            threads=[],
-            jira_issue_key="DFLY-1234",
-            timestamp="2025-01-01T00:00:00Z",
-        )
+        with patch(
+            "agentic_devtools.cli.jira.config.get_jira_base_url",
+            return_value="https://jira.example.com",
+        ):
+            result = build_file_prompt_content(
+                file_path="/src/app.ts",
+                change_type="add",
+                pr_id=123,
+                file_content="new code",
+                threads=[],
+                jira_issue_key="DFLY-1234",
+                timestamp="2025-01-01T00:00:00Z",
+            )
 
         assert "DFLY-1234" in result
-        assert "jira.swica.ch/browse/DFLY-1234" in result
+        assert "jira.example.com/browse/DFLY-1234" in result
+
+    def test_jira_issue_key_without_configured_url(self):
+        """Test that Jira issue key is shown without link when URL is unconfigured."""
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.azure_devops.review_prompts import (
+            build_file_prompt_content,
+        )
+
+        with patch(
+            "agentic_devtools.cli.jira.config.get_jira_base_url",
+            side_effect=ValueError("not configured"),
+        ):
+            result = build_file_prompt_content(
+                file_path="/src/app.ts",
+                change_type="add",
+                pr_id=123,
+                file_content="new code",
+                threads=[],
+                jira_issue_key="DFLY-1234",
+                timestamp="2025-01-01T00:00:00Z",
+            )
+
+        assert "DFLY-1234" in result
+        assert "browse" not in result
 
     def test_includes_existing_threads(self):
         """Test that existing threads are included."""

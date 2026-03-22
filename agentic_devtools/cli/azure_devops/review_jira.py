@@ -11,8 +11,6 @@ import requests
 
 # Environment variables for Jira API
 JIRA_COPILOT_PAT_ENV = "JIRA_COPILOT_PAT"
-JIRA_BASE_URL_ENV = "JIRA_BASE_URL"
-JIRA_BASE_URL_DEFAULT = "https://jira.swica.ch"
 
 
 def _get_jira_ssl_verify() -> bool | str:
@@ -36,13 +34,19 @@ def _get_jira_ssl_verify() -> bool | str:
 
 def get_jira_credentials() -> tuple[str | None, str]:
     """
-    Get Jira credentials from environment.
+    Get Jira credentials from environment / project config.
 
     Returns:
-        Tuple of (PAT token or None, base URL)
+        Tuple of (PAT token or None, base URL).
+        Base URL may be empty if Jira is not configured.
     """
+    from ..jira.config import get_jira_base_url
+
     pat = os.environ.get(JIRA_COPILOT_PAT_ENV)
-    base_url = os.environ.get(JIRA_BASE_URL_ENV, JIRA_BASE_URL_DEFAULT).rstrip("/")
+    try:
+        base_url = get_jira_base_url().rstrip("/")
+    except ValueError:
+        base_url = ""
     return pat, base_url
 
 
