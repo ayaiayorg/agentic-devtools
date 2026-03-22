@@ -11,6 +11,7 @@ Supports three connection scenarios:
 3. Fallback: If UI automation fails → open GUI for manual connection
 """
 
+import re
 import subprocess
 import time
 from enum import Enum
@@ -517,6 +518,10 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
     """
     host = get_corporate_network_test_host()
     if not host:
+        return False
+
+    # Validate host is a plain hostname (prevent PowerShell injection via config values)
+    if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", host):
         return False
 
     try:

@@ -79,3 +79,29 @@ class TestIsOnCorporateNetwork:
         result = is_on_corporate_network()
 
         assert result is False
+
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="https://evil.com'; rm -rf /",
+    )
+    def test_returns_false_for_invalid_hostname(self, _mock_host):
+        """Test returns False when hostname contains invalid characters (injection attempt)."""
+        result = is_on_corporate_network()
+
+        assert result is False
+
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="valid-host.example.com",
+    )
+    @patch("subprocess.run")
+    def test_accepts_valid_hostname_with_hyphens(self, mock_run, _mock_host):
+        """Test accepts valid hostnames with hyphens and dots."""
+        mock_result = MagicMock()
+        mock_result.stdout = "corporate"
+        mock_run.return_value = mock_result
+
+        result = is_on_corporate_network()
+
+        assert result is True
+        mock_run.assert_called_once()

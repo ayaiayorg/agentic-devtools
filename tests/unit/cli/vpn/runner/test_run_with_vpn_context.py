@@ -264,3 +264,26 @@ class TestRunWithVpnContext:
         captured = capsys.readouterr()
         assert "Unable to establish VPN connection" in captured.out
         mock_execute.assert_not_called()
+
+    @patch("agentic_devtools.cli.vpn.runner._execute_command")
+    def test_require_public_no_vpn_url_warns_and_runs(self, mock_execute, capsys):
+        """Test REQUIRE_PUBLIC with no VPN URL warns but still runs command."""
+        mock_vpn_toggle = _make_mock_vpn_toggle()
+        mock_vpn_toggle.get_vpn_url_from_state.return_value = None
+        mock_execute.return_value = (0, "installed", "")
+
+        with patch.dict(sys.modules, {"agentic_devtools.cli.azure_devops.vpn_toggle": mock_vpn_toggle}):
+            with patch(
+                "agentic_devtools.cli.network.detection.detect_network_context",
+                return_value=(NetworkContext.REMOTE_WITH_VPN, "remote with vpn"),
+            ):
+                return_code, stdout, _ = run_with_vpn_context(
+                    "npm install lodash",
+                    requirement=VpnRequirement.REQUIRE_PUBLIC,
+                )
+
+        assert return_code == 0
+        assert stdout == "installed"
+        captured = capsys.readouterr()
+        assert "no VPN URL configured" in captured.out
+        mock_vpn_toggle.VpnToggleContext.assert_not_called()

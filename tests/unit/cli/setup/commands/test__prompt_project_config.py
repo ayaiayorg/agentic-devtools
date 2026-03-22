@@ -41,7 +41,11 @@ class TestPromptProjectConfig:
 
     def test_keeps_existing_values_on_empty_input(self, capsys):
         """Should keep existing config values when user presses Enter."""
-        existing = {"jira_project_keys": "EXISTING", "jira_base_url": "https://existing.example.com"}
+        existing = {
+            "jira_project_keys": "EXISTING",
+            "jira_base_url": "https://existing.example.com",
+            "vpn_url": "https://vpn.existing.com",
+        }
         inputs = iter(["", "", "", "", ""])
 
         with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
@@ -55,6 +59,8 @@ class TestPromptProjectConfig:
         saved = mock_save.call_args[0][0]
         assert saved["jira_project_keys"] == "EXISTING"
         assert saved["jira_base_url"] == "https://existing.example.com"
+        # Optional field is KEPT on empty Enter (sentinel required to clear)
+        assert saved["vpn_url"] == "https://vpn.existing.com"
 
     def test_no_values_prints_info_message(self, capsys):
         """Should print info message when no values are provided and no existing config."""
@@ -67,20 +73,16 @@ class TestPromptProjectConfig:
         out = capsys.readouterr().out
         assert "No project configuration values provided" in out
 
-    def test_removes_cleared_values(self, capsys):
-        """Should remove optional keys when user enters empty for allow_clear fields."""
+    def test_clears_optional_values_with_sentinel(self, capsys):
+        """Should remove optional keys when user types '-' sentinel."""
         existing = {
             "jira_project_keys": "DFLY",
             "jira_base_url": "https://jira.example.com",
             "vpn_url": "https://vpn.example.com",
+            "corporate_network_test_host": "corp.example.com",
         }
-        # Enter empty for all fields:
-        # - jira_project_keys: keeps "DFLY" (allow_clear=False, has existing value)
-        # - jira_base_url: keeps "https://jira.example.com" (allow_clear=False, has existing value)
-        # - corporate_network_test_host: stays empty (allow_clear=True, no existing value)
-        # - vpn_url: cleared/removed (allow_clear=True, had existing value)
-        # - vpn_hostnames: stays empty (allow_clear=True, no existing value)
-        inputs = iter(["", "", "", "", ""])
+        # Type '-' for optional fields to clear them, empty for required to keep
+        inputs = iter(["", "", "-", "-", "-"])
 
         with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
             with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
@@ -91,8 +93,31 @@ class TestPromptProjectConfig:
 
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
-        # Non-clearable fields keep existing values
+        # Required fields kept on empty Enter
         assert saved["jira_project_keys"] == "DFLY"
         assert saved["jira_base_url"] == "https://jira.example.com"
-        # Clearable field with existing value was removed (empty input + allow_clear)
+        # Optional fields cleared via '-' sentinel
+        assert "vpn_url" not in saved
+        assert "corporate_network_test_host" not in saved
+        assert "vpn_hostnames" not in saved
+
+    def test_clears_optional_values_with_clear_sentinel(self, capsys):
+        """Should also accept 'clear' as a sentinel to remove optional keys."""
+        existing = {
+            "jira_project_keys": "DFLY",
+            "jira_base_url": "https://jira.example.com",
+            "vpn_url": "https://vpn.example.com",
+        }
+        inputs = iter(["", "", "", "clear", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config()
+
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved["jira_project_keys"] == "DFLY"
         assert "vpn_url" not in saved
