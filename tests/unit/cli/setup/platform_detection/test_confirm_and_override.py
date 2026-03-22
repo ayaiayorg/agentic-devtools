@@ -90,6 +90,29 @@ class TestConfirmOverride:
         assert config["issue_adapter"] == "github"
         assert config["code_hosting"] == "other"
 
+    def test_override_preserves_auto_detected_details(self):
+        """Override path preserves github_repo and azure_devops_project from detection."""
+        result = DetectionResult(
+            detected_issue_platforms=("jira", "github"),
+            detected_code_hosting="github",
+            github_repo="owner/repo",
+            azure_devops_project="org/proj",
+            confidence={"jira": "high", "github": "high"},
+        )
+        inputs = iter(["n", "jira", "azure_devops"])
+
+        config = confirm_and_override(
+            result,
+            input_fn=lambda _prompt: next(inputs),
+            print_fn=lambda *args: None,
+        )
+
+        assert config["issue_adapter"] == "jira"
+        assert config["code_hosting"] == "azure_devops"
+        # Auto-detected details are preserved, not discarded
+        assert config["github"]["repo"] == "owner/repo"
+        assert config["azure_devops"]["project"] == "org/proj"
+
     def test_override_code_hosting(self):
         """Override code hosting when user declines."""
         result = DetectionResult()

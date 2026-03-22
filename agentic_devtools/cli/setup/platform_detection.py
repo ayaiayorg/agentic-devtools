@@ -73,7 +73,8 @@ class DetectionResult:
     def __post_init__(self) -> None:
         # Defensively copy and wrap in MappingProxyType to enforce true
         # immutability, matching the frozen=True contract on the dataclass.
-        if isinstance(self.confidence, dict):
+        # Handles any mutable Mapping type (dict, UserDict, etc.), not just dict.
+        if not isinstance(self.confidence, MappingProxyType):
             object.__setattr__(self, "confidence", MappingProxyType(dict(self.confidence)))
 
 
@@ -332,10 +333,7 @@ def confirm_and_override(
             break
         print_fn(f"  Invalid choice. Valid options: {', '.join(valid_hosting)}")
 
-    return {
-        "issue_adapter": issue_adapter,
-        "code_hosting": hosting,
-        "jira": {},
-        "github": {},
-        "azure_devops": {},
-    }
+    base_config = _build_config_from_result(result)
+    base_config["issue_adapter"] = issue_adapter
+    base_config["code_hosting"] = hosting
+    return base_config
