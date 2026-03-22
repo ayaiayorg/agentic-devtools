@@ -26,25 +26,25 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_prompt,
     ):
         """Test successful full workflow - create issue and setup worktree."""
-        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="DFLY-9999")
+        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-9999")
         mock_check_exists.return_value = None  # No existing worktree
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-9999",
-            branch_name="feature/DFLY-9999/implementation",
+            worktree_path="/repos/PROJECT-9999",
+            branch_name="feature/PROJECT-9999/implementation",
             vscode_opened=True,
         )
         mock_prompt.return_value = "Continue command..."
 
         success, issue_key = create_placeholder_and_setup_worktree(
-            project_key="DFLY",
+            project_key="PROJECT",
             issue_type="Task",
             workflow_name="create-jira-issue",
         )
 
         assert success is True
-        assert issue_key == "DFLY-9999"
-        mock_set_value.assert_called_with("jira.issue_key", "DFLY-9999")
+        assert issue_key == "PROJECT-9999"
+        mock_set_value.assert_called_with("jira.issue_key", "PROJECT-9999")
         mock_setup.assert_called_once()
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue")
@@ -53,7 +53,7 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_create_issue.return_value = PlaceholderIssueResult(success=False, error_message="API error")
 
         success, issue_key = create_placeholder_and_setup_worktree(
-            project_key="DFLY",
+            project_key="PROJECT",
             issue_type="Task",
         )
 
@@ -74,18 +74,18 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_prompt,
     ):
         """Test using existing worktree when it already exists."""
-        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="DFLY-9999")
-        mock_check_exists.return_value = "/repos/DFLY-9999"  # Worktree exists
+        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-9999")
+        mock_check_exists.return_value = "/repos/PROJECT-9999"  # Worktree exists
         mock_vscode.return_value = True
         mock_prompt.return_value = "Continue command..."
 
         success, issue_key = create_placeholder_and_setup_worktree(
-            project_key="DFLY",
+            project_key="PROJECT",
             issue_type="Task",
         )
 
         assert success is True
-        assert issue_key == "DFLY-9999"
+        assert issue_key == "PROJECT-9999"
         # Should open vscode for existing worktree
         mock_vscode.assert_called_once()
 
@@ -103,7 +103,7 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_prompt,
     ):
         """Test returning issue key even when worktree setup fails."""
-        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="DFLY-9999")
+        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-9999")
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=False,
@@ -113,13 +113,13 @@ class TestCreatePlaceholderAndSetupWorktree:
         )
 
         success, issue_key = create_placeholder_and_setup_worktree(
-            project_key="DFLY",
+            project_key="PROJECT",
             issue_type="Task",
         )
 
         # Should return False but still have the issue_key
         assert success is False
-        assert issue_key == "DFLY-9999"
+        assert issue_key == "PROJECT-9999"
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
@@ -135,26 +135,26 @@ class TestCreatePlaceholderAndSetupWorktree:
         mock_prompt,
     ):
         """Test passing user request to continuation prompt."""
-        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="DFLY-9999")
+        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-9999")
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-9999",
-            branch_name="feature/DFLY-9999/implementation",
+            worktree_path="/repos/PROJECT-9999",
+            branch_name="feature/PROJECT-9999/implementation",
         )
         mock_prompt.return_value = "Continue..."
 
         create_placeholder_and_setup_worktree(
-            project_key="DFLY",
+            project_key="PROJECT",
             issue_type="Task",
             workflow_name="create-jira-issue",
             user_request="Create a feature for X",
-            additional_params={"parent_key": "DFLY-1000"},
+            additional_params={"parent_key": "PROJECT-1000"},
         )
 
         mock_prompt.assert_called_with(
-            "DFLY-9999",
+            "PROJECT-9999",
             "create-jira-issue",
             "Create a feature for X",
-            {"parent_key": "DFLY-1000"},
+            {"parent_key": "PROJECT-1000"},
         )

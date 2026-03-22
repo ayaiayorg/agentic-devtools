@@ -15,7 +15,7 @@ class TestGetLinkedPullRequestFromJira:
 
         mock_fetch.return_value = {"fields": {"comment": {"comments": [{"body": "PR #4444"}]}}}
 
-        result = get_linked_pull_request_from_jira("DFLY-1234")
+        result = get_linked_pull_request_from_jira("PROJECT-1234")
         assert result == 4444
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_jira_issue")
@@ -27,5 +27,5 @@ class TestGetLinkedPullRequestFromJira:
 
         mock_fetch.return_value = None
 
-        result = get_linked_pull_request_from_jira("DFLY-1234")
+        result = get_linked_pull_request_from_jira("PROJECT-1234")
         assert result is None

@@ -158,7 +158,7 @@ class TestInitiateWorkflow:
 
         with patch(
             "agentic_devtools.cli.git.agdt_branch._run_plumbing",
-            return_value=CompletedProcess(args=[], returncode=0, stdout="feature/DFLY-1234\n", stderr=""),
+            return_value=CompletedProcess(args=[], returncode=0, stdout="feature/PROJECT-1234\n", stderr=""),
         ):
             base.initiate_workflow(
                 workflow_name="pull-request-review",
@@ -167,7 +167,7 @@ class TestInitiateWorkflow:
             )
 
         branch = state.get_value("versionControl.currentBranch")
-        assert branch == "feature/DFLY-1234"
+        assert branch == "feature/PROJECT-1234"
 
     def test_current_branch_not_stored_on_detached_head(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys

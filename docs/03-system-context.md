@@ -112,8 +112,8 @@ sequenceDiagram
     participant State as State File
     participant API as External API
     
-    Dev->>Copilot: "@workspace work on DFLY-1234"
-    Copilot->>CLI: agdt-set jira.issue_key DFLY-1234
+    Dev->>Copilot: "@workspace work on PROJECT-1234"
+    Copilot->>CLI: agdt-set jira.issue_key PROJECT-1234
     CLI->>State: Write state
     State-->>CLI: OK
     CLI-->>Copilot: State saved
@@ -121,7 +121,7 @@ sequenceDiagram
     Copilot->>CLI: agdt-get-jira-issue
     CLI->>State: Read state
     State-->>CLI: issue_key
-    CLI->>API: GET /issue/DFLY-1234
+    CLI->>API: GET /issue/PROJECT-1234
     API-->>CLI: Issue details
     CLI->>State: Save metadata
     CLI-->>Copilot: Issue details (formatted)

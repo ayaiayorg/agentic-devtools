@@ -42,12 +42,12 @@ class TestBuildFilePromptContent:
                 pr_id=123,
                 file_content="new code",
                 threads=[],
-                jira_issue_key="DFLY-1234",
+                jira_issue_key="PROJECT-1234",
                 timestamp="2025-01-01T00:00:00Z",
             )
 
-        assert "DFLY-1234" in result
-        assert "jira.example.com/browse/DFLY-1234" in result
+        assert "PROJECT-1234" in result
+        assert "jira.example.com/browse/PROJECT-1234" in result
 
     def test_jira_issue_key_without_configured_url(self):
         """Test that Jira issue key is shown without link when URL is unconfigured."""
@@ -67,11 +67,11 @@ class TestBuildFilePromptContent:
                 pr_id=123,
                 file_content="new code",
                 threads=[],
-                jira_issue_key="DFLY-1234",
+                jira_issue_key="PROJECT-1234",
                 timestamp="2025-01-01T00:00:00Z",
             )
 
-        assert "DFLY-1234" in result
+        assert "PROJECT-1234" in result
         assert "browse" not in result
 
     def test_includes_existing_threads(self):

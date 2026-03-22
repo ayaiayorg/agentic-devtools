@@ -51,13 +51,13 @@ class TestGitSaveWorkE2E:
         from agentic_devtools.cli.git import core
 
         # Arrange - set commit message
-        set_value("commit_message", "feat(DFLY-1234): Test commit")
+        set_value("commit_message", "feat(PROJECT-1234): Test commit")
 
         # Act - verify get_commit_message reads from state
         message = core.get_commit_message()
 
         # Assert - verify commit message is read from state
-        assert message == "feat(DFLY-1234): Test commit"
+        assert message == "feat(PROJECT-1234): Test commit"
 
 
 class TestGitStageE2E:

@@ -26,14 +26,14 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-12345"
 
         result = perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
 
         assert result is True
         mock_start_background.assert_called_once_with(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             branch_name=None,
             use_existing_branch=False,
@@ -54,7 +54,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-67890"
 
         perform_auto_setup(
-            issue_key="DFLY-5678",
+            issue_key="PROJECT-5678",
             branch_prefix="bugfix",
             workflow_name="create-jira-issue",
             user_request="Create a new feature for testing",
@@ -70,15 +70,15 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-abc"
 
         perform_auto_setup(
-            issue_key="DFLY-9999",
+            issue_key="PROJECT-9999",
             branch_prefix="feature",
             workflow_name="create-jira-issue",
-            additional_params={"parent_key": "DFLY-1000"},
+            additional_params={"parent_key": "PROJECT-1000"},
         )
 
         mock_start_background.assert_called_once()
         call_kwargs = mock_start_background.call_args[1]
-        assert call_kwargs["additional_params"] == {"parent_key": "DFLY-1000"}
+        assert call_kwargs["additional_params"] == {"parent_key": "PROJECT-1000"}
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_handles_exception_gracefully(self, mock_start_background, capsys):
@@ -86,7 +86,7 @@ class TestPerformAutoSetup:
         mock_start_background.side_effect = Exception("Connection failed")
 
         result = perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
@@ -102,7 +102,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-xyz"
 
         perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
@@ -119,7 +119,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-exec"
 
         perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pr-id", "99"],
             auto_execute_timeout=120,
@@ -140,7 +140,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-pipeline"
 
         perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             interactive=False,
         )
@@ -155,7 +155,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-default"
 
         perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
         )
 
@@ -174,7 +174,7 @@ class TestPerformAutoSetup:
         mock_start_background.return_value = "task-auto-set-check"
 
         perform_auto_setup(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
         )
 

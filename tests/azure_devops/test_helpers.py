@@ -135,24 +135,24 @@ class TestConvertToPullRequestTitle:
 
     def test_strips_markdown_links(self):
         """Test that Markdown links are converted to plain text."""
-        title = "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): summary"
+        title = "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): summary"
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234): summary"
+        assert result == "feature(PROJECT-1234): summary"
 
     def test_strips_multiple_markdown_links(self):
         """Test multiple Markdown links are converted."""
         title = (
-            "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234) / "
-            "[DFLY-1235](https://jira.swica.ch/browse/DFLY-1235)): summary"
+            "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234) / "
+            "[PROJECT-1235](https://jira.swica.ch/browse/PROJECT-1235)): summary"
         )
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234/DFLY-1235): summary"
+        assert result == "feature(PROJECT-1234/PROJECT-1235): summary"
 
     def test_returns_plain_title_unchanged(self):
         """Test plain titles without links are unchanged."""
-        title = "feature(DFLY-1234): summary"
+        title = "feature(PROJECT-1234): summary"
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234): summary"
+        assert result == "feature(PROJECT-1234): summary"
 
     def test_empty_string(self):
         """Test empty string returns empty string."""
@@ -420,7 +420,7 @@ class TestFindPullRequestByIssueKey:
                 {
                     "pullRequestId": 123,
                     "title": "Some feature",
-                    "sourceRefName": "refs/heads/feature/DFLY-1234/my-feature",
+                    "sourceRefName": "refs/heads/feature/PROJECT-1234/my-feature",
                     "description": "Description without issue key",
                     "creationDate": "2024-01-01T00:00:00Z",
                 }
@@ -437,7 +437,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 123
@@ -451,7 +451,7 @@ class TestFindPullRequestByIssueKey:
             "value": [
                 {
                     "pullRequestId": 456,
-                    "title": "feature(DFLY-1234): Implement feature",
+                    "title": "feature(PROJECT-1234): Implement feature",
                     "sourceRefName": "refs/heads/feature/other-branch",
                     "description": "",
                     "creationDate": "2024-01-01T00:00:00Z",
@@ -469,7 +469,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 456
@@ -485,7 +485,7 @@ class TestFindPullRequestByIssueKey:
                     "pullRequestId": 789,
                     "title": "Some feature",
                     "sourceRefName": "refs/heads/feature/other-branch",
-                    "description": "Related to DFLY-1234",
+                    "description": "Related to PROJECT-1234",
                     "creationDate": "2024-01-01T00:00:00Z",
                 }
             ]
@@ -501,7 +501,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 789
@@ -515,7 +515,7 @@ class TestFindPullRequestByIssueKey:
             "value": [
                 {
                     "pullRequestId": 111,
-                    "title": "feature(dfly-1234): lowercase",
+                    "title": "feature(project-1234): lowercase",
                     "sourceRefName": "refs/heads/main",
                     "description": "",
                     "creationDate": "2024-01-01T00:00:00Z",
@@ -533,7 +533,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 111
@@ -547,14 +547,14 @@ class TestFindPullRequestByIssueKey:
             "value": [
                 {
                     "pullRequestId": 100,
-                    "title": "Old PR for DFLY-1234",
+                    "title": "Old PR for PROJECT-1234",
                     "sourceRefName": "refs/heads/old-branch",
                     "description": "",
                     "creationDate": "2024-01-01T00:00:00Z",
                 },
                 {
                     "pullRequestId": 200,
-                    "title": "Newer PR for DFLY-1234",
+                    "title": "Newer PR for PROJECT-1234",
                     "sourceRefName": "refs/heads/new-branch",
                     "description": "",
                     "creationDate": "2024-06-01T00:00:00Z",
@@ -572,7 +572,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 200  # Most recent
@@ -608,7 +608,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is None
 
@@ -628,7 +628,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is None
         captured = capsys.readouterr()
@@ -643,7 +643,7 @@ class TestFindPullRequestByIssueKey:
             "value": [
                 {
                     "pullRequestId": 123,
-                    "title": "DFLY-1234 feature",
+                    "title": "PROJECT-1234 feature",
                     "sourceRefName": "refs/heads/main",
                     "description": None,
                     "creationDate": "2024-01-01T00:00:00Z",
@@ -661,7 +661,7 @@ class TestFindPullRequestByIssueKey:
 
         with patch.object(azure_devops.helpers, "require_requests", return_value=mock_requests):
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
-                result = azure_devops.find_pull_request_by_issue_key("DFLY-1234", config=config, headers=headers)
+                result = azure_devops.find_pull_request_by_issue_key("PROJECT-1234", config=config, headers=headers)
 
         assert result is not None
         assert result["pullRequestId"] == 123
@@ -677,7 +677,7 @@ class TestGetPullRequestSourceBranch:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "pullRequestId": 123,
-            "sourceRefName": "refs/heads/feature/DFLY-1234/implementation",
+            "sourceRefName": "refs/heads/feature/PROJECT-1234/implementation",
         }
         mock_requests.get.return_value = mock_response
 
@@ -692,7 +692,7 @@ class TestGetPullRequestSourceBranch:
             with patch.object(azure_devops.helpers, "get_repository_id", return_value="repo-id-123"):
                 result = azure_devops.get_pull_request_source_branch(123, config=config, headers=headers)
 
-        assert result == "feature/DFLY-1234/implementation"
+        assert result == "feature/PROJECT-1234/implementation"
 
     def test_handles_simple_branch_name(self):
         """Test handles branch names without nested paths."""
@@ -807,8 +807,8 @@ class TestGetPullRequestDetails:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "pullRequestId": 123,
-            "sourceRefName": "refs/heads/feature/DFLY-1234/test",
-            "title": "feature(DFLY-1234): Test PR",
+            "sourceRefName": "refs/heads/feature/PROJECT-1234/test",
+            "title": "feature(PROJECT-1234): Test PR",
             "description": "Description here",
         }
         mock_requests.get.return_value = mock_response
@@ -826,8 +826,8 @@ class TestGetPullRequestDetails:
 
         assert result is not None
         assert result["pullRequestId"] == 123
-        assert result["title"] == "feature(DFLY-1234): Test PR"
-        assert "DFLY-1234" in result["sourceRefName"]
+        assert result["title"] == "feature(PROJECT-1234): Test PR"
+        assert "PROJECT-1234" in result["sourceRefName"]
 
     def test_returns_none_on_http_error(self):
         """Test returns None on HTTP error."""
@@ -856,7 +856,7 @@ class TestFindJiraIssueFromPr:
     def test_finds_issue_key_in_branch(self):
         """Test extracts issue key from source branch."""
         pr_data = {
-            "sourceRefName": "refs/heads/feature/DFLY-1234/my-feature",
+            "sourceRefName": "refs/heads/feature/PROJECT-1234/my-feature",
             "title": "Some title",
             "description": "Some description",
         }
@@ -864,33 +864,33 @@ class TestFindJiraIssueFromPr:
         with patch.object(azure_devops.helpers, "get_pull_request_details", return_value=pr_data):
             result = azure_devops.helpers.find_jira_issue_from_pr(123)
 
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_finds_issue_key_in_title_when_not_in_branch(self):
         """Test extracts issue key from title when not in branch."""
         pr_data = {
             "sourceRefName": "refs/heads/feature/no-jira-key",
-            "title": "feature(DFLY-5678): Fix bug",
+            "title": "feature(PROJECT-5678): Fix bug",
             "description": "Some description",
         }
 
         with patch.object(azure_devops.helpers, "get_pull_request_details", return_value=pr_data):
             result = azure_devops.helpers.find_jira_issue_from_pr(123)
 
-        assert result == "DFLY-5678"
+        assert result == "PROJECT-5678"
 
     def test_finds_issue_key_in_description_when_not_elsewhere(self):
         """Test extracts issue key from description as fallback."""
         pr_data = {
             "sourceRefName": "refs/heads/feature/no-jira-key",
             "title": "Some generic title",
-            "description": "This fixes DFLY-9999 bug",
+            "description": "This fixes PROJECT-9999 bug",
         }
 
         with patch.object(azure_devops.helpers, "get_pull_request_details", return_value=pr_data):
             result = azure_devops.helpers.find_jira_issue_from_pr(123)
 
-        assert result == "DFLY-9999"
+        assert result == "PROJECT-9999"
 
     def test_returns_none_when_no_issue_key_found(self):
         """Test returns None when no issue key anywhere."""
@@ -915,7 +915,7 @@ class TestFindJiraIssueFromPr:
     def test_case_insensitive_match(self):
         """Test issue key match is case-insensitive."""
         pr_data = {
-            "sourceRefName": "refs/heads/feature/dfly-1234/lowercase",
+            "sourceRefName": "refs/heads/feature/project-1234/lowercase",
             "title": "",
             "description": "",
         }
@@ -923,7 +923,7 @@ class TestFindJiraIssueFromPr:
         with patch.object(azure_devops.helpers, "get_pull_request_details", return_value=pr_data):
             result = azure_devops.helpers.find_jira_issue_from_pr(123)
 
-        assert result == "DFLY-1234"  # Always uppercase
+        assert result == "PROJECT-1234"  # Always uppercase
 
 
 class TestFindPrFromJiraIssue:
@@ -934,9 +934,9 @@ class TestFindPrFromJiraIssue:
         with patch(
             "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel", return_value=99999
         ) as mock_dev_panel:
-            result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+            result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
-        mock_dev_panel.assert_called_once_with("DFLY-1234", verbose=False)
+        mock_dev_panel.assert_called_once_with("PROJECT-1234", verbose=False)
         assert result == 99999
 
     def test_falls_back_to_ado_search_when_dev_panel_returns_none(self):
@@ -945,7 +945,7 @@ class TestFindPrFromJiraIssue:
             with patch.object(
                 azure_devops.helpers, "find_pull_request_by_issue_key", return_value={"pullRequestId": 88888}
             ) as mock_ado:
-                result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
         mock_ado.assert_called_once()
         assert result == 88888
@@ -959,7 +959,7 @@ class TestFindPrFromJiraIssue:
             with patch.object(
                 azure_devops.helpers, "find_pull_request_by_issue_key", return_value={"pullRequestId": 77777}
             ) as mock_ado:
-                result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
         mock_ado.assert_called_once()
         assert result == 77777
@@ -972,9 +972,9 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=66666,
                 ) as mock_jira:
-                    result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                    result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
-        mock_jira.assert_called_once_with("DFLY-1234", verbose=False)
+        mock_jira.assert_called_once_with("PROJECT-1234", verbose=False)
         assert result == 66666
 
     def test_returns_none_when_no_pr_found_anywhere(self):
@@ -985,7 +985,7 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=None,
                 ):
-                    result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                    result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
         assert result is None
 
@@ -995,7 +995,7 @@ class TestFindPrFromJiraIssue:
             with patch.object(
                 azure_devops.helpers, "find_pull_request_by_issue_key", return_value={"pullRequestId": 22222}
             ) as mock_ado:
-                result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
         # ADO search should not be called since dev panel found a PR
         mock_ado.assert_not_called()
@@ -1011,7 +1011,7 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=44444,
                 ) as mock_jira:
-                    result = azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234")
+                    result = azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234")
 
         # Jira text pattern should not be called since ADO found a PR
         mock_jira.assert_not_called()
@@ -1026,7 +1026,7 @@ class TestFindPrFromJiraIssue:
                 with patch(
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira", return_value=None
                 ) as mock_jira:
-                    azure_devops.helpers.find_pr_from_jira_issue("DFLY-1234", verbose=True)
+                    azure_devops.helpers.find_pr_from_jira_issue("PROJECT-1234", verbose=True)
 
-        mock_dev.assert_called_once_with("DFLY-1234", verbose=True)
-        mock_jira.assert_called_once_with("DFLY-1234", verbose=True)
+        mock_dev.assert_called_once_with("PROJECT-1234", verbose=True)
+        mock_jira.assert_called_once_with("PROJECT-1234", verbose=True)

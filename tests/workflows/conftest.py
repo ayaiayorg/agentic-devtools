@@ -13,8 +13,8 @@ Pattern for new workflow tests:
         # inputs. Because temp_state_dir patches get_state_dir() to a dedicated
         # subdir, clear_state_for_workflow_initiation() no longer wipes
         # temp_output_dir or temp_prompts_dir.
-        commands.initiate_my_workflow(_argv=["--issue-key", "DFLY-1234",
-                                             "--project-key", "DFLY"])
+        commands.initiate_my_workflow(_argv=["--issue-key", "PROJECT-1234",
+                                             "--project-key", "PROJECT"])
         workflow = state.get_workflow_state()
         assert workflow["active"] == "my-workflow"
 
@@ -79,7 +79,7 @@ def mock_jira_issue_response():
     """
     return {
         "id": "123456",
-        "key": "DFLY-1234",
+        "key": "PROJECT-1234",
         "self": "https://jira.example.com/rest/api/2/issue/123456",
         "fields": {
             "summary": "Add workflow tests mocking AI agent behavior",
@@ -90,7 +90,7 @@ def mock_jira_issue_response():
             "labels": ["ai-tooling", "testing"],
             "assignee": {"displayName": "Test User", "name": "testuser"},
             "reporter": {"displayName": "Reporter", "name": "reporter"},
-            "project": {"key": "DFLY", "name": "Dragonfly"},
+            "project": {"key": "PROJECT", "name": "Example Project"},
             "customfield_10008": None,  # Epic link
         },
     }
@@ -105,7 +105,7 @@ def mock_jira_created_issue_response():
     """
     return {
         "id": "789012",
-        "key": "DFLY-5678",
+        "key": "PROJECT-5678",
         "self": "https://jira.example.com/rest/api/2/issue/789012",
     }
 
@@ -126,7 +126,7 @@ def temp_prompts_dir(tmp_path):
             workflow_dir = temp_prompts_dir / "my-workflow"
             workflow_dir.mkdir()
             (workflow_dir / "default-initiate-prompt.md").write_text("...", encoding="utf-8")
-            commands.initiate_my_workflow(_argv=["--issue-key", "DFLY-1234"])
+            commands.initiate_my_workflow(_argv=["--issue-key", "PROJECT-1234"])
     """
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
@@ -147,9 +147,9 @@ def mock_preflight_pass():
     passing_result = PreflightResult(
         folder_valid=True,
         branch_valid=True,
-        folder_name="DFLY-1234",
-        branch_name="feature/DFLY-1234/implementation",
-        issue_key="DFLY-1234",
+        folder_name="PROJECT-1234",
+        branch_name="feature/PROJECT-1234/implementation",
+        issue_key="PROJECT-1234",
     )
     with patch(
         "agentic_devtools.cli.workflows.preflight.check_worktree_and_branch",

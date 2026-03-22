@@ -278,7 +278,7 @@ def call_api(url):
 # Proposed command
 agdt-diff --since "5 minutes ago"
 # Output:
-# + jira.issue_key = "DFLY-1234"
+# + jira.issue_key = "PROJECT-1234"
 # - pull_request_id = 123
 # ~ commit_message = "feat: old" → "feat: new"
 ```

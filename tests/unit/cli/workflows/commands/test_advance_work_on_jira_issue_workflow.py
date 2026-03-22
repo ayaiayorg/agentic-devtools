@@ -83,8 +83,8 @@ class TestAdvanceWorkOnJiraIssueWorkflow:
             status="in-progress",
             step="planning",
             context={
-                "jira_issue_key": "DFLY-1234",
-                "branch_name": "feature/DFLY-1234/test",
+                "jira_issue_key": "PROJECT-1234",
+                "branch_name": "feature/PROJECT-1234/test",
                 "issue_summary": "Test issue",
             },
         )
@@ -108,7 +108,7 @@ class TestAdvanceWorkOnJiraIssueWorkflow:
             name="work-on-jira-issue",
             status="in-progress",
             step="unknown-step",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         workflow_dir = temp_prompts_dir / "work-on-jira-issue"
@@ -130,8 +130,8 @@ class TestAdvanceWorkOnJiraIssueWorkflow:
             status="in-progress",
             step="pull-request",
             context={
-                "jira_issue_key": "DFLY-1234",
-                "branch_name": "feature/DFLY-1234/test",
+                "jira_issue_key": "PROJECT-1234",
+                "branch_name": "feature/PROJECT-1234/test",
                 "pull_request_url": "https://example.com/pr/123",
             },
         )

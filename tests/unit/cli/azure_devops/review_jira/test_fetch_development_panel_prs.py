@@ -14,7 +14,7 @@ class TestFetchDevelopmentPanelPrs:
         )
 
         with patch.dict(os.environ, {}, clear=True):
-            result = fetch_development_panel_prs("DFLY-1234", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-1234", verbose=True)
             assert result == []
             captured = capsys.readouterr()
             assert "JIRA_COPILOT_PAT" in captured.out
@@ -31,7 +31,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.return_value = mock_response
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-9999", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-9999", verbose=True)
             assert result == []
             captured = capsys.readouterr()
             assert "Failed to fetch issue ID" in captured.out
@@ -45,11 +45,11 @@ class TestFetchDevelopmentPanelPrs:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"key": "DFLY-1234"}  # No "id" field
+        mock_response.json.return_value = {"key": "PROJECT-1234"}  # No "id" field
         mock_get.return_value = mock_response
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-1234", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-1234", verbose=True)
             assert result == []
             captured = capsys.readouterr()
             assert "Issue ID not found" in captured.out
@@ -72,7 +72,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.side_effect = [issue_response, dev_response]
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-1234", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-1234", verbose=True)
             assert result == []
             captured = capsys.readouterr()
             assert "500" in captured.out
@@ -109,7 +109,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.side_effect = [issue_response, dev_response]
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-1234", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-1234", verbose=True)
             assert len(result) == 1
             assert result[0]["url"] == "https://dev.azure.com/org/project/_git/repo/pullrequest/1234"
             captured = capsys.readouterr()
@@ -134,7 +134,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.side_effect = [issue_response, dev_response]
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            fetch_development_panel_prs("DFLY-1234")
+            fetch_development_panel_prs("PROJECT-1234")
 
         for call_obj in mock_get.call_args_list:
             assert "verify" in call_obj.kwargs
@@ -163,7 +163,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.side_effect = [issue_response, dev_response]
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-1234")
+            result = fetch_development_panel_prs("PROJECT-1234")
             assert result == []
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
@@ -178,7 +178,7 @@ class TestFetchDevelopmentPanelPrs:
         mock_get.side_effect = requests.RequestException("Connection error")
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_development_panel_prs("DFLY-1234", verbose=True)
+            result = fetch_development_panel_prs("PROJECT-1234", verbose=True)
             assert result == []
             captured = capsys.readouterr()
             assert "Failed to fetch development panel" in captured.out

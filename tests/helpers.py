@@ -91,14 +91,14 @@ def make_mock_response(
 
     Args:
         json_data: Mapping returned by ``.json()``.  Defaults to
-            ``{"key": "DFLY-9999", "id": "12345"}``.
+            ``{"key": "PROJECT-9999", "id": "12345"}``.
         status_code: HTTP status code (default: ``200``).
 
     Returns:
         A ``MagicMock`` configured as a successful HTTP response.
     """
     if json_data is None:
-        json_data = {"key": "DFLY-9999", "id": "12345"}
+        json_data = {"key": "PROJECT-9999", "id": "12345"}
     mock_response = MagicMock()
     mock_response.status_code = status_code
     mock_response.json.return_value = json_data

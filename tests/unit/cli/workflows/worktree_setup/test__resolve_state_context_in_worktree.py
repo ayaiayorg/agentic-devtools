@@ -13,21 +13,21 @@ def test_restores_both_state_env_vars_and_returns_run_id(tmp_path, monkeypatch):
 
     original_cwd = os.getcwd()
     monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "modern-before")
-    monkeypatch.setenv("DFLY_AI_HELPERS_STATE_DIR", "legacy-before")
+    monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "legacy-before")
 
     captured = {}
 
     def fake_get_state_file_path():
         captured["cwd"] = os.getcwd()
         captured["modern"] = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
-        captured["legacy"] = os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+        captured["legacy"] = os.environ.get("AGDT_AI_HELPERS_STATE_DIR")
         return worktree_path / ".agdt" / "workflows" / "_scope" / "state.json"
 
     def fake_get_value(key):
         assert key == "agdt_run_id"
         captured["value_cwd"] = os.getcwd()
         captured["value_modern"] = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
-        captured["value_legacy"] = os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+        captured["value_legacy"] = os.environ.get("AGDT_AI_HELPERS_STATE_DIR")
         return "run-123"
 
     monkeypatch.setattr("agentic_devtools.state.get_state_file_path", fake_get_state_file_path)
@@ -51,7 +51,7 @@ def test_restores_both_state_env_vars_and_returns_run_id(tmp_path, monkeypatch):
     # After resolution, original context is restored.
     assert os.getcwd() == original_cwd
     assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "modern-before"
-    assert os.environ.get("DFLY_AI_HELPERS_STATE_DIR") == "legacy-before"
+    assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "legacy-before"
 
 
 def test_normalizes_non_string_run_id_to_empty_string(tmp_path, monkeypatch):
@@ -94,7 +94,7 @@ def test_ignores_restore_cwd_failure_and_still_restores_env(tmp_path, monkeypatc
 
     original_cwd = os.getcwd()
     monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "modern-before")
-    monkeypatch.setenv("DFLY_AI_HELPERS_STATE_DIR", "legacy-before")
+    monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "legacy-before")
 
     monkeypatch.setattr(
         "agentic_devtools.state.get_state_file_path",
@@ -115,7 +115,7 @@ def test_ignores_restore_cwd_failure_and_still_restores_env(tmp_path, monkeypatc
     assert state_file_path == worktree_path / ".agdt" / "workflows" / "_scope" / "state.json"
     assert run_id == ""
     assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "modern-before"
-    assert os.environ.get("DFLY_AI_HELPERS_STATE_DIR") == "legacy-before"
+    assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "legacy-before"
 
     real_chdir(original_cwd)
 
@@ -130,7 +130,7 @@ def test_ignores_restore_modern_state_dir_env_failure(tmp_path, monkeypatch):
         lambda: worktree_path / ".agdt" / "workflows" / "_scope" / "state.json",
     )
     monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-    monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
+    monkeypatch.delenv("AGDT_AI_HELPERS_STATE_DIR", raising=False)
 
     # The function calls os.environ.pop 4 times total (2 at entry, 2 in finally).
     # Making the 3rd call raise covers the except block for AGENTIC_DEVTOOLS_STATE_DIR restore.
@@ -142,7 +142,7 @@ def test_ignores_restore_modern_state_dir_env_failure(tmp_path, monkeypatch):
 
 
 def test_ignores_restore_legacy_state_dir_env_failure(tmp_path, monkeypatch):
-    """Raising in the DFLY_AI_HELPERS_STATE_DIR restore block is silently swallowed."""
+    """Raising in the AGDT_AI_HELPERS_STATE_DIR restore block is silently swallowed."""
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir(parents=True, exist_ok=True)
 
@@ -151,10 +151,10 @@ def test_ignores_restore_legacy_state_dir_env_failure(tmp_path, monkeypatch):
         lambda: worktree_path / ".agdt" / "workflows" / "_scope" / "state.json",
     )
     monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-    monkeypatch.delenv("DFLY_AI_HELPERS_STATE_DIR", raising=False)
+    monkeypatch.delenv("AGDT_AI_HELPERS_STATE_DIR", raising=False)
 
     # The function calls os.environ.pop 4 times total (2 at entry, 2 in finally).
-    # Making the 4th call raise covers the except block for DFLY_AI_HELPERS_STATE_DIR restore.
+    # Making the 4th call raise covers the except block for AGDT_AI_HELPERS_STATE_DIR restore.
     with patch.object(os.environ, "pop", side_effect=[None, None, None, RuntimeError("env restore failed")]):
         state_file_path, run_id = _resolve_state_context_in_worktree(str(worktree_path))
 

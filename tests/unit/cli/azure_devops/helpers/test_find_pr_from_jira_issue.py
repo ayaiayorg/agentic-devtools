@@ -10,7 +10,7 @@ class TestFindPrFromJiraIssue:
 
     def test_returns_pr_id_when_found_in_ado(self, mock_azure_devops_env):
         """Should return PR ID when issue key is found in Azure DevOps."""
-        pr_data = {"pullRequestId": 42, "sourceRefName": "refs/heads/feature/DFLY-1234"}
+        pr_data = {"pullRequestId": 42, "sourceRefName": "refs/heads/feature/PROJECT-1234"}
 
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.find_pull_request_by_issue_key",
@@ -24,7 +24,7 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=None,
                 ):
-                    result = find_pr_from_jira_issue("DFLY-1234")
+                    result = find_pr_from_jira_issue("PROJECT-1234")
 
         assert result == 42
 
@@ -42,7 +42,7 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=None,
                 ):
-                    result = find_pr_from_jira_issue("DFLY-9999")
+                    result = find_pr_from_jira_issue("PROJECT-9999")
 
         assert result is None
 
@@ -62,6 +62,6 @@ class TestFindPrFromJiraIssue:
                     "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
                     return_value=None,
                 ):
-                    result = find_pr_from_jira_issue("DFLY-1234")
+                    result = find_pr_from_jira_issue("PROJECT-1234")
 
         assert result == 55

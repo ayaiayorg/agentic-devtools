@@ -90,7 +90,7 @@ agdt-add-pull-request-comment  # No approval needed!
 
 ```text
 ❌ Error: Missing required state key: jira.issue_key
-   Run: agdt-set jira.issue_key DFLY-1234
+   Run: agdt-set jira.issue_key PROJECT-1234
 ```
 
 #### US-3: Actionable Output
@@ -322,10 +322,10 @@ if not token:
 
 ```text
 # ✅ Good
-[2026-02-13 10:30:00] POST https://api.atlassian.com/issue/DFLY-1234/comment
+[2026-02-13 10:30:00] POST https://api.atlassian.com/issue/PROJECT-1234/comment
 
 # ❌ Bad
-[2026-02-13 10:30:00] POST https://api.atlassian.com/issue/DFLY-1234/comment
+[2026-02-13 10:30:00] POST https://api.atlassian.com/issue/PROJECT-1234/comment
 Authorization: Bearer abc123xyz...
 ```
 

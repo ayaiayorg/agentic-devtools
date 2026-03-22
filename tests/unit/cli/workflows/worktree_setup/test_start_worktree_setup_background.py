@@ -19,7 +19,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         result = start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
@@ -30,7 +30,7 @@ class TestStartWorktreeSetupBackground:
         assert call_kwargs["module_path"] == "agentic_devtools.cli.workflows.worktree_setup"
         assert call_kwargs["function_name"] == "_setup_worktree_from_state"
         assert "agdt-setup-worktree-background" in call_kwargs["command_display_name"]
-        assert "--issue-key DFLY-1234" in call_kwargs["command_display_name"]
+        assert "--issue-key PROJECT-1234" in call_kwargs["command_display_name"]
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
@@ -41,7 +41,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         result = start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="create-jira-issue",
             user_request="Create a feature for testing",
@@ -60,17 +60,17 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         result = start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="create-jira-issue",
-            additional_params={"parent_key": "DFLY-1000"},
+            additional_params={"parent_key": "PROJECT-1000"},
         )
 
         assert result == "task-789"
         # Verify additional_params was stored in state as JSON
         import json
 
-        expected_json = json.dumps({"parent_key": "DFLY-1000"})
+        expected_json = json.dumps({"parent_key": "PROJECT-1000"})
         mock_set_value.assert_any_call("worktree_setup.additional_params", expected_json)
 
     @patch("agentic_devtools.state.set_value")
@@ -82,13 +82,13 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="create-jira-issue",
         )
 
         # Verify basic params were stored in state
-        mock_set_value.assert_any_call("worktree_setup.issue_key", "DFLY-1234")
+        mock_set_value.assert_any_call("worktree_setup.issue_key", "PROJECT-1234")
         mock_set_value.assert_any_call("worktree_setup.branch_prefix", "feature")
         mock_set_value.assert_any_call("worktree_setup.workflow_name", "create-jira-issue")
 
@@ -101,14 +101,14 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-5678",
+            issue_key="PROJECT-5678",
             branch_prefix="bugfix",
             workflow_name="fix-bug",
         )
 
         call_kwargs = mock_run_background.call_args[1]
         assert call_kwargs["args"] == {
-            "issue_key": "DFLY-5678",
+            "issue_key": "PROJECT-5678",
             "branch_prefix": "bugfix",
             "workflow_name": "fix-bug",
             "branch_name": None,
@@ -126,7 +126,7 @@ class TestStartWorktreeSetupBackground:
         import json
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pr-id", "99"],
         )
@@ -143,7 +143,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["cmd"],
             auto_execute_timeout=120,
@@ -160,7 +160,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=None,
         )
@@ -178,7 +178,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["cmd"],
             auto_execute_timeout=300,  # Default value
@@ -196,7 +196,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             interactive=False,
         )
@@ -212,7 +212,7 @@ class TestStartWorktreeSetupBackground:
         mock_run_background.return_value = mock_task
 
         start_worktree_setup_background(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             interactive=True,
         )

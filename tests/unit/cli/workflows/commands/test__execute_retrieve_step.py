@@ -64,10 +64,10 @@ class TestExecuteRetrieveStep:
         with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
             mock_get_issue.side_effect = SystemExit(1)
 
-            commands._execute_retrieve_step("DFLY-1234", "feature/DFLY-1234/test")
+            commands._execute_retrieve_step("PROJECT-1234", "feature/PROJECT-1234/test")
 
         captured = capsys.readouterr()
-        assert "Warning: Failed to fetch issue DFLY-1234" in captured.err
+        assert "Warning: Failed to fetch issue PROJECT-1234" in captured.err
 
     def test_get_issue_exception(self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys):
         """Test handling of general exception when calling get_issue."""
@@ -79,7 +79,7 @@ class TestExecuteRetrieveStep:
         with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
             mock_get_issue.side_effect = Exception("Connection failed")
 
-            commands._execute_retrieve_step("DFLY-1234", "feature/DFLY-1234/test")
+            commands._execute_retrieve_step("PROJECT-1234", "feature/PROJECT-1234/test")
 
         captured = capsys.readouterr()
         assert "Warning: Could not fetch Jira issue" in captured.err
@@ -120,7 +120,7 @@ class TestExecuteRetrieveStep:
         with patch("agentic_devtools.cli.jira.get_commands.get_issue") as mock_get_issue:
             with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=temp_state_dir):
                 mock_get_issue.return_value = None
-                commands._execute_retrieve_step("DFLY-1234", "feature/DFLY-1234/test")
+                commands._execute_retrieve_step("PROJECT-1234", "feature/PROJECT-1234/test")
 
         captured = capsys.readouterr()
-        assert "Issue DFLY-1234 retrieved successfully" in captured.out
+        assert "Issue PROJECT-1234 retrieved successfully" in captured.out

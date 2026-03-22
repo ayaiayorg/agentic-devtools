@@ -13,13 +13,13 @@ class TestGetBootstrapState:
         """Reads identity and worktree_key from a well-formed bootstrap file."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
-        bootstrap_data = {"identity": "ama", "worktree_key": "DFLY-1234"}
+        bootstrap_data = {"identity": "ama", "worktree_key": "PROJECT-1234"}
         (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
-        assert result == {"identity": "ama", "worktree_key": "DFLY-1234"}
+        assert result == {"identity": "ama", "worktree_key": "PROJECT-1234"}
 
     def test_returns_empty_dict_when_file_missing(self, tmp_path):
         """Returns {} when the bootstrap file does not exist."""
@@ -74,13 +74,13 @@ class TestGetBootstrapState:
         """Only 'identity' and 'worktree_key' keys are returned, even if file has more."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
-        bootstrap_data = {"identity": "ama", "worktree_key": "DFLY-1", "extra_key": "val", "debug": "true"}
+        bootstrap_data = {"identity": "ama", "worktree_key": "PROJECT-1", "extra_key": "val", "debug": "true"}
         (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
-        assert result == {"identity": "ama", "worktree_key": "DFLY-1"}
+        assert result == {"identity": "ama", "worktree_key": "PROJECT-1"}
         assert "extra_key" not in result
         assert "debug" not in result
 
@@ -88,25 +88,25 @@ class TestGetBootstrapState:
         """Values are stripped of leading/trailing whitespace."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
-        bootstrap_data = {"identity": "  ama  ", "worktree_key": "  DFLY-1  "}
+        bootstrap_data = {"identity": "  ama  ", "worktree_key": "  PROJECT-1  "}
         (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
-        assert result == {"identity": "ama", "worktree_key": "DFLY-1"}
+        assert result == {"identity": "ama", "worktree_key": "PROJECT-1"}
 
     def test_omits_keys_with_whitespace_only_values(self, tmp_path):
         """Keys whose values become empty after stripping are omitted entirely."""
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir()
-        bootstrap_data = {"identity": "   ", "worktree_key": "DFLY-1"}
+        bootstrap_data = {"identity": "   ", "worktree_key": "PROJECT-1"}
         (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
-        assert result == {"worktree_key": "DFLY-1"}
+        assert result == {"worktree_key": "PROJECT-1"}
         assert "identity" not in result
 
     def test_returns_empty_dict_when_bootstrap_is_array(self, tmp_path):
@@ -138,12 +138,12 @@ class TestGetBootstrapState:
         agdt_dir.mkdir()
 
         (agdt_dir / "identity.json").write_text(json.dumps({"identity": "ama", "email": "a@b.com"}), encoding="utf-8")
-        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "DFLY-42"}), encoding="utf-8")
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "PROJECT-42"}), encoding="utf-8")
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
-        assert result == {"identity": "ama", "worktree_key": "DFLY-42"}
+        assert result == {"identity": "ama", "worktree_key": "PROJECT-42"}
 
     def test_identity_json_takes_precedence_over_bootstrap_identity(self, tmp_path):
         """identity.json identity overrides legacy identity in runtime-bootstrap.json."""
@@ -155,11 +155,11 @@ class TestGetBootstrapState:
         )
         # Legacy bootstrap still has old identity
         (agdt_dir / "runtime-bootstrap.json").write_text(
-            json.dumps({"identity": "old", "worktree_key": "DFLY-1"}), encoding="utf-8"
+            json.dumps({"identity": "old", "worktree_key": "PROJECT-1"}), encoding="utf-8"
         )
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             result = state.get_bootstrap_state()
 
         assert result["identity"] == "new"  # identity.json wins
-        assert result["worktree_key"] == "DFLY-1"
+        assert result["worktree_key"] == "PROJECT-1"

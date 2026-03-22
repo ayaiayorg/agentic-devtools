@@ -310,19 +310,19 @@ sequenceDiagram
     participant API as External API
     participant File as Output File
     
-    User->>CLI: agdt-set jira.issue_key DFLY-1234
-    CLI->>State: set_value("jira.issue_key", "DFLY-1234")
+    User->>CLI: agdt-set jira.issue_key PROJECT-1234
+    CLI->>State: set_value("jira.issue_key", "PROJECT-1234")
     State-->>CLI: OK
     CLI-->>User: Value saved
     
     User->>CLI: agdt-get-jira-issue
     CLI->>State: get_value("jira.issue_key")
-    State-->>CLI: "DFLY-1234"
+    State-->>CLI: "PROJECT-1234"
     CLI->>BG: Spawn background task
     BG-->>CLI: Task ID
     CLI-->>User: Task started: 550e8400-e29b-41d4-a716-446655440000
     
-    BG->>API: GET /issue/DFLY-1234
+    BG->>API: GET /issue/PROJECT-1234
     API-->>BG: Issue data
     BG->>File: Write JSON
     BG->>State: Save metadata

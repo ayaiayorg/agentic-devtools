@@ -17,17 +17,17 @@ sequenceDiagram
     Copilot->>State: set_workflow_state(name="work-on-jira-issue", status="active", step="initiate")
     Copilot-->>Dev: Prompt: Enter issue key
     
-    Dev->>Copilot: DFLY-1234
-    Copilot->>State: set_value("jira.issue_key", "DFLY-1234")
+    Dev->>Copilot: PROJECT-1234
+    Copilot->>State: set_value("jira.issue_key", "PROJECT-1234")
     
     Note over Copilot: Step 1: Setup Worktree
     Copilot->>Git: git worktree add
-    Copilot->>Git: git checkout -b feature/DFLY-1234
+    Copilot->>Git: git checkout -b feature/PROJECT-1234
     Copilot->>State: update_workflow_step("retrieve")
     
     Note over Copilot: Step 2: Retrieve Issue
     Copilot->>State: get_value("jira.issue_key")
-    Copilot->>Jira: GET /issue/DFLY-1234
+    Copilot->>Jira: GET /issue/PROJECT-1234
     Jira-->>Copilot: Issue details
     Copilot->>State: Save issue metadata
     Copilot->>State: update_workflow_step("planning")
@@ -35,7 +35,7 @@ sequenceDiagram
     Note over Copilot: Step 3: Create Plan
     Copilot->>Copilot: Analyze issue
     Copilot->>State: set_value("jira.comment", "Plan...")
-    Copilot->>Jira: POST /issue/DFLY-1234/comment
+    Copilot->>Jira: POST /issue/PROJECT-1234/comment
     Copilot->>State: update_workflow_step("checklist-creation")
     
     Note over Copilot: Step 4: Generate Checklist
@@ -61,13 +61,13 @@ sequenceDiagram
     Copilot->>State: update_workflow_step("pull-request")
     
     Note over Copilot: Step 9: Create PR
-    Copilot->>State: set_value("title", "feat(DFLY-1234): ...")
+    Copilot->>State: set_value("title", "feat(PROJECT-1234): ...")
     Copilot->>ADO: POST /pullrequests
     ADO-->>Copilot: PR created
     Copilot->>State: update_workflow_step("completion")
     
     Note over Copilot: Step 10: Completion
-    Copilot->>Jira: POST /issue/DFLY-1234/comment
+    Copilot->>Jira: POST /issue/PROJECT-1234/comment
     Copilot->>State: clear_workflow_state()
     Copilot-->>Dev: Workflow complete!
 ```
@@ -87,7 +87,7 @@ sequenceDiagram
     
     Copilot->>CLI: agdt-add-jira-comment
     CLI->>State: get_value("jira.issue_key")
-    State-->>CLI: "DFLY-1234"
+    State-->>CLI: "PROJECT-1234"
     CLI->>State: get_value("jira.comment")
     State-->>CLI: "Implementation complete"
     
@@ -103,7 +103,7 @@ sequenceDiagram
     
     Process->>Log: Write progress logs
     Process->>TaskState: update_status("running")
-    Process->>Jira: POST /issue/DFLY-1234/comment
+    Process->>Jira: POST /issue/PROJECT-1234/comment
     Jira-->>Process: Comment created
     Process->>TaskState: update_status("completed")
     Process->>Log: Write success message

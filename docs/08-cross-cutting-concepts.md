@@ -100,7 +100,7 @@ flowchart TD
 
 ```text
 ❌ Error: Missing required state key: jira.issue_key
-   Run: agdt-set jira.issue_key DFLY-1234
+   Run: agdt-set jira.issue_key PROJECT-1234
 
 ❌ Error: API request failed (401 Unauthorized)
    Check your AZURE_DEV_OPS_COPILOT_PAT (or AZURE_DEVOPS_EXT_PAT) environment variable
@@ -138,8 +138,8 @@ graph LR
 ```text
 [2026-02-13 10:30:00] Starting task: add-jira-comment
 [2026-02-13 10:30:01] Reading state: jira.issue_key
-[2026-02-13 10:30:01] Found issue key: DFLY-1234
-[2026-02-13 10:30:02] Calling Jira API: POST /issue/DFLY-1234/comment
+[2026-02-13 10:30:01] Found issue key: PROJECT-1234
+[2026-02-13 10:30:02] Calling Jira API: POST /issue/PROJECT-1234/comment
 [2026-02-13 10:30:03] API response: 200 OK
 [2026-02-13 10:30:03] ✓ Task completed successfully
 ```
@@ -309,7 +309,7 @@ graph TB
 
 # Error
 ❌ Error: Missing required state key: jira.issue_key
-   Run: agdt-set jira.issue_key DFLY-1234
+   Run: agdt-set jira.issue_key PROJECT-1234
 ```
 
 ## 8.8 Documentation Standards
@@ -377,8 +377,8 @@ dist/                      # Build artifacts
 
 ```mermaid
 graph TB
-    Main[Main Worktree<br/>main branch] --> WT1[Worktree 1<br/>feature/DFLY-1234]
-    Main --> WT2[Worktree 2<br/>feature/DFLY-5678]
+    Main[Main Worktree<br/>main branch] --> WT1[Worktree 1<br/>feature/PROJECT-1234]
+    Main --> WT2[Worktree 2<br/>feature/PROJECT-5678]
     
     Main -.->|Shared| Git[.git/]
     WT1 -.->|Shared| Git

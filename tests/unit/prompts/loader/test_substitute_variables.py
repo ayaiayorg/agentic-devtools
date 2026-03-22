@@ -17,8 +17,8 @@ class TestSubstituteVariables:
     def test_substitute_multiple_variables(self):
         """Test substituting multiple variables."""
         template = "Issue {{key}} in {{project}}"
-        result = loader.substitute_variables(template, {"key": "DFLY-1234", "project": "Dragonfly"})
-        assert result == "Issue DFLY-1234 in Dragonfly"
+        result = loader.substitute_variables(template, {"key": "PROJECT-1234", "project": "Example Project"})
+        assert result == "Issue PROJECT-1234 in Example Project"
 
     def test_substitute_duplicate_variable(self):
         """Test substituting a variable that appears multiple times."""
@@ -42,8 +42,8 @@ class TestSubstituteVariables:
     def test_conditional_with_truthy_variable(self):
         """Test that {% if %} blocks are included when variable is truthy."""
         template = "Start{% if jira_key %} - Issue: {{jira_key}}{% endif %} End"
-        result = loader.substitute_variables(template, {"jira_key": "DFLY-1234"})
-        assert result == "Start - Issue: DFLY-1234 End"
+        result = loader.substitute_variables(template, {"jira_key": "PROJECT-1234"})
+        assert result == "Start - Issue: PROJECT-1234 End"
 
     def test_conditional_with_falsy_empty_string(self):
         """Test that {% if %} blocks are removed when variable is empty string."""

@@ -12,9 +12,9 @@ def _make_review_state(**kwargs) -> ReviewState:
     defaults = {
         "prId": 25365,
         "repoId": "repo-guid",
-        "repoName": "dfly-platform-management",
-        "project": "DragonflyMgmt",
-        "organization": "https://dev.azure.com/swica",
+        "repoName": "example-repo-name",
+        "project": "ExampleProject",
+        "organization": "https://dev.azure.com/example-org",
         "latestIterationId": 5,
         "scaffoldedUtc": "2026-02-25T10:00:00Z",
         "overallSummary": OverallSummary(threadId=161000, commentId=1771800000),
@@ -31,9 +31,9 @@ class TestReviewState:
         state = _make_review_state()
         assert state.prId == 25365
         assert state.repoId == "repo-guid"
-        assert state.repoName == "dfly-platform-management"
-        assert state.project == "DragonflyMgmt"
-        assert state.organization == "https://dev.azure.com/swica"
+        assert state.repoName == "example-repo-name"
+        assert state.project == "ExampleProject"
+        assert state.organization == "https://dev.azure.com/example-org"
         assert state.latestIterationId == 5
         assert state.scaffoldedUtc == "2026-02-25T10:00:00Z"
         assert state.folders == {}
@@ -67,9 +67,9 @@ class TestReviewState:
         data = {
             "prId": 25365,
             "repoId": "repo-guid",
-            "repoName": "dfly-platform-management",
-            "project": "DragonflyMgmt",
-            "organization": "https://dev.azure.com/swica",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
             "latestIterationId": 5,
             "scaffoldedUtc": "2026-02-25T10:00:00Z",
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
@@ -78,7 +78,7 @@ class TestReviewState:
         }
         state = ReviewState.from_dict(data)
         assert state.prId == 25365
-        assert state.repoName == "dfly-platform-management"
+        assert state.repoName == "example-repo-name"
         assert state.overallSummary.threadId == 161000
         assert state.folders == {}
         assert state.files == {}
@@ -88,9 +88,9 @@ class TestReviewState:
         data = {
             "prId": 25365,
             "repoId": "repo-guid",
-            "repoName": "dfly-platform-management",
-            "project": "DragonflyMgmt",
-            "organization": "https://dev.azure.com/swica",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
             "latestIterationId": 5,
             "scaffoldedUtc": "2026-02-25T10:00:00Z",
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
@@ -150,9 +150,9 @@ class TestReviewState:
         data = {
             "prId": 25365,
             "repoId": "repo-guid",
-            "repoName": "dfly-platform-management",
-            "project": "DragonflyMgmt",
-            "organization": "https://dev.azure.com/swica",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
             "latestIterationId": 5,
             "scaffoldedUtc": "2026-02-25T10:00:00Z",
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
@@ -200,9 +200,9 @@ class TestReviewState:
         data = {
             "prId": 25365,
             "repoId": "repo-guid",
-            "repoName": "dfly-platform-management",
-            "project": "DragonflyMgmt",
-            "organization": "https://dev.azure.com/swica",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
             "latestIterationId": 5,
             "scaffoldedUtc": "2026-02-25T10:00:00Z",
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
@@ -233,9 +233,9 @@ class TestReviewState:
         data = {
             "prId": 25365,
             "repoId": "repo-guid",
-            "repoName": "dfly-platform-management",
-            "project": "DragonflyMgmt",
-            "organization": "https://dev.azure.com/swica",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
             "latestIterationId": 5,
             "scaffoldedUtc": "2026-02-25T10:00:00Z",
             "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},

@@ -30,7 +30,7 @@ class TestSaveChecklist:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
         checklist = Checklist(items=[ChecklistItem(id=1, text="Task")])
         save_checklist(checklist)
@@ -46,13 +46,13 @@ class TestSaveChecklist:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234", "branch_name": "feature/test"},
+            context={"jira_issue_key": "PROJECT-1234", "branch_name": "feature/test"},
         )
         checklist = Checklist()
         save_checklist(checklist)
 
         workflow = state.get_workflow_state()
-        assert workflow["context"]["jira_issue_key"] == "DFLY-1234"
+        assert workflow["context"]["jira_issue_key"] == "PROJECT-1234"
         assert workflow["context"]["branch_name"] == "feature/test"
 
     def test_save_no_workflow_raises(self, temp_state_dir, clear_state_before):

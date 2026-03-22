@@ -87,14 +87,14 @@ def get_issue() -> None:
     - jira.epic_details: {location, key, retrievalTimestamp} (if epic linked)
 
     Usage:
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         agdt-get-jira-issue
     """
     issue_key = get_jira_value("issue_key")
 
     if not issue_key:
         print(
-            "Error: jira.issue_key is required. Use: agdt-set jira.issue_key DFLY-1234",
+            "Error: jira.issue_key is required. Use: agdt-set jira.issue_key PROJECT-1234",
             file=sys.stderr,
         )
         sys.exit(1)

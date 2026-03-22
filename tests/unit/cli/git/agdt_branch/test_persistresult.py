@@ -22,13 +22,13 @@ class TestPersistResult:
             success=True,
             branch_name="feat-agdt",
             commit_hash="abc123",
-            worktree_key="DFLY-1234",
+            worktree_key="PROJECT-1234",
             workflow_type="review",
         )
         assert r.success is True
         assert r.branch_name == "feat-agdt"
         assert r.commit_hash == "abc123"
-        assert r.worktree_key == "DFLY-1234"
+        assert r.worktree_key == "PROJECT-1234"
         assert r.workflow_type == "review"
         assert r.error is None
 

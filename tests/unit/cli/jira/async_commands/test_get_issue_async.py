@@ -35,9 +35,9 @@ class TestGetIssueAsync:
 
     def test_spawns_background_task(self, mock_background_and_state, capsys):
         """Test get_issue_async spawns a background task."""
-        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="DFLY-456"):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="PROJECT-456"):
             get_issue_async()
 
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
-        assert "DFLY-456" in captured.out
+        assert "PROJECT-456" in captured.out

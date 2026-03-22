@@ -52,12 +52,12 @@ class TestCollectVariablesFromState:
 
     def test_collect_nested_keys(self, temp_state_dir, clear_state_before):
         """Test collecting nested state keys with dot notation."""
-        state.set_value("jira.issue_key", "DFLY-1234")
-        state.set_value("jira.project_key", "DFLY")
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        state.set_value("jira.project_key", "PROJECT")
         result = base.collect_variables_from_state(["jira.issue_key", "jira.project_key"])
         # Keys should be converted to underscore format
-        assert result["jira_issue_key"] == "DFLY-1234"
-        assert result["jira_project_key"] == "DFLY"
+        assert result["jira_issue_key"] == "PROJECT-1234"
+        assert result["jira_project_key"] == "PROJECT"
 
     def test_collect_missing_optional_keys(self, temp_state_dir, clear_state_before):
         """Test that missing optional keys are skipped."""

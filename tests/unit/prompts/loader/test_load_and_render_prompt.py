@@ -18,10 +18,10 @@ class TestLoadAndRenderPrompt:
         template_file = workflow_dir / "default-initiate-prompt.md"
         template_file.write_text(template_content, encoding="utf-8")
 
-        context = {"name": "Alice", "task": "DFLY-1234"}
+        context = {"name": "Alice", "task": "PROJECT-1234"}
         result = loader.load_and_render_prompt("test", "initiate", context)
 
-        assert result == "Hello Alice, working on DFLY-1234"
+        assert result == "Hello Alice, working on PROJECT-1234"
 
     def test_load_and_render_with_override(self, temp_prompts_dir, temp_output_dir):
         """Test load and render with override template."""

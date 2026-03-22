@@ -29,9 +29,9 @@ from ...state import get_value
 # Constants
 # =============================================================================
 
-DEFAULT_ORGANIZATION = "https://dev.azure.com/swica"
-DEFAULT_PROJECT = "DragonflyMgmt"
-DEFAULT_REPOSITORY = "dfly-platform-management"
+DEFAULT_ORGANIZATION = "https://dev.azure.com/example-org"
+DEFAULT_PROJECT = "ExampleProject"
+DEFAULT_REPOSITORY = "example-repo-name"
 API_VERSION = "7.0"
 
 

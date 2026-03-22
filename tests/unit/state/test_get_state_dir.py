@@ -27,14 +27,14 @@ class TestGetStateDirBootstrap:
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir(parents=True)
         (agdt_dir / "runtime-bootstrap.json").write_text(
-            json.dumps({"identity": "ama", "worktree_key": "DFLY-1234"}),
+            json.dumps({"identity": "ama", "worktree_key": "PROJECT-1234"}),
             encoding="utf-8",
         )
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.dict("os.environ", {}, clear=True):
                 result = state.get_state_dir()
 
-                expected = tmp_path / ".agdt" / "workflows" / "ama" / "DFLY-1234"
+                expected = tmp_path / ".agdt" / "workflows" / "ama" / "PROJECT-1234"
                 assert result == expected
                 assert result.exists()
 
@@ -46,12 +46,12 @@ class TestGetStateDirBootstrap:
         agdt_dir.mkdir(parents=True)
         # identity.json holds identity; bootstrap holds only worktree_key
         (agdt_dir / "identity.json").write_text(json.dumps({"identity": "ama", "email": "a@b.com"}), encoding="utf-8")
-        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "DFLY-1234"}), encoding="utf-8")
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "PROJECT-1234"}), encoding="utf-8")
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.dict("os.environ", {}, clear=True):
                 result = state.get_state_dir()
 
-                expected = tmp_path / ".agdt" / "workflows" / "ama" / "DFLY-1234"
+                expected = tmp_path / ".agdt" / "workflows" / "ama" / "PROJECT-1234"
                 assert result == expected
                 assert result.exists()
 
@@ -84,7 +84,7 @@ class TestGetStateDirBootstrap:
 
         agdt_dir = tmp_path / ".agdt"
         agdt_dir.mkdir(parents=True)
-        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "DFLY-1234"}), encoding="utf-8")
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "PROJECT-1234"}), encoding="utf-8")
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.dict("os.environ", {}, clear=True):
                 result = state.get_state_dir()

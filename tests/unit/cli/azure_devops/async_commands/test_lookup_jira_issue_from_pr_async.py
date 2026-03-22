@@ -12,7 +12,7 @@ class TestLookupJiraIssueFromPrAsync:
         """Should save jira.issue_key to state when a Jira issue is found in the PR."""
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr",
-            return_value="DFLY-1234",
+            return_value="PROJECT-1234",
         ):
             with patch(
                 "agentic_devtools.cli.azure_devops.async_commands.get_value",
@@ -21,7 +21,7 @@ class TestLookupJiraIssueFromPrAsync:
                 with patch("agentic_devtools.cli.azure_devops.async_commands.set_value") as mock_set:
                     lookup_jira_issue_from_pr_async(pull_request_id=42)
 
-        mock_set.assert_called_once_with("jira.issue_key", "DFLY-1234")
+        mock_set.assert_called_once_with("jira.issue_key", "PROJECT-1234")
 
     def test_prints_message_when_no_issue_found(self, capsys):
         """Should print a message when no Jira issue key is found in the PR."""

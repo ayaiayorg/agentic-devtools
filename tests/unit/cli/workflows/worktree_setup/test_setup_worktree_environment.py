@@ -23,23 +23,23 @@ class TestSetupWorktreeEnvironment:
         """Test successful full environment setup."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_vscode.return_value = True
 
         result = setup_worktree_environment(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             open_vscode=True,
         )
 
         assert result.success is True
-        assert result.worktree_path == "/repos/DFLY-1234"
-        assert result.branch_name == "feature/DFLY-1234/implementation"
+        assert result.worktree_path == "/repos/PROJECT-1234"
+        assert result.branch_name == "feature/PROJECT-1234/implementation"
         assert result.vscode_opened is True
-        mock_script.assert_called_once_with("/repos/DFLY-1234")
-        mock_inject_git.assert_called_once_with("/repos/DFLY-1234")
+        mock_script.assert_called_once_with("/repos/PROJECT-1234")
+        mock_inject_git.assert_called_once_with("/repos/PROJECT-1234")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.create_worktree")
     def test_setup_fails_when_worktree_fails(self, mock_create):
@@ -51,7 +51,7 @@ class TestSetupWorktreeEnvironment:
             error_message="Git error",
         )
 
-        result = setup_worktree_environment(issue_key="DFLY-1234")
+        result = setup_worktree_environment(issue_key="PROJECT-1234")
 
         assert result.success is False
         assert "Git error" in result.error_message
@@ -65,20 +65,20 @@ class TestSetupWorktreeEnvironment:
         """Test setup without opening VS Code."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
 
         result = setup_worktree_environment(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             open_vscode=False,
         )
 
         assert result.success is True
         assert result.vscode_opened is False
         mock_vscode.assert_not_called()
-        mock_script.assert_called_once_with("/repos/DFLY-1234")
-        mock_inject_git.assert_called_once_with("/repos/DFLY-1234")
+        mock_script.assert_called_once_with("/repos/PROJECT-1234")
+        mock_inject_git.assert_called_once_with("/repos/PROJECT-1234")
 
     @patch(_INJECT_GIT)
     @patch(_INJECT_PYTHON)
@@ -91,18 +91,18 @@ class TestSetupWorktreeEnvironment:
         """Test that vscode_opened is False when VS Code is not available."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
 
         result = setup_worktree_environment(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             open_vscode=True,
         )
 
         assert result.success is True
         assert result.vscode_opened is False
-        mock_inject_git.assert_called_once_with("/repos/DFLY-1234")
+        mock_inject_git.assert_called_once_with("/repos/PROJECT-1234")
 
     @patch(_INJECT_PYTHON)
     @patch(_INJECT_GIT)
@@ -115,14 +115,14 @@ class TestSetupWorktreeEnvironment:
         """inject_python_path_settings is called with the worktree path on success."""
         mock_create.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_vscode.return_value = True
 
-        setup_worktree_environment(issue_key="DFLY-1234", open_vscode=True)
+        setup_worktree_environment(issue_key="PROJECT-1234", open_vscode=True)
 
-        mock_inject_python.assert_called_once_with("/repos/DFLY-1234")
+        mock_inject_python.assert_called_once_with("/repos/PROJECT-1234")
 
     @patch(_INJECT_PYTHON)
     @patch(_INJECT_GIT)
@@ -138,6 +138,6 @@ class TestSetupWorktreeEnvironment:
             error_message="Git error",
         )
 
-        setup_worktree_environment(issue_key="DFLY-1234")
+        setup_worktree_environment(issue_key="PROJECT-1234")
 
         mock_inject_python.assert_not_called()

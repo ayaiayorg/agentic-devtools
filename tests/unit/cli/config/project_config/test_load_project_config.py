@@ -25,10 +25,10 @@ class TestLoadProjectConfig:
     def test_returns_parsed_json(self, tmp_path):
         """Should return parsed JSON from config file."""
         config_file = tmp_path / "project.json"
-        config_file.write_text(json.dumps({"jira_project_keys": "DFLY,PROJ"}), encoding="utf-8")
+        config_file.write_text(json.dumps({"jira_project_keys": "ACME,PROJ"}), encoding="utf-8")
         with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=config_file):
             result = load_project_config()
-        assert result == {"jira_project_keys": "DFLY,PROJ"}
+        assert result == {"jira_project_keys": "ACME,PROJ"}
 
     def test_returns_empty_dict_on_malformed_json(self, tmp_path, capsys):
         """Should return empty dict and warn on malformed JSON."""

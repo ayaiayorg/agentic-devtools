@@ -19,7 +19,7 @@ class TestGetLinkedPullRequestFromJira:
                 _get_linked_pull_request_from_jira,
             )
 
-            result = _get_linked_pull_request_from_jira("DFLY-1234")
+            result = _get_linked_pull_request_from_jira("PROJECT-1234")
             assert result is None
             # Reload again to restore normal state
             importlib.reload(review_commands)
@@ -38,7 +38,7 @@ class TestGetLinkedPullRequestFromJira:
                     _get_linked_pull_request_from_jira,
                 )
 
-                result = _get_linked_pull_request_from_jira("DFLY-1234")
+                result = _get_linked_pull_request_from_jira("PROJECT-1234")
                 assert result is None
 
     def test_returns_none_on_issue_fetch_error(self):
@@ -65,7 +65,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None
 
     def test_returns_none_on_network_exception(self):
@@ -89,7 +89,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None
 
     def test_returns_pr_id_from_remote_links(self):
@@ -127,7 +127,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result == 456
 
     def test_returns_pr_id_from_visualstudio_url(self):
@@ -165,7 +165,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result == 789
 
     def test_returns_none_when_no_matching_links(self):
@@ -203,5 +203,5 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None

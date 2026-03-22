@@ -29,7 +29,7 @@ class TestRoleCommandsAsync:
         """Test add_users_to_project_role_async spawns background task."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"project_key": "DFLY", "role_id": "10002", "users": "user1"}.get(k),
+            side_effect=lambda k: {"project_key": "PROJECT", "role_id": "10002", "users": "user1"}.get(k),
         ):
             add_users_to_project_role_async()
 

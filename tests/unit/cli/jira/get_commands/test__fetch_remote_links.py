@@ -14,7 +14,7 @@ class TestFetchRemoteLinks:
         mock_module.get.side_effect = Exception("Network error")
 
         result = get_commands._fetch_remote_links(
-            mock_module, "https://jira.example.com", "DFLY-1234", {"Authorization": "Basic xxx"}
+            mock_module, "https://jira.example.com", "PROJECT-1234", {"Authorization": "Basic xxx"}
         )
 
         assert result == []
@@ -28,7 +28,7 @@ class TestFetchRemoteLinks:
         mock_module.get.return_value = mock_response
 
         result = get_commands._fetch_remote_links(
-            mock_module, "https://jira.example.com", "DFLY-1234", {"Authorization": "Basic xxx"}
+            mock_module, "https://jira.example.com", "PROJECT-1234", {"Authorization": "Basic xxx"}
         )
 
         assert result == []
@@ -45,7 +45,7 @@ class TestFetchRemoteLinks:
         mock_module.get.return_value = mock_response
 
         result = get_commands._fetch_remote_links(
-            mock_module, "https://jira.example.com", "DFLY-1234", {"Authorization": "Basic xxx"}
+            mock_module, "https://jira.example.com", "PROJECT-1234", {"Authorization": "Basic xxx"}
         )
 
         assert len(result) == 2

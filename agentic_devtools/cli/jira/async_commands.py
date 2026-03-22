@@ -72,10 +72,10 @@ def add_comment_async(
 
     Usage:
         agdt-add-jira-comment --jira-comment "This is my comment"
-        agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+        agdt-add-jira-comment --jira-issue-key PROJECT-1234 --jira-comment "Comment"
 
         # Or using state:
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         agdt-set jira.comment "This is my comment"
         agdt-add-jira-comment
         # Returns immediately with task ID
@@ -85,7 +85,7 @@ def add_comment_async(
     _set_jira_value_if_provided("comment", comment)
 
     # Validate required values exist in state
-    resolved_issue_key = _require_jira_value("issue_key", "agdt-add-jira-comment --jira-issue-key DFLY-1234")
+    resolved_issue_key = _require_jira_value("issue_key", "agdt-add-jira-comment --jira-issue-key PROJECT-1234")
     _require_jira_value("comment", 'agdt-add-jira-comment --jira-comment "Your comment"')
 
     task = run_function_in_background(
@@ -104,10 +104,10 @@ def add_comment_async_cli() -> None:  # pragma: no cover
         epilog="""
 Examples:
   agdt-add-jira-comment --jira-comment "This is my comment"
-  agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+  agdt-add-jira-comment --jira-issue-key PROJECT-1234 --jira-comment "Comment"
 
   # Or using state:
-  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.issue_key PROJECT-1234
   agdt-set jira.comment "This is my comment"
   agdt-add-jira-comment
         """,
@@ -143,7 +143,7 @@ def create_epic_async() -> None:
     Create a Jira epic asynchronously in the background.
 
     Reads from state (all keys prefixed with 'jira.'):
-    - jira.project_key (required): Project key (e.g., 'DFLY')
+    - jira.project_key (required): Project key (e.g., 'PROJECT')
     - jira.summary (required): Epic summary/title
     - jira.epic_name (required): Epic name field
     - jira.role (optional): User story role
@@ -153,12 +153,12 @@ def create_epic_async() -> None:
     - jira.labels (optional): Comma-separated labels
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.summary "New Feature Epic"
         agdt-set jira.epic_name "Feature Epic"
         agdt-create-epic
     """
-    _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("summary", 'agdt-set jira.summary "Epic Title"')
     _require_jira_value("epic_name", 'agdt-set jira.epic_name "Epic Name"')
 
@@ -175,7 +175,7 @@ def create_issue_async() -> None:
     Create a Jira issue asynchronously in the background.
 
     Reads from state (all keys prefixed with 'jira.'):
-    - jira.project_key (required): Project key (e.g., 'DFLY')
+    - jira.project_key (required): Project key (e.g., 'PROJECT')
     - jira.summary (required): Issue summary/title
     - jira.description (optional): Issue description
     - jira.issue_type (optional): Issue type (default: 'Task')
@@ -183,12 +183,12 @@ def create_issue_async() -> None:
     - jira.parent_key (optional): Parent epic key
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.summary "New Task"
         agdt-set jira.description "Task description"
         agdt-create-issue
     """
-    _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("summary", 'agdt-set jira.summary "Issue Title"')
 
     task = run_function_in_background(
@@ -209,11 +209,11 @@ def create_subtask_async() -> None:
     - jira.description (optional): Subtask description
 
     Usage:
-        agdt-set jira.parent_key DFLY-1234
+        agdt-set jira.parent_key PROJECT-1234
         agdt-set jira.summary "Subtask Title"
         agdt-create-subtask
     """
-    parent_key = _require_jira_value("parent_key", "agdt-set jira.parent_key DFLY-1234")
+    parent_key = _require_jira_value("parent_key", "agdt-set jira.parent_key PROJECT-1234")
     _require_jira_value("summary", 'agdt-set jira.summary "Subtask Title"')
 
     task = run_function_in_background(
@@ -232,10 +232,10 @@ def get_issue_async() -> None:
     - jira.issue_key (required): Issue key to retrieve
 
     Usage:
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         agdt-get-jira-issue
     """
-    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
+    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key PROJECT-1234")
 
     task = run_function_in_background(
         _GET_MODULE,
@@ -254,11 +254,11 @@ def update_issue_async() -> None:
     - Plus any update fields (jira.summary, jira.description, etc.)
 
     Usage:
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         agdt-set jira.summary "New Summary"
         agdt-update-jira-issue
     """
-    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key DFLY-1234")
+    issue_key = _require_jira_value("issue_key", "agdt-set jira.issue_key PROJECT-1234")
 
     task = run_function_in_background(
         _UPDATE_MODULE,
@@ -281,10 +281,10 @@ def list_project_roles_async() -> None:
     - jira.project_key (required): Project key
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-list-project-roles
     """
-    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
 
     task = run_function_in_background(
         _ROLE_MODULE,
@@ -303,11 +303,11 @@ def get_project_role_details_async() -> None:  # pragma: no cover
     - jira.role_id (required): Role ID
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.role_id 10002
         agdt-get-project-role-details
     """
-    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
 
     task = run_function_in_background(
@@ -328,12 +328,12 @@ def add_users_to_project_role_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.role_id 10002
         agdt-set jira.users "user1,user2"
         agdt-add-users-to-project-role
     """
-    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
     _require_jira_value("users", 'agdt-set jira.users "user1,user2"')
 
@@ -355,12 +355,12 @@ def add_users_to_project_role_batch_async() -> None:
     - jira.users (required): Comma-separated list of usernames
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.role_id 10002
         agdt-set jira.users "user1,user2,user3"
         agdt-add-users-to-project-role-batch
     """
-    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("role_id", "agdt-set jira.role_id 10002")
     _require_jira_value("users", 'agdt-set jira.users "user1,user2,user3"')
 
@@ -381,11 +381,11 @@ def find_role_id_by_name_async() -> None:
     - jira.role_name (required): Role name to find
 
     Usage:
-        agdt-set jira.project_key DFLY
+        agdt-set jira.project_key PROJECT
         agdt-set jira.role_name "Developers"
         agdt-find-role-id-by-name
     """
-    project_key = _require_jira_value("project_key", "agdt-set jira.project_key DFLY")
+    project_key = _require_jira_value("project_key", "agdt-set jira.project_key PROJECT")
     _require_jira_value("role_name", 'agdt-set jira.role_name "Developers"')
 
     task = run_function_in_background(

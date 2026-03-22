@@ -42,7 +42,7 @@ def _get_linked_pull_request_from_jira(issue_key: str) -> int | None:
     This looks for remote links that point to Azure DevOps pull requests.
 
     Args:
-        issue_key: Jira issue key (e.g., DFLY-1234)
+        issue_key: Jira issue key (e.g., PROJECT-1234)
 
     Returns:
         Pull request ID if found, None otherwise

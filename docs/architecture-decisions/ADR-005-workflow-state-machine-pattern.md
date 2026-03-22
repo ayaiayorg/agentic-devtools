@@ -30,7 +30,7 @@
     "status": "in-progress",
     "step": "implementation",
     "context": {
-      "issue_key": "DFLY-1234",
+      "issue_key": "PROJECT-1234",
       "pull_request_id": 123,
       "checklist": [...]
     }

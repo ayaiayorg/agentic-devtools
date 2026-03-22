@@ -122,7 +122,7 @@ class TestCommitCommand:
     ):
         """Test that commit cmd uses amend when should_amend_instead_of_commit returns True."""
         state.set_value("commit_message", "Updated commit")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
@@ -150,7 +150,7 @@ class TestCommitCommand:
     ):
         """Test that commit cmd uses new commit when should_amend returns False."""
         state.set_value("commit_message", "New commit")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
@@ -183,7 +183,7 @@ class TestCommitCommand:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": False},
@@ -229,7 +229,7 @@ class TestCommitCommand:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [{"id": 1, "text": "Task 1", "completed": False}],
                     "modified_by_agent": False,

@@ -4,7 +4,7 @@
     {
       "request": {
         "method": "POST",
-        "uri": "https://test.atlassian.net/rest/api/2/issue/DFLY-1234/comment",
+        "uri": "https://test.atlassian.net/rest/api/2/issue/PROJECT-1234/comment",
         "body": "{\"body\": \"This is a test comment from E2E smoke test\"}",
         "headers": {
           "Accept": ["*/*"],

@@ -815,15 +815,15 @@ class TestLookupJiraIssueFromPrAsync:
 
         # Patch the unified helper function
         with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
-            mock_find.return_value = "DFLY-1234"
+            mock_find.return_value = "PROJECT-1234"
 
             lookup_jira_issue_from_pr_async(12345)
 
             mock_find.assert_called_once_with(12345)
-            assert get_value("jira.issue_key") == "DFLY-1234"
+            assert get_value("jira.issue_key") == "PROJECT-1234"
 
         captured = capsys.readouterr()
-        assert "Found Jira issue DFLY-1234" in captured.out
+        assert "Found Jira issue PROJECT-1234" in captured.out
 
     def test_does_not_overwrite_existing_jira_key(self, mock_background_and_state, capsys):
         """Test that existing jira.issue_key is not overwritten."""
@@ -831,15 +831,15 @@ class TestLookupJiraIssueFromPrAsync:
         from agentic_devtools.state import get_value, set_value
 
         # Set existing key
-        set_value("jira.issue_key", "DFLY-EXISTING")
+        set_value("jira.issue_key", "PROJECT-EXISTING")
 
         with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
-            mock_find.return_value = "DFLY-1234"
+            mock_find.return_value = "PROJECT-1234"
 
             lookup_jira_issue_from_pr_async(12345)
 
             # Should NOT overwrite
-            assert get_value("jira.issue_key") == "DFLY-EXISTING"
+            assert get_value("jira.issue_key") == "PROJECT-EXISTING"
 
     def test_no_issue_key_found(self, mock_background_and_state, capsys):
         """Test handling when no issue key found."""
@@ -882,9 +882,9 @@ class TestLookupPrFromJiraIssueAsync:
         with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find:
             mock_find.return_value = 99999
 
-            lookup_pr_from_jira_issue_async("DFLY-1234")
+            lookup_pr_from_jira_issue_async("PROJECT-1234")
 
-            mock_find.assert_called_once_with("DFLY-1234")
+            mock_find.assert_called_once_with("PROJECT-1234")
             assert get_value("pull_request_id") == "99999"
 
         captured = capsys.readouterr()
@@ -901,7 +901,7 @@ class TestLookupPrFromJiraIssueAsync:
         with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find:
             mock_find.return_value = 99999
 
-            lookup_pr_from_jira_issue_async("DFLY-1234")
+            lookup_pr_from_jira_issue_async("PROJECT-1234")
 
             # Should NOT overwrite
             assert get_value("pull_request_id") == 11111
@@ -914,7 +914,7 @@ class TestLookupPrFromJiraIssueAsync:
         with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find:
             mock_find.return_value = None
 
-            lookup_pr_from_jira_issue_async("DFLY-1234")
+            lookup_pr_from_jira_issue_async("PROJECT-1234")
 
             assert get_value("pull_request_id") is None
 
@@ -929,7 +929,7 @@ class TestLookupPrFromJiraIssueAsync:
             mock_find.side_effect = Exception("Network error")
 
             # Should not raise
-            lookup_pr_from_jira_issue_async("DFLY-1234")
+            lookup_pr_from_jira_issue_async("PROJECT-1234")
 
         captured = capsys.readouterr()
         assert "Could not look up PR from Jira issue" in captured.out

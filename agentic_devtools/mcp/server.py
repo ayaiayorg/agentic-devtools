@@ -196,7 +196,7 @@ def create_mcp_server() -> FastMCP:
         """Create a Jira issue.
 
         Args:
-            project_key: Jira project key (e.g. "DFLY").
+            project_key: Jira project key (e.g. "PROJECT").
             summary: Issue summary / title.
             issue_type: Issue type name ("Task", "Epic", "Sub-task", …).
             description: Issue description body.
@@ -299,7 +299,7 @@ def create_mcp_server() -> FastMCP:
         """Add a comment to a Jira issue.
 
         Args:
-            issue_key: The issue key (e.g. "DFLY-1234").
+            issue_key: The issue key (e.g. "PROJECT-1234").
             comment: Comment body text.
         """
         if jira_config is None:
@@ -323,7 +323,7 @@ def create_mcp_server() -> FastMCP:
         """Fetch full context for a Jira issue including parent and epic.
 
         Args:
-            issue_key: The issue key (e.g. "DFLY-1234").
+            issue_key: The issue key (e.g. "PROJECT-1234").
         """
         if jira_config is None:
             return {"error": _JIRA_MISSING_MSG}

@@ -43,10 +43,10 @@ class TestAddComment:
         mock_requests.post.return_value = mock_response
         config = self._make_config(mock_requests)
 
-        add_comment(config=config, issue_key="DFLY-456", comment="Hello world")
+        add_comment(config=config, issue_key="PROJECT-456", comment="Hello world")
 
         call_args = mock_requests.post.call_args
-        assert "DFLY-456/comment" in call_args[0][0]
+        assert "PROJECT-456/comment" in call_args[0][0]
         assert call_args[1]["json"]["body"] == "Hello world"
 
     def test_calls_raise_for_status(self):

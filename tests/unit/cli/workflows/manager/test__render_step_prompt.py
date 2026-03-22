@@ -11,7 +11,7 @@ class TestRenderStepPrompt:
 
     def test_state_values_added_to_variables(self, temp_state_dir):
         """State values for common keys should be added to template variables."""
-        state.set_value("jira.issue_key", "DFLY-999")
+        state.set_value("jira.issue_key", "PROJECT-999")
         state.set_value("commit_message", "fix: something")
 
         with patch(
@@ -22,7 +22,7 @@ class TestRenderStepPrompt:
 
         call_kwargs = mock_render.call_args
         variables = call_kwargs.kwargs.get("variables") or call_kwargs[1].get("variables")
-        assert variables["jira_issue_key"] == "DFLY-999"
+        assert variables["jira_issue_key"] == "PROJECT-999"
         assert variables["commit_message"] == "fix: something"
 
     def test_commit_message_sets_git_commit_usage(self, temp_state_dir):

@@ -350,7 +350,7 @@ class TestSetupPullRequestReview:
         def get_value_side_effect(key, default=None):
             mapping = {
                 "pull_request_id": "123",
-                "jira.issue_key": "DFLY-1234",
+                "jira.issue_key": "PROJECT-1234",
                 "include_reviewed": "false",
             }
             return mapping.get(key, default)
@@ -389,7 +389,7 @@ class TestSetupPullRequestReview:
                                                     with patch("agentic_devtools.state.set_value"):
                                                         with patch("agentic_devtools.state.delete_value"):
                                                             setup_pull_request_review()
-                                                        mock_fetch_jira.assert_called_once_with("DFLY-1234")
+                                                        mock_fetch_jira.assert_called_once_with("PROJECT-1234")
 
     def test_exits_when_pr_details_file_missing(self, capsys):
         """Test exits with error when PR details file not found."""
@@ -737,7 +737,7 @@ class TestSetupPullRequestReviewPersistence:
         def get_value_with_jira(key, default=None):
             mapping = {
                 "pull_request_id": "456",
-                "jira.issue_key": "DFLY-789",
+                "jira.issue_key": "PROJECT-789",
                 "include_reviewed": "false",
             }
             return mapping.get(key, default)
@@ -804,7 +804,7 @@ class TestSetupPullRequestReviewPersistence:
 
         jira_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "jira.issue_key"]
         assert len(jira_calls) >= 1
-        assert jira_calls[0][0][1] == "DFLY-789"
+        assert jira_calls[0][0][1] == "PROJECT-789"
 
     def test_does_not_set_jira_issue_key_when_absent(self):
         """Regression: jira.issue_key must NOT be re-set when it was not in state."""
@@ -1838,7 +1838,7 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
                 "pullRequestId": 123,
                 "title": "Test PR",
                 "createdBy": {"displayName": "Test User"},
-                "sourceRefName": "refs/heads/feature/DFLY-1234/test",
+                "sourceRefName": "refs/heads/feature/PROJECT-1234/test",
                 "targetRefName": "refs/heads/main",
             },
             "files": [],
@@ -1925,8 +1925,8 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
         Issue key takes priority over PR ID as the worktree_key, matching the
         resolve_worktree_key() priority in agdt_branch.py.
         """
-        mock_set_bootstrap = self._run_setup_with_issue_key("DFLY-1234")
-        mock_set_bootstrap.assert_called_once_with(worktree_key="DFLY-1234")
+        mock_set_bootstrap = self._run_setup_with_issue_key("PROJECT-1234")
+        mock_set_bootstrap.assert_called_once_with(worktree_key="PROJECT-1234")
 
     def test_falls_back_to_pr_id_when_no_issue_key(self):
         """When only pull_request_id is in state (no jira.issue_key), worktree_key is PR{id}."""

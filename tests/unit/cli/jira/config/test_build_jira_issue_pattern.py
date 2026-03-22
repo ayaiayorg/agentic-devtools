@@ -8,16 +8,16 @@ class TestBuildJiraIssuePattern:
 
     def test_single_key(self):
         """Should build pattern for a single project key."""
-        pattern = build_jira_issue_pattern(["DFLY"])
-        assert pattern.search("feature/DFLY-1234/my-feature")
-        match = pattern.search("DFLY-5678")
+        pattern = build_jira_issue_pattern(["PROJECT"])
+        assert pattern.search("feature/PROJECT-1234/my-feature")
+        match = pattern.search("PROJECT-5678")
         assert match is not None
-        assert match.group(1) == "DFLY-5678"
+        assert match.group(1) == "PROJECT-5678"
 
     def test_multiple_keys(self):
         """Should build alternation pattern for multiple keys."""
-        pattern = build_jira_issue_pattern(["DFLY", "PROJ"])
-        assert pattern.search("DFLY-1234") is not None
+        pattern = build_jira_issue_pattern(["PROJECT", "PROJ"])
+        assert pattern.search("PROJECT-1234") is not None
         assert pattern.search("PROJ-5678") is not None
         assert pattern.search("OTHER-9999") is None
 
@@ -30,10 +30,10 @@ class TestBuildJiraIssuePattern:
 
     def test_case_insensitive(self):
         """Should match case-insensitively."""
-        pattern = build_jira_issue_pattern(["DFLY"])
-        match = pattern.search("dfly-1234")
+        pattern = build_jira_issue_pattern(["PROJECT"])
+        match = pattern.search("project-1234")
         assert match is not None
-        assert match.group(1) == "dfly-1234"
+        assert match.group(1) == "project-1234"
 
     def test_escapes_special_characters_in_keys(self):
         """Should properly escape special regex characters in keys."""

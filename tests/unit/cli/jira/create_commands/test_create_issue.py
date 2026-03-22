@@ -136,7 +136,7 @@ class TestCreateIssueWithMock:
         jira.create_issue()
 
         captured = capsys.readouterr()
-        assert "DFLY-9999" in captured.out
+        assert "PROJECT-9999" in captured.out
         assert "created successfully" in captured.out
 
     def test_create_issue_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):

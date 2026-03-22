@@ -60,21 +60,21 @@ class TestSetupWorktreeInBackgroundSync:
         capsys,
     ):
         """Test that existing worktree is reused, PATH settings injected, and VS Code opened."""
-        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
 
-        mock_check_exists.assert_called_once_with("DFLY-1234")
-        mock_inject_git.assert_called_once_with("/repos/DFLY-1234")
-        mock_inject_python.assert_called_once_with("/repos/DFLY-1234")
-        mock_open_vscode.assert_called_once_with("/repos/DFLY-1234")
+        mock_check_exists.assert_called_once_with("PROJECT-1234")
+        mock_inject_git.assert_called_once_with("/repos/PROJECT-1234")
+        mock_inject_python.assert_called_once_with("/repos/PROJECT-1234")
+        mock_open_vscode.assert_called_once_with("/repos/PROJECT-1234")
         captured = capsys.readouterr()
         assert "Worktree already exists" in captured.out
         assert "Environment ready!" in captured.out
@@ -95,20 +95,20 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
             vscode_opened=True,
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
         )
 
-        mock_check_exists.assert_called_once_with("DFLY-1234")
+        mock_check_exists.assert_called_once_with("PROJECT-1234")
         mock_setup.assert_called_once()
         captured = capsys.readouterr()
         assert "Creating worktree" in captured.out
@@ -132,7 +132,7 @@ class TestSetupWorktreeInBackgroundSync:
 
         with pytest.raises(RuntimeError) as exc_info:
             setup_worktree_in_background_sync(
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
                 branch_prefix="feature",
                 workflow_name="work-on-jira-issue",
             )
@@ -154,25 +154,25 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="create-jira-issue",
             user_request="Create a feature for X",
-            additional_params={"parent_key": "DFLY-1000"},
+            additional_params={"parent_key": "PROJECT-1000"},
         )
 
         mock_continuation_prompt.assert_called_with(
-            "DFLY-1234",
+            "PROJECT-1234",
             "create-jira-issue",
             "Create a feature for X",
-            {"parent_key": "DFLY-1000"},
+            {"parent_key": "PROJECT-1000"},
         )
 
     @patch("agentic_devtools.state.set_value")
@@ -194,15 +194,15 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 0
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["agdt-review", "--pr-id", "42"],
             auto_execute_timeout=120,
@@ -210,7 +210,7 @@ class TestSetupWorktreeInBackgroundSync:
 
         mock_run_cmd.assert_called_once_with(
             ["agdt-review", "--pr-id", "42"],
-            "/repos/DFLY-1234",
+            "/repos/PROJECT-1234",
             120,
         )
         mock_set_value.assert_any_call("worktree_setup.auto_execute_exit_code", "0")
@@ -231,19 +231,19 @@ class TestSetupWorktreeInBackgroundSync:
         mock_set_value,
     ):
         """Test that auto_execute_command is run when worktree already exists."""
-        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 0
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["agdt-review"],
         )
 
-        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/DFLY-1234", 300)
+        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/PROJECT-1234", 300)
         mock_set_value.assert_any_call("worktree_setup.auto_execute_exit_code", "0")
 
     @patch("agentic_devtools.state.set_value")
@@ -266,15 +266,15 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 1  # Non-zero exit code
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["failing-cmd"],
         )
@@ -299,15 +299,15 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         with patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command") as mock_run_cmd:
             setup_worktree_in_background_sync(
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
                 workflow_name="work-on-jira-issue",
                 auto_execute_command=None,
             )
@@ -335,15 +335,15 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/review",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/review",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 0
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "99"],
             interactive=True,
@@ -368,14 +368,14 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/impl",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/impl",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["agdt-some-command"],
         )
@@ -399,14 +399,14 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/review",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/review",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=None,
         )
@@ -431,14 +431,14 @@ class TestSetupWorktreeInBackgroundSync:
         mock_copilot,
     ):
         """Test that Copilot session is NOT started when auto_execute re-runs the workflow (existing worktree)."""
-        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 0
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "42"],
             interactive=False,
@@ -467,15 +467,15 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/review",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/review",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 1  # Non-zero exit code
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "99"],
             interactive=True,
@@ -501,14 +501,14 @@ class TestSetupWorktreeInBackgroundSync:
         mock_copilot,
     ):
         """Test that Copilot session is NOT started when auto_execute fails (existing worktree)."""
-        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
         mock_open_vscode.return_value = True
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_run_cmd.return_value = 1  # Non-zero exit code
 
         setup_worktree_in_background_sync(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             workflow_name="pull-request-review",
             auto_execute_command=["agdt-initiate-pull-request-review-workflow", "--pull-request-id", "42"],
             interactive=True,
@@ -537,7 +537,7 @@ class TestSetupWorktreeInBackgroundSync:
         agdt-copilot-auto-start task, all workflow context data has already
         been fetched by _run_auto_execute_command.
         """
-        mock_check_exists.return_value = "/repos/DFLY-1234"
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
         mock_open_vscode.return_value = True
@@ -554,7 +554,7 @@ class TestSetupWorktreeInBackgroundSync:
             mock_inject_auto_start.side_effect = lambda *a, **kw: call_order.append("inject_auto_start") or None
 
             setup_worktree_in_background_sync(
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
                 workflow_name="work-on-jira-issue",
                 auto_execute_command=["agdt-review", "--pr-id", "42"],
             )
@@ -597,8 +597,8 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.return_value = None
         mock_setup.return_value = WorktreeSetupResult(
             success=True,
-            worktree_path="/repos/DFLY-1234",
-            branch_name="feature/DFLY-1234/implementation",
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
         )
         mock_continuation_prompt.return_value = "Continue..."
         mock_ai_prompt.return_value = "AI Agent prompt"
@@ -615,7 +615,7 @@ class TestSetupWorktreeInBackgroundSync:
             mock_inject_auto_start.side_effect = lambda *a, **kw: call_order.append("inject_auto_start") or None
 
             setup_worktree_in_background_sync(
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
                 workflow_name="work-on-jira-issue",
                 auto_execute_command=["agdt-review", "--pr-id", "42"],
             )

@@ -103,14 +103,14 @@ def _get_organization_account_name(org_url: str) -> str | None:
     except Exception:  # pragma: no cover
         return None
 
-    # Check path first (e.g., https://dev.azure.com/swica -> swica)
+    # Check path first (e.g., https://dev.azure.com/example-org -> example-org)
     path = parsed.path.strip("/")
     if path:
         segments = [s for s in path.split("/") if s]
         if segments:
             return segments[-1]
 
-    # Fall back to hostname (e.g., swica.visualstudio.com -> swica)
+    # Fall back to hostname (e.g., acme.visualstudio.com -> acme)
     host_parts = parsed.hostname.split(".") if parsed.hostname else []
     return host_parts[0] if host_parts else None
 
@@ -144,7 +144,7 @@ def _resolve_storage_key_via_graph(
     Args:
         requests: requests module
         headers: Authorization headers
-        org_root: Organization root URL (e.g., https://dev.azure.com/swica)
+        org_root: Organization root URL (e.g., https://dev.azure.com/example-org)
         descriptor: User descriptor (e.g., aad.xxx or msa.xxx)
 
     Returns:

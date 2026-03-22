@@ -43,7 +43,7 @@ class TestTryAdvanceWorkflowAfterPrCreation:
             name="work-on-jira-issue",
             status="in-progress",
             step="pull-request",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = advancement.try_advance_workflow_after_pr_creation(12345, "https://example.com/pr/12345")

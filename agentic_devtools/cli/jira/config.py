@@ -18,7 +18,7 @@ def get_jira_project_keys() -> list[str]:
     3. Environment variable ``JIRA_PROJECT_KEYS``
     4. Empty list (generic fallback)
 
-    The config value is a comma-separated string (e.g. ``"DFLY,PROJ"``).
+    The config value is a comma-separated string (e.g. ``"ACME,PROJ"``).
     """
     from agentic_devtools.cli.config.project_config import get_project_config_value
     from agentic_devtools.state import get_value
@@ -37,7 +37,7 @@ def build_jira_issue_pattern(project_keys: list[str]) -> re.Pattern[str]:
     """Build a compiled regex for matching Jira issue keys.
 
     If *project_keys* is non-empty the pattern matches only those projects
-    (e.g. ``((?:DFLY|PROJ)-\\d+)``).  Otherwise a generic pattern
+    (e.g. ``((?:ACME|PROJ)-\\d+)``).  Otherwise a generic pattern
     ``([A-Z]{2,10}-\\d+)`` is used.
     """
     if project_keys:

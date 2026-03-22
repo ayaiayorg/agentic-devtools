@@ -117,7 +117,7 @@ Full end-to-end workflow for implementing a Jira issue.
 | 10 | `/agdt.work-on-jira-issue.pull-request` | Create a pull request |
 | 11 | `/agdt.work-on-jira-issue.completion` | Post final Jira comment |
 
-**Usage:** Start with `/agdt.work-on-jira-issue.initiate DFLY-1234`, then follow
+**Usage:** Start with `/agdt.work-on-jira-issue.initiate PROJECT-1234`, then follow
 the handoff buttons to advance through steps. You can also jump to any step
 directly if needed.
 

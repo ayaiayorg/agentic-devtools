@@ -18,9 +18,9 @@ class TestCheckWorktreeExists:
         # First call: worktree path exists, Second call: .git file exists
         mock_exists.side_effect = [True, True]
 
-        result = check_worktree_exists("DFLY-1234")
+        result = check_worktree_exists("PROJECT-1234")
 
-        assert "DFLY-1234" in result
+        assert "PROJECT-1234" in result
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_repos_parent_dir")
     @patch("agentic_devtools.cli.workflows.worktree_setup.os.path.exists")
@@ -29,7 +29,7 @@ class TestCheckWorktreeExists:
         mock_parent.return_value = "/repos"
         mock_exists.return_value = False
 
-        result = check_worktree_exists("DFLY-1234")
+        result = check_worktree_exists("PROJECT-1234")
 
         assert result is None
 
@@ -38,7 +38,7 @@ class TestCheckWorktreeExists:
         """Test returning None when parent directory not found."""
         mock_parent.return_value = None
 
-        result = check_worktree_exists("DFLY-1234")
+        result = check_worktree_exists("PROJECT-1234")
 
         assert result is None
 
@@ -50,6 +50,6 @@ class TestCheckWorktreeExists:
         # First call: worktree path exists, Second call: .git file doesn't exist
         mock_exists.side_effect = [True, False]
 
-        result = check_worktree_exists("DFLY-1234")
+        result = check_worktree_exists("PROJECT-1234")
 
         assert result is None

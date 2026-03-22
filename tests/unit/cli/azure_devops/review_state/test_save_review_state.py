@@ -11,9 +11,9 @@ def _make_review_state(pr_id: int = 25365) -> ReviewState:
     return ReviewState(
         prId=pr_id,
         repoId="repo-guid",
-        repoName="dfly-platform-management",
-        project="DragonflyMgmt",
-        organization="https://dev.azure.com/swica",
+        repoName="example-repo-name",
+        project="ExampleProject",
+        organization="https://dev.azure.com/example-org",
         latestIterationId=5,
         scaffoldedUtc="2026-02-25T10:00:00Z",
         overallSummary=OverallSummary(threadId=161000, commentId=1771800000),
@@ -76,7 +76,7 @@ class TestSaveReviewState:
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             restored = ReviewState.from_dict(data)
             assert restored.prId == 25365
-            assert restored.repoName == "dfly-platform-management"
+            assert restored.repoName == "example-repo-name"
 
     def test_commit_hash_serialized_when_set(self, tmp_path):
         """Test that commitHash is included in the serialized JSON."""

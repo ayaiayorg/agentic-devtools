@@ -20,14 +20,14 @@ class TestResolveWorktreeKeyExplicit:
     def test_explicit_key_returned_directly(self):
         """Explicit non-empty key is returned without state lookup."""
         with patch(f"{_MOD}.get_value") as mock_get:
-            result = resolve_worktree_key("DFLY-1234")
-        assert result == "DFLY-1234"
+            result = resolve_worktree_key("PROJECT-1234")
+        assert result == "PROJECT-1234"
         mock_get.assert_not_called()
 
     def test_explicit_key_stripped(self):
         """Leading/trailing whitespace is stripped from explicit key."""
-        result = resolve_worktree_key("  DFLY-1234  ")
-        assert result == "DFLY-1234"
+        result = resolve_worktree_key("  PROJECT-1234  ")
+        assert result == "PROJECT-1234"
 
     def test_explicit_key_with_pr_prefix(self):
         """Explicit key with PR prefix is returned as-is (passthrough)."""
@@ -46,26 +46,26 @@ class TestResolveWorktreeKeyAutoFromJira:
     @patch(f"{_MOD}.get_value")
     def test_resolves_from_jira_issue_key(self, mock_get):
         """Auto-resolves from jira.issue_key when no explicit key."""
-        mock_get.side_effect = lambda k: "DFLY-1234" if k == "jira.issue_key" else None
+        mock_get.side_effect = lambda k: "PROJECT-1234" if k == "jira.issue_key" else None
         result = resolve_worktree_key()
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     @patch(f"{_MOD}.get_value")
     def test_jira_key_takes_priority_over_pr_id(self, mock_get):
         """jira.issue_key takes priority when both jira and PR are set."""
         mock_get.side_effect = lambda k: {
-            "jira.issue_key": "DFLY-1234",
+            "jira.issue_key": "PROJECT-1234",
             "pull_request_id": 12345,
         }.get(k)
         result = resolve_worktree_key()
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     @patch(f"{_MOD}.get_value")
     def test_jira_key_stripped(self, mock_get):
         """jira.issue_key value is stripped of whitespace."""
-        mock_get.side_effect = lambda k: "  DFLY-1234  " if k == "jira.issue_key" else None
+        mock_get.side_effect = lambda k: "  PROJECT-1234  " if k == "jira.issue_key" else None
         result = resolve_worktree_key()
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ class TestResolveWorktreeKeyFailure:
 class TestPersistWorkflowStateWorktreeKeyIntegration:
     """Tests for worktree_key auto-resolution in persist_workflow_state."""
 
-    @patch(f"{_MOD}.resolve_worktree_key", return_value="DFLY-1234")
+    @patch(f"{_MOD}.resolve_worktree_key", return_value="PROJECT-1234")
     @patch(f"{_MOD}._discover_workflow_files", return_value={})
     @patch(f"{_MOD}._get_repo_root")
     def test_persist_auto_resolves_worktree_key(self, _root, _disc, mock_resolve):
@@ -168,7 +168,7 @@ class TestPersistWorkflowStateWorktreeKeyIntegration:
 
         result = persist_workflow_state("feat", worktree_key=None)
         mock_resolve.assert_called_once_with(None)
-        assert result.worktree_key == "DFLY-1234"
+        assert result.worktree_key == "PROJECT-1234"
 
     @patch(
         f"{_MOD}.resolve_worktree_key",
@@ -206,10 +206,10 @@ class TestLoadWorkflowArtifactsWorktreeKeyIntegration:
     @patch(f"{_MOD}.read_blob", return_value='{"k": "v"}')
     @patch(
         f"{_MOD}.read_branch_tree",
-        return_value={".agdt/workflows/default/DFLY-1234/state.json": "sha1"},
+        return_value={".agdt/workflows/default/PROJECT-1234/state.json": "sha1"},
     )
     @patch(f"{_MOD}._branch_exists_locally", return_value=True)
-    @patch(f"{_MOD}.resolve_worktree_key", return_value="DFLY-1234")
+    @patch(f"{_MOD}.resolve_worktree_key", return_value="PROJECT-1234")
     def test_load_auto_resolves_worktree_key(self, mock_resolve, _loc, _tree, _blob):
         """load_workflow_artifacts proceeds when resolve_worktree_key succeeds."""
         from agentic_devtools.cli.git.agdt_branch import load_workflow_artifacts

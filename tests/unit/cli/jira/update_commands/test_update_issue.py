@@ -35,7 +35,7 @@ class TestUpdateIssue:
         """Test update_issue exits if no fields to update."""
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
-            side_effect=lambda k: "DFLY-123" if k == "issue_key" else None,
+            side_effect=lambda k: "PROJECT-123" if k == "issue_key" else None,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 update_issue()
@@ -46,7 +46,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "summary": "New Summary",
                 "dry_run": "true",
             }.get(k),
@@ -59,7 +59,7 @@ class TestUpdateIssue:
 
         captured = capsys.readouterr()
         assert "[DRY RUN]" in captured.out
-        assert "DFLY-123" in captured.out
+        assert "PROJECT-123" in captured.out
 
     def test_successful_update(self, mock_state_dir, capsys):
         """Test successful issue update."""
@@ -70,7 +70,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "summary": "Updated Summary",
             }.get(k),
         ):
@@ -103,7 +103,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "labels": "label1,label2,label3",
             }.get(k),
         ):
@@ -124,7 +124,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "custom_fields": custom_json,
             }.get(k),
         ):
@@ -142,7 +142,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "custom_fields": "not valid json",
             }.get(k),
         ):
@@ -155,7 +155,7 @@ class TestUpdateIssue:
         with patch(
             "agentic_devtools.cli.jira.update_commands.get_jira_value",
             side_effect=lambda k: {
-                "issue_key": "DFLY-123",
+                "issue_key": "PROJECT-123",
                 "custom_fields": '["not", "an", "object"]',
             }.get(k),
         ):

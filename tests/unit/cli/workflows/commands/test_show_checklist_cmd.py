@@ -70,7 +70,7 @@ class TestShowChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         commands.show_checklist_cmd()
@@ -85,7 +85,7 @@ class TestShowChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -110,7 +110,7 @@ class TestShowChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -149,7 +149,7 @@ class TestShowChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         with patch.object(sys, "argv", ["agdt-show-checklist"]):
@@ -166,7 +166,7 @@ class TestShowChecklistCmdFromChecklistCommands:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1850",
+                "jira_issue_key": "PROJECT-1850",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": True},

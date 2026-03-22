@@ -13,7 +13,7 @@ class TestFetchParentIssue:
         mock_module = MagicMock()
         mock_response = MagicMock()
         parent_data = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {"summary": "Parent Issue"},
         }
         mock_response.json.return_value = parent_data
@@ -21,7 +21,7 @@ class TestFetchParentIssue:
         mock_module.get.return_value = mock_response
 
         result = get_commands._fetch_parent_issue(
-            mock_module, "https://jira.example.com", "DFLY-1234", {"Authorization": "Basic xxx"}
+            mock_module, "https://jira.example.com", "PROJECT-1234", {"Authorization": "Basic xxx"}
         )
 
         assert result == parent_data
@@ -32,9 +32,9 @@ class TestFetchParentIssue:
         mock_module.get.side_effect = Exception("Network error")
 
         result = get_commands._fetch_parent_issue(
-            mock_module, "https://jira.example.com", "DFLY-1234", {"Authorization": "Basic xxx"}
+            mock_module, "https://jira.example.com", "PROJECT-1234", {"Authorization": "Basic xxx"}
         )
 
         assert result is None
         captured = capsys.readouterr()
-        assert "Warning: Could not fetch parent issue DFLY-1234" in captured.err
+        assert "Warning: Could not fetch parent issue PROJECT-1234" in captured.err

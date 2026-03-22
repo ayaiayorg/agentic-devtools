@@ -250,7 +250,7 @@ def create_pull_request_async_cli() -> None:
         epilog="""
 Examples:
   agdt-create-pull-request --source-branch "feature/my-feature" --title "Add feature"
-  agdt-create-pull-request -b "feature/DFLY-1234" -t "feature(DFLY-1234): add feature" -d "Description"
+  agdt-create-pull-request -b "feature/PROJECT-1234" -t "feature(PROJECT-1234): add feature" -d "Description"
 
   # Or using state:
   agdt-set source_branch "feature/my-feature"
@@ -1426,7 +1426,7 @@ def setup_pull_request_review_async(  # pragma: no cover
 
     Usage:
         agdt-set pull_request_id 12345
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         # Then called internally by agdt-initiate-pull-request-review-workflow
     """
     # Get PR ID from parameter or state
@@ -1473,8 +1473,8 @@ def lookup_jira_issue_from_pr_async(pull_request_id: int) -> None:
     """
     Look up Jira issue key from a PR and save to state.
 
-    Searches for Jira issue key (e.g., DFLY-1234) in:
-    1. PR source branch name (e.g., feature/DFLY-1234/my-feature)
+    Searches for Jira issue key (e.g., PROJECT-1234) in:
+    1. PR source branch name (e.g., feature/PROJECT-1234/my-feature)
     2. PR title
     3. PR description
 
@@ -1514,7 +1514,7 @@ def lookup_pr_from_jira_issue_async(issue_key: str) -> None:
     This is designed for background execution and silently saves pull_request_id if found.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
     """
     from .helpers import find_pr_from_jira_issue
 

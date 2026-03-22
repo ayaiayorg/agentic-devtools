@@ -71,7 +71,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         with patch("sys.argv", ["agdt-update-checklist", "--complete", "1"]):
@@ -87,7 +87,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         # Create a checklist first
@@ -109,7 +109,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -130,7 +130,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -150,7 +150,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -170,7 +170,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -190,7 +190,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -210,7 +210,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -230,7 +230,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -250,7 +250,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -270,7 +270,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -290,7 +290,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -310,7 +310,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -330,7 +330,7 @@ class TestUpdateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
@@ -372,7 +372,7 @@ class TestUpdateChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         with patch.object(sys, "argv", ["agdt-update-checklist", "--complete", "1"]):
@@ -390,7 +390,7 @@ class TestUpdateChecklistCmdFromChecklistCommands:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1850",
+                "jira_issue_key": "PROJECT-1850",
                 "checklist": {
                     "items": [{"id": 1, "text": "Task", "completed": False}],
                     "modified_by_agent": False,
@@ -413,7 +413,7 @@ class TestUpdateChecklistCmdFromChecklistCommands:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1850",
+                "jira_issue_key": "PROJECT-1850",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": False},
@@ -438,7 +438,7 @@ class TestUpdateChecklistCmdFromChecklistCommands:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1850",
+                "jira_issue_key": "PROJECT-1850",
                 "checklist": {
                     "items": [{"id": 1, "text": "Task 1", "completed": False}],
                     "modified_by_agent": False,
@@ -459,7 +459,7 @@ class TestUpdateChecklistCmdFromChecklistCommands:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1850",
+                "jira_issue_key": "PROJECT-1850",
                 "checklist": {
                     "items": [{"id": 1, "text": "Task 1", "completed": False}],
                     "modified_by_agent": False,

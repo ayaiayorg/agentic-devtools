@@ -25,12 +25,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_success(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test successful issue retrieval."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test description",
@@ -47,17 +47,17 @@ class TestGetIssueWithMock:
                 jira.get_issue()
 
         captured = capsys.readouterr()
-        assert "DFLY-1234" in captured.out
+        assert "PROJECT-1234" in captured.out
         assert "Test Issue" in captured.out
 
     def test_get_issue_with_adf_description(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles ADF description format."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": {
@@ -81,12 +81,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_with_comments(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue displays comments."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Description",
@@ -117,12 +117,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_with_adf_comments(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles ADF format in comments."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Description",
@@ -160,12 +160,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_no_description(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles missing description."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": None,
@@ -186,12 +186,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_saves_json_file(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test get_issue saves JSON response to file."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         response_data = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test",
                 "description": "Desc",
@@ -211,11 +211,11 @@ class TestGetIssueWithMock:
         json_file = temp_state_dir / "temp-get-issue-details-response.json"
         assert json_file.exists()
         content = json.loads(json_file.read_text(encoding="utf-8"))
-        assert content["key"] == "DFLY-1234"
+        assert content["key"] == "PROJECT-1234"
 
     def test_get_issue_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test get_issue handles API error."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_module.get.side_effect = Exception("API Error")
@@ -226,12 +226,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_empty_issuetype(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles empty issuetype."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test",
                 "description": "Desc",
@@ -252,12 +252,12 @@ class TestGetIssueWithMock:
 
     def test_get_issue_non_string_description(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles non-string, non-dict description."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test",
                 "description": 12345,  # Integer description
@@ -278,14 +278,14 @@ class TestGetIssueWithMock:
 
     def test_get_issue_with_linked_pull_requests(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue displays linked pull requests."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
 
         # Main issue response
         mock_issue_response = MagicMock()
         mock_issue_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test description",
@@ -324,13 +324,13 @@ class TestGetIssueWithMock:
 
     def test_get_issue_with_merged_pull_request(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue displays merged PR status correctly."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
 
         mock_issue_response = MagicMock()
         mock_issue_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test",
@@ -365,13 +365,13 @@ class TestGetIssueWithMock:
 
     def test_get_issue_with_non_pr_remote_links(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue displays non-PR remote links."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
 
         mock_issue_response = MagicMock()
         mock_issue_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test",
@@ -406,13 +406,13 @@ class TestGetIssueWithMock:
 
     def test_get_issue_no_remote_links(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles no remote links."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
 
         mock_issue_response = MagicMock()
         mock_issue_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test",
@@ -444,21 +444,21 @@ class TestGetIssueSubtaskParentDetection:
         self, temp_state_dir, clear_state_before, mock_jira_env, capsys
     ):
         """Test get_issue automatically fetches parent when issue is a subtask."""
-        jira.set_jira_value("issue_key", "DFLY-5678")
+        jira.set_jira_value("issue_key", "PROJECT-5678")
 
         mock_module = MagicMock()
 
         # Subtask issue response
         mock_subtask_response = MagicMock()
         mock_subtask_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Subtask to fix bug",
                 "description": "Subtask description",
                 "issuetype": {"name": "Sub-task", "subtask": True},
                 "labels": [],
                 "comment": {"comments": []},
-                "parent": {"key": "DFLY-1234"},
+                "parent": {"key": "PROJECT-1234"},
             },
         }
         mock_subtask_response.raise_for_status = MagicMock()
@@ -466,7 +466,7 @@ class TestGetIssueSubtaskParentDetection:
         # Parent issue response
         mock_parent_response = MagicMock()
         mock_parent_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Parent story for the bug fix",
                 "description": "Parent description",
@@ -490,33 +490,33 @@ class TestGetIssueSubtaskParentDetection:
                 jira.get_issue()
 
         captured = capsys.readouterr()
-        assert "Detected subtask of DFLY-1234" in captured.out
+        assert "Detected subtask of PROJECT-1234" in captured.out
         assert "Parent issue details saved to:" in captured.out
-        assert "Parent Issue: DFLY-1234 - Parent story for the bug fix" in captured.out
+        assert "Parent Issue: PROJECT-1234 - Parent story for the bug fix" in captured.out
 
     def test_get_issue_saves_parent_json_file(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test get_issue saves parent issue to separate JSON file."""
-        jira.set_jira_value("issue_key", "DFLY-5678")
+        jira.set_jira_value("issue_key", "PROJECT-5678")
 
         mock_module = MagicMock()
 
         mock_subtask_response = MagicMock()
         mock_subtask_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Subtask",
                 "description": "Desc",
                 "issuetype": {"name": "Sub-task", "subtask": True},
                 "labels": [],
                 "comment": {"comments": []},
-                "parent": {"key": "DFLY-1234"},
+                "parent": {"key": "PROJECT-1234"},
             },
         }
         mock_subtask_response.raise_for_status = MagicMock()
 
         mock_parent_response = MagicMock()
         parent_data = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Parent Issue",
                 "description": "Parent desc",
@@ -546,32 +546,32 @@ class TestGetIssueSubtaskParentDetection:
 
         # Verify parent file contents
         parent_content = json.loads(parent_file.read_text(encoding="utf-8"))
-        assert parent_content["key"] == "DFLY-1234"
+        assert parent_content["key"] == "PROJECT-1234"
         assert parent_content["fields"]["summary"] == "Parent Issue"
 
     def test_get_issue_sets_parent_key_in_state(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test get_issue stores parent key in state for follow-up."""
-        jira.set_jira_value("issue_key", "DFLY-5678")
+        jira.set_jira_value("issue_key", "PROJECT-5678")
 
         mock_module = MagicMock()
 
         mock_subtask_response = MagicMock()
         mock_subtask_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Subtask",
                 "description": "Desc",
                 "issuetype": {"name": "Sub-task", "subtask": True},
                 "labels": [],
                 "comment": {"comments": []},
-                "parent": {"key": "DFLY-1234"},
+                "parent": {"key": "PROJECT-1234"},
             },
         }
         mock_subtask_response.raise_for_status = MagicMock()
 
         mock_parent_response = MagicMock()
         mock_parent_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Parent",
                 "description": "Desc",
@@ -595,19 +595,19 @@ class TestGetIssueSubtaskParentDetection:
         # Verify parent metadata reference was stored in state (not raw key)
         parent_details = state.get_value("jira.parent_issue_details")
         assert parent_details is not None
-        assert parent_details["key"] == "DFLY-1234"
+        assert parent_details["key"] == "PROJECT-1234"
         assert "location" in parent_details
         assert "retrievalTimestamp" in parent_details
 
     def test_get_issue_non_subtask_no_parent_fetch(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue does not fetch parent for non-subtask issues."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         mock_module = MagicMock()
 
         mock_issue_response = MagicMock()
         mock_issue_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Regular Story",
                 "description": "Description",
@@ -639,20 +639,20 @@ class TestGetIssueSubtaskParentDetection:
 
     def test_get_issue_subtask_parent_fetch_failure(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles parent fetch failure gracefully."""
-        jira.set_jira_value("issue_key", "DFLY-5678")
+        jira.set_jira_value("issue_key", "PROJECT-5678")
 
         mock_module = MagicMock()
 
         mock_subtask_response = MagicMock()
         mock_subtask_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Subtask",
                 "description": "Desc",
                 "issuetype": {"name": "Sub-task", "subtask": True},
                 "labels": [],
                 "comment": {"comments": []},
-                "parent": {"key": "DFLY-1234"},
+                "parent": {"key": "PROJECT-1234"},
             },
         }
         mock_subtask_response.raise_for_status = MagicMock()
@@ -673,18 +673,18 @@ class TestGetIssueSubtaskParentDetection:
 
         captured = capsys.readouterr()
         # Should still complete without crashing
-        assert "DFLY-5678" in captured.out
+        assert "PROJECT-5678" in captured.out
         assert "Subtask" in captured.out
 
     def test_get_issue_subtask_missing_parent_key(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test get_issue handles subtask with missing parent key field."""
-        jira.set_jira_value("issue_key", "DFLY-5678")
+        jira.set_jira_value("issue_key", "PROJECT-5678")
 
         mock_module = MagicMock()
 
         mock_subtask_response = MagicMock()
         mock_subtask_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Orphan Subtask",
                 "description": "Desc",
@@ -708,7 +708,7 @@ class TestGetIssueSubtaskParentDetection:
 
         captured = capsys.readouterr()
         # Should complete without attempting parent fetch
-        assert "DFLY-5678" in captured.out
+        assert "PROJECT-5678" in captured.out
         assert "Detected subtask" not in captured.out
 
 
@@ -717,23 +717,23 @@ class TestGetIssueEpicDetection:
 
     def test_get_issue_fetches_epic_when_linked(self, temp_state_dir, mock_jira_env, capsys, clear_state_before):
         """Test that get_issue fetches epic when customfield_10008 is populated."""
-        state.set_value("jira.issue_key", "DFLY-2000")
+        state.set_value("jira.issue_key", "PROJECT-2000")
 
         # Main issue with epic link
         issue_data = {
-            "key": "DFLY-2000",
+            "key": "PROJECT-2000",
             "fields": {
                 "summary": "Story with Epic",
                 "description": "Description",
                 "issuetype": {"name": "Story", "subtask": False},
-                "customfield_10008": "DFLY-100",
+                "customfield_10008": "PROJECT-100",
                 "labels": [],
             },
         }
 
         # Epic data
         epic_data = {
-            "key": "DFLY-100",
+            "key": "PROJECT-100",
             "fields": {
                 "summary": "Parent Epic",
                 "issuetype": {"name": "Epic"},
@@ -747,9 +747,9 @@ class TestGetIssueEpicDetection:
             response = MagicMock()
             response.raise_for_status = MagicMock()
             call_count[0] += 1
-            if "DFLY-2000" in url:
+            if "PROJECT-2000" in url:
                 response.json.return_value = issue_data
-            elif "DFLY-100" in url:
+            elif "PROJECT-100" in url:
                 response.json.return_value = epic_data
             else:
                 response.json.return_value = []  # remote links
@@ -762,42 +762,42 @@ class TestGetIssueEpicDetection:
                 jira.get_issue()
 
         captured = capsys.readouterr()
-        assert "Detected epic link DFLY-100, fetching epic" in captured.out
+        assert "Detected epic link PROJECT-100, fetching epic" in captured.out
         assert "Epic details saved to" in captured.out
-        assert "Epic: DFLY-100 - Parent Epic" in captured.out
+        assert "Epic: PROJECT-100 - Parent Epic" in captured.out
 
         # Verify epic file was saved
         epic_file = temp_state_dir / "temp-get-epic-details-response.json"
         assert epic_file.exists()
         epic_content = json.loads(epic_file.read_text())
-        assert epic_content["key"] == "DFLY-100"
+        assert epic_content["key"] == "PROJECT-100"
 
         # Verify state has metadata reference (not full JSON)
         epic_details = state.get_value("jira.epic_details")
         assert epic_details is not None
-        assert epic_details["key"] == "DFLY-100"
+        assert epic_details["key"] == "PROJECT-100"
         assert "location" in epic_details
         assert "retrievalTimestamp" in epic_details
 
     def test_get_issue_skips_epic_fetch_for_subtasks(self, temp_state_dir, mock_jira_env, capsys, clear_state_before):
         """Test that get_issue does NOT fetch epic for subtasks (they use parent hierarchy)."""
-        state.set_value("jira.issue_key", "DFLY-3000")
+        state.set_value("jira.issue_key", "PROJECT-3000")
 
         # Subtask with epic link (edge case - should not fetch epic)
         issue_data = {
-            "key": "DFLY-3000",
+            "key": "PROJECT-3000",
             "fields": {
                 "summary": "Subtask with Epic Link",
                 "description": "Description",
                 "issuetype": {"name": "Sub-task", "subtask": True},
-                "parent": {"key": "DFLY-2000"},
-                "customfield_10008": "DFLY-100",
+                "parent": {"key": "PROJECT-2000"},
+                "customfield_10008": "PROJECT-100",
                 "labels": [],
             },
         }
 
         parent_data = {
-            "key": "DFLY-2000",
+            "key": "PROJECT-2000",
             "fields": {"summary": "Parent Story", "issuetype": {"name": "Story"}},
         }
 
@@ -806,9 +806,9 @@ class TestGetIssueEpicDetection:
         def mock_get(url, **kwargs):
             response = MagicMock()
             response.raise_for_status = MagicMock()
-            if "DFLY-3000" in url:
+            if "PROJECT-3000" in url:
                 response.json.return_value = issue_data
-            elif "DFLY-2000" in url:
+            elif "PROJECT-2000" in url:
                 response.json.return_value = parent_data
             else:
                 response.json.return_value = []
@@ -822,16 +822,16 @@ class TestGetIssueEpicDetection:
 
         captured = capsys.readouterr()
         # Should fetch parent, not epic
-        assert "Detected subtask of DFLY-2000" in captured.out
+        assert "Detected subtask of PROJECT-2000" in captured.out
         assert "Detected epic link" not in captured.out
 
     def test_get_issue_skips_epic_fetch_for_epics(self, temp_state_dir, mock_jira_env, capsys, clear_state_before):
         """Test that get_issue does NOT fetch epic for issues that ARE epics."""
-        state.set_value("jira.issue_key", "DFLY-100")
+        state.set_value("jira.issue_key", "PROJECT-100")
 
         # Epic issue
         issue_data = {
-            "key": "DFLY-100",
+            "key": "PROJECT-100",
             "fields": {
                 "summary": "This is an Epic",
                 "description": "Epic description",
@@ -857,15 +857,15 @@ class TestGetIssueEpicDetection:
 
     def test_get_issue_handles_epic_fetch_failure(self, temp_state_dir, mock_jira_env, capsys, clear_state_before):
         """Test that get_issue continues gracefully when epic fetch fails."""
-        state.set_value("jira.issue_key", "DFLY-4000")
+        state.set_value("jira.issue_key", "PROJECT-4000")
 
         issue_data = {
-            "key": "DFLY-4000",
+            "key": "PROJECT-4000",
             "fields": {
                 "summary": "Story with Bad Epic Link",
                 "description": "Description",
                 "issuetype": {"name": "Story", "subtask": False},
-                "customfield_10008": "DFLY-NOTEXIST",
+                "customfield_10008": "PROJECT-NOTEXIST",
                 "labels": [],
             },
         }
@@ -875,9 +875,9 @@ class TestGetIssueEpicDetection:
         def mock_get(url, **kwargs):
             response = MagicMock()
             response.raise_for_status = MagicMock()
-            if "DFLY-4000" in url:
+            if "PROJECT-4000" in url:
                 response.json.return_value = issue_data
-            elif "DFLY-NOTEXIST" in url:
+            elif "PROJECT-NOTEXIST" in url:
                 raise Exception("404 Not Found")
             else:
                 response.json.return_value = []
@@ -890,9 +890,9 @@ class TestGetIssueEpicDetection:
                 jira.get_issue()
 
         captured = capsys.readouterr()
-        assert "Detected epic link DFLY-NOTEXIST, fetching epic" in captured.out
+        assert "Detected epic link PROJECT-NOTEXIST, fetching epic" in captured.out
         # Should show epic fetch failed notice
-        assert "Epic: DFLY-NOTEXIST (fetch failed)" in captured.out
+        assert "Epic: PROJECT-NOTEXIST (fetch failed)" in captured.out
 
 
 class TestGetIssueMetadataReferences:
@@ -902,10 +902,10 @@ class TestGetIssueMetadataReferences:
         self, temp_state_dir, mock_jira_env, capsys, clear_state_before
     ):
         """Test that get_issue stores metadata reference, not full issue JSON."""
-        state.set_value("jira.issue_key", "DFLY-5000")
+        state.set_value("jira.issue_key", "PROJECT-5000")
 
         issue_data = {
-            "key": "DFLY-5000",
+            "key": "PROJECT-5000",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Large description that should not be in state",
@@ -941,22 +941,22 @@ class TestGetIssueMetadataReferences:
         self, temp_state_dir, mock_jira_env, capsys, clear_state_before
     ):
         """Test that get_issue stores parent metadata reference, not full JSON."""
-        state.set_value("jira.issue_key", "DFLY-6000")
+        state.set_value("jira.issue_key", "PROJECT-6000")
 
         # Subtask
         issue_data = {
-            "key": "DFLY-6000",
+            "key": "PROJECT-6000",
             "fields": {
                 "summary": "Subtask",
                 "description": "Subtask desc",
                 "issuetype": {"name": "Sub-task", "subtask": True},
-                "parent": {"key": "DFLY-5000"},
+                "parent": {"key": "PROJECT-5000"},
                 "labels": [],
             },
         }
 
         parent_data = {
-            "key": "DFLY-5000",
+            "key": "PROJECT-5000",
             "fields": {
                 "summary": "Parent Issue with lots of data",
                 "description": "This should not be in state either",
@@ -968,9 +968,9 @@ class TestGetIssueMetadataReferences:
         def mock_get(url, **kwargs):
             response = MagicMock()
             response.raise_for_status = MagicMock()
-            if "DFLY-6000" in url:
+            if "PROJECT-6000" in url:
                 response.json.return_value = issue_data
-            elif "DFLY-5000" in url:
+            elif "PROJECT-5000" in url:
                 response.json.return_value = parent_data
             else:
                 response.json.return_value = []
@@ -985,7 +985,7 @@ class TestGetIssueMetadataReferences:
         # Verify parent metadata reference
         parent_details = state.get_value("jira.parent_issue_details")
         assert parent_details is not None
-        assert parent_details["key"] == "DFLY-5000"
+        assert parent_details["key"] == "PROJECT-5000"
         assert "location" in parent_details
         assert "retrievalTimestamp" in parent_details
         # Ensure full JSON is NOT stored

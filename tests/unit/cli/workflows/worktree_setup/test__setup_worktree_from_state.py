@@ -13,9 +13,9 @@ class TestSetupWorktreeFromState:
     def test_reads_parameters_from_state(self, mock_get_value, mock_setup_sync):
         """Test that parameters are read from state correctly."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-5678",
+            "worktree_setup.issue_key": "PROJECT-5678",
             "worktree_setup.branch_prefix": "bugfix",
-            "worktree_setup.branch_name": "feature/DFLY-5678/test",
+            "worktree_setup.branch_name": "feature/PROJECT-5678/test",
             "worktree_setup.use_existing_branch": "true",
             "worktree_setup.workflow_name": "pull-request-review",
             "worktree_setup.user_request": "Review this PR",
@@ -30,9 +30,9 @@ class TestSetupWorktreeFromState:
         _setup_worktree_from_state()
 
         mock_setup_sync.assert_called_once_with(
-            issue_key="DFLY-5678",
+            issue_key="PROJECT-5678",
             branch_prefix="bugfix",
-            branch_name="feature/DFLY-5678/test",
+            branch_name="feature/PROJECT-5678/test",
             use_existing_branch=True,
             workflow_name="pull-request-review",
             user_request="Review this PR",
@@ -57,7 +57,7 @@ class TestSetupWorktreeFromState:
     def test_handles_invalid_json_in_additional_params(self, mock_get_value, mock_setup_sync):
         """Test that invalid JSON in additional_params is handled gracefully."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": "false",
@@ -82,7 +82,7 @@ class TestSetupWorktreeFromState:
     def test_uses_default_values_when_not_set(self, mock_get_value, mock_setup_sync):
         """Test that default values are used when state values are not set."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-9999",
+            "worktree_setup.issue_key": "PROJECT-9999",
             "worktree_setup.branch_prefix": None,  # Should default to "feature"
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,  # Should default to False
@@ -99,7 +99,7 @@ class TestSetupWorktreeFromState:
         _setup_worktree_from_state()
 
         mock_setup_sync.assert_called_once_with(
-            issue_key="DFLY-9999",
+            issue_key="PROJECT-9999",
             branch_prefix="feature",
             branch_name=None,
             use_existing_branch=False,
@@ -116,7 +116,7 @@ class TestSetupWorktreeFromState:
     def test_reads_auto_execute_command_from_state(self, mock_get_value, mock_setup_sync):
         """Test that auto_execute_command is read from state as JSON list."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,
@@ -141,7 +141,7 @@ class TestSetupWorktreeFromState:
     def test_handles_invalid_json_in_auto_execute_command(self, mock_get_value, mock_setup_sync):
         """Test that invalid JSON in auto_execute_command is handled gracefully."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,
@@ -165,7 +165,7 @@ class TestSetupWorktreeFromState:
     def test_handles_invalid_int_in_auto_execute_timeout(self, mock_get_value, mock_setup_sync):
         """Test that invalid integer in auto_execute_timeout defaults to 300."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,
@@ -189,7 +189,7 @@ class TestSetupWorktreeFromState:
     def test_passes_interactive_false_when_stored(self, mock_get_value, mock_setup_sync):
         """Test that interactive=False is passed when state stores 'false'."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,
@@ -213,7 +213,7 @@ class TestSetupWorktreeFromState:
     def test_defaults_interactive_to_false_when_not_stored(self, mock_get_value, mock_setup_sync):
         """Test that interactive defaults to False when not set in state."""
         mock_get_value.side_effect = lambda key: {
-            "worktree_setup.issue_key": "DFLY-1234",
+            "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
             "worktree_setup.branch_name": None,
             "worktree_setup.use_existing_branch": None,

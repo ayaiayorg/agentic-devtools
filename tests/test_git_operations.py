@@ -193,14 +193,14 @@ class TestShouldAmendInsteadOfCommit:
     def test_returns_false_when_no_commits_ahead(self, mock_run_safe):
         """Test returns False when branch has no commits ahead of main."""
         with patch.object(operations, "branch_has_commits_ahead_of_main", return_value=False):
-            result = operations.should_amend_instead_of_commit("DFLY-1234")
+            result = operations.should_amend_instead_of_commit("PROJECT-1234")
             assert result is False
 
     def test_returns_true_when_commits_ahead_with_issue_key(self, mock_run_safe):
         """Test returns True when commits ahead, regardless of issue key match."""
         with patch.object(operations, "branch_has_commits_ahead_of_main", return_value=True):
             # Issue key is no longer checked - we always amend if commits ahead
-            result = operations.should_amend_instead_of_commit("DFLY-1234")
+            result = operations.should_amend_instead_of_commit("PROJECT-1234")
             assert result is True
 
     def test_returns_true_when_commits_ahead_with_different_issue_key(self, mock_run_safe):
@@ -227,28 +227,28 @@ class TestLastCommitContainsIssueKey:
     def test_returns_true_when_key_found(self, mock_run_safe):
         """Test returns True when issue key is in commit message."""
         mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="feature(DFLY-1234): implement feature\n", stderr=""
+            returncode=0, stdout="feature(PROJECT-1234): implement feature\n", stderr=""
         )
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is True
 
     def test_returns_true_case_insensitive(self, mock_run_safe):
         """Test matching is case-insensitive."""
         mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="feature(dfly-1234): implement feature\n", stderr=""
+            returncode=0, stdout="feature(project-1234): implement feature\n", stderr=""
         )
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is True
 
     def test_returns_false_when_key_not_found(self, mock_run_safe):
         """Test returns False when issue key is not in commit message."""
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="feature(DFLY-5678): different issue\n", stderr="")
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="feature(PROJECT-5678): different issue\n", stderr="")
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is False
 
@@ -256,7 +256,7 @@ class TestLastCommitContainsIssueKey:
         """Test returns False on git command error."""
         mock_run_safe.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is False
 

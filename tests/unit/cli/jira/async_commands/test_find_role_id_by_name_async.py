@@ -29,7 +29,7 @@ class TestRoleCommandsAsync:
         """Test find_role_id_by_name_async spawns background task."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"project_key": "DFLY", "role_name": "Developers"}.get(k),
+            side_effect=lambda k: {"project_key": "PROJECT", "role_name": "Developers"}.get(k),
         ):
             find_role_id_by_name_async()
 

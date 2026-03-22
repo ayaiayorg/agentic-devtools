@@ -70,7 +70,7 @@ class TestValidateRequiredState:
 
     def test_nested_key_present(self, temp_state_dir, clear_state_before):
         """Test validation with nested key that is present."""
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
         # Should not raise
         base.validate_required_state(["jira.issue_key"])
 

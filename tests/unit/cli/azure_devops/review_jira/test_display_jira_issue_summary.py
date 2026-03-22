@@ -22,7 +22,7 @@ class TestDisplayJiraIssueSummary:
         )
 
         issue_data = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test issue",
                 "issuetype": {"name": "Story"},
@@ -34,7 +34,7 @@ class TestDisplayJiraIssueSummary:
         display_jira_issue_summary(issue_data)
 
         captured = capsys.readouterr()
-        assert "DFLY-1234" in captured.out
+        assert "PROJECT-1234" in captured.out
         assert "Test issue" in captured.out
         assert "Story" in captured.out
         assert "In Progress" in captured.out
@@ -46,10 +46,10 @@ class TestDisplayJiraIssueSummary:
             display_jira_issue_summary,
         )
 
-        issue_data = {"key": "DFLY-5678", "fields": {}}
+        issue_data = {"key": "PROJECT-5678", "fields": {}}
 
         display_jira_issue_summary(issue_data)
 
         captured = capsys.readouterr()
-        assert "DFLY-5678" in captured.out
+        assert "PROJECT-5678" in captured.out
         assert "Unknown" in captured.out

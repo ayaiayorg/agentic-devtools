@@ -334,7 +334,7 @@ NEW STEP: implementation-review
 Jira commands use keys prefixed with `jira.`:
 
 ```bash
-agdt-set jira.issue_key DFLY-1234
+agdt-set jira.issue_key PROJECT-1234
 agdt-set jira.comment "My comment"
 ```
 
@@ -371,7 +371,7 @@ All action commands that mutate state or perform API calls spawn background task
 
 ```bash
 # Option A: With CLI parameters (explicit)
-agdt-create-pull-request --source-branch "feature/DFLY-1234/new-feature" --title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add new feature" --description "Description here"
+agdt-create-pull-request --source-branch "feature/PROJECT-1234/new-feature" --title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add new feature" --description "Description here"
 
 # Option B: Parameterless (uses current state)
 # Check current values: agdt-get source_branch, agdt-get title
@@ -560,7 +560,7 @@ Action commands spawn background processes and return immediately:
 
 ```bash
 # Start background operation
-agdt-set jira.issue_key DFLY-1234
+agdt-set jira.issue_key PROJECT-1234
 agdt-set jira.comment "Processing complete"
 agdt-add-jira-comment
 # Output: Background task started: <task-id>
@@ -743,7 +743,7 @@ agdt-get-workflow
 
 ```bash
 # Start work on a Jira issue
-agdt-set jira.issue_key DFLY-1234
+agdt-set jira.issue_key PROJECT-1234
 agdt-initiate-work-on-jira-issue-workflow
 # If pre-flight fails: shows worktree/branch setup instructions
 # If pre-flight passes: auto-fetches issue and shows planning prompt
@@ -949,7 +949,7 @@ When creating a new worktree, `.agdt/workflows/` doesn't exist initially (it's g
 | `JIRA_CA_BUNDLE` | Path to custom CA bundle PEM file for Jira SSL |
 | `REQUESTS_CA_BUNDLE` | Standard requests library CA bundle path (fallback) |
 | `AGENTIC_DEVTOOLS_STATE_DIR` | Override default state directory (`.agdt/workflows/_unscoped`) |
-| `DFLY_DRY_RUN` | Set to "1" for dry-run mode globally |
+| `AGDT_DRY_RUN` | Set to "1" for dry-run mode globally |
 
 ### SSL Certificate Handling
 
@@ -1314,8 +1314,8 @@ body (optional bullet points)
 - Supported types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Parent issue comes **first** in parent/child links (scope: `parent/child`, footer: `parent / child`).
 - Multiple unrelated issues: comma-separated, ascending order by number.
-- **Do NOT** use old Jira-style scopes like `feat(DFLY-1234):` — the scope must always be a GitHub issue markdown link `([#NNN](...))`.
-- Branch names follow the `type/ISSUE-KEY/description` convention (e.g. `feature/DFLY-1234/add-webhook`) — this is separate from the commit scope.
+- **Do NOT** use old Jira-style scopes like `feat(PROJECT-1234):` — the scope must always be a GitHub issue markdown link `([#NNN](...))`.
+- Branch names follow the `type/ISSUE-KEY/description` convention (e.g. `feature/PROJECT-1234/add-webhook`) — this is separate from the commit scope.
 
 ### Examples
 
@@ -1389,7 +1389,7 @@ agdt-git-save-work
 ### Create a Pull Request
 
 ```bash
-agdt-set source_branch feature/DFLY-1234/my-changes
+agdt-set source_branch feature/PROJECT-1234/my-changes
 agdt-set title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): Add new feature"
 agdt-set description "This PR implements the new feature."
 agdt-create-pull-request
@@ -1492,7 +1492,7 @@ The end-to-end automated PR review is initiated with a **single command**:
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345
 
 # Start with a Jira issue key (looks up the PR automatically)
-agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
+agdt-initiate-pull-request-review-workflow --issue-key PROJECT-1234
 
 # Non-interactive / pipeline mode
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
@@ -1753,7 +1753,7 @@ Both files are optional and safe to omit; the review will still run without repo
 ### Get Jira Issue Details
 
 ```bash
-agdt-set jira.issue_key DFLY-1234
+agdt-set jira.issue_key PROJECT-1234
 agdt-get-jira-issue
 ```
 
@@ -1766,7 +1766,7 @@ This fetches the issue and:
 ### Add Comment to Jira Issue
 
 ```bash
-agdt-set jira.issue_key DFLY-1234
+agdt-set jira.issue_key PROJECT-1234
 agdt-set jira.comment "h4. Progress Update
 
 *Completed:*
@@ -1783,7 +1783,7 @@ After posting, the command automatically refreshes issue details.
 ### Create Jira Epic
 
 ```bash
-agdt-set jira.project_key DFLY
+agdt-set jira.project_key PROJECT
 agdt-set jira.summary "My Epic Title"
 agdt-set jira.epic_name "My Epic Name"
 agdt-set jira.role "developer"
@@ -1795,7 +1795,7 @@ agdt-create-epic
 ### Create Jira Issue
 
 ```bash
-agdt-set jira.project_key DFLY
+agdt-set jira.project_key PROJECT
 agdt-set jira.summary "Bug: Something is broken"
 agdt-set jira.description "Detailed description here"
 agdt-create-issue
@@ -1804,7 +1804,7 @@ agdt-create-issue
 Or use the user story format:
 
 ```bash
-agdt-set jira.project_key DFLY
+agdt-set jira.project_key PROJECT
 agdt-set jira.summary "Feature request"
 agdt-set jira.role "user"
 agdt-set jira.desired_outcome "new capability"
@@ -1815,7 +1815,7 @@ agdt-create-issue
 ### Create Subtask
 
 ```bash
-agdt-set jira.parent_key DFLY-1234
+agdt-set jira.parent_key PROJECT-1234
 agdt-set jira.summary "Subtask title"
 agdt-set jira.description "Subtask details"
 agdt-create-subtask
@@ -1867,7 +1867,7 @@ The `agdt-state.json` file contains recent tasks under `background.recentTasks`:
         "start_time": "2024-12-19T15:50:26Z",
         "end_time": "2024-12-19T15:50:28Z",
         "exit_code": 0,
-        "log_file": "/path/to/logs/dfly_git_commit_20241219_155026.log"
+        "log_file": "/path/to/logs/agdt_git_commit_20241219_155026.log"
       }
     ],
     "task_id": "task-abc123"

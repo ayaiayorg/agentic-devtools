@@ -72,9 +72,9 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
             mock_pf.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-5678",
-                branch_name="feature/DFLY-5678/implementation",
-                issue_key="DFLY-5678",
+                folder_name="PROJECT-5678",
+                branch_name="feature/PROJECT-5678/implementation",
+                issue_key="PROJECT-5678",
             )
 
             with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
@@ -83,11 +83,11 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
                         "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
                     ):
                         commands.initiate_apply_pull_request_review_suggestions_workflow(
-                            _argv=["--pull-request-id", "456", "--issue-key", "DFLY-5678"]
+                            _argv=["--pull-request-id", "456", "--issue-key", "PROJECT-5678"]
                         )
 
         assert state.get_value("pull_request_id") == "456"
-        assert state.get_value("jira.issue_key") == "DFLY-5678"
+        assert state.get_value("jira.issue_key") == "PROJECT-5678"
 
     def test_derives_issue_key_from_pr_details(
         self,
@@ -102,7 +102,7 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
         state.set_value("pull_request_id", "123")
         state.set_value(
             "pr_details",
-            {"sourceRefName": "refs/heads/feature/DFLY-1234/implementation"},
+            {"sourceRefName": "refs/heads/feature/PROJECT-1234/implementation"},
         )
 
         workflow_dir = temp_prompts_dir / "apply-pull-request-review-suggestions"
@@ -116,22 +116,22 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
             mock_pf.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/implementation",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/implementation",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"):
                 commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
 
-        assert state.get_value("jira.issue_key") == "DFLY-1234"
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
 
     def test_preflight_fails_and_auto_setup_succeeds(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
         """Test when preflight fails but auto-setup succeeds (returns early)."""
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -141,7 +141,7 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -155,7 +155,7 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -165,7 +165,7 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -197,7 +197,7 @@ class TestWorkflowCommands:
 
         # Setup state
         state.set_value("pull_request_id", "789")
-        state.set_value("jira.issue_key", "DFLY-1234")  # Issue key needed for preflight
+        state.set_value("jira.issue_key", "PROJECT-1234")  # Issue key needed for preflight
 
         # Mock preflight to pass (we're already in correct context)
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
@@ -206,9 +206,9 @@ class TestWorkflowCommands:
             mock_preflight.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/implementation",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/implementation",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"):
@@ -229,7 +229,7 @@ class TestInitiateApplyPRSuggestionsWorkflowInteractive:
 
         argv = argv or []
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
             mock_pf.return_value = PreflightResult(
@@ -237,7 +237,7 @@ class TestInitiateApplyPRSuggestionsWorkflowInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -322,7 +322,7 @@ class TestInitiateApplyPRSuggestionsWorkflowInteractive:
         auto_cmd = call_kwargs["auto_execute_command"]
         assert "--issue-key" in auto_cmd
         ik_idx = auto_cmd.index("--issue-key")
-        assert auto_cmd[ik_idx + 1] == "DFLY-1234"
+        assert auto_cmd[ik_idx + 1] == "PROJECT-1234"
 
     def test_auto_execute_command_starts_with_correct_command(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
@@ -372,7 +372,7 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_apply_pr_suggestions is called with the repo root."""
-        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999")
+        mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999")
         mock_session.assert_called_once()
         call_args = mock_session.call_args
         assert call_args[0][0] == "/fake/repo-root"
@@ -381,21 +381,21 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_apply_pr_suggestions is called with interactive=False by default."""
-        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999")
+        mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999")
         mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """Session is called with interactive=False when --interactive false."""
-        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999", argv=["--interactive", "false"])
+        mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999", argv=["--interactive", "false"])
         mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
 
     def test_copilot_session_interactive_true_when_explicitly_set(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """Session is called with interactive=True when --interactive true."""
-        mock_session = self._run_with_preflight_passing("999", issue_key="DFLY-9999", argv=["--interactive", "true"])
+        mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999", argv=["--interactive", "true"])
         mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
 
 
@@ -417,9 +417,9 @@ class TestInitiateApplyPRSuggestionsBootstrapScope:
                     mock_pf.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
-                        folder_name="DFLY-2779",
-                        branch_name="feature/DFLY-2779/test",
-                        issue_key="DFLY-2779",
+                        folder_name="PROJECT-2779",
+                        branch_name="feature/PROJECT-2779/test",
+                        issue_key="PROJECT-2779",
                     )
 
                     with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
@@ -428,10 +428,10 @@ class TestInitiateApplyPRSuggestionsBootstrapScope:
                                 "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
                             ):
                                 commands.initiate_apply_pull_request_review_suggestions_workflow(
-                                    _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                                    _argv=["--pull-request-id", "25858", "--issue-key", "PROJECT-2779"]
                                 )
 
-        mock_scope.assert_called_once_with("DFLY-2779")
+        mock_scope.assert_called_once_with("PROJECT-2779")
 
     def test_only_pr_id_uses_pr_worktree_key(self, temp_state_dir, clear_state_before):
         """When only --pull-request-id is provided, worktree_key is PR{id}."""
@@ -495,9 +495,9 @@ class TestInitiateApplyPRSuggestionsStaleKeyCleanup:
                     mock_pf.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
-                        folder_name="DFLY-1234",
-                        branch_name="feature/DFLY-1234/impl",
-                        issue_key="DFLY-1234",
+                        folder_name="PROJECT-1234",
+                        branch_name="feature/PROJECT-1234/impl",
+                        issue_key="PROJECT-1234",
                     )
                     with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
                         with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
@@ -505,7 +505,7 @@ class TestInitiateApplyPRSuggestionsStaleKeyCleanup:
                                 "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_apply_pr_suggestions"
                             ):
                                 commands.initiate_apply_pull_request_review_suggestions_workflow(
-                                    _argv=["--issue-key", "DFLY-1234"]
+                                    _argv=["--issue-key", "PROJECT-1234"]
                                 )
 
         # The stale PR ID must have been deleted, not silently reused

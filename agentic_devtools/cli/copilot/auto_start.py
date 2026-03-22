@@ -280,9 +280,9 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     # is invoked from a different CWD or with AGENTIC_DEVTOOLS_STATE_DIR set.
     original_cwd = os.getcwd()
     original_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
-    original_legacy_state_dir = os.environ.get("DFLY_AI_HELPERS_STATE_DIR")
+    original_legacy_state_dir = os.environ.get("AGDT_AI_HELPERS_STATE_DIR")
     os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-    os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+    os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
     try:
         try:
             os.chdir(worktree_path)
@@ -317,9 +317,9 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         else:
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
         if original_legacy_state_dir is not None:
-            os.environ["DFLY_AI_HELPERS_STATE_DIR"] = original_legacy_state_dir
+            os.environ["AGDT_AI_HELPERS_STATE_DIR"] = original_legacy_state_dir
         else:
-            os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
 
     # 2. Run-ID check — if the current run ID has already been triggered,
     #    assume another process has already handled (or is currently handling)

@@ -9,9 +9,9 @@ def _valid_data(pr_id: int = 25365) -> dict:
     return {
         "prId": pr_id,
         "repoId": "repo-guid",
-        "repoName": "dfly-platform-management",
-        "project": "DragonflyMgmt",
-        "organization": "https://dev.azure.com/swica",
+        "repoName": "example-repo-name",
+        "project": "ExampleProject",
+        "organization": "https://dev.azure.com/example-org",
         "latestIterationId": 5,
         "scaffoldedUtc": "2026-02-25T10:00:00Z",
         "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},

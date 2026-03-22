@@ -13,7 +13,7 @@ class TestAddCommentDryRun:
 
     def test_add_comment_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test add_comment in dry run mode."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
         jira.set_jira_value("comment", "This is a test comment")
         jira.set_jira_value("dry_run", True)
 
@@ -21,7 +21,7 @@ class TestAddCommentDryRun:
 
         captured = capsys.readouterr()
         assert "[DRY RUN]" in captured.out
-        assert "DFLY-1234" in captured.out
+        assert "PROJECT-1234" in captured.out
 
     def test_add_comment_missing_issue_key(self, temp_state_dir, clear_state_before):
         """Test add_comment fails with missing issue_key."""
@@ -33,7 +33,7 @@ class TestAddCommentDryRun:
 
     def test_add_comment_missing_comment(self, temp_state_dir, clear_state_before):
         """Test add_comment fails with missing comment."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
 
         with pytest.raises(SystemExit) as exc_info:
             jira.add_comment()
@@ -45,7 +45,7 @@ class TestAddCommentWithMock:
 
     def test_add_comment_success(self, temp_state_dir, clear_state_before, mock_jira_env, capsys):
         """Test successful comment addition."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
         jira.set_jira_value("comment", "Test comment")
 
         mock_module = MagicMock()
@@ -58,7 +58,7 @@ class TestAddCommentWithMock:
         # Mock the GET response for refreshing issue details
         mock_get_response = MagicMock()
         mock_get_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test description",
@@ -89,7 +89,7 @@ class TestAddCommentWithMock:
 
         mock_get_response = MagicMock()
         mock_get_response.json.return_value = {
-            "key": "DFLY-5678",
+            "key": "PROJECT-5678",
             "fields": {
                 "summary": "Test Issue",
                 "description": "Test description",
@@ -102,16 +102,16 @@ class TestAddCommentWithMock:
         mock_requests_module.get.return_value = mock_get_response
 
         with patch.object(get_commands, "get_state_dir", return_value=temp_state_dir):
-            jira.add_comment(comment="Explicit comment", issue_key="DFLY-5678")
+            jira.add_comment(comment="Explicit comment", issue_key="PROJECT-5678")
 
-        assert jira.get_jira_value("issue_key") == "DFLY-5678"
+        assert jira.get_jira_value("issue_key") == "PROJECT-5678"
         assert jira.get_jira_value("comment") == "Explicit comment"
         captured = capsys.readouterr()
         assert "Comment added successfully" in captured.out
 
     def test_add_comment_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test add_comment handles API error."""
-        jira.set_jira_value("issue_key", "DFLY-1234")
+        jira.set_jira_value("issue_key", "PROJECT-1234")
         jira.set_jira_value("comment", "Test comment")
 
         mock_module = MagicMock()

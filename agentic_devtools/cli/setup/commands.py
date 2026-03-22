@@ -433,7 +433,7 @@ def _prompt_project_config() -> None:
             return answer
         return current
 
-    jira_keys = _ask("Jira project key(s), comma-separated (e.g. DFLY,PROJ)", "jira_project_keys")
+    jira_keys = _ask("Jira project key(s), comma-separated (e.g. ACME,PROJ)", "jira_project_keys")
     jira_base_url = _ask("Jira base URL (e.g. https://jira.example.com)", "jira_base_url")
     corp_host = _ask("Corporate network test host (type '-' to clear)", "corporate_network_test_host", allow_clear=True)
     vpn_url = _ask("VPN portal URL (type '-' to clear)", "vpn_url", allow_clear=True)

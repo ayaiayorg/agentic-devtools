@@ -37,7 +37,7 @@ class TestCreateEpicAsync:
         """Test create_epic_async spawns a background task."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"project_key": "DFLY", "summary": "Epic", "epic_name": "Name"}.get(k),
+            side_effect=lambda k: {"project_key": "PROJECT", "summary": "Epic", "epic_name": "Name"}.get(k),
         ):
             create_epic_async()
 

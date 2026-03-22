@@ -55,7 +55,7 @@ def fetch_jira_issue(issue_key: str, verbose: bool = False) -> dict | None:
     Fetch Jira issue details via REST API.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         verbose: Whether to print debug output
 
     Returns:
@@ -98,7 +98,7 @@ def fetch_development_panel_prs(issue_key: str, verbose: bool = False) -> list[d
     integration (the "Development" panel in Jira UI).
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         verbose: Whether to print debug output
 
     Returns:
@@ -263,7 +263,7 @@ def get_linked_pull_request_from_jira(issue_key: str, verbose: bool = False) -> 
     checks the Development panel first.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         verbose: Whether to print debug output
 
     Returns:
@@ -284,7 +284,7 @@ def get_pr_from_development_panel(issue_key: str, verbose: bool = False) -> int 
     integration data.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         verbose: Whether to print debug output
 
     Returns:
@@ -324,7 +324,7 @@ def fetch_and_display_jira_issue(issue_key: str, verbose: bool = False) -> dict 
     Fetch a Jira issue and display its summary.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         verbose: Whether to print debug output
 
     Returns:

@@ -282,7 +282,7 @@ Use descriptive branch names with the following patterns:
 - `docs/description` - For documentation changes
 - `refactor/description` - For refactoring
 
-Example: `feature/DFLY-1234/add-webhook-support`
+Example: `feature/PROJECT-1234/add-webhook-support`
 
 ### Single-Commit Policy
 

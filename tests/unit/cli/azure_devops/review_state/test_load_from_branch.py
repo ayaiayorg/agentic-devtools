@@ -84,27 +84,27 @@ class TestLoadFromBranch:
 
     def test_resolves_source_branch_from_state(self):
         """Resolves source_branch from state when not passed explicitly."""
-        with patch(f"{_STATE_MOD}.get_value", return_value="feature/DFLY-1234") as mock_get:
-            with patch(f"{_AGDT_MOD}.resolve_worktree_key", return_value="DFLY-1234"):
+        with patch(f"{_STATE_MOD}.get_value", return_value="feature/PROJECT-1234") as mock_get:
+            with patch(f"{_AGDT_MOD}.resolve_worktree_key", return_value="PROJECT-1234"):
                 with patch(f"{_AGDT_MOD}.load_workflow_artifacts", return_value=None) as mock_load:
                     _load_from_branch(None, None)
         mock_get.assert_called_once_with("versionControl.currentBranch")
         mock_load.assert_called_once_with(
-            source_branch="feature/DFLY-1234",
-            worktree_key="DFLY-1234",
+            source_branch="feature/PROJECT-1234",
+            worktree_key="PROJECT-1234",
             workflow_type="reviews",
         )
 
     def test_resolves_worktree_key_from_state(self):
         """Resolves worktree_key via resolve_worktree_key when not passed."""
         with patch(f"{_STATE_MOD}.get_value", return_value="main"):
-            with patch(f"{_AGDT_MOD}.resolve_worktree_key", return_value="DFLY-1234") as mock_resolve:
+            with patch(f"{_AGDT_MOD}.resolve_worktree_key", return_value="PROJECT-1234") as mock_resolve:
                 with patch(f"{_AGDT_MOD}.load_workflow_artifacts", return_value=None) as mock_load:
                     _load_from_branch(None, None)
         mock_resolve.assert_called_once()
         mock_load.assert_called_once_with(
             source_branch="main",
-            worktree_key="DFLY-1234",
+            worktree_key="PROJECT-1234",
             workflow_type="reviews",
         )
 

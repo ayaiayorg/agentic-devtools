@@ -16,7 +16,7 @@ class TestIsInWorktree:
         # In a worktree, git-dir points to .git/worktrees/<name>
         # while git-common-dir points to the main repo's .git
         mock_run.side_effect = [
-            MagicMock(returncode=0, stdout="/repos/main/.git/worktrees/DFLY-1234"),
+            MagicMock(returncode=0, stdout="/repos/main/.git/worktrees/PROJECT-1234"),
             MagicMock(returncode=0, stdout="/repos/main/.git"),
         ]
 

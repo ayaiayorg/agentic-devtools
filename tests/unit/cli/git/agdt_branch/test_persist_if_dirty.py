@@ -55,7 +55,7 @@ class TestPersistIfDirty:
         def _get(key, **kw):
             return {
                 "agdt_run_id": "abc123def456",
-                "versionControl.currentBranch": "feature/DFLY-1234",
+                "versionControl.currentBranch": "feature/PROJECT-1234",
             }.get(key)
 
         mock_result = PersistResult(success=True)
@@ -66,7 +66,7 @@ class TestPersistIfDirty:
                         persist_if_dirty()
 
         mock_persist.assert_called_once_with(
-            source_branch="feature/DFLY-1234",
+            source_branch="feature/PROJECT-1234",
             workflow_type="review",
         )
         assert is_dirty() is False
@@ -104,7 +104,7 @@ class TestPersistIfDirty:
 
         no_files_result = PersistResult(
             success=False,
-            error="No workflow files found under .agdt/workflows/copilot/DFLY-1234/",
+            error="No workflow files found under .agdt/workflows/copilot/PROJECT-1234/",
         )
         with patch(f"{_MOD}.get_value", side_effect=_get):
             with patch(f"{_MOD}.persist_workflow_state", return_value=no_files_result):
