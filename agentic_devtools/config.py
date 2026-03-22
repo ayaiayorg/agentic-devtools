@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 
 CONFIG_FILE = ".github/agdt-config.json"
 
+# Platform configuration constants
+VALID_ISSUE_ADAPTERS: set[str] = {"jira", "github", "markdown"}
+VALID_CODE_HOSTING: set[str] = {"github", "azure_devops", "other"}
+DEFAULT_ISSUE_ADAPTER: str = "jira"
+DEFAULT_CODE_HOSTING: str = "other"
+
 
 def load_repo_config(repo_path: str) -> dict:
     """
@@ -116,3 +122,103 @@ def load_review_focus_areas(repo_path: str) -> str | None:
     except OSError as exc:
         logger.warning("Could not read focus-areas-file %s: %s", focus_path, exc)
         return None
+
+
+def load_platform_config(repo_path: str) -> dict:
+    """
+    Load the ``platform`` section from `.github/agdt-config.json`.
+
+    Returns a dict with all platform keys guaranteed present, using safe
+    defaults for any that are missing or invalid.  Unknown keys in the
+    ``platform`` section are silently preserved for forward-compatibility.
+
+    Args:
+        repo_path: Absolute (or relative) path to the root of the target repo.
+
+    Returns:
+        Dict with at least ``issue_adapter``, ``code_hosting``, ``jira``,
+        ``github``, and ``azure_devops`` keys.
+    """
+    config = load_repo_config(repo_path)
+    platform = config.get("platform")
+
+    if platform is None:
+        platform = {}
+    elif not isinstance(platform, dict):
+        logger.warning(
+            "Expected 'platform' section in %s to be an object, got %s; using defaults.",
+            CONFIG_FILE,
+            type(platform).__name__,
+        )
+        platform = {}
+
+    # Validate issue_adapter enum.
+    issue_adapter = platform.get("issue_adapter", DEFAULT_ISSUE_ADAPTER)
+    if issue_adapter not in VALID_ISSUE_ADAPTERS:
+        logger.warning(
+            "Invalid issue_adapter value %r in %s; using default %r.",
+            issue_adapter,
+            CONFIG_FILE,
+            DEFAULT_ISSUE_ADAPTER,
+        )
+        issue_adapter = DEFAULT_ISSUE_ADAPTER
+
+    # Validate code_hosting enum.
+    code_hosting = platform.get("code_hosting", DEFAULT_CODE_HOSTING)
+    if code_hosting not in VALID_CODE_HOSTING:
+        logger.warning(
+            "Invalid code_hosting value %r in %s; using default %r.",
+            code_hosting,
+            CONFIG_FILE,
+            DEFAULT_CODE_HOSTING,
+        )
+        code_hosting = DEFAULT_CODE_HOSTING
+
+    # Validate platform-specific sub-dicts.
+    for key in ("jira", "github", "azure_devops"):
+        value = platform.get(key)
+        if value is not None and not isinstance(value, dict):
+            logger.warning(
+                "Expected 'platform.%s' in %s to be an object, got %s; using empty dict.",
+                key,
+                CONFIG_FILE,
+                type(value).__name__,
+            )
+            platform[key] = {}
+
+    result = {**platform}
+    result["issue_adapter"] = issue_adapter
+    result["code_hosting"] = code_hosting
+    result.setdefault("jira", {})
+    result.setdefault("github", {})
+    result.setdefault("azure_devops", {})
+
+    return result
+
+
+def save_platform_config(repo_path: str, platform_config: dict) -> bool:
+    """
+    Write the ``platform`` section to `.github/agdt-config.json`.
+
+    Reads the existing config (if any), sets ``config["platform"]`` to
+    *platform_config*, and writes the merged result back.  The ``.github/``
+    directory and the config file are created when they do not exist.
+
+    Args:
+        repo_path: Absolute (or relative) path to the root of the target repo.
+        platform_config: Dict to store as the ``platform`` section.
+
+    Returns:
+        ``True`` on success, ``False`` on failure (with a warning logged).
+    """
+    config = load_repo_config(repo_path)
+    config["platform"] = platform_config
+
+    config_path = Path(repo_path) / CONFIG_FILE
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        return True
+    except OSError as exc:
+        logger.warning("Could not write %s: %s", config_path, exc)
+        return False
