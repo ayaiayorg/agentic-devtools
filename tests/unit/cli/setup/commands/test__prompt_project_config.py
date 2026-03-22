@@ -121,3 +121,25 @@ class TestPromptProjectConfig:
         saved = mock_save.call_args[0][0]
         assert saved["jira_project_keys"] == "DFLY"
         assert "vpn_url" not in saved
+
+    def test_rejects_sentinel_for_required_fields(self, capsys):
+        """Should ignore '-'/'clear' sentinels for required fields and keep existing value."""
+        existing = {
+            "jira_project_keys": "DFLY",
+            "jira_base_url": "https://jira.example.com",
+        }
+        # Type '-' for jira_keys and 'clear' for jira_base_url — both required
+        inputs = iter(["-", "clear", "", "", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config()
+
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        # Required fields retain existing values when sentinel is typed
+        assert saved["jira_project_keys"] == "DFLY"
+        assert saved["jira_base_url"] == "https://jira.example.com"

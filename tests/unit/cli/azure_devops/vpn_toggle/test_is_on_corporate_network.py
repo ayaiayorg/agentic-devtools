@@ -105,3 +105,19 @@ class TestIsOnCorporateNetwork:
 
         assert result is True
         mock_run.assert_called_once()
+
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="  internal.example.com  ",
+    )
+    @patch("subprocess.run")
+    def test_strips_whitespace_from_hostname(self, mock_run, _mock_host):
+        """Test strips leading/trailing whitespace from hostname before validation."""
+        mock_result = MagicMock()
+        mock_result.stdout = "corporate"
+        mock_run.return_value = mock_result
+
+        result = is_on_corporate_network()
+
+        assert result is True
+        mock_run.assert_called_once()

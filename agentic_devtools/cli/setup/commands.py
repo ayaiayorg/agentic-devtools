@@ -424,8 +424,11 @@ def _prompt_project_config() -> None:
         current = existing.get(key, "")
         suffix = f" [{current}]" if current else ""
         answer = input(f"  {prompt}{suffix}: ").strip()
-        if allow_clear and answer in {"-", "clear"}:
+        if allow_clear and answer.lower() in {"-", "clear"}:
             return ""
+        # Reject clear sentinels for required fields — treat as "keep current"
+        if not allow_clear and answer.lower() in {"-", "clear"}:
+            return current
         if answer:
             return answer
         return current

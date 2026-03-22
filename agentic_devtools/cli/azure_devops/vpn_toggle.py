@@ -524,6 +524,8 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
     if not host:
         return False
 
+    host = host.strip()
+
     # Validate host is a plain hostname (prevent PowerShell injection via config values)
     if not _VALID_HOSTNAME_RE.match(host):
         return False
