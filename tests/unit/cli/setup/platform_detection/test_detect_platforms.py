@@ -359,11 +359,10 @@ class TestDetectionResultDataclass:
 
     def test_is_frozen(self):
         """DetectionResult is immutable."""
-        result = DetectionResult()
-
         import dataclasses
 
-        assert dataclasses.fields(result)  # noqa: B009
+        result = DetectionResult()
+
         try:
             result.github_repo = "test"  # type: ignore[misc]
             raise AssertionError("Should have raised FrozenInstanceError")  # pragma: no cover
