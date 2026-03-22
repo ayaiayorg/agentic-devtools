@@ -7,7 +7,6 @@ Provides functions to switch contexts, check login status, and execute commands.
 import json
 import os
 import subprocess
-from typing import Dict, Optional, Tuple
 
 from agentic_devtools.cli.azure_context.config import (
     AzureContext,
@@ -16,7 +15,7 @@ from agentic_devtools.cli.azure_context.config import (
 from agentic_devtools.state import get_value, set_value
 
 
-def get_current_context() -> Optional[AzureContext]:
+def get_current_context() -> AzureContext | None:
     """
     Get the currently active Azure context from state.
 
@@ -45,7 +44,7 @@ def switch_context(context: AzureContext) -> None:
     set_value("azure.context", context.value)
 
 
-def get_context_env(context: AzureContext) -> Dict[str, str]:
+def get_context_env(context: AzureContext) -> dict[str, str]:
     """
     Get environment variables for a specific Azure context.
 
@@ -65,7 +64,7 @@ def get_context_env(context: AzureContext) -> Dict[str, str]:
     }
 
 
-def check_login_status(context: AzureContext) -> Tuple[bool, Optional[str], Optional[str]]:
+def check_login_status(context: AzureContext) -> tuple[bool, str | None, str | None]:
     """
     Check if the Azure CLI is logged in for a specific context.
 

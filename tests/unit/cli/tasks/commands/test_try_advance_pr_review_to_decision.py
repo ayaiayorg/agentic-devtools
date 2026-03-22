@@ -91,12 +91,15 @@ class TestTryAdvancePrReviewToDecision:
 
         set_value("pull_request_id", "12345")
 
-        with patch(
-            "agentic_devtools.state.get_workflow_state",
-            return_value={"active": "pull-request-review", "step": "file-review"},
-        ), patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value={"all_complete": False, "submission_pending_count": 0},
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review"},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={"all_complete": False, "submission_pending_count": 0},
+            ),
         ):
             result = _try_advance_pr_review_to_decision()
 
@@ -109,12 +112,15 @@ class TestTryAdvancePrReviewToDecision:
 
         set_value("pull_request_id", "12345")
 
-        with patch(
-            "agentic_devtools.state.get_workflow_state",
-            return_value={"active": "pull-request-review", "step": "file-review"},
-        ), patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value={"all_complete": True, "submission_pending_count": 2},
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review"},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={"all_complete": True, "submission_pending_count": 2},
+            ),
         ):
             result = _try_advance_pr_review_to_decision()
 
@@ -127,22 +133,26 @@ class TestTryAdvancePrReviewToDecision:
 
         set_value("pull_request_id", "12345")
 
-        with patch(
-            "agentic_devtools.state.get_workflow_state",
-            return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
-        ), patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value={
-                "all_complete": True,
-                "submission_pending_count": 0,
-                "completed_count": 3,
-                "pending_count": 0,
-                "total_count": 3,
-            },
-        ), patch(
-            "agentic_devtools.cli.workflows.base.advance_workflow_step",
-            return_value="rendered prompt",
-        ) as mock_advance:
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "submission_pending_count": 0,
+                    "completed_count": 3,
+                    "pending_count": 0,
+                    "total_count": 3,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.base.advance_workflow_step",
+                return_value="rendered prompt",
+            ) as mock_advance,
+        ):
             result = _try_advance_pr_review_to_decision()
 
         assert result is True
@@ -171,22 +181,27 @@ class TestTryAdvancePrReviewToDecision:
 
         set_value("pull_request_id", "12345")
 
-        with patch(
-            "agentic_devtools.state.get_workflow_state",
-            return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
-        ), patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value={
-                "all_complete": True,
-                "submission_pending_count": 0,
-                "completed_count": 2,
-                "pending_count": 0,
-                "total_count": 2,
-            },
-        ), patch(
-            "agentic_devtools.cli.workflows.base.advance_workflow_step",
-            return_value="rendered prompt",
-        ), patch("agentic_devtools.background_tasks.run_function_in_background") as mock_bg:
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "submission_pending_count": 0,
+                    "completed_count": 2,
+                    "pending_count": 0,
+                    "total_count": 2,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.base.advance_workflow_step",
+                return_value="rendered prompt",
+            ),
+            patch("agentic_devtools.background_tasks.run_function_in_background") as mock_bg,
+        ):
             _try_advance_pr_review_to_decision()
 
         # No background task should be started
@@ -211,25 +226,30 @@ class TestTryAdvancePrReviewToDecision:
             "/src/b.py": mock_file_needswork,
         }
 
-        with patch(
-            "agentic_devtools.state.get_workflow_state",
-            return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
-        ), patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-            return_value={
-                "all_complete": True,
-                "submission_pending_count": 0,
-                "completed_count": 2,
-                "pending_count": 0,
-                "total_count": 2,
-            },
-        ), patch(
-            "agentic_devtools.cli.azure_devops.review_state.load_review_state",
-            return_value=mock_review_state,
-        ), patch(
-            "agentic_devtools.cli.workflows.base.advance_workflow_step",
-            return_value="rendered prompt",
-        ) as mock_advance:
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "submission_pending_count": 0,
+                    "completed_count": 2,
+                    "pending_count": 0,
+                    "total_count": 2,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=mock_review_state,
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.base.advance_workflow_step",
+                return_value="rendered prompt",
+            ) as mock_advance,
+        ):
             result = _try_advance_pr_review_to_decision()
 
         assert result is True

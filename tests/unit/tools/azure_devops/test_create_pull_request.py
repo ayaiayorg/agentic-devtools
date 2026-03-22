@@ -24,9 +24,7 @@ class TestCreatePullRequest:
             "pullRequestId": 123,
             "repository": {"webUrl": "https://dev.azure.com/myorg/proj/_git/repo"},
         }
-        mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout=json.dumps(pr_json), stderr=""
-        )
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout=json.dumps(pr_json), stderr="")
         config = self._make_config()
 
         result = create_pull_request(
@@ -115,9 +113,7 @@ class TestCreatePullRequest:
             "pullRequestId": 0,
             "repository": {"webUrl": "https://dev.azure.com/myorg/proj/_git/repo"},
         }
-        mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout=json.dumps(pr_json), stderr=""
-        )
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout=json.dumps(pr_json), stderr="")
         config = self._make_config()
 
         result = create_pull_request(config=config, pat="pat", source_branch="feat", title="PR")
@@ -190,9 +186,7 @@ class TestCreatePullRequest:
     @patch("agentic_devtools.cli.subprocess_utils.run_safe")
     def test_raises_value_error_on_invalid_json(self, mock_run_safe):
         """Malformed JSON response raises ValueError instead of sys.exit."""
-        mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="not valid json", stderr=""
-        )
+        mock_run_safe.return_value = MagicMock(returncode=0, stdout="not valid json", stderr="")
         config = self._make_config()
 
         with pytest.raises(ValueError, match="Failed to parse PR response JSON"):

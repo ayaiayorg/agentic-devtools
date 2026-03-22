@@ -4,8 +4,6 @@ Provides functions to generate and regenerate full markdown content for
 file summaries and the overall PR summary at each status.
 """
 
-from typing import Dict, List, Optional, Tuple
-
 from .review_attribution import format_status, render_attribution_line
 from .review_state import (
     ConsolidationStatus,
@@ -17,16 +15,16 @@ from .review_state import (
     compute_aggregate_status,
 )
 
-_SEVERITY_LABELS: Dict[str, str] = {
+_SEVERITY_LABELS: dict[str, str] = {
     "high": "Must Fix (High)",
     "medium": "Should Fix (Medium)",
     "low": "Could Fix (Low)",
 }
 
-_SEVERITY_ORDER: List[str] = ["high", "medium", "low"]
+_SEVERITY_ORDER: list[str] = ["high", "medium", "low"]
 
 # Emoji character for each file/folder status (used in nested file lists)
-_STATUS_EMOJI: Dict[str, str] = {
+_STATUS_EMOJI: dict[str, str] = {
     ReviewStatus.NEEDS_WORK.value: "📝",
     ReviewStatus.APPROVED.value: "✅",
     ReviewStatus.IN_PROGRESS.value: "🔃",
@@ -48,9 +46,9 @@ def build_discussion_url(base_url: str, thread_id: int, comment_id: int) -> str:
     return f"{base_url}?discussionId={thread_id}&commentId={comment_id}"
 
 
-def _format_severity_counts(suggestions: List[SuggestionEntry]) -> str:
+def _format_severity_counts(suggestions: list[SuggestionEntry]) -> str:
     """Format severity counts as a human-readable string (e.g. '2 High, 1 Medium')."""
-    counts: Dict[str, int] = {"high": 0, "medium": 0, "low": 0}
+    counts: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
     for s in suggestions:
         sev = s.severity.lower()
         if sev in counts:
@@ -60,7 +58,7 @@ def _format_severity_counts(suggestions: List[SuggestionEntry]) -> str:
 
 
 # Verdict display string mapping: per-model status → markdown display
-_VERDICT_DISPLAY: Dict[str, str] = {
+_VERDICT_DISPLAY: dict[str, str] = {
     ReviewStatus.UNREVIEWED.value: "⏳ Awaiting Review",
     ReviewStatus.IN_PROGRESS.value: "🔃 In Progress",
     ReviewStatus.APPROVED.value: "✅ Approved",
@@ -69,10 +67,10 @@ _VERDICT_DISPLAY: Dict[str, str] = {
 
 
 def render_model_review_progress_table(
-    model_verdicts: List[ModelVerdict],
-    consolidation_status: Optional[str] = None,
-    boss_model: Optional[str] = None,
-    final_verdict: Optional[str] = None,
+    model_verdicts: list[ModelVerdict],
+    consolidation_status: str | None = None,
+    boss_model: str | None = None,
+    final_verdict: str | None = None,
 ) -> str:
     """Render the Model Review Progress table in markdown.
 
@@ -102,7 +100,7 @@ def render_model_review_progress_table(
     if not model_verdicts:
         return ""
 
-    lines: List[str] = [
+    lines: list[str] = [
         "### Model Review Progress",
         "",
         "| Model | Verdict |",
@@ -127,13 +125,13 @@ def render_model_review_progress_table(
 
 def render_file_summary(
     file_entry: FileEntry,
-    suggestions: List[SuggestionEntry],
+    suggestions: list[SuggestionEntry],
     base_url: str,
-    model_name: Optional[str] = None,
-    model_icon: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    commit_url: Optional[str] = None,
-    boss_model: Optional[str] = None,
+    model_name: str | None = None,
+    model_icon: str | None = None,
+    commit_hash: str | None = None,
+    commit_url: str | None = None,
+    boss_model: str | None = None,
 ) -> str:
     """Render a file review summary in markdown format.
 
@@ -157,7 +155,7 @@ def render_file_summary(
     status = file_entry.status
     status_display = format_status(status, use_emoji=True)
 
-    lines: List[str] = [
+    lines: list[str] = [
         f"## File Review Summary: {file_entry.fileName}",
         "",
     ]
@@ -188,7 +186,7 @@ def render_file_summary(
         lines.append(file_entry.summary or "")
         lines += ["", "### Suggestions"]
 
-        by_severity: Dict[str, List[SuggestionEntry]] = {sev: [] for sev in _SEVERITY_ORDER}
+        by_severity: dict[str, list[SuggestionEntry]] = {sev: [] for sev in _SEVERITY_ORDER}
         for s in suggestions:
             sev = s.severity.lower()
             if sev in by_severity:
@@ -221,10 +219,10 @@ def render_file_summary(
 def render_overall_summary(
     state: ReviewState,
     base_url: str,
-    model_name: Optional[str] = None,
-    model_icon: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    commit_url: Optional[str] = None,
+    model_name: str | None = None,
+    model_icon: str | None = None,
+    commit_hash: str | None = None,
+    commit_url: str | None = None,
 ) -> str:
     """Render the overall PR review summary in markdown format.
 
@@ -247,7 +245,7 @@ def render_overall_summary(
         Markdown string for the overall PR review summary.
     """
     # Build per-status, per-folder file groups: status → folder → [(full_path, FileEntry)]
-    status_folder_files: Dict[str, Dict[str, List[Tuple[str, FileEntry]]]] = {
+    status_folder_files: dict[str, dict[str, list[tuple[str, FileEntry]]]] = {
         ReviewStatus.NEEDS_WORK.value: {},
         ReviewStatus.IN_PROGRESS.value: {},
         ReviewStatus.APPROVED.value: {},
@@ -272,7 +270,7 @@ def render_overall_summary(
         use_emoji=True,
     )
 
-    lines: List[str] = [
+    lines: list[str] = [
         "## Overall PR Review Summary",
         "",
     ]
