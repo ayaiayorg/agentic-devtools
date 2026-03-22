@@ -13,6 +13,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test create_subtask in dry run mode."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test Subtask")
         jira.set_jira_value("role", "developer")
@@ -29,6 +30,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_missing_parent(self, temp_state_dir, clear_state_before):
         """Test create_subtask fails with missing parent_key."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("role", "dev")
         jira.set_jira_value("desired_outcome", "work")
@@ -40,6 +42,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_missing_summary(self, temp_state_dir, clear_state_before):
         """Test create_subtask fails with missing summary."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("role", "dev")
         jira.set_jira_value("desired_outcome", "work")
@@ -51,6 +54,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_missing_role(self, temp_state_dir, clear_state_before):
         """Test create_subtask fails with missing role."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("desired_outcome", "work")
@@ -62,6 +66,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_missing_desired_outcome(self, temp_state_dir, clear_state_before):
         """Test create_subtask fails with missing desired_outcome."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("role", "dev")
@@ -73,6 +78,7 @@ class TestCreateSubtaskDryRun:
 
     def test_create_subtask_missing_benefit(self, temp_state_dir, clear_state_before):
         """Test create_subtask fails with missing benefit."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("role", "dev")
@@ -95,6 +101,7 @@ class TestCreateSubtaskWithMock:
         capsys,
     ):
         """Test successful subtask creation."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test Subtask")
         jira.set_jira_value("role", "developer")
@@ -109,6 +116,7 @@ class TestCreateSubtaskWithMock:
 
     def test_create_subtask_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test create_subtask handles API error."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("parent_key", "DFLY-1234")
         jira.set_jira_value("summary", "Test Subtask")
         jira.set_jira_value("role", "developer")

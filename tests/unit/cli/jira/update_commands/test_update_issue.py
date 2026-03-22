@@ -88,8 +88,12 @@ class TestUpdateIssue:
                             "agentic_devtools.cli.jira.update_commands.get_jira_headers",
                             return_value={},
                         ):
-                            with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
-                                update_issue()
+                            with patch(
+                                "agentic_devtools.cli.jira.update_commands._get_ssl_verify",
+                                return_value=False,
+                            ):
+                                with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
+                                    update_issue()
 
         captured = capsys.readouterr()
         assert "updated successfully" in captured.out

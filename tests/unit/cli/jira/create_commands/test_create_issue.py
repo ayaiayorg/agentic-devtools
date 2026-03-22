@@ -13,6 +13,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_dry_run(self, temp_state_dir, clear_state_before, capsys):
         """Test create_issue in dry run mode."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Issue")
         jira.set_jira_value("role", "developer")
         jira.set_jira_value("desired_outcome", "functionality")
@@ -27,6 +28,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_custom_type(self, temp_state_dir, clear_state_before, capsys):
         """Test create_issue with custom issue type."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Bug")
         jira.set_jira_value("issue_type", "Bug")
         jira.set_jira_value("role", "tester")
@@ -41,6 +43,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_missing_summary(self, temp_state_dir, clear_state_before):
         """Test create_issue fails with missing summary."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("role", "dev")
         jira.set_jira_value("desired_outcome", "feature")
         jira.set_jira_value("benefit", "value")
@@ -51,6 +54,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_missing_role(self, temp_state_dir, clear_state_before):
         """Test create_issue fails with missing role."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("desired_outcome", "feature")
         jira.set_jira_value("benefit", "value")
@@ -61,6 +65,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_missing_desired_outcome(self, temp_state_dir, clear_state_before):
         """Test create_issue fails with missing desired_outcome."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("role", "dev")
         jira.set_jira_value("benefit", "value")
@@ -71,6 +76,7 @@ class TestCreateIssueDryRun:
 
     def test_create_issue_missing_benefit(self, temp_state_dir, clear_state_before):
         """Test create_issue fails with missing benefit."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test")
         jira.set_jira_value("role", "dev")
         jira.set_jira_value("desired_outcome", "feature")
@@ -78,6 +84,35 @@ class TestCreateIssueDryRun:
         with pytest.raises(SystemExit) as exc_info:
             jira.create_issue()
         assert exc_info.value.code == 1
+
+    def test_create_issue_missing_project_key(self, temp_state_dir, clear_state_before, capsys):
+        """Test create_issue fails with missing project_key and no configured keys."""
+        jira.set_jira_value("summary", "Test")
+        jira.set_jira_value("role", "dev")
+        jira.set_jira_value("desired_outcome", "feature")
+        jira.set_jira_value("benefit", "value")
+
+        with patch.object(create_commands, "get_jira_project_keys", return_value=[]):
+            with pytest.raises(SystemExit) as exc_info:
+                jira.create_issue()
+            assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "No Jira project key configured" in captured.err
+
+    def test_create_issue_uses_configured_project_key(self, temp_state_dir, clear_state_before, capsys):
+        """Test create_issue falls back to configured project keys when jira.project_key is not set."""
+        jira.set_jira_value("summary", "Test Issue")
+        jira.set_jira_value("role", "dev")
+        jira.set_jira_value("desired_outcome", "feature")
+        jira.set_jira_value("benefit", "value")
+        jira.set_jira_value("dry_run", True)
+
+        with patch.object(create_commands, "get_jira_project_keys", return_value=["PROJ"]):
+            jira.create_issue()
+
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
 
 
 class TestCreateIssueWithMock:
@@ -92,6 +127,7 @@ class TestCreateIssueWithMock:
         capsys,
     ):
         """Test successful issue creation."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Issue")
         jira.set_jira_value("role", "developer")
         jira.set_jira_value("desired_outcome", "feature")
@@ -105,6 +141,7 @@ class TestCreateIssueWithMock:
 
     def test_create_issue_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):
         """Test create_issue handles API error."""
+        jira.set_jira_value("project_key", "TESTPROJ")
         jira.set_jira_value("summary", "Test Issue")
         jira.set_jira_value("role", "developer")
         jira.set_jira_value("desired_outcome", "feature")

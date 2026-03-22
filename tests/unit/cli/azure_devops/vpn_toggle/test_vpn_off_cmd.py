@@ -37,3 +37,22 @@ class TestVpnOffCmd:
 
         captured = capsys.readouterr()
         assert captured.out != "" or captured.err != ""
+
+    def test_returns_early_when_vpn_url_not_configured(self, capsys):
+        """Should print error and return early when VPN URL is None."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed",
+            return_value=True,
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected",
+                return_value=True,
+            ):
+                with patch(
+                    "agentic_devtools.cli.azure_devops.vpn_toggle.get_vpn_url_from_state",
+                    return_value=None,
+                ):
+                    vpn_off_cmd()
+
+        captured = capsys.readouterr()
+        assert "VPN URL not configured" in captured.out

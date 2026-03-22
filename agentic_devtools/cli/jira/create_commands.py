@@ -10,9 +10,9 @@ from agentic_devtools.tools.jira import JiraConfig
 from agentic_devtools.tools.jira import create_issue as _tools_create_issue
 
 from .config import (
-    DEFAULT_PROJECT_KEY,
     get_jira_base_url,
     get_jira_headers,
+    get_jira_project_keys,
 )
 from .formatting import build_user_story_description, merge_labels
 from .helpers import (
@@ -80,7 +80,13 @@ def create_issue_sync(
 @with_jira_vpn_context
 def create_epic() -> None:
     """Create a Jira Epic. See commands.py for detailed docstring."""
-    project_key = get_jira_value("project_key") or DEFAULT_PROJECT_KEY
+    project_key = get_jira_value("project_key")
+    if not project_key:
+        keys = get_jira_project_keys()
+        project_key = keys[0] if keys else None
+    if not project_key:
+        print("Error: No Jira project key configured. Run agdt-setup or set jira.project_key.", file=sys.stderr)
+        sys.exit(1)
     summary = get_jira_value("summary")
     epic_name = get_jira_value("epic_name")
     role = get_jira_value("role")
@@ -158,7 +164,13 @@ def create_epic() -> None:
 @with_jira_vpn_context
 def create_issue() -> None:
     """Create a Jira issue (Task, Story, Bug, etc.). See commands.py for detailed docstring."""
-    project_key = get_jira_value("project_key") or DEFAULT_PROJECT_KEY
+    project_key = get_jira_value("project_key")
+    if not project_key:
+        keys = get_jira_project_keys()
+        project_key = keys[0] if keys else None
+    if not project_key:
+        print("Error: No Jira project key configured. Run agdt-setup or set jira.project_key.", file=sys.stderr)
+        sys.exit(1)
     summary = get_jira_value("summary")
     issue_type = get_jira_value("issue_type") or "Task"
     role = get_jira_value("role")
@@ -247,7 +259,14 @@ def create_subtask() -> None:
         print(f"Error: Missing required fields: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
-    project_key = parent_key.split("-")[0] if parent_key else DEFAULT_PROJECT_KEY
+    if parent_key:
+        project_key = parent_key.split("-")[0]
+    else:  # pragma: no cover — parent_key is always required above
+        keys = get_jira_project_keys()
+        project_key = keys[0] if keys else None
+    if not project_key:  # pragma: no cover — defensive; parent_key always provides a key
+        print("Error: No Jira project key configured. Run agdt-setup or set jira.project_key.", file=sys.stderr)
+        sys.exit(1)
 
     acceptance_criteria = _parse_multiline_string(get_jira_value("acceptance_criteria"))
     additional_information = _parse_multiline_string(get_jira_value("additional_information"))

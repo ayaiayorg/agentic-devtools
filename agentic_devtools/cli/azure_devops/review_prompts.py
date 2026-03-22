@@ -67,7 +67,16 @@ def build_file_prompt_content(
     ]
 
     if jira_issue_key:
-        lines.append(f"- **Jira Issue**: [{jira_issue_key}](https://jira.swica.ch/browse/{jira_issue_key})")
+        try:
+            from ..jira.config import get_jira_base_url
+
+            jira_url = get_jira_base_url().rstrip("/")
+        except (ValueError, ImportError):
+            jira_url = ""
+        if jira_url:
+            lines.append(f"- **Jira Issue**: [{jira_issue_key}]({jira_url}/browse/{jira_issue_key})")
+        else:
+            lines.append(f"- **Jira Issue**: {jira_issue_key}")
 
     lines.extend(
         [

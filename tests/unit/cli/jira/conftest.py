@@ -32,6 +32,7 @@ def mock_jira_env():
         {
             "JIRA_COPILOT_PAT": "test-token",
             "JIRA_SSL_VERIFY": "0",
+            "JIRA_BASE_URL": "https://jira.test.example.com",
         },
     ):
         yield

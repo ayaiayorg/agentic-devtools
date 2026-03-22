@@ -401,6 +401,68 @@ def _persist_single_var(profile_path: Path, var_name: str, var_value: str, shell
             pass  # persist_env_var already printed a warning
 
 
+def _prompt_project_config() -> None:
+    """Prompt the user for project-specific configuration values.
+
+    Reads existing values from ``.agdt/config/project.json`` as defaults.
+    Saves responses back to the same file.
+    """
+    from agentic_devtools.cli.config.project_config import (
+        load_project_config,
+        save_project_config,
+    )
+
+    existing = load_project_config()
+
+    print()
+    print("─── Project Configuration ───────────────────────────────────")
+    print("  Configure project-specific settings.")
+    print("  Press Enter to keep current value; for optional fields, type '-' to clear.")
+    print()
+
+    def _ask(prompt: str, key: str, allow_clear: bool = False) -> str:
+        current = existing.get(key, "")
+        suffix = f" [{current}]" if current else ""
+        answer = input(f"  {prompt}{suffix}: ").strip()
+        if allow_clear and answer.lower() in {"-", "clear"}:
+            return ""
+        # Reject clear sentinels for required fields — treat as "keep current"
+        if not allow_clear and answer.lower() in {"-", "clear"}:
+            return current
+        if answer:
+            return answer
+        return current
+
+    jira_keys = _ask("Jira project key(s), comma-separated (e.g. DFLY,PROJ)", "jira_project_keys")
+    jira_base_url = _ask("Jira base URL (e.g. https://jira.example.com)", "jira_base_url")
+    corp_host = _ask("Corporate network test host (type '-' to clear)", "corporate_network_test_host", allow_clear=True)
+    vpn_url = _ask("VPN portal URL (type '-' to clear)", "vpn_url", allow_clear=True)
+    vpn_hostnames = _ask(
+        "VPN hostnames for smart detection, comma-separated (type '-' to clear)",
+        "vpn_hostnames",
+        allow_clear=True,
+    )
+
+    config = dict(existing)  # preserve any extra keys
+    for key, value in [
+        ("jira_project_keys", jira_keys),
+        ("jira_base_url", jira_base_url),
+        ("corporate_network_test_host", corp_host),
+        ("vpn_url", vpn_url),
+        ("vpn_hostnames", vpn_hostnames),
+    ]:
+        if value:
+            config[key] = value
+        else:
+            config.pop(key, None)
+
+    if config:
+        path = save_project_config(config)
+        print(f"\n  ✓ Project configuration saved to {path}")
+    else:
+        print("\n  ℹ No project configuration values provided.")
+
+
 def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
@@ -499,6 +561,11 @@ def setup_cmd() -> None:
             )
         elif git_root is not None:
             print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
+
+        # ── Project configuration prompts ───────────────────────────────
+        if not args.system_only and git_root is not None:
+            _prompt_project_config()
+        # ────────────────────────────────────────────────────────────────
 
         # Inject bundled agent/prompt skills where supported. Skill injection is a
         # best-effort optional feature: guard the import so that agdt-setup still

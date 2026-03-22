@@ -20,7 +20,7 @@ class TestDisconnectVpn:
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
 
-        success, msg = disconnect_vpn()
+        success, msg = disconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -35,7 +35,7 @@ class TestDisconnectVpn:
         mock_cmd.return_value = (True, "Suspended", 0)  # 3-tuple: success, output, return_code
         mock_vpn.side_effect = [True, False]  # Connected, then disconnected
 
-        success, msg = disconnect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = disconnect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "verified disconnected" in msg.lower() or "suspend" in msg.lower()
@@ -47,7 +47,7 @@ class TestDisconnectVpn:
         mock_installed.return_value = True
         mock_cmd.return_value = (False, "Command failed", 1)  # 3-tuple: success, output, return_code
 
-        success, msg = disconnect_vpn()
+        success, msg = disconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "failed" in msg.lower()

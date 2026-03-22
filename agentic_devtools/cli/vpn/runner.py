@@ -52,12 +52,9 @@ def _detect_vpn_requirement_from_command(command: str) -> VpnRequirement:
             return VpnRequirement.REQUIRE_PUBLIC
 
     # Commands/URLs that typically need VPN
-    vpn_patterns = [
-        "jira.swica.ch",
-        "dragonfly.swica.ch",
-        "portal.swica.ch",
-        "esb.swica",
-    ]
+    from agentic_devtools.cli.azure_devops.vpn_toggle import get_vpn_hostnames
+
+    vpn_patterns = get_vpn_hostnames()
 
     for pattern in vpn_patterns:
         if pattern in command_lower:
@@ -88,6 +85,7 @@ def run_with_vpn_context(
         from ..azure_devops.vpn_toggle import (
             VpnToggleContext,
             get_vpn_url_from_state,
+            smart_connect_vpn,
         )
         from ..network.detection import NetworkContext, detect_network_context
 
@@ -115,23 +113,35 @@ def run_with_vpn_context(
         if requirement == VpnRequirement.REQUIRE_VPN:
             # Command needs VPN - ensure it's connected
             if context == NetworkContext.REMOTE_WITHOUT_VPN:
-                print("🔌 Command needs VPN - connecting...")
-                # VpnToggleContext will connect if needed
-                with VpnToggleContext(vpn_url=vpn_url, ensure_connected=True, verbose=True):
-                    return _execute_command(command, shell)
-            else:
-                # Already have access (VPN or corporate network)
-                return _execute_command(command, shell)
+                if vpn_url is None:
+                    print("⚠️  Command needs VPN but no VPN URL configured")
+                    print("   Run agdt-setup to configure VPN URL")
+                    print("   Attempting to run anyway...")
+                else:
+                    print("🔌 Command needs VPN - connecting...")
+                    success, msg = smart_connect_vpn(vpn_url)
+                    if msg:
+                        print(msg)
+                    if not success:
+                        print("❌ Unable to establish VPN connection; aborting command.")
+                        return 1, "", f"VPN connection failed: {msg}"
+            # Run command (VPN now connected, or already had access)
+            return _execute_command(command, shell)
 
         elif requirement == VpnRequirement.REQUIRE_PUBLIC:
             # Command needs public access - disconnect VPN if connected
             if context == NetworkContext.REMOTE_WITH_VPN:
-                print("📡 Command needs public access - temporarily disconnecting VPN...")
-                with VpnToggleContext(vpn_url=vpn_url, ensure_connected=False, verbose=True):
-                    return _execute_command(command, shell)
-            else:
-                # Not on VPN (or on corporate network) - run as-is
-                return _execute_command(command, shell)
+                if vpn_url is None:
+                    print("⚠️  Command needs public access but no VPN URL configured")
+                    print("   Run agdt-setup to configure VPN URL")
+                    print("   Attempting to run anyway...")
+                else:
+                    print("📡 Command needs public access - temporarily disconnecting VPN...")
+                    # VpnToggleContext(auto_toggle=True) disconnects on enter, reconnects on exit
+                    with VpnToggleContext(vpn_url=vpn_url, auto_toggle=True, verbose=True):
+                        return _execute_command(command, shell)
+            # Not on VPN (or on corporate network, or no vpn_url) - run as-is
+            return _execute_command(command, shell)
 
         else:  # pragma: no cover
             # Unknown requirement - run as-is

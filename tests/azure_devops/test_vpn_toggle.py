@@ -11,8 +11,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agentic_devtools.cli.azure_devops.vpn_toggle import (
-    CORPORATE_NETWORK_TEST_HOST,
-    DEFAULT_VPN_URL,
     PULSE_LAUNCHER_PATH,
     JiraVpnContext,
     NetworkStatus,
@@ -35,14 +33,6 @@ class TestConstants:
         """Test PULSE_LAUNCHER_PATH is a Path object."""
         assert isinstance(PULSE_LAUNCHER_PATH, Path)
         assert "pulselauncher.exe" in str(PULSE_LAUNCHER_PATH)
-
-    def test_default_vpn_url(self):
-        """Test DEFAULT_VPN_URL is set correctly."""
-        assert DEFAULT_VPN_URL == "https://portal.swica.ch/pulse"
-
-    def test_corporate_network_test_host(self):
-        """Test CORPORATE_NETWORK_TEST_HOST is set."""
-        assert CORPORATE_NETWORK_TEST_HOST == "dragonfly.swica.ch"
 
 
 class TestNetworkStatus:
@@ -215,8 +205,12 @@ class TestIsVpnConnected:
 class TestIsOnCorporateNetwork:
     """Tests for is_on_corporate_network function."""
 
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="internal.example.com",
+    )
     @patch("subprocess.run")
-    def test_returns_true_when_corporate_accessible(self, mock_run):
+    def test_returns_true_when_corporate_accessible(self, mock_run, _mock_host):
         """Test returns True when internal host returns 'corporate'."""
         mock_result = MagicMock()
         mock_result.stdout = "corporate"
@@ -226,8 +220,12 @@ class TestIsOnCorporateNetwork:
 
         assert result is True
 
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="internal.example.com",
+    )
     @patch("subprocess.run")
-    def test_returns_false_when_external(self, mock_run):
+    def test_returns_false_when_external(self, mock_run, _mock_host):
         """Test returns False when response indicates external (403)."""
         mock_result = MagicMock()
         mock_result.stdout = "external"
@@ -237,8 +235,12 @@ class TestIsOnCorporateNetwork:
 
         assert result is False
 
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="internal.example.com",
+    )
     @patch("subprocess.run")
-    def test_returns_false_on_timeout(self, mock_run):
+    def test_returns_false_on_timeout(self, mock_run, _mock_host):
         """Test returns False when request times out."""
         import subprocess
 
@@ -248,11 +250,22 @@ class TestIsOnCorporateNetwork:
 
         assert result is False
 
+    @patch(
+        "agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host",
+        return_value="internal.example.com",
+    )
     @patch("subprocess.run")
-    def test_returns_false_on_exception(self, mock_run):
+    def test_returns_false_on_exception(self, mock_run, _mock_host):
         """Test returns False on general exception."""
         mock_run.side_effect = Exception("Network error")
 
+        result = is_on_corporate_network()
+
+        assert result is False
+
+    @patch("agentic_devtools.cli.azure_devops.vpn_toggle.get_corporate_network_test_host", return_value=None)
+    def test_returns_false_when_no_host_configured(self, _mock_host):
+        """Test returns False when no corporate network test host is configured."""
         result = is_on_corporate_network()
 
         assert result is False
@@ -313,7 +326,7 @@ class TestDisconnectVpn:
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
 
-        success, msg = disconnect_vpn()
+        success, msg = disconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -328,7 +341,7 @@ class TestDisconnectVpn:
         mock_cmd.return_value = (True, "Suspended", 0)  # 3-tuple: success, output, return_code
         mock_vpn.side_effect = [True, False]  # Connected, then disconnected
 
-        success, msg = disconnect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = disconnect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "verified disconnected" in msg.lower() or "suspend" in msg.lower()
@@ -340,7 +353,7 @@ class TestDisconnectVpn:
         mock_installed.return_value = True
         mock_cmd.return_value = (False, "Command failed", 1)  # 3-tuple: success, output, return_code
 
-        success, msg = disconnect_vpn()
+        success, msg = disconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "failed" in msg.lower()
@@ -354,7 +367,7 @@ class TestReconnectVpn:
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
 
-        success, msg = reconnect_vpn()
+        success, msg = reconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -369,7 +382,7 @@ class TestReconnectVpn:
         mock_cmd.return_value = (True, "Resumed", 0)  # 3-tuple: success, output, return_code
         mock_vpn.side_effect = [False, True]  # Disconnected, then connected
 
-        success, msg = reconnect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = reconnect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "verified connected" in msg.lower() or "resume" in msg.lower()
@@ -381,7 +394,7 @@ class TestReconnectVpn:
         mock_installed.return_value = True
         mock_cmd.return_value = (False, "Command failed", 1)  # 3-tuple: success, output, return_code
 
-        success, msg = reconnect_vpn()
+        success, msg = reconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "failed" in msg.lower()
@@ -401,11 +414,19 @@ class TestVpnToggleContext:
         """Test context is a no-op when Pulse Secure not installed."""
         mock_installed.return_value = False
 
-        with VpnToggleContext(auto_toggle=True, verbose=True) as ctx:
+        with VpnToggleContext(auto_toggle=True, vpn_url="https://test.vpn", verbose=True) as ctx:
             assert ctx.disconnected is False
 
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
+
+    def test_no_op_when_vpn_url_none(self, capsys):
+        """Test context is a no-op when vpn_url is None."""
+        with VpnToggleContext(auto_toggle=True, vpn_url=None, verbose=True) as ctx:
+            assert ctx.disconnected is False
+
+        captured = capsys.readouterr()
+        assert "vpn url not configured" in captured.out.lower()
 
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.reconnect_vpn")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.disconnect_vpn")
@@ -418,7 +439,7 @@ class TestVpnToggleContext:
         mock_disconnect.return_value = (True, "Disconnected")
         mock_reconnect.return_value = (True, "Reconnected")
 
-        with VpnToggleContext(auto_toggle=True, verbose=False) as ctx:
+        with VpnToggleContext(auto_toggle=True, vpn_url="https://test.vpn", verbose=False) as ctx:
             assert ctx.was_connected is True
             assert ctx.disconnected is True
             mock_disconnect.assert_called_once()
@@ -436,7 +457,7 @@ class TestVpnToggleContext:
         mock_installed.return_value = True
         mock_vpn.return_value = False  # VPN is not connected
 
-        with VpnToggleContext(auto_toggle=True, verbose=False) as ctx:
+        with VpnToggleContext(auto_toggle=True, vpn_url="https://test.vpn", verbose=False) as ctx:
             assert ctx.was_connected is False
             assert ctx.disconnected is False
             mock_disconnect.assert_not_called()
@@ -455,7 +476,7 @@ class TestVpnToggleContext:
         mock_reconnect.return_value = (True, "Reconnected")
 
         with pytest.raises(ValueError):
-            with VpnToggleContext(auto_toggle=True, verbose=False):
+            with VpnToggleContext(auto_toggle=True, vpn_url="https://test.vpn", verbose=False):
                 raise ValueError("Test exception")
 
         # Should still reconnect
@@ -471,8 +492,9 @@ class TestVpnToggleContext:
 class TestGetVpnUrlFromState:
     """Tests for get_vpn_url_from_state function."""
 
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
     @patch("agentic_devtools.state.get_value")
-    def test_returns_state_value(self, mock_get_value):
+    def test_returns_state_value(self, mock_get_value, _mock_config):
         """Test returns URL from state when set."""
         mock_get_value.return_value = "https://custom.vpn.url"
 
@@ -480,32 +502,33 @@ class TestGetVpnUrlFromState:
 
         assert result == "https://custom.vpn.url"
 
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
     @patch("agentic_devtools.state.get_value")
-    def test_returns_default_when_state_empty(self, mock_get_value):
-        """Test returns default URL when state value is empty."""
+    def test_returns_none_when_state_empty(self, mock_get_value, _mock_config):
+        """Test returns None when state value is empty."""
         mock_get_value.return_value = ""
 
         result = get_vpn_url_from_state()
 
-        assert result == DEFAULT_VPN_URL
+        assert result is None
 
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
     @patch("agentic_devtools.state.get_value")
-    def test_returns_default_when_state_none(self, mock_get_value):
-        """Test returns default URL when state value is None."""
+    def test_returns_none_when_state_none(self, mock_get_value, _mock_config):
+        """Test returns None when state value is None."""
         mock_get_value.return_value = None
 
         result = get_vpn_url_from_state()
 
-        assert result == DEFAULT_VPN_URL
+        assert result is None
 
-    def test_returns_default_on_import_error(self):
-        """Test returns default URL when state module cannot be imported."""
-        # The function catches ImportError internally
-        # We test the default path by ensuring the function works
-        # even if called in isolation
+    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value="https://config.vpn.url")
+    @patch("agentic_devtools.state.get_value", return_value=None)
+    def test_returns_project_config_value(self, _mock_state, _mock_config):
+        """Test returns URL from project config when set."""
         result = get_vpn_url_from_state()
-        # Should not raise, should return default or actual value
-        assert result is not None
+
+        assert result == "https://config.vpn.url"
 
 
 class TestJiraVpnContext:
@@ -516,7 +539,7 @@ class TestJiraVpnContext:
         """Test context is a no-op when on corporate network."""
         mock_corp.return_value = True
 
-        with JiraVpnContext(verbose=True) as ctx:
+        with JiraVpnContext(vpn_url="https://test.vpn", verbose=True) as ctx:
             assert ctx.on_corporate_network is True
             assert ctx.vpn_was_off is False
             assert ctx.connected_vpn is False
@@ -532,12 +555,21 @@ class TestJiraVpnContext:
         mock_corp.return_value = False
         mock_installed.return_value = False
 
-        with JiraVpnContext(verbose=True) as ctx:
+        with JiraVpnContext(vpn_url="https://test.vpn", verbose=True) as ctx:
             assert ctx.on_corporate_network is False
             assert ctx.connected_vpn is False
 
         captured = capsys.readouterr()
         assert "not installed" in captured.out.lower()
+
+    def test_no_op_when_vpn_url_none(self, capsys):
+        """Test context is a no-op when vpn_url is None."""
+        with JiraVpnContext(vpn_url=None, verbose=True) as ctx:
+            assert ctx.on_corporate_network is False
+            assert ctx.connected_vpn is False
+
+        captured = capsys.readouterr()
+        assert "vpn url not configured" in captured.out.lower()
 
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_vpn_connected")
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_pulse_secure_installed")
@@ -548,7 +580,7 @@ class TestJiraVpnContext:
         mock_installed.return_value = True
         mock_vpn.return_value = True  # VPN already connected
 
-        with JiraVpnContext(verbose=True) as ctx:
+        with JiraVpnContext(vpn_url="https://test.vpn", verbose=True) as ctx:
             assert ctx.on_corporate_network is False
             assert ctx.vpn_was_off is False
             assert ctx.connected_vpn is False
@@ -597,7 +629,7 @@ class TestJiraVpnContext:
         mock_vpn.return_value = False  # VPN is off
         mock_connect.return_value = (False, "Connect failed")
 
-        with JiraVpnContext(verbose=True) as ctx:
+        with JiraVpnContext(vpn_url="https://test.vpn", verbose=True) as ctx:
             assert ctx.vpn_was_off is True
             assert ctx.connected_vpn is False
             mock_connect.assert_called_once()
@@ -621,7 +653,7 @@ class TestJiraVpnContext:
         mock_disconnect.return_value = (True, "Disconnected")
 
         with pytest.raises(ValueError):
-            with JiraVpnContext(verbose=False):
+            with JiraVpnContext(vpn_url="https://test.vpn", verbose=False):
                 raise ValueError("Test exception")
 
         # Should still disconnect
@@ -633,7 +665,7 @@ class TestJiraVpnContext:
         mock_corp.return_value = True  # On corporate network
 
         with pytest.raises(RuntimeError, match="test error"):
-            with JiraVpnContext(verbose=False):
+            with JiraVpnContext(vpn_url="https://test.vpn", verbose=False):
                 raise RuntimeError("test error")
 
     @patch("agentic_devtools.cli.azure_devops.vpn_toggle.is_on_corporate_network")
@@ -653,7 +685,7 @@ class TestJiraVpnContext:
         mock_corp.return_value = True
 
         with patch("agentic_devtools.cli.azure_devops.vpn_toggle.disconnect_vpn") as mock_disconnect:
-            with JiraVpnContext(verbose=False):
+            with JiraVpnContext(vpn_url="https://test.vpn", verbose=False):
                 pass
 
             # Should NOT call disconnect when on corporate network
@@ -670,7 +702,7 @@ class TestConnectVpn:
 
         mock_installed.return_value = False
 
-        success, msg = connect_vpn()
+        success, msg = connect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -687,7 +719,7 @@ class TestConnectVpn:
         mock_ui_auto.return_value = (True, "Connect button clicked")
         mock_vpn.side_effect = [True]  # VPN connects on first check
 
-        success, msg = connect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = connect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "connected" in msg.lower() or "automation" in msg.lower()
@@ -703,7 +735,7 @@ class TestConnectVpn:
         mock_installed.return_value = True
         mock_ui_auto.return_value = (True, "Already connected")
 
-        success, msg = connect_vpn()
+        success, msg = connect_vpn("https://test.vpn")
 
         assert success is True
         assert "already" in msg.lower()
@@ -720,7 +752,7 @@ class TestConnectVpn:
         mock_ui_auto.return_value = (False, "UI automation failed")
         mock_gui_path.exists.return_value = False
 
-        success, msg = connect_vpn(max_wait_seconds=1)
+        success, msg = connect_vpn("https://test.vpn", max_wait_seconds=1)
 
         assert success is False
         assert "not found" in msg.lower() or "manually" in msg.lower()
@@ -736,7 +768,7 @@ class TestSmartConnectVpn:
 
         mock_installed.return_value = False
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -750,7 +782,7 @@ class TestSmartConnectVpn:
         mock_installed.return_value = True
         mock_vpn.return_value = True
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         assert "already" in msg.lower()
@@ -767,7 +799,7 @@ class TestSmartConnectVpn:
         mock_vpn.side_effect = [False, True]  # First off, then connected
         mock_cmd.return_value = (True, "Resumed", 0)  # Return code 0 = resume accepted
 
-        success, msg = smart_connect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = smart_connect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "resume" in msg.lower()
@@ -785,7 +817,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (False, "No session", 999)  # Return code 999 = no suspended session
         mock_connect.return_value = (True, "Connected via UI")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()
@@ -803,7 +835,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (False, "Not running", -1)  # Return code -1 = Pulse not running
         mock_connect.return_value = (True, "Connected")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()
@@ -821,7 +853,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (True, "Unexpected", 42)  # Unexpected return code
         mock_connect.return_value = (True, "Connected via fallback")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()

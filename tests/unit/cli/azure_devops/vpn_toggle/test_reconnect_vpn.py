@@ -20,7 +20,7 @@ class TestReconnectVpn:
         """Test returns failure when Pulse Secure not installed."""
         mock_installed.return_value = False
 
-        success, msg = reconnect_vpn()
+        success, msg = reconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -35,7 +35,7 @@ class TestReconnectVpn:
         mock_cmd.return_value = (True, "Resumed", 0)  # 3-tuple: success, output, return_code
         mock_vpn.side_effect = [False, True]  # Disconnected, then connected
 
-        success, msg = reconnect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = reconnect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "verified connected" in msg.lower() or "resume" in msg.lower()
@@ -47,7 +47,7 @@ class TestReconnectVpn:
         mock_installed.return_value = True
         mock_cmd.return_value = (False, "Command failed", 1)  # 3-tuple: success, output, return_code
 
-        success, msg = reconnect_vpn()
+        success, msg = reconnect_vpn("https://test.vpn")
 
         assert success is False
         assert "failed" in msg.lower()

@@ -27,12 +27,12 @@ from .commands import (
     get_issue,
 )
 from .config import (
-    DEFAULT_JIRA_BASE_URL,
-    DEFAULT_PROJECT_KEY,
     EPIC_NAME_FIELD,
+    build_jira_issue_pattern,
     get_jira_auth_header,
     get_jira_base_url,
     get_jira_headers,
+    get_jira_project_keys,
 )
 from .formatting import (
     build_user_story_description,
@@ -63,8 +63,6 @@ from .state_helpers import (
 from .update_commands import update_issue
 
 __all__ = [
-    "DEFAULT_JIRA_BASE_URL",
-    "DEFAULT_PROJECT_KEY",
     "EPIC_NAME_FIELD",
     "JIRA_STATE_NAMESPACE",
     "_convert_adf_to_text",
@@ -80,6 +78,7 @@ __all__ = [
     "add_users_to_project_role_async",
     "add_users_to_project_role_batch",
     "add_users_to_project_role_batch_async",
+    "build_jira_issue_pattern",
     "build_user_story_description",
     "check_user_exists",
     "check_user_exists_async",
@@ -100,6 +99,7 @@ __all__ = [
     "get_jira_auth_header",
     "get_jira_base_url",
     "get_jira_headers",
+    "get_jira_project_keys",
     "get_jira_value",
     "get_project_role_details",
     "get_project_role_details_async",

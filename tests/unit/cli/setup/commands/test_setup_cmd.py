@@ -214,7 +214,8 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Ensured .agdt/.gitignore" in out
@@ -232,7 +233,8 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
                                     ):
-                                        commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to create/update .agdt/.gitignore" in err
@@ -249,8 +251,11 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=True):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch(
+                                                "agentic_devtools.skill_injector.inject_skills", return_value=True
+                                            ):
+                                                commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Injected agent/prompt skills" in out
@@ -267,8 +272,11 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch(
+                                                "agentic_devtools.skill_injector.inject_skills", return_value=False
+                                            ):
+                                                commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to inject agent/prompt skills" in err
@@ -295,8 +303,9 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
-                                        with patch("builtins.__import__", side_effect=_raising_import):
-                                            commands.setup_cmd()
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch("builtins.__import__", side_effect=_raising_import):
+                                                commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to import skill injector" in err

@@ -4,26 +4,68 @@ Jira configuration: constants, authentication, and headers.
 
 import base64
 import os
+import re
 
-# Constants
-DEFAULT_JIRA_BASE_URL = "https://jira.swica.ch"
-DEFAULT_PROJECT_KEY = "DFLY"
 EPIC_NAME_FIELD = "customfield_10006"
+
+
+def get_jira_project_keys() -> list[str]:
+    """Return configured Jira project keys as a list of uppercase strings.
+
+    Priority:
+    1. Project config ``jira_project_keys``
+    2. State value ``jira_project_keys``
+    3. Environment variable ``JIRA_PROJECT_KEYS``
+    4. Empty list (generic fallback)
+
+    The config value is a comma-separated string (e.g. ``"DFLY,PROJ"``).
+    """
+    from agentic_devtools.cli.config.project_config import get_project_config_value
+    from agentic_devtools.state import get_value
+
+    raw = (
+        get_project_config_value("jira_project_keys")
+        or get_value("jira_project_keys")
+        or os.environ.get("JIRA_PROJECT_KEYS")
+    )
+    if not raw:
+        return []
+    return [k.strip().upper() for k in raw.split(",") if k.strip()]
+
+
+def build_jira_issue_pattern(project_keys: list[str]) -> re.Pattern[str]:
+    """Build a compiled regex for matching Jira issue keys.
+
+    If *project_keys* is non-empty the pattern matches only those projects
+    (e.g. ``((?:DFLY|PROJ)-\\d+)``).  Otherwise a generic pattern
+    ``([A-Z]{2,10}-\\d+)`` is used.
+    """
+    if project_keys:
+        alternation = "|".join(re.escape(k) for k in project_keys)
+        return re.compile(rf"((?:{alternation})-\d+)", re.IGNORECASE)
+    return re.compile(r"([A-Z]{2,10}-\d+)", re.IGNORECASE)
 
 
 def get_jira_base_url() -> str:
     """
-    Get Jira base URL from state, environment, or default.
+    Get Jira base URL from project config, state, or environment.
 
     Priority:
-    1. State value 'jira_base_url'
-    2. Environment variable JIRA_BASE_URL
-    3. Default URL
+    1. Project config ``jira_base_url``
+    2. State value ``jira_base_url``
+    3. Environment variable ``JIRA_BASE_URL``
+    4. Raises ``ValueError`` if unconfigured
+
+    Raises:
+        ValueError: If no Jira base URL is configured anywhere.
     """
-    # Import here to avoid circular dependency
+    from agentic_devtools.cli.config.project_config import get_project_config_value
     from agentic_devtools.state import get_value
 
-    return get_value("jira_base_url") or os.environ.get("JIRA_BASE_URL") or DEFAULT_JIRA_BASE_URL
+    url = get_project_config_value("jira_base_url") or get_value("jira_base_url") or os.environ.get("JIRA_BASE_URL")
+    if url:
+        return url
+    raise ValueError("Jira base URL not configured. Run agdt-setup or set JIRA_BASE_URL.")
 
 
 def get_jira_auth_header() -> str:

@@ -13,7 +13,7 @@ class TestSmartConnectVpn:
 
         mock_installed.return_value = False
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is False
         assert "not installed" in msg.lower()
@@ -27,7 +27,7 @@ class TestSmartConnectVpn:
         mock_installed.return_value = True
         mock_vpn.return_value = True
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         assert "already" in msg.lower()
@@ -44,7 +44,7 @@ class TestSmartConnectVpn:
         mock_vpn.side_effect = [False, True]  # First off, then connected
         mock_cmd.return_value = (True, "Resumed", 0)  # Return code 0 = resume accepted
 
-        success, msg = smart_connect_vpn(max_wait_seconds=5, check_interval=1.0)
+        success, msg = smart_connect_vpn("https://test.vpn", max_wait_seconds=5, check_interval=1.0)
 
         assert success is True
         assert "resume" in msg.lower()
@@ -62,7 +62,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (False, "No session", 999)  # Return code 999 = no suspended session
         mock_connect.return_value = (True, "Connected via UI")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()
@@ -80,7 +80,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (False, "Not running", -1)  # Return code -1 = Pulse not running
         mock_connect.return_value = (True, "Connected")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()
@@ -98,7 +98,7 @@ class TestSmartConnectVpn:
         mock_cmd.return_value = (True, "Unexpected", 42)  # Unexpected return code
         mock_connect.return_value = (True, "Connected via fallback")
 
-        success, msg = smart_connect_vpn()
+        success, msg = smart_connect_vpn("https://test.vpn")
 
         assert success is True
         mock_connect.assert_called_once()

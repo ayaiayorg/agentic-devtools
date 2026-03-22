@@ -11,6 +11,7 @@ Supports three connection scenarios:
 3. Fallback: If UI automation fails → open GUI for manual connection
 """
 
+import re
 import subprocess
 import time
 from enum import Enum
@@ -22,12 +23,15 @@ PULSE_LAUNCHER_PATH = Path(r"C:\Program Files (x86)\Common Files\Pulse Secure\In
 # Path to Pulse.exe GUI client
 PULSE_GUI_PATH = Path(r"C:\Program Files (x86)\Common Files\Pulse Secure\JamUI\Pulse.exe")
 
-# Default VPN URL (can be overridden via state)
-DEFAULT_VPN_URL = "https://portal.swica.ch/pulse"
+# Hostname validation pattern: alphanumeric start/end, hyphens and dots allowed in middle.
+# Used to prevent PowerShell injection when interpolating config-sourced hostnames.
+_VALID_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$")
 
-# Internal host used to detect corporate network (only accessible via VPN or in-office)
-# dragonfly.swica.ch returns 403 when on corporate network, unreachable otherwise
-CORPORATE_NETWORK_TEST_HOST = "dragonfly.swica.ch"
+# Default VPN URL is now configured via project config
+# (removed hardcoded DEFAULT_VPN_URL)
+
+# Corporate network test host is now configured via project config
+# (removed hardcoded CORPORATE_NETWORK_TEST_HOST)
 
 # Timeout for VPN operations
 VPN_OPERATION_TIMEOUT_SECONDS = 30
@@ -467,14 +471,48 @@ def is_vpn_connected() -> bool:
     return False
 
 
+def get_corporate_network_test_host() -> str | None:
+    """Return the corporate network test host from project config or state.
+
+    Returns ``None`` when no host is configured.
+    """
+    from agentic_devtools.cli.config.project_config import get_project_config_value
+
+    try:
+        from ...state import get_value
+
+        return (
+            get_project_config_value("corporate_network_test_host") or get_value("corporate_network_test_host") or None
+        )
+    except ImportError:  # pragma: no cover
+        return get_project_config_value("corporate_network_test_host") or None
+
+
+def get_vpn_hostnames() -> list[str]:
+    """Return VPN hostnames from project config or state.
+
+    The config value is a comma-separated string.  Returns ``[]`` when
+    nothing is configured.
+    """
+    from agentic_devtools.cli.config.project_config import get_project_config_value
+
+    try:
+        from ...state import get_value
+
+        raw = get_project_config_value("vpn_hostnames") or get_value("vpn_hostnames")
+    except ImportError:  # pragma: no cover
+        raw = get_project_config_value("vpn_hostnames")
+    if not raw:
+        return []
+    return [h.strip().lower() for h in raw.split(",") if h.strip()]
+
+
 def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
     """
     Check if we're on the corporate network (in office or via VPN).
 
-    Tests by trying to reach an internal-only host (dragonfly.swica.ch).
-    - If we get 200/302 (success or redirect): ON corporate network
-    - If we get 403 Forbidden: NOT on corporate network (external WAF blocking)
-    - If unreachable/timeout: NOT on corporate network
+    Tests by trying to reach the configured internal-only host.
+    Returns ``False`` immediately if no corporate network test host is configured.
 
     Args:
         timeout_seconds: Timeout for the connectivity check
@@ -482,6 +520,16 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
     Returns:
         True if on corporate network, False otherwise.
     """
+    host = get_corporate_network_test_host()
+    if not host:
+        return False
+
+    host = host.strip()
+
+    # Validate host is a plain hostname (prevent PowerShell injection via config values)
+    if not _VALID_HOSTNAME_RE.match(host):
+        return False
+
     try:
         # Use PowerShell to make a quick web request to internal host
         # We need to distinguish between:
@@ -494,7 +542,7 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
                 "-Command",
                 f"""
                 try {{
-                    $response = Invoke-WebRequest -Uri 'https://{CORPORATE_NETWORK_TEST_HOST}' `
+                    $response = Invoke-WebRequest -Uri 'https://{host}' `
                         -TimeoutSec {timeout_seconds} -UseBasicParsing -MaximumRedirection 0 `
                         -ErrorAction Stop
                     # Got 2xx response = on corporate network
@@ -560,7 +608,7 @@ def check_network_status(verbose: bool = False) -> tuple[NetworkStatus, str]:
 
 
 def disconnect_vpn(
-    url: str = DEFAULT_VPN_URL,
+    url: str,
     max_wait_seconds: int = 15,
     check_interval: float = 1.0,
 ) -> tuple[bool, str]:
@@ -605,7 +653,7 @@ def disconnect_vpn(
 
 
 def reconnect_vpn(
-    url: str = DEFAULT_VPN_URL,
+    url: str,
     max_wait_seconds: int = 20,
     check_interval: float = 2.0,
 ) -> tuple[bool, str]:
@@ -650,7 +698,7 @@ def reconnect_vpn(
 
 
 def connect_vpn(
-    url: str = DEFAULT_VPN_URL,
+    url: str,
     max_wait_seconds: int = 30,
     check_interval: float = 2.0,
 ) -> tuple[bool, str]:
@@ -752,7 +800,7 @@ PULSE_RETURN_CODES_NO_SUSPENDED_SESSION = {25, 999, -1}
 
 
 def smart_connect_vpn(
-    url: str = DEFAULT_VPN_URL,
+    url: str,
     max_wait_seconds: int = 30,
     check_interval: float = 2.0,
 ) -> tuple[bool, str]:
@@ -831,7 +879,7 @@ class VpnToggleContext:
     def __init__(
         self,
         auto_toggle: bool = False,
-        vpn_url: str = DEFAULT_VPN_URL,
+        vpn_url: str | None = None,
         verbose: bool = True,
     ):
         """
@@ -841,6 +889,7 @@ class VpnToggleContext:
             auto_toggle: If True, automatically disconnect/reconnect VPN.
                         If False, this context manager is a no-op.
             vpn_url: VPN portal URL for disconnect/reconnect commands.
+                     If ``None``, VPN operations are skipped.
             verbose: If True, print status messages.
         """
         self.auto_toggle = auto_toggle
@@ -854,6 +903,13 @@ class VpnToggleContext:
         if not self.auto_toggle:
             return self
 
+        if not self.vpn_url:
+            if self.verbose:
+                print("  ℹ️  VPN URL not configured. Skipping VPN operations.")
+            return self
+
+        vpn_url: str = self.vpn_url  # Narrowed after None guard above
+
         if not is_pulse_secure_installed():
             if self.verbose:
                 print("  ℹ️  Pulse Secure/Ivanti not installed, skipping VPN toggle")
@@ -865,7 +921,7 @@ class VpnToggleContext:
         if self.was_connected:
             if self.verbose:  # pragma: no cover
                 print("  🔌 VPN detected as connected, will temporarily disconnect...")
-            success, msg = disconnect_vpn(self.vpn_url)
+            success, msg = disconnect_vpn(vpn_url)
             if success:
                 self.disconnected = True
                 if self.verbose:  # pragma: no cover
@@ -882,6 +938,7 @@ class VpnToggleContext:
             return False
 
         if self.disconnected:
+            assert self.vpn_url is not None  # Set True only after disconnect_vpn(vpn_url) in __enter__
             if self.verbose:  # pragma: no cover
                 print("  🔌 Reconnecting VPN...")
             success, msg = reconnect_vpn(self.vpn_url)
@@ -895,15 +952,28 @@ class VpnToggleContext:
         return False
 
 
-def get_vpn_url_from_state() -> str:
-    """Get VPN URL from state or use default."""
+def get_vpn_url_from_state() -> str | None:
+    """Get VPN URL from project config, state, or ``None``.
+
+    Priority:
+    1. Project config ``vpn_url``
+    2. State value ``vpn_url``
+    3. ``None`` (no default)
+
+    Leading/trailing whitespace is stripped; empty/whitespace-only values
+    are treated as ``None``.
+    """
+    from agentic_devtools.cli.config.project_config import get_project_config_value
+
     try:
         from ...state import get_value
 
-        url = get_value("vpn_url")
-        return url if url else DEFAULT_VPN_URL
+        raw = get_project_config_value("vpn_url") or get_value("vpn_url") or None
     except ImportError:  # pragma: no cover
-        return DEFAULT_VPN_URL
+        raw = get_project_config_value("vpn_url") or None
+    if raw is not None:
+        raw = raw.strip()
+    return raw if raw else None
 
 
 class JiraVpnContext:
@@ -925,12 +995,13 @@ class JiraVpnContext:
     minimizing the time spent with VPN active (which blocks external access).
     """
 
-    def __init__(self, vpn_url: str = DEFAULT_VPN_URL, verbose: bool = True):
+    def __init__(self, vpn_url: str | None = None, verbose: bool = True):
         """
         Initialize Jira VPN context.
 
         Args:
             vpn_url: VPN portal URL for connect/disconnect commands.
+                     If ``None``, VPN operations are skipped.
             verbose: If True, print status messages.
         """
         self.vpn_url = vpn_url
@@ -941,6 +1012,11 @@ class JiraVpnContext:
 
     def __enter__(self) -> "JiraVpnContext":
         """Enter context - ensure VPN is connected or on corporate network."""
+        if not self.vpn_url:
+            if self.verbose:
+                print("ℹ️  VPN URL not configured. Skipping VPN operations.")
+            return self
+
         # Check if on corporate network first (in office)
         if is_on_corporate_network():
             self.on_corporate_network = True
@@ -1060,6 +1136,9 @@ def vpn_off_cmd() -> None:
         return
 
     vpn_url = get_vpn_url_from_state()
+    if vpn_url is None:
+        print("❌ VPN URL not configured. Run agdt-setup to set the VPN portal URL.")
+        return
     success, msg = disconnect_vpn(vpn_url)
 
     if success:
@@ -1099,6 +1178,9 @@ def vpn_on_cmd() -> None:
         return
 
     vpn_url = get_vpn_url_from_state()
+    if vpn_url is None:
+        print("❌ VPN URL not configured. Run agdt-setup to set the VPN portal URL.")
+        return
     success, msg = smart_connect_vpn(vpn_url)
 
     if success:
