@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 CONFIG_FILE = ".github/agdt-config.json"
 
 # Platform configuration constants
-VALID_ISSUE_ADAPTERS: set[str] = {"jira", "github", "markdown"}
-VALID_CODE_HOSTING: set[str] = {"github", "azure_devops", "other"}
+VALID_ISSUE_ADAPTERS: frozenset[str] = frozenset({"jira", "github", "markdown"})
+VALID_CODE_HOSTING: frozenset[str] = frozenset({"github", "azure_devops", "other"})
 DEFAULT_ISSUE_ADAPTER: str = "jira"
 DEFAULT_CODE_HOSTING: str = "other"
 

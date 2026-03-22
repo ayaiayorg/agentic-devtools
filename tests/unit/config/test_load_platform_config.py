@@ -95,18 +95,22 @@ class TestLoadPlatformConfig:
         assert result["github"] == {}
         assert result["azure_devops"] == {}
 
-    def test_normalizes_null_sub_dicts_to_empty(self, tmp_path):
+    def test_normalizes_null_sub_dicts_to_empty(self, tmp_path, caplog):
         """Normalize JSON null sub-dicts to {} without logging a warning."""
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         config = {"platform": {"jira": None, "github": None, "azure_devops": None}}
         (github_dir / "agdt-config.json").write_text(json.dumps(config), encoding="utf-8")
 
-        result = load_platform_config(str(tmp_path))
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = load_platform_config(str(tmp_path))
 
         assert result["jira"] == {}
         assert result["github"] == {}
         assert result["azure_devops"] == {}
+        assert not any(
+            record.levelno >= logging.WARNING and record.name == "agentic_devtools.config" for record in caplog.records
+        )
 
     def test_warns_and_uses_defaults_when_platform_is_not_a_dict(self, tmp_path, caplog):
         """Log warning and use defaults when 'platform' value is not an object."""
