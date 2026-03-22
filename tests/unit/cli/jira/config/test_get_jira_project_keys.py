@@ -15,7 +15,7 @@ class TestGetJiraProjectKeys:
         """Should return keys from project config."""
         with patch.dict(os.environ, {}, clear=True):
             result = get_jira_project_keys()
-        assert result == ["PROJECT", "PROJ"]
+        assert result == ["ACME", "PROJ"]
 
     @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value=None)
     @patch("agentic_devtools.state.get_value", return_value="MYPROJ")

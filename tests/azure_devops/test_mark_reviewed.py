@@ -171,7 +171,7 @@ class TestGetOrganizationAccountName:
     def test_dev_azure_com_nested_path(self):
         """Test URL with nested path."""
         url = "https://dev.azure.com/example-org"
-        assert _get_organization_account_name(url) == "swica"
+        assert _get_organization_account_name(url) == "example-org"
 
     def test_url_with_project_path(self):
         """Test URL that includes project path."""
