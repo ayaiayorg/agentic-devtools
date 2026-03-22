@@ -214,7 +214,9 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
-                            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-TEST"])
+                            commands.initiate_optimize_issue_for_ai_agent_workflow(
+                                _argv=["--issue-key", "PROJECT-TEST"]
+                            )
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 

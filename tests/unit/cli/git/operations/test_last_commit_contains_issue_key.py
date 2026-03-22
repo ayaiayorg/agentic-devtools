@@ -30,7 +30,9 @@ class TestLastCommitContainsIssueKey:
 
     def test_returns_false_when_key_not_found(self, mock_run_safe):
         """Test returns False when issue key is not in commit message."""
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="feature(PROJECT-5678): different issue\n", stderr="")
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout="feature(PROJECT-5678): different issue\n", stderr=""
+        )
 
         result = operations.last_commit_contains_issue_key("PROJECT-1234")
 

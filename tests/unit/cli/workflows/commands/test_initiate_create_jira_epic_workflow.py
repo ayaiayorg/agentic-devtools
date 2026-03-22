@@ -195,7 +195,9 @@ class TestInitiateCreateJiraEpicInteractive:
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = True
-                commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "PROJECT-1234", "--interactive", "true"])
+                commands.initiate_create_jira_epic_workflow(
+                    _argv=["--issue-key", "PROJECT-1234", "--interactive", "true"]
+                )
 
         call_kwargs = mock_setup.call_args[1]
         assert call_kwargs["interactive"] is True

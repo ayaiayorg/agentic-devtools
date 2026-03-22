@@ -388,7 +388,9 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """Session is called with interactive=False when --interactive false."""
-        mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999", argv=["--interactive", "false"])
+        mock_session = self._run_with_preflight_passing(
+            "999", issue_key="PROJECT-9999", argv=["--interactive", "false"]
+        )
         mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
 
     def test_copilot_session_interactive_true_when_explicitly_set(
