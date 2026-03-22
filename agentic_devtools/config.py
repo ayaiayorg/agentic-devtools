@@ -212,6 +212,13 @@ def save_platform_config(repo_path: str, platform_config: dict) -> bool:
     Returns:
         ``True`` on success, ``False`` on failure (with a warning logged).
     """
+    if not isinstance(platform_config, dict):
+        logger.warning(
+            "Expected platform_config to be a dict, got %s; refusing to write invalid platform section.",
+            type(platform_config).__name__,
+        )
+        return False
+
     config = load_repo_config(repo_path)
     config["platform"] = platform_config
 
@@ -220,6 +227,6 @@ def save_platform_config(repo_path: str, platform_config: dict) -> bool:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
         return True
-    except OSError as exc:
+    except (OSError, TypeError, ValueError) as exc:
         logger.warning("Could not write %s: %s", config_path, exc)
         return False

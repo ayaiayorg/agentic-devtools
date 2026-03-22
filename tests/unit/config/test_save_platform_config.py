@@ -77,6 +77,25 @@ class TestSavePlatformConfig:
         assert result is False
         assert any("Could not write" in record.message for record in caplog.records)
 
+    def test_returns_false_and_logs_warning_for_non_dict_platform_config(self, tmp_path, caplog):
+        """Return False and log a warning when platform_config is not a dict."""
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = save_platform_config(str(tmp_path), "not-a-dict")
+
+        assert result is False
+        assert any("Expected platform_config to be a dict" in record.message for record in caplog.records)
+        # Ensure no file was written
+        assert not (tmp_path / ".github" / "agdt-config.json").exists()
+
+    def test_returns_false_and_logs_warning_on_non_serializable_value(self, tmp_path, caplog):
+        """Return False and log a warning when platform_config contains non-JSON-serializable values."""
+        non_serializable = {"issue_adapter": "jira", "callback": object()}
+        with caplog.at_level(logging.WARNING, logger="agentic_devtools.config"):
+            result = save_platform_config(str(tmp_path), non_serializable)
+
+        assert result is False
+        assert any("Could not write" in record.message for record in caplog.records)
+
     def test_handles_invalid_json_file_gracefully(self, tmp_path):
         """Overwrite pre-existing invalid JSON file — load_repo_config returns {}."""
         github_dir = tmp_path / ".github"
