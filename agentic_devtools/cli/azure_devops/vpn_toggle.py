@@ -23,6 +23,10 @@ PULSE_LAUNCHER_PATH = Path(r"C:\Program Files (x86)\Common Files\Pulse Secure\In
 # Path to Pulse.exe GUI client
 PULSE_GUI_PATH = Path(r"C:\Program Files (x86)\Common Files\Pulse Secure\JamUI\Pulse.exe")
 
+# Hostname validation pattern: alphanumeric start/end, hyphens and dots allowed in middle.
+# Used to prevent PowerShell injection when interpolating config-sourced hostnames.
+_VALID_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$")
+
 # Default VPN URL is now configured via project config
 # (removed hardcoded DEFAULT_VPN_URL)
 
@@ -521,7 +525,7 @@ def is_on_corporate_network(timeout_seconds: int = 3) -> bool:
         return False
 
     # Validate host is a plain hostname (prevent PowerShell injection via config values)
-    if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", host):
+    if not _VALID_HOSTNAME_RE.match(host):
         return False
 
     try:
