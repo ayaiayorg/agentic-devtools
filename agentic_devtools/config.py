@@ -154,7 +154,7 @@ def load_platform_config(repo_path: str) -> dict:
 
     # Validate issue_adapter enum.
     issue_adapter = platform.get("issue_adapter", DEFAULT_ISSUE_ADAPTER)
-    if issue_adapter not in VALID_ISSUE_ADAPTERS:
+    if not isinstance(issue_adapter, str) or issue_adapter not in VALID_ISSUE_ADAPTERS:
         logger.warning(
             "Invalid issue_adapter value %r in %s; using default %r.",
             issue_adapter,
@@ -165,7 +165,7 @@ def load_platform_config(repo_path: str) -> dict:
 
     # Validate code_hosting enum.
     code_hosting = platform.get("code_hosting", DEFAULT_CODE_HOSTING)
-    if code_hosting not in VALID_CODE_HOSTING:
+    if not isinstance(code_hosting, str) or code_hosting not in VALID_CODE_HOSTING:
         logger.warning(
             "Invalid code_hosting value %r in %s; using default %r.",
             code_hosting,
@@ -174,16 +174,17 @@ def load_platform_config(repo_path: str) -> dict:
         )
         code_hosting = DEFAULT_CODE_HOSTING
 
-    # Validate platform-specific sub-dicts.
+    # Validate platform-specific sub-dicts (None from JSON null is also replaced).
     for key in ("jira", "github", "azure_devops"):
         value = platform.get(key)
-        if value is not None and not isinstance(value, dict):
-            logger.warning(
-                "Expected 'platform.%s' in %s to be an object, got %s; using empty dict.",
-                key,
-                CONFIG_FILE,
-                type(value).__name__,
-            )
+        if not isinstance(value, dict):
+            if value is not None:
+                logger.warning(
+                    "Expected 'platform.%s' in %s to be an object, got %s; using empty dict.",
+                    key,
+                    CONFIG_FILE,
+                    type(value).__name__,
+                )
             platform[key] = {}
 
     result = {**platform}
