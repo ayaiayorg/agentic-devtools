@@ -75,19 +75,24 @@ class DetectionResult:
 # ---------------------------------------------------------------------------
 
 
-def _get_origin_remote_url() -> str | None:
-    """Return the ``origin`` remote URL, or *None* on any failure."""
+def _get_origin_remote_url(repo_path: str | None = None) -> str | None:
+    """Return the ``origin`` remote URL, or *None* on any failure.
+
+    If *repo_path* is provided, run the git command in that directory so
+    that the correct repository's remote is queried regardless of CWD.
+    """
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
             check=False,
+            cwd=repo_path,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except (FileNotFoundError, OSError):
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Could not retrieve origin remote URL: %s", exc)
     return None
 
 
@@ -173,7 +178,7 @@ def detect_platforms(repo_path: str) -> DetectionResult:
         A frozen :class:`DetectionResult` with aggregated detection data.
     """
     platform_config = load_platform_config(repo_path)
-    remote_url = _get_origin_remote_url()
+    remote_url = _get_origin_remote_url(repo_path)
 
     issue_platforms: list[str] = []
     confidence: dict[str, str] = {}
