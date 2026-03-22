@@ -88,7 +88,7 @@ class TestConfirmOverride:
         )
 
         assert config["issue_adapter"] == "github"
-        assert config["code_hosting"] == "other"
+        assert config["code_hosting"] == "github"  # preserves detected hosting
 
     def test_override_preserves_auto_detected_details(self):
         """Override path preserves github_repo and azure_devops_project from detection."""
@@ -271,6 +271,28 @@ class TestConfirmPrintsSummary:
         assert "jira" in combined
         assert "github" in combined
         assert "owner/repo" in combined
+
+
+class TestConfirmOverridePreservesDetectedDefaults:
+    """Override flow preserves detected values when user presses Enter."""
+
+    def test_enter_preserves_detected_issue_adapter(self):
+        """Pressing Enter in override keeps detected issue adapter."""
+        result = DetectionResult(
+            detected_issue_platforms=("github",),
+            detected_code_hosting="github",
+            confidence={"github": "high"},
+        )
+        inputs = iter(["n", "", ""])
+
+        config = confirm_and_override(
+            result,
+            input_fn=lambda _prompt: next(inputs),
+            print_fn=lambda *args: None,
+        )
+
+        assert config["issue_adapter"] == "github"  # detected, not default "jira"
+        assert config["code_hosting"] == "github"  # detected, not default "other"
 
 
 class TestConfirmEOFDuringOverride:

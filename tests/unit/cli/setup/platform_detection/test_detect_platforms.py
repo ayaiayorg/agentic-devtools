@@ -169,6 +169,7 @@ class TestDetectGitHub:
 
         assert result.github_repo is None
         assert result.confidence["github"] == "medium"
+        assert "github" in result.detected_issue_platforms
         # Not set as code_hosting since confidence is only medium
         assert result.detected_code_hosting is None
 

@@ -113,9 +113,7 @@ def _detect_jira(
     Returns ``(detected, confidence)`` where *confidence* is ``"high"``
     or ``"medium"``.
     """
-    env_signal = bool(
-        os.environ.get("JIRA_COPILOT_PAT") or os.environ.get("JIRA_BASE_URL") or os.environ.get("JIRA_API_TOKEN")
-    )
+    env_signal = any(os.environ.get(name) for name in ("JIRA_COPILOT_PAT", "JIRA_BASE_URL", "JIRA_API_TOKEN"))
 
     config_signal = platform_config.get("issue_adapter") == "jira" or bool(platform_config.get("jira"))
 
@@ -205,9 +203,9 @@ def detect_platforms(repo_path: str) -> DetectionResult:
     if gh_detected:
         github_repo = gh_repo
         confidence["github"] = gh_conf
+        issue_platforms.append("github")
         if gh_conf == "high":
             code_hosting = "github"
-            issue_platforms.append("github")
 
     # --- Azure DevOps ---
     ado_detected, ado_project, ado_conf = _detect_azure_devops(remote_url)
@@ -294,13 +292,15 @@ def confirm_and_override(
     valid_adapters = sorted(VALID_ISSUE_ADAPTERS)
     valid_hosting = sorted(VALID_CODE_HOSTING)
 
-    issue_adapter = DEFAULT_ISSUE_ADAPTER
+    # Start from the auto-detected values so pressing Enter preserves them.
+    detected_config = _build_config_from_result(result)
+    issue_adapter = detected_config["issue_adapter"]
     max_attempts = 3
     for _ in range(max_attempts):
         try:
             choice = (
                 input_fn(
-                    f"Issue adapter ({', '.join(valid_adapters)}) [{DEFAULT_ISSUE_ADAPTER}]: ",
+                    f"Issue adapter ({', '.join(valid_adapters)}) [{issue_adapter}]: ",
                 )
                 .strip()
                 .lower()
@@ -314,12 +314,12 @@ def confirm_and_override(
             break
         print_fn(f"  Invalid choice. Valid options: {', '.join(valid_adapters)}")
 
-    hosting = DEFAULT_CODE_HOSTING
+    hosting = detected_config["code_hosting"]
     for _ in range(max_attempts):
         try:
             choice = (
                 input_fn(
-                    f"Code hosting ({', '.join(valid_hosting)}) [{DEFAULT_CODE_HOSTING}]: ",
+                    f"Code hosting ({', '.join(valid_hosting)}) [{hosting}]: ",
                 )
                 .strip()
                 .lower()
