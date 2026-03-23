@@ -1,0 +1,351 @@
+"""Tests for agentic_devtools.cli.setup.platform_detection.detect_platforms."""
+
+from unittest.mock import MagicMock, patch
+
+from agentic_devtools.cli.setup.platform_detection import detect_platforms
+
+_MOD = "agentic_devtools.cli.setup.platform_detection"
+
+
+class TestDetectJiraFromEnvVars:
+    """Jira detection from environment variables."""
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_jira_from_copilot_pat(self, mock_cfg, _mock_url, tmp_path, monkeypatch):
+        """Detect Jira with medium confidence from JIRA_COPILOT_PAT."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        monkeypatch.setenv("JIRA_COPILOT_PAT", "token123")
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "medium"
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_jira_from_base_url(self, mock_cfg, _mock_url, tmp_path, monkeypatch):
+        """Detect Jira with medium confidence from JIRA_BASE_URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "medium"
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_jira_from_api_token(self, mock_cfg, _mock_url, tmp_path, monkeypatch):
+        """Detect Jira with medium confidence from JIRA_API_TOKEN."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        monkeypatch.setenv("JIRA_API_TOKEN", "token-abc")
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "medium"
+
+
+class TestDetectJiraFromConfig:
+    """Jira detection from config file."""
+
+    @patch(f"{_MOD}.load_repo_config")
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_jira_from_issue_adapter_config(self, mock_cfg, _mock_url, mock_raw, tmp_path):
+        """Detect Jira with medium confidence when issue_adapter is explicitly 'jira'."""
+        mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "medium"
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_jira_from_nonempty_jira_dict(self, mock_cfg, _mock_url, tmp_path):
+        """Detect Jira with medium confidence when platform.jira is non-empty."""
+        mock_cfg.return_value = {
+            "issue_adapter": "github",
+            "jira": {"base_url": "https://jira.example.com"},
+            "github": {},
+            "azure_devops": {},
+        }
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "medium"
+
+
+class TestDetectJiraHighConfidence:
+    """Jira detection with both env and config signals."""
+
+    @patch(f"{_MOD}.load_repo_config")
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_high_confidence_with_env_and_config(self, mock_cfg, _mock_url, mock_raw, tmp_path, monkeypatch):
+        """Detect Jira with high confidence when both env var and config present."""
+        mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
+        monkeypatch.setenv("JIRA_COPILOT_PAT", "token123")
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "high"
+
+
+class TestDetectJiraNotPresent:
+    """Jira is not detected when no signals are present."""
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_no_jira_when_no_signals(self, mock_cfg, _mock_url, tmp_path):
+        """Do not detect Jira when no env vars or config signals exist."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" not in result.detected_issue_platforms
+        assert "jira" not in result.confidence
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_no_jira_when_default_config_no_env(self, mock_cfg, _mock_url, tmp_path):
+        """Do not detect Jira when config defaults issue_adapter to 'jira' but no explicit signal."""
+        # load_platform_config defaults issue_adapter to "jira" when no platform
+        # section exists.  This must NOT trigger a false-positive Jira detection.
+        mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" not in result.detected_issue_platforms
+        assert "jira" not in result.confidence
+
+
+class TestDetectGitHub:
+    """GitHub detection from remote URL and .git/ directory."""
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_github_https_remote(self, mock_cfg, mock_url, tmp_path):
+        """Detect GitHub with high confidence from HTTPS remote URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://github.com/myorg/myrepo.git"
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "github"
+        assert result.github_repo == "myorg/myrepo"
+        assert result.confidence["github"] == "high"
+        assert "github" in result.detected_issue_platforms
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_github_ssh_remote(self, mock_cfg, mock_url, tmp_path):
+        """Detect GitHub with high confidence from SSH remote URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "git@github.com:owner/repo-name.git"
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "github"
+        assert result.github_repo == "owner/repo-name"
+        assert result.confidence["github"] == "high"
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_github_https_no_git_suffix(self, mock_cfg, mock_url, tmp_path):
+        """Detect GitHub from HTTPS URL without .git suffix."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://github.com/owner/repo"
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.github_repo == "owner/repo"
+        assert result.confidence["github"] == "high"
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_medium_confidence_when_git_exists_but_not_github(self, mock_cfg, mock_url, tmp_path):
+        """Detect GitHub with medium confidence when .git/ exists but remote is not GitHub."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://gitlab.com/owner/repo.git"
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.github_repo is None
+        assert result.confidence["github"] == "medium"
+        assert "github" in result.detected_issue_platforms
+        # Not set as code_hosting since confidence is only medium
+        assert result.detected_code_hosting is None
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_no_github_when_no_git_directory(self, mock_cfg, _mock_url, tmp_path):
+        """Do not detect GitHub when no .git/ directory exists."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "github" not in result.confidence
+        assert result.github_repo is None
+
+
+class TestDetectAzureDevOps:
+    """Azure DevOps detection from remote URL."""
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_ado_https_remote(self, mock_cfg, mock_url, tmp_path):
+        """Detect ADO with high confidence from HTTPS remote URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://dev.azure.com/myorg/myproject/_git/myrepo"
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "azure_devops"
+        assert result.azure_devops_project == "myorg/myproject"
+        assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_ado_ssh_new_format(self, mock_cfg, mock_url, tmp_path):
+        """Detect ADO from SSH (new format) remote URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "git@ssh.dev.azure.com:v3/myorg/myproject/myrepo"
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "azure_devops"
+        assert result.azure_devops_project == "myorg/myproject"
+        assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_ado_ssh_legacy(self, mock_cfg, mock_url, tmp_path):
+        """Detect ADO from SSH (legacy visualstudio.com) remote URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "myorg@vs-ssh.visualstudio.com:v3/myorg/myproject/myrepo"
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "azure_devops"
+        assert result.azure_devops_project == "myorg/myproject"
+        assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_detects_ado_https_visualstudio(self, mock_cfg, mock_url, tmp_path):
+        """Detect ADO from HTTPS visualstudio.com URL."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://myorg.visualstudio.com/myproject/_git/myrepo"
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting == "azure_devops"
+        assert result.azure_devops_project == "myorg/myproject"
+        assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
+
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_no_ado_when_github_remote(self, mock_cfg, mock_url, tmp_path):
+        """Do not detect ADO when remote URL is GitHub."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_url.return_value = "https://github.com/owner/repo.git"
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.azure_devops_project is None
+        assert "azure_devops" not in result.confidence
+
+
+class TestDetectPlatformsEdgeCases:
+    """Edge cases for detect_platforms orchestration."""
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_empty_detection_when_no_signals(self, mock_cfg, _mock_url, tmp_path):
+        """Return empty detection when no signals present at all."""
+        mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert result.detected_issue_platforms == ()
+        assert result.detected_code_hosting is None
+        assert result.github_repo is None
+        assert result.azure_devops_project is None
+        assert result.confidence == {}
+
+    @patch(f"{_MOD}.load_repo_config")
+    @patch(f"{_MOD}._get_origin_remote_url")
+    @patch(f"{_MOD}.load_platform_config")
+    def test_multiple_platforms_detected(self, mock_cfg, mock_url, mock_raw, tmp_path, monkeypatch):
+        """Detect Jira + GitHub simultaneously."""
+        mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
+        mock_url.return_value = "https://github.com/org/repo.git"
+        monkeypatch.setenv("JIRA_COPILOT_PAT", "secret")
+        (tmp_path / ".git").mkdir()
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" in result.detected_issue_platforms
+        assert "github" in result.detected_issue_platforms
+        assert result.confidence["jira"] == "high"
+        assert result.confidence["github"] == "high"
+        assert result.detected_code_hosting == "github"
+
+
+class TestDetectPlatformsGitErrors:
+    """detect_platforms behavior when git commands fail."""
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_git_not_installed(self, mock_run, tmp_path):
+        """Return empty detection when git is not installed (FileNotFoundError)."""
+        mock_run.side_effect = FileNotFoundError("git not found")
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None
+        assert result.github_repo is None
+        assert result.azure_devops_project is None
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_no_origin_remote(self, mock_run, tmp_path):
+        """Return empty hosting when subprocess returns non-zero (no origin remote)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_os_error(self, mock_run, tmp_path):
+        """Return empty hosting when OSError occurs."""
+        mock_run.side_effect = OSError("Permission denied")
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None
