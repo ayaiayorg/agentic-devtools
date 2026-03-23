@@ -261,10 +261,10 @@ class MarkdownAdapter(IssueAdapter):
                 continue
 
             raw_labels = fm.get("labels")
-            # Normalize to list[str] — filter to strings to avoid TypeError
-            # from unhashable/non-string entries in manually edited frontmatter.
+            # Normalize to list[str] — coerce non-string entries to str and
+            # skip None, matching get_issue() behaviour.
             issue_labels: list[str] = (
-                [v for v in raw_labels if isinstance(v, str)] if isinstance(raw_labels, list) else []
+                [str(v) for v in raw_labels if v is not None] if isinstance(raw_labels, list) else []
             )
 
             if filters:

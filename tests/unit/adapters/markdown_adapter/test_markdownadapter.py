@@ -383,7 +383,7 @@ class TestMarkdownAdapter:
         assert summaries[0]["labels"] == []
 
     def test_list_issues_filters_non_string_labels(self, tmp_path: Path) -> None:
-        """list_issues filters non-string/unhashable label entries to avoid TypeError."""
+        """list_issues coerces non-string label entries to str and skips None (matches get_issue)."""
         issues_dir = tmp_path / ".agdt" / "issues"
         issues_dir.mkdir(parents=True)
         # YAML list with a dict and null entry alongside valid strings
@@ -396,10 +396,11 @@ class TestMarkdownAdapter:
         adapter = MarkdownAdapter(repo_path=str(tmp_path))
         summaries = adapter.list_issues()
         assert len(summaries) == 1
-        assert summaries[0]["labels"] == ["bug"]
+        # Dict coerced to str, None skipped — consistent with get_issue()
+        assert summaries[0]["labels"] == ["bug", "{'a': 1}"]
 
     def test_list_issues_label_filter_with_unhashable_entries(self, tmp_path: Path) -> None:
-        """list_issues label filter works even when frontmatter has unhashable entries."""
+        """list_issues label filter works even when frontmatter has coerced entries."""
         issues_dir = tmp_path / ".agdt" / "issues"
         issues_dir.mkdir(parents=True)
         (issues_dir / "001.md").write_text(
@@ -411,7 +412,8 @@ class TestMarkdownAdapter:
         adapter = MarkdownAdapter(repo_path=str(tmp_path))
         summaries = adapter.list_issues(filters={"labels": ["bug"]})
         assert len(summaries) == 1
-        assert summaries[0]["labels"] == ["bug"]
+        # Non-string coerced to str — label filter still matches "bug"
+        assert summaries[0]["labels"] == ["bug", "{'a': 1}"]
 
     def test_list_issues_does_not_include_archived(self, tmp_path: Path) -> None:
         """list_issues only reads the working directory, not archives."""
