@@ -29,7 +29,6 @@ MANIFEST
 venv/
 ENV/
 env/
-.dfly-venv/
 .agdt-venv/
 
 # IDE
@@ -53,7 +52,6 @@ htmlcov/
 .tox/
 
 # State files
-.dfly-temp/
 .agdt-temp/
 .agdt/
 *.log

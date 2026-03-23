@@ -19,7 +19,7 @@ Start the optimize-issue-for-ai-agent workflow to rewrite a Jira issue for bette
 - Jira issue key must be available from one of:
   - CLI flag: `--issue-key <JIRA_ISSUE_KEY>`
   - State key: `jira.issue_key`
-- If neither is available, ask for an issue key (for example `DFLY-1234`).
+- If neither is available, ask for an issue key (for example `PROJECT-1234`).
 
 ## Actions
 
