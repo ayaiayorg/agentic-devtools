@@ -93,7 +93,10 @@ def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
     * **Identity** — ``JIRA_USER_EMAIL`` → ``JIRA_EMAIL`` → ``JIRA_USERNAME``.
     * **Scheme** — ``JIRA_AUTH_SCHEME`` (default ``"bearer"``).  When the
       scheme is ``"basic"`` **or** an identity env var is set, Basic auth is
-      used; otherwise Bearer.
+      attempted: the ``Authorization`` header is only added when **both**
+      identity and token are present; otherwise no auth header is sent and
+      the request will fail lazily at call time.  In all other cases, when a
+      token is available, Bearer auth is used.
 
     SSL verification honours ``JIRA_SSL_VERIFY``, then falls back to
     ``JIRA_CA_BUNDLE`` / ``REQUESTS_CA_BUNDLE`` (same env vars used by the
