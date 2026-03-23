@@ -31,6 +31,17 @@ _ID_PATTERN = re.compile(r"^\d{3}$")
 _ARCHIVE_PATTERN = re.compile(r"^A_(\d{3})$")
 
 
+def _coerce_str(value: object, default: str = "") -> str:
+    """Coerce a YAML-loaded value to ``str``.
+
+    Returns *default* when *value* is ``None``, otherwise ``str(value)``.
+    Strings are returned as-is (no unnecessary conversion).
+    """
+    if value is None:
+        return default
+    return value if isinstance(value, str) else str(value)
+
+
 class MarkdownAdapter(IssueAdapter):
     """Issue adapter that reads/writes markdown files in ``.agdt/issues/``."""
 
@@ -166,17 +177,11 @@ class MarkdownAdapter(IssueAdapter):
                 raise ValueError(
                     f"Issue {issue_id}: each entry in 'comments' must be a mapping, got {type(c).__name__}"
                 )
-            body = c.get("body", "")
-            if not isinstance(body, str):
-                body = "" if body is None else str(body)
-            created_at = c.get("created_at", "")
-            if not isinstance(created_at, str):
-                created_at = "" if created_at is None else str(created_at)
             comments.append(
                 Comment(
                     comment_id=str(c.get("id", "")),
-                    body=body,
-                    created_at=created_at,
+                    body=_coerce_str(c.get("body", "")),
+                    created_at=_coerce_str(c.get("created_at", "")),
                 )
             )
 
@@ -191,9 +196,9 @@ class MarkdownAdapter(IssueAdapter):
 
         return IssueDetail(
             issue_id=str(fm.get("id", issue_id)),
-            title=fm.get("title", ""),
+            title=_coerce_str(fm.get("title", "")),
             description=description,
-            status=fm.get("status", ""),
+            status=_coerce_str(fm.get("status", "")),
             labels=labels,
             url="",
             comments=comments,
@@ -253,7 +258,7 @@ class MarkdownAdapter(IssueAdapter):
 
             if filters:
                 state_filter = filters.get("state")
-                if state_filter and fm.get("status", "") != state_filter:
+                if state_filter and _coerce_str(fm.get("status", "")) != state_filter:
                     continue
                 label_filter = filters.get("labels")
                 if label_filter and not set(label_filter) & set(issue_labels):
@@ -262,8 +267,8 @@ class MarkdownAdapter(IssueAdapter):
             summaries.append(
                 IssueSummary(
                     issue_id=str(fm.get("id", md_file.stem)),
-                    title=fm.get("title", ""),
-                    status=fm.get("status", ""),
+                    title=_coerce_str(fm.get("title", "")),
+                    status=_coerce_str(fm.get("status", "")),
                     labels=issue_labels,
                     url="",
                 )

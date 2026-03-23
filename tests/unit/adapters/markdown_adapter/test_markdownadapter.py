@@ -550,3 +550,71 @@ class TestMarkdownAdapter:
         summaries = adapter.list_issues()
         assert len(summaries) == 1
         assert summaries[0]["issue_id"] == "001"
+
+    # ------------------------------------------------------------------
+    # title / status type coercion
+    # ------------------------------------------------------------------
+
+    def test_get_issue_coerces_non_string_title(self, tmp_path: Path) -> None:
+        """get_issue coerces a non-string title (e.g. integer) to str."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("placeholder", "Body")
+        path = tmp_path / ".agdt" / "issues" / "001.md"
+        content = path.read_text(encoding="utf-8")
+        # Replace the title value with an integer in the YAML frontmatter
+        path.write_text(content.replace("title: placeholder", "title: 42"), encoding="utf-8")
+
+        detail = adapter.get_issue("001")
+        assert detail["title"] == "42"
+        assert isinstance(detail["title"], str)
+
+    def test_get_issue_coerces_null_title(self, tmp_path: Path) -> None:
+        """get_issue coerces a null title to empty string."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("placeholder", "Body")
+        path = tmp_path / ".agdt" / "issues" / "001.md"
+        content = path.read_text(encoding="utf-8")
+        path.write_text(content.replace("title: placeholder", "title: null"), encoding="utf-8")
+
+        detail = adapter.get_issue("001")
+        assert detail["title"] == ""
+
+    def test_get_issue_coerces_non_string_status(self, tmp_path: Path) -> None:
+        """get_issue coerces a non-string status (e.g. integer) to str."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Title", "Body")
+        path = tmp_path / ".agdt" / "issues" / "001.md"
+        content = path.read_text(encoding="utf-8")
+        path.write_text(content.replace("status: open", "status: 123"), encoding="utf-8")
+
+        detail = adapter.get_issue("001")
+        assert detail["status"] == "123"
+        assert isinstance(detail["status"], str)
+
+    def test_get_issue_coerces_null_status(self, tmp_path: Path) -> None:
+        """get_issue coerces a null status to empty string."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Title", "Body")
+        path = tmp_path / ".agdt" / "issues" / "001.md"
+        content = path.read_text(encoding="utf-8")
+        path.write_text(content.replace("status: open", "status: null"), encoding="utf-8")
+
+        detail = adapter.get_issue("001")
+        assert detail["status"] == ""
+
+    def test_list_issues_coerces_non_string_title_and_status(self, tmp_path: Path) -> None:
+        """list_issues coerces non-string title/status to str."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("placeholder", "Body")
+        path = tmp_path / ".agdt" / "issues" / "001.md"
+        content = path.read_text(encoding="utf-8")
+        content = content.replace("title: placeholder", "title: 99")
+        content = content.replace("status: open", "status: 0")
+        path.write_text(content, encoding="utf-8")
+
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["title"] == "99"
+        assert summaries[0]["status"] == "0"
+        assert isinstance(summaries[0]["title"], str)
+        assert isinstance(summaries[0]["status"], str)

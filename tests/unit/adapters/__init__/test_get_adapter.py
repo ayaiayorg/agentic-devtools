@@ -174,6 +174,10 @@ class TestGetAdapter:
         monkeypatch.delenv("JIRA_BASE_URL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
 
         adapter = get_adapter(str(tmp_path))
         assert isinstance(adapter, JiraAdapter)
@@ -198,3 +202,95 @@ class TestGetAdapter:
         # project_key is empty — create_issue will fail, but construction succeeds
         with pytest.raises(ValueError, match="project_key"):
             adapter.create_issue("T", "D")
+
+    # ------------------------------------------------------------------
+    # Jira auth scheme tests
+    # ------------------------------------------------------------------
+
+    def test_jira_bearer_auth_default(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter uses Bearer auth by default when no identity is set."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "my-token")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.headers["Authorization"] == "Bearer my-token"
+
+    def test_jira_bearer_auth_copilot_pat_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter falls back to JIRA_COPILOT_PAT when JIRA_API_TOKEN is unset."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
+        monkeypatch.setenv("JIRA_COPILOT_PAT", "copilot-pat")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.headers["Authorization"] == "Bearer copilot-pat"
+
+    def test_jira_basic_auth_when_identity_set(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter uses Basic auth when a JIRA identity env var is set."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "my-token")
+        monkeypatch.setenv("JIRA_EMAIL", "user@example.com")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.headers["Authorization"].startswith("Basic ")
+
+    def test_jira_basic_auth_via_scheme(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter uses Basic auth when JIRA_AUTH_SCHEME=basic with identity."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "my-token")
+        monkeypatch.setenv("JIRA_USERNAME", "user")
+        monkeypatch.setenv("JIRA_AUTH_SCHEME", "basic")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.headers["Authorization"].startswith("Basic ")
+
+    def test_jira_basic_scheme_no_identity_no_auth_header(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_adapter omits Authorization header when basic scheme lacks identity."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "my-token")
+        monkeypatch.setenv("JIRA_AUTH_SCHEME", "basic")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        # No Authorization header — will fail lazily at call time
+        assert "Authorization" not in adapter._config.headers
+
+    def test_jira_ssl_verify_ca_bundle_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter passes CA bundle path as-is when JIRA_SSL_VERIFY is a path."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "token")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+        monkeypatch.setenv("JIRA_SSL_VERIFY", "/etc/ssl/certs/ca-bundle.crt")
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.ssl_verify == "/etc/ssl/certs/ca-bundle.crt"

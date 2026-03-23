@@ -84,16 +84,49 @@ def get_adapter(repo_path: str) -> IssueAdapter:
 
 
 def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
-    """Construct a :class:`JiraAdapter` from environment variables and config."""
+    """Construct a :class:`JiraAdapter` from environment variables and config.
+
+    Authentication follows the same conventions as
+    :func:`agentic_devtools.mcp.server._load_jira_config`:
+
+    * **Token** — ``JIRA_API_TOKEN`` falling back to ``JIRA_COPILOT_PAT``.
+    * **Identity** — ``JIRA_USER_EMAIL`` → ``JIRA_EMAIL`` → ``JIRA_USERNAME``.
+    * **Scheme** — ``JIRA_AUTH_SCHEME`` (default ``"bearer"``).  When the
+      scheme is ``"basic"`` **or** an identity env var is set, Basic auth is
+      used; otherwise Bearer.
+
+    SSL verification honours ``JIRA_SSL_VERIFY``:
+
+    * ``"0"`` / ``"false"`` → disabled (``False``).
+    * Any other non-empty string → treated as a CA bundle path (``str``).
+    * Unset / empty → strict verification (``True``).
+    """
     base_url = os.environ.get("JIRA_BASE_URL", "")
-    username = os.environ.get("JIRA_USERNAME", "")
-    token = os.environ.get("JIRA_API_TOKEN", "")
+    token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
+    identity = (
+        os.environ.get("JIRA_USER_EMAIL", "")
+        or os.environ.get("JIRA_EMAIL", "")
+        or os.environ.get("JIRA_USERNAME", "")
+    )
+    auth_scheme = os.environ.get("JIRA_AUTH_SCHEME", "bearer").lower()
 
-    auth_header = base64.b64encode(f"{username}:{token}".encode()).decode()
-    headers = {"Authorization": f"Basic {auth_header}", "Content-Type": "application/json"}
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if identity or auth_scheme == "basic":
+        if identity and token:
+            credentials = base64.b64encode(f"{identity}:{token}".encode()).decode()
+            headers["Authorization"] = f"Basic {credentials}"
+        # else: no Authorization header — will fail lazily at call time
+    elif token:
+        headers["Authorization"] = f"Bearer {token}"
 
-    ssl_verify_env = os.environ.get("JIRA_SSL_VERIFY", "")
-    ssl_verify = ssl_verify_env.lower() not in ("0", "false") if ssl_verify_env else True
+    ssl_env = os.environ.get("JIRA_SSL_VERIFY", "")
+    ssl_verify: bool | str
+    if ssl_env.lower() in ("0", "false"):
+        ssl_verify = False
+    elif ssl_env:
+        ssl_verify = ssl_env  # CA bundle path
+    else:
+        ssl_verify = True
 
     config = JiraConfig(base_url=base_url, headers=headers, ssl_verify=ssl_verify)
     project_key = platform_config.get("jira", {}).get("project_key", "") or None
