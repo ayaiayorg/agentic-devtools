@@ -53,11 +53,13 @@ class TestDetectJiraFromEnvVars:
 class TestDetectJiraFromConfig:
     """Jira detection from config file."""
 
+    @patch(f"{_MOD}.load_repo_config")
     @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
     @patch(f"{_MOD}.load_platform_config")
-    def test_detects_jira_from_issue_adapter_config(self, mock_cfg, _mock_url, tmp_path):
-        """Detect Jira with medium confidence when issue_adapter is 'jira'."""
+    def test_detects_jira_from_issue_adapter_config(self, mock_cfg, _mock_url, mock_raw, tmp_path):
+        """Detect Jira with medium confidence when issue_adapter is explicitly 'jira'."""
         mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
 
         result = detect_platforms(str(tmp_path))
 
@@ -84,11 +86,13 @@ class TestDetectJiraFromConfig:
 class TestDetectJiraHighConfidence:
     """Jira detection with both env and config signals."""
 
+    @patch(f"{_MOD}.load_repo_config")
     @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
     @patch(f"{_MOD}.load_platform_config")
-    def test_high_confidence_with_env_and_config(self, mock_cfg, _mock_url, tmp_path, monkeypatch):
+    def test_high_confidence_with_env_and_config(self, mock_cfg, _mock_url, mock_raw, tmp_path, monkeypatch):
         """Detect Jira with high confidence when both env var and config present."""
         mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
         monkeypatch.setenv("JIRA_COPILOT_PAT", "token123")
 
         result = detect_platforms(str(tmp_path))
@@ -105,6 +109,19 @@ class TestDetectJiraNotPresent:
     def test_no_jira_when_no_signals(self, mock_cfg, _mock_url, tmp_path):
         """Do not detect Jira when no env vars or config signals exist."""
         mock_cfg.return_value = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        result = detect_platforms(str(tmp_path))
+
+        assert "jira" not in result.detected_issue_platforms
+        assert "jira" not in result.confidence
+
+    @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
+    @patch(f"{_MOD}.load_platform_config")
+    def test_no_jira_when_default_config_no_env(self, mock_cfg, _mock_url, tmp_path):
+        """Do not detect Jira when config defaults issue_adapter to 'jira' but no explicit signal."""
+        # load_platform_config defaults issue_adapter to "jira" when no platform
+        # section exists.  This must NOT trigger a false-positive Jira detection.
+        mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
 
         result = detect_platforms(str(tmp_path))
 
@@ -200,6 +217,7 @@ class TestDetectAzureDevOps:
         assert result.detected_code_hosting == "azure_devops"
         assert result.azure_devops_project == "myorg/myproject"
         assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
 
     @patch(f"{_MOD}._get_origin_remote_url")
     @patch(f"{_MOD}.load_platform_config")
@@ -213,6 +231,7 @@ class TestDetectAzureDevOps:
         assert result.detected_code_hosting == "azure_devops"
         assert result.azure_devops_project == "myorg/myproject"
         assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
 
     @patch(f"{_MOD}._get_origin_remote_url")
     @patch(f"{_MOD}.load_platform_config")
@@ -226,6 +245,7 @@ class TestDetectAzureDevOps:
         assert result.detected_code_hosting == "azure_devops"
         assert result.azure_devops_project == "myorg/myproject"
         assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
 
     @patch(f"{_MOD}._get_origin_remote_url")
     @patch(f"{_MOD}.load_platform_config")
@@ -239,6 +259,7 @@ class TestDetectAzureDevOps:
         assert result.detected_code_hosting == "azure_devops"
         assert result.azure_devops_project == "myorg/myproject"
         assert result.confidence["azure_devops"] == "high"
+        assert "azure_devops" in result.detected_issue_platforms
 
     @patch(f"{_MOD}._get_origin_remote_url")
     @patch(f"{_MOD}.load_platform_config")
@@ -271,11 +292,13 @@ class TestDetectPlatformsEdgeCases:
         assert result.azure_devops_project is None
         assert result.confidence == {}
 
+    @patch(f"{_MOD}.load_repo_config")
     @patch(f"{_MOD}._get_origin_remote_url")
     @patch(f"{_MOD}.load_platform_config")
-    def test_multiple_platforms_detected(self, mock_cfg, mock_url, tmp_path, monkeypatch):
+    def test_multiple_platforms_detected(self, mock_cfg, mock_url, mock_raw, tmp_path, monkeypatch):
         """Detect Jira + GitHub simultaneously."""
         mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
+        mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
         mock_url.return_value = "https://github.com/org/repo.git"
         monkeypatch.setenv("JIRA_COPILOT_PAT", "secret")
         (tmp_path / ".git").mkdir()

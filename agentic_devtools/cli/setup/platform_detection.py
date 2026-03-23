@@ -24,6 +24,7 @@ from agentic_devtools.config import (
     VALID_CODE_HOSTING,
     VALID_ISSUE_ADAPTERS,
     load_platform_config,
+    load_repo_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,15 +108,24 @@ def _get_origin_remote_url(repo_path: str | None = None) -> str | None:
 def _detect_jira(
     repo_path: str,
     platform_config: dict,
+    *,
+    explicit_jira_adapter: bool = False,
 ) -> tuple[bool, str]:
     """Detect Jira usage from env vars and config.
 
     Returns ``(detected, confidence)`` where *confidence* is ``"high"``
     or ``"medium"``.
+
+    Args:
+        repo_path: Repository root path.
+        platform_config: Normalized output of :func:`load_platform_config`.
+        explicit_jira_adapter: Whether the **raw** repo config explicitly sets
+            ``platform.issue_adapter`` to ``"jira"``.  This avoids a
+            false-positive when ``load_platform_config`` fills the default.
     """
     env_signal = any(os.environ.get(name) for name in ("JIRA_COPILOT_PAT", "JIRA_BASE_URL", "JIRA_API_TOKEN"))
 
-    config_signal = platform_config.get("issue_adapter") == "jira" or bool(platform_config.get("jira"))
+    config_signal = explicit_jira_adapter or bool(platform_config.get("jira"))
 
     if env_signal and config_signal:
         return True, "high"
@@ -186,6 +196,13 @@ def detect_platforms(repo_path: str) -> DetectionResult:
     platform_config = load_platform_config(repo_path)
     remote_url = _get_origin_remote_url(repo_path)
 
+    # Load the raw repo config to check for explicitly-set keys.
+    # load_platform_config() defaults issue_adapter to "jira", which would
+    # cause a false-positive Jira detection in repos with no Jira config.
+    raw_config = load_repo_config(repo_path)
+    raw_platform_val = raw_config.get("platform")
+    raw_platform: dict = raw_platform_val if isinstance(raw_platform_val, dict) else {}
+
     issue_platforms: list[str] = []
     confidence: dict[str, str] = {}
     code_hosting: str | None = None
@@ -193,7 +210,11 @@ def detect_platforms(repo_path: str) -> DetectionResult:
     azure_devops_project: str | None = None
 
     # --- Jira ---
-    jira_detected, jira_conf = _detect_jira(repo_path, platform_config)
+    jira_detected, jira_conf = _detect_jira(
+        repo_path,
+        platform_config,
+        explicit_jira_adapter=raw_platform.get("issue_adapter") == "jira",
+    )
     if jira_detected:
         issue_platforms.append("jira")
         confidence["jira"] = jira_conf
@@ -212,6 +233,7 @@ def detect_platforms(repo_path: str) -> DetectionResult:
     if ado_detected:
         azure_devops_project = ado_project
         confidence["azure_devops"] = ado_conf
+        issue_platforms.append("azure_devops")
         code_hosting = "azure_devops"
 
     return DetectionResult(
