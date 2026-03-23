@@ -7,7 +7,7 @@ An error occurred while generating the specification.
 ### Troubleshooting
 
 1. Check that the issue has a descriptive title and body
-2. Verify GitHub Models API access (the repository must have access to GitHub Models)
+2. Verify that the COPILOT_GITHUB_TOKEN secret is configured with a fine-grained PAT that has Copilot Requests: Read permission
 3. Review the workflow logs for detailed error messages
 
 ### Manual Alternative

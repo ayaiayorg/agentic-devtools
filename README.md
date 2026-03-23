@@ -831,14 +831,16 @@ Configure the action using repository variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SPECKIT_TRIGGER_LABEL` | `speckit` | The label that triggers the SDD workflow |
-| `SPECKIT_COPILOT_MODEL` | `claude-sonnet-4-20250514` | Model for GitHub Models API spec generation |
+| `SPECKIT_COPILOT_MODEL` | `claude-opus-4.6` | Model for Copilot SDK spec generation |
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
 | `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
 | `SPECKIT_CREATE_PR` | `true` | Create a pull request |
 
 ### Required Secrets
 
-No additional secrets are required — the workflow uses `GITHUB_TOKEN` (automatically provided) to authenticate with the GitHub Models API.
+| Secret | Description |
+|--------|-------------|
+| `COPILOT_GITHUB_TOKEN` | Fine-grained PAT with `Copilot Requests: Read` permission |
 
 ### Usage
 
