@@ -173,7 +173,9 @@ Generate the specification now. Start with the header and metadata section."
     # Inner function to perform a single GitHub Models API call
     _call_github_models_api() {
         local response
-        response=$(curl -s --fail -X POST "https://models.github.ai/v1/chat/completions" \
+        # --fail-with-body preserves the HTTP response body on non-2xx (unlike --fail),
+        # so 401/403/429 error payloads are visible in logs for debugging.
+        response=$(curl -s --fail-with-body --show-error -X POST "https://models.github.ai/v1/chat/completions" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$REQUEST_JSON" 2>&1) || {

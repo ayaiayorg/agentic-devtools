@@ -43,6 +43,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      models: read
 
     outputs:
       branch_name: ${{ steps.generate.outputs.branch_name }}
