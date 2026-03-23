@@ -163,18 +163,23 @@ Generate the specification now. Start with the header and metadata section."
     # Escape for JSON
     PROMPT_JSON=$(echo "$PROMPT" | jq -Rs .)
 
+    # Build the request JSON safely using jq to avoid injection via COPILOT_MODEL
+    REQUEST_JSON=$(jq -n \
+        --arg model "$COPILOT_MODEL" \
+        --argjson max_tokens 8192 \
+        --argjson prompt "$PROMPT_JSON" \
+        '{model: $model, max_tokens: $max_tokens, messages: [{role: "user", content: $prompt}]}')
+
     # Inner function to perform a single GitHub Models API call
     _call_github_models_api() {
         local response
         response=$(curl -s --fail -X POST "https://models.github.ai/v1/chat/completions" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{
-                \"model\": \"$COPILOT_MODEL\",
-                \"max_tokens\": 8192,
-                \"messages\": [{\"role\": \"user\", \"content\": $PROMPT_JSON}]
-            }" 2>&1) || {
+            -d "$REQUEST_JSON" 2>&1) || {
             echo "Error calling GitHub Models API (HTTP failure)" >&2
+            echo "Raw response / error output:" >&2
+            echo "$response" >&2
             return 1
         }
         CONTENT=$(echo "$response" | jq -r '.choices[0].message.content // empty')
