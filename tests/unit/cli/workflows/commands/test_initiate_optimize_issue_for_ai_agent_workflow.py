@@ -31,12 +31,12 @@ class TestInitiateOptimizeIssueForAiAgentWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = True
-                commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+                commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         captured = capsys.readouterr()
         assert "Not in the correct context" in captured.out
@@ -58,13 +58,13 @@ class TestInitiateOptimizeIssueForAiAgentWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = False
                 with pytest.raises(SystemExit) as exc_info:
-                    commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+                    commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
                 assert exc_info.value.code == 1
 
 
@@ -81,13 +81,13 @@ class TestInitiateOptimizeIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = True
                 commands.initiate_optimize_issue_for_ai_agent_workflow(
-                    _argv=["--issue-key", "DFLY-1234", "--interactive", "true"]
+                    _argv=["--issue-key", "PROJECT-1234", "--interactive", "true"]
                 )
 
         call_kwargs = mock_setup.call_args[1]
@@ -105,12 +105,12 @@ class TestInitiateOptimizeIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = True
-                commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+                commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         call_kwargs = mock_setup.call_args[1]
         assert call_kwargs["interactive"] is False
@@ -137,7 +137,7 @@ class TestWorkflowCommands:
         template_file.write_text(template, encoding="utf-8")
 
         # Setup state
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         # Mock preflight to pass
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
@@ -146,12 +146,12 @@ class TestWorkflowCommands:
             mock_preflight.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/optimize",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/optimize",
+                issue_key="PROJECT-1234",
             )
 
-            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         # Verify workflow state was set
         workflow = state.get_workflow_state()
@@ -172,7 +172,7 @@ class TestWorkflowCommands:
         (workflow_dir / "default-initiate-prompt.md").write_text(
             "Optimizing issue {{jira_issue_key}}", encoding="utf-8"
         )
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -180,13 +180,13 @@ class TestWorkflowCommands:
             mock_preflight.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/optimize",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/optimize",
+                issue_key="PROJECT-1234",
             )
 
             commands.initiate_optimize_issue_for_ai_agent_workflow(
-                _argv=["--issue-key", "DFLY-1234", "--interactive", "true"]
+                _argv=["--issue-key", "PROJECT-1234", "--interactive", "true"]
             )
 
         assert state.get_value("workflow.context.interactive") == "true"
@@ -206,7 +206,7 @@ class TestWorkflowCommands:
         (workflow_dir / "default-initiate-prompt.md").write_text(
             "Optimizing issue {{jira_issue_key}}", encoding="utf-8"
         )
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -214,12 +214,12 @@ class TestWorkflowCommands:
             mock_preflight.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/optimize",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/optimize",
+                issue_key="PROJECT-1234",
             )
 
-            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         assert state.get_value("workflow.context.interactive") == "false"
 
@@ -252,15 +252,15 @@ class TestIssueKeyWriteGuardOptimize:
                         mock_pf.return_value = PreflightResult(
                             folder_valid=True,
                             branch_valid=True,
-                            folder_name="DFLY-1234",
-                            branch_name="feature/DFLY-1234/optimize",
-                            issue_key="DFLY-1234",
+                            folder_name="PROJECT-1234",
+                            branch_name="feature/PROJECT-1234/optimize",
+                            issue_key="PROJECT-1234",
                         )
-                        commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-1234"])
+                        commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
-        # set_value("jira.issue_key", "DFLY-1234") must be called at least twice:
+        # set_value("jira.issue_key", "PROJECT-1234") must be called at least twice:
         # once for the initial persist and once inside the write guard.
-        issue_key_calls = [c for c in mock_set_value.call_args_list if c == mock_call("jira.issue_key", "DFLY-1234")]
+        issue_key_calls = [c for c in mock_set_value.call_args_list if c == mock_call("jira.issue_key", "PROJECT-1234")]
         assert len(issue_key_calls) >= 2, (
             f"Expected set_value('jira.issue_key', ...) called ≥2 times, got {issue_key_calls}"
         )

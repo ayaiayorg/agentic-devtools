@@ -4,7 +4,7 @@
     {
       "request": {
         "method": "GET",
-        "uri": "https://test.atlassian.net/rest/api/2/issue/DFLY-1234?fields=summary,description,comment,labels,issuetype,parent,customfield_10008&comment.maxResults=50",
+        "uri": "https://test.atlassian.net/rest/api/2/issue/PROJECT-1234?fields=summary,description,comment,labels,issuetype,parent,customfield_10008&comment.maxResults=50",
         "body": null,
         "headers": {
           "Accept": ["*/*"],
@@ -26,7 +26,7 @@
           "X-AREQUESTID": ["test-request-id-12345"]
         },
         "body": {
-          "string": "{\"expand\":\"renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations\",\"id\":\"12345\",\"self\":\"https://test.atlassian.net/rest/api/2/issue/12345\",\"key\":\"DFLY-1234\",\"fields\":{\"summary\":\"Test Issue for E2E Smoke Tests\",\"description\":\"This is a test issue description for smoke testing the CLI commands.\",\"issuetype\":{\"self\":\"https://test.atlassian.net/rest/api/2/issuetype/10001\",\"id\":\"10001\",\"description\":\"A task that needs to be done.\",\"iconUrl\":\"https://test.atlassian.net/images/icons/issuetypes/task.svg\",\"name\":\"Task\",\"subtask\":false},\"labels\":[\"smoke-test\",\"e2e\"],\"comment\":{\"comments\":[{\"self\":\"https://test.atlassian.net/rest/api/2/issue/12345/comment/67890\",\"id\":\"67890\",\"author\":{\"self\":\"https://test.atlassian.net/rest/api/2/user?accountId=test-user\",\"accountId\":\"test-user\",\"displayName\":\"Test User\",\"active\":true},\"body\":\"This is a test comment.\",\"created\":\"2026-02-01T10:00:00.000+0000\",\"updated\":\"2026-02-01T10:00:00.000+0000\"}],\"maxResults\":50,\"total\":1,\"startAt\":0},\"parent\":null,\"customfield_10008\":null}}"
+          "string": "{\"expand\":\"renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations\",\"id\":\"12345\",\"self\":\"https://test.atlassian.net/rest/api/2/issue/12345\",\"key\":\"PROJECT-1234\",\"fields\":{\"summary\":\"Test Issue for E2E Smoke Tests\",\"description\":\"This is a test issue description for smoke testing the CLI commands.\",\"issuetype\":{\"self\":\"https://test.atlassian.net/rest/api/2/issuetype/10001\",\"id\":\"10001\",\"description\":\"A task that needs to be done.\",\"iconUrl\":\"https://test.atlassian.net/images/icons/issuetypes/task.svg\",\"name\":\"Task\",\"subtask\":false},\"labels\":[\"smoke-test\",\"e2e\"],\"comment\":{\"comments\":[{\"self\":\"https://test.atlassian.net/rest/api/2/issue/12345/comment/67890\",\"id\":\"67890\",\"author\":{\"self\":\"https://test.atlassian.net/rest/api/2/user?accountId=test-user\",\"accountId\":\"test-user\",\"displayName\":\"Test User\",\"active\":true},\"body\":\"This is a test comment.\",\"created\":\"2026-02-01T10:00:00.000+0000\",\"updated\":\"2026-02-01T10:00:00.000+0000\"}],\"maxResults\":50,\"total\":1,\"startAt\":0},\"parent\":null,\"customfield_10008\":null}}"
         }
       }
     }

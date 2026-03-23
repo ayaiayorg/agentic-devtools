@@ -261,7 +261,7 @@ class TestCopilotAutoStartCmd:
         sf = _state_file(tmp_path, triggered_runs=[_RUN_ID])
 
         monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "orig-modern")
-        monkeypatch.setenv("DFLY_AI_HELPERS_STATE_DIR", "orig-legacy")
+        monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "orig-legacy")
 
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_CLEANUP):
@@ -279,7 +279,7 @@ class TestCopilotAutoStartCmd:
 
         assert exc_info.value.code == 0
         assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "orig-modern"
-        assert os.environ.get("DFLY_AI_HELPERS_STATE_DIR") == "orig-legacy"
+        assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "orig-legacy"
 
     # ------------------------------------------------------------------
     # Copilot CLI not available (new pre-flight check before marking)

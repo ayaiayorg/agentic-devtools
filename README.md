@@ -104,7 +104,7 @@ Agents are available in two contexts:
 /speckit.specify Add a dark mode toggle    ← SDD: create spec
 /speckit.plan                              ← SDD: generate plan
 /speckit.implement                         ← SDD: execute tasks
-/agdt.work-on-jira-issue.initiate DFLY-1  ← Jira workflow (11 steps)
+/agdt.work-on-jira-issue.initiate PROJECT-1  ← Jira workflow (11 steps)
 /agdt.pull-request-review.initiate        ← PR review (5 steps)
 /agdt.git-save-work                       ← individual CLI command agent
 /agdt.squash-commits                      ← standalone utility agent
@@ -366,7 +366,7 @@ single-commit policy.
 - Change 1
 - Change 2
 
-[DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)"
+[PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)"
 
 # Option B: Parameterless (uses current state)
 # Current commit_message: run `agdt-get commit_message` to check
@@ -380,10 +380,10 @@ existing commit:
 
 ```bash
 # First commit - creates new commit and publishes branch
-agdt-git-save-work --commit-message "feature(DFLY-1234): initial implementation"
+agdt-git-save-work --commit-message "feature(PROJECT-1234): initial implementation"
 
 # Subsequent commits on same issue - automatically amends and force pushes
-agdt-git-save-work --commit-message "feature(DFLY-1234): refined implementation
+agdt-git-save-work --commit-message "feature(PROJECT-1234): refined implementation
 
 - Original changes
 - Additional updates"
@@ -462,7 +462,7 @@ regardless of `--interactive`. For direct invocations from the CLI, pass
 file):
 
 ```bash
-agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-1234
+agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive true
 ```
 
@@ -474,7 +474,7 @@ can paste it manually into Copilot Chat as a fallback.
 
 ```bash
 # Start work on a Jira issue
-agdt-set jira.issue_key "DFLY-1234"
+agdt-set jira.issue_key "PROJECT-1234"
 agdt-initiate-work-on-jira-issue-workflow
 ```
 
@@ -557,7 +557,7 @@ All Jira commands use the `jira.*` namespace for state values. Set
 ### Get Issue Details
 
 ```bash
-agdt-set jira.issue_key "DFLY-1234"
+agdt-set jira.issue_key "PROJECT-1234"
 agdt-get-jira-issue
 ```
 
@@ -578,7 +578,7 @@ agdt-add-jira-comment
 ### Create Epic
 
 ```bash
-agdt-set jira.project_key "DFLY"
+agdt-set jira.project_key "PROJECT"
 agdt-set jira.summary "Epic Title"
 agdt-set jira.epic_name "EPIC-KEY"
 agdt-set jira.role "developer"
@@ -595,7 +595,7 @@ agdt-create-epic
 ### Create Issue (Task/Bug/Story)
 
 ```bash
-agdt-set jira.project_key "DFLY"
+agdt-set jira.project_key "PROJECT"
 agdt-set jira.summary "Issue Title"
 agdt-set jira.description "Issue description"
 agdt-create-issue
@@ -610,7 +610,7 @@ agdt-create-issue
 ### Create Subtask
 
 ```bash
-agdt-set jira.parent_key "DFLY-1234"
+agdt-set jira.parent_key "PROJECT-1234"
 agdt-set jira.summary "Subtask Title"
 agdt-set jira.description "Subtask description"
 agdt-create-subtask

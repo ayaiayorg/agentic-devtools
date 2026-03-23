@@ -46,12 +46,12 @@ class TestUpdateBootstrapWorktreeKey:
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
-        state._update_bootstrap_worktree_key("DFLY-42")
+        state._update_bootstrap_worktree_key("PROJECT-42")
 
         bootstrap_path = agdt_dir / "runtime-bootstrap.json"
         assert bootstrap_path.exists()
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
-        assert data == {"worktree_key": "DFLY-42"}
+        assert data == {"worktree_key": "PROJECT-42"}
 
     def test_noop_when_no_agdt_dir(self, tmp_path, monkeypatch):
         """Does nothing when no .agdt/ directory exists anywhere."""

@@ -13,13 +13,13 @@ class TestSetBootstrapState:
         """Bootstrap file contains only worktree_key; identity goes to identity.json."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.object(state, "_get_git_email", return_value="test@example.com"):
-                state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1234")
+                state.set_bootstrap_state(identity="ama", worktree_key="PROJECT-1234")
 
         bootstrap_path = tmp_path / ".agdt" / "runtime-bootstrap.json"
         assert bootstrap_path.exists()
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert "identity" not in data  # Identity no longer stored in bootstrap
-        assert data["worktree_key"] == "DFLY-1234"
+        assert data["worktree_key"] == "PROJECT-1234"
 
         # Identity is now in identity.json
         identity_path = tmp_path / ".agdt" / "identity.json"
@@ -36,13 +36,13 @@ class TestSetBootstrapState:
                 mock_git.returncode = 0
                 mock_git.stdout = "user@example.com\n"
                 with patch("agentic_devtools.state.subprocess.run", return_value=mock_git):
-                    state.set_bootstrap_state(worktree_key="DFLY-99")
+                    state.set_bootstrap_state(worktree_key="PROJECT-99")
 
         mock_resolve.assert_called_once_with(tmp_path, _email="user@example.com")
         bootstrap_path = tmp_path / ".agdt" / "runtime-bootstrap.json"
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
         assert "identity" not in data  # Identity no longer in bootstrap
-        assert data["worktree_key"] == "DFLY-99"
+        assert data["worktree_key"] == "PROJECT-99"
 
         # Identity is in identity.json
         cache = json.loads((tmp_path / ".agdt" / "identity.json").read_text(encoding="utf-8"))
@@ -56,7 +56,7 @@ class TestSetBootstrapState:
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch("agentic_devtools.state.subprocess.run", return_value=mock_git):
-                state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1")
+                state.set_bootstrap_state(identity="ama", worktree_key="PROJECT-1")
 
         owner_file = tmp_path / ".agdt" / "workflows" / "ama" / ".identity-owner"
         assert owner_file.exists()
@@ -103,7 +103,7 @@ class TestSetBootstrapState:
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch("agentic_devtools.state.subprocess.run", return_value=mock_git):
-                state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1")
+                state.set_bootstrap_state(identity="ama", worktree_key="PROJECT-1")
 
         assert (tmp_path / ".agdt" / "runtime-bootstrap.json").exists()
         assert (tmp_path / ".agdt" / "identity.json").exists()
@@ -114,7 +114,7 @@ class TestSetBootstrapState:
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.object(state, "_get_git_email", return_value="test@example.com"):
                 with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore") as mock_gitignore:
-                    state.set_bootstrap_state(identity="ama", worktree_key="DFLY-1")
+                    state.set_bootstrap_state(identity="ama", worktree_key="PROJECT-1")
 
         mock_gitignore.assert_called_once_with(tmp_path)
 
@@ -141,10 +141,10 @@ class TestSetBootstrapStateNormalization:
         """Leading/trailing whitespace on worktree_key is stripped before writing."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
             with patch.object(state, "_get_git_email", return_value="u@e.com"):
-                state.set_bootstrap_state(identity="ama", worktree_key="  DFLY-1  ")
+                state.set_bootstrap_state(identity="ama", worktree_key="  PROJECT-1  ")
 
         data = json.loads((tmp_path / ".agdt" / "runtime-bootstrap.json").read_text(encoding="utf-8"))
-        assert data["worktree_key"] == "DFLY-1"
+        assert data["worktree_key"] == "PROJECT-1"
 
     def test_whitespace_only_identity_falls_back_to_resolve(self, tmp_path):
         """Whitespace-only identity is treated as None → falls back to _get_or_refresh_identity."""

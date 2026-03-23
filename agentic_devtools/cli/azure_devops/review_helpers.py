@@ -9,7 +9,7 @@ import hashlib
 import re
 
 # Regex to extract Jira issue keys from PR titles
-# Matches patterns like: DFLY-1234, [DFLY-1234], (DFLY-1234), feature(DFLY-1234):
+# Matches patterns like: PROJECT-1234, [PROJECT-1234], (PROJECT-1234), feature(PROJECT-1234):
 JIRA_ISSUE_KEY_PATTERN = re.compile(r"\b([A-Z]+-\d+)\b")
 
 
@@ -18,9 +18,9 @@ def extract_jira_issue_key_from_title(title: str) -> str | None:
     Extract Jira issue key from a PR title.
 
     Looks for patterns like:
-    - feature(DFLY-1234): description
-    - [DFLY-1234] description
-    - fix(DFLY-1234 / DFLY-5678): description (returns first match)
+    - feature(PROJECT-1234): description
+    - [PROJECT-1234] description
+    - fix(PROJECT-1234 / PROJECT-5678): description (returns first match)
 
     Args:
         title: Pull request title

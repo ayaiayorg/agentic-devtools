@@ -66,7 +66,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         # Step 1: planning -> checklist-creation (Jira planning comment added)
@@ -110,11 +110,11 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1234", "branch_name": "feature/DFLY-1234/test"},
+            context={"jira_issue_key": "PROJECT-1234", "branch_name": "feature/PROJECT-1234/test"},
         )
 
         # Fire GIT_COMMIT_CREATED - sets pending_transition, does NOT immediately advance
-        result = advancement.try_advance_workflow_after_commit(branch_name="feature/DFLY-1234/test")
+        result = advancement.try_advance_workflow_after_commit(branch_name="feature/PROJECT-1234/test")
         assert result is True
         workflow = state.get_workflow_state()
         # Step is still "commit" — the transition is deferred
@@ -156,7 +156,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             name="work-on-jira-issue",
             status="in-progress",
             step="pull-request",
-            context={"jira_issue_key": "DFLY-1234", "branch_name": "feature/DFLY-1234/test"},
+            context={"jira_issue_key": "PROJECT-1234", "branch_name": "feature/PROJECT-1234/test"},
         )
 
         # Fire PR_CREATED event - sets pending_transition
@@ -207,7 +207,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1234", "issue_summary": "Add new feature"},
+            context={"jira_issue_key": "PROJECT-1234", "issue_summary": "Add new feature"},
         )
 
         # planning -> checklist-creation
@@ -231,7 +231,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         assert state.get_workflow_state()["step"] == "commit"
 
         # commit -> [pending] pull-request (GIT_COMMIT_CREATED, deferred)
-        advancement.try_advance_workflow_after_commit(branch_name="feature/DFLY-1234/test")
+        advancement.try_advance_workflow_after_commit(branch_name="feature/PROJECT-1234/test")
         workflow = state.get_workflow_state()
         assert workflow["step"] == "commit"  # Still commit, transition is pending
         assert workflow["context"]["pending_transition"]["to_step"] == "pull-request"
@@ -294,7 +294,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             status="in-progress",
             step="commit",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "pending_transition": {
                     "to_step": "pull-request",
                     "required_tasks": ["agdt-git-commit"],
@@ -333,7 +333,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1234", "issue_summary": "Test feature"},
+            context={"jira_issue_key": "PROJECT-1234", "issue_summary": "Test feature"},
         )
 
         # Advance with context update
@@ -343,7 +343,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         )
         workflow = state.get_workflow_state()
         # Original context preserved
-        assert workflow["context"]["jira_issue_key"] == "DFLY-1234"
+        assert workflow["context"]["jira_issue_key"] == "PROJECT-1234"
         assert workflow["context"]["issue_summary"] == "Test feature"
         # New context added
         assert workflow["context"]["plan_comment_id"] == "comment-1"
@@ -356,7 +356,7 @@ class TestWorkOnJiraIssueWorkflowEndToEnd:
         )
         workflow = state.get_workflow_state()
         # All previous context still there
-        assert workflow["context"]["jira_issue_key"] == "DFLY-1234"
+        assert workflow["context"]["jira_issue_key"] == "PROJECT-1234"
         assert workflow["context"]["plan_comment_id"] == "comment-1"
         # Plus new context
         assert workflow["context"]["checklist_item_count"] == 5
@@ -408,7 +408,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
             name="pull-request-review",
             status="in-progress",
             step="initiate",
-            context={"pull_request_id": "123", "jira_issue_key": "DFLY-5678"},
+            context={"pull_request_id": "123", "jira_issue_key": "PROJECT-5678"},
         )
         state.set_value("pull_request_id", "123")
 
@@ -563,7 +563,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         get_state_dir() to a dedicated subdir, clear_state_for_workflow_initiation()
         does not wipe temp_output_dir, so no mock_workflow_state_clearing needed.
         """
-        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234", "--project-key", "PROJECT"])
 
         workflow = state.get_workflow_state()
         assert workflow is not None
@@ -582,7 +582,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
             name="create-jira-issue",
             status="initiated",
             step="initiate",
-            context={"jira_project_key": "DFLY"},
+            context={"jira_project_key": "PROJECT"},
         )
 
         result = notify_workflow_event(WorkflowEvent.JIRA_ISSUE_CREATED)
@@ -604,7 +604,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
             name="create-jira-issue",
             status="initiated",
             step="initiate",
-            context={"jira_project_key": "DFLY"},
+            context={"jira_project_key": "PROJECT"},
         )
 
         result = notify_workflow_event(WorkflowEvent.JIRA_ISSUE_UPDATED)
@@ -634,7 +634,7 @@ class TestCreateJiraIssueWorkflowEndToEnd:
         """
         from agentic_devtools.cli.workflows.advancement import try_advance_workflow_after_jira_issue_retrieved
 
-        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-1234", "--project-key", "DFLY"])
+        commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234", "--project-key", "PROJECT"])
 
         # Capture state immediately after initiation
         initial_workflow = state.get_workflow_state()
@@ -680,7 +680,7 @@ class TestMockAgentBehavior:
             status="in-progress",
             step="planning",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "issue_summary": mock_jira_issue_response["fields"]["summary"],
             },
         )
@@ -692,7 +692,7 @@ class TestMockAgentBehavior:
         # Step 2: agent reads new workflow step
         workflow = state.get_workflow_state()
         assert workflow["step"] == "checklist-creation"
-        assert workflow["context"]["jira_issue_key"] == "DFLY-1234"
+        assert workflow["context"]["jira_issue_key"] == "PROJECT-1234"
 
         # The console output includes the WORKFLOW ADVANCED banner
         captured = capsys.readouterr()
@@ -712,11 +712,11 @@ class TestMockAgentBehavior:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1234", "branch_name": "feature/DFLY-1234/test"},
+            context={"jira_issue_key": "PROJECT-1234", "branch_name": "feature/PROJECT-1234/test"},
         )
 
         # Agent fires commit event (creates pending_transition)
-        advancement.try_advance_workflow_after_commit(branch_name="feature/DFLY-1234/test")
+        advancement.try_advance_workflow_after_commit(branch_name="feature/PROJECT-1234/test")
         assert state.get_workflow_state()["step"] == "commit"  # Still at commit
 
         # First poll: background task is running → agent gets WAITING response

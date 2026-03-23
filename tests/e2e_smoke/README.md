@@ -110,7 +110,7 @@ def _create_mock_jira_issue_response() -> dict:
 class TestJiraGetIssueE2E:
     def test_get_jira_issue_returns_valid_response(self, ...):
         # Arrange - set up state and mocks
-        set_value("jira.issue_key", "DFLY-1234")
+        set_value("jira.issue_key", "PROJECT-1234")
         mock_requests = MagicMock()
 
         # Act - call the command

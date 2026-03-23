@@ -26,7 +26,7 @@ class TestClearStateForWorkflowInitiation:
     def test_preserves_context_keys(self, temp_state_dir, capsys):
         """Should preserve context keys like pull_request_id and jira.issue_key."""
         state.set_value("pull_request_id", 12345)
-        state.set_value("jira.issue_key", "DFLY-100")
+        state.set_value("jira.issue_key", "PROJECT-100")
         state.set_value("versionControl.currentBranch", "feature/branch")
         state.set_value("workflow", {"name": "test"})
         state.set_value("agdt_run_id", "abc123")
@@ -34,7 +34,7 @@ class TestClearStateForWorkflowInitiation:
         clear_state_for_workflow_initiation()
 
         assert state.get_value("pull_request_id") == 12345
-        assert state.get_value("jira.issue_key") == "DFLY-100"
+        assert state.get_value("jira.issue_key") == "PROJECT-100"
         assert state.get_value("versionControl.currentBranch") == "feature/branch"
 
     def test_does_not_call_clear_state(self, temp_state_dir, capsys):

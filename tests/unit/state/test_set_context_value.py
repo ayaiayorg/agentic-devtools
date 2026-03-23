@@ -24,22 +24,22 @@ class TestSetContextValue:
 
     def test_set_context_value_jira_issue_key(self, temp_state_dir):
         """Test setting jira.issue_key via set_context_value."""
-        result = state.set_context_value("jira.issue_key", "DFLY-1234", verbose=False)
+        result = state.set_context_value("jira.issue_key", "PROJECT-1234", verbose=False)
 
         assert result is True
-        assert state.get_value("jira.issue_key") == "DFLY-1234"
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
 
     def test_set_context_value_jira_issue_key_change_preserves_non_context_state(self, temp_state_dir):
         """Test changing jira.issue_key preserves non-context state but clears counterpart."""
-        state.set_value("jira.issue_key", "DFLY-OLD")
+        state.set_value("jira.issue_key", "PROJECT-OLD")
         state.set_value("pull_request_id", 12345)
         state.set_value("other_data", "should survive")
 
         with patch.object(state, "_trigger_cross_lookup"):
-            result = state.set_context_value("jira.issue_key", "DFLY-NEW", verbose=False)
+            result = state.set_context_value("jira.issue_key", "PROJECT-NEW", verbose=False)
 
         assert result is True
-        assert state.get_value("jira.issue_key") == "DFLY-NEW"
+        assert state.get_value("jira.issue_key") == "PROJECT-NEW"
         assert state.get_value("pull_request_id") is None  # counterpart cleared
         assert state.get_value("other_data") == "should survive"
 
@@ -78,7 +78,7 @@ class TestSetContextValue:
     def test_set_context_value_change_clears_stale_counterpart(self, temp_state_dir):
         """Test that context switch clears the stale counterpart key."""
         state.set_value("pull_request_id", 12345)
-        state.set_value("jira.issue_key", "DFLY-OLD")
+        state.set_value("jira.issue_key", "PROJECT-OLD")
 
         with patch.object(state, "_trigger_cross_lookup"):
             state.set_context_value("pull_request_id", 99999, verbose=False)
@@ -97,7 +97,7 @@ class TestSetContextValue:
     def test_set_context_value_single_save_cycle(self, temp_state_dir):
         """Test that set + counterpart delete happen in a single save_state call."""
         state.set_value("pull_request_id", 12345)
-        state.set_value("jira.issue_key", "DFLY-OLD")
+        state.set_value("jira.issue_key", "PROJECT-OLD")
 
         with patch.object(state, "_trigger_cross_lookup"):
             with patch.object(state, "save_state", wraps=state.save_state) as spy:
@@ -204,9 +204,9 @@ class TestTriggerCrossLookup:
     def test_trigger_cross_lookup_jira_to_pr(self, temp_state_dir, capsys):
         """Test that Jira change triggers PR lookup."""
         with patch("agentic_devtools.state._start_pr_lookup_from_jira") as mock_pr_lookup:
-            state._trigger_cross_lookup("jira.issue_key", "DFLY-1234", verbose=True)
+            state._trigger_cross_lookup("jira.issue_key", "PROJECT-1234", verbose=True)
 
-            mock_pr_lookup.assert_called_once_with("DFLY-1234")
+            mock_pr_lookup.assert_called_once_with("PROJECT-1234")
 
         captured = capsys.readouterr()
         assert "Starting background lookup for PR from Jira issue" in captured.out
@@ -257,9 +257,9 @@ class TestStartPrLookupFromJira:
     def test_start_pr_lookup_calls_async_function(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira calls async lookup."""
         with patch("agentic_devtools.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async") as mock_async:
-            state._start_pr_lookup_from_jira("DFLY-1234")
+            state._start_pr_lookup_from_jira("PROJECT-1234")
 
-            mock_async.assert_called_once_with("DFLY-1234")
+            mock_async.assert_called_once_with("PROJECT-1234")
 
     def test_start_pr_lookup_handles_import_error(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira handles ImportError gracefully."""
@@ -267,7 +267,7 @@ class TestStartPrLookupFromJira:
             "sys.modules",
             {"agentic_devtools.cli.azure_devops.async_commands": None},
         ):
-            state._start_pr_lookup_from_jira("DFLY-1234")
+            state._start_pr_lookup_from_jira("PROJECT-1234")
 
     def test_start_pr_lookup_handles_exception(self, temp_state_dir):
         """Test that _start_pr_lookup_from_jira handles exceptions gracefully."""
@@ -275,4 +275,4 @@ class TestStartPrLookupFromJira:
             "agentic_devtools.cli.azure_devops.async_commands.lookup_pr_from_jira_issue_async",
             side_effect=Exception("Network error"),
         ):
-            state._start_pr_lookup_from_jira("DFLY-1234")
+            state._start_pr_lookup_from_jira("PROJECT-1234")

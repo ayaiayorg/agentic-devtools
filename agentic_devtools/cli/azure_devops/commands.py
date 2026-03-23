@@ -45,17 +45,17 @@ def _extract_issue_key_from_branch(branch_name: str) -> str | None:
     """
     Extract a Jira issue key from a branch name.
 
-    Searches for patterns like "DFLY-1234" in the branch name.
+    Searches for patterns like "PROJECT-1234" in the branch name.
     Returns the first match found (case-insensitive, returned in uppercase).
 
     Args:
-        branch_name: The branch name to search (e.g., "feature/DFLY-1234/my-feature")
+        branch_name: The branch name to search (e.g., "feature/PROJECT-1234/my-feature")
 
     Returns:
-        The extracted issue key (e.g., "DFLY-1234") or None if not found.
+        The extracted issue key (e.g., "PROJECT-1234") or None if not found.
     """
     # Match Jira issue key pattern: PROJECT-NUMBER
-    # Common patterns: DFLY-1234, ABC-12, PROJECT-99999
+    # Common patterns: PROJECT-1234, ABC-12, PROJECT-99999
     match = re.search(r"([A-Z]{2,10}-\d+)", branch_name, re.IGNORECASE)
     if match:
         return match.group(1).upper()
@@ -347,8 +347,8 @@ def create_pull_request() -> None:
     - dry_run (optional): Preview without making API calls
 
     Usage:
-        agdt-set source_branch "feature/DFLY-1234/my-feature"
-        agdt-set title "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
+        agdt-set source_branch "feature/PROJECT-1234/my-feature"
+        agdt-set title "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): add feature"
         agdt-set description "This PR adds the new feature"
         agdt-create-pull-request
     """

@@ -37,7 +37,7 @@ class TestCreateIssueAsync:
         """Test create_issue_async spawns a background task."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"project_key": "DFLY", "summary": "Issue"}.get(k),
+            side_effect=lambda k: {"project_key": "PROJECT", "summary": "Issue"}.get(k),
         ):
             create_issue_async()
 

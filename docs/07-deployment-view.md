@@ -87,12 +87,12 @@ graph TB
     end
     
     subgraph "Feature Worktree 1"
-        WT1[feature/DFLY-1234]
+        WT1[feature/PROJECT-1234]
         WT1State[agdt-state.json]
     end
     
     subgraph "Feature Worktree 2"
-        WT2[feature/DFLY-5678]
+        WT2[feature/PROJECT-5678]
         WT2State[agdt-state.json]
     end
     

@@ -39,7 +39,7 @@ class TestTryAdvanceWorkflowAfterBranchPushed:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = advancement.try_advance_workflow_after_branch_pushed(branch_name="feature/test")

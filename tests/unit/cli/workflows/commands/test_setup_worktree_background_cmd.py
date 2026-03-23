@@ -57,10 +57,10 @@ class TestSetupWorktreeBackgroundCmd:
     def test_basic_invocation(self, temp_state_dir, clear_state_before):
         """Test basic command invocation with required args."""
         with patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync") as mock_setup:
-            commands.setup_worktree_background_cmd(_argv=["--issue-key", "DFLY-1234"])
+            commands.setup_worktree_background_cmd(_argv=["--issue-key", "PROJECT-1234"])
 
         mock_setup.assert_called_once_with(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="feature",
             workflow_name="work-on-jira-issue",
             user_request=None,
@@ -73,7 +73,7 @@ class TestSetupWorktreeBackgroundCmd:
             commands.setup_worktree_background_cmd(
                 _argv=[
                     "--issue-key",
-                    "DFLY-1234",
+                    "PROJECT-1234",
                     "--branch-prefix",
                     "bugfix",
                     "--workflow-name",
@@ -86,7 +86,7 @@ class TestSetupWorktreeBackgroundCmd:
             )
 
         mock_setup.assert_called_once_with(
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
             branch_prefix="bugfix",
             workflow_name="custom-workflow",
             user_request="My request",
@@ -99,7 +99,7 @@ class TestSetupWorktreeBackgroundCmd:
             commands.setup_worktree_background_cmd(
                 _argv=[
                     "--issue-key",
-                    "DFLY-1234",
+                    "PROJECT-1234",
                     "--additional-params",
                     "not-valid-json",
                 ]

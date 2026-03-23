@@ -14,7 +14,6 @@ EXCLUDE_DIRS = {
     "node_modules",
     ".agdt",
     ".agdt-temp",
-    ".dfly-temp",
 }
 EXCLUDE_FILES = {"CHANGELOG.md"}
 # Scan common text file types where this pattern is likely to appear.

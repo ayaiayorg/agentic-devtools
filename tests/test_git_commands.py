@@ -383,7 +383,7 @@ class TestSmartCommitAmendDetection:
     ):
         """Test that commit cmd uses amend when should_amend_instead_of_commit returns True."""
         state.set_value("commit_message", "Updated commit")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         # Mock should_amend to return True
         n = len(operations.STAGE_EXCLUDE_FILES)
@@ -413,7 +413,7 @@ class TestSmartCommitAmendDetection:
     ):
         """Test that commit cmd uses new commit when should_amend returns False."""
         state.set_value("commit_message", "New commit")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         n = len(operations.STAGE_EXCLUDE_FILES)
         m = len(AGDT_GITIGNORE_ENTRIES)
@@ -459,7 +459,7 @@ class TestCommitCompletedParameter:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": False},
@@ -511,7 +511,7 @@ class TestCommitCompletedParameter:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [{"id": 1, "text": "Task 1", "completed": False}],
                     "modified_by_agent": False,
@@ -554,10 +554,10 @@ class TestGetIssueKeyFromState:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-5678"},
+            context={"jira_issue_key": "PROJECT-5678"},
         )
         result = commands._get_issue_key_from_state()
-        assert result == "DFLY-5678"
+        assert result == "PROJECT-5678"
 
     def test_returns_none_when_workflow_has_no_context(self, temp_state_dir, clear_state_before):
         """Test returns None when workflow has no context."""
@@ -588,7 +588,7 @@ class TestMarkChecklistItemsCompleted:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": False},
@@ -614,7 +614,7 @@ class TestTriggerImplementationReview:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         # Should not raise

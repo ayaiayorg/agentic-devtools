@@ -142,7 +142,7 @@ class TestCreateEpicWithMock:
         jira.create_epic()
 
         captured = capsys.readouterr()
-        assert "DFLY-9999" in captured.out
+        assert "PROJECT-9999" in captured.out
         assert "Epic created successfully" in captured.out
 
     def test_create_epic_api_error(self, temp_state_dir, clear_state_before, mock_jira_env):

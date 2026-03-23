@@ -111,7 +111,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
-                            commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                            commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "PROJECT-TEST"])
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -149,7 +149,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                             auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                             with patch(auto_setup_patch, return_value=False):
                                 with pytest.raises(SystemExit):
-                                    commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                                    commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "PROJECT-TEST"])
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -168,7 +168,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                         auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                         with patch(auto_setup_patch, return_value=False):
                             with pytest.raises(SystemExit):
-                                commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                                commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "PROJECT-TEST"])
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -182,7 +182,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
             with patch.object(commands, "_ensure_bootstrap_identity_and_scope", ensure_mock):
                 with patch.object(commands, "clear_state_for_workflow_initiation", clear_mock):
                     with pytest.raises(SystemExit):
-                        commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                        commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "PROJECT-TEST"])
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -198,7 +198,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
-                            commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                            commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-TEST"])
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -214,7 +214,9 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
-                            commands.initiate_optimize_issue_for_ai_agent_workflow(_argv=["--issue-key", "DFLY-TEST"])
+                            commands.initiate_optimize_issue_for_ai_agent_workflow(
+                                _argv=["--issue-key", "PROJECT-TEST"]
+                            )
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
 
@@ -231,7 +233,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
                             commands.initiate_break_down_issue_into_subtasks_workflow(
-                                _argv=["--issue-key", "DFLY-TEST"],
+                                _argv=["--issue-key", "PROJECT-TEST"],
                             )
 
         assert calls[:2] == ["ensure", "clear"], f"Expected ensure before clear, got: {calls}"
@@ -245,14 +247,14 @@ class TestEnsureBootstrapIdentityAndScope:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
             with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
-                _ensure_bootstrap_identity_and_scope("DFLY-1234")
-            mock_bootstrap.assert_called_once_with(worktree_key="DFLY-1234")
+                _ensure_bootstrap_identity_and_scope("PROJECT-1234")
+            mock_bootstrap.assert_called_once_with(worktree_key="PROJECT-1234")
 
     def test_skips_when_AGENTIC_DEVTOOLS_STATE_DIR_set(self):
         """Should skip set_bootstrap_state() when AGENTIC_DEVTOOLS_STATE_DIR is set."""
         with patch.dict(os.environ, {"AGENTIC_DEVTOOLS_STATE_DIR": "/some/path"}):
             with patch("agentic_devtools.state.set_bootstrap_state") as mock_bootstrap:
-                _ensure_bootstrap_identity_and_scope("DFLY-1234")
+                _ensure_bootstrap_identity_and_scope("PROJECT-1234")
             mock_bootstrap.assert_not_called()
 
     def test_graceful_fallback_on_os_error(self, caplog):
@@ -263,7 +265,7 @@ class TestEnsureBootstrapIdentityAndScope:
                 import logging
 
                 with caplog.at_level(logging.WARNING, logger="agentic_devtools.cli.workflows.commands"):
-                    _ensure_bootstrap_identity_and_scope("DFLY-9999")  # must not raise
+                    _ensure_bootstrap_identity_and_scope("PROJECT-9999")  # must not raise
         assert "Failed to initialize bootstrap state" in caplog.text
 
 
@@ -277,10 +279,10 @@ class TestEnsureScopedBootstrapAndClear:
         with patch.object(commands, "_ensure_bootstrap_identity_and_scope") as scope_mock:
             with patch.object(commands, "_ensure_bootstrap_identity") as identity_mock:
                 with patch.object(commands, "clear_state_for_workflow_initiation") as clear_mock:
-                    result = _ensure_scoped_bootstrap_and_clear("  DFLY-1234  ")
+                    result = _ensure_scoped_bootstrap_and_clear("  PROJECT-1234  ")
 
-        assert result == "DFLY-1234"
-        scope_mock.assert_called_once_with("DFLY-1234")
+        assert result == "PROJECT-1234"
+        scope_mock.assert_called_once_with("PROJECT-1234")
         identity_mock.assert_not_called()
         clear_mock.assert_called_once()
 
@@ -321,9 +323,9 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                 auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                 with patch(auto_setup_patch, return_value=False):
                     with pytest.raises(SystemExit):
-                        commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "  DFLY-TEST  "])
+                        commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "  PROJECT-TEST  "])
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_create_jira_issue_scope_value(self, temp_state_dir, clear_state_before):
         """initiate_create_jira_issue_workflow calls _ensure_bootstrap_identity_and_scope with stripped key."""
@@ -338,9 +340,9 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                         auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                         with patch(auto_setup_patch, return_value=False):
                             with pytest.raises(SystemExit):
-                                commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "  DFLY-TEST  "])
+                                commands.initiate_create_jira_issue_workflow(_argv=["--issue-key", "  PROJECT-TEST  "])
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_create_jira_epic_scope_value(self, temp_state_dir, clear_state_before):
         """initiate_create_jira_epic_workflow calls _ensure_bootstrap_identity_and_scope with stripped key."""
@@ -354,9 +356,9 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                     auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                     with patch(auto_setup_patch, return_value=False):
                         with pytest.raises(SystemExit):
-                            commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "  DFLY-TEST  "])
+                            commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "  PROJECT-TEST  "])
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_create_jira_subtask_scope_value(self, temp_state_dir, clear_state_before):
         """initiate_create_jira_subtask_workflow calls _ensure_bootstrap_identity_and_scope with stripped key."""
@@ -367,9 +369,9 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                 auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                 with patch(auto_setup_patch, return_value=False):
                     with pytest.raises(SystemExit):
-                        commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "  DFLY-TEST  "])
+                        commands.initiate_create_jira_subtask_workflow(_argv=["--issue-key", "  PROJECT-TEST  "])
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_update_jira_issue_scope_value(self, temp_state_dir, clear_state_before):
         """initiate_update_jira_issue_workflow calls _ensure_bootstrap_identity_and_scope with stripped key."""
@@ -380,9 +382,9 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                 auto_setup_patch = "agentic_devtools.cli.workflows.preflight.perform_auto_setup"
                 with patch(auto_setup_patch, return_value=False):
                     with pytest.raises(SystemExit):
-                        commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "  DFLY-TEST  "])
+                        commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "  PROJECT-TEST  "])
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_optimize_issue_scope_value(self, temp_state_dir, clear_state_before):
         """Calls _ensure_bootstrap_identity_and_scope with stripped key for optimize workflow."""
@@ -394,10 +396,10 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                 with patch(auto_setup_patch, return_value=False):
                     with pytest.raises(SystemExit):
                         commands.initiate_optimize_issue_for_ai_agent_workflow(
-                            _argv=["--issue-key", "  DFLY-TEST  "],
+                            _argv=["--issue-key", "  PROJECT-TEST  "],
                         )
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")
 
     def test_break_down_issue_scope_value(self, temp_state_dir, clear_state_before):
         """Calls _ensure_bootstrap_identity_and_scope with stripped key for break-down workflow."""
@@ -409,7 +411,7 @@ class TestEnsureBootstrapIdentityAndScopeCalledWithCorrectValue:
                 with patch(auto_setup_patch, return_value=False):
                     with pytest.raises(SystemExit):
                         commands.initiate_break_down_issue_into_subtasks_workflow(
-                            _argv=["--issue-key", "  DFLY-TEST  "],
+                            _argv=["--issue-key", "  PROJECT-TEST  "],
                         )
 
-        scope_mock.assert_called_once_with("DFLY-TEST")
+        scope_mock.assert_called_once_with("PROJECT-TEST")

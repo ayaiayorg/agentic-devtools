@@ -35,7 +35,7 @@ class TestRoleCommandsAsync:
 
     def test_list_project_roles_spawns_task(self, mock_background_and_state, capsys):
         """Test list_project_roles_async spawns background task."""
-        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="DFLY"):
+        with patch("agentic_devtools.cli.jira.async_commands.get_jira_value", return_value="PROJECT"):
             list_project_roles_async()
 
         captured = capsys.readouterr()

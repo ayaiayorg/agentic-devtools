@@ -15,7 +15,7 @@ class TestFindWorkspaceFile:
 
     def test_finds_workspace_file_with_any_prefix(self, tmp_path):
         """Finds a .code-workspace file regardless of its prefix."""
-        workspace = tmp_path / "dfly-platform-management.code-workspace"
+        workspace = tmp_path / "example-repo-name.code-workspace"
         workspace.write_text("{}")
 
         result = find_workspace_file(str(tmp_path))

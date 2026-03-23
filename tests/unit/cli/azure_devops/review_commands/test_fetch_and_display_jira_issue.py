@@ -15,7 +15,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is True
                     mock_get_issue.assert_called_once()
 
@@ -33,7 +33,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is False
                     captured = capsys.readouterr()
                     assert "could not be fetched" in captured.err
@@ -52,7 +52,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is False
                     captured = capsys.readouterr()
                     assert "Failed to fetch Jira issue" in captured.err

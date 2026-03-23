@@ -307,14 +307,14 @@ class TestGetCurrentBranch:
     def test_returns_branch_name(self, mock_run_safe):
         # Arrange — configure the fake git output
         mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="feature/DFLY-1234/my-feature\n", stderr=""
+            returncode=0, stdout="feature/PROJECT-1234/my-feature\n", stderr=""
         )
 
         # Act
         branch = core.get_current_branch()
 
         # Assert
-        assert branch == "feature/DFLY-1234/my-feature"
+        assert branch == "feature/PROJECT-1234/my-feature"
 
     def test_git_failure_exits(self, mock_run_safe):
         mock_run_safe.return_value = MagicMock(returncode=128, stdout="", stderr="fatal: not a git repo")
@@ -408,7 +408,7 @@ class TestAddComment:
     def test_api_error_is_handled(
         self, temp_state_dir, clear_state_before, mock_jira_env, mock_requests_module
     ):
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
         state.set_value("jira.comment", "Test comment")
 
         # Configure the mock to simulate an HTTP error

@@ -37,7 +37,7 @@ class TestAddCommentAsync:
         """Test add_comment_async requires comment."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: "DFLY-123" if k == "issue_key" else None,
+            side_effect=lambda k: "PROJECT-123" if k == "issue_key" else None,
         ):
             with pytest.raises(SystemExit):
                 add_comment_async()
@@ -46,7 +46,7 @@ class TestAddCommentAsync:
         """Test add_comment_async spawns a background task calling the correct function."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"issue_key": "DFLY-123", "comment": "Test comment"}.get(k),
+            side_effect=lambda k: {"issue_key": "PROJECT-123", "comment": "Test comment"}.get(k),
         ):
             add_comment_async()
 

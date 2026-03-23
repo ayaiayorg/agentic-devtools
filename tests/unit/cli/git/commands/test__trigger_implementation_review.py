@@ -13,7 +13,7 @@ class TestTriggerImplementationReview:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         # Should not raise

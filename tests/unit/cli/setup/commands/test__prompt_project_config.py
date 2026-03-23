@@ -12,7 +12,7 @@ class TestPromptProjectConfig:
         """Should save provided values to project config."""
         inputs = iter(
             [
-                "DFLY,PROJ",
+                "ACME,PROJ",
                 "https://jira.example.com",
                 "corp.example.com",
                 "https://vpn.example.com",
@@ -30,7 +30,7 @@ class TestPromptProjectConfig:
 
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
-        assert saved["jira_project_keys"] == "DFLY,PROJ"
+        assert saved["jira_project_keys"] == "ACME,PROJ"
         assert saved["jira_base_url"] == "https://jira.example.com"
         assert saved["corporate_network_test_host"] == "corp.example.com"
         assert saved["vpn_url"] == "https://vpn.example.com"
@@ -76,7 +76,7 @@ class TestPromptProjectConfig:
     def test_clears_optional_values_with_sentinel(self, capsys):
         """Should remove optional keys when user types '-' sentinel."""
         existing = {
-            "jira_project_keys": "DFLY",
+            "jira_project_keys": "PROJECT",
             "jira_base_url": "https://jira.example.com",
             "vpn_url": "https://vpn.example.com",
             "corporate_network_test_host": "corp.example.com",
@@ -94,7 +94,7 @@ class TestPromptProjectConfig:
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
         # Required fields kept on empty Enter
-        assert saved["jira_project_keys"] == "DFLY"
+        assert saved["jira_project_keys"] == "PROJECT"
         assert saved["jira_base_url"] == "https://jira.example.com"
         # Optional fields cleared via '-' sentinel
         assert "vpn_url" not in saved
@@ -104,7 +104,7 @@ class TestPromptProjectConfig:
     def test_clears_optional_values_with_clear_sentinel(self, capsys):
         """Should also accept 'clear' as a sentinel to remove optional keys."""
         existing = {
-            "jira_project_keys": "DFLY",
+            "jira_project_keys": "PROJECT",
             "jira_base_url": "https://jira.example.com",
             "vpn_url": "https://vpn.example.com",
         }
@@ -119,13 +119,13 @@ class TestPromptProjectConfig:
 
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
-        assert saved["jira_project_keys"] == "DFLY"
+        assert saved["jira_project_keys"] == "PROJECT"
         assert "vpn_url" not in saved
 
     def test_rejects_sentinel_for_required_fields(self, capsys):
         """Should ignore '-'/'clear' sentinels for required fields and keep existing value."""
         existing = {
-            "jira_project_keys": "DFLY",
+            "jira_project_keys": "PROJECT",
             "jira_base_url": "https://jira.example.com",
         }
         # Type '-' for jira_keys and 'clear' for jira_base_url — both required
@@ -141,5 +141,5 @@ class TestPromptProjectConfig:
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
         # Required fields retain existing values when sentinel is typed
-        assert saved["jira_project_keys"] == "DFLY"
+        assert saved["jira_project_keys"] == "PROJECT"
         assert saved["jira_base_url"] == "https://jira.example.com"

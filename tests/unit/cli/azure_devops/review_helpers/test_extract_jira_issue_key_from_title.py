@@ -11,15 +11,15 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_standard_format(self):
         """Test extraction from standard commit format."""
-        title = "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
+        title = "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): add feature"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_parent_child_format(self):
         """Test extraction returns first match for parent/child format."""
-        title = "feature([DFLY-1840](link) / [DFLY-1900](link)): description"
+        title = "feature([PROJECT-1840](link) / [PROJECT-1900](link)): description"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1840"
+        assert result == "PROJECT-1840"
 
     def test_simple_brackets(self):
         """Test extraction from simple brackets format."""
@@ -51,7 +51,7 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_lowercase_does_not_match(self):
         """Test lowercase project keys don't match."""
-        title = "dfly-1234 in lowercase"
+        title = "project-1234 in lowercase"
         result = extract_jira_issue_key_from_title(title)
         assert result is None
 
@@ -61,18 +61,18 @@ class TestJiraIssueKeyPattern:
 
     def test_pattern_matches_standard_keys(self):
         """Test pattern matches standard Jira keys."""
-        matches = JIRA_ISSUE_KEY_PATTERN.findall("DFLY-1234 PROJ-99 ABC-1")
-        assert matches == ["DFLY-1234", "PROJ-99", "ABC-1"]
+        matches = JIRA_ISSUE_KEY_PATTERN.findall("PROJECT-1234 PROJ-99 ABC-1")
+        assert matches == ["PROJECT-1234", "PROJ-99", "ABC-1"]
 
     def test_pattern_ignores_lowercase(self):
         """Test pattern ignores lowercase keys."""
-        matches = JIRA_ISSUE_KEY_PATTERN.findall("dfly-1234 proj-99")
+        matches = JIRA_ISSUE_KEY_PATTERN.findall("project-1234 proj-99")
         assert matches == []
 
     def test_pattern_extracts_from_markdown_links(self):
         """Test pattern extracts from markdown links."""
-        text = "[DFLY-1234](https://jira.example.com/browse/DFLY-1234)"
+        text = "[PROJECT-1234](https://jira.example.com/browse/PROJECT-1234)"
         matches = JIRA_ISSUE_KEY_PATTERN.findall(text)
         # Should find both occurrences
         assert len(matches) == 2
-        assert all(m == "DFLY-1234" for m in matches)
+        assert all(m == "PROJECT-1234" for m in matches)

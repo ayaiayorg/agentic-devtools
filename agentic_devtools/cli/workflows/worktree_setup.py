@@ -184,10 +184,10 @@ def generate_workflow_branch_name(
     - Subtask create: subtask/<parent_key>/<issue_key>/create-subtask
 
     Args:
-        issue_key: The Jira issue key (e.g., "DFLY-1234")
+        issue_key: The Jira issue key (e.g., "PROJECT-1234")
         issue_type: The issue type (Task, Epic, Sub-task, Bug, etc.)
         workflow_name: The workflow name (create-jira-issue, create-jira-epic, etc.)
-        parent_key: For subtasks, the parent issue key (e.g., "DFLY-1233")
+        parent_key: For subtasks, the parent issue key (e.g., "PROJECT-1233")
 
     Returns:
         The branch name following the pattern
@@ -422,10 +422,10 @@ def create_worktree(
     Create a git worktree for the given issue key.
 
     The worktree will be created as a sibling directory to the main repo,
-    named after the issue key (e.g., ../DFLY-1234).
+    named after the issue key (e.g., ../PROJECT-1234).
 
     Args:
-        issue_key: The issue key (e.g., "DFLY-1234")
+        issue_key: The issue key (e.g., "PROJECT-1234")
         branch_prefix: Prefix for the branch name (default: "feature").
             Ignored if branch_name is provided.
         branch_name: Exact branch name to use. If provided, branch_prefix is ignored.
@@ -827,8 +827,8 @@ def open_vscode_workspace(worktree_path: str) -> bool:
         True if VS Code was opened, False otherwise
     """
     # Guard: skip launching external VS Code windows during tests to keep them
-    # hermetic.  On Windows, mock paths like /repos/DFLY-1234 resolve to
-    # C:\repos\DFLY-1234 which may be a real worktree.
+    # hermetic.  On Windows, mock paths like /repos/PROJECT-1234 resolve to
+    # C:\repos\PROJECT-1234 which may be a real worktree.
     if _in_test_environment():
         print("Detected test environment (PYTEST_CURRENT_TEST) - skipping VS Code window opening")
         return False
@@ -1328,7 +1328,7 @@ def _resolve_state_context_in_worktree(
     """Resolve workflow state using the target worktree context."""
     previous_cwd = os.getcwd()
     previous_state_dir = os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-    previous_legacy_state_dir = os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+    previous_legacy_state_dir = os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
 
     try:
         os.chdir(worktree_path)
@@ -1361,9 +1361,9 @@ def _resolve_state_context_in_worktree(
 
         try:
             if previous_legacy_state_dir is not None:
-                os.environ["DFLY_AI_HELPERS_STATE_DIR"] = previous_legacy_state_dir
+                os.environ["AGDT_AI_HELPERS_STATE_DIR"] = previous_legacy_state_dir
             else:
-                os.environ.pop("DFLY_AI_HELPERS_STATE_DIR", None)
+                os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
         except Exception:
             pass
 
@@ -1626,7 +1626,7 @@ def setup_worktree_environment(
     5. Opens VS Code with the workspace file
 
     Args:
-        issue_key: The issue key (e.g., "DFLY-1234")
+        issue_key: The issue key (e.g., "PROJECT-1234")
         branch_prefix: Prefix for the branch name (default: "feature").
             Ignored if branch_name is provided.
         branch_name: Exact branch name to use. If provided, branch_prefix is ignored.
@@ -1783,7 +1783,7 @@ def get_ai_agent_continuation_prompt(
     the AI agent with clear instructions on how to proceed.
 
     Args:
-        issue_key: The Jira issue key (e.g., "DFLY-1234") or PR identifier (e.g., "PR24031")
+        issue_key: The Jira issue key (e.g., "PROJECT-1234") or PR identifier (e.g., "PR24031")
         workflow_name: The workflow being executed (e.g., "update-jira-issue")
         user_request: The user's request/explanation for the workflow
         additional_params: Additional parameters for the command (e.g., {"pull_request_id": "24031"})
@@ -2488,8 +2488,8 @@ def _maybe_inject_auto_start_before_vscode(
         ``tasks.json``, ``False`` otherwise.
     """
     # Guard: skip writing tasks.json to real filesystem paths during tests to
-    # keep them hermetic.  On Windows, mock paths like /repos/DFLY-1234 resolve
-    # to C:\repos\DFLY-1234 which may be a real worktree — writing
+    # keep them hermetic.  On Windows, mock paths like /repos/PROJECT-1234 resolve
+    # to C:\repos\PROJECT-1234 which may be a real worktree — writing
     # runOn:folderOpen tasks there causes VS Code to open unexpected windows.
     if _in_test_environment():
         return False
@@ -2852,7 +2852,7 @@ def create_placeholder_issue(
     that will be updated later in the workflow.
 
     Args:
-        project_key: Jira project key (e.g., "DFLY")
+        project_key: Jira project key (e.g., "PROJECT")
         issue_type: Issue type (Task, Epic, Sub-task)
         parent_key: Parent issue key (required for Sub-task type)
 
@@ -2919,14 +2919,14 @@ def create_placeholder_and_setup_worktree(
     issue creation and environment setup.
 
     Args:
-        project_key: Jira project key (e.g., "DFLY")
+        project_key: Jira project key (e.g., "PROJECT")
         issue_type: Issue type (Task, Epic, Sub-task)
         parent_key: Parent issue key (required for Sub-task type)
         workflow_name: Name of the workflow for continuation prompt
         user_request: The user's explanation of what they want to create
             (AI will use this to populate Jira fields appropriately)
         additional_params: Additional parameters to include in the continuation
-            command (e.g., {"parent_key": "DFLY-1234"})
+            command (e.g., {"parent_key": "PROJECT-1234"})
 
     Returns:
         Tuple of (success, issue_key). If success is True, issue_key contains

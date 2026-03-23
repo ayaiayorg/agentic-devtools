@@ -145,10 +145,10 @@ class TestSetValueBootstrapWiring:
 
         monkeypatch.chdir(tmp_path)
         with patch.object(state, "get_state_dir", return_value=state_dir):
-            state.set_value("jira.issue_key", "DFLY-1234")
+            state.set_value("jira.issue_key", "PROJECT-1234")
 
         data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
-        assert data["worktree_key"] == "DFLY-1234"
+        assert data["worktree_key"] == "PROJECT-1234"
         assert data["identity"] == "ama"
 
     def test_pull_request_id_updates_bootstrap(self, tmp_path, monkeypatch):
@@ -271,7 +271,7 @@ class TestSetValueBootstrapPriorityAware:
     def test_set_pull_request_id_skips_bootstrap_when_issue_key_exists(self, temp_state_dir):
         """set_value('pull_request_id', ...) skips bootstrap update when jira.issue_key exists."""
         # Pre-set the issue key in state — it has higher priority
-        state.set_value("jira.issue_key", "DFLY-2779")
+        state.set_value("jira.issue_key", "PROJECT-2779")
 
         with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
             state.set_value("pull_request_id", 25858)
@@ -301,9 +301,9 @@ class TestSetValueBootstrapPriorityAware:
         state.set_value("pull_request_id", "12345")  # may or may not update bootstrap
 
         with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
-            state.set_value("jira.issue_key", "DFLY-5678")
+            state.set_value("jira.issue_key", "PROJECT-5678")
 
-        mock_update.assert_called_once_with("DFLY-5678")
+        mock_update.assert_called_once_with("PROJECT-5678")
 
     def test_set_pull_request_id_still_updates_bootstrap_when_state_empty_despite_scoped_bootstrap(
         self, temp_state_dir
@@ -323,7 +323,7 @@ class TestSetValueBootstrapPriorityAware:
         the engine-side guard alone.
         """
         # State is empty (simulating just-cleared state after clear_state_for_workflow_initiation)
-        # The bootstrap is scoped to DFLY-2779, but state.json has no jira.issue_key yet
+        # The bootstrap is scoped to PROJECT-2779, but state.json has no jira.issue_key yet
         with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
             state.set_value("pull_request_id", 25858)  # state is empty — guard sees no issue key
 

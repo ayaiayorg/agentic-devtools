@@ -18,11 +18,11 @@ class TestCheckWorktreeAndBranch:
             patch("agentic_devtools.cli.workflows.preflight.get_current_git_branch") as mock_branch,
             patch("agentic_devtools.cli.workflows.preflight.get_git_repo_root") as mock_root,
         ):
-            mock_cwd.return_value = Path("/repos/dfly-1850")
-            mock_branch.return_value = "feature/DFLY-1850/test"
-            mock_root.return_value = "/repos/dfly-1850"
+            mock_cwd.return_value = Path("/repos/project-1850")
+            mock_branch.return_value = "feature/PROJECT-1850/test"
+            mock_root.return_value = "/repos/project-1850"
 
-            result = check_worktree_and_branch("DFLY-1850")
+            result = check_worktree_and_branch("PROJECT-1850")
 
             assert result.folder_valid is True
             assert result.branch_valid is True
@@ -35,11 +35,11 @@ class TestCheckWorktreeAndBranch:
             patch("agentic_devtools.cli.workflows.preflight.get_current_git_branch") as mock_branch,
             patch("agentic_devtools.cli.workflows.preflight.get_git_repo_root") as mock_root,
         ):
-            mock_cwd.return_value = Path("/repos/my-DFLY-1850-work")
-            mock_branch.return_value = "feature/DFLY-1850/work"
-            mock_root.return_value = "/repos/my-DFLY-1850-work"
+            mock_cwd.return_value = Path("/repos/my-PROJECT-1850-work")
+            mock_branch.return_value = "feature/PROJECT-1850/work"
+            mock_root.return_value = "/repos/my-PROJECT-1850-work"
 
-            result = check_worktree_and_branch("DFLY-1850")
+            result = check_worktree_and_branch("PROJECT-1850")
 
             assert result.folder_valid is True
 
@@ -50,11 +50,11 @@ class TestCheckWorktreeAndBranch:
             patch("agentic_devtools.cli.workflows.preflight.get_current_git_branch") as mock_branch,
             patch("agentic_devtools.cli.workflows.preflight.get_git_repo_root") as mock_root,
         ):
-            mock_cwd.return_value = Path("/repos/DFLY-1850")
+            mock_cwd.return_value = Path("/repos/PROJECT-1850")
             mock_branch.return_value = None
             mock_root.return_value = None
 
-            result = check_worktree_and_branch("DFLY-1850")
+            result = check_worktree_and_branch("PROJECT-1850")
 
             assert result.branch_valid is False
 
@@ -70,14 +70,14 @@ class TestCheckWorktreeAndBranch:
             patch("agentic_devtools.cli.workflows.preflight.get_git_repo_root") as mock_root,
         ):
             mock_cwd.return_value = Path("/repos/PR24031")
-            mock_branch.return_value = "feature/dfly-test-file-source-file-param"
+            mock_branch.return_value = "feature/project-test-file-source-file-param"
             mock_root.return_value = "/repos/PR24031"
 
             # issue_key is PR24031 (folder matches) but branch doesn't contain PR24031
             # However, source_branch matches so it should pass
             result = check_worktree_and_branch(
                 "PR24031",
-                source_branch="feature/dfly-test-file-source-file-param",
+                source_branch="feature/project-test-file-source-file-param",
             )
 
             assert result.folder_valid is True
@@ -132,12 +132,12 @@ class TestCheckWorktreeAndBranch:
             patch("agentic_devtools.cli.workflows.preflight.get_current_git_branch") as mock_branch,
             patch("agentic_devtools.cli.workflows.preflight.get_git_repo_root") as mock_root,
         ):
-            mock_cwd.return_value = Path("/repos/DFLY-1850")
-            mock_branch.return_value = "feature/DFLY-1850/my-work"
-            mock_root.return_value = "/repos/DFLY-1850"
+            mock_cwd.return_value = Path("/repos/PROJECT-1850")
+            mock_branch.return_value = "feature/PROJECT-1850/my-work"
+            mock_root.return_value = "/repos/PROJECT-1850"
 
             result = check_worktree_and_branch(
-                "DFLY-1850",
+                "PROJECT-1850",
                 source_branch="feature/some-other-branch",
             )
 

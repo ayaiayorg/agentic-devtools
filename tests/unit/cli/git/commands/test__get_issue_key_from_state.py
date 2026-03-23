@@ -18,10 +18,10 @@ class TestGetIssueKeyFromState:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-5678"},
+            context={"jira_issue_key": "PROJECT-5678"},
         )
         result = commands._get_issue_key_from_state()
-        assert result == "DFLY-5678"
+        assert result == "PROJECT-5678"
 
     def test_returns_none_when_workflow_has_no_context(self, temp_state_dir, clear_state_before):
         """Test returns None when workflow has no context."""

@@ -13,7 +13,7 @@ class TestIsSafeDirSegment:
         assert is_safe_dir_segment("PR123") is True
 
     def test_valid_name_with_hyphen(self):
-        assert is_safe_dir_segment("DFLY-1234") is True
+        assert is_safe_dir_segment("PROJECT-1234") is True
 
     def test_rejects_empty_string(self):
         assert is_safe_dir_segment("") is False

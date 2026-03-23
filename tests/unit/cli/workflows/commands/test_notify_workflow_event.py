@@ -24,7 +24,7 @@ class TestChecklistCreatedEvent:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(WorkflowEvent.CHECKLIST_CREATED)
@@ -50,7 +50,7 @@ class TestChecklistCreatedEvent:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(WorkflowEvent.CHECKLIST_CREATED)
@@ -69,7 +69,7 @@ class TestChecklistCompleteEvent:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(WorkflowEvent.CHECKLIST_COMPLETE)
@@ -95,7 +95,7 @@ class TestChecklistCompleteEvent:
             name="work-on-jira-issue",
             status="in-progress",
             step="verification",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(WorkflowEvent.CHECKLIST_COMPLETE)
@@ -134,7 +134,7 @@ class TestNoWorkflowActive:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         # PR_CREATED event is not valid in the planning step
@@ -152,7 +152,7 @@ class TestContextUpdates:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         notify_workflow_event(
@@ -169,7 +169,7 @@ class TestContextUpdates:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         notify_workflow_event(
@@ -193,7 +193,7 @@ class TestContextUpdates:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1850", "events_log": existing_events},
+            context={"jira_issue_key": "PROJECT-1850", "events_log": existing_events},
         )
 
         # Trigger an advancing event to verify events_log is capped at 20 (JIRA_COMMENT_ADDED -> checklist-creation)
@@ -213,7 +213,7 @@ class TestDeferredTransition:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(
@@ -239,7 +239,7 @@ class TestDeferredTransition:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         notify_workflow_event(WorkflowEvent.GIT_COMMIT_CREATED)
@@ -293,7 +293,7 @@ class TestWorkOnJiraIssueWorkflow:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = notify_workflow_event(WorkflowEvent.JIRA_COMMENT_ADDED)

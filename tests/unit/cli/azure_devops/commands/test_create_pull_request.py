@@ -112,7 +112,7 @@ class TestCreatePullRequest:
         state.set_value("source_branch", "feature/test")
         state.set_value(
             "title",
-            "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): test",
+            "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): test",
         )
         state.set_dry_run(True)
 
@@ -120,7 +120,7 @@ class TestCreatePullRequest:
 
         captured = capsys.readouterr()
         # Title should have Markdown links stripped
-        assert "Title: feature(DFLY-1234): test" in captured.out
+        assert "Title: feature(PROJECT-1234): test" in captured.out
 
     def test_dry_run_with_description(self, temp_state_dir, clear_state_before, capsys):
         """Test dry run shows description when provided."""

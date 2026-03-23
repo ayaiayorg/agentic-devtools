@@ -10,8 +10,8 @@ class TestActivityLogEntry:
         """Test that to_dict produces a dictionary with all fields."""
         entry = ActivityLogEntry(
             postedUtc="2026-03-13T10:00:00Z",
-            branchName="feature/DFLY-1234",
-            worktreeKey="DFLY-1234",
+            branchName="feature/PROJECT-1234",
+            worktreeKey="PROJECT-1234",
             prCommentPosted=True,
             jiraCommentPosted=False,
             prId=42,
@@ -20,8 +20,8 @@ class TestActivityLogEntry:
 
         assert result == {
             "postedUtc": "2026-03-13T10:00:00Z",
-            "branchName": "feature/DFLY-1234",
-            "worktreeKey": "DFLY-1234",
+            "branchName": "feature/PROJECT-1234",
+            "worktreeKey": "PROJECT-1234",
             "prCommentPosted": True,
             "jiraCommentPosted": False,
             "prId": 42,
@@ -31,8 +31,8 @@ class TestActivityLogEntry:
         """Test that from_dict creates an entry with all fields."""
         data = {
             "postedUtc": "2026-03-13T10:00:00Z",
-            "branchName": "feature/DFLY-1234",
-            "worktreeKey": "DFLY-1234",
+            "branchName": "feature/PROJECT-1234",
+            "worktreeKey": "PROJECT-1234",
             "prCommentPosted": True,
             "jiraCommentPosted": True,
             "prId": 99,
@@ -40,8 +40,8 @@ class TestActivityLogEntry:
         entry = ActivityLogEntry.from_dict(data)
 
         assert entry.postedUtc == "2026-03-13T10:00:00Z"
-        assert entry.branchName == "feature/DFLY-1234"
-        assert entry.worktreeKey == "DFLY-1234"
+        assert entry.branchName == "feature/PROJECT-1234"
+        assert entry.worktreeKey == "PROJECT-1234"
         assert entry.prCommentPosted is True
         assert entry.jiraCommentPosted is True
         assert entry.prId == 99

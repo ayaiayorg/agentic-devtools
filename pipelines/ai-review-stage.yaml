@@ -20,7 +20,7 @@
 #     repositories:
 #       - repository: agdt
 #         type: git
-#         name: DragonflyMgmt/agentic-devtools
+#         name: ExampleProject/agentic-devtools
 #   stages:
 #     - template: pipelines/ai-review-stage.yaml@agdt
 #       parameters:

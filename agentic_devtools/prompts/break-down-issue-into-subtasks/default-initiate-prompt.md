@@ -67,9 +67,9 @@ agdt-add-jira-comment --jira-comment "h4. Issue Broken Down into Subtasks
 
 The following subtasks have been created:
 
-* [DFLY-XXXX] <subtask 1 summary>
-* [DFLY-XXXX] <subtask 2 summary>
-* [DFLY-XXXX] <subtask 3 summary>
+* [PROJECT-XXXX] <subtask 1 summary>
+* [PROJECT-XXXX] <subtask 2 summary>
+* [PROJECT-XXXX] <subtask 3 summary>
 
 *Approach:* <brief explanation of the breakdown strategy>"
 ```

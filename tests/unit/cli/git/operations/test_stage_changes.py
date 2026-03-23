@@ -47,7 +47,7 @@ class TestStageChanges:
 
     def test_stage_changes_excludes_all_entries_on_non_agdt_branch(self, mock_run_safe):
         """Test that all AGDT_GITIGNORE_ENTRIES are unstaged on non -agdt branches."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         for entry in AGDT_GITIGNORE_ENTRIES:
@@ -55,7 +55,7 @@ class TestStageChanges:
 
     def test_stage_changes_includes_entries_on_agdt_branch(self, mock_run_safe):
         """Test that AGDT_GITIGNORE_ENTRIES stay staged on -agdt branches."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         for entry in AGDT_GITIGNORE_ENTRIES:
@@ -63,7 +63,7 @@ class TestStageChanges:
 
     def test_stage_changes_dry_run_non_agdt_branch(self, mock_run_safe, capsys):
         """Test dry run prints unstage message for all entries on non -agdt branch."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         for entry in AGDT_GITIGNORE_ENTRIES:
@@ -72,7 +72,7 @@ class TestStageChanges:
 
     def test_stage_changes_dry_run_agdt_branch(self, mock_run_safe, capsys):
         """Test dry run prints keep-staged message on -agdt branch."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         assert ".agdt/ entries will stay staged" in captured.out
@@ -80,7 +80,7 @@ class TestStageChanges:
 
     def test_stage_changes_existing_exclude_files_unchanged(self, mock_run_safe):
         """Regression: STAGE_EXCLUDE_FILES resets still happen in same positions."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234"):
             operations.stage_changes(dry_run=False)
         calls = [c[0][0] for c in mock_run_safe.call_args_list]
         # First call is git add .
@@ -115,7 +115,7 @@ class TestStageChanges:
 
         mock_run_safe.side_effect = side_effect
 
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
             operations.stage_changes(dry_run=False)
 
         assert not gitignore.exists()
@@ -133,7 +133,7 @@ class TestStageChanges:
         gitignore = agdt_dir / ".gitignore"
         gitignore.write_text("dummy", encoding="utf-8")
 
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234"):
             operations.stage_changes(dry_run=False)
 
         assert gitignore.exists()
@@ -150,7 +150,7 @@ class TestStageChanges:
 
         mock_run_safe.side_effect = side_effect
 
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
             with patch("pathlib.Path.is_file", side_effect=OSError("disk error")):
                 # Should not raise — OSError is caught and a warning is printed to stderr
                 operations.stage_changes(dry_run=False)
@@ -160,7 +160,7 @@ class TestStageChanges:
 
     def test_stage_changes_dry_run_agdt_branch_mentions_gitignore_removal(self, mock_run_safe, capsys):
         """Dry run on -agdt branch mentions .agdt/.gitignore removal."""
-        with patch.object(operations, "get_current_branch", return_value="feature/DFLY-1234-agdt"):
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         assert "[DRY RUN] Would remove .agdt/.gitignore" in captured.out

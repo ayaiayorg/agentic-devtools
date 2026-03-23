@@ -304,8 +304,8 @@ def build_pipeline():
 pipeline = build_pipeline()
 
 # Start a new issue workflow (thread_id = issue key for isolation)
-config = {"configurable": {"thread_id": "DFLY-1234"}}
-result = pipeline.invoke({"issue_key": "DFLY-1234", "raw_description": "..."}, config)
+config = {"configurable": {"thread_id": "PROJECT-1234"}}
+result = pipeline.invoke({"issue_key": "PROJECT-1234", "raw_description": "..."}, config)
 
 # Resume after human answers questions (hours/days later)
 pipeline.invoke(Command(resume={"answers": ["answer1", "answer2"]}), config)
@@ -873,7 +873,7 @@ steps = [
     PipelineStep("evaluate", evaluate_process, next_step=None),
 ]
 orchestrator = PipelineOrchestrator(db, steps)
-orchestrator.run("DFLY-1234", {"raw_description": "..."})
+orchestrator.run("PROJECT-1234", {"raw_description": "..."})
 ```
 
 **Dependency & Maintenance Profile**:

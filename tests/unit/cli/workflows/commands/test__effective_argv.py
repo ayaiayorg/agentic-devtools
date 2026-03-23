@@ -14,8 +14,8 @@ class TestEffectiveArgv:
     # _argv explicitly provided → always returned as-is
     # ------------------------------------------------------------------
     def test_explicit_argv_returned_as_is(self) -> None:
-        result = _effective_argv(["--issue-key", "DFLY-1234"])
-        assert result == ["--issue-key", "DFLY-1234"]
+        result = _effective_argv(["--issue-key", "PROJECT-1234"])
+        assert result == ["--issue-key", "PROJECT-1234"]
 
     def test_explicit_empty_argv_returned_as_is(self) -> None:
         result = _effective_argv([])
@@ -23,7 +23,7 @@ class TestEffectiveArgv:
 
     def test_explicit_argv_with_programmatic_params(self) -> None:
         """Even when programmatic params are set, explicit _argv wins."""
-        result = _effective_argv(["--interactive", "true"], "DFLY-1234", True)
+        result = _effective_argv(["--interactive", "true"], "PROJECT-1234", True)
         assert result == ["--interactive", "true"]
 
     # ------------------------------------------------------------------
@@ -41,11 +41,11 @@ class TestEffectiveArgv:
     # _argv=None, any programmatic param set → [] (skip sys.argv)
     # ------------------------------------------------------------------
     def test_none_argv_with_one_param_returns_empty(self) -> None:
-        result = _effective_argv(None, "DFLY-1234")
+        result = _effective_argv(None, "PROJECT-1234")
         assert result == []
 
     def test_none_argv_with_multiple_params_returns_empty(self) -> None:
-        result = _effective_argv(None, "DFLY-1234", "Story", None, True)
+        result = _effective_argv(None, "PROJECT-1234", "Story", None, True)
         assert result == []
 
     def test_none_argv_with_only_last_param_set(self) -> None:

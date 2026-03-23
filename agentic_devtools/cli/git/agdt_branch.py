@@ -61,7 +61,7 @@ class PersistResult:
     Example::
 
         result = persist_workflow_state(
-            source_branch="feature/DFLY-1234", worktree_key="DFLY-1234",
+            source_branch="feature/PROJECT-1234", worktree_key="PROJECT-1234",
         )
         if result.success:
             post_activity_log(
@@ -543,9 +543,9 @@ def load_workflow_artifacts(
 
     Args:
         source_branch: The source code branch name (e.g.
-            ``"feature/DFLY-1234"``).  The ``-agdt`` suffix is appended
+            ``"feature/PROJECT-1234"``).  The ``-agdt`` suffix is appended
             automatically unless the branch already ends with ``-agdt``.
-        worktree_key: Worktree key (e.g. ``"DFLY-1234"``).  When ``None``
+        worktree_key: Worktree key (e.g. ``"PROJECT-1234"``).  When ``None``
             or empty, auto-resolved via :func:`resolve_worktree_key`.
         workflow_type: Optional workflow type filter (e.g. ``"review"``).
             When provided, only files under
@@ -640,7 +640,7 @@ def _discover_workflow_files(repo_root: Path, identity: str, worktree_key: str) 
     Args:
         repo_root: Absolute path to the repository root.
         identity: Identity segment (e.g. ``"default"``).
-        worktree_key: Worktree key segment (e.g. ``"DFLY-1234"``).
+        worktree_key: Worktree key segment (e.g. ``"PROJECT-1234"``).
 
     Returns:
         ``{relative_path: blob_sha}`` dict where *relative_path* is

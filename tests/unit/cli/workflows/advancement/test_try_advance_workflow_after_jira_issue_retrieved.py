@@ -39,7 +39,7 @@ class TestTryAdvanceWorkflowAfterJiraIssueRetrieved:
             name="work-on-jira-issue",
             status="in-progress",
             step="initiate",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         issue_data = {

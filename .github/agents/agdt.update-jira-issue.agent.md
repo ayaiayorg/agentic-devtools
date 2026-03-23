@@ -29,7 +29,7 @@ Update fields on an existing Jira issue.
 - **Set state** (example):
 
   ```bash
-  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.issue_key PROJECT-1234
   agdt-set jira.summary "Updated summary"
   ```
 

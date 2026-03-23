@@ -18,7 +18,7 @@ Start the break-down-issue-into-subtasks workflow to decompose a Jira issue into
 
 - **Issue context (required)**: one of the following must be provided:
   - Pass `--issue-key <KEY>` to `agdt-initiate-break-down-issue-into-subtasks-workflow`, or
-  - Ensure `jira.issue_key` is already set in state (for example: `agdt-set jira.issue_key DFLY-1234`)
+  - Ensure `jira.issue_key` is already set in state (for example: `agdt-set jira.issue_key PROJECT-1234`)
 - **Optional CLI arguments**:
   - `--user-request "<TEXT>"` to pass the user's natural-language request or constraints into the workflow
   - `--interactive true` to run the workflow in interactive mode; default is non-interactive/headless (`false`)
@@ -36,7 +36,7 @@ Start the break-down-issue-into-subtasks workflow to decompose a Jira issue into
    **Option B — Use `jira.issue_key` from state (no `--issue-key` flag):**
 
    ```bash
-   # Assumes jira.issue_key is already set in state (e.g. via: agdt-set jira.issue_key DFLY-1234)
+   # Assumes jira.issue_key is already set in state (e.g. via: agdt-set jira.issue_key PROJECT-1234)
    agdt-initiate-break-down-issue-into-subtasks-workflow
    ```
 

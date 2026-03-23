@@ -949,7 +949,7 @@ def _start_jira_lookup_from_pr(pull_request_id: int) -> None:
     """
     Start a background task to find Jira issue key from a PR.
 
-    Extracts issue key from PR source branch name (e.g., feature/DFLY-1234/...).
+    Extracts issue key from PR source branch name (e.g., feature/PROJECT-1234/...).
     """
     try:
         from .cli.azure_devops.async_commands import lookup_jira_issue_from_pr_async

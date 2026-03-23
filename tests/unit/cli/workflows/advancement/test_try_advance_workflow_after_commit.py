@@ -43,7 +43,7 @@ class TestTryAdvanceWorkflowAfterCommit:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = advancement.try_advance_workflow_after_commit()
@@ -61,10 +61,10 @@ class TestTryAdvanceWorkflowAfterCommit:
             name="work-on-jira-issue",
             status="in-progress",
             step="commit",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
-        advancement.try_advance_workflow_after_commit(branch_name="feature/DFLY-1850/test")
+        advancement.try_advance_workflow_after_commit(branch_name="feature/PROJECT-1850/test")
 
         workflow = state.get_workflow_state()
-        assert workflow["context"]["branch_name"] == "feature/DFLY-1850/test"
+        assert workflow["context"]["branch_name"] == "feature/PROJECT-1850/test"

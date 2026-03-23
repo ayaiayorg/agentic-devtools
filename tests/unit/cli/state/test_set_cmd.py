@@ -96,10 +96,10 @@ class TestSetCommandContextSwitching:
     def test_set_jira_issue_key_uses_set_context_value(self, temp_state_dir, clear_state_before, capsys):
         """Test that setting jira.issue_key uses set_context_value."""
         with patch.object(state, "_trigger_cross_lookup"):
-            with patch.object(sys, "argv", ["agdt-set", "jira.issue_key", "DFLY-1234"]):
+            with patch.object(sys, "argv", ["agdt-set", "jira.issue_key", "PROJECT-1234"]):
                 cli_state.set_cmd()
 
-        assert state.get_value("jira.issue_key") == "DFLY-1234"
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
 
         captured = capsys.readouterr()
         assert "context switched" in captured.out

@@ -418,7 +418,7 @@ def _create_mock_jira_issue_response() -> dict:
     return {
         "expand": "...",
         "id": "12345",
-        "key": "DFLY-1234",
+        "key": "PROJECT-1234",
         "fields": {
             "summary": "Test Issue",
             "description": "Test description",
@@ -438,7 +438,7 @@ def test_get_jira_issue_returns_valid_response(
     mock_jira_env: None,
 ) -> None:
     # Arrange
-    set_value("jira.issue_key", "DFLY-1234")
+    set_value("jira.issue_key", "PROJECT-1234")
     mock_requests = MagicMock()
     mock_requests.get.return_value.json.return_value = _create_mock_jira_issue_response()
 
@@ -451,7 +451,7 @@ def test_get_jira_issue_returns_valid_response(
     response_file = temp_state_dir / "temp-get-issue-details-response.json"
     assert response_file.exists()
     response_data = json.loads(response_file.read_text())
-    assert response_data["key"] == "DFLY-1234"
+    assert response_data["key"] == "PROJECT-1234"
     assert get_value("jira.issue_details")["location"]
 ```
 

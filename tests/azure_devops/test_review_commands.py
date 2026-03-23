@@ -19,15 +19,15 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_standard_format(self):
         """Test extraction from standard commit format."""
-        title = "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
+        title = "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): add feature"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_parent_child_format(self):
         """Test extraction returns first match for parent/child format."""
-        title = "feature([DFLY-1840](link) / [DFLY-1900](link)): description"
+        title = "feature([PROJECT-1840](link) / [PROJECT-1900](link)): description"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1840"
+        assert result == "PROJECT-1840"
 
     def test_simple_brackets(self):
         """Test extraction from simple brackets format."""
@@ -59,7 +59,7 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_lowercase_does_not_match(self):
         """Test lowercase project keys don't match."""
-        title = "dfly-1234 in lowercase"
+        title = "project-1234 in lowercase"
         result = extract_jira_issue_key_from_title(title)
         assert result is None
 
@@ -399,21 +399,21 @@ class TestJiraIssueKeyPattern:
 
     def test_pattern_matches_standard_keys(self):
         """Test pattern matches standard Jira keys."""
-        matches = JIRA_ISSUE_KEY_PATTERN.findall("DFLY-1234 PROJ-99 ABC-1")
-        assert matches == ["DFLY-1234", "PROJ-99", "ABC-1"]
+        matches = JIRA_ISSUE_KEY_PATTERN.findall("PROJECT-1234 PROJ-99 ABC-1")
+        assert matches == ["PROJECT-1234", "PROJ-99", "ABC-1"]
 
     def test_pattern_ignores_lowercase(self):
         """Test pattern ignores lowercase keys."""
-        matches = JIRA_ISSUE_KEY_PATTERN.findall("dfly-1234 proj-99")
+        matches = JIRA_ISSUE_KEY_PATTERN.findall("project-1234 proj-99")
         assert matches == []
 
     def test_pattern_extracts_from_markdown_links(self):
         """Test pattern extracts from markdown links."""
-        text = "[DFLY-1234](https://jira.example.com/browse/DFLY-1234)"
+        text = "[PROJECT-1234](https://jira.example.com/browse/PROJECT-1234)"
         matches = JIRA_ISSUE_KEY_PATTERN.findall(text)
         # Should find both occurrences
         assert len(matches) == 2
-        assert all(m == "DFLY-1234" for m in matches)
+        assert all(m == "PROJECT-1234" for m in matches)
 
 
 # =============================================================================
@@ -587,10 +587,10 @@ class TestGetJiraIssueKeyFromState:
 
         from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="PROJECT-1234"):
             result = _get_jira_issue_key_from_state()
 
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_returns_none_when_not_set(self):
         """Test returns None when not in state."""
@@ -950,7 +950,7 @@ class TestGetLinkedPullRequestFromJira:
                 _get_linked_pull_request_from_jira,
             )
 
-            result = _get_linked_pull_request_from_jira("DFLY-1234")
+            result = _get_linked_pull_request_from_jira("PROJECT-1234")
             assert result is None
             # Reload again to restore normal state
             importlib.reload(review_commands)
@@ -969,7 +969,7 @@ class TestGetLinkedPullRequestFromJira:
                     _get_linked_pull_request_from_jira,
                 )
 
-                result = _get_linked_pull_request_from_jira("DFLY-1234")
+                result = _get_linked_pull_request_from_jira("PROJECT-1234")
                 assert result is None
 
     def test_returns_none_on_issue_fetch_error(self):
@@ -996,7 +996,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None
 
     def test_returns_none_on_network_exception(self):
@@ -1020,7 +1020,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None
 
     def test_returns_pr_id_from_remote_links(self):
@@ -1058,7 +1058,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result == 456
 
     def test_returns_pr_id_from_visualstudio_url(self):
@@ -1096,7 +1096,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result == 789
 
     def test_returns_none_when_no_matching_links(self):
@@ -1134,7 +1134,7 @@ class TestGetLinkedPullRequestFromJira:
                             _get_linked_pull_request_from_jira,
                         )
 
-                        result = _get_linked_pull_request_from_jira("DFLY-1234")
+                        result = _get_linked_pull_request_from_jira("PROJECT-1234")
                         assert result is None
 
 
@@ -1152,7 +1152,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is True
                     mock_get_issue.assert_called_once()
 
@@ -1170,7 +1170,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is False
                     captured = capsys.readouterr()
                     assert "could not be fetched" in captured.err
@@ -1189,7 +1189,7 @@ class TestFetchAndDisplayJiraIssue:
                         _fetch_and_display_jira_issue,
                     )
 
-                    result = _fetch_and_display_jira_issue("DFLY-1234")
+                    result = _fetch_and_display_jira_issue("PROJECT-1234")
                     assert result is False
                     captured = capsys.readouterr()
                     assert "Failed to fetch Jira issue" in captured.err
@@ -1556,7 +1556,7 @@ class TestSetupPullRequestReview:
         def get_value_side_effect(key, default=None):
             mapping = {
                 "pull_request_id": "123",
-                "jira.issue_key": "DFLY-1234",
+                "jira.issue_key": "PROJECT-1234",
                 "include_reviewed": "false",
             }
             return mapping.get(key, default)
@@ -1597,7 +1597,7 @@ class TestSetupPullRequestReview:
                                                     )
 
                                                     setup_pull_request_review()
-                                                    mock_fetch_jira.assert_called_once_with("DFLY-1234")
+                                                    mock_fetch_jira.assert_called_once_with("PROJECT-1234")
 
     def test_exits_when_pr_details_file_missing(self, capsys):
         """Test exits with error when PR details file not found."""

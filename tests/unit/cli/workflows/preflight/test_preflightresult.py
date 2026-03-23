@@ -13,9 +13,9 @@ class TestPreflightResult:
         result = PreflightResult(
             folder_valid=True,
             branch_valid=True,
-            folder_name="DFLY-1850",
-            branch_name="feature/DFLY-1850/test",
-            issue_key="DFLY-1850",
+            folder_name="PROJECT-1850",
+            branch_name="feature/PROJECT-1850/test",
+            issue_key="PROJECT-1850",
         )
         assert result.passed is True
 
@@ -25,8 +25,8 @@ class TestPreflightResult:
             folder_valid=False,
             branch_valid=True,
             folder_name="some-folder",
-            branch_name="feature/DFLY-1850/test",
-            issue_key="DFLY-1850",
+            branch_name="feature/PROJECT-1850/test",
+            issue_key="PROJECT-1850",
         )
         assert result.passed is False
 
@@ -35,9 +35,9 @@ class TestPreflightResult:
         result = PreflightResult(
             folder_valid=True,
             branch_valid=False,
-            folder_name="DFLY-1850",
+            folder_name="PROJECT-1850",
             branch_name="main",
-            issue_key="DFLY-1850",
+            issue_key="PROJECT-1850",
         )
         assert result.passed is False
 
@@ -48,7 +48,7 @@ class TestPreflightResult:
             branch_valid=False,
             folder_name="some-folder",
             branch_name="main",
-            issue_key="DFLY-1850",
+            issue_key="PROJECT-1850",
         )
         reasons = result.failure_reasons
         assert len(reasons) == 2
@@ -62,7 +62,7 @@ class TestPreflightResult:
             branch_valid=False,
             folder_name="some-folder",
             branch_name="",
-            issue_key="DFLY-1850",
+            issue_key="PROJECT-1850",
         )
         reasons = result.failure_reasons
         assert "Not in a git repository" in reasons[1]

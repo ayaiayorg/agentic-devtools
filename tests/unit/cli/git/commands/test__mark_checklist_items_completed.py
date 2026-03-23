@@ -26,7 +26,7 @@ class TestMarkChecklistItemsCompleted:
             status="in-progress",
             step="implementation",
             context={
-                "jira_issue_key": "DFLY-1234",
+                "jira_issue_key": "PROJECT-1234",
                 "checklist": {
                     "items": [
                         {"id": 1, "text": "Task 1", "completed": False},

@@ -18,9 +18,9 @@ def _make_review_state(thread_id: int = 99, comment_id: int = 1) -> ReviewState:
     return ReviewState(
         prId=12345,
         repoId="repo-guid-123",
-        repoName="dfly-platform-management",
-        project="DragonflyMgmt",
-        organization="https://dev.azure.com/swica",
+        repoName="example-repo-name",
+        project="ExampleProject",
+        organization="https://dev.azure.com/example-org",
         latestIterationId=1,
         scaffoldedUtc="2026-01-01T00:00:00Z",
         overallSummary=OverallSummary(threadId=thread_id, commentId=comment_id),

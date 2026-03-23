@@ -94,7 +94,7 @@ def create_issue(
 
     Args:
         config: Jira connection configuration.
-        project_key: Jira project key (e.g. ``"DFLY"``).
+        project_key: Jira project key (e.g. ``"PROJECT"``).
         summary: Issue summary / title.
         issue_type: Jira issue type name (``"Task"``, ``"Epic"``, ``"Sub-task"``, …).
         description: Issue description body.
@@ -238,7 +238,7 @@ def add_comment(
 
     Args:
         config: Jira connection configuration.
-        issue_key: The issue key to comment on (e.g. ``"DFLY-1234"``).
+        issue_key: The issue key to comment on (e.g. ``"PROJECT-1234"``).
         comment: Comment body text.
 
     Returns:
@@ -320,7 +320,7 @@ def fetch_issue_context(
 
     Args:
         config: Jira connection configuration.
-        issue_key: The issue key to fetch (e.g. ``"DFLY-1234"``).
+        issue_key: The issue key to fetch (e.g. ``"PROJECT-1234"``).
 
     Returns:
         A :class:`FetchIssueContextResult` containing the issue, optional

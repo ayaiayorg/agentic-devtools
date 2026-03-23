@@ -12,8 +12,8 @@ def _make_activity_log() -> ActivityLog:
         postedCommits={
             "abc1234def567890": ActivityLogEntry(
                 postedUtc="2026-03-13T10:00:00Z",
-                branchName="feature/DFLY-1234",
-                worktreeKey="DFLY-1234",
+                branchName="feature/PROJECT-1234",
+                worktreeKey="PROJECT-1234",
                 prCommentPosted=True,
                 jiraCommentPosted=False,
                 prId=42,
@@ -80,7 +80,7 @@ class TestSaveActivityLog:
             data = json.loads(expected_path.read_text(encoding="utf-8"))
             restored = ActivityLog.from_dict(data)
             assert "abc1234def567890" in restored.postedCommits
-            assert restored.postedCommits["abc1234def567890"].branchName == "feature/DFLY-1234"
+            assert restored.postedCommits["abc1234def567890"].branchName == "feature/PROJECT-1234"
 
     def test_posted_commits_serialized_correctly(self, tmp_path):
         """Test that postedCommits entries are serialized with all fields including prId."""

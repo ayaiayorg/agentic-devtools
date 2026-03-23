@@ -13,9 +13,9 @@ def _minimal_state_data(pr_id: int = 25365) -> dict:
     return {
         "prId": pr_id,
         "repoId": "repo-guid",
-        "repoName": "dfly-platform-management",
-        "project": "DragonflyMgmt",
-        "organization": "https://dev.azure.com/swica",
+        "repoName": "example-repo-name",
+        "project": "ExampleProject",
+        "organization": "https://dev.azure.com/example-org",
         "latestIterationId": 5,
         "scaffoldedUtc": "2026-02-25T10:00:00Z",
         "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
@@ -41,7 +41,7 @@ class TestLoadReviewState:
 
         assert isinstance(result, ReviewState)
         assert result.prId == pr_id
-        assert result.repoName == "dfly-platform-management"
+        assert result.repoName == "example-repo-name"
 
     def test_raises_file_not_found_when_missing(self, tmp_path):
         """Test that FileNotFoundError is raised when file doesn't exist."""

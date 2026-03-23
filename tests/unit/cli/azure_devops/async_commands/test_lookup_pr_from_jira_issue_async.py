@@ -19,7 +19,7 @@ class TestLookupPrFromJiraIssueAsync:
                 return_value=None,
             ):
                 with patch("agentic_devtools.cli.azure_devops.async_commands.set_value") as mock_set:
-                    lookup_pr_from_jira_issue_async(issue_key="DFLY-1234")
+                    lookup_pr_from_jira_issue_async(issue_key="PROJECT-1234")
 
         mock_set.assert_called_once_with("pull_request_id", "12345")
 
@@ -29,7 +29,7 @@ class TestLookupPrFromJiraIssueAsync:
             "agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue",
             return_value=None,
         ):
-            lookup_pr_from_jira_issue_async(issue_key="DFLY-9999")
+            lookup_pr_from_jira_issue_async(issue_key="PROJECT-9999")
 
         captured = capsys.readouterr()
         assert "No active PR" in captured.out
@@ -40,7 +40,7 @@ class TestLookupPrFromJiraIssueAsync:
             "agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue",
             side_effect=RuntimeError("connection error"),
         ):
-            lookup_pr_from_jira_issue_async(issue_key="DFLY-0001")
+            lookup_pr_from_jira_issue_async(issue_key="PROJECT-0001")
 
         captured = capsys.readouterr()
         assert "Could not" in captured.out or "⚠️" in captured.out

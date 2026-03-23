@@ -71,7 +71,7 @@ class TestCreateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         with patch("sys.argv", ["agdt-create-checklist"]):
@@ -87,7 +87,7 @@ class TestCreateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         with patch("sys.argv", ["agdt-create-checklist", "Task 1|Task 2|Task 3"]):
@@ -110,7 +110,7 @@ class TestCreateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
         state.set_value("checklist_items", "1. First task\n2. Second task")
 
@@ -134,7 +134,7 @@ class TestCreateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         with patch("sys.argv", ["agdt-create-checklist", "Task 1|Task 2"]):
@@ -156,7 +156,7 @@ class TestCreateChecklistCmd:
             name="work-on-jira-issue",
             status="in-progress",
             step="implementation",  # Not checklist-creation
-            context={"jira_issue_key": "DFLY-1234"},
+            context={"jira_issue_key": "PROJECT-1234"},
         )
 
         with patch("sys.argv", ["agdt-create-checklist", "Task 1"]):
@@ -194,7 +194,7 @@ class TestCreateChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         with patch.object(sys, "argv", ["agdt-create-checklist"]):
@@ -211,7 +211,7 @@ class TestCreateChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         with patch.object(sys, "argv", ["agdt-create-checklist", "Task 1|Task 2|Task 3"]):
@@ -227,7 +227,7 @@ class TestCreateChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
         state.set_value("checklist_items", "First task\nSecond task")
 
@@ -244,7 +244,7 @@ class TestCreateChecklistCmdFromChecklistCommands:
             name="work-on-jira-issue",
             status="in-progress",
             step="checklist-creation",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         with patch.object(sys, "argv", ["agdt-create-checklist", "1. Task one|2. Task two"]):

@@ -12,7 +12,7 @@ class TestFetchJiraIssue:
         from agentic_devtools.cli.azure_devops.review_jira import fetch_jira_issue
 
         with patch.dict(os.environ, {}, clear=True):
-            result = fetch_jira_issue("DFLY-1234", verbose=True)
+            result = fetch_jira_issue("PROJECT-1234", verbose=True)
             assert result is None
             captured = capsys.readouterr()
             assert "JIRA_COPILOT_PAT" in captured.out
@@ -25,14 +25,14 @@ class TestFetchJiraIssue:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "key": "DFLY-1234",
+            "key": "PROJECT-1234",
             "fields": {"summary": "Test"},
         }
         mock_get.return_value = mock_response
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_jira_issue("DFLY-1234")
-            assert result == {"key": "DFLY-1234", "fields": {"summary": "Test"}}
+            result = fetch_jira_issue("PROJECT-1234")
+            assert result == {"key": "PROJECT-1234", "fields": {"summary": "Test"}}
 
     @patch("agentic_devtools.cli.azure_devops.review_jira._get_jira_ssl_verify", return_value=True)
     @patch("agentic_devtools.cli.azure_devops.review_jira.requests.get")
@@ -42,11 +42,11 @@ class TestFetchJiraIssue:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"key": "DFLY-1234", "fields": {}}
+        mock_response.json.return_value = {"key": "PROJECT-1234", "fields": {}}
         mock_get.return_value = mock_response
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            fetch_jira_issue("DFLY-1234")
+            fetch_jira_issue("PROJECT-1234")
 
         call_kwargs = mock_get.call_args.kwargs
         assert "verify" in call_kwargs
@@ -63,7 +63,7 @@ class TestFetchJiraIssue:
         mock_get.return_value = mock_response
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_jira_issue("DFLY-9999", verbose=True)
+            result = fetch_jira_issue("PROJECT-9999", verbose=True)
             assert result is None
             captured = capsys.readouterr()
             assert "404" in captured.out
@@ -78,7 +78,7 @@ class TestFetchJiraIssue:
         mock_get.side_effect = requests.RequestException("Connection error")
 
         with patch.dict(os.environ, {"JIRA_COPILOT_PAT": "test-token"}):
-            result = fetch_jira_issue("DFLY-1234", verbose=True)
+            result = fetch_jira_issue("PROJECT-1234", verbose=True)
             assert result is None
             captured = capsys.readouterr()
             assert "Failed" in captured.out

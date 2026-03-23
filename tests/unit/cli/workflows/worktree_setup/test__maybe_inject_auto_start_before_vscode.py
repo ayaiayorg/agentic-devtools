@@ -100,7 +100,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
     def test_returns_false_in_pytest_environment(self, tmp_path):
         """Returns False without calling build_copilot_args when running in test environment.
 
-        On Windows, mock paths like /repos/DFLY-1234 resolve to C:\\repos\\DFLY-1234
+        On Windows, mock paths like /repos/PROJECT-1234 resolve to C:\\repos\\PROJECT-1234
         which may be a real worktree. Writing a runOn:folderOpen task there causes
         VS Code to open unexpected windows during test runs.
         """

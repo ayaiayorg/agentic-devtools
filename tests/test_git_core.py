@@ -99,7 +99,7 @@ class TestGetCommitMessage:
 
     def test_get_commit_message_with_special_characters(self, temp_state_dir, clear_state_before):
         """Test commit message with special characters works without tokens."""
-        special = 'feature([DFLY-1234](https://jira.swica.ch)): test\'s "quotes" & more!'
+        special = 'feature([PROJECT-1234](https://jira.swica.ch)): test\'s "quotes" & more!'
         state.set_value("commit_message", special)
         message = core.get_commit_message()
         assert message == special

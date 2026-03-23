@@ -158,7 +158,7 @@ def commit_cmd() -> None:
         --skip-rebase: Skip the fetch/rebase onto main step
 
     Example:
-        agdt-set commit_message "feature(DFLY-1234): add feature"
+        agdt-set commit_message "feature(PROJECT-1234): add feature"
         agdt-git-save-work
         agdt-git-save-work --completed "1,2"
         agdt-git-save-work --skip-rebase

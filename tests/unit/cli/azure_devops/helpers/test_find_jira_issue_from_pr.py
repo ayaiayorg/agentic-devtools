@@ -11,7 +11,7 @@ class TestFindJiraIssueFromPr:
     def test_returns_issue_key_from_branch_name(self, mock_azure_devops_env):
         """Should extract Jira issue key from the source branch name."""
         pr_data = {
-            "sourceRefName": "refs/heads/feature/DFLY-1234/my-feature",
+            "sourceRefName": "refs/heads/feature/PROJECT-1234/my-feature",
             "title": "Some PR",
             "description": "",
         }
@@ -22,7 +22,7 @@ class TestFindJiraIssueFromPr:
         ):
             result = find_jira_issue_from_pr(pull_request_id=42)
 
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_returns_none_when_no_issue_key_found(self, mock_azure_devops_env):
         """Should return None when no Jira issue key appears in PR data."""

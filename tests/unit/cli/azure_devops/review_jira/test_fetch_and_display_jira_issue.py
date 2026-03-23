@@ -14,12 +14,12 @@ class TestFetchAndDisplayJiraIssue:
             fetch_and_display_jira_issue,
         )
 
-        mock_fetch.return_value = {"key": "DFLY-1234"}
+        mock_fetch.return_value = {"key": "PROJECT-1234"}
 
-        result = fetch_and_display_jira_issue("DFLY-1234")
+        result = fetch_and_display_jira_issue("PROJECT-1234")
 
-        assert result == {"key": "DFLY-1234"}
-        mock_display.assert_called_once_with({"key": "DFLY-1234"})
+        assert result == {"key": "PROJECT-1234"}
+        mock_display.assert_called_once_with({"key": "PROJECT-1234"})
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_jira_issue")
     @patch("agentic_devtools.cli.azure_devops.review_jira.display_jira_issue_summary")
@@ -31,7 +31,7 @@ class TestFetchAndDisplayJiraIssue:
 
         mock_fetch.return_value = None
 
-        result = fetch_and_display_jira_issue("DFLY-1234")
+        result = fetch_and_display_jira_issue("PROJECT-1234")
 
         assert result is None
         mock_display.assert_not_called()

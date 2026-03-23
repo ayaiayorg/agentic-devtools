@@ -79,7 +79,7 @@ def _format_auto_setup_success_message(workflow_name: str, issue_key: str) -> st
 
     Args:
         workflow_name: The workflow name (e.g., "work-on-jira-issue")
-        issue_key: The Jira issue key or other identifier (e.g., "DFLY-1234")
+        issue_key: The Jira issue key or other identifier (e.g., "PROJECT-1234")
 
     Returns:
         A formatted string to print to stdout.
@@ -129,7 +129,7 @@ def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
     warnings without blocking the workflow.
 
     Args:
-        worktree_key: The worktree key to use for scoping (e.g. ``"DFLY-1234"`` or
+        worktree_key: The worktree key to use for scoping (e.g. ``"PROJECT-1234"`` or
             ``"PR25858"``).  Issue key takes priority over PR ID when both are available,
             matching the ``resolve_worktree_key()`` priority in ``agdt_branch.py``.
     """
@@ -171,7 +171,7 @@ def _ensure_scoped_bootstrap_and_clear(issue_key: str | None) -> str | None:
         if not normalized_issue_key:
             print("ERROR: --issue-key cannot be empty or whitespace-only.", file=sys.stderr)
             print("\nPlease pass a valid Jira issue key, for example:", file=sys.stderr)
-            print("  --issue-key DFLY-1234", file=sys.stderr)
+            print("  --issue-key PROJECT-1234", file=sys.stderr)
             sys.exit(1)
 
     if normalized_issue_key:
@@ -203,7 +203,7 @@ def initiate_pull_request_review_workflow(
 
     Usage:
         agdt-initiate-pull-request-review-workflow --pull-request-id 12345
-        agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
+        agdt-initiate-pull-request-review-workflow --issue-key PROJECT-1234
         agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
 
     Args:
@@ -230,8 +230,8 @@ def initiate_pull_request_review_workflow(
         epilog="""
 Examples:
   agdt-initiate-pull-request-review-workflow --pull-request-id 12345
-  agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234
-  agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --issue-key DFLY-1234
+  agdt-initiate-pull-request-review-workflow --issue-key PROJECT-1234
+  agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --issue-key PROJECT-1234
   agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive false
         """,
     )
@@ -245,7 +245,7 @@ Examples:
         "--issue-key",
         "-i",
         dest="issue_key",
-        help="Jira issue key to find PR by branch name (e.g., DFLY-1234).",
+        help="Jira issue key to find PR by branch name (e.g., PROJECT-1234).",
     )
     parser.add_argument(
         "--interactive",
@@ -373,7 +373,7 @@ Examples:
         print("ERROR: Either --pull-request-id or --issue-key must be provided.")
         print("\nUsage:")
         print("  agdt-initiate-pull-request-review-workflow --pull-request-id 12345")
-        print("  agdt-initiate-pull-request-review-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-pull-request-review-workflow --issue-key PROJECT-1234")
         sys.exit(1)
 
     # For PR review workflows, we need to know the source branch BEFORE creating
@@ -488,11 +488,11 @@ def initiate_work_on_jira_issue_workflow(
     a worktree, installs agentic-devtools, and opens VS Code.
 
     Usage:
-        agdt-initiate-work-on-jira-issue-workflow [--issue-key DFLY-1234]
-        agdt-initiate-work-on-jira-issue-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-work-on-jira-issue-workflow [--issue-key PROJECT-1234]
+        agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        issue_key: Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.
         interactive: Whether to start the Copilot session interactively (default: False).
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
     """
@@ -506,7 +506,7 @@ def initiate_work_on_jira_issue_workflow(
     parser.add_argument(
         "--issue-key",
         dest="issue_key",
-        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+        help="Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.",
     )
     parser.add_argument(
         "--interactive",
@@ -540,7 +540,7 @@ def initiate_work_on_jira_issue_workflow(
         if not issue_key:
             print("ERROR: jira.issue_key cannot be empty or whitespace-only.", file=sys.stderr)
             print("\nPlease set a valid value using:", file=sys.stderr)
-            print("  agdt-set jira.issue_key DFLY-1234", file=sys.stderr)
+            print("  agdt-set jira.issue_key PROJECT-1234", file=sys.stderr)
             sys.exit(1)
         if isinstance(issue_key, str):
             set_value("jira.issue_key", issue_key)
@@ -1030,13 +1030,13 @@ def initiate_create_jira_issue_workflow(
         agdt-initiate-create-jira-issue-workflow --issue-type Task --user-request "I need a task to..."
 
         # Continuation call in new VS Code window:
-        agdt-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-create-jira-issue-workflow --issue-key PROJECT-1234 --user-request "..."
 
         # With interactive mode:
-        agdt-initiate-create-jira-issue-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-create-jira-issue-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
+        project_key: Jira project key (e.g., PROJECT). If not provided, uses jira.project_key from state.
         issue_key: Issue key (provided after placeholder creation for continuation).
         issue_type: Jira issue type (e.g., Story, Task, Bug). Defaults to "Story".
         user_request: User's explanation of what they want. The AI agent will use this
@@ -1061,7 +1061,7 @@ def initiate_create_jira_issue_workflow(
     parser.add_argument(
         "--project-key",
         dest="project_key",
-        help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
+        help="Jira project key (e.g., PROJECT). If not provided, uses jira.project_key from state.",
     )
     parser.add_argument(
         "--issue-key",
@@ -1130,7 +1130,7 @@ def initiate_create_jira_issue_workflow(
     resolved_issue_key = issue_key or get_value("jira.issue_key")
     if isinstance(resolved_issue_key, str):
         resolved_issue_key = resolved_issue_key.strip()
-    resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
+    resolved_project_key = project_key or get_value("jira.project_key") or "PROJECT"
     resolved_issue_type = issue_type or get_value("jira.issue_type") or "Story"
     resolved_user_request = user_request or get_value("jira.user_request")
 
@@ -1238,13 +1238,13 @@ def initiate_create_jira_epic_workflow(
         agdt-initiate-create-jira-epic-workflow --user-request "I need an epic for..."
 
         # Continuation call in new VS Code window:
-        agdt-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-create-jira-epic-workflow --issue-key PROJECT-1234 --user-request "..."
 
         # With interactive mode:
-        agdt-initiate-create-jira-epic-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-create-jira-epic-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        project_key: Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.
+        project_key: Jira project key (e.g., PROJECT). If not provided, uses jira.project_key from state.
         issue_key: Issue key (provided after placeholder creation for continuation).
         user_request: User's explanation of what they want. The AI agent will use this
             to populate all Jira fields (summary, epic name, description, user story, etc.).
@@ -1270,7 +1270,7 @@ def initiate_create_jira_epic_workflow(
     parser.add_argument(
         "--project-key",
         dest="project_key",
-        help="Jira project key (e.g., DFLY). If not provided, uses jira.project_key from state.",
+        help="Jira project key (e.g., PROJECT). If not provided, uses jira.project_key from state.",
     )
     parser.add_argument(
         "--issue-key",
@@ -1327,7 +1327,7 @@ def initiate_create_jira_epic_workflow(
     resolved_issue_key = issue_key or get_value("jira.issue_key")
     if isinstance(resolved_issue_key, str):
         resolved_issue_key = resolved_issue_key.strip()
-    resolved_project_key = project_key or get_value("jira.project_key") or "DFLY"
+    resolved_project_key = project_key or get_value("jira.project_key") or "PROJECT"
     resolved_user_request = user_request or get_value("jira.user_request")
 
     # Persist the resolved issue key into the current state dir so that
@@ -1430,16 +1430,16 @@ def initiate_create_jira_subtask_workflow(
 
     Usage:
         # Initial call - creates placeholder and sets up worktree:
-        agdt-initiate-create-jira-subtask-workflow --parent-key DFLY-1234 --user-request "I need a subtask to..."
+        agdt-initiate-create-jira-subtask-workflow --parent-key PROJECT-1234 --user-request "I need a subtask to..."
 
         # Continuation call in new VS Code window:
-        agdt-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --user-request "..."
+        agdt-initiate-create-jira-subtask-workflow --issue-key PROJECT-1235 --user-request "..."
 
         # With interactive mode:
-        agdt-initiate-create-jira-subtask-workflow --issue-key DFLY-1235 --interactive true
+        agdt-initiate-create-jira-subtask-workflow --issue-key PROJECT-1235 --interactive true
 
     Args:
-        parent_key: Parent issue key (e.g., DFLY-1234). Required for creating placeholder.
+        parent_key: Parent issue key (e.g., PROJECT-1234). Required for creating placeholder.
         issue_key: Issue key (provided after placeholder creation for continuation).
         user_request: User's explanation of what they want. The AI agent will use this
             to populate all Jira fields (summary, description, etc.).
@@ -1462,7 +1462,7 @@ def initiate_create_jira_subtask_workflow(
     parser.add_argument(
         "--parent-key",
         dest="parent_key",
-        help="Parent issue key (e.g., DFLY-1234). If not provided, uses jira.parent_key from state.",
+        help="Parent issue key (e.g., PROJECT-1234). If not provided, uses jira.parent_key from state.",
     )
     parser.add_argument(
         "--issue-key",
@@ -1597,11 +1597,11 @@ def initiate_create_jira_subtask_workflow(
     if not resolved_parent_key:
         print("ERROR: --parent-key is required to create a placeholder subtask.")
         print("\nUsage:")
-        print("  agdt-initiate-create-jira-subtask-workflow --parent-key DFLY-1234")
+        print("  agdt-initiate-create-jira-subtask-workflow --parent-key PROJECT-1234")
         sys.exit(1)
 
     # Extract project key from parent key
-    project_key = resolved_parent_key.split("-")[0] if resolved_parent_key else "DFLY"
+    project_key = resolved_parent_key.split("-")[0] if resolved_parent_key else "PROJECT"
 
     # Create placeholder and set up worktree
     success, created_issue_key = create_placeholder_and_setup_worktree(
@@ -1633,16 +1633,16 @@ def initiate_update_jira_issue_workflow(
 
     Usage:
         # Initial call - sets up worktree if needed:
-        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "I want to update..."
+        agdt-initiate-update-jira-issue-workflow --issue-key PROJECT-1234 --user-request "I want to update..."
 
         # Continuation call in new VS Code window:
-        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --user-request "..."
+        agdt-initiate-update-jira-issue-workflow --issue-key PROJECT-1234 --user-request "..."
 
         # With interactive mode:
-        agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-update-jira-issue-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        issue_key: Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.
         user_request: User's explanation of the updates they want. The AI agent will use this
             to determine what fields to update and how.
         interactive: Whether to start the Copilot session interactively (default: False).
@@ -1664,7 +1664,7 @@ def initiate_update_jira_issue_workflow(
     parser.add_argument(
         "--issue-key",
         dest="issue_key",
-        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+        help="Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.",
     )
     parser.add_argument(
         "--user-request",
@@ -1714,7 +1714,7 @@ def initiate_update_jira_issue_workflow(
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
         print("\nUsage:")
-        print("  agdt-initiate-update-jira-issue-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-update-jira-issue-workflow --issue-key PROJECT-1234")
         sys.exit(1)
 
     # Check if we're in the correct context
@@ -1789,7 +1789,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
 
     Usage:
         agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
-        agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
+        agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key PROJECT-1234
         agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --interactive false
 
     Args:
@@ -1820,7 +1820,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
         epilog="""
 Examples:
   agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345
-  agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key DFLY-1234
+  agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --issue-key PROJECT-1234
   agdt-initiate-apply-pr-suggestions-workflow --pull-request-id 12345 --interactive false
         """,
     )
@@ -2035,18 +2035,18 @@ def initiate_optimize_issue_for_ai_agent_workflow(
 
     Usage:
         # Initial call - sets up worktree if needed:
-        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key PROJECT-1234
 
         # With optional user request (the doubled backslash is intentional: it renders
         # as a single shell-continuation backslash in CLI help output):
-        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 \\
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key PROJECT-1234 \\
             --user-request "Focus on acceptance criteria"
 
         # With interactive mode:
-        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        issue_key: Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.
         user_request: Optional guidance on what to focus on when optimizing the issue.
         interactive: Whether to start the Copilot session interactively once session
             launch is wired (see TODO below). The value is persisted to
@@ -2071,7 +2071,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     parser.add_argument(
         "--issue-key",
         dest="issue_key",
-        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+        help="Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.",
     )
     parser.add_argument(
         "--user-request",
@@ -2122,7 +2122,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
         print("\nUsage:")
-        print("  agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-optimize-issue-for-ai-agent-workflow --issue-key PROJECT-1234")
         sys.exit(1)
 
     # Check if we're in the correct context
@@ -2193,18 +2193,18 @@ def initiate_break_down_issue_into_subtasks_workflow(
 
     Usage:
         # Initial call - sets up worktree if needed:
-        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key PROJECT-1234
 
         # With optional user request (the doubled backslash is intentional: it renders
         # as a single shell-continuation backslash in CLI help output):
-        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 \\
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key PROJECT-1234 \\
             --user-request "Split into 3 subtasks"
 
         # With interactive mode:
-        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234 --interactive true
+        agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key PROJECT-1234 --interactive true
 
     Args:
-        issue_key: Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.
+        issue_key: Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.
         user_request: Optional guidance on how to break down the issue.
         interactive: Whether to start the Copilot session interactively once session
             launch is wired (see TODO below). The value is persisted to
@@ -2229,7 +2229,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     parser.add_argument(
         "--issue-key",
         dest="issue_key",
-        help="Jira issue key (e.g., DFLY-1234). If not provided, uses jira.issue_key from state.",
+        help="Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.",
     )
     parser.add_argument(
         "--user-request",
@@ -2280,7 +2280,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     if not resolved_issue_key:
         print("ERROR: --issue-key is required.")
         print("\nUsage:")
-        print("  agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key DFLY-1234")
+        print("  agdt-initiate-break-down-issue-into-subtasks-workflow --issue-key PROJECT-1234")
         sys.exit(1)
 
     # Check if we're in the correct context
@@ -2641,7 +2641,7 @@ def setup_worktree_background_cmd(_argv: list[str] | None = None) -> None:
     This command is called by the background task system and should not
     be invoked directly by users.
 
-    Usage: agdt-setup-worktree-background --issue-key DFLY-1234 [options]
+    Usage: agdt-setup-worktree-background --issue-key PROJECT-1234 [options]
 
     Args:
         _argv: Command line arguments (for testing). Pass [] to skip CLI parsing.
@@ -2656,7 +2656,7 @@ def setup_worktree_background_cmd(_argv: list[str] | None = None) -> None:
         "--issue-key",
         required=True,
         dest="issue_key",
-        help="Jira issue key (e.g., DFLY-1234)",
+        help="Jira issue key (e.g., PROJECT-1234)",
     )
     parser.add_argument(
         "--branch-prefix",

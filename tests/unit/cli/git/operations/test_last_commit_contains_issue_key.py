@@ -11,28 +11,30 @@ class TestLastCommitContainsIssueKey:
     def test_returns_true_when_key_found(self, mock_run_safe):
         """Test returns True when issue key is in commit message."""
         mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="feature(DFLY-1234): implement feature\n", stderr=""
+            returncode=0, stdout="feature(PROJECT-1234): implement feature\n", stderr=""
         )
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is True
 
     def test_returns_true_case_insensitive(self, mock_run_safe):
         """Test matching is case-insensitive."""
         mock_run_safe.return_value = MagicMock(
-            returncode=0, stdout="feature(dfly-1234): implement feature\n", stderr=""
+            returncode=0, stdout="feature(project-1234): implement feature\n", stderr=""
         )
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is True
 
     def test_returns_false_when_key_not_found(self, mock_run_safe):
         """Test returns False when issue key is not in commit message."""
-        mock_run_safe.return_value = MagicMock(returncode=0, stdout="feature(DFLY-5678): different issue\n", stderr="")
+        mock_run_safe.return_value = MagicMock(
+            returncode=0, stdout="feature(PROJECT-5678): different issue\n", stderr=""
+        )
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is False
 
@@ -40,6 +42,6 @@ class TestLastCommitContainsIssueKey:
         """Test returns False on git command error."""
         mock_run_safe.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-        result = operations.last_commit_contains_issue_key("DFLY-1234")
+        result = operations.last_commit_contains_issue_key("PROJECT-1234")
 
         assert result is False

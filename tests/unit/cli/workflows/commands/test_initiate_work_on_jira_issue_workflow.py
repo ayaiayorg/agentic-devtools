@@ -62,7 +62,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
         """Test that --interactive true enables interactive mode."""
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -72,7 +72,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -86,7 +86,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
         """Test that interactive defaults to False when not specified."""
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -96,7 +96,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -117,15 +117,15 @@ class TestInitiateWorkOnJiraIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-5555",
+                issue_key="PROJECT-5555",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                 mock_setup.return_value = True
-                commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "DFLY-5555"])
+                commands.initiate_work_on_jira_issue_workflow(_argv=["--issue-key", "PROJECT-5555"])
 
         # Verify the preflight was called with the CLI-provided issue key
-        mock_preflight.assert_called_once_with("DFLY-5555")
+        mock_preflight.assert_called_once_with("PROJECT-5555")
 
     def test_whitespace_only_issue_key_from_cli_fails_fast(
         self,
@@ -144,7 +144,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
         """Test that auto_execute_command includes --interactive."""
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -154,7 +154,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -165,7 +165,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
         expected_cmd = [
             "agdt-initiate-work-on-jira-issue-workflow",
             "--issue-key",
-            "DFLY-1234",
+            "PROJECT-1234",
             "--interactive",
             "true",
         ]
@@ -186,7 +186,7 @@ class TestWorkflowCommands:
     ):
         """Test work on jira issue workflow command when pre-flight fails triggers auto-setup."""
         # Setup state
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         # Mock pre-flight to fail (folder doesn't contain issue key)
         # Patch at commands module level where it's imported at top
@@ -198,7 +198,7 @@ class TestWorkflowCommands:
                 branch_valid=False,
                 folder_name="wrong-folder",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             # Mock perform_auto_setup to prevent actual worktree creation
@@ -232,7 +232,7 @@ class TestWorkflowCommands:
         template_file.write_text(template, encoding="utf-8")
 
         # Setup state
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
         # Mock the issue data that would be fetched
         state.set_value(
             "jira.last_issue",
@@ -254,9 +254,9 @@ class TestWorkflowCommands:
             mock_preflight.return_value = PreflightResult(
                 folder_valid=True,
                 branch_valid=True,
-                folder_name="DFLY-1234",
-                branch_name="feature/DFLY-1234/test",
-                issue_key="DFLY-1234",
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/test",
+                issue_key="PROJECT-1234",
             )
 
             # Also mock perform_auto_setup to prevent any actual subprocess calls
@@ -278,7 +278,7 @@ class TestWorkflowCommands:
         assert workflow["active"] == "work-on-jira-issue"
         assert workflow["step"] == "planning"
         captured = capsys.readouterr()
-        assert "Planning work for DFLY-1234" in captured.out
+        assert "Planning work for PROJECT-1234" in captured.out
 
     def test_whitespace_only_issue_key_in_state_fails_validation(
         self,

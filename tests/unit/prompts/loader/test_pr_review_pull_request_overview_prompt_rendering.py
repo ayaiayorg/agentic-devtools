@@ -21,7 +21,7 @@ class TestPrReviewPullRequestOverviewPromptRendering:
             "jira_issue_key": "",
             "file_count": "3",
             "repo_review_focus_areas": "",
-            "pr_url": "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management/pullrequest/42",
+            "pr_url": "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name/pullrequest/42",
             "source_code_platform": "AzureDevOps",
         }
 
@@ -83,10 +83,10 @@ class TestPrReviewPullRequestOverviewPromptRendering:
     def test_jira_link_present_when_issue_key_provided(self):
         """Jira link appears when jira_issue_key is provided."""
         variables = self._base_variables()
-        variables["jira_issue_key"] = "DFLY-1234"
+        variables["jira_issue_key"] = "PROJECT-1234"
         result = self._render(**variables)
 
-        assert "DFLY-1234" in result
+        assert "PROJECT-1234" in result
 
     def test_next_action_appears_before_pr_details(self):
         """Next Action section appears before PR Details in the rendered output."""
@@ -115,7 +115,7 @@ class TestPrReviewPullRequestOverviewPromptRendering:
         """PR URL value appears in the rendered output."""
         result = self._render(**self._base_variables())
 
-        assert "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management/pullrequest/42" in result
+        assert "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name/pullrequest/42" in result
 
     def test_source_code_platform_rendered(self):
         """Source Code Hosting Platform field and value appear in the rendered output."""

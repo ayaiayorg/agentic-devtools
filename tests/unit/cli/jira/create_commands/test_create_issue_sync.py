@@ -9,14 +9,14 @@ class TestCreateIssueSyncWithMock:
     def test_create_issue_sync_success(self, mock_jira_env, mock_requests_module):
         """Test successful issue creation."""
         result = jira.create_issue_sync(
-            project_key="DFLY",
+            project_key="PROJECT",
             summary="Test Issue",
             issue_type="Task",
             description="Test description",
             labels=["test-label"],
         )
 
-        assert result["key"] == "DFLY-9999"
+        assert result["key"] == "PROJECT-9999"
         mock_requests_module.post.assert_called_once()
         call_args = mock_requests_module.post.call_args
         assert "issue" in call_args[0][0]
@@ -24,7 +24,7 @@ class TestCreateIssueSyncWithMock:
     def test_create_issue_sync_with_epic_name(self, mock_jira_env, mock_requests_module):
         """Test issue creation with epic name field."""
         jira.create_issue_sync(
-            project_key="DFLY",
+            project_key="PROJECT",
             summary="Test Epic",
             issue_type="Epic",
             description="Epic description",
@@ -40,32 +40,32 @@ class TestCreateIssueSyncWithMock:
     def test_create_issue_sync_with_parent_key(self, mock_jira_env, mock_requests_module):
         """Test subtask creation with parent key."""
         jira.create_issue_sync(
-            project_key="DFLY",
+            project_key="PROJECT",
             summary="Test Subtask",
             issue_type="Sub-task",
             description="Subtask description",
             labels=["subtask-label"],
-            parent_key="DFLY-1234",
+            parent_key="PROJECT-1234",
         )
 
         call_args = mock_requests_module.post.call_args
         payload = call_args[1]["json"]
-        assert payload["fields"]["parent"]["key"] == "DFLY-1234"
+        assert payload["fields"]["parent"]["key"] == "PROJECT-1234"
 
     def test_create_issue_sync_subtask_variant(self, mock_jira_env, mock_requests_module):
         """Test subtask creation with lowercase 'subtask' type."""
         jira.create_issue_sync(
-            project_key="DFLY",
+            project_key="PROJECT",
             summary="Test Subtask",
             issue_type="subtask",
             description="Subtask description",
             labels=[],
-            parent_key="DFLY-5678",
+            parent_key="PROJECT-5678",
         )
 
         call_args = mock_requests_module.post.call_args
         payload = call_args[1]["json"]
-        assert payload["fields"]["parent"]["key"] == "DFLY-5678"
+        assert payload["fields"]["parent"]["key"] == "PROJECT-5678"
 
 
 class TestCreateIssueSyncEdgeCases:
@@ -77,7 +77,7 @@ class TestCreateIssueSyncEdgeCases:
 
         with pytest.raises(ValueError, match="epic_name is required"):
             jira.create_issue_sync(
-                project_key="DFLY",
+                project_key="PROJECT",
                 summary="Test Epic",
                 issue_type="Epic",
                 description="Epic description",
@@ -88,12 +88,12 @@ class TestCreateIssueSyncEdgeCases:
     def test_create_issue_sync_no_parent_for_task(self, mock_jira_env, mock_requests_module):
         """Test creating Task with parent_key doesn't add parent field."""
         jira.create_issue_sync(
-            project_key="DFLY",
+            project_key="PROJECT",
             summary="Test Task",
             issue_type="Task",
             description="Task description",
             labels=[],
-            parent_key="DFLY-1234",  # Should be ignored for non-subtask
+            parent_key="PROJECT-1234",  # Should be ignored for non-subtask
         )
 
         call_args = mock_requests_module.post.call_args

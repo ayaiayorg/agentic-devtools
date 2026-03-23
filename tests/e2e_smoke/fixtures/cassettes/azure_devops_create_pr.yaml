@@ -5,7 +5,7 @@
       "request": {
         "method": "POST",
         "uri": "https://dev.azure.com/test-org/test-project/_apis/git/repositories/test-repo/pullrequests?api-version=7.0",
-        "body": "{\"sourceRefName\": \"refs/heads/feature/DFLY-1234/test-feature\", \"targetRefName\": \"refs/heads/main\", \"title\": \"feat(DFLY-1234): Add test feature\", \"description\": \"This is a test PR for smoke testing\\n\\n## Changes\\n- Added test functionality\\n- Updated tests\"}",
+        "body": "{\"sourceRefName\": \"refs/heads/feature/PROJECT-1234/test-feature\", \"targetRefName\": \"refs/heads/main\", \"title\": \"feat(PROJECT-1234): Add test feature\", \"description\": \"This is a test PR for smoke testing\\n\\n## Changes\\n- Added test functionality\\n- Updated tests\"}",
         "headers": {
           "Accept": ["application/json"],
           "Accept-Encoding": ["gzip, deflate"],
@@ -26,7 +26,7 @@
           "X-TFS-ProcessId": ["test-process-id"]
         },
         "body": {
-          "string": "{\"repository\":{\"id\":\"repo-id-123\",\"name\":\"test-repo\",\"url\":\"https://dev.azure.com/test-org/test-project/_apis/git/repositories/repo-id-123\",\"project\":{\"id\":\"project-id-456\",\"name\":\"test-project\"}},\"pullRequestId\":23046,\"codeReviewId\":23046,\"status\":\"active\",\"createdBy\":{\"displayName\":\"Test User\",\"id\":\"user-id-789\"},\"creationDate\":\"2026-02-03T19:00:00.000Z\",\"title\":\"feat(DFLY-1234): Add test feature\",\"description\":\"This is a test PR for smoke testing\\n\\n## Changes\\n- Added test functionality\\n- Updated tests\",\"sourceRefName\":\"refs/heads/feature/DFLY-1234/test-feature\",\"targetRefName\":\"refs/heads/main\",\"mergeStatus\":\"queued\",\"isDraft\":false,\"mergeId\":\"merge-id-abc\",\"url\":\"https://dev.azure.com/test-org/test-project/_apis/git/repositories/repo-id-123/pullRequests/23046\"}"
+          "string": "{\"repository\":{\"id\":\"repo-id-123\",\"name\":\"test-repo\",\"url\":\"https://dev.azure.com/test-org/test-project/_apis/git/repositories/repo-id-123\",\"project\":{\"id\":\"project-id-456\",\"name\":\"test-project\"}},\"pullRequestId\":23046,\"codeReviewId\":23046,\"status\":\"active\",\"createdBy\":{\"displayName\":\"Test User\",\"id\":\"user-id-789\"},\"creationDate\":\"2026-02-03T19:00:00.000Z\",\"title\":\"feat(PROJECT-1234): Add test feature\",\"description\":\"This is a test PR for smoke testing\\n\\n## Changes\\n- Added test functionality\\n- Updated tests\",\"sourceRefName\":\"refs/heads/feature/PROJECT-1234/test-feature\",\"targetRefName\":\"refs/heads/main\",\"mergeStatus\":\"queued\",\"isDraft\":false,\"mergeId\":\"merge-id-abc\",\"url\":\"https://dev.azure.com/test-org/test-project/_apis/git/repositories/repo-id-123/pullRequests/23046\"}"
         }
       }
     }

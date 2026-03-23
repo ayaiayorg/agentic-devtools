@@ -170,8 +170,8 @@ class TestGetOrganizationAccountName:
 
     def test_dev_azure_com_nested_path(self):
         """Test URL with nested path."""
-        url = "https://dev.azure.com/swica"
-        assert _get_organization_account_name(url) == "swica"
+        url = "https://dev.azure.com/example-org"
+        assert _get_organization_account_name(url) == "example-org"
 
     def test_url_with_project_path(self):
         """Test URL that includes project path."""
@@ -196,8 +196,8 @@ class TestGetGraphApiRoot:
 
     def test_dev_azure_com_to_vssps(self):
         """Test transformation from dev.azure.com to vssps.dev.azure.com."""
-        org_root = "https://dev.azure.com/swica"
-        expected = "https://vssps.dev.azure.com/swica"
+        org_root = "https://dev.azure.com/example-org"
+        expected = "https://vssps.dev.azure.com/example-org"
         assert _get_graph_api_root(org_root) == expected
 
     def test_http_dev_azure_com(self):

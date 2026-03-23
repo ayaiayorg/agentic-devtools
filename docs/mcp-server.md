@@ -147,7 +147,7 @@ An MCP client sends a `tools/call` request:
   "params": {
     "name": "jira_fetch_issue_context",
     "arguments": {
-      "issue_key": "DFLY-1234"
+      "issue_key": "PROJECT-1234"
     }
   }
 }

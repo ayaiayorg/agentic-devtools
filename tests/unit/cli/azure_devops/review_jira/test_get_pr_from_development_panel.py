@@ -15,9 +15,9 @@ class TestGetPrFromDevelopmentPanel:
 
         mock_fetch.return_value = [{"url": "https://dev.azure.com/org/project/_git/repo/pullrequest/7777"}]
 
-        result = get_pr_from_development_panel("DFLY-1234")
+        result = get_pr_from_development_panel("PROJECT-1234")
         assert result == 7777
-        mock_fetch.assert_called_once_with("DFLY-1234", False)
+        mock_fetch.assert_called_once_with("PROJECT-1234", False)
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_development_panel_prs")
     def test_returns_none_when_no_prs(self, mock_fetch):
@@ -28,7 +28,7 @@ class TestGetPrFromDevelopmentPanel:
 
         mock_fetch.return_value = []
 
-        result = get_pr_from_development_panel("DFLY-1234")
+        result = get_pr_from_development_panel("PROJECT-1234")
         assert result is None
 
     @patch("agentic_devtools.cli.azure_devops.review_jira.fetch_development_panel_prs")
@@ -40,5 +40,5 @@ class TestGetPrFromDevelopmentPanel:
 
         mock_fetch.return_value = []
 
-        get_pr_from_development_panel("DFLY-1234", verbose=True)
-        mock_fetch.assert_called_once_with("DFLY-1234", True)
+        get_pr_from_development_panel("PROJECT-1234", verbose=True)
+        mock_fetch.assert_called_once_with("PROJECT-1234", True)

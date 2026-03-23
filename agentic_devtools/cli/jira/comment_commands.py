@@ -33,10 +33,10 @@ def add_comment(comment: str | None = None, issue_key: str | None = None) -> Non
 
     Usage:
         agdt-add-jira-comment --jira-comment "This is my comment"
-        agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+        agdt-add-jira-comment --jira-issue-key PROJECT-1234 --jira-comment "Comment"
 
         # Or using state:
-        agdt-set jira.issue_key DFLY-1234
+        agdt-set jira.issue_key PROJECT-1234
         agdt-set jira.comment "This is my comment"
         agdt-add-jira-comment
     """
@@ -50,7 +50,7 @@ def add_comment(comment: str | None = None, issue_key: str | None = None) -> Non
 
     if not resolved_issue_key:
         print(
-            "Error: jira.issue_key is required. Use: agdt-add-jira-comment --jira-issue-key DFLY-1234",
+            "Error: jira.issue_key is required. Use: agdt-add-jira-comment --jira-issue-key PROJECT-1234",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -109,9 +109,9 @@ def add_comment_cli() -> None:  # pragma: no cover
         epilog="""
 Examples:
   agdt-add-jira-comment --jira-comment "This is my comment"
-  agdt-add-jira-comment --jira-issue-key DFLY-1234 --jira-comment "Comment"
+  agdt-add-jira-comment --jira-issue-key PROJECT-1234 --jira-comment "Comment"
   # Or using state:
-  agdt-set jira.issue_key DFLY-1234
+  agdt-set jira.issue_key PROJECT-1234
   agdt-set jira.comment "This is my comment"
   agdt-add-jira-comment
         """,

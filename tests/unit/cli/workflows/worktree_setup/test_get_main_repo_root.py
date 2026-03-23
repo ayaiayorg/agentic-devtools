@@ -16,7 +16,7 @@ class TestGetMainRepoRoot:
         # Mock subprocess to return a .git directory path (indicating worktree)
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout="/repos/main-repo/.git/worktrees/DFLY-1234\n",
+            stdout="/repos/main-repo/.git/worktrees/PROJECT-1234\n",
         )
 
         result = get_main_repo_root()

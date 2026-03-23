@@ -14,10 +14,10 @@ class TestGetCurrentGitBranch:
         """Test that it returns the branch name on success."""
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = "feature/DFLY-1234/test\n"
+            mock_run.return_value.stdout = "feature/PROJECT-1234/test\n"
 
             result = get_current_git_branch()
-            assert result == "feature/DFLY-1234/test"
+            assert result == "feature/PROJECT-1234/test"
 
     def test_returns_none_on_failure(self):
         """Test that it returns None on subprocess failure."""

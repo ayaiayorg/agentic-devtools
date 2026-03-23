@@ -24,7 +24,7 @@ class TestFindPullRequestByIssueKey:
                 "agentic_devtools.cli.azure_devops.helpers.get_repository_id",
                 return_value="repo-123",
             ):
-                result = find_pull_request_by_issue_key("DFLY-9999")
+                result = find_pull_request_by_issue_key("PROJECT-9999")
 
         assert result is None
 
@@ -32,7 +32,7 @@ class TestFindPullRequestByIssueKey:
         """Should return the matching PR dict when issue key appears in the source branch."""
         pr_data = {
             "pullRequestId": 42,
-            "sourceRefName": "refs/heads/feature/DFLY-1234/my-feature",
+            "sourceRefName": "refs/heads/feature/PROJECT-1234/my-feature",
             "title": "My PR",
             "description": "",
             "creationDate": "2024-01-01T00:00:00Z",
@@ -51,7 +51,7 @@ class TestFindPullRequestByIssueKey:
                 "agentic_devtools.cli.azure_devops.helpers.get_repository_id",
                 return_value="repo-123",
             ):
-                result = find_pull_request_by_issue_key("DFLY-1234")
+                result = find_pull_request_by_issue_key("PROJECT-1234")
 
         assert result is not None
         assert result["pullRequestId"] == 42

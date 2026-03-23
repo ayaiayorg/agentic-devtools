@@ -101,7 +101,7 @@ def check_worktree_and_branch(
     if the current branch matches the source_branch exactly.
 
     Args:
-        issue_key: The Jira issue key to check for (e.g., "DFLY-1850") or PR identifier (e.g., "PR24031")
+        issue_key: The Jira issue key to check for (e.g., "PROJECT-1850") or PR identifier (e.g., "PR24031")
         source_branch: Optional source branch for PR review workflows. If provided and
                        the branch doesn't contain the issue_key, we check for exact match
                        with this branch name.
@@ -271,7 +271,7 @@ def perform_auto_setup(
             existing branch from origin instead of creating a new one.
         user_request: The user's explanation of what they want (for create workflows)
         additional_params: Additional parameters to include in the continuation
-            command (e.g., {"parent_key": "DFLY-1234", "pull_request_id": "12345"})
+            command (e.g., {"parent_key": "PROJECT-1234", "pull_request_id": "12345"})
         auto_execute_command: Optional command to run inside the worktree after
             creation. Passed through to the background setup task.
         auto_execute_timeout: Timeout in seconds for the auto-execute command

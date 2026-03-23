@@ -44,10 +44,10 @@ class TestPrintTaskTrackingInfo:
 
         with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
             task = BackgroundTask.create(command="agdt-test-cmd")
-            print_task_tracking_info(task, "Adding comment to DFLY-1234")
+            print_task_tracking_info(task, "Adding comment to PROJECT-1234")
 
             captured = capsys.readouterr()
-            assert "Adding comment to DFLY-1234..." in captured.out
+            assert "Adding comment to PROJECT-1234..." in captured.out
 
     def test_prints_tracking_commands(self, tmp_path, capsys):
         """Test that tracking commands are printed."""

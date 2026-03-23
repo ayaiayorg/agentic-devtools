@@ -10,15 +10,15 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_standard_format(self):
         """Test extraction from standard commit format."""
-        title = "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): add feature"
+        title = "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): add feature"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_parent_child_format(self):
         """Test extraction returns first match for parent/child format."""
-        title = "feature([DFLY-1840](link) / [DFLY-1900](link)): description"
+        title = "feature([PROJECT-1840](link) / [PROJECT-1900](link)): description"
         result = extract_jira_issue_key_from_title(title)
-        assert result == "DFLY-1840"
+        assert result == "PROJECT-1840"
 
     def test_simple_brackets(self):
         """Test extraction from simple brackets format."""
@@ -50,6 +50,6 @@ class TestExtractJiraIssueKeyFromTitle:
 
     def test_lowercase_does_not_match(self):
         """Test lowercase project keys don't match."""
-        title = "dfly-1234 in lowercase"
+        title = "project-1234 in lowercase"
         result = extract_jira_issue_key_from_title(title)
         assert result is None

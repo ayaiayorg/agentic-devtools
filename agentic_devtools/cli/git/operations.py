@@ -246,7 +246,7 @@ def last_commit_contains_issue_key(issue_key: str) -> bool:
     Check if the last commit message contains the given issue key.
 
     Args:
-        issue_key: The Jira issue key to look for (e.g., "DFLY-1234")
+        issue_key: The Jira issue key to look for (e.g., "PROJECT-1234")
 
     Returns:
         True if the last commit message contains the issue key

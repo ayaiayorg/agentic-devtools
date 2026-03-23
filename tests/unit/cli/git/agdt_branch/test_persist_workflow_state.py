@@ -584,13 +584,13 @@ class TestPersistWorkflowStateErrorHandling:
 
         persist_workflow_state(
             "feat",
-            worktree_key="DFLY-1234",
+            worktree_key="PROJECT-1234",
             workflow_type="review",
             commit_message="",
         )
 
         msg = mock_commit.call_args[0][2]
-        assert "agdt: persist review state for DFLY-1234" in msg
+        assert "agdt: persist review state for PROJECT-1234" in msg
 
     @patch(f"{_MOD}.get_value", return_value="abc123")
     @patch(f"{_MOD}._has_matching_run_id", return_value=False)

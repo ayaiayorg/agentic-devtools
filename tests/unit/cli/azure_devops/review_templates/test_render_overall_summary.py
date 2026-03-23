@@ -438,9 +438,9 @@ class TestRenderOverallSummary:
 
     def test_deeply_nested_file_uses_full_dict_key_path(self):
         """Test that deeply nested files display their full repo-relative path, not just folder/file."""
-        # This simulates a file like /mgmt-frontend/dfly-management-ui/.github/copilot-instructions.md
+        # This simulates a file like /mgmt-frontend/example-management-ui/.github/copilot-instructions.md
         # where the top-level folder 'mgmt-frontend' doesn't reflect the full path.
-        full_path = "/mgmt-frontend/dfly-management-ui/.github/copilot-instructions.md"
+        full_path = "/mgmt-frontend/example-management-ui/.github/copilot-instructions.md"
         files = {
             full_path: FileEntry(
                 threadId=10,

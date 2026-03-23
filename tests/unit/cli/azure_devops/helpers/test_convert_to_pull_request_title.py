@@ -8,24 +8,24 @@ class TestConvertToPullRequestTitle:
 
     def test_strips_markdown_links(self):
         """Test that Markdown links are converted to plain text."""
-        title = "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234)): summary"
+        title = "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): summary"
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234): summary"
+        assert result == "feature(PROJECT-1234): summary"
 
     def test_strips_multiple_markdown_links(self):
         """Test multiple Markdown links are converted."""
         title = (
-            "feature([DFLY-1234](https://jira.swica.ch/browse/DFLY-1234) / "
-            "[DFLY-1235](https://jira.swica.ch/browse/DFLY-1235)): summary"
+            "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234) / "
+            "[PROJECT-1235](https://jira.swica.ch/browse/PROJECT-1235)): summary"
         )
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234/DFLY-1235): summary"
+        assert result == "feature(PROJECT-1234/PROJECT-1235): summary"
 
     def test_returns_plain_title_unchanged(self):
         """Test plain titles without links are unchanged."""
-        title = "feature(DFLY-1234): summary"
+        title = "feature(PROJECT-1234): summary"
         result = azure_devops.convert_to_pull_request_title(title)
-        assert result == "feature(DFLY-1234): summary"
+        assert result == "feature(PROJECT-1234): summary"
 
     def test_empty_string(self):
         """Test empty string returns empty string."""

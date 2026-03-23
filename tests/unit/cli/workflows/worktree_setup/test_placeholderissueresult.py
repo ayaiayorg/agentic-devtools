@@ -19,10 +19,10 @@ class TestPlaceholderIssueResult:
         """Test success state with issue key."""
         result = PlaceholderIssueResult(
             success=True,
-            issue_key="DFLY-1234",
+            issue_key="PROJECT-1234",
         )
         assert result.success is True
-        assert result.issue_key == "DFLY-1234"
+        assert result.issue_key == "PROJECT-1234"
         assert result.error_message is None
 
     def test_error_state(self):

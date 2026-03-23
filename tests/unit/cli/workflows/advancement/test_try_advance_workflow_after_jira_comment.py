@@ -53,7 +53,7 @@ class TestTryAdvanceWorkflowAfterJiraComment:
             name="work-on-jira-issue",
             status="in-progress",
             step="planning",
-            context={"jira_issue_key": "DFLY-1850"},
+            context={"jira_issue_key": "PROJECT-1850"},
         )
 
         result = advancement.try_advance_workflow_after_jira_comment()

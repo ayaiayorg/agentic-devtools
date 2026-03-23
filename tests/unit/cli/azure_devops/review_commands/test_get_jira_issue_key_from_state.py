@@ -10,10 +10,10 @@ class TestGetJiraIssueKeyFromState:
 
         from agentic_devtools.cli.azure_devops.review_commands import _get_jira_issue_key_from_state
 
-        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="DFLY-1234"):
+        with patch("agentic_devtools.cli.azure_devops.review_commands.get_value", return_value="PROJECT-1234"):
             result = _get_jira_issue_key_from_state()
 
-        assert result == "DFLY-1234"
+        assert result == "PROJECT-1234"
 
     def test_returns_none_when_not_set(self):
         """Test returns None when not in state."""

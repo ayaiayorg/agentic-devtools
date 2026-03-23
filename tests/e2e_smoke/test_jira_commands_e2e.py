@@ -21,7 +21,7 @@ def _create_mock_jira_issue_response() -> dict:
         "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
         "id": "12345",
         "self": "https://test.atlassian.net/rest/api/2/issue/12345",
-        "key": "DFLY-1234",
+        "key": "PROJECT-1234",
         "fields": {
             "summary": "Test Issue for E2E Smoke Tests",
             "description": "This is a test issue description for smoke testing the CLI commands.",
@@ -96,7 +96,7 @@ class TestJiraGetIssueE2E:
         - State is updated with metadata reference
         """
         # Arrange
-        set_value("jira.issue_key", "DFLY-1234")
+        set_value("jira.issue_key", "PROJECT-1234")
 
         # Mock requests to return realistic response
         mock_requests = MagicMock()
@@ -119,7 +119,7 @@ class TestJiraGetIssueE2E:
         response_data = json.loads(response_file.read_text())
         assert "key" in response_data, "Response should contain issue key"
         assert "fields" in response_data, "Response should contain fields"
-        assert response_data["key"] == "DFLY-1234"
+        assert response_data["key"] == "PROJECT-1234"
 
         # Verify state metadata
         issue_details = get_value("jira.issue_details")
@@ -144,7 +144,7 @@ class TestJiraGetIssueE2E:
         - Comments are retrieved
         """
         # Arrange
-        set_value("jira.issue_key", "DFLY-1234")
+        set_value("jira.issue_key", "PROJECT-1234")
 
         # Mock requests
         mock_requests = MagicMock()
@@ -218,7 +218,7 @@ class TestJiraAddCommentE2E:
         from agentic_devtools.cli.jira import comment_commands, get_commands
 
         # Arrange
-        set_value("jira.issue_key", "DFLY-1234")
+        set_value("jira.issue_key", "PROJECT-1234")
         set_value("jira.comment", "This is a test comment from E2E smoke test")
 
         # Mock requests
@@ -234,7 +234,7 @@ class TestJiraAddCommentE2E:
             with patch.object(get_commands, "get_issue"):
                 # Act - call the sync function directly
                 comment_commands.add_comment(
-                    issue_key="DFLY-1234",
+                    issue_key="PROJECT-1234",
                     comment="This is a test comment from E2E smoke test",
                 )
 
@@ -258,7 +258,7 @@ class TestJiraAddCommentE2E:
         from agentic_devtools.cli.jira import comment_commands, get_commands
 
         # Arrange
-        set_value("jira.issue_key", "DFLY-1234")
+        set_value("jira.issue_key", "PROJECT-1234")
         set_value("jira.comment", "This is a test comment from E2E smoke test")
 
         # Mock requests
@@ -274,7 +274,7 @@ class TestJiraAddCommentE2E:
             with patch.object(get_commands, "get_issue"):
                 # Act
                 comment_commands.add_comment(
-                    issue_key="DFLY-1234",
+                    issue_key="PROJECT-1234",
                     comment="This is a test comment from E2E smoke test",
                 )
 

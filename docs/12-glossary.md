@@ -328,7 +328,7 @@ prompt is then loaded and displayed by that command.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `jira.issue_key` | str | Issue identifier (e.g., DFLY-1234) |
+| `jira.issue_key` | str | Issue identifier (e.g., PROJECT-1234) |
 | `jira.comment` | str | Comment text |
 | `jira.summary` | str | Issue summary |
 | `jira.description` | str | Issue description |

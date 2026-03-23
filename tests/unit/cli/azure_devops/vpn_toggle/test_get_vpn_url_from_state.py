@@ -41,7 +41,10 @@ class TestGetVpnUrlFromState:
 
         assert result == "https://config.vpn"
 
-    @patch("agentic_devtools.cli.config.project_config.get_project_config_value", return_value="  https://vpn.example.com  ")
+    @patch(
+        "agentic_devtools.cli.config.project_config.get_project_config_value",
+        return_value="  https://vpn.example.com  ",
+    )
     def test_strips_whitespace_from_url(self, _mock_config):
         """Should strip leading/trailing whitespace from VPN URL."""
         with patch(

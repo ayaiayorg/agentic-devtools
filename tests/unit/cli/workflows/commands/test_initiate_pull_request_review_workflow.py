@@ -72,7 +72,7 @@ class TestInitiatePRReviewWorkflowBranches:
     ):
         """Test PR review when preflight fails and auto_setup succeeds (returns early)."""
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -82,11 +82,11 @@ class TestInitiatePRReviewWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-                mock_src.return_value = "feature/DFLY-1234/test"
+                mock_src.return_value = "feature/PROJECT-1234/test"
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                     mock_setup.return_value = True
@@ -99,7 +99,7 @@ class TestInitiatePRReviewWorkflowBranches:
     def test_pr_review_preflight_fails_with_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test PR review when preflight fails and auto_setup also fails."""
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
             from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -109,11 +109,11 @@ class TestInitiatePRReviewWorkflowBranches:
                 branch_valid=False,
                 folder_name="wrong",
                 branch_name="main",
-                issue_key="DFLY-1234",
+                issue_key="PROJECT-1234",
             )
 
             with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-                mock_src.return_value = "feature/DFLY-1234/test"
+                mock_src.return_value = "feature/PROJECT-1234/test"
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
                     mock_setup.return_value = False
@@ -185,12 +185,12 @@ class TestInitiatePRReviewWorkflowBranches:
             mock_find_pr.return_value = None  # cross-lookup finds nothing
 
             with pytest.raises(SystemExit):
-                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         # The stale PR ID must have been deleted, not silently reused
         assert state.get_value("pull_request_id") is None
         # The issue→PR cross-lookup must have been called (proving resolved_pr_id was None)
-        mock_find_pr.assert_called_once_with("DFLY-1234", verbose=True)
+        mock_find_pr.assert_called_once_with("PROJECT-1234", verbose=True)
 
     def test_pr_review_with_both_args_uses_cli_values_not_state(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
@@ -205,15 +205,15 @@ class TestInitiatePRReviewWorkflowBranches:
         from agentic_devtools.cli.workflows.preflight import PreflightResult
 
         with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-            mock_src.return_value = "feature/DFLY-2779/implementation"
+            mock_src.return_value = "feature/PROJECT-2779/implementation"
 
             with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                 mock_preflight.return_value = PreflightResult(
                     folder_valid=True,
                     branch_valid=True,
-                    folder_name="DFLY-2779",
-                    branch_name="feature/DFLY-2779/implementation",
-                    issue_key="DFLY-2779",
+                    folder_name="PROJECT-2779",
+                    branch_name="feature/PROJECT-2779/implementation",
+                    issue_key="PROJECT-2779",
                 )
 
                 with patch(
@@ -228,7 +228,7 @@ class TestInitiatePRReviewWorkflowBranches:
                             # --issue-key must be provided" — the fix ensures CLI local vars
                             # are used directly rather than relying on a state round-trip.
                             commands.initiate_pull_request_review_workflow(
-                                _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                                _argv=["--pull-request-id", "25858", "--issue-key", "PROJECT-2779"]
                             )
 
         captured = capsys.readouterr()
@@ -324,7 +324,7 @@ class TestWorkflowCommands:
 
             # Mock get_pull_request_source_branch to return the PR's source branch
             with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_get_branch:
-                mock_get_branch.return_value = "feature/DFLY-1234/implementation"
+                mock_get_branch.return_value = "feature/PROJECT-1234/implementation"
 
                 # Mock preflight to pass (patch at the commands module level where it's imported)
                 with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
@@ -333,9 +333,9 @@ class TestWorkflowCommands:
                     mock_preflight.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
-                        folder_name="DFLY-1234",
-                        branch_name="feature/DFLY-1234/implementation",
-                        issue_key="DFLY-1234",
+                        folder_name="PROJECT-1234",
+                        branch_name="feature/PROJECT-1234/implementation",
+                        issue_key="PROJECT-1234",
                     )
 
                     # Also mock perform_auto_setup to prevent actual worktree creation in case it's called
@@ -343,7 +343,7 @@ class TestWorkflowCommands:
                         mock_auto_setup.return_value = True
 
                         # Execute command with issue key (setup_pull_request_review_async is mocked by fixture)
-                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         # Verify it found the PR and started the workflow
         captured = capsys.readouterr()
@@ -352,7 +352,7 @@ class TestWorkflowCommands:
 
         # Verify state was updated (stored as string by commands.py; setup_pull_request_review_async is mocked)
         assert str(state.get_value("pull_request_id")) == "456"
-        assert state.get_value("jira.issue_key") == "DFLY-1234"
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
 
     def test_pull_request_review_workflow_with_issue_key_fallback_to_azure_devops(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, mock_copilot_session, capsys
@@ -365,7 +365,7 @@ class TestWorkflowCommands:
 
             # Mock get_pull_request_source_branch to return the PR's source branch
             with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_get_branch:
-                mock_get_branch.return_value = "feature/DFLY-1234/implementation"
+                mock_get_branch.return_value = "feature/PROJECT-1234/implementation"
 
                 # Mock preflight to pass (we're in correct context)
                 with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
@@ -374,9 +374,9 @@ class TestWorkflowCommands:
                     mock_preflight.return_value = PreflightResult(
                         folder_valid=True,
                         branch_valid=True,
-                        folder_name="DFLY-1234",
-                        branch_name="feature/DFLY-1234/implementation",
-                        issue_key="DFLY-1234",
+                        folder_name="PROJECT-1234",
+                        branch_name="feature/PROJECT-1234/implementation",
+                        issue_key="PROJECT-1234",
                     )
 
                     # Also mock perform_auto_setup to prevent actual worktree creation in case it's called
@@ -384,7 +384,7 @@ class TestWorkflowCommands:
                         mock_auto_setup.return_value = True
 
                         # Execute (setup_pull_request_review_async is mocked by fixture)
-                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-1234"])
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         captured = capsys.readouterr()
         # The unified helper now abstracts the Jira vs ADO fallback logic
@@ -400,11 +400,11 @@ class TestWorkflowCommands:
             mock_find_pr.return_value = None
 
             with pytest.raises(SystemExit) as exc_info:
-                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-9999"])
+                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "PROJECT-9999"])
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "No active PR found for issue key 'DFLY-9999'" in captured.out
+        assert "No active PR found for issue key 'PROJECT-9999'" in captured.out
 
     def test_pull_request_review_workflow_source_branch_not_found(
         self,
@@ -441,10 +441,10 @@ class TestInitiatePRReviewWorkflowInteractive:
     ):
         """Test that --interactive false disables interactive mode."""
         state.set_value("pull_request_id", "123")
-        state.set_value("jira.issue_key", "DFLY-1234")
+        state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-            mock_src.return_value = "feature/DFLY-1234/test"
+            mock_src.return_value = "feature/PROJECT-1234/test"
 
             with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                 from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -454,7 +454,7 @@ class TestInitiatePRReviewWorkflowInteractive:
                     branch_valid=False,
                     folder_name="wrong",
                     branch_name="main",
-                    issue_key="DFLY-1234",
+                    issue_key="PROJECT-1234",
                 )
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -469,10 +469,10 @@ class TestInitiatePRReviewWorkflowInteractive:
     ):
         """Test that interactive defaults to False when not specified."""
         state.set_value("pull_request_id", "456")
-        state.set_value("jira.issue_key", "DFLY-5678")
+        state.set_value("jira.issue_key", "PROJECT-5678")
 
         with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-            mock_src.return_value = "feature/DFLY-5678/test"
+            mock_src.return_value = "feature/PROJECT-5678/test"
 
             with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                 from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -482,7 +482,7 @@ class TestInitiatePRReviewWorkflowInteractive:
                     branch_valid=False,
                     folder_name="wrong",
                     branch_name="main",
-                    issue_key="DFLY-5678",
+                    issue_key="PROJECT-5678",
                 )
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -497,10 +497,10 @@ class TestInitiatePRReviewWorkflowInteractive:
     ):
         """Test that auto_execute_command includes both PR ID and issue key when both are available."""
         state.set_value("pull_request_id", "789")
-        state.set_value("jira.issue_key", "DFLY-9999")
+        state.set_value("jira.issue_key", "PROJECT-9999")
 
         with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-            mock_src.return_value = "feature/DFLY-9999/impl"
+            mock_src.return_value = "feature/PROJECT-9999/impl"
 
             with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                 from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -510,7 +510,7 @@ class TestInitiatePRReviewWorkflowInteractive:
                     branch_valid=False,
                     folder_name="wrong",
                     branch_name="main",
-                    issue_key="DFLY-9999",
+                    issue_key="PROJECT-9999",
                 )
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -523,7 +523,7 @@ class TestInitiatePRReviewWorkflowInteractive:
             "--pull-request-id",
             "789",
             "--issue-key",
-            "DFLY-9999",
+            "PROJECT-9999",
             "--interactive",
             "false",
         ]
@@ -569,10 +569,10 @@ class TestInitiatePRReviewWorkflowInteractive:
     ):
         """Test that auto_execute_command includes --interactive true when interactive is explicitly set."""
         state.set_value("pull_request_id", "789")
-        state.set_value("jira.issue_key", "DFLY-9999")
+        state.set_value("jira.issue_key", "PROJECT-9999")
 
         with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-            mock_src.return_value = "feature/DFLY-9999/impl"
+            mock_src.return_value = "feature/PROJECT-9999/impl"
 
             with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                 from agentic_devtools.cli.workflows.preflight import PreflightResult
@@ -582,7 +582,7 @@ class TestInitiatePRReviewWorkflowInteractive:
                     branch_valid=False,
                     folder_name="wrong",
                     branch_name="main",
-                    issue_key="DFLY-9999",
+                    issue_key="PROJECT-9999",
                 )
 
                 with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
@@ -669,7 +669,7 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
         """When both --pull-request-id and --issue-key are provided, worktree_key is the issue key.
 
         Issue key takes priority over PR ID so that all state is written to a single
-        scoped directory (e.g., DFLY-2779/) rather than being scattered across multiple
+        scoped directory (e.g., PROJECT-2779/) rather than being scattered across multiple
         directories.  _ensure_bootstrap_identity_and_scope must be called with the issue
         key BEFORE any set_value() calls.
         """
@@ -680,10 +680,10 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
 
                     with pytest.raises(SystemExit):
                         commands.initiate_pull_request_review_workflow(
-                            _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                            _argv=["--pull-request-id", "25858", "--issue-key", "PROJECT-2779"]
                         )
 
-        mock_scope.assert_called_once_with("DFLY-2779")
+        mock_scope.assert_called_once_with("PROJECT-2779")
 
     def test_only_pr_id_uses_pr_worktree_key(self, temp_state_dir, clear_state_before):
         """When only --pull-request-id is provided, worktree_key is PR{id}.
@@ -712,9 +712,9 @@ class TestInitiatePRReviewWorkflowBootstrapScope:
                     mock_find_pr.return_value = None  # no PR found → sys.exit(1)
 
                     with pytest.raises(SystemExit):
-                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "DFLY-2779"])
+                        commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "PROJECT-2779"])
 
-        mock_scope.assert_called_once_with("DFLY-2779")
+        mock_scope.assert_called_once_with("PROJECT-2779")
 
 
 class TestInitiatePRReviewWorkflowWorktreeKeyNormalization:
@@ -733,11 +733,11 @@ class TestInitiatePRReviewWorkflowWorktreeKeyNormalization:
 
                     with pytest.raises(SystemExit):
                         commands.initiate_pull_request_review_workflow(
-                            issue_key="  DFLY-2779  ",
+                            issue_key="  PROJECT-2779  ",
                             _argv=[],
                         )
 
-        mock_scope.assert_called_once_with("DFLY-2779")
+        mock_scope.assert_called_once_with("PROJECT-2779")
 
     def test_whitespace_padded_pr_id_is_stripped(self, temp_state_dir, clear_state_before):
         """A whitespace-padded pull_request_id is normalized before _ensure_bootstrap_identity_and_scope."""
@@ -842,14 +842,14 @@ class TestMissingBootstrapStateShift:
         with patch("agentic_devtools.state._get_git_repo_root", return_value=fake_repo):
             with patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"):
                 with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
-                    mock_src.return_value = "feature/DFLY-2779/impl"
+                    mock_src.return_value = "feature/PROJECT-2779/impl"
                     with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
                         mock_preflight.return_value = PreflightResult(
                             folder_valid=True,
                             branch_valid=True,
-                            folder_name="DFLY-2779",
-                            branch_name="feature/DFLY-2779/impl",
-                            issue_key="DFLY-2779",
+                            folder_name="PROJECT-2779",
+                            branch_name="feature/PROJECT-2779/impl",
+                            issue_key="PROJECT-2779",
                         )
                         with patch(
                             "agentic_devtools.cli.workflows.commands.get_git_repo_root",
@@ -862,7 +862,7 @@ class TestMissingBootstrapStateShift:
                                     "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
                                 ):
                                     commands.initiate_pull_request_review_workflow(
-                                        _argv=["--pull-request-id", "25858", "--issue-key", "DFLY-2779"]
+                                        _argv=["--pull-request-id", "25858", "--issue-key", "PROJECT-2779"]
                                     )
 
         # Confirm the bootstrap file was created (state-dir shift did happen)

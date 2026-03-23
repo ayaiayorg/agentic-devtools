@@ -224,8 +224,8 @@ def convert_to_pull_request_title(title: str) -> str:
     Strip Markdown links from a title to match pull request title convention.
 
     Transforms commit-style titles with Markdown links to clean PR titles:
-    - feature([DFLY-1234](link)): summary -> feature(DFLY-1234): summary
-    - feature([DFLY-1234](link) / [DFLY-5678](link)): summary -> feature(DFLY-1234/DFLY-5678): summary
+    - feature([PROJECT-1234](link)): summary -> feature(PROJECT-1234): summary
+    - feature([PROJECT-1234](link) / [PROJECT-5678](link)): summary -> feature(PROJECT-1234/PROJECT-5678): summary
 
     Args:
         title: The title string potentially containing Markdown links.
@@ -354,7 +354,7 @@ def find_pull_request_by_issue_key(
     appears in the source branch name, PR title, or PR description.
 
     Args:
-        issue_key: Jira issue key (e.g., "DFLY-1234")
+        issue_key: Jira issue key (e.g., "PROJECT-1234")
         config: Azure DevOps configuration (defaults to from_state)
         headers: Auth headers (defaults to get_auth_headers)
         status: PR status filter ("active", "completed", "abandoned", "all")

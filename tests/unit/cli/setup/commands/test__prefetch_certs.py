@@ -123,6 +123,19 @@ class TestPrefetchCerts:
         assert "Could not cache CA bundle for release-assets.githubusercontent.com" in out
         assert "Could not cache CA bundle for registry.npmjs.org" in out
 
+    def test_prints_warning_for_dynamic_jira_host_when_cert_fails(self, capsys):
+        """Prints warning when _ensure_ca_bundle returns None for a dynamic Jira host."""
+        with patch.object(commands, "_ensure_ca_bundle", return_value=None):
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                with patch(
+                    "agentic_devtools.cli.jira.config.get_jira_base_url",
+                    return_value="https://jira.example.com",
+                ):
+                    commands._prefetch_certs()
+
+        out = capsys.readouterr().out
+        assert "Could not cache CA bundle for jira.example.com" in out
+
     def test_writes_npmrc_when_npm_cert_cached(self, capsys, tmp_path):
         """Writes ~/.agdt/npmrc with cafile when npm registry cert is cached."""
         pem_path = str(tmp_path / "registry.npmjs.org.pem")

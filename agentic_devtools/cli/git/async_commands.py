@@ -40,11 +40,11 @@ def _create_commit_parser() -> argparse.ArgumentParser:
         description="Save work: stage, commit (or amend), rebase onto main, and push.",
         epilog="""
 Examples:
-  agdt-git-save-work -m "feature(DFLY-1234): add new feature"
+  agdt-git-save-work -m "feature(PROJECT-1234): add new feature"
   agdt-git-save-work --commit-message "fix: resolve issue"
   agdt-git-save-work --completed "1,2,3"
   agdt-git-save-work --skip-rebase
-  agdt-set commit_message "feature(DFLY-1234): add feature"
+  agdt-set commit_message "feature(PROJECT-1234): add feature"
   agdt-git-save-work
 
 Behavior:
@@ -115,9 +115,9 @@ def commit_async(
         skip_rebase (optional): If true, skip the fetch/rebase onto main step
 
     Usage:
-        agdt-git-save-work -m "feature(DFLY-1234): add feature"
-        agdt-git-save-work --message "feature(DFLY-1234): add feature"
-        agdt-git-save-work --commit-message "feature(DFLY-1234): add feature"
+        agdt-git-save-work -m "feature(PROJECT-1234): add feature"
+        agdt-git-save-work --message "feature(PROJECT-1234): add feature"
+        agdt-git-save-work --commit-message "feature(PROJECT-1234): add feature"
         agdt-git-save-work --completed "1,2,3"
         agdt-git-save-work --skip-rebase
         agdt-git-save-work --dry-run

@@ -13,7 +13,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management"
+                stdout = "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name"
                 returncode = 0
 
             return MockResult()
@@ -23,7 +23,7 @@ class TestRepositoryDetection:
         from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
 
         result = get_repository_name_from_git_remote()
-        assert result == "dfly-platform-management"
+        assert result == "example-repo-name"
 
     def test_get_repository_name_from_azure_devops_url_with_query(self, monkeypatch):
         """Test extracting repository name from Azure DevOps URL with query string."""
@@ -31,7 +31,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management?version=GBmain"
+                stdout = "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name?version=GBmain"
                 returncode = 0
 
             return MockResult()
@@ -41,7 +41,7 @@ class TestRepositoryDetection:
         from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
 
         result = get_repository_name_from_git_remote()
-        assert result == "dfly-platform-management"
+        assert result == "example-repo-name"
 
     def test_get_repository_name_from_github_https(self, monkeypatch):
         """Test extracting repository name from GitHub HTTPS URL."""
@@ -103,7 +103,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "git@ssh.dev.azure.com:v3/swica/DragonflyMgmt/dfly-platform-management"
+                stdout = "git@ssh.dev.azure.com:v3/example-org/ExampleProject/example-repo-name"
                 returncode = 0
 
             return MockResult()
@@ -113,7 +113,7 @@ class TestRepositoryDetection:
         from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
 
         result = get_repository_name_from_git_remote()
-        assert result == "dfly-platform-management"
+        assert result == "example-repo-name"
 
     def test_get_repository_name_from_azure_devops_ssh_legacy(self, monkeypatch):
         """Test extracting repository name from Azure DevOps SSH URL (legacy visualstudio.com format)."""
@@ -121,7 +121,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "swica@vs-ssh.visualstudio.com:v3/swica/DragonflyMgmt/dfly-platform-management"
+                stdout = "example-org@vs-ssh.visualstudio.com:v3/example-org/ExampleProject/example-repo-name"
                 returncode = 0
 
             return MockResult()
@@ -131,7 +131,7 @@ class TestRepositoryDetection:
         from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
 
         result = get_repository_name_from_git_remote()
-        assert result == "dfly-platform-management"
+        assert result == "example-repo-name"
 
     def test_get_repository_name_from_azure_devops_ssh_with_git_suffix(self, monkeypatch):
         """Test extracting repository name from Azure DevOps SSH URL with .git suffix."""
@@ -139,7 +139,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "git@ssh.dev.azure.com:v3/swica/DragonflyMgmt/dfly-platform-management.git"
+                stdout = "git@ssh.dev.azure.com:v3/example-org/ExampleProject/example-repo-name.git"
                 returncode = 0
 
             return MockResult()
@@ -149,7 +149,7 @@ class TestRepositoryDetection:
         from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
 
         result = get_repository_name_from_git_remote()
-        assert result == "dfly-platform-management"
+        assert result == "example-repo-name"
 
     def test_get_repository_name_git_command_fails(self, monkeypatch):
         """Test returns None when git command fails."""
@@ -221,7 +221,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management"
+                stdout = "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name"
                 returncode = 0
 
             return MockResult()
@@ -229,7 +229,7 @@ class TestRepositoryDetection:
         monkeypatch.setattr(subprocess, "run", mock_run)
 
         config = azure_devops.AzureDevOpsConfig.from_state()
-        assert config.repository == "dfly-platform-management"
+        assert config.repository == "example-repo-name"
 
     def test_from_state_prefers_state_over_git(self, temp_state_dir, clear_state_before, monkeypatch):
         """Test config prefers state value over git remote."""
@@ -237,7 +237,7 @@ class TestRepositoryDetection:
 
         def mock_run(*args, **kwargs):
             class MockResult:
-                stdout = "https://dev.azure.com/swica/DragonflyMgmt/_git/dfly-platform-management"
+                stdout = "https://dev.azure.com/example-org/ExampleProject/_git/example-repo-name"
                 returncode = 0
 
             return MockResult()

@@ -117,7 +117,7 @@ class TestPropagateAgdtCache:
         src_agdt = main_repo / ".agdt"
         src_agdt.mkdir()
         (src_agdt / IDENTITY_CACHE_FILENAME).write_text('{"user": "test"}')
-        bootstrap_content = '{"worktree_key": "DFLY-9999"}'
+        bootstrap_content = '{"worktree_key": "PROJECT-9999"}'
         (src_agdt / BOOTSTRAP_FILENAME).write_text(bootstrap_content)
 
         worktree = tmp_path / "worktree"
@@ -146,12 +146,12 @@ class TestPropagateAgdtCache:
         worktree.mkdir()
 
         with patch(f"{_MODULE}.get_main_repo_root", return_value=str(main_repo)):
-            _propagate_agdt_cache(str(worktree), worktree_key="DFLY-1234")
+            _propagate_agdt_cache(str(worktree), worktree_key="PROJECT-1234")
 
         dst_bootstrap = worktree / ".agdt" / BOOTSTRAP_FILENAME
         assert dst_bootstrap.is_file()
         data = json.loads(dst_bootstrap.read_text())
-        assert data == {"worktree_key": "DFLY-1234"}
+        assert data == {"worktree_key": "PROJECT-1234"}
 
     def test_creates_bootstrap_when_source_missing_but_worktree_key_provided(self, tmp_path: Path) -> None:
         """Creates runtime-bootstrap.json with worktree_key even when source has no bootstrap."""
@@ -166,12 +166,12 @@ class TestPropagateAgdtCache:
         worktree.mkdir()
 
         with patch(f"{_MODULE}.get_main_repo_root", return_value=str(main_repo)):
-            _propagate_agdt_cache(str(worktree), worktree_key="DFLY-5678")
+            _propagate_agdt_cache(str(worktree), worktree_key="PROJECT-5678")
 
         dst_bootstrap = worktree / ".agdt" / BOOTSTRAP_FILENAME
         assert dst_bootstrap.is_file()
         data = json.loads(dst_bootstrap.read_text())
-        assert data == {"worktree_key": "DFLY-5678"}
+        assert data == {"worktree_key": "PROJECT-5678"}
 
     def test_no_bootstrap_when_source_missing_and_no_worktree_key(self, tmp_path: Path) -> None:
         """No runtime-bootstrap.json propagated when source has none and no key provided."""

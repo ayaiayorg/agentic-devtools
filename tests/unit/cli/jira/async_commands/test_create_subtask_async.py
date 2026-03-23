@@ -37,10 +37,10 @@ class TestCreateSubtaskAsync:
         """Test create_subtask_async spawns a background task."""
         with patch(
             "agentic_devtools.cli.jira.async_commands.get_jira_value",
-            side_effect=lambda k: {"parent_key": "DFLY-123", "summary": "Subtask"}.get(k),
+            side_effect=lambda k: {"parent_key": "PROJECT-123", "summary": "Subtask"}.get(k),
         ):
             create_subtask_async()
 
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
-        assert "DFLY-123" in captured.out
+        assert "PROJECT-123" in captured.out
