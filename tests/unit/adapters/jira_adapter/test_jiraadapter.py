@@ -32,8 +32,9 @@ class TestJiraAdapter:
     def test_constructor_accepts_none_project_key(self) -> None:
         """Constructor accepts None project_key for read-only operations."""
         adapter = JiraAdapter(config=_make_config(), project_key=None)
-        # Should not raise — only create_issue needs project_key
-        assert adapter._project_key == ""
+        # Verify read operations work without project_key
+        with pytest.raises(ValueError, match="project_key"):
+            adapter.create_issue("T", "D")
 
     def test_create_issue_raises_without_project_key(self) -> None:
         """create_issue raises ValueError when project_key was not provided."""

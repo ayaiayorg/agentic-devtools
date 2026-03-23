@@ -195,5 +195,6 @@ class TestGetAdapter:
 
         adapter = get_adapter(str(tmp_path))
         assert isinstance(adapter, JiraAdapter)
-        # project_key is empty — create_issue will fail, but get_issue/add_comment will work
-        assert adapter._project_key == ""
+        # project_key is empty — create_issue will fail, but construction succeeds
+        with pytest.raises(ValueError, match="project_key"):
+            adapter.create_issue("T", "D")
