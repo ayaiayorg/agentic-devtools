@@ -268,3 +268,31 @@ class TestGitHubIssuesAdapter:
 
         with pytest.raises(RuntimeError, match="expected each comment to be a dict.*index 1"):
             adapter.get_issue("1")
+
+    def test_get_issue_non_list_labels_normalised_to_empty(self) -> None:
+        """get_issue normalises non-list labels to empty list."""
+        data = {
+            "number": 1,
+            "title": "T",
+            "body": "D",
+            "state": "OPEN",
+            "labels": "not-a-list",
+            "url": "u",
+            "comments": [],
+        }
+        run = _mock_run(stdout=json.dumps(data))
+        adapter = GitHubIssuesAdapter(repo="o/r", run_command=run)
+
+        detail = adapter.get_issue("1")
+        assert detail["labels"] == []
+
+    def test_list_issues_non_list_labels_normalised_to_empty(self) -> None:
+        """list_issues normalises non-list labels within items to empty list."""
+        data = [
+            {"number": 1, "title": "A", "state": "OPEN", "labels": {"unexpected": True}, "url": "u"},
+        ]
+        run = _mock_run(stdout=json.dumps(data))
+        adapter = GitHubIssuesAdapter(repo="o/r", run_command=run)
+
+        summaries = adapter.list_issues()
+        assert summaries[0]["labels"] == []

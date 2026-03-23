@@ -6,8 +6,6 @@ in :mod:`agentic_devtools.adapters.base`.
 
 from __future__ import annotations
 
-import logging
-
 from agentic_devtools.adapters.base import (
     Comment,
     CommentResult,
@@ -21,8 +19,6 @@ from agentic_devtools.tools.jira import JiraConfig
 from agentic_devtools.tools.jira import add_comment as jira_add_comment
 from agentic_devtools.tools.jira import create_issue as jira_create_issue
 from agentic_devtools.tools.jira import fetch_issue_context as jira_fetch_issue_context
-
-logger = logging.getLogger(__name__)
 
 
 class JiraAdapter(IssueAdapter):

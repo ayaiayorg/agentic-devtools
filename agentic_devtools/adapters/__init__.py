@@ -12,7 +12,6 @@ Public API
 from __future__ import annotations
 
 import base64
-import logging
 import os
 
 from agentic_devtools.adapters.base import (
@@ -29,8 +28,6 @@ from agentic_devtools.adapters.jira_adapter import JiraAdapter
 from agentic_devtools.adapters.markdown_adapter import MarkdownAdapter
 from agentic_devtools.config import load_platform_config
 from agentic_devtools.tools.jira import JiraConfig
-
-logger = logging.getLogger(__name__)
 
 __all__ = [
     "Comment",

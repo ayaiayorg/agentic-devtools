@@ -8,7 +8,6 @@ alternative for users who do not use Jira or GitHub Issues.
 from __future__ import annotations
 
 import datetime
-import logging
 import re
 import shutil
 from pathlib import Path
@@ -24,8 +23,6 @@ from agentic_devtools.adapters.base import (
     IssueResult,
     IssueSummary,
 )
-
-logger = logging.getLogger(__name__)
 
 _ID_PATTERN = re.compile(r"^\d{3}$")
 _ARCHIVE_PATTERN = re.compile(r"^A_(\d{3})$")

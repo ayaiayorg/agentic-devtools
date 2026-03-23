@@ -7,7 +7,6 @@ adapter TypedDicts defined in :mod:`agentic_devtools.adapters.base`.
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
 from collections.abc import Callable
 
@@ -21,8 +20,6 @@ from agentic_devtools.adapters.base import (
     IssueSummary,
 )
 from agentic_devtools.cli.subprocess_utils import run_safe
-
-logger = logging.getLogger(__name__)
 
 
 class GitHubIssuesAdapter(IssueAdapter):
@@ -86,6 +83,8 @@ class GitHubIssuesAdapter(IssueAdapter):
             raise RuntimeError(f"Failed to parse gh output: expected dict, got {type(data).__name__}")
 
         raw_labels = data.get("labels") or []
+        if not isinstance(raw_labels, list):
+            raw_labels = []
         label_names = [lb["name"] if isinstance(lb, dict) else str(lb) for lb in raw_labels]
 
         raw_comments = data.get("comments") or []
@@ -150,7 +149,9 @@ class GitHubIssuesAdapter(IssueAdapter):
                     "Failed to parse gh output: expected each issue to be a dict, "
                     f"but item at index {index} is {type(item).__name__}"
                 )
-            raw_labels = item.get("labels") or []
+            raw_labels = item.get("labels")
+            if not isinstance(raw_labels, list):
+                raw_labels = []
             label_names = [lb["name"] if isinstance(lb, dict) else str(lb) for lb in raw_labels]
             summaries.append(
                 IssueSummary(
