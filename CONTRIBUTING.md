@@ -420,8 +420,7 @@ You can also run the workflow manually from the **Actions** tab:
 ```bash
 gh workflow run speckit-issue-trigger.yml \
   -f issue_number=42 \
-  -f trigger_label=speckit \
-  -f ai_provider=claude
+  -f trigger_label=speckit
 ```
 
 ### Repository Variables
