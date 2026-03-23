@@ -265,8 +265,10 @@ def confirm_and_override(
     def _build_config_from_result(res: DetectionResult) -> dict:
         """Convert a DetectionResult into a save_platform_config-compatible dict."""
         issue_adapter = DEFAULT_ISSUE_ADAPTER
-        if res.detected_issue_platforms:
-            issue_adapter = res.detected_issue_platforms[0]
+        for platform in res.detected_issue_platforms:
+            if platform in VALID_ISSUE_ADAPTERS:
+                issue_adapter = platform
+                break
 
         hosting = res.detected_code_hosting or DEFAULT_CODE_HOSTING
 

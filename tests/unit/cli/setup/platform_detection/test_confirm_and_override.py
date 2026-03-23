@@ -68,8 +68,24 @@ class TestConfirmAccepted:
         assert config["issue_adapter"] == "github"
         assert config["code_hosting"] == "github"
 
+    def test_accept_ado_only_uses_default_adapter(self):
+        """ADO-only detection uses DEFAULT_ISSUE_ADAPTER since azure_devops is not a valid adapter."""
+        result = DetectionResult(
+            detected_issue_platforms=("azure_devops",),
+            detected_code_hosting="azure_devops",
+            azure_devops_project="org/proj",
+            confidence={"azure_devops": "high"},
+        )
 
-class TestConfirmOverride:
+        config = confirm_and_override(
+            result,
+            input_fn=lambda _prompt: "y",
+            print_fn=lambda *args: None,
+        )
+
+        assert config["issue_adapter"] == "jira"  # DEFAULT_ISSUE_ADAPTER fallback
+        assert config["code_hosting"] == "azure_devops"
+        assert config["azure_devops"]["project"] == "org/proj"
     """User overrides the detected platforms."""
 
     def test_override_issue_adapter(self):
