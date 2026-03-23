@@ -79,9 +79,21 @@ async def main() -> int:
         return 1
     finally:
         if session is not None:
-            await session.disconnect()
+            try:
+                await session.disconnect()
+            except Exception as exc:
+                print(
+                    f"Warning: failed to disconnect Copilot session: {exc}",
+                    file=sys.stderr,
+                )
         if client is not None:
-            await client.stop()
+            try:
+                await client.stop()
+            except Exception as exc:
+                print(
+                    f"Warning: failed to stop Copilot client: {exc}",
+                    file=sys.stderr,
+                )
 
 
 if __name__ == "__main__":

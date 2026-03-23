@@ -162,7 +162,7 @@ Generate the specification now. Start with the header and metadata section."
 
     # Inner function to perform a single Copilot SDK call
     _call_copilot() {
-        echo "$PROMPT" | python3 "$SCRIPT_DIR/copilot_generate.py"
+        printf '%s' "$PROMPT" | python "$SCRIPT_DIR/copilot_generate.py"
     }
 
     # Call with exponential backoff: max 3 attempts, starting at 5 seconds
