@@ -830,18 +830,15 @@ Configure the action using repository variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SPECKIT_TRIGG | `speckit` | The label that |
-| `SPECKIT_AI_PR | `claude` | AI provider fo |
+| `SPECKIT_TRIGGER_LABEL` | `speckit` | The label that triggers the SDD workflow |
+| `SPECKIT_COPILOT_MODEL` | `claude-sonnet-4-20250514` | Model for GitHub Models API spec generation |
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
 | `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
 | `SPECKIT_CREATE_PR` | `true` | Create a pull request |
 
 ### Required Secrets
 
-| Secret | Required For | Description |
-|--------|--------------|-------------|
-| `ANTHROPIC_API_KEY` | `claude` provider | Claude API key for spec generation |
-| `OPENAI_API_KEY` | `openai` provider | OpenAI API key for spec generation |
+No additional secrets are required — the workflow uses `GITHUB_TOKEN` (automatically provided) to authenticate with the GitHub Models API.
 
 ### Usage
 

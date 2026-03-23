@@ -29,7 +29,7 @@ When the `speckit` label is applied to this issue, the GitHub Action should:
 
 1. ✅ Post a "Specification Creation Started" comment within 30 seconds
 2. ✅ Replace the `speckit` label with `speckit:processing`
-3. ✅ Generate a feature specification using the configured AI provider
+3. ✅ Generate a feature specification via the GitHub Models API
 4. ✅ Create a new branch named `NNN-feature-name`
 5. ✅ Commit the generated `spec.md` to that branch
 6. ✅ Open a Pull Request with the specification
@@ -53,7 +53,7 @@ When the `speckit` label is applied to this issue, the GitHub Action should:
 If the action fails:
 
 1. Check the [Actions tab](../../actions/workflows/speckit-issue-trigger.yml) for logs
-2. Verify `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`) repository secret is set
+2. Verify the repository has access to the GitHub Models API
 3. Ensure the `SPECKIT_TRIGGER_LABEL` repository variable matches the label used
 4. Review the "Failed" comment on this issue for specific error details
 
