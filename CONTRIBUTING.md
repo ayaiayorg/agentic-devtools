@@ -409,7 +409,7 @@ Specification-Driven Development (SDD) process when a label is applied to a GitH
 2. Apply the `speckit` label (or your configured `SPECKIT_TRIGGER_LABEL`) to the issue
 3. The `speckit-issue-trigger` workflow fires automatically:
    - Posts a "Started" comment within ~30 seconds
-   - Generates a `spec.md` via the GitHub Models API (model set by `SPECKIT_COPILOT_MODEL`)
+   - Generates a `spec.md` via the Copilot SDK (model set by `SPECKIT_COPILOT_MODEL`)
    - Creates a feature branch (`NNN-feature-name`) and commits the spec
    - Opens a Pull Request and posts a "Completed" comment with links
 
@@ -428,14 +428,16 @@ gh workflow run speckit-issue-trigger.yml \
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `SPECKIT_TRIGGER_LABEL` | `speckit` | Label that triggers the SDD workflow |
-| `SPECKIT_COPILOT_MODEL` | `claude-sonnet-4-20250514` | Model for GitHub Models API spec generation |
+| `SPECKIT_COPILOT_MODEL` | `claude-opus-4.6` | Model for Copilot SDK spec generation |
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Set to `false` to suppress issue comments |
 | `SPECKIT_CREATE_BRANCH` | `true` | Set to `false` to skip branch creation |
 | `SPECKIT_CREATE_PR` | `true` | Set to `false` to skip PR creation |
 
 ### Required Secrets
 
-No additional secrets are required — the workflow uses `GITHUB_TOKEN` (automatically provided) to authenticate with the GitHub Models API.
+| Secret | Description |
+| ------ | ----------- |
+| `COPILOT_GITHUB_TOKEN` | Fine-grained PAT with `Copilot Requests: Read` permission |
 
 ### Issue Labels Used
 

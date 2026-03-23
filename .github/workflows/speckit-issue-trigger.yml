@@ -25,9 +25,9 @@ env:
   # The label that triggers the SDD process
   # Priority: workflow_dispatch input > repository variable > default 'speckit'
   TRIGGER_LABEL: ${{ inputs.trigger_label || vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
-  # Model for GitHub Models API spec generation
-  # Priority: repository variable > default 'claude-sonnet-4-20250514'
-  COPILOT_MODEL: ${{ vars.SPECKIT_COPILOT_MODEL || 'claude-sonnet-4-20250514' }}
+  # Model for Copilot SDK spec generation
+  # Priority: repository variable > default 'claude-opus-4.6'
+  COPILOT_MODEL: ${{ vars.SPECKIT_COPILOT_MODEL || 'claude-opus-4.6' }}
 
 jobs:
   validate-and-trigger:
@@ -43,7 +43,6 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      models: read
 
     outputs:
       branch_name: ${{ steps.generate.outputs.branch_name }}
@@ -200,6 +199,10 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
           .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
 
+      - name: Install Copilot SDK
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
+        run: pip install github-copilot-sdk
+
       - name: Generate Specification
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         id: generate
@@ -210,7 +213,7 @@ jobs:
           ISSUE_URL: ${{ steps.issue.outputs.url }}
           SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
           COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
           .github/scripts/speckit-trigger/generate-spec-from-issue.sh
@@ -341,7 +344,7 @@ jobs:
                 '### Troubleshooting',
                 '',
                 '1. Check that the issue has a descriptive title and body',
-                '2. Verify GitHub Models API access (the repository must have access to GitHub Models)',
+                '2. Verify that the COPILOT_GITHUB_TOKEN secret is configured with a fine-grained PAT that has Copilot Requests: Read permission',
                 '3. Review the workflow logs for detailed error messages',
                 '',
                 '### Manual Alternative',
