@@ -138,5 +138,5 @@ def _build_github_adapter(platform_config: dict) -> GitHubIssuesAdapter:
     gh = platform_config.get("github", {})
     repo_owner = gh.get("repo_owner", "")
     repo_name = gh.get("repo_name", "")
-    repo_slug = f"{repo_owner}/{repo_name}"
+    repo_slug = f"{repo_owner}/{repo_name}" if repo_owner and repo_name else ""
     return GitHubIssuesAdapter(repo=repo_slug)

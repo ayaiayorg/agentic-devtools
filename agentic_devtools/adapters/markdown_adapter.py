@@ -42,6 +42,11 @@ def _coerce_str(value: object, default: str = "") -> str:
     return value if isinstance(value, str) else str(value)
 
 
+def _is_frontmatter_delimiter(line: str) -> bool:
+    """Return ``True`` when *line* is an unindented ``---`` delimiter."""
+    return line.startswith("---") and line.rstrip("\r\n") == "---"
+
+
 class MarkdownAdapter(IssueAdapter):
     """Issue adapter that reads/writes markdown files in ``.agdt/issues/``."""
 
@@ -109,13 +114,16 @@ class MarkdownAdapter(IssueAdapter):
         """
         content = path.read_text(encoding="utf-8")
         lines = content.splitlines(keepends=True)
-        if not lines or lines[0].strip() != "---":
+        if not lines or not _is_frontmatter_delimiter(lines[0]):
             raise ValueError(f"Invalid frontmatter in issue {issue_id}")
 
-        # Collect YAML frontmatter lines until the closing '---' delimiter line.
+        # Collect YAML frontmatter lines until the closing '---' delimiter
+        # line.  Only an *unindented* ``---`` (no leading whitespace) is
+        # treated as the closing delimiter so that ``---`` inside indented
+        # YAML block scalars is not misinterpreted.
         fm_lines: list[str] = []
         i = 1
-        while i < len(lines) and lines[i].strip() != "---":
+        while i < len(lines) and not _is_frontmatter_delimiter(lines[i]):
             fm_lines.append(lines[i])
             i += 1
 
@@ -194,8 +202,11 @@ class MarkdownAdapter(IssueAdapter):
         else:
             raise ValueError(f"Issue {issue_id}: 'labels' frontmatter must be a list, got {type(raw_labels).__name__}")
 
+        # Always use the filename stem as canonical issue_id.  YAML may
+        # parse unquoted ``id: 001`` as ``int(1)`` and lose zero-padding,
+        # making the returned ID inconsistent with the file-based lookup.
         return IssueDetail(
-            issue_id=str(fm.get("id", issue_id)),
+            issue_id=issue_id,
             title=_coerce_str(fm.get("title", "")),
             description=description,
             status=_coerce_str(fm.get("status", "")),
@@ -264,9 +275,11 @@ class MarkdownAdapter(IssueAdapter):
                 if label_filter and not set(label_filter) & set(issue_labels):
                     continue
 
+            # Always use the filename stem as canonical issue_id (see
+            # get_issue — YAML may drop zero-padding from ``id: 001``).
             summaries.append(
                 IssueSummary(
-                    issue_id=str(fm.get("id", md_file.stem)),
+                    issue_id=md_file.stem,
                     title=_coerce_str(fm.get("title", "")),
                     status=_coerce_str(fm.get("status", "")),
                     labels=issue_labels,

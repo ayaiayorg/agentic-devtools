@@ -618,3 +618,44 @@ class TestMarkdownAdapter:
         assert summaries[0]["status"] == "0"
         assert isinstance(summaries[0]["title"], str)
         assert isinstance(summaries[0]["status"], str)
+
+    # ------------------------------------------------------------------
+    # Frontmatter delimiter — indented `---` inside block scalar
+    # ------------------------------------------------------------------
+
+    def test_read_issue_indented_dashes_in_block_scalar(self, tmp_path: Path) -> None:
+        """_read_issue does not treat indented '---' as the closing delimiter."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        # Block scalar with indented --- that must NOT be a delimiter
+        fm = (
+            "---\ntitle: |\n  first line\n  ---\n  second line\n"
+            "status: open\nlabels: []\ncomments: []\n---\nBody text\n"
+        )
+        (issues_dir / "001.md").write_text(fm, encoding="utf-8")
+
+        detail = adapter.get_issue("001")
+        assert "first line" in detail["title"]
+        assert "second line" in detail["title"]
+        assert detail["description"] == "Body text"
+
+    # ------------------------------------------------------------------
+    # Canonical issue_id from filename stem
+    # ------------------------------------------------------------------
+
+    def test_get_issue_uses_filename_stem_as_id(self, tmp_path: Path) -> None:
+        """get_issue returns the filename stem as issue_id, ignoring frontmatter id."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Title", "Body")
+        # YAML may parse `id: 001` as int 1 — adapter must use filename stem
+        detail = adapter.get_issue("001")
+        assert detail["issue_id"] == "001"
+
+    def test_list_issues_uses_filename_stem_as_id(self, tmp_path: Path) -> None:
+        """list_issues returns the filename stem as issue_id, ignoring frontmatter id."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Title", "Body")
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["issue_id"] == "001"

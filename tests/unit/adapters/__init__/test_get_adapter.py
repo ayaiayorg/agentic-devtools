@@ -294,3 +294,43 @@ class TestGetAdapter:
 
         adapter = get_adapter(str(tmp_path))
         assert adapter._config.ssl_verify == "/etc/ssl/certs/ca-bundle.crt"
+
+    # ------------------------------------------------------------------
+    # GitHub adapter repo slug normalization
+    # ------------------------------------------------------------------
+
+    def test_github_adapter_empty_repo_owner(self, tmp_path: Path) -> None:
+        """get_adapter normalizes repo slug to empty when repo_owner is missing."""
+        _write_config(
+            tmp_path,
+            {
+                "issue_adapter": "github",
+                "github": {"repo_owner": "", "repo_name": "repo"},
+            },
+        )
+
+        adapter = get_adapter(str(tmp_path))
+        assert isinstance(adapter, GitHubIssuesAdapter)
+        assert adapter._repo == ""
+
+    def test_github_adapter_empty_repo_name(self, tmp_path: Path) -> None:
+        """get_adapter normalizes repo slug to empty when repo_name is missing."""
+        _write_config(
+            tmp_path,
+            {
+                "issue_adapter": "github",
+                "github": {"repo_owner": "owner", "repo_name": ""},
+            },
+        )
+
+        adapter = get_adapter(str(tmp_path))
+        assert isinstance(adapter, GitHubIssuesAdapter)
+        assert adapter._repo == ""
+
+    def test_github_adapter_missing_github_section(self, tmp_path: Path) -> None:
+        """get_adapter normalizes repo slug to empty when github section is absent."""
+        _write_config(tmp_path, {"issue_adapter": "github"})
+
+        adapter = get_adapter(str(tmp_path))
+        assert isinstance(adapter, GitHubIssuesAdapter)
+        assert adapter._repo == ""
