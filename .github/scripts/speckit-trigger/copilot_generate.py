@@ -32,6 +32,8 @@ async def main() -> int:
         print("Error: COPILOT_GITHUB_TOKEN is required", file=sys.stderr)
         return 1
 
+    client = None
+    session = None
     try:
         client = CopilotClient(SubprocessConfig(github_token=token))
         await client.start()
@@ -63,12 +65,7 @@ async def main() -> int:
             print(
                 "Error: Copilot SDK response timed out after 300s", file=sys.stderr
             )
-            await session.disconnect()
-            await client.stop()
             return 1
-
-        await session.disconnect()
-        await client.stop()
 
         if not content.strip():
             print("Error: empty response from Copilot SDK", file=sys.stderr)
@@ -80,6 +77,11 @@ async def main() -> int:
     except Exception as exc:
         print(f"Error: Copilot SDK call failed: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if session is not None:
+            await session.disconnect()
+        if client is not None:
+            await client.stop()
 
 
 if __name__ == "__main__":

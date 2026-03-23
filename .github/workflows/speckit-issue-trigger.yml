@@ -199,9 +199,18 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
           .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
 
+      - name: Set up Python
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+
       - name: Install Copilot SDK
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
-        run: pip install github-copilot-sdk
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install github-copilot-sdk
 
       - name: Generate Specification
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
