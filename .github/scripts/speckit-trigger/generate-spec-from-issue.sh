@@ -247,6 +247,10 @@ $spec_content"
 
     local result
     result=$(call_llm "$prompt") || return 1
+    if [[ -z "$result" ]]; then
+        echo "Error: Clarify phase returned empty content" >&2
+        return 1
+    fi
     printf '%s\n' "$result" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
 }
@@ -306,6 +310,10 @@ $spec_content"
 
     local result
     result=$(call_llm "$prompt") || return 1
+    if [[ -z "$result" ]]; then
+        echo "Error: Checklist phase returned empty content" >&2
+        return 1
+    fi
     printf '%s\n' "$result" > "$SPEC_DIR/checklists/requirements.md"
     append_model_footer "$SPEC_DIR/checklists/requirements.md"
 }
@@ -388,6 +396,11 @@ $spec_content"
                 echo "  → Wrote $current_file"
             fi
             current_file="${BASH_REMATCH[1]}"
+            # Validate filename: reject path traversal and absolute paths
+            if [[ "$current_file" == /* || "$current_file" == *..* || -z "$current_file" ]]; then
+                echo "Warning: Skipping invalid artifact filename: $current_file" >&2
+                current_file=""
+            fi
             current_content=""
         else
             if [[ -n "$current_file" ]]; then
@@ -409,9 +422,9 @@ $line"
         echo "  → Wrote $current_file"
     fi
 
-    # Verify plan.md was produced (required artifact)
-    if [[ ! -f "$SPEC_DIR/plan.md" ]]; then
-        echo "Error: Plan phase did not produce plan.md" >&2
+    # Verify plan.md was produced and is non-empty (required artifact)
+    if [[ ! -s "$SPEC_DIR/plan.md" ]]; then
+        echo "Error: Plan phase did not produce a non-empty plan.md" >&2
         return 1
     fi
 }
@@ -481,6 +494,10 @@ $extra_context"
 
     local result
     result=$(call_llm "$prompt") || return 1
+    if [[ -z "$result" ]]; then
+        echo "Error: Tasks phase returned empty content" >&2
+        return 1
+    fi
     printf '%s\n' "$result" > "$SPEC_DIR/tasks.md"
     append_model_footer "$SPEC_DIR/tasks.md"
 }
@@ -548,6 +565,10 @@ $tasks_content"
 
     local result
     result=$(call_llm "$prompt") || return 1
+    if [[ -z "$result" ]]; then
+        echo "Error: Analyze phase returned empty content" >&2
+        return 1
+    fi
     printf '%s\n' "$result" > "$SPEC_DIR/analysis-report.md"
     append_model_footer "$SPEC_DIR/analysis-report.md"
 }
@@ -557,6 +578,10 @@ $tasks_content"
 echo ""
 echo "=== Phase 1/6: Specify ==="
 SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
+if [[ -z "$SPEC_CONTENT" ]]; then
+    echo "Error: Specify phase returned empty content" >&2
+    exit 1
+fi
 printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
 append_model_footer "$SPEC_DIR/spec.md"
 echo "✓ Phase 1 complete: spec.md"
@@ -599,6 +624,8 @@ echo "Spec File: $SPEC_FILE"
 echo "Spec Directory: $SPEC_DIR"
 echo ""
 echo "Artifacts produced:"
+shopt -s nullglob
 for f in "$SPEC_DIR"/*.md "$SPEC_DIR"/checklists/*.md "$SPEC_DIR"/contracts/*.md; do
-    [[ -f "$f" ]] && echo "  - ${f#"$SPEC_DIR/"}"
+    echo "  - ${f#"$SPEC_DIR/"}"
 done
+shopt -u nullglob
