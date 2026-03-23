@@ -86,6 +86,9 @@ class TestConfirmAccepted:
         assert config["issue_adapter"] == "jira"  # DEFAULT_ISSUE_ADAPTER fallback
         assert config["code_hosting"] == "azure_devops"
         assert config["azure_devops"]["project"] == "org/proj"
+
+
+class TestConfirmOverride:
     """User overrides the detected platforms."""
 
     def test_override_issue_adapter(self):
