@@ -53,7 +53,7 @@ When the `speckit` label is applied to this issue, the GitHub Action should:
 If the action fails:
 
 1. Check the [Actions tab](../../actions/workflows/speckit-issue-trigger.yml) for logs
-2. Verify `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`) repository secret is set
+2. Verify the repository has access to the GitHub Models API
 3. Ensure the `SPECKIT_TRIGGER_LABEL` repository variable matches the label used
 4. Review the "Failed" comment on this issue for specific error details
 

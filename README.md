@@ -838,10 +838,7 @@ Configure the action using repository variables:
 
 ### Required Secrets
 
-| Secret | Required For | Description |
-|--------|--------------|-------------|
-| `ANTHROPIC_API_KEY` | `claude` provider | Claude API key for spec generation |
-| `OPENAI_API_KEY` | `openai` provider | OpenAI API key for spec generation |
+No additional secrets are required — the workflow uses `GITHUB_TOKEN` (automatically provided) to authenticate with the GitHub Models API.
 
 ### Usage
 

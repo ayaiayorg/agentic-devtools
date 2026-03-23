@@ -7,7 +7,7 @@ An error occurred while generating the specification.
 ### Troubleshooting
 
 1. Check that the issue has a descriptive title and body
-2. Verify that required secrets are configured (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+2. Verify GitHub Models API access (the repository must have access to GitHub Models)
 3. Review the workflow logs for detailed error messages
 
 ### Manual Alternative

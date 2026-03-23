@@ -429,17 +429,14 @@ gh workflow run speckit-issue-trigger.yml \
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `SPECKIT_TRIGGER_LABEL` | `speckit` | Label that triggers the SDD workflow |
-| `SPECKIT_AI_PROVIDER` | `claude` | AI provider (`claude` or `openai`) |
+| `SPECKIT_COPILOT_MODEL` | `claude-sonnet-4-20250514` | Model for GitHub Models API spec generation |
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Set to `false` to suppress issue comments |
 | `SPECKIT_CREATE_BRANCH` | `true` | Set to `false` to skip branch creation |
 | `SPECKIT_CREATE_PR` | `true` | Set to `false` to skip PR creation |
 
 ### Required Secrets
 
-| Secret | When Required |
-| ------ | ------------- |
-| `ANTHROPIC_API_KEY` | When `SPECKIT_AI_PROVIDER=claude` |
-| `OPENAI_API_KEY` | When `SPECKIT_AI_PROVIDER=openai` |
+No additional secrets are required — the workflow uses `GITHUB_TOKEN` (automatically provided) to authenticate with the GitHub Models API.
 
 ### Issue Labels Used
 
