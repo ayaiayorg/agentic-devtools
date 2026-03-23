@@ -194,6 +194,46 @@ class TestJiraAdapter:
         detail = adapter.get_issue("PROJ-1")
         assert detail["comments"] == []
 
+    def test_get_issue_handles_null_comments_inside_comment_dict(self) -> None:
+        """get_issue normalizes null comments list to empty."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "comment": {"comments": None},
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert detail["comments"] == []
+
+    def test_get_issue_skips_non_dict_comment_entries(self) -> None:
+        """get_issue skips non-dict entries in the comments list."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "comment": {
+                    "comments": [
+                        {"id": "100", "body": "Good", "created": "2026-01-01"},
+                        "bad-entry",
+                        {"id": "200", "body": "Also good", "created": "2026-01-02"},
+                    ],
+                },
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert len(detail["comments"]) == 2
+        assert detail["comments"][0]["comment_id"] == "100"
+        assert detail["comments"][1]["comment_id"] == "200"
+
     def test_get_issue_handles_null_labels(self) -> None:
         """get_issue normalizes null labels to empty list."""
         mock_requests = MagicMock()

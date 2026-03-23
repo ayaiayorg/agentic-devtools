@@ -74,15 +74,21 @@ class JiraAdapter(IssueAdapter):
         status = fields.get("status", {}).get("name", "") if isinstance(fields.get("status"), dict) else ""
         url = f"{self._config.base_url}/browse/{issue_id}"
 
-        raw_comments = fields.get("comment", {}).get("comments", []) if isinstance(fields.get("comment"), dict) else []
-        comments: list[Comment] = [
-            Comment(
-                comment_id=str(c.get("id", "")),
-                body=c.get("body", ""),
-                created_at=c.get("created", ""),
+        comment_field = fields.get("comment")
+        raw_comments = comment_field.get("comments") if isinstance(comment_field, dict) else None
+        if not isinstance(raw_comments, list):
+            raw_comments = []
+        comments: list[Comment] = []
+        for c in raw_comments:
+            if not isinstance(c, dict):
+                continue
+            comments.append(
+                Comment(
+                    comment_id=str(c.get("id", "")),
+                    body=c.get("body", "") or "",
+                    created_at=c.get("created", "") or "",
+                )
             )
-            for c in raw_comments
-        ]
 
         return IssueDetail(
             issue_id=issue_id,

@@ -103,6 +103,17 @@ class TestMarkdownAdapter:
         with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
             adapter.get_issue("001")
 
+    def test_get_issue_missing_closing_delimiter_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when the closing --- delimiter is missing."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        bad_file = issues_dir / "001.md"
+        bad_file.write_text("---\ntitle: Hello\n", encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
+            adapter.get_issue("001")
+
     def test_get_issue_non_dict_frontmatter_raises(self, tmp_path: Path) -> None:
         """get_issue raises ValueError when YAML parses to a non-dict."""
         issues_dir = tmp_path / ".agdt" / "issues"
@@ -154,6 +165,38 @@ class TestMarkdownAdapter:
         adapter = MarkdownAdapter(repo_path=str(tmp_path))
         with pytest.raises(ValueError, match="each entry in 'comments' must be a mapping"):
             adapter.get_issue("001")
+
+    def test_get_issue_coerces_null_comment_body_and_created_at(self, tmp_path: Path) -> None:
+        """get_issue coerces null body/created_at in comments to empty strings."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments:\n"
+            "  - id: c1\n    body:\n    created_at:\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        detail = adapter.get_issue("001")
+        assert detail["comments"][0]["body"] == ""
+        assert detail["comments"][0]["created_at"] == ""
+
+    def test_get_issue_coerces_non_string_comment_fields(self, tmp_path: Path) -> None:
+        """get_issue coerces non-string body/created_at to str."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments:\n"
+            "  - id: c1\n    body: 42\n    created_at: 99\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        detail = adapter.get_issue("001")
+        assert detail["comments"][0]["body"] == "42"
+        assert detail["comments"][0]["created_at"] == "99"
 
     def test_get_issue_null_labels_defaults_to_empty(self, tmp_path: Path) -> None:
         """get_issue handles labels: null gracefully."""

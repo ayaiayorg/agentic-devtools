@@ -87,18 +87,37 @@ class MarkdownAdapter(IssueAdapter):
 
     @staticmethod
     def _read_issue(path: Path, issue_id: str) -> tuple[dict, str]:
-        """Read and parse an issue file, returning (frontmatter, description)."""
+        """Read and parse an issue file, returning (frontmatter, description).
+
+        Uses line-based delimiter detection so that ``---`` inside YAML
+        scalar values (e.g. a title containing ``---``) does not break
+        the parser.
+        """
         content = path.read_text(encoding="utf-8")
-        parts = content.split("---", 2)
-        if len(parts) < 3:
+        lines = content.splitlines(keepends=True)
+        if not lines or lines[0].strip() != "---":
             raise ValueError(f"Invalid frontmatter in issue {issue_id}")
+
+        # Collect YAML frontmatter lines until the closing '---' delimiter line.
+        fm_lines: list[str] = []
+        i = 1
+        while i < len(lines) and lines[i].strip() != "---":
+            fm_lines.append(lines[i])
+            i += 1
+
+        if i >= len(lines):
+            raise ValueError(f"Invalid frontmatter in issue {issue_id}")
+
+        fm_str = "".join(fm_lines)
         try:
-            fm = yaml.safe_load(parts[1])
+            fm = yaml.safe_load(fm_str)
         except yaml.YAMLError as exc:
             raise ValueError(f"Invalid frontmatter in issue {issue_id}") from exc
         if not isinstance(fm, dict):
             raise ValueError(f"Invalid frontmatter in issue {issue_id}")
-        description = parts[2].strip()
+
+        # The description starts after the closing '---' line.
+        description = "".join(lines[i + 1 :]).strip()
         return fm, description
 
     # ------------------------------------------------------------------
@@ -144,11 +163,17 @@ class MarkdownAdapter(IssueAdapter):
                 raise ValueError(
                     f"Issue {issue_id}: each entry in 'comments' must be a mapping, got {type(c).__name__}"
                 )
+            body = c.get("body", "")
+            if not isinstance(body, str):
+                body = "" if body is None else str(body)
+            created_at = c.get("created_at", "")
+            if not isinstance(created_at, str):
+                created_at = "" if created_at is None else str(created_at)
             comments.append(
                 Comment(
                     comment_id=str(c.get("id", "")),
-                    body=c.get("body", ""),
-                    created_at=c.get("created_at", ""),
+                    body=body,
+                    created_at=created_at,
                 )
             )
 
