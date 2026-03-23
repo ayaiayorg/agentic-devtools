@@ -73,8 +73,11 @@ class MarkdownAdapter(IssueAdapter):
 
         archive_dir.mkdir(parents=True)
 
+        # Only archive files whose stem matches the 3-digit issue ID pattern,
+        # so user-maintained files (e.g. readme.md) are not relocated.
         for md_file in self._issues_dir.glob("*.md"):
-            shutil.move(str(md_file), str(archive_dir / md_file.name))
+            if _ID_PATTERN.match(md_file.stem):
+                shutil.move(str(md_file), str(archive_dir / md_file.name))
 
     @staticmethod
     def _write_issue(path: Path, frontmatter: dict, description: str) -> None:
@@ -149,12 +152,21 @@ class MarkdownAdapter(IssueAdapter):
                 )
             )
 
+        raw_labels = fm.get("labels")
+        if raw_labels is None:
+            labels: list[str] = []
+        elif isinstance(raw_labels, list):
+            # Coerce non-string entries to str, skip None values.
+            labels = [str(v) for v in raw_labels if v is not None]
+        else:
+            raise ValueError(f"Issue {issue_id}: 'labels' frontmatter must be a list, got {type(raw_labels).__name__}")
+
         return IssueDetail(
             issue_id=str(fm.get("id", issue_id)),
             title=fm.get("title", ""),
             description=description,
             status=fm.get("status", ""),
-            labels=fm.get("labels", []),
+            labels=labels,
             url="",
             comments=comments,
         )
@@ -173,6 +185,13 @@ class MarkdownAdapter(IssueAdapter):
             raise ValueError(
                 f"Issue {issue_id}: 'comments' frontmatter must be a list, got {type(existing_comments).__name__}"
             )
+        # Validate each existing entry is a mapping so we don't silently
+        # append a dict next to a non-dict and corrupt the file.
+        for entry in existing_comments:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    f"Issue {issue_id}: each entry in 'comments' must be a mapping, got {type(entry).__name__}"
+                )
         next_num = len(existing_comments) + 1
         new_id = f"c{next_num}"
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -198,7 +217,11 @@ class MarkdownAdapter(IssueAdapter):
                 continue
 
             raw_labels = fm.get("labels")
-            issue_labels = raw_labels if isinstance(raw_labels, list) else []
+            # Normalize to list[str] — filter to strings to avoid TypeError
+            # from unhashable/non-string entries in manually edited frontmatter.
+            issue_labels: list[str] = (
+                [v for v in raw_labels if isinstance(v, str)] if isinstance(raw_labels, list) else []
+            )
 
             if filters:
                 state_filter = filters.get("state")

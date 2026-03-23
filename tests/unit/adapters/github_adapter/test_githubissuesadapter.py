@@ -234,3 +234,37 @@ class TestGitHubIssuesAdapter:
         detail = adapter.get_issue("1")
         assert detail["labels"] == []
         assert detail["comments"] == []
+
+    def test_get_issue_non_list_comments_raises(self) -> None:
+        """get_issue raises RuntimeError when comments is not a list."""
+        data = {
+            "number": 1,
+            "title": "T",
+            "body": "D",
+            "state": "OPEN",
+            "labels": [],
+            "url": "u",
+            "comments": "not-a-list",
+        }
+        run = _mock_run(stdout=json.dumps(data))
+        adapter = GitHubIssuesAdapter(repo="o/r", run_command=run)
+
+        with pytest.raises(RuntimeError, match="expected comments to be a list"):
+            adapter.get_issue("1")
+
+    def test_get_issue_non_dict_comment_entry_raises(self) -> None:
+        """get_issue raises RuntimeError when a comment entry is not a dict."""
+        data = {
+            "number": 1,
+            "title": "T",
+            "body": "D",
+            "state": "OPEN",
+            "labels": [],
+            "url": "u",
+            "comments": [{"id": "c1", "body": "ok", "createdAt": ""}, "bad"],
+        }
+        run = _mock_run(stdout=json.dumps(data))
+        adapter = GitHubIssuesAdapter(repo="o/r", run_command=run)
+
+        with pytest.raises(RuntimeError, match="expected each comment to be a dict.*index 1"):
+            adapter.get_issue("1")

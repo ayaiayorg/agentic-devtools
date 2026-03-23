@@ -155,6 +155,47 @@ class TestMarkdownAdapter:
         with pytest.raises(ValueError, match="each entry in 'comments' must be a mapping"):
             adapter.get_issue("001")
 
+    def test_get_issue_null_labels_defaults_to_empty(self, tmp_path: Path) -> None:
+        """get_issue handles labels: null gracefully."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels:\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        detail = adapter.get_issue("001")
+        assert detail["labels"] == []
+
+    def test_get_issue_non_list_labels_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when labels is a scalar."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: bug\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="'labels' frontmatter must be a list"):
+            adapter.get_issue("001")
+
+    def test_get_issue_labels_coerces_non_strings_and_skips_none(self, tmp_path: Path) -> None:
+        """get_issue coerces non-string label entries to str and skips None."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\n"
+            "labels:\n  - bug\n  - 42\n  -\n"
+            "created_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        detail = adapter.get_issue("001")
+        assert detail["labels"] == ["bug", "42"]
+
     # ------------------------------------------------------------------
     # add_comment
     # ------------------------------------------------------------------
@@ -206,6 +247,20 @@ class TestMarkdownAdapter:
 
         adapter = MarkdownAdapter(repo_path=str(tmp_path))
         with pytest.raises(ValueError, match="'comments' frontmatter must be a list"):
+            adapter.add_comment("001", "Hello")
+
+    def test_add_comment_non_dict_comment_entry_raises(self, tmp_path: Path) -> None:
+        """add_comment raises ValueError when existing comment is not a dict."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments:\n  - 'not-a-dict'\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="each entry in 'comments' must be a mapping"):
             adapter.add_comment("001", "Hello")
 
     # ------------------------------------------------------------------
@@ -283,6 +338,37 @@ class TestMarkdownAdapter:
         summaries = adapter.list_issues()
         assert len(summaries) == 1
         assert summaries[0]["labels"] == []
+
+    def test_list_issues_filters_non_string_labels(self, tmp_path: Path) -> None:
+        """list_issues filters non-string/unhashable label entries to avoid TypeError."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        # YAML list with a dict and null entry alongside valid strings
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\n"
+            "labels:\n  - bug\n  - {a: 1}\n  -\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["labels"] == ["bug"]
+
+    def test_list_issues_label_filter_with_unhashable_entries(self, tmp_path: Path) -> None:
+        """list_issues label filter works even when frontmatter has unhashable entries."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\n"
+            "labels:\n  - bug\n  - {a: 1}\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        summaries = adapter.list_issues(filters={"labels": ["bug"]})
+        assert len(summaries) == 1
+        assert summaries[0]["labels"] == ["bug"]
 
     def test_list_issues_does_not_include_archived(self, tmp_path: Path) -> None:
         """list_issues only reads the working directory, not archives."""
@@ -385,6 +471,29 @@ class TestMarkdownAdapter:
         with patch.object(Path, "iterdir", patched_iterdir):
             with pytest.raises(FileExistsError, match="Archive directory already exists"):
                 adapter._archive()
+
+    def test_archive_preserves_non_issue_md_files(self, tmp_path: Path) -> None:
+        """_archive only moves 3-digit issue files, leaving other .md files intact."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+
+        # Create one issue file and one non-issue markdown file
+        fm = (
+            "---\nid: '999'\ntitle: Issue\nstatus: open\n"
+            "labels: []\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n"
+        )
+        (issues_dir / "999.md").write_text(fm, encoding="utf-8")
+        (issues_dir / "readme.md").write_text("# Not an issue\n", encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter._archive()
+
+        # Issue file should be moved to archive
+        assert not (issues_dir / "999.md").exists()
+        assert (issues_dir / "A_000" / "999.md").exists()
+        # Non-issue file should remain in the working directory
+        assert (issues_dir / "readme.md").exists()
+        assert not (issues_dir / "A_000" / "readme.md").exists()
 
     def test_list_issues_skips_non_3digit_filenames(self, tmp_path: Path) -> None:
         """list_issues ignores .md files whose stem is not a 3-digit number."""

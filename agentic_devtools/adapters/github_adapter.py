@@ -89,14 +89,25 @@ class GitHubIssuesAdapter(IssueAdapter):
         label_names = [lb["name"] if isinstance(lb, dict) else str(lb) for lb in raw_labels]
 
         raw_comments = data.get("comments") or []
-        comments: list[Comment] = [
-            Comment(
-                comment_id=str(c.get("id", "")),
-                body=c.get("body", ""),
-                created_at=c.get("createdAt", ""),
+        if not isinstance(raw_comments, list):
+            raise RuntimeError(
+                f"Failed to parse gh output: expected comments to be a list, got {type(raw_comments).__name__}"
             )
-            for c in raw_comments
-        ]
+
+        comments: list[Comment] = []
+        for index, c in enumerate(raw_comments):
+            if not isinstance(c, dict):
+                raise RuntimeError(
+                    "Failed to parse gh output: expected each comment to be a dict, "
+                    f"but item at index {index} is {type(c).__name__}"
+                )
+            comments.append(
+                Comment(
+                    comment_id=str(c.get("id", "")),
+                    body=c.get("body", ""),
+                    created_at=c.get("createdAt", ""),
+                )
+            )
 
         return IssueDetail(
             issue_id=str(data.get("number", "")),
