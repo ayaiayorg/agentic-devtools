@@ -95,11 +95,14 @@ def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
       scheme is ``"basic"`` **or** an identity env var is set, Basic auth is
       used; otherwise Bearer.
 
-    SSL verification honours ``JIRA_SSL_VERIFY``:
+    SSL verification honours ``JIRA_SSL_VERIFY``, then falls back to
+    ``JIRA_CA_BUNDLE`` / ``REQUESTS_CA_BUNDLE`` (same env vars used by the
+    CLI helpers):
 
-    * ``"0"`` / ``"false"`` → disabled (``False``).
-    * Any other non-empty string → treated as a CA bundle path (``str``).
-    * Unset / empty → strict verification (``True``).
+    * ``JIRA_SSL_VERIFY="0"`` or ``"false"`` → disabled (``False``).
+    * ``JIRA_SSL_VERIFY`` set to any other non-empty value → CA bundle path.
+    * ``JIRA_CA_BUNDLE`` or ``REQUESTS_CA_BUNDLE`` set → CA bundle path.
+    * Nothing set → strict verification (``True``).
     """
     base_url = os.environ.get("JIRA_BASE_URL", "")
     token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
@@ -126,7 +129,9 @@ def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
     elif ssl_env:
         ssl_verify = ssl_env  # CA bundle path
     else:
-        ssl_verify = True
+        # Fall back to CA bundle env vars used by cli/jira/helpers._get_ssl_verify
+        ca_bundle = os.environ.get("JIRA_CA_BUNDLE", "") or os.environ.get("REQUESTS_CA_BUNDLE", "")
+        ssl_verify = ca_bundle if ca_bundle else True
 
     config = JiraConfig(base_url=base_url, headers=headers, ssl_verify=ssl_verify)
     project_key = platform_config.get("jira", {}).get("project_key", "") or None

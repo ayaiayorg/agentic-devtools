@@ -143,6 +143,8 @@ class TestGetAdapter:
         monkeypatch.setenv("JIRA_USERNAME", "user")
         monkeypatch.setenv("JIRA_API_TOKEN", "token")
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
 
         adapter = get_adapter(str(tmp_path))
         assert adapter._config.ssl_verify is True
@@ -294,6 +296,40 @@ class TestGetAdapter:
 
         adapter = get_adapter(str(tmp_path))
         assert adapter._config.ssl_verify == "/etc/ssl/certs/ca-bundle.crt"
+
+    def test_jira_ssl_verify_jira_ca_bundle_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter falls back to JIRA_CA_BUNDLE when JIRA_SSL_VERIFY is unset."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "token")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.setenv("JIRA_CA_BUNDLE", "/custom/ca-bundle.pem")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.ssl_verify == "/custom/ca-bundle.pem"
+
+    def test_jira_ssl_verify_requests_ca_bundle_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter falls back to REQUESTS_CA_BUNDLE when JIRA_SSL_VERIFY and JIRA_CA_BUNDLE are unset."""
+        _write_config(tmp_path, {"issue_adapter": "jira", "jira": {"project_key": "P"}})
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "token")
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_CA_BUNDLE", raising=False)
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/etc/pki/tls/certs/ca-bundle.crt")
+
+        adapter = get_adapter(str(tmp_path))
+        assert adapter._config.ssl_verify == "/etc/pki/tls/certs/ca-bundle.crt"
 
     # ------------------------------------------------------------------
     # GitHub adapter repo slug normalization
