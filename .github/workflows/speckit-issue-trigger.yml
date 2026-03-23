@@ -386,4 +386,4 @@ jobs:
               console.log('Could not update labels:', e.message);
             }
 
-    timeout-minutes: 10
+    timeout-minutes: 30
