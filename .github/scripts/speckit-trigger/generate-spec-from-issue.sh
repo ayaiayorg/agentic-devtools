@@ -184,13 +184,18 @@ Generate the specification now. Start with the header and metadata section."
             echo "$response" >&2
             return 1
         }
-        CONTENT=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+        CONTENT=$(printf '%s' "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null) || {
+            echo "Error: Failed to parse GitHub Models API response as JSON" >&2
+            echo "Raw response:" >&2
+            printf '%s\n' "$response" >&2
+            return 1
+        }
         if [[ -z "$CONTENT" ]]; then
             echo "Error: Empty response from GitHub Models API" >&2
             echo "Response: $response" >&2
             return 1
         fi
-        echo "$CONTENT"
+        printf '%s' "$CONTENT"
     }
 
     # Call with exponential backoff: max 3 attempts, starting at 5 seconds

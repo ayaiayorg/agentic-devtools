@@ -409,7 +409,7 @@ Specification-Driven Development (SDD) process when a label is applied to a GitH
 2. Apply the `speckit` label (or your configured `SPECKIT_TRIGGER_LABEL`) to the issue
 3. The `speckit-issue-trigger` workflow fires automatically:
    - Posts a "Started" comment within ~30 seconds
-   - Generates a `spec.md` using the configured AI provider
+   - Generates a `spec.md` via the GitHub Models API (model set by `SPECKIT_COPILOT_MODEL`)
    - Creates a feature branch (`NNN-feature-name`) and commits the spec
    - Opens a Pull Request and posts a "Completed" comment with links
 
