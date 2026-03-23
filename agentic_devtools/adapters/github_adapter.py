@@ -133,7 +133,12 @@ class GitHubIssuesAdapter(IssueAdapter):
             raise RuntimeError(f"Failed to parse gh output: expected list, got {type(items).__name__}")
 
         summaries: list[IssueSummary] = []
-        for item in items:
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise RuntimeError(
+                    "Failed to parse gh output: expected each issue to be a dict, "
+                    f"but item at index {index} is {type(item).__name__}"
+                )
             raw_labels = item.get("labels") or []
             label_names = [lb["name"] if isinstance(lb, dict) else str(lb) for lb in raw_labels]
             summaries.append(

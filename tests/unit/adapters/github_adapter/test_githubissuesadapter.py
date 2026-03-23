@@ -192,6 +192,14 @@ class TestGitHubIssuesAdapter:
         with pytest.raises(RuntimeError, match="expected list"):
             adapter.list_issues()
 
+    def test_list_issues_non_dict_item_raises_runtime_error(self) -> None:
+        """list_issues raises when an item in the list is not a dict."""
+        run = _mock_run(stdout='[{"number": 1, "title": "A", "state": "OPEN", "labels": [], "url": "u"}, "bad"]')
+        adapter = GitHubIssuesAdapter(repo="owner/repo", run_command=run)
+
+        with pytest.raises(RuntimeError, match="expected each issue to be a dict.*index 1"):
+            adapter.list_issues()
+
     def test_create_issue_empty_url(self) -> None:
         """create_issue handles empty stdout gracefully."""
         run = _mock_run(stdout="")

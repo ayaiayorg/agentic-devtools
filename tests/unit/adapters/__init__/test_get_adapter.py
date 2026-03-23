@@ -179,3 +179,21 @@ class TestGetAdapter:
         assert isinstance(adapter, JiraAdapter)
         # base_url is empty — will fail at call time, not construction time
         assert adapter._config.base_url == ""
+
+    def test_jira_no_project_key_constructs_adapter(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_adapter constructs JiraAdapter without project_key (lazy validation)."""
+        _write_config(
+            tmp_path,
+            {
+                "issue_adapter": "jira",
+                "jira": {},
+            },
+        )
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_USERNAME", "user")
+        monkeypatch.setenv("JIRA_API_TOKEN", "token")
+
+        adapter = get_adapter(str(tmp_path))
+        assert isinstance(adapter, JiraAdapter)
+        # project_key is empty — create_issue will fail, but get_issue/add_comment will work
+        assert adapter._project_key == ""

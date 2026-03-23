@@ -28,18 +28,32 @@ logger = logging.getLogger(__name__)
 class JiraAdapter(IssueAdapter):
     """Issue adapter backed by Jira REST API via :mod:`agentic_devtools.tools.jira`."""
 
-    def __init__(self, config: JiraConfig, project_key: str, issue_type: str = "Task") -> None:
-        if not project_key:
-            raise ValueError("project_key is required for JiraAdapter")
+    def __init__(self, config: JiraConfig, project_key: str | None = None, issue_type: str = "Task") -> None:
         self._config = config
-        self._project_key = project_key
+        self._project_key = project_key or ""
         self._issue_type = issue_type
+
+    def _require_project_key(self) -> str:
+        """Return the configured project key, raising if unset.
+
+        Only :meth:`create_issue` needs a project key; read/comment
+        operations work without one.  This keeps adapter construction
+        lazy — matching the factory's stated design.
+        """
+        if not self._project_key:
+            raise ValueError(
+                "JiraAdapter.create_issue requires a Jira project_key, but none was "
+                "configured. Set platform.jira.project_key in configuration or pass "
+                "project_key when constructing JiraAdapter."
+            )
+        return self._project_key
 
     def create_issue(self, title: str, description: str, labels: list[str] | None = None) -> IssueResult:
         """Create a Jira issue and return a shared :class:`IssueResult`."""
+        project_key = self._require_project_key()
         result = jira_create_issue(
             config=self._config,
-            project_key=self._project_key,
+            project_key=project_key,
             summary=title,
             issue_type=self._issue_type,
             description=description,
@@ -55,7 +69,8 @@ class JiraAdapter(IssueAdapter):
 
         title = fields.get("summary", "")
         description = fields.get("description") or ""
-        labels = fields.get("labels", [])
+        raw_labels = fields.get("labels")
+        labels = [label for label in raw_labels if isinstance(label, str)] if isinstance(raw_labels, list) else []
         status = fields.get("status", {}).get("name", "") if isinstance(fields.get("status"), dict) else ""
         url = f"{self._config.base_url}/browse/{issue_id}"
 

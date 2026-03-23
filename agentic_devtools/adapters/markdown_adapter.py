@@ -127,15 +127,27 @@ class MarkdownAdapter(IssueAdapter):
 
         fm, description = self._read_issue(path, issue_id)
 
-        raw_comments = fm.get("comments") or []
-        comments: list[Comment] = [
-            Comment(
-                comment_id=str(c.get("id", "")),
-                body=c.get("body", ""),
-                created_at=c.get("created_at", ""),
+        raw_comments = fm.get("comments")
+        if raw_comments is None:
+            raw_comments = []
+        elif not isinstance(raw_comments, list):
+            raise ValueError(
+                f"Issue {issue_id}: 'comments' frontmatter must be a list, got {type(raw_comments).__name__}"
             )
-            for c in raw_comments
-        ]
+
+        comments: list[Comment] = []
+        for c in raw_comments:
+            if not isinstance(c, dict):
+                raise ValueError(
+                    f"Issue {issue_id}: each entry in 'comments' must be a mapping, got {type(c).__name__}"
+                )
+            comments.append(
+                Comment(
+                    comment_id=str(c.get("id", "")),
+                    body=c.get("body", ""),
+                    created_at=c.get("created_at", ""),
+                )
+            )
 
         return IssueDetail(
             issue_id=str(fm.get("id", issue_id)),
@@ -154,7 +166,13 @@ class MarkdownAdapter(IssueAdapter):
             raise FileNotFoundError(f"Issue {issue_id} not found")
 
         fm, description = self._read_issue(path, issue_id)
-        existing_comments = fm.get("comments") or []
+        existing_comments = fm.get("comments")
+        if existing_comments is None:
+            existing_comments = []
+        elif not isinstance(existing_comments, list):
+            raise ValueError(
+                f"Issue {issue_id}: 'comments' frontmatter must be a list, got {type(existing_comments).__name__}"
+            )
         next_num = len(existing_comments) + 1
         new_id = f"c{next_num}"
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -179,12 +197,15 @@ class MarkdownAdapter(IssueAdapter):
             except (ValueError, OSError):
                 continue
 
+            raw_labels = fm.get("labels")
+            issue_labels = raw_labels if isinstance(raw_labels, list) else []
+
             if filters:
                 state_filter = filters.get("state")
                 if state_filter and fm.get("status", "") != state_filter:
                     continue
                 label_filter = filters.get("labels")
-                if label_filter and not set(label_filter) & set(fm.get("labels", [])):
+                if label_filter and not set(label_filter) & set(issue_labels):
                     continue
 
             summaries.append(
@@ -192,7 +213,7 @@ class MarkdownAdapter(IssueAdapter):
                     issue_id=str(fm.get("id", md_file.stem)),
                     title=fm.get("title", ""),
                     status=fm.get("status", ""),
-                    labels=fm.get("labels", []),
+                    labels=issue_labels,
                     url="",
                 )
             )

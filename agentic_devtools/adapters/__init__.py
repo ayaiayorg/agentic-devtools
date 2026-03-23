@@ -96,7 +96,7 @@ def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
     ssl_verify = ssl_verify_env.lower() not in ("0", "false") if ssl_verify_env else True
 
     config = JiraConfig(base_url=base_url, headers=headers, ssl_verify=ssl_verify)
-    project_key = platform_config.get("jira", {}).get("project_key", "")
+    project_key = platform_config.get("jira", {}).get("project_key", "") or None
     return JiraAdapter(config=config, project_key=project_key)
 
 

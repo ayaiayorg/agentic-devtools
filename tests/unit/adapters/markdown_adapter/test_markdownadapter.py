@@ -114,6 +114,47 @@ class TestMarkdownAdapter:
         with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
             adapter.get_issue("001")
 
+    def test_get_issue_null_comments_defaults_to_empty(self, tmp_path: Path) -> None:
+        """get_issue handles comments: null gracefully."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\ncreated_at: '2026-01-01'\ncomments:\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        detail = adapter.get_issue("001")
+        assert detail["comments"] == []
+
+    def test_get_issue_non_list_comments_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when comments is not a list."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments: 'not-a-list'\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="'comments' frontmatter must be a list"):
+            adapter.get_issue("001")
+
+    def test_get_issue_non_dict_comment_entry_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when a comment entry is not a dict."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments:\n  - 'just-a-string'\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="each entry in 'comments' must be a mapping"):
+            adapter.get_issue("001")
+
     # ------------------------------------------------------------------
     # add_comment
     # ------------------------------------------------------------------
@@ -139,6 +180,33 @@ class TestMarkdownAdapter:
         adapter = MarkdownAdapter(repo_path=str(tmp_path))
         with pytest.raises(FileNotFoundError, match="Issue 999 not found"):
             adapter.add_comment("999", "Comment")
+
+    def test_add_comment_null_comments_creates_first(self, tmp_path: Path) -> None:
+        """add_comment handles comments: null by starting a fresh list."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\ncreated_at: '2026-01-01'\ncomments:\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        result = adapter.add_comment("001", "Hello")
+        assert result["comment_id"] == "c1"
+
+    def test_add_comment_non_list_comments_raises(self, tmp_path: Path) -> None:
+        """add_comment raises ValueError when comments is not a list."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: []\n"
+            "created_at: '2026-01-01'\ncomments: 'not-a-list'\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="'comments' frontmatter must be a list"):
+            adapter.add_comment("001", "Hello")
 
     # ------------------------------------------------------------------
     # list_issues
@@ -187,6 +255,34 @@ class TestMarkdownAdapter:
         ids = [s["issue_id"] for s in bug_issues]
         assert "001" in ids
         assert "003" in ids
+
+    def test_list_issues_normalizes_null_labels(self, tmp_path: Path) -> None:
+        """list_issues normalizes null labels to empty list without crashing."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels:\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["labels"] == []
+
+    def test_list_issues_normalizes_scalar_labels(self, tmp_path: Path) -> None:
+        """list_issues normalizes scalar labels to empty list without crashing."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        (issues_dir / "001.md").write_text(
+            "---\nid: '001'\ntitle: T\nstatus: open\nlabels: bug\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n",
+            encoding="utf-8",
+        )
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["labels"] == []
 
     def test_list_issues_does_not_include_archived(self, tmp_path: Path) -> None:
         """list_issues only reads the working directory, not archives."""

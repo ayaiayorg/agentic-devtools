@@ -24,14 +24,46 @@ class TestJiraAdapter:
     """Tests for the JiraAdapter concrete implementation."""
 
     def test_constructor_raises_on_empty_project_key(self) -> None:
-        """Raises ValueError when project_key is empty."""
-        with pytest.raises(ValueError, match="project_key is required"):
-            JiraAdapter(config=_make_config(), project_key="")
+        """Raises ValueError when project_key is empty and create_issue is called."""
+        adapter = JiraAdapter(config=_make_config(), project_key="")
+        with pytest.raises(ValueError, match="project_key"):
+            adapter.create_issue("Title", "Desc")
 
-    def test_constructor_raises_on_none_project_key(self) -> None:
-        """Raises ValueError when project_key is falsy (None cast)."""
-        with pytest.raises(ValueError, match="project_key is required"):
-            JiraAdapter(config=_make_config(), project_key="")
+    def test_constructor_accepts_none_project_key(self) -> None:
+        """Constructor accepts None project_key for read-only operations."""
+        adapter = JiraAdapter(config=_make_config(), project_key=None)
+        # Should not raise — only create_issue needs project_key
+        assert adapter._project_key == ""
+
+    def test_create_issue_raises_without_project_key(self) -> None:
+        """create_issue raises ValueError when project_key was not provided."""
+        adapter = JiraAdapter(config=_make_config())
+        with pytest.raises(ValueError, match="project_key"):
+            adapter.create_issue("Title", "Desc")
+
+    def test_get_issue_works_without_project_key(self) -> None:
+        """get_issue works even when project_key is not set."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {"summary": "Issue"},
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests))
+        detail = adapter.get_issue("PROJ-1")
+        assert detail["title"] == "Issue"
+
+    def test_add_comment_works_without_project_key(self) -> None:
+        """add_comment works even when project_key is not set."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": "555"}
+        mock_requests.post.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests))
+        result = adapter.add_comment("PROJ-1", "Hello")
+        assert result["comment_id"] == "555"
 
     def test_create_issue_delegates_and_maps_result(self) -> None:
         """create_issue calls jira.create_issue and maps to IssueResult."""
@@ -160,6 +192,38 @@ class TestJiraAdapter:
         adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
         detail = adapter.get_issue("PROJ-1")
         assert detail["comments"] == []
+
+    def test_get_issue_handles_null_labels(self) -> None:
+        """get_issue normalizes null labels to empty list."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "labels": None,
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert detail["labels"] == []
+
+    def test_get_issue_filters_non_string_labels(self) -> None:
+        """get_issue filters out non-string entries from labels list."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "labels": ["bug", 42, "feature", None],
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert detail["labels"] == ["bug", "feature"]
 
     def test_add_comment_delegates_and_maps_result(self) -> None:
         """add_comment calls jira.add_comment and maps to CommentResult."""
