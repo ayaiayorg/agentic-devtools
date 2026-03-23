@@ -1,6 +1,6 @@
 """Tests for agentic_devtools.cli.setup.platform_detection.detect_platforms."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.setup.platform_detection import detect_platforms
 
@@ -307,3 +307,45 @@ class TestDetectPlatformsEdgeCases:
         assert result.confidence["jira"] == "high"
         assert result.confidence["github"] == "high"
         assert result.detected_code_hosting == "github"
+
+
+class TestDetectPlatformsGitErrors:
+    """detect_platforms behavior when git commands fail."""
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_git_not_installed(self, mock_run, tmp_path):
+        """Return empty detection when git is not installed (FileNotFoundError)."""
+        mock_run.side_effect = FileNotFoundError("git not found")
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None
+        assert result.github_repo is None
+        assert result.azure_devops_project is None
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_no_origin_remote(self, mock_run, tmp_path):
+        """Return empty hosting when subprocess returns non-zero (no origin remote)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None
+
+    @patch(f"{_MOD}.subprocess.run")
+    def test_handles_os_error(self, mock_run, tmp_path):
+        """Return empty hosting when OSError occurs."""
+        mock_run.side_effect = OSError("Permission denied")
+        mock_cfg = {"issue_adapter": "github", "jira": {}, "github": {}, "azure_devops": {}}
+
+        with patch(f"{_MOD}.load_platform_config", return_value=mock_cfg):
+            result = detect_platforms(str(tmp_path))
+
+        assert result.detected_code_hosting is None

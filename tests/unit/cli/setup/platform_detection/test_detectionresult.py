@@ -1,5 +1,9 @@
 """Tests for agentic_devtools.cli.setup.platform_detection.DetectionResult."""
 
+import dataclasses
+from collections import UserDict
+from types import MappingProxyType
+
 from agentic_devtools.cli.setup.platform_detection import DetectionResult
 
 
@@ -22,8 +26,6 @@ class TestDetectionResultFrozen:
 
     def test_is_frozen(self):
         """DetectionResult is immutable."""
-        import dataclasses
-
         result = DetectionResult()
 
         try:
@@ -38,8 +40,6 @@ class TestDetectionResultConfidenceImmutability:
 
     def test_confidence_is_immutable(self):
         """Confidence mapping cannot be mutated after construction."""
-        from types import MappingProxyType
-
         result = DetectionResult(confidence={"jira": "high"})
 
         assert isinstance(result.confidence, MappingProxyType)
@@ -53,8 +53,6 @@ class TestDetectionResultConfidenceImmutability:
 
     def test_confidence_wraps_dict_to_mapping_proxy(self):
         """A plain dict passed as confidence is wrapped in MappingProxyType."""
-        from types import MappingProxyType
-
         raw = {"github": "medium"}
         result = DetectionResult(confidence=raw)
 
@@ -66,9 +64,6 @@ class TestDetectionResultConfidenceImmutability:
 
     def test_confidence_wraps_non_dict_mapping(self):
         """A non-dict Mapping (e.g. UserDict) is also wrapped in MappingProxyType."""
-        from collections import UserDict
-        from types import MappingProxyType
-
         raw = UserDict({"jira": "high"})
         result = DetectionResult(confidence=raw)
 
@@ -77,8 +72,6 @@ class TestDetectionResultConfidenceImmutability:
 
     def test_confidence_already_mapping_proxy_not_rewrapped(self):
         """A MappingProxyType passed as confidence is not double-wrapped."""
-        from types import MappingProxyType
-
         proxy = MappingProxyType({"azure_devops": "high"})
         result = DetectionResult(confidence=proxy)
 
