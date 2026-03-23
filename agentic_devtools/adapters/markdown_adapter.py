@@ -1,0 +1,199 @@
+"""Markdown file-based issue adapter.
+
+Stores issues as individual markdown files with YAML frontmatter under
+``.agdt/issues/`` in the repository root.  Provides a lightweight
+alternative for users who do not use Jira or GitHub Issues.
+"""
+
+from __future__ import annotations
+
+import datetime
+import logging
+import re
+import shutil
+from pathlib import Path
+
+import yaml
+
+from agentic_devtools.adapters.base import (
+    Comment,
+    CommentResult,
+    IssueAdapter,
+    IssueDetail,
+    IssueFilters,
+    IssueResult,
+    IssueSummary,
+)
+
+logger = logging.getLogger(__name__)
+
+_ID_PATTERN = re.compile(r"^\d{3}$")
+_ARCHIVE_PATTERN = re.compile(r"^A_(\d{3})$")
+
+
+class MarkdownAdapter(IssueAdapter):
+    """Issue adapter that reads/writes markdown files in ``.agdt/issues/``."""
+
+    def __init__(self, repo_path: str) -> None:
+        self._issues_dir = Path(repo_path) / ".agdt" / "issues"
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _next_id(self) -> str:
+        """Determine the next 3-digit zero-padded issue ID.
+
+        If the current max ID is 999, archives all existing files first.
+        """
+        if not self._issues_dir.exists():
+            return "001"
+
+        existing = sorted(int(p.stem) for p in self._issues_dir.glob("*.md") if _ID_PATTERN.match(p.stem))
+        if not existing:
+            return "001"
+
+        max_id = existing[-1]
+        if max_id >= 999:
+            self._archive()
+            return "001"
+
+        return f"{max_id + 1:03d}"
+
+    def _archive(self) -> None:
+        """Move all ``.md`` files in the working directory into an archive folder."""
+        existing_archives = sorted(
+            int(m.group(1)) for d in self._issues_dir.iterdir() if d.is_dir() and (m := _ARCHIVE_PATTERN.match(d.name))
+        )
+        next_archive_num = (existing_archives[-1] + 1) if existing_archives else 0
+        archive_dir = self._issues_dir / f"A_{next_archive_num:03d}"
+
+        if archive_dir.exists():
+            raise FileExistsError(f"Archive directory already exists: {archive_dir}")
+
+        archive_dir.mkdir(parents=True)
+
+        for md_file in self._issues_dir.glob("*.md"):
+            shutil.move(str(md_file), str(archive_dir / md_file.name))
+
+    @staticmethod
+    def _write_issue(path: Path, frontmatter: dict, description: str) -> None:
+        """Write an issue file with YAML frontmatter and markdown body."""
+        yaml_str = yaml.safe_dump(frontmatter, default_flow_style=False, sort_keys=False)
+        path.write_text(f"---\n{yaml_str}---\n{description}\n", encoding="utf-8")
+
+    @staticmethod
+    def _read_issue(path: Path, issue_id: str) -> tuple[dict, str]:
+        """Read and parse an issue file, returning (frontmatter, description)."""
+        content = path.read_text(encoding="utf-8")
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            raise ValueError(f"Invalid frontmatter in issue {issue_id}")
+        try:
+            fm = yaml.safe_load(parts[1])
+        except yaml.YAMLError as exc:
+            raise ValueError(f"Invalid frontmatter in issue {issue_id}") from exc
+        if not isinstance(fm, dict):
+            raise ValueError(f"Invalid frontmatter in issue {issue_id}")
+        description = parts[2].strip()
+        return fm, description
+
+    # ------------------------------------------------------------------
+    # IssueAdapter interface
+    # ------------------------------------------------------------------
+
+    def create_issue(self, title: str, description: str, labels: list[str] | None = None) -> IssueResult:
+        """Create a new markdown issue file."""
+        self._issues_dir.mkdir(parents=True, exist_ok=True)
+        issue_id = self._next_id()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        frontmatter: dict = {
+            "id": issue_id,
+            "title": title,
+            "status": "open",
+            "labels": labels or [],
+            "created_at": now,
+            "comments": [],
+        }
+        self._write_issue(self._issues_dir / f"{issue_id}.md", frontmatter, description)
+        return IssueResult(issue_id=issue_id, url="")
+
+    def get_issue(self, issue_id: str) -> IssueDetail:
+        """Read a markdown issue file and return an :class:`IssueDetail`."""
+        path = self._issues_dir / f"{issue_id}.md"
+        if not path.exists():
+            raise FileNotFoundError(f"Issue {issue_id} not found")
+
+        fm, description = self._read_issue(path, issue_id)
+
+        raw_comments = fm.get("comments") or []
+        comments: list[Comment] = [
+            Comment(
+                comment_id=str(c.get("id", "")),
+                body=c.get("body", ""),
+                created_at=c.get("created_at", ""),
+            )
+            for c in raw_comments
+        ]
+
+        return IssueDetail(
+            issue_id=str(fm.get("id", issue_id)),
+            title=fm.get("title", ""),
+            description=description,
+            status=fm.get("status", ""),
+            labels=fm.get("labels", []),
+            url="",
+            comments=comments,
+        )
+
+    def add_comment(self, issue_id: str, comment: str) -> CommentResult:
+        """Append a comment to an existing markdown issue file."""
+        path = self._issues_dir / f"{issue_id}.md"
+        if not path.exists():
+            raise FileNotFoundError(f"Issue {issue_id} not found")
+
+        fm, description = self._read_issue(path, issue_id)
+        existing_comments = fm.get("comments") or []
+        next_num = len(existing_comments) + 1
+        new_id = f"c{next_num}"
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        existing_comments.append({"id": new_id, "body": comment, "created_at": now})
+        fm["comments"] = existing_comments
+
+        self._write_issue(path, fm, description)
+        return CommentResult(comment_id=new_id)
+
+    def list_issues(self, filters: IssueFilters | None = None) -> list[IssueSummary]:
+        """List all non-archived markdown issues, optionally filtered."""
+        if not self._issues_dir.exists():
+            return []
+
+        summaries: list[IssueSummary] = []
+        for md_file in sorted(self._issues_dir.glob("*.md")):
+            if not _ID_PATTERN.match(md_file.stem):
+                continue
+            try:
+                fm, _ = self._read_issue(md_file, md_file.stem)
+            except (ValueError, OSError):
+                continue
+
+            if filters:
+                state_filter = filters.get("state")
+                if state_filter and fm.get("status", "") != state_filter:
+                    continue
+                label_filter = filters.get("labels")
+                if label_filter and not set(label_filter) & set(fm.get("labels", [])):
+                    continue
+
+            summaries.append(
+                IssueSummary(
+                    issue_id=str(fm.get("id", md_file.stem)),
+                    title=fm.get("title", ""),
+                    status=fm.get("status", ""),
+                    labels=fm.get("labels", []),
+                    url="",
+                )
+            )
+        return summaries

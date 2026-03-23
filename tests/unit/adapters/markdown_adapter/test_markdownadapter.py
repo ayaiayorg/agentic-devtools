@@ -1,0 +1,304 @@
+"""Tests for agentic_devtools.adapters.markdown_adapter.MarkdownAdapter."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from agentic_devtools.adapters.markdown_adapter import MarkdownAdapter
+
+
+class TestMarkdownAdapter:
+    """Tests for the MarkdownAdapter concrete implementation."""
+
+    # ------------------------------------------------------------------
+    # create_issue
+    # ------------------------------------------------------------------
+
+    def test_create_issue_creates_directory_and_file(self, tmp_path: Path) -> None:
+        """create_issue creates .agdt/issues/ and writes the issue file."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        result = adapter.create_issue("First issue", "Description here", labels=["bug"])
+
+        assert result["issue_id"] == "001"
+        assert result["url"] == ""
+
+        issue_file = tmp_path / ".agdt" / "issues" / "001.md"
+        assert issue_file.exists()
+        content = issue_file.read_text(encoding="utf-8")
+        assert "title: First issue" in content
+        assert "Description here" in content
+
+    def test_create_issue_sequential_ids(self, tmp_path: Path) -> None:
+        """create_issue assigns sequential IDs: 001, 002, etc."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        r1 = adapter.create_issue("First", "Desc 1")
+        r2 = adapter.create_issue("Second", "Desc 2")
+        r3 = adapter.create_issue("Third", "Desc 3")
+
+        assert r1["issue_id"] == "001"
+        assert r2["issue_id"] == "002"
+        assert r3["issue_id"] == "003"
+
+    def test_create_issue_when_dir_not_exists_via_next_id(self, tmp_path: Path) -> None:
+        """_next_id returns '001' when .agdt/issues/ directory does not exist."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        # Call _next_id directly before the directory is created
+        assert adapter._next_id() == "001"
+
+    def test_create_issue_without_labels(self, tmp_path: Path) -> None:
+        """create_issue defaults labels to empty list when None."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("No labels", "Desc")
+
+        issue_file = tmp_path / ".agdt" / "issues" / "001.md"
+        content = issue_file.read_text(encoding="utf-8")
+        assert "labels: []" in content
+
+    # ------------------------------------------------------------------
+    # get_issue
+    # ------------------------------------------------------------------
+
+    def test_get_issue_reads_file(self, tmp_path: Path) -> None:
+        """get_issue parses the file and returns IssueDetail."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("My issue", "Body text", labels=["feature"])
+
+        detail = adapter.get_issue("001")
+
+        assert detail["issue_id"] == "001"
+        assert detail["title"] == "My issue"
+        assert detail["description"] == "Body text"
+        assert detail["status"] == "open"
+        assert detail["labels"] == ["feature"]
+        assert detail["url"] == ""
+        assert detail["comments"] == []
+
+    def test_get_issue_missing_file_raises(self, tmp_path: Path) -> None:
+        """get_issue raises FileNotFoundError for non-existent issue."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(FileNotFoundError, match="Issue 999 not found"):
+            adapter.get_issue("999")
+
+    def test_get_issue_malformed_yaml_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when YAML is invalid."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        bad_file = issues_dir / "001.md"
+        bad_file.write_text("---\n: :\n  bad yaml\n---\nBody\n", encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
+            adapter.get_issue("001")
+
+    def test_get_issue_missing_frontmatter_delimiters_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when frontmatter delimiters are missing."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        bad_file = issues_dir / "001.md"
+        bad_file.write_text("No frontmatter here\n", encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
+            adapter.get_issue("001")
+
+    def test_get_issue_non_dict_frontmatter_raises(self, tmp_path: Path) -> None:
+        """get_issue raises ValueError when YAML parses to a non-dict."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+        bad_file = issues_dir / "001.md"
+        bad_file.write_text("---\n- item1\n- item2\n---\nBody\n", encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(ValueError, match="Invalid frontmatter in issue 001"):
+            adapter.get_issue("001")
+
+    # ------------------------------------------------------------------
+    # add_comment
+    # ------------------------------------------------------------------
+
+    def test_add_comment_appends_and_returns_id(self, tmp_path: Path) -> None:
+        """add_comment appends a comment with auto-incremented ID."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Issue", "Body")
+
+        r1 = adapter.add_comment("001", "First comment")
+        r2 = adapter.add_comment("001", "Second comment")
+
+        assert r1["comment_id"] == "c1"
+        assert r2["comment_id"] == "c2"
+
+        detail = adapter.get_issue("001")
+        assert len(detail["comments"]) == 2
+        assert detail["comments"][0]["body"] == "First comment"
+        assert detail["comments"][1]["body"] == "Second comment"
+
+    def test_add_comment_missing_issue_raises(self, tmp_path: Path) -> None:
+        """add_comment raises FileNotFoundError for non-existent issue."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        with pytest.raises(FileNotFoundError, match="Issue 999 not found"):
+            adapter.add_comment("999", "Comment")
+
+    # ------------------------------------------------------------------
+    # list_issues
+    # ------------------------------------------------------------------
+
+    def test_list_issues_returns_all(self, tmp_path: Path) -> None:
+        """list_issues returns all issues in the working directory."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("A", "Body A", labels=["bug"])
+        adapter.create_issue("B", "Body B", labels=["feature"])
+
+        summaries = adapter.list_issues()
+
+        assert len(summaries) == 2
+        assert summaries[0]["issue_id"] == "001"
+        assert summaries[1]["issue_id"] == "002"
+
+    def test_list_issues_empty_directory(self, tmp_path: Path) -> None:
+        """list_issues returns empty list when no issues exist."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        assert adapter.list_issues() == []
+
+    def test_list_issues_filters_by_state(self, tmp_path: Path) -> None:
+        """list_issues filters by state matching status."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Open", "Body")
+        # Manually close the second issue
+        adapter.create_issue("Closed", "Body")
+        issue_file = tmp_path / ".agdt" / "issues" / "002.md"
+        content = issue_file.read_text(encoding="utf-8")
+        issue_file.write_text(content.replace("status: open", "status: closed"), encoding="utf-8")
+
+        open_issues = adapter.list_issues(filters={"state": "open"})
+        assert len(open_issues) == 1
+        assert open_issues[0]["issue_id"] == "001"
+
+    def test_list_issues_filters_by_labels(self, tmp_path: Path) -> None:
+        """list_issues filters by labels (intersection match)."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Bug", "Body", labels=["bug"])
+        adapter.create_issue("Feature", "Body", labels=["feature"])
+        adapter.create_issue("Both", "Body", labels=["bug", "feature"])
+
+        bug_issues = adapter.list_issues(filters={"labels": ["bug"]})
+        assert len(bug_issues) == 2
+        ids = [s["issue_id"] for s in bug_issues]
+        assert "001" in ids
+        assert "003" in ids
+
+    def test_list_issues_does_not_include_archived(self, tmp_path: Path) -> None:
+        """list_issues only reads the working directory, not archives."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        # Create one issue, then manually create an archive folder with files
+        adapter.create_issue("Current", "Body")
+
+        archive_dir = tmp_path / ".agdt" / "issues" / "A_000"
+        archive_dir.mkdir()
+        archived_fm = (
+            "---\nid: '001'\ntitle: Archived\nstatus: open\n"
+            "labels: []\ncreated_at: '2026-01-01'\ncomments: []\n---\nOld\n"
+        )
+        (archive_dir / "001.md").write_text(archived_fm, encoding="utf-8")
+
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["title"] == "Current"
+
+    def test_list_issues_skips_malformed_files(self, tmp_path: Path) -> None:
+        """list_issues skips files that cannot be parsed."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Good", "Body")
+
+        bad_file = tmp_path / ".agdt" / "issues" / "002.md"
+        bad_file.write_text("No valid frontmatter\n", encoding="utf-8")
+
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+
+    # ------------------------------------------------------------------
+    # Archival
+    # ------------------------------------------------------------------
+
+    def test_archival_at_999(self, tmp_path: Path) -> None:
+        """When 999 issues exist, creating a new one archives all to A_000/."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+
+        # Create issue 999 directly to avoid creating 999 files
+        for i in (1, 999):
+            fm = (
+                f"---\nid: '{i:03d}'\ntitle: Issue {i}\nstatus: open\n"
+                f"labels: []\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody {i}\n"
+            )
+            (issues_dir / f"{i:03d}.md").write_text(fm, encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        result = adapter.create_issue("New after archive", "Body")
+
+        assert result["issue_id"] == "001"
+        assert (issues_dir / "A_000").is_dir()
+        assert (issues_dir / "A_000" / "001.md").exists()
+        assert (issues_dir / "A_000" / "999.md").exists()
+        assert (issues_dir / "001.md").exists()
+
+    def test_second_archival(self, tmp_path: Path) -> None:
+        """Second overflow archives to A_001/."""
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+
+        # Simulate first archive already exists
+        (issues_dir / "A_000").mkdir()
+
+        fm = (
+            "---\nid: '999'\ntitle: Issue\nstatus: open\n"
+            "labels: []\ncreated_at: '2026-01-01'\ncomments: []\n---\nBody\n"
+        )
+        (issues_dir / "999.md").write_text(fm, encoding="utf-8")
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        result = adapter.create_issue("After second archive", "Body")
+
+        assert result["issue_id"] == "001"
+        assert (issues_dir / "A_001").is_dir()
+        assert (issues_dir / "A_001" / "999.md").exists()
+
+    def test_archive_dir_already_exists_raises(self, tmp_path: Path) -> None:
+        """FileExistsError is raised when computed archive dir exists unexpectedly."""
+        from unittest.mock import patch
+
+        issues_dir = tmp_path / ".agdt" / "issues"
+        issues_dir.mkdir(parents=True)
+
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+
+        # Pre-create A_000 (the dir the algorithm will compute when no archives exist)
+        archive_target = issues_dir / "A_000"
+        archive_target.mkdir()
+
+        # Patch iterdir so A_000 is hidden from _archive's scan
+        real_iterdir = Path.iterdir
+
+        def patched_iterdir(self_path: Path):
+            for item in real_iterdir(self_path):
+                if item.name == "A_000" and self_path == issues_dir:
+                    continue
+                yield item
+
+        with patch.object(Path, "iterdir", patched_iterdir):
+            with pytest.raises(FileExistsError, match="Archive directory already exists"):
+                adapter._archive()
+
+    def test_list_issues_skips_non_3digit_filenames(self, tmp_path: Path) -> None:
+        """list_issues ignores .md files whose stem is not a 3-digit number."""
+        adapter = MarkdownAdapter(repo_path=str(tmp_path))
+        adapter.create_issue("Valid", "Body")
+
+        # Create a non-matching md file
+        non_matching = tmp_path / ".agdt" / "issues" / "readme.md"
+        non_matching.write_text("# Not an issue\n", encoding="utf-8")
+
+        summaries = adapter.list_issues()
+        assert len(summaries) == 1
+        assert summaries[0]["issue_id"] == "001"
