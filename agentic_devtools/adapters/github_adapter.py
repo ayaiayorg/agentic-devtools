@@ -82,7 +82,7 @@ class GitHubIssuesAdapter(IssueAdapter):
         if not isinstance(data, dict):
             raise RuntimeError(f"Failed to parse gh output: expected dict, got {type(data).__name__}")
 
-        raw_labels = data.get("labels") or []
+        raw_labels = data.get("labels")
         if not isinstance(raw_labels, list):
             raw_labels = []
         label_names = [lb["name"] if isinstance(lb, dict) else str(lb) for lb in raw_labels]
