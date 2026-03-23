@@ -68,7 +68,14 @@ class JiraAdapter(IssueAdapter):
         fields = issue.get("fields", {})
 
         title = fields.get("summary", "")
-        description = fields.get("description") or ""
+        raw_description = fields.get("description")
+        # Jira Cloud may return ADF (dict) instead of plain text; coerce to str.
+        if raw_description is None:
+            description = ""
+        elif isinstance(raw_description, str):
+            description = raw_description
+        else:
+            description = str(raw_description)
         raw_labels = fields.get("labels")
         labels = [label for label in raw_labels if isinstance(label, str)] if isinstance(raw_labels, list) else []
         status = fields.get("status", {}).get("name", "") if isinstance(fields.get("status"), dict) else ""
@@ -82,11 +89,17 @@ class JiraAdapter(IssueAdapter):
         for c in raw_comments:
             if not isinstance(c, dict):
                 continue
+            raw_body = c.get("body", "")
+            if not isinstance(raw_body, str):
+                raw_body = "" if raw_body is None else str(raw_body)
+            raw_created = c.get("created", "")
+            if not isinstance(raw_created, str):
+                raw_created = "" if raw_created is None else str(raw_created)
             comments.append(
                 Comment(
                     comment_id=str(c.get("id", "")),
-                    body=c.get("body", "") or "",
-                    created_at=c.get("created", "") or "",
+                    body=raw_body,
+                    created_at=raw_created,
                 )
             )
 

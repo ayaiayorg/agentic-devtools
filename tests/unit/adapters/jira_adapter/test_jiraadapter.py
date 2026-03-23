@@ -162,6 +162,28 @@ class TestJiraAdapter:
         detail = adapter.get_issue("PROJ-1")
         assert detail["description"] == ""
 
+    def test_get_issue_coerces_adf_description_to_string(self) -> None:
+        """get_issue coerces non-string description (e.g. ADF dict) to str."""
+        adf_doc = {
+            "type": "doc",
+            "version": 1,
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Hello"}]}],
+        }
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "description": adf_doc,
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert isinstance(detail["description"], str)
+        assert detail["description"] != ""
+
     def test_get_issue_handles_non_dict_status(self) -> None:
         """get_issue handles non-dict status field gracefully."""
         mock_requests = MagicMock()
@@ -233,6 +255,55 @@ class TestJiraAdapter:
         assert len(detail["comments"]) == 2
         assert detail["comments"][0]["comment_id"] == "100"
         assert detail["comments"][1]["comment_id"] == "200"
+
+    def test_get_issue_coerces_non_string_comment_body(self) -> None:
+        """get_issue coerces non-string comment body (e.g. ADF dict) to str."""
+        adf_body = {"type": "doc", "content": []}
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "comment": {
+                    "comments": [
+                        {"id": "100", "body": adf_body, "created": "2026-01-01"},
+                        {"id": "200", "body": None, "created": "2026-01-02"},
+                    ],
+                },
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert len(detail["comments"]) == 2
+        # ADF dict coerced to str representation
+        assert isinstance(detail["comments"][0]["body"], str)
+        assert detail["comments"][0]["body"] != ""
+        # None coerced to empty string
+        assert detail["comments"][1]["body"] == ""
+
+    def test_get_issue_coerces_non_string_comment_created(self) -> None:
+        """get_issue coerces non-string created timestamp to str."""
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "fields": {
+                "summary": "Issue",
+                "comment": {
+                    "comments": [
+                        {"id": "100", "body": "Hi", "created": 12345},
+                        {"id": "200", "body": "Hi", "created": None},
+                    ],
+                },
+            },
+        }
+        mock_requests.get.return_value = mock_response
+
+        adapter = JiraAdapter(config=_make_config(mock_requests), project_key="PROJ")
+        detail = adapter.get_issue("PROJ-1")
+        assert detail["comments"][0]["created_at"] == "12345"
+        assert detail["comments"][1]["created_at"] == ""
 
     def test_get_issue_handles_null_labels(self) -> None:
         """get_issue normalizes null labels to empty list."""

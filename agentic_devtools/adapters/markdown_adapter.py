@@ -61,7 +61,10 @@ class MarkdownAdapter(IssueAdapter):
         return f"{max_id + 1:03d}"
 
     def _archive(self) -> None:
-        """Move all ``.md`` files in the working directory into an archive folder."""
+        """Archive issue ``.md`` files whose stem is a 3-digit ID into a new archive folder.
+
+        Non-issue markdown files (for example, ``readme.md``) are left in place.
+        """
         existing_archives = sorted(
             int(m.group(1)) for d in self._issues_dir.iterdir() if d.is_dir() and (m := _ARCHIVE_PATTERN.match(d.name))
         )
