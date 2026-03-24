@@ -47,7 +47,7 @@ jobs:
     outputs:
       branch_name: ${{ steps.generate.outputs.branch_name }}
       spec_file: ${{ steps.generate.outputs.spec_file }}
-      spec_dir: ${{ steps.generate.outputs.spec_dir }}
+      spec_dir: ${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}
       pr_url: ${{ steps.create-pr.outputs.pr_url }}
       skipped: ${{ steps.idempotency.outputs.skipped }}
 
@@ -300,7 +300,7 @@ jobs:
               `**Branch**: \`${branchName}\``
             ];
 
-            const specDir = '${{ steps.generate.outputs.spec_dir }}';
+            const specDir = '${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}';
 
             if (branchPushed) {
               lines.push(

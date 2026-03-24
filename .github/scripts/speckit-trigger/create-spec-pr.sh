@@ -35,6 +35,12 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
     exit 1
 fi
 
+# Validate GITHUB_REPOSITORY — required for building artifact URLs in the PR body
+if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
+    echo "Error: GITHUB_REPOSITORY is required (expected owner/repo format)" >&2
+    exit 1
+fi
+
 echo "=== Creating Pull Request ==="
 echo "Branch: $BRANCH_NAME"
 echo "Spec Dir: $SPEC_DIR"
