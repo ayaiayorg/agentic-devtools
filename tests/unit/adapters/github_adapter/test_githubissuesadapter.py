@@ -296,3 +296,55 @@ class TestGitHubIssuesAdapter:
 
         summaries = adapter.list_issues()
         assert summaries[0]["labels"] == []
+
+    def test_repo_args_non_empty(self) -> None:
+        """_repo_args returns ['--repo', slug] when repo is set."""
+        adapter = GitHubIssuesAdapter(repo="owner/repo", run_command=_mock_run())
+        assert adapter._repo_args() == ["--repo", "owner/repo"]
+
+    def test_repo_args_empty(self) -> None:
+        """_repo_args returns [] when repo is empty."""
+        adapter = GitHubIssuesAdapter(repo="", run_command=_mock_run())
+        assert adapter._repo_args() == []
+
+    def test_create_issue_omits_repo_flag_when_empty(self) -> None:
+        """create_issue omits --repo when repo slug is empty."""
+        run = _mock_run(stdout="https://github.com/owner/repo/issues/1\n")
+        adapter = GitHubIssuesAdapter(repo="", run_command=run)
+
+        adapter.create_issue("T", "D")
+
+        args = run.call_args[0][0]
+        assert "--repo" not in args
+        assert args[:3] == ["gh", "issue", "create"]
+
+    def test_get_issue_omits_repo_flag_when_empty(self) -> None:
+        """get_issue omits --repo when repo slug is empty."""
+        data = {"number": 1, "title": "T", "body": "", "state": "OPEN", "labels": [], "url": "", "comments": []}
+        run = _mock_run(stdout=json.dumps(data))
+        adapter = GitHubIssuesAdapter(repo="", run_command=run)
+
+        adapter.get_issue("1")
+
+        args = run.call_args[0][0]
+        assert "--repo" not in args
+
+    def test_add_comment_omits_repo_flag_when_empty(self) -> None:
+        """add_comment omits --repo when repo slug is empty."""
+        run = _mock_run(stdout="")
+        adapter = GitHubIssuesAdapter(repo="", run_command=run)
+
+        adapter.add_comment("1", "Hello")
+
+        args = run.call_args[0][0]
+        assert "--repo" not in args
+
+    def test_list_issues_omits_repo_flag_when_empty(self) -> None:
+        """list_issues omits --repo when repo slug is empty."""
+        run = _mock_run(stdout="[]")
+        adapter = GitHubIssuesAdapter(repo="", run_command=run)
+
+        adapter.list_issues()
+
+        args = run.call_args[0][0]
+        assert "--repo" not in args

@@ -55,9 +55,13 @@ class GitHubIssuesAdapter(IssueAdapter):
     # IssueAdapter interface
     # ------------------------------------------------------------------
 
+    def _repo_args(self) -> list[str]:
+        """Return ``['--repo', slug]`` when a repo is configured, else ``[]``."""
+        return ["--repo", self._repo] if self._repo else []
+
     def create_issue(self, title: str, description: str, labels: list[str] | None = None) -> IssueResult:
         """Create a GitHub issue via ``gh issue create``."""
-        args = ["gh", "issue", "create", "--repo", self._repo, "--title", title, "--body", description]
+        args = ["gh", "issue", "create", *self._repo_args(), "--title", title, "--body", description]
         for label in labels or []:
             args += ["--label", label]
         result = self._exec(args)
@@ -72,8 +76,7 @@ class GitHubIssuesAdapter(IssueAdapter):
             "issue",
             "view",
             issue_id,
-            "--repo",
-            self._repo,
+            *self._repo_args(),
             "--json",
             "number,title,body,state,labels,url,comments",
         ]
@@ -120,13 +123,13 @@ class GitHubIssuesAdapter(IssueAdapter):
 
     def add_comment(self, issue_id: str, comment: str) -> CommentResult:
         """Add a comment via ``gh issue comment``."""
-        args = ["gh", "issue", "comment", issue_id, "--repo", self._repo, "--body", comment]
+        args = ["gh", "issue", "comment", issue_id, *self._repo_args(), "--body", comment]
         self._exec(args)
         return CommentResult(comment_id="")
 
     def list_issues(self, filters: IssueFilters | None = None) -> list[IssueSummary]:
         """List GitHub issues via ``gh issue list``."""
-        args = ["gh", "issue", "list", "--repo", self._repo, "--json", "number,title,state,labels,url"]
+        args = ["gh", "issue", "list", *self._repo_args(), "--json", "number,title,state,labels,url"]
         if filters:
             for label in filters.get("labels", []):
                 args += ["--label", label]
