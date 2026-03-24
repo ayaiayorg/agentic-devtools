@@ -670,11 +670,12 @@ echo "=== Phase 6/6: Analyze ==="
 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
 echo "✓ Phase 6 complete: analysis-report.md"
 
-# Output results
+# Output results (spec_dir as repo-relative path for portability)
+SPEC_DIR_REL="$SPEC_BASE_PATH/$BRANCH_NAME"
 echo "branch_name=$BRANCH_NAME" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_file=$SPEC_FILE" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "feature_num=$FEATURE_NUM_PADDED" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-echo "spec_dir=$SPEC_DIR" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "spec_dir=$SPEC_DIR_REL" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
 echo ""
 echo "=== Full Planning Artifact Suite Complete ==="

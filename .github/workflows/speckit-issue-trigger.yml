@@ -239,9 +239,9 @@ jobs:
           # Create and checkout new branch
           git checkout -b "$BRANCH_NAME"
 
-          # Add and commit spec files
-          git add "$SPEC_FILE"
-          git add "$(dirname "$SPEC_FILE")/checklists/" 2>/dev/null || true
+          # Add all generated artifacts in the spec directory
+          SPEC_DIR="${{ steps.generate.outputs.spec_dir }}"
+          git add "$SPEC_DIR"
 
           git commit -m "spec: Add specification for issue #${{ steps.issue.outputs.number }}
 
