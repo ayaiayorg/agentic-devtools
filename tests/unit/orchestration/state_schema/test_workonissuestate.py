@@ -51,7 +51,10 @@ class TestWorkOnIssueState:
 
     def test_schema_fields_include_expected_keys(self):
         hints = get_type_hints(WorkOnIssueState, include_extras=True)
-        expected = {"issue_key", "step", "status", "plan", "error", "retry_count", "events", "human_approved"}
+        expected = {
+            "issue_key", "step", "status", "plan", "error", "retry_count",
+            "events", "human_approved", "agent_context", "affected_paths",
+        }
         assert expected == set(hints.keys())
 
     def test_error_field_accepts_none(self):

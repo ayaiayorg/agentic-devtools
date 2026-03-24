@@ -30,3 +30,5 @@ class WorkOnIssueState(TypedDict, total=False):
     retry_count: int
     events: Annotated[list[WorkOnIssueEvent], operator.add]
     human_approved: bool
+    agent_context: dict
+    affected_paths: list[str]
