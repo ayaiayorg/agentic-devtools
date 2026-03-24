@@ -577,7 +577,7 @@ class TestSetupCmd:
                                                 ):
                                                     commands.setup_cmd()
         err = capsys.readouterr().err
-        assert "Platform detection failed" in err
+        assert "Platform setup failed" in err
         assert "boom" in err
 
     def test_system_only_skips_detection(self, capsys):
@@ -750,7 +750,7 @@ class TestSetupCmd:
                                                 ) as mock_gen:
                                                     commands.setup_cmd()
         err = capsys.readouterr().err
-        assert "Platform detection failed" in err
+        assert "Platform setup failed" in err
         mock_gen.assert_called_once()
 
     def test_workflow_templates_import_failure_skips_templates(self, capsys, tmp_path):

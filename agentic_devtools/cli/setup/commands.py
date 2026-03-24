@@ -655,7 +655,7 @@ def setup_cmd() -> None:
                             file=sys.stderr,
                         )
             except Exception as exc:  # noqa: BLE001
-                print(f"  ⚠ Platform detection failed ({exc!r}) — skipping", file=sys.stderr)
+                print(f"  ⚠ Platform setup failed ({exc}) — skipping", file=sys.stderr)
 
             # Step 2: Template generation
             try:
@@ -671,7 +671,7 @@ def setup_cmd() -> None:
                     else:
                         print("  ℹ Workflow templates already exist (use --skip-templates to suppress this message)")
             except Exception as exc:  # noqa: BLE001
-                print(f"  ⚠ Template generation failed ({exc!r}) — skipping", file=sys.stderr)
+                print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
 
         print()
         if not copilot_ok or not gh_ok or any_required_missing:
