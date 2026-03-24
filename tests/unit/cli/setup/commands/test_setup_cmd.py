@@ -469,7 +469,14 @@ class TestSetupCmd:
         mock_save.assert_not_called()
 
     def test_issue_adapter_override_skips_detection(self, capsys, tmp_path):
-        """--issue-adapter jira → detect_platforms NOT called, save_platform_config called with override."""
+        """--issue-adapter jira → detect_platforms NOT called, loads existing config and overrides adapter."""
+        existing_config = {
+            "issue_adapter": "github",
+            "code_hosting": "azure_devops",
+            "jira": {},
+            "github": {"repo": "owner/repo"},
+            "azure_devops": {"project": "org/proj"},
+        }
         with patch("sys.argv", ["agdt-setup", "--issue-adapter", "jira"]):
             with patch.object(commands, "_prefetch_certs"):
                 with patch.object(commands, "install_copilot_cli", return_value=True):
@@ -485,25 +492,31 @@ class TestSetupCmd:
                                                 "agentic_devtools.cli.setup.platform_detection.detect_platforms",
                                             ) as mock_detect:
                                                 with patch(
-                                                    "agentic_devtools.config.save_platform_config",
-                                                    return_value=True,
-                                                ) as mock_save:
+                                                    "agentic_devtools.config.load_platform_config",
+                                                    return_value=existing_config,
+                                                ) as mock_load:
                                                     with patch(
-                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                        return_value=[],
-                                                    ):
-                                                        commands.setup_cmd()
+                                                        "agentic_devtools.config.save_platform_config",
+                                                        return_value=True,
+                                                    ) as mock_save:
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                            return_value=[],
+                                                        ):
+                                                            commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Issue adapter configured: jira" in out
         mock_detect.assert_not_called()
+        mock_load.assert_called_once_with(str(tmp_path))
+        # Verify existing fields are preserved and only issue_adapter is overridden
         mock_save.assert_called_once_with(
             str(tmp_path),
             {
                 "issue_adapter": "jira",
-                "code_hosting": "other",
+                "code_hosting": "azure_devops",
                 "jira": {},
-                "github": {},
-                "azure_devops": {},
+                "github": {"repo": "owner/repo"},
+                "azure_devops": {"project": "org/proj"},
             },
         )
 
@@ -842,14 +855,24 @@ class TestSetupCmd:
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
                                             with patch(
-                                                "agentic_devtools.config.save_platform_config",
-                                                return_value=False,
+                                                "agentic_devtools.config.load_platform_config",
+                                                return_value={
+                                                    "issue_adapter": "jira",
+                                                    "code_hosting": "other",
+                                                    "jira": {},
+                                                    "github": {},
+                                                    "azure_devops": {},
+                                                },
                                             ):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
+                                                    "agentic_devtools.config.save_platform_config",
+                                                    return_value=False,
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Failed to save platform configuration" in err
 

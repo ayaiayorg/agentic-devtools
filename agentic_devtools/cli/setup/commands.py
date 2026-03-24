@@ -622,15 +622,15 @@ def setup_cmd() -> None:
             # Step 1: Platform detection + adapter configuration
             try:
                 if args.issue_adapter is not None:
-                    from agentic_devtools.config import save_platform_config  # noqa: PLC0415
+                    from agentic_devtools.config import (  # noqa: PLC0415
+                        load_platform_config,
+                        save_platform_config,
+                    )
 
-                    platform_config = {
-                        "issue_adapter": args.issue_adapter,
-                        "code_hosting": "other",
-                        "jira": {},
-                        "github": {},
-                        "azure_devops": {},
-                    }
+                    # Load existing config to preserve fields like github.repo
+                    # or azure_devops.project; only override issue_adapter.
+                    platform_config = load_platform_config(str(git_root))
+                    platform_config["issue_adapter"] = args.issue_adapter
                     if save_platform_config(str(git_root), platform_config):
                         print(f"  ✓ Issue adapter configured: {args.issue_adapter}")
                     else:
