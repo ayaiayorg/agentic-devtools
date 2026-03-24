@@ -519,7 +519,7 @@ $(strip_model_footer "$(cat "$SPEC_DIR/data-model.md")")"
             [[ -f "$contract_file" ]] || continue
             extra_context="$extra_context
 
-## API Contract: $(basename "$contract_file")
+## API Contract: $(basename -- "$contract_file")
 $(strip_model_footer "$(cat "$contract_file")")"
         done
     fi
