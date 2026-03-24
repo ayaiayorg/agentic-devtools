@@ -226,6 +226,84 @@ class TestRetrieve:
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.retriever.get_recent_changes")
     @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_paths_normalized_to_posix(self, mock_fetch, mock_git, tmp_path):
+        """Validated paths are stored as normalized, repo-relative POSIX strings."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        # Create a file at src/main.py
+        affected = tmp_path / "src" / "main.py"
+        affected.parent.mkdir(parents=True)
+        affected.write_text("x = 1")
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        ctx = await retriever.retrieve("T-1", affected_paths=["./src/main.py"])
+
+        # The path should be normalized to "src/main.py" (no leading "./")
+        assert ctx.relevant_files == ["src/main.py"]
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_directory_path_rejected(self, mock_fetch, mock_git, tmp_path):
+        """Directories are rejected during affected_paths validation."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        (tmp_path / "mydir").mkdir()
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        ctx = await retriever.retrieve("T-1", affected_paths=["mydir"])
+
+        assert ctx.relevant_files == []
+        assert any("mydir" in e for e in ctx.errors)
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_doc_discovery_uses_validated_paths(self, mock_fetch, mock_git, tmp_path):
+        """Documentation discovery uses validated paths, not raw input."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        # Create a valid file and its docs
+        affected = tmp_path / "src" / "mymodule.py"
+        affected.parent.mkdir(parents=True)
+        affected.write_text("x = 1")
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "mymodule.md").write_text("# Module docs")
+        (tmp_path / "README.md").write_text("# Root")
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        # Pass with "./" prefix — doc discovery should still work after normalization
+        ctx = await retriever.retrieve("T-1", affected_paths=["./src/mymodule.py"])
+
+        doc_paths = [d["path"] for d in ctx.documentation]
+        assert "docs/mymodule.md" in doc_paths
+        assert "README.md" in doc_paths
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
     async def test_documentation_failure(self, mock_fetch, mock_git, tmp_path):
         """Documentation scan failure is non-fatal — logged to errors."""
         mock_fetch.return_value = {
@@ -464,6 +542,13 @@ class TestValidatePath:
         r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
         result = r._validate_path("valid.py")
         assert result is not None
+
+    def test_rejects_directory(self, tmp_path):
+        """Directories are rejected — only regular files are accepted."""
+        (tmp_path / "subdir").mkdir()
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        assert r._validate_path("subdir") is None
 
     def test_rejects_path_resolving_outside_repo(self, tmp_path):
         """Paths that resolve outside repo via symlink are rejected."""

@@ -79,7 +79,10 @@ class IssueContextRetriever:
             for p in affected_paths:
                 validated = self._validate_path(p)
                 if validated is not None:
-                    ctx.relevant_files.append(p)
+                    # Store a normalized, repo-relative POSIX path to avoid
+                    # downstream string-key mismatches (e.g. in coverage lookups).
+                    normalized = validated.relative_to(self._repo_path).as_posix()
+                    ctx.relevant_files.append(normalized)
                 else:
                     msg = f"Affected path rejected or does not exist: {p}"
                     logger.warning(msg)
@@ -104,7 +107,9 @@ class IssueContextRetriever:
 
         # --- Documentation ---
         try:
-            ctx.documentation = self._find_documentation(affected_paths)
+            # Use validated paths (not raw input) to keep doc scanning aligned
+            # with path traversal protection.
+            ctx.documentation = self._find_documentation(ctx.relevant_files)
         except Exception as exc:
             msg = f"Failed to find documentation: {exc}"
             logger.warning(msg)
@@ -132,7 +137,8 @@ class IssueContextRetriever:
         full = (self._repo_path / pp).resolve()
         if not self._is_within_repo(full):
             return None
-        if not full.exists():
+        # Only accept existing regular files (reject directories and special files)
+        if not full.is_file():
             return None
         return full
 
