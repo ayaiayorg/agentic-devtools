@@ -35,6 +35,8 @@ class TestBuildJiraConfig:
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
         monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
 
         config = _build_jira_config()
         assert config.base_url == "https://jira.example.com"
@@ -86,6 +88,8 @@ class TestBuildJiraConfig:
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
         monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
+        monkeypatch.delenv("JIRA_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
 
         config = _build_jira_config()
         assert config.base_url == ""
@@ -139,6 +143,48 @@ class TestBuildJiraConfig:
 
         config = _build_jira_config()
         assert config.ssl_verify is False
+
+    def test_ssl_verify_falls_back_to_jira_ca_bundle(self, monkeypatch):
+        """Falls back to JIRA_CA_BUNDLE when JIRA_SSL_VERIFY is not set."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.setenv("JIRA_CA_BUNDLE", "/path/to/jira-ca.pem")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+
+        config = _build_jira_config()
+        assert config.ssl_verify == "/path/to/jira-ca.pem"
+
+    def test_ssl_verify_falls_back_to_requests_ca_bundle(self, monkeypatch):
+        """Falls back to REQUESTS_CA_BUNDLE when JIRA_SSL_VERIFY and JIRA_CA_BUNDLE are not set."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_CA_BUNDLE", raising=False)
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/path/to/requests-ca.pem")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+
+        config = _build_jira_config()
+        assert config.ssl_verify == "/path/to/requests-ca.pem"
+
+    def test_ssl_verify_jira_ca_bundle_takes_priority_over_requests(self, monkeypatch):
+        """JIRA_CA_BUNDLE takes priority over REQUESTS_CA_BUNDLE."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.setenv("JIRA_CA_BUNDLE", "/path/to/jira-ca.pem")
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/path/to/requests-ca.pem")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+
+        config = _build_jira_config()
+        assert config.ssl_verify == "/path/to/jira-ca.pem"
 
 
 class TestRetrieveContextNode:

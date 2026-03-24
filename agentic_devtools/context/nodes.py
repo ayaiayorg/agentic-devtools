@@ -45,6 +45,15 @@ def _build_jira_config() -> JiraConfig:
     * Otherwise, no ``Authorization`` header is set and authentication
       failures will surface later at call time.
 
+    SSL verification honours ``JIRA_SSL_VERIFY``, then falls back to
+    ``JIRA_CA_BUNDLE`` / ``REQUESTS_CA_BUNDLE`` (same env vars used by
+    the CLI helpers and the adapter builder):
+
+    * ``JIRA_SSL_VERIFY="0"`` or ``"false"`` → disabled (``False``).
+    * ``JIRA_SSL_VERIFY`` set to any other non-empty value → CA bundle path.
+    * ``JIRA_CA_BUNDLE`` or ``REQUESTS_CA_BUNDLE`` set → CA bundle path.
+    * Nothing set → strict verification (``True``).
+
     Unlike the stricter
     :func:`agentic_devtools.mcp.server._load_jira_config`, this function
     does not return ``None`` when configuration is incomplete; callers
@@ -74,7 +83,9 @@ def _build_jira_config() -> JiraConfig:
     elif ssl_env:
         ssl_verify = ssl_env
     else:
-        ssl_verify = True
+        # Fall back to CA bundle env vars used by cli/jira/helpers._get_ssl_verify
+        ca_bundle = os.environ.get("JIRA_CA_BUNDLE", "") or os.environ.get("REQUESTS_CA_BUNDLE", "")
+        ssl_verify = ca_bundle if ca_bundle else True
 
     return JiraConfig(base_url=base_url, headers=headers, ssl_verify=ssl_verify)
 
