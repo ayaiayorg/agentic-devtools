@@ -671,7 +671,13 @@ run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exi
 echo "✓ Phase 6 complete: analysis-report.md"
 
 # Output results (spec_dir as repo-relative path for portability)
-SPEC_DIR_REL="$SPEC_BASE_PATH/$BRANCH_NAME"
+# Derive from SPEC_DIR by stripping REPO_ROOT prefix, so it stays correct
+# even if SPEC_BASE_PATH is set to an absolute-like path.
+if [[ "$SPEC_DIR" == "$REPO_ROOT"/* ]]; then
+    SPEC_DIR_REL="${SPEC_DIR#"$REPO_ROOT"/}"
+else
+    SPEC_DIR_REL="$SPEC_DIR"
+fi
 echo "branch_name=$BRANCH_NAME" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_file=$SPEC_FILE" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "feature_num=$FEATURE_NUM_PADDED" >> "${GITHUB_OUTPUT:-/dev/stdout}"

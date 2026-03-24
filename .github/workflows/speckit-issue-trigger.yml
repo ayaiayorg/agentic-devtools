@@ -282,26 +282,43 @@ jobs:
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
 
             const lines = [
-              '## ✅ SpecKit: Specification Created Successfully',
+              '## ✅ SpecKit: Full Planning Artifact Suite Generated',
               '',
-              'A feature specification has been generated from this issue.',
+              'A complete planning artifact suite has been generated from this issue.',
               '',
               `**Branch**: \`${branchName}\``,
               `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
             ];
 
+            const specDir = '${{ steps.generate.outputs.spec_dir }}';
+            if (specDir) {
+              lines.push(
+                '',
+                '### Generated Artifacts',
+                '',
+                `| Artifact | Path |`,
+                `| --- | --- |`,
+                `| Specification | [\`spec.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/spec.md) |`,
+                `| Implementation Plan | [\`plan.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/plan.md) |`,
+                `| Task Breakdown | [\`tasks.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/tasks.md) |`,
+                `| Analysis Report | [\`analysis-report.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/analysis-report.md) |`,
+                `| Requirements Checklist | [\`checklists/requirements.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/checklists/requirements.md) |`
+              );
+            }
+
             if (prUrl) {
-              lines.push(`**Pull Request**: ${prUrl}`);
+              lines.push('', `**Pull Request**: ${prUrl}`);
             }
 
             lines.push(
               '',
               '### Next Steps',
               '',
-              '1. Review the generated specification',
-              '2. Clarify any `[NEEDS CLARIFICATION]` items',
-              '3. Run `/speckit.plan` to create an implementation plan',
-              '4. Run `/speckit.tasks` to break down into tasks',
+              '1. Review the generated specification and planning artifacts',
+              '2. Check the analysis report for risks and recommendations',
+              '3. Approve the PR to merge the planning suite into the repository',
+              '',
+              '> **Note**: Clarification, planning, task breakdown, and analysis phases were run autonomously by SpecKit.',
               '',
               '---',
               `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
