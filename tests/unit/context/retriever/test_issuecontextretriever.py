@@ -157,6 +157,9 @@ class TestRetrieve:
         ctx = await retriever.retrieve("T-1", affected_paths=None)
 
         assert ctx.relevant_files == []
+        # With no relevant files, coverage parsing should be skipped entirely
+        # (no noisy "Failed to parse coverage data" error).
+        assert not any("coverage" in e.lower() for e in ctx.errors)
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.retriever.get_recent_changes")

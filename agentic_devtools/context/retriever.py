@@ -98,12 +98,13 @@ class IssueContextRetriever:
             ctx.errors.append(msg)
 
         # --- Test coverage ---
-        try:
-            ctx.test_coverage = self._parse_coverage(ctx.relevant_files)
-        except Exception as exc:
-            msg = f"Failed to parse coverage data: {exc}"
-            logger.warning(msg)
-            ctx.errors.append(msg)
+        if ctx.relevant_files:
+            try:
+                ctx.test_coverage = self._parse_coverage(ctx.relevant_files)
+            except Exception as exc:
+                msg = f"Failed to parse coverage data: {exc}"
+                logger.warning(msg)
+                ctx.errors.append(msg)
 
         # --- Documentation ---
         try:
