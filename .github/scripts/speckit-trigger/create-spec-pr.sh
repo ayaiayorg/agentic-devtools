@@ -97,7 +97,7 @@ $ARTIFACT_LIST
 
 1. [ ] [Review the generated planning artifacts for accuracy and completeness](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR})
 2. [ ] Merge this PR when satisfied
-3. [ ] Implementation will be triggered automatically via the \`speckit:needs-implementation\` label
+3. [ ] Add the \`speckit:needs-implementation\` label when the specification is ready for implementation
 
 ## Checklist
 

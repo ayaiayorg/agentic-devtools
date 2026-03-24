@@ -355,7 +355,7 @@ jobs:
               lines.push(
                 '1. Review the planning artifacts in the pull request',
                 '2. Merge the PR when satisfied with the planning output',
-                '3. Implementation will be triggered automatically via the `speckit:needs-implementation` label'
+                '3. Once satisfied, apply the `speckit:needs-implementation` label to signal readiness for implementation'
               );
             } else {
               lines.push(
