@@ -155,7 +155,8 @@ class TestRetrieveContextNode:
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.nodes.IssueContextRetriever")
-    async def test_happy_path(self, mock_retriever_cls, monkeypatch, tmp_path):
+    @patch("agentic_devtools.context.nodes.get_git_repo_root")
+    async def test_happy_path(self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path):
         """Successful retrieval returns agent_context, events, and clears error."""
         monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
         monkeypatch.setenv("JIRA_API_TOKEN", "tok")
@@ -164,7 +165,7 @@ class TestRetrieveContextNode:
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
         monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
-        monkeypatch.chdir(tmp_path)
+        mock_repo_root.return_value = str(tmp_path)
 
         mock_ctx = MagicMock()
         mock_ctx.to_dict.return_value = {"issue_key": "T-1"}
@@ -183,7 +184,8 @@ class TestRetrieveContextNode:
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.nodes.IssueContextRetriever")
-    async def test_constructs_jira_config_from_env(self, mock_retriever_cls, monkeypatch, tmp_path):
+    @patch("agentic_devtools.context.nodes.get_git_repo_root")
+    async def test_constructs_jira_config_from_env(self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path):
         """Node constructs JiraConfig from environment variables."""
         monkeypatch.setenv("JIRA_BASE_URL", "https://jira.test.com")
         monkeypatch.setenv("JIRA_API_TOKEN", "test-token")
@@ -191,7 +193,7 @@ class TestRetrieveContextNode:
         monkeypatch.delenv("JIRA_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
-        monkeypatch.chdir(tmp_path)
+        mock_repo_root.return_value = str(tmp_path)
 
         mock_ctx = MagicMock()
         mock_ctx.to_dict.return_value = {}
@@ -209,7 +211,8 @@ class TestRetrieveContextNode:
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.nodes.IssueContextRetriever")
-    async def test_missing_env_vars_still_runs(self, mock_retriever_cls, monkeypatch, tmp_path):
+    @patch("agentic_devtools.context.nodes.get_git_repo_root")
+    async def test_missing_env_vars_still_runs(self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path):
         """Node handles missing env vars — JiraConfig has empty base_url."""
         monkeypatch.delenv("JIRA_BASE_URL", raising=False)
         monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
@@ -218,7 +221,7 @@ class TestRetrieveContextNode:
         monkeypatch.delenv("JIRA_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
-        monkeypatch.chdir(tmp_path)
+        mock_repo_root.return_value = str(tmp_path)
 
         mock_ctx = MagicMock()
         mock_ctx.to_dict.return_value = {"errors": ["base_url is required"]}
@@ -239,8 +242,34 @@ class TestRetrieveContextNode:
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.nodes.IssueContextRetriever")
-    async def test_default_affected_paths(self, mock_retriever_cls, monkeypatch, tmp_path):
+    @patch("agentic_devtools.context.nodes.get_git_repo_root")
+    async def test_default_affected_paths(self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path):
         """When affected_paths is not in state, defaults to empty list."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        mock_repo_root.return_value = str(tmp_path)
+
+        mock_ctx = MagicMock()
+        mock_ctx.to_dict.return_value = {}
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = AsyncMock(return_value=mock_ctx)
+        mock_retriever_cls.return_value = mock_retriever
+
+        await retrieve_context_node({"issue_key": "T-1"})
+
+        mock_retriever.retrieve.assert_awaited_once_with("T-1", [])
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.nodes.IssueContextRetriever")
+    @patch("agentic_devtools.context.nodes.get_git_repo_root", return_value=None)
+    async def test_falls_back_to_cwd_when_not_in_git_repo(
+        self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path
+    ):
+        """Falls back to os.getcwd() when get_git_repo_root() returns None."""
         monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
         monkeypatch.setenv("JIRA_API_TOKEN", "tok")
         monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
@@ -257,4 +286,32 @@ class TestRetrieveContextNode:
 
         await retrieve_context_node({"issue_key": "T-1"})
 
-        mock_retriever.retrieve.assert_awaited_once_with("T-1", [])
+        # Verify repo_path was set to CWD (tmp_path) when git root unavailable
+        call_kwargs = mock_retriever_cls.call_args
+        assert call_kwargs[1]["repo_path"] == str(tmp_path)
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.nodes.IssueContextRetriever")
+    @patch("agentic_devtools.context.nodes.get_git_repo_root")
+    async def test_uses_git_repo_root_when_available(self, mock_repo_root, mock_retriever_cls, monkeypatch, tmp_path):
+        """Uses get_git_repo_root() result as repo_path when available."""
+        repo_root = str(tmp_path / "actual-repo-root")
+        mock_repo_root.return_value = repo_root
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+
+        mock_ctx = MagicMock()
+        mock_ctx.to_dict.return_value = {}
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = AsyncMock(return_value=mock_ctx)
+        mock_retriever_cls.return_value = mock_retriever
+
+        await retrieve_context_node({"issue_key": "T-1"})
+
+        # Verify repo_path was set to the git repo root, not CWD
+        call_kwargs = mock_retriever_cls.call_args
+        assert call_kwargs[1]["repo_path"] == repo_root

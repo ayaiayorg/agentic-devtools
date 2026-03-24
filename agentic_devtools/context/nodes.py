@@ -7,6 +7,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from agentic_devtools.cli.workflows.preflight import get_git_repo_root
 from agentic_devtools.orchestration.state_schema import WorkOnIssueState
 from agentic_devtools.tools.jira import JiraConfig
 
@@ -75,7 +76,7 @@ async def retrieve_context_node(state: WorkOnIssueState) -> dict:
 
     affected_paths: list[str] = state.get("affected_paths", [])  # type: ignore[arg-type]
     jira_config = _build_jira_config()
-    repo_path = os.getcwd()
+    repo_path = get_git_repo_root() or os.getcwd()
 
     retriever = IssueContextRetriever(jira_config=jira_config, repo_path=repo_path)
     context = await retriever.retrieve(issue_key, affected_paths)
