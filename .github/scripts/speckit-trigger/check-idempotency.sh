@@ -52,7 +52,9 @@ check_full_pipeline_artifacts() {
 # Search for existing spec with this issue reference
 SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}"
 
-EXISTING_SPEC=$(grep -rl "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
+# Restrict search to spec.md files only — other artifacts (e.g. checklists/requirements.md)
+# may also contain "Source Issue" and would produce false positives.
+EXISTING_SPEC=$(grep -rl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
 
 if [[ -n "$EXISTING_SPEC" ]]; then
     if check_full_pipeline_artifacts "$EXISTING_SPEC"; then
@@ -68,7 +70,7 @@ fi
 # Also check for issue URL pattern
 if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
     URL_PATTERN="github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}"
-    EXISTING_SPEC=$(grep -rl "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
+    EXISTING_SPEC=$(grep -rl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
 
     if [[ -n "$EXISTING_SPEC" ]]; then
         if check_full_pipeline_artifacts "$EXISTING_SPEC"; then

@@ -52,8 +52,9 @@ ARTIFACT_LIST=""
 if [[ -d "$SPEC_DIR_ABSOLUTE" ]]; then
     while IFS= read -r artifact; do
         rel_path="${artifact#"$SPEC_DIR_ABSOLUTE"/}"
+        # Use full GitHub blob URLs so links resolve correctly in the PR body
         ARTIFACT_LIST="${ARTIFACT_LIST}
-- [\`${rel_path}\`](${SPEC_DIR}/${rel_path})"
+- [\`${rel_path}\`](https://github.com/${GITHUB_REPOSITORY:-}/blob/${BRANCH_NAME}/${SPEC_DIR}/${rel_path})"
     done < <(find "$SPEC_DIR_ABSOLUTE" -name '*.md' -type f | sort)
 
     # List subdirectories
@@ -61,7 +62,7 @@ if [[ -d "$SPEC_DIR_ABSOLUTE" ]]; then
         [[ "$dir" == "$SPEC_DIR_ABSOLUTE" ]] && continue
         rel_path="${dir#"$SPEC_DIR_ABSOLUTE"/}"
         ARTIFACT_LIST="${ARTIFACT_LIST}
-- \`${rel_path}/\` (directory)"
+- [\`${rel_path}/\`](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR}/${rel_path}) (directory)"
     done < <(find "$SPEC_DIR_ABSOLUTE" -mindepth 1 -type d | sort)
 fi
 

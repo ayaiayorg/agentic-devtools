@@ -230,6 +230,7 @@ jobs:
 
       - name: Commit Specification
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -248,6 +249,8 @@ jobs:
             echo "Error: Could not determine spec directory from generate step outputs" >&2
             exit 1
           fi
+          # Propagate resolved SPEC_DIR for downstream steps
+          echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
           git add "$SPEC_DIR"
 
           git commit -m "spec: Add planning artifacts for issue #${{ steps.issue.outputs.number }}
@@ -273,7 +276,7 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
           .github/scripts/speckit-trigger/create-spec-pr.sh \
             "${{ steps.generate.outputs.branch_name }}" \
-            "${{ steps.generate.outputs.spec_dir }}" \
+            "${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}" \
             "${{ steps.issue.outputs.number }}" \
             "${{ steps.issue.outputs.title }}" \
             "${{ steps.issue.outputs.labels }}"
@@ -345,10 +348,24 @@ jobs:
             lines.push(
               '',
               '### Next Steps',
-              '',
-              '1. Review the planning artifacts in the pull request',
-              '2. Merge the PR when satisfied with the planning output',
-              '3. Implementation will be triggered automatically via the `speckit:needs-implementation` label',
+              ''
+            );
+
+            if (prUrl) {
+              lines.push(
+                '1. Review the planning artifacts in the pull request',
+                '2. Merge the PR when satisfied with the planning output',
+                '3. Implementation will be triggered automatically via the `speckit:needs-implementation` label'
+              );
+            } else {
+              lines.push(
+                `1. Review the planning artifacts in the \`${branchName}\` branch`,
+                `2. No pull request was created — review the artifacts directory directly`,
+                '3. Once satisfied, the `speckit:needs-implementation` label signals readiness for implementation'
+              );
+            }
+
+            lines.push(
               '',
               '---',
               `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
