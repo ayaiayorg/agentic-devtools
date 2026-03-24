@@ -26,6 +26,11 @@ from .dependency_checker import check_all_dependencies, print_dependency_report
 from .gh_cli_installer import install_gh_cli
 from .shell_profile import detect_shell_profile, detect_shell_type, persist_env_var, persist_path_entry
 
+try:
+    from agentic_devtools.config import VALID_ISSUE_ADAPTERS as _VALID_ISSUE_ADAPTERS
+except ImportError:
+    _VALID_ISSUE_ADAPTERS = frozenset({"jira", "github", "markdown"})
+
 _MANAGED_BIN_DIR = Path.home() / ".agdt" / "bin"
 
 _BANNER = """\
@@ -506,6 +511,24 @@ def setup_cmd() -> None:
         default=False,
         help="Overwrite existing environment variable lines in shell profile.",
     )
+    parser.add_argument(
+        "--skip-platform-detection",
+        action="store_true",
+        default=False,
+        help="Skip automatic platform detection step.",
+    )
+    parser.add_argument(
+        "--issue-adapter",
+        choices=sorted(_VALID_ISSUE_ADAPTERS),
+        default=None,
+        help="Override detected issue adapter (skips platform detection).",
+    )
+    parser.add_argument(
+        "--skip-templates",
+        action="store_true",
+        default=False,
+        help="Skip workflow template generation step.",
+    )
     args = parser.parse_args()
 
     original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
@@ -590,6 +613,65 @@ def setup_cmd() -> None:
                 "  ⚠ Failed to inject agent/prompt skills — this may be due to directory permissions or missing/corrupted bundled skills",
                 file=sys.stderr,
             )
+
+        # ── Platform & Workflow Setup ──────────────────────────────
+        if not args.system_only and git_root is not None:
+            print()
+            print("─── Platform & Workflow Setup ────────────────────────────────")
+
+            # Step 1: Platform detection + adapter configuration
+            try:
+                if args.issue_adapter is not None:
+                    from agentic_devtools.config import (  # noqa: PLC0415
+                        load_platform_config,
+                        save_platform_config,
+                    )
+
+                    # Load existing config to preserve fields like github.repo
+                    # or azure_devops.project; only override issue_adapter.
+                    platform_config = load_platform_config(str(git_root))
+                    platform_config["issue_adapter"] = args.issue_adapter
+                    if save_platform_config(str(git_root), platform_config):
+                        print(f"  ✓ Issue adapter configured: {args.issue_adapter}")
+                    else:
+                        print(
+                            "  ⚠ Failed to save platform configuration — check directory permissions",
+                            file=sys.stderr,
+                        )
+                elif not args.skip_platform_detection:
+                    from agentic_devtools.cli.setup.platform_detection import (  # noqa: PLC0415
+                        confirm_and_override,
+                        detect_platforms,
+                    )
+                    from agentic_devtools.config import save_platform_config  # noqa: PLC0415
+
+                    result = detect_platforms(str(git_root))
+                    platform_config = confirm_and_override(result)
+                    if save_platform_config(str(git_root), platform_config):
+                        print("  ✓ Platform configuration saved")
+                    else:
+                        print(
+                            "  ⚠ Failed to save platform configuration — check directory permissions",
+                            file=sys.stderr,
+                        )
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ⚠ Platform setup failed ({exc}) — skipping", file=sys.stderr)
+
+            # Step 2: Template generation
+            try:
+                if not args.skip_templates:
+                    from agentic_devtools.cli.setup.workflow_templates import (  # noqa: PLC0415
+                        generate_default_templates,
+                    )
+
+                    generated = generate_default_templates(git_root / ".agdt" / "workflow-definitions")
+                    if generated:
+                        for path in generated:
+                            print(f"  ✓ Generated template: {path}")
+                    else:
+                        print("  ℹ Workflow templates already exist (use --skip-templates to suppress this message)")
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
 
         print()
         if not copilot_ok or not gh_ok or any_required_missing:
