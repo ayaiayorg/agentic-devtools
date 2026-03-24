@@ -695,6 +695,8 @@ if [[ "$SPEC_DIR" == "$REPO_ROOT"/* ]]; then
 else
     SPEC_DIR_REL="$SPEC_DIR"
 fi
+# Normalize to ensure SPEC_DIR_REL never starts with '/', even if SPEC_DIR was absolute.
+SPEC_DIR_REL="${SPEC_DIR_REL#/}"
 echo "branch_name=$BRANCH_NAME" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_file=$SPEC_FILE" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "feature_num=$FEATURE_NUM_PADDED" >> "${GITHUB_OUTPUT:-/dev/stdout}"
