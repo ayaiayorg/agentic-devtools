@@ -37,7 +37,12 @@ class IssueContextRetriever:
             raise ValueError("repo_path must be a valid directory")
         self._jira_config = jira_config
         self._repo_path = repo
-        self._coverage_path = Path(coverage_path) if coverage_path else repo / "coverage.json"
+        # Resolve relative coverage_path against repo_path for consistency
+        if coverage_path:
+            coverage = Path(coverage_path)
+            self._coverage_path = coverage if coverage.is_absolute() else repo / coverage
+        else:
+            self._coverage_path = repo / "coverage.json"
 
     async def retrieve(
         self,
@@ -72,11 +77,11 @@ class IssueContextRetriever:
         # --- Validate affected paths ---
         if affected_paths is not None:
             for p in affected_paths:
-                full = self._repo_path / p
-                if full.exists():
+                validated = self._validate_path(p)
+                if validated is not None:
                     ctx.relevant_files.append(p)
                 else:
-                    msg = f"Affected path does not exist: {p}"
+                    msg = f"Affected path rejected or does not exist: {p}"
                     logger.warning(msg)
                     ctx.errors.append(msg)
 
@@ -110,6 +115,34 @@ class IssueContextRetriever:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _validate_path(self, p: str) -> Path | None:
+        """Validate that *p* is a safe relative path within the repo.
+
+        Rejects absolute paths, ``..`` traversal, and paths that resolve
+        outside ``self._repo_path``.  Returns the resolved :class:`Path`
+        if valid and existing, otherwise ``None``.
+        """
+        pp = Path(p)
+        if pp.is_absolute():
+            return None
+        # Reject any component that is ".."
+        if ".." in pp.parts:
+            return None
+        full = (self._repo_path / pp).resolve()
+        if not self._is_within_repo(full):
+            return None
+        if not full.exists():
+            return None
+        return full
+
+    def _is_within_repo(self, resolved: Path) -> bool:
+        """Return *True* if *resolved* is inside ``self._repo_path``."""
+        try:
+            resolved.relative_to(self._repo_path.resolve())
+            return True
+        except ValueError:
+            return False
 
     def _parse_coverage(self, affected_paths: list[str]) -> dict[str, Any]:
         """Parse ``coverage.json`` and extract data for *affected_paths*."""
@@ -159,9 +192,16 @@ class IssueContextRetriever:
             for candidate in candidates:
                 if candidate is None:
                     continue
-                if candidate.exists() and str(candidate.relative_to(self._repo_path)) not in found:
+                # Ensure candidate resolves within the repo to prevent escapes
+                resolved = candidate.resolve()
+                if not self._is_within_repo(resolved):
+                    continue
+                try:
+                    rel = str(candidate.relative_to(self._repo_path))
+                except ValueError:
+                    continue
+                if candidate.exists() and rel not in found:
                     try:
-                        rel = str(candidate.relative_to(self._repo_path))
                         found[rel] = self._read_lines(candidate, max_lines)
                     except Exception as exc:
                         msg = f"Failed to read documentation file {candidate}: {exc}"

@@ -24,18 +24,23 @@ def _build_jira_config() -> JiraConfig:
     """Construct a :class:`JiraConfig` from environment variables.
 
     Uses the same env-var convention as
-    :func:`agentic_devtools.mcp.server._load_jira_config`.
+    :func:`agentic_devtools.mcp.server._load_jira_config`, including
+    ``JIRA_AUTH_SCHEME`` handling.
     """
     base_url = os.environ.get("JIRA_BASE_URL", "")
     token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
     email = (
         os.environ.get("JIRA_USER_EMAIL", "") or os.environ.get("JIRA_EMAIL", "") or os.environ.get("JIRA_USERNAME", "")
     )
+    auth_scheme = os.environ.get("JIRA_AUTH_SCHEME", "bearer").lower()
 
     headers: dict[str, str] = {}
-    if email and token:
-        credentials = base64.b64encode(f"{email}:{token}".encode()).decode()
-        headers["Authorization"] = f"Basic {credentials}"
+    if email or auth_scheme == "basic":
+        # Basic auth: use email:token credentials when identity is available
+        if email and token:
+            credentials = base64.b64encode(f"{email}:{token}".encode()).decode()
+            headers["Authorization"] = f"Basic {credentials}"
+        # else: no Authorization header — will fail lazily at call time
     elif token:
         headers["Authorization"] = f"Bearer {token}"
 
@@ -78,4 +83,5 @@ async def retrieve_context_node(state: WorkOnIssueState) -> dict:
     return {
         "agent_context": context.to_dict(),
         "events": [{"event": "context_retrieval_completed", "timestamp": _utc_now()}],
+        "error": None,
     }

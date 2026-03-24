@@ -26,7 +26,7 @@ class TestBuildJiraConfig:
     """Tests for _build_jira_config helper."""
 
     def test_bearer_auth_with_token(self, monkeypatch):
-        """Uses Bearer auth when only token is set."""
+        """Uses Bearer auth when only token is set and no auth scheme override."""
         monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
         monkeypatch.setenv("JIRA_API_TOKEN", "my-token")
         monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
@@ -34,6 +34,7 @@ class TestBuildJiraConfig:
         monkeypatch.delenv("JIRA_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
 
         config = _build_jira_config()
         assert config.base_url == "https://jira.example.com"
@@ -46,9 +47,34 @@ class TestBuildJiraConfig:
         monkeypatch.setenv("JIRA_API_TOKEN", "tok")
         monkeypatch.setenv("JIRA_USER_EMAIL", "user@example.com")
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
 
         config = _build_jira_config()
         assert "Basic" in config.headers["Authorization"]
+
+    def test_auth_scheme_basic_forces_basic(self, monkeypatch):
+        """JIRA_AUTH_SCHEME=basic forces Basic auth when email+token are set."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.setenv("JIRA_USER_EMAIL", "user@example.com")
+        monkeypatch.setenv("JIRA_AUTH_SCHEME", "basic")
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+
+        config = _build_jira_config()
+        assert "Basic" in config.headers["Authorization"]
+
+    def test_auth_scheme_basic_no_email_no_auth(self, monkeypatch):
+        """JIRA_AUTH_SCHEME=basic without email produces no Authorization header."""
+        monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "tok")
+        monkeypatch.setenv("JIRA_AUTH_SCHEME", "basic")
+        monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_EMAIL", raising=False)
+        monkeypatch.delenv("JIRA_USERNAME", raising=False)
+        monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+
+        config = _build_jira_config()
+        assert "Authorization" not in config.headers
 
     def test_empty_env_vars(self, monkeypatch):
         """Empty env vars produce a config with empty base_url and no auth."""
@@ -59,6 +85,7 @@ class TestBuildJiraConfig:
         monkeypatch.delenv("JIRA_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
 
         config = _build_jira_config()
         assert config.base_url == ""
@@ -129,13 +156,14 @@ class TestRetrieveContextNode:
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.nodes.IssueContextRetriever")
     async def test_happy_path(self, mock_retriever_cls, monkeypatch, tmp_path):
-        """Successful retrieval returns agent_context and events."""
+        """Successful retrieval returns agent_context, events, and clears error."""
         monkeypatch.setenv("JIRA_BASE_URL", "https://jira.example.com")
         monkeypatch.setenv("JIRA_API_TOKEN", "tok")
         monkeypatch.delenv("JIRA_USER_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_EMAIL", raising=False)
         monkeypatch.delenv("JIRA_USERNAME", raising=False)
         monkeypatch.delenv("JIRA_SSL_VERIFY", raising=False)
+        monkeypatch.delenv("JIRA_AUTH_SCHEME", raising=False)
         monkeypatch.chdir(tmp_path)
 
         mock_ctx = MagicMock()
@@ -150,6 +178,7 @@ class TestRetrieveContextNode:
         assert result["agent_context"] == {"issue_key": "T-1"}
         assert len(result["events"]) == 1
         assert result["events"][0]["event"] == "context_retrieval_completed"
+        assert result["error"] is None
         mock_retriever.retrieve.assert_awaited_once_with("T-1", ["src/main.py"])
 
     @pytest.mark.asyncio

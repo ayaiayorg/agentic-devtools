@@ -47,6 +47,19 @@ class TestIssueContextRetrieverInit:
         r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path), coverage_path=custom)
         assert r._coverage_path.name == "custom_cov.json"
 
+    def test_relative_coverage_path_resolved_against_repo(self, tmp_path):
+        """Relative coverage_path is resolved against repo_path."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path), coverage_path="subdir/cov.json")
+        assert r._coverage_path == tmp_path / "subdir" / "cov.json"
+
+    def test_absolute_coverage_path_used_directly(self, tmp_path):
+        """Absolute coverage_path is used as-is."""
+        config = _make_config()
+        abs_path = str(tmp_path / "abs_cov.json")
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path), coverage_path=abs_path)
+        assert str(r._coverage_path) == abs_path
+
 
 class TestRetrieve:
     """Tests for IssueContextRetriever.retrieve()."""
@@ -169,6 +182,46 @@ class TestRetrieve:
         assert "real.py" in ctx.relevant_files
         assert "ghost.py" not in ctx.relevant_files
         assert any("ghost.py" in e for e in ctx.errors)
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_absolute_path_rejected(self, mock_fetch, mock_git, tmp_path):
+        """Absolute paths are rejected during affected_paths validation."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        ctx = await retriever.retrieve("T-1", affected_paths=["/etc/passwd"])
+
+        assert ctx.relevant_files == []
+        assert any("/etc/passwd" in e for e in ctx.errors)
+
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_dotdot_traversal_rejected(self, mock_fetch, mock_git, tmp_path):
+        """Paths with .. components are rejected during validation."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        ctx = await retriever.retrieve("T-1", affected_paths=["../../../etc/passwd"])
+
+        assert ctx.relevant_files == []
+        assert any("../../../etc/passwd" in e for e in ctx.errors)
 
     @pytest.mark.asyncio
     @patch("agentic_devtools.context.retriever.get_recent_changes")
@@ -340,6 +393,108 @@ class TestFindDocumentation:
         with patch.object(IssueContextRetriever, "_read_lines", side_effect=PermissionError("denied")):
             with pytest.raises(PermissionError, match="denied"):
                 retriever._find_documentation(["src/mymod.py"])
+
+    def test_candidate_outside_repo_skipped(self, tmp_path):
+        """Documentation candidates that resolve outside repo are silently skipped."""
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        # Use a path with ".." that would produce candidates escaping the repo
+        result = retriever._find_documentation(["../../etc/secret.py"])
+
+        # Should not crash and should not include paths outside repo
+        for doc in result:
+            assert ".." not in doc["path"]
+
+    def test_candidate_relative_to_failure_skipped(self, tmp_path):
+        """Candidates where relative_to raises ValueError are silently skipped."""
+        # Create a doc file that would normally be found
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "mymod.md").write_text("# Docs")
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+
+        from pathlib import Path
+
+        original_relative_to = Path.relative_to
+
+        def failing_relative_to(self_path, *args, **kwargs):
+            # Only fail for doc candidate paths (not root readme or _is_within_repo calls)
+            if "docs" in str(self_path) and str(self_path).endswith(".md"):
+                raise ValueError("forced failure")
+            return original_relative_to(self_path, *args, **kwargs)
+
+        with (
+            patch.object(IssueContextRetriever, "_is_within_repo", return_value=True),
+            patch.object(Path, "relative_to", failing_relative_to),
+        ):
+            result = retriever._find_documentation(["src/mymod.py"])
+
+        # Should not crash — docs/mymod.md is skipped due to ValueError
+        for doc in result:
+            assert "docs/" not in doc["path"]
+
+
+class TestValidatePath:
+    """Tests for IssueContextRetriever._validate_path()."""
+
+    def test_rejects_absolute_path(self, tmp_path):
+        """Absolute paths are rejected."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        assert r._validate_path("/etc/passwd") is None
+
+    def test_rejects_dotdot_traversal(self, tmp_path):
+        """Paths containing .. components are rejected."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        assert r._validate_path("../../../etc/passwd") is None
+
+    def test_rejects_nonexistent_file(self, tmp_path):
+        """Paths that don't exist on disk are rejected."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        assert r._validate_path("nonexistent.py") is None
+
+    def test_accepts_valid_relative_path(self, tmp_path):
+        """Valid relative paths within the repo are accepted."""
+        (tmp_path / "valid.py").write_text("x = 1")
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        result = r._validate_path("valid.py")
+        assert result is not None
+
+    def test_rejects_path_resolving_outside_repo(self, tmp_path):
+        """Paths that resolve outside repo via symlink are rejected."""
+        # Create a symlink that points outside the repo
+        outside = tmp_path.parent / "outside_file.py"
+        outside.write_text("secret")
+        link = tmp_path / "sneaky_link.py"
+        link.symlink_to(outside)
+
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        result = r._validate_path("sneaky_link.py")
+        assert result is None
+
+
+class TestIsWithinRepo:
+    """Tests for IssueContextRetriever._is_within_repo()."""
+
+    def test_path_within_repo(self, tmp_path):
+        """Returns True for paths inside the repo."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        assert r._is_within_repo((tmp_path / "subdir" / "file.py").resolve()) is True
+
+    def test_path_outside_repo(self, tmp_path):
+        """Returns False for paths outside the repo."""
+        config = _make_config()
+        r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        from pathlib import Path
+
+        assert r._is_within_repo(Path("/etc/passwd").resolve()) is False
 
 
 class TestReadLines:
