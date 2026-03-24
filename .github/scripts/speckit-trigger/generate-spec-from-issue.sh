@@ -512,6 +512,23 @@ $(strip_model_footer "$(cat "$SPEC_DIR/research.md")")"
 ## Data Model Context
 $(strip_model_footer "$(cat "$SPEC_DIR/data-model.md")")"
     fi
+    # Include API contracts so tasks can reference endpoints
+    local contract_file
+    if [[ -d "$SPEC_DIR/contracts" ]]; then
+        for contract_file in "$SPEC_DIR"/contracts/*.md; do
+            [[ -f "$contract_file" ]] || continue
+            extra_context="$extra_context
+
+## API Contract: $(basename "$contract_file")
+$(strip_model_footer "$(cat "$contract_file")")"
+        done
+    fi
+    if [[ -f "$SPEC_DIR/quickstart.md" ]]; then
+        extra_context="$extra_context
+
+## Quickstart Context
+$(strip_model_footer "$(cat "$SPEC_DIR/quickstart.md")")"
+    fi
 
     local prompt
     prompt="You are a task breakdown specialist. Based on the following specification and implementation plan, generate a comprehensive task list.

@@ -280,30 +280,55 @@ jobs:
             const branchName = '${{ steps.generate.outputs.branch_name }}';
             const specFile = '${{ steps.generate.outputs.spec_file }}';
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
+            const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
 
             const lines = [
               '## ✅ SpecKit: Full Planning Artifact Suite Generated',
               '',
               'A complete planning artifact suite has been generated from this issue.',
               '',
-              `**Branch**: \`${branchName}\``,
-              `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
+              `**Branch**: \`${branchName}\``
             ];
 
             const specDir = '${{ steps.generate.outputs.spec_dir }}';
-            if (specDir) {
+
+            if (branchPushed) {
               lines.push(
-                '',
-                '### Generated Artifacts',
-                '',
-                `| Artifact | Path |`,
-                `| --- | --- |`,
-                `| Specification | [\`spec.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/spec.md) |`,
-                `| Implementation Plan | [\`plan.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/plan.md) |`,
-                `| Task Breakdown | [\`tasks.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/tasks.md) |`,
-                `| Analysis Report | [\`analysis-report.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/analysis-report.md) |`,
-                `| Requirements Checklist | [\`checklists/requirements.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/checklists/requirements.md) |`
+                `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
               );
+
+              if (specDir) {
+                lines.push(
+                  '',
+                  '### Generated Artifacts',
+                  '',
+                  `| Artifact | Path |`,
+                  `| --- | --- |`,
+                  `| Specification | [\`spec.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/spec.md) |`,
+                  `| Implementation Plan | [\`plan.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/plan.md) |`,
+                  `| Task Breakdown | [\`tasks.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/tasks.md) |`,
+                  `| Analysis Report | [\`analysis-report.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/analysis-report.md) |`,
+                  `| Requirements Checklist | [\`checklists/requirements.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/checklists/requirements.md) |`
+                );
+              }
+            } else {
+              lines.push(`**Spec File**: \`${specFile}\``);
+              if (specDir) {
+                lines.push(
+                  '',
+                  '### Generated Artifacts',
+                  '',
+                  '| Artifact | Path |',
+                  '| --- | --- |',
+                  `| Specification | \`${specDir}/spec.md\` |`,
+                  `| Implementation Plan | \`${specDir}/plan.md\` |`,
+                  `| Task Breakdown | \`${specDir}/tasks.md\` |`,
+                  `| Analysis Report | \`${specDir}/analysis-report.md\` |`,
+                  `| Requirements Checklist | \`${specDir}/checklists/requirements.md\` |`,
+                  '',
+                  '> **Note**: Branch was not pushed (`SPECKIT_CREATE_BRANCH` is disabled). Artifact links are not available.'
+                );
+              }
             }
 
             if (prUrl) {
