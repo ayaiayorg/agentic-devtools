@@ -47,6 +47,7 @@ jobs:
     outputs:
       branch_name: ${{ steps.generate.outputs.branch_name }}
       spec_file: ${{ steps.generate.outputs.spec_file }}
+      spec_dir: ${{ steps.generate.outputs.spec_dir }}
       pr_url: ${{ steps.create-pr.outputs.pr_url }}
       skipped: ${{ steps.idempotency.outputs.skipped }}
 
@@ -92,9 +93,9 @@ jobs:
               repo: context.repo.repo,
               issue_number: issueNumber,
               body: [
-                '## 🚀 SpecKit: Specification Creation Started',
+                '## 🚀 SpecKit: Planning Pipeline Started',
                 '',
-                "I'm creating a feature specification based on this issue.",
+                "I'm running the full speckit planning pipeline for this issue. This includes specification, clarification, planning, task breakdown, and analysis.",
                 '',
                 '**Status**: In Progress',
                 `**Triggered by**: \`${{ env.TRIGGER_LABEL }}\` label`,
@@ -234,16 +235,22 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
-          SPEC_FILE="${{ steps.generate.outputs.spec_file }}"
 
           # Create and checkout new branch
           git checkout -b "$BRANCH_NAME"
 
           # Add all generated artifacts in the spec directory
           SPEC_DIR="${{ steps.generate.outputs.spec_dir }}"
+          if [[ -z "$SPEC_DIR" ]]; then
+            SPEC_DIR="$(dirname "${{ steps.generate.outputs.spec_file }}")"
+          fi
+          if [[ -z "$SPEC_DIR" || "$SPEC_DIR" == "." ]]; then
+            echo "Error: Could not determine spec directory from generate step outputs" >&2
+            exit 1
+          fi
           git add "$SPEC_DIR"
 
-          git commit -m "spec: Add specification for issue #${{ steps.issue.outputs.number }}
+          git commit -m "spec: Add planning artifacts for issue #${{ steps.issue.outputs.number }}
 
           Generated from: ${{ steps.issue.outputs.url }}
 
@@ -266,7 +273,7 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
           .github/scripts/speckit-trigger/create-spec-pr.sh \
             "${{ steps.generate.outputs.branch_name }}" \
-            "${{ steps.generate.outputs.spec_file }}" \
+            "${{ steps.generate.outputs.spec_dir }}" \
             "${{ steps.issue.outputs.number }}" \
             "${{ steps.issue.outputs.title }}" \
             "${{ steps.issue.outputs.labels }}"
@@ -283,9 +290,9 @@ jobs:
             const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
 
             const lines = [
-              '## ✅ SpecKit: Full Planning Artifact Suite Generated',
+              '## ✅ SpecKit: Planning Pipeline Completed Successfully',
               '',
-              'A complete planning artifact suite has been generated from this issue.',
+              'The full speckit planning pipeline has completed for this issue.',
               '',
               `**Branch**: \`${branchName}\``
             ];
@@ -294,7 +301,7 @@ jobs:
 
             if (branchPushed) {
               lines.push(
-                `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
+                `**Artifacts Directory**: [\`${specDir}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${branchName}/${specDir})`
               );
 
               if (specDir) {
@@ -312,7 +319,7 @@ jobs:
                 );
               }
             } else {
-              lines.push(`**Spec File**: \`${specFile}\``);
+              lines.push(`**Artifacts Directory**: \`${specDir}\``);
               if (specDir) {
                 lines.push(
                   '',
@@ -339,11 +346,9 @@ jobs:
               '',
               '### Next Steps',
               '',
-              '1. Review the generated specification and planning artifacts',
-              '2. Check the analysis report for risks and recommendations',
-              '3. Approve the PR to merge the planning suite into the repository',
-              '',
-              '> **Note**: Clarification, planning, task breakdown, and analysis phases were run autonomously by SpecKit.',
+              '1. Review the planning artifacts in the pull request',
+              '2. Merge the PR when satisfied with the planning output',
+              '3. Implementation will be triggered automatically via the `speckit:needs-implementation` label',
               '',
               '---',
               `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
@@ -356,7 +361,7 @@ jobs:
               body: lines.join('\n')
             });
 
-            // Update label: remove processing, add completed
+            // Update label: remove processing, add completed + needs-implementation
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -368,7 +373,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                labels: ['speckit:completed']
+                labels: ['speckit:completed', 'speckit:needs-implementation']
               });
             } catch (e) {
               console.log('Could not update labels:', e.message);

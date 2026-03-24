@@ -13,6 +13,9 @@
 # Checks:
 #   1. Search specs/ directory for spec.md files containing "Source Issue: #N"
 #   2. Search specs/ directory for spec.md files containing the issue URL
+#   3. Checks for spec.md AND at least one full-pipeline artifact
+#      (plan.md, tasks.md, analysis-report.md). Legacy spec-only runs
+#      do NOT block re-generation with the full pipeline.
 
 set -euo pipefail
 
@@ -32,16 +35,34 @@ if [[ ! -d "$SPECS_DIR" ]]; then
     exit 0
 fi
 
+# Helper: check whether the full planning pipeline artifacts exist alongside a spec.
+# Returns 0 (true) if at least one of plan.md, tasks.md, analysis-report.md is present.
+# Returns 1 (false) if none are found (legacy spec-only run).
+check_full_pipeline_artifacts() {
+    local spec_file="$1"
+    local spec_dir
+    spec_dir="$(dirname "$spec_file")"
+
+    if [[ -f "$spec_dir/plan.md" ]] || [[ -f "$spec_dir/tasks.md" ]] || [[ -f "$spec_dir/analysis-report.md" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 # Search for existing spec with this issue reference
 SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}"
 
 EXISTING_SPEC=$(grep -rl "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
 
 if [[ -n "$EXISTING_SPEC" ]]; then
-    echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
-    echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-    echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-    exit 0
+    if check_full_pipeline_artifacts "$EXISTING_SPEC"; then
+        echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
+        echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        exit 0
+    else
+        echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
+    fi
 fi
 
 # Also check for issue URL pattern
@@ -50,10 +71,14 @@ if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
     EXISTING_SPEC=$(grep -rl "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
 
     if [[ -n "$EXISTING_SPEC" ]]; then
-        echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
-        echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-        echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-        exit 0
+        if check_full_pipeline_artifacts "$EXISTING_SPEC"; then
+            echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
+            echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            exit 0
+        else
+            echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
+        fi
     fi
 fi
 
