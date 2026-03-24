@@ -177,7 +177,7 @@ class IssueContextRetriever:
         # Always include root README.md
         root_readme = self._repo_path / "README.md"
         if root_readme.exists():
-            found[str(root_readme.relative_to(self._repo_path))] = self._read_lines(root_readme, max_lines)
+            found[root_readme.relative_to(self._repo_path).as_posix()] = self._read_lines(root_readme, max_lines)
 
         for p in affected_paths:
             pp = Path(p)
@@ -203,7 +203,7 @@ class IssueContextRetriever:
                 if not self._is_within_repo(resolved):
                     continue
                 try:
-                    rel = str(candidate.relative_to(self._repo_path))
+                    rel = candidate.relative_to(self._repo_path).as_posix()
                 except ValueError:
                     continue
                 if candidate.exists() and rel not in found:

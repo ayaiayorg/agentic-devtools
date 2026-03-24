@@ -556,7 +556,10 @@ class TestValidatePath:
         outside = tmp_path.parent / "outside_file.py"
         outside.write_text("secret")
         link = tmp_path / "sneaky_link.py"
-        link.symlink_to(outside)
+        try:
+            link.symlink_to(outside)
+        except OSError:
+            pytest.skip("Symlink creation not permitted on this platform/configuration")
 
         config = _make_config()
         r = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
