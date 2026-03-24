@@ -62,9 +62,7 @@ async def main() -> int:
         try:
             await asyncio.wait_for(done.wait(), timeout=300)
         except asyncio.TimeoutError:
-            print(
-                "Error: Copilot SDK response timed out after 300s", file=sys.stderr
-            )
+            print("Error: Copilot SDK response timed out after 300s", file=sys.stderr)
             return 1
 
         if not content.strip():
