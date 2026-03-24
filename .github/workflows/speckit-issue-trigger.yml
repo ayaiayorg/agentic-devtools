@@ -355,13 +355,13 @@ jobs:
               lines.push(
                 '1. Review the planning artifacts in the pull request',
                 '2. Merge the PR when satisfied with the planning output',
-                '3. Once satisfied, apply the `speckit:needs-implementation` label to signal readiness for implementation'
+                '3. The `speckit:needs-implementation` label has been applied to signal readiness for implementation'
               );
             } else {
               lines.push(
                 `1. Review the planning artifacts in the \`${branchName}\` branch`,
                 `2. No pull request was created — review the artifacts directory directly`,
-                '3. Once satisfied, the `speckit:needs-implementation` label signals readiness for implementation'
+                '3. The `speckit:needs-implementation` label has been applied to signal readiness for implementation'
               );
             }
 

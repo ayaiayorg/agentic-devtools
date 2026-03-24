@@ -41,6 +41,13 @@ if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
     exit 1
 fi
 
+# Ensure GITHUB_REPOSITORY is in the expected owner/repo format
+IFS='/' read -r repo_owner repo_name extra <<<"${GITHUB_REPOSITORY}"
+if [[ -z "${repo_owner:-}" || -z "${repo_name:-}" || -n "${extra:-}" ]]; then
+    echo "Error: GITHUB_REPOSITORY must be in 'owner/repo' format, got '${GITHUB_REPOSITORY}'" >&2
+    exit 1
+fi
+
 echo "=== Creating Pull Request ==="
 echo "Branch: $BRANCH_NAME"
 echo "Spec Dir: $SPEC_DIR"
