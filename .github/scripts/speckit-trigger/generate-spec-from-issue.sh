@@ -444,13 +444,20 @@ $spec_content"
             current_file="${BASH_REMATCH[1]}"
             current_file="${current_file#"${current_file%%[![:space:]]*}"}"
             current_file="${current_file%"${current_file##*[![:space:]]}"}"
-            # Validate filename: reject path traversal, absolute paths, and
-            # characters outside the expected alphanumeric + ._-/ set
+            # Validate filename: reject path traversal, absolute paths,
+            # trailing slashes (directory paths), and characters outside
+            # the expected alphanumeric + ._-/ set
             if [[ "$current_file" == /* || "$current_file" == *..* || -z "$current_file" ]]; then
                 echo "Warning: Skipping invalid artifact filename: $current_file" >&2
                 current_file=""
+            elif [[ "$current_file" == */ ]]; then
+                echo "Warning: Skipping directory-path artifact filename: $current_file" >&2
+                current_file=""
             elif [[ ! "$current_file" =~ ^[A-Za-z0-9._/-]+$ ]]; then
                 echo "Warning: Skipping artifact filename with invalid characters: $current_file" >&2
+                current_file=""
+            elif [[ -d "$SPEC_DIR/$current_file" ]]; then
+                echo "Warning: Skipping artifact filename that collides with existing directory: $current_file" >&2
                 current_file=""
             fi
             current_content=""
