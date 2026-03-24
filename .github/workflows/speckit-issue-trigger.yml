@@ -378,6 +378,13 @@ jobs:
               body: lines.join('\n')
             });
 
+      - name: Update Labels
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
             // Update label: remove processing, add completed + needs-implementation
             try {
               await github.rest.issues.removeLabel({

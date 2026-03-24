@@ -56,8 +56,14 @@ echo "Issue: #$ISSUE_NUMBER"
 # Create PR title
 PR_TITLE="spec: Add planning artifacts for issue #$ISSUE_NUMBER"
 
+# Validate SPEC_DIR exists as a directory
+if [[ ! -d "$SPEC_DIR" ]]; then
+    echo "Error: SPEC_DIR does not exist or is not a directory: $SPEC_DIR" >&2
+    exit 1
+fi
+
 # Build dynamic artifact listing
-SPEC_DIR_ABSOLUTE="$(cd "$SPEC_DIR" 2>/dev/null && pwd || echo "$SPEC_DIR")"
+SPEC_DIR_ABSOLUTE="$(cd "$SPEC_DIR" && pwd)"
 # Normalize: strip trailing slashes for consistent path joining
 SPEC_DIR="${SPEC_DIR%/}"
 SPEC_DIR_ABSOLUTE="${SPEC_DIR_ABSOLUTE%/}"
@@ -104,7 +110,7 @@ $ARTIFACT_LIST
 
 1. [ ] [Review the generated planning artifacts for accuracy and completeness](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR})
 2. [ ] Merge this PR when satisfied
-3. [ ] Add the \`speckit:needs-implementation\` label when the specification is ready for implementation
+3. The \`speckit:needs-implementation\` label has been automatically applied to the source issue to signal readiness for implementation
 
 ## Checklist
 
