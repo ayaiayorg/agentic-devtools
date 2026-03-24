@@ -85,7 +85,7 @@ This PR adds planning artifacts from the full speckit pipeline, generated from i
 
 **Issue**: $ISSUE_TITLE
 
-## Specification
+## Artifacts
 
 - **Artifacts Directory**: \`$SPEC_DIR\`
 - **Branch**: \`$BRANCH_NAME\`

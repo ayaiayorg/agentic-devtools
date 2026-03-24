@@ -53,6 +53,7 @@ check_full_pipeline_artifacts() {
 # The pattern requires the issue number to be followed by a non-digit or end-of-line
 # to prevent prefix false-positives (e.g. #12 matching #123).
 SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}([^0-9]|$)"
+LEGACY_SPEC_FOUND=false
 
 # Restrict search to spec.md files only — other artifacts (e.g. checklists/requirements.md)
 # may also contain "Source Issue" and would produce false positives.
@@ -66,6 +67,7 @@ if [[ -n "$EXISTING_SPEC" ]]; then
         exit 0
     else
         echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
+        LEGACY_SPEC_FOUND=true
     fi
 fi
 
@@ -82,9 +84,14 @@ if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
             exit 0
         else
             echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
+            LEGACY_SPEC_FOUND=true
         fi
     fi
 fi
 
-echo "✓ No existing specification found for issue #$ISSUE_NUMBER"
+if [[ "$LEGACY_SPEC_FOUND" == "true" ]]; then
+    echo "✓ Legacy spec-only directory found for issue #$ISSUE_NUMBER — proceeding with full pipeline generation"
+else
+    echo "✓ No existing specification found for issue #$ISSUE_NUMBER"
+fi
 echo "skipped=false" >> "${GITHUB_OUTPUT:-/dev/stdout}"
