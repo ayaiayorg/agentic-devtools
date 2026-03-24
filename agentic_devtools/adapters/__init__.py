@@ -107,9 +107,7 @@ def _build_jira_adapter(platform_config: dict) -> JiraAdapter:
     base_url = os.environ.get("JIRA_BASE_URL", "")
     token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
     identity = (
-        os.environ.get("JIRA_USER_EMAIL", "")
-        or os.environ.get("JIRA_EMAIL", "")
-        or os.environ.get("JIRA_USERNAME", "")
+        os.environ.get("JIRA_USER_EMAIL", "") or os.environ.get("JIRA_EMAIL", "") or os.environ.get("JIRA_USERNAME", "")
     )
     auth_scheme = os.environ.get("JIRA_AUTH_SCHEME", "bearer").lower()
 

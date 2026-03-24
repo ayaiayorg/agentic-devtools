@@ -1,7 +1,7 @@
 """LangGraph state schema definitions for AGDT orchestration workflows."""
 
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 
 class WorkOnIssueEvent(TypedDict):
@@ -30,3 +30,5 @@ class WorkOnIssueState(TypedDict, total=False):
     retry_count: int
     events: Annotated[list[WorkOnIssueEvent], operator.add]
     human_approved: bool
+    agent_context: dict[str, Any]
+    affected_paths: list[str]
