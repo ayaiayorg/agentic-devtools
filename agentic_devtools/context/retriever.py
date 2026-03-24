@@ -77,7 +77,13 @@ class IssueContextRetriever:
         # --- Validate affected paths ---
         if affected_paths is not None:
             for p in affected_paths:
-                validated = self._validate_path(p)
+                try:
+                    validated = self._validate_path(p)
+                except Exception as exc:
+                    msg = f"Error validating path {p}: {exc}"
+                    logger.warning(msg)
+                    ctx.errors.append(msg)
+                    continue
                 if validated is not None:
                     # Store a normalized, repo-relative POSIX path to avoid
                     # downstream string-key mismatches (e.g. in coverage lookups).

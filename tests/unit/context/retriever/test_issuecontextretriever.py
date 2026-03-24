@@ -325,6 +325,29 @@ class TestRetrieve:
         assert ctx.documentation == []
         assert any("Failed to find documentation" in e for e in ctx.errors)
 
+    @pytest.mark.asyncio
+    @patch("agentic_devtools.context.retriever.get_recent_changes")
+    @patch("agentic_devtools.context.retriever.fetch_issue_context")
+    async def test_validate_path_exception_is_nonfatal(self, mock_fetch, mock_git, tmp_path):
+        """An exception inside _validate_path() is caught and logged, not propagated."""
+        mock_fetch.return_value = {
+            "issue": None,
+            "parent_issue": None,
+            "epic_issue": None,
+            "remote_links": [],
+        }
+        mock_git.return_value = {"commits": []}
+
+        config = _make_config()
+        retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
+        with patch.object(
+            IssueContextRetriever, "_validate_path", side_effect=OSError("filesystem error")
+        ):
+            ctx = await retriever.retrieve("T-1", affected_paths=["some/file.py"])
+
+        assert ctx.relevant_files == []
+        assert any("Error validating path some/file.py" in e for e in ctx.errors)
+
 
 class TestParseCoverage:
     """Tests for IssueContextRetriever._parse_coverage()."""

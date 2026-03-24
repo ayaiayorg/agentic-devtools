@@ -24,9 +24,31 @@ def _utc_now() -> str:
 def _build_jira_config() -> JiraConfig:
     """Construct a :class:`JiraConfig` from environment variables.
 
-    Uses the same env-var convention as
-    :func:`agentic_devtools.mcp.server._load_jira_config`, including
-    ``JIRA_AUTH_SCHEME`` handling.
+    This helper is intentionally permissive and always returns a
+    :class:`JiraConfig` instance, even when typical "required" values
+    such as base URL, token, or identity are missing. It reads:
+
+    * ``JIRA_BASE_URL`` for the base URL (default: empty string)
+    * ``JIRA_API_TOKEN`` or ``JIRA_COPILOT_PAT`` for the token
+    * ``JIRA_USER_EMAIL``, ``JIRA_EMAIL``, or ``JIRA_USERNAME`` for the
+      user identity
+    * ``JIRA_AUTH_SCHEME`` to decide how to build the ``Authorization``
+      header (default: ``"bearer"``)
+
+    Authorization header behavior:
+
+    * If ``JIRA_AUTH_SCHEME`` is ``"basic"`` (case-insensitive) and both
+      an identity and token are present, it sets
+      ``Authorization: Basic <base64(email:token)>``.
+    * If ``JIRA_AUTH_SCHEME`` is not ``"basic"`` and a token is present,
+      it sets ``Authorization: Bearer <token>``.
+    * Otherwise, no ``Authorization`` header is set and authentication
+      failures will surface later at call time.
+
+    Unlike the stricter
+    :func:`agentic_devtools.mcp.server._load_jira_config`, this function
+    does not return ``None`` when configuration is incomplete; callers
+    should perform any additional validation they require.
     """
     base_url = os.environ.get("JIRA_BASE_URL", "")
     token = os.environ.get("JIRA_API_TOKEN", "") or os.environ.get("JIRA_COPILOT_PAT", "")
