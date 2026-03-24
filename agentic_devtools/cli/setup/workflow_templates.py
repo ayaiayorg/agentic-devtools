@@ -59,6 +59,26 @@ def list_available_templates() -> list[TemplateInfo]:
     return list(_AVAILABLE_TEMPLATES)
 
 
+def _read_template(filename: str) -> str:
+    """Read a bundled template file and return its content.
+
+    Raises :class:`FileNotFoundError` with a descriptive message when the
+    templates directory or the requested file is missing — which can happen
+    if the package was installed from a wheel that did not include the
+    ``templates/`` data directory.
+    """
+    source = _TEMPLATES_DIR / filename
+    if not source.exists():
+        msg = (
+            f"Bundled template '{filename}' not found at {source}. "
+            "The templates directory may not have been included in the "
+            "installed distribution. Reinstall the package or verify "
+            "that 'agentic_devtools/cli/setup/templates/' is present."
+        )
+        raise FileNotFoundError(msg)
+    return source.read_text(encoding="utf-8")
+
+
 def generate_default_templates(target_dir: Path, overwrite: bool = False) -> list[Path]:
     """Copy bundled templates into *target_dir*.
 
@@ -72,12 +92,11 @@ def generate_default_templates(target_dir: Path, overwrite: bool = False) -> lis
 
     written: list[Path] = []
     for template in _AVAILABLE_TEMPLATES:
-        source = _TEMPLATES_DIR / template.filename
         destination = target_dir / template.filename
         if destination.exists() and not overwrite:
             logger.debug("Skipping %s: already exists", template.filename)
             continue
-        content = source.read_text(encoding="utf-8")
+        content = _read_template(template.filename)
         destination.write_text(content, encoding="utf-8")
         logger.info("Generated template: %s", template.filename)
         written.append(destination)

@@ -1,9 +1,13 @@
 """Tests for agentic_devtools.cli.setup.workflow_templates.generate_default_templates."""
 
 import logging
+from unittest.mock import patch
+
+import pytest
 
 from agentic_devtools.cli.setup.workflow_templates import (
     _TEMPLATES_DIR,
+    _read_template,
     generate_default_templates,
     list_available_templates,
 )
@@ -94,3 +98,18 @@ class TestGenerateDefaultTemplates:
         assert len(debug_messages) == 3
         for msg in debug_messages:
             assert "already exists" in msg
+
+
+class TestReadTemplate:
+    """Tests for _read_template helper."""
+
+    def test_reads_existing_template(self):
+        """Returns content of a bundled template file."""
+        content = _read_template("README.md")
+        assert "Workflow Templates" in content
+
+    def test_raises_for_missing_template(self, tmp_path):
+        """Raises FileNotFoundError with descriptive message when template is missing."""
+        with patch("agentic_devtools.cli.setup.workflow_templates._TEMPLATES_DIR", tmp_path):
+            with pytest.raises(FileNotFoundError, match="Bundled template 'missing.py' not found"):
+                _read_template("missing.py")
