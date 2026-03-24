@@ -239,9 +239,9 @@ jobs:
           # Create and checkout new branch
           git checkout -b "$BRANCH_NAME"
 
-          # Add and commit spec files
-          git add "$SPEC_FILE"
-          git add "$(dirname "$SPEC_FILE")/checklists/" 2>/dev/null || true
+          # Add all generated artifacts in the spec directory
+          SPEC_DIR="${{ steps.generate.outputs.spec_dir }}"
+          git add "$SPEC_DIR"
 
           git commit -m "spec: Add specification for issue #${{ steps.issue.outputs.number }}
 
@@ -280,28 +280,70 @@ jobs:
             const branchName = '${{ steps.generate.outputs.branch_name }}';
             const specFile = '${{ steps.generate.outputs.spec_file }}';
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
+            const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
 
             const lines = [
-              '## ✅ SpecKit: Specification Created Successfully',
+              '## ✅ SpecKit: Full Planning Artifact Suite Generated',
               '',
-              'A feature specification has been generated from this issue.',
+              'A complete planning artifact suite has been generated from this issue.',
               '',
-              `**Branch**: \`${branchName}\``,
-              `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
+              `**Branch**: \`${branchName}\``
             ];
 
+            const specDir = '${{ steps.generate.outputs.spec_dir }}';
+
+            if (branchPushed) {
+              lines.push(
+                `**Spec File**: [\`${specFile}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specFile})`
+              );
+
+              if (specDir) {
+                lines.push(
+                  '',
+                  '### Generated Artifacts',
+                  '',
+                  `| Artifact | Path |`,
+                  `| --- | --- |`,
+                  `| Specification | [\`spec.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/spec.md) |`,
+                  `| Implementation Plan | [\`plan.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/plan.md) |`,
+                  `| Task Breakdown | [\`tasks.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/tasks.md) |`,
+                  `| Analysis Report | [\`analysis-report.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/analysis-report.md) |`,
+                  `| Requirements Checklist | [\`checklists/requirements.md\`](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branchName}/${specDir}/checklists/requirements.md) |`
+                );
+              }
+            } else {
+              lines.push(`**Spec File**: \`${specFile}\``);
+              if (specDir) {
+                lines.push(
+                  '',
+                  '### Generated Artifacts',
+                  '',
+                  '| Artifact | Path |',
+                  '| --- | --- |',
+                  `| Specification | \`${specDir}/spec.md\` |`,
+                  `| Implementation Plan | \`${specDir}/plan.md\` |`,
+                  `| Task Breakdown | \`${specDir}/tasks.md\` |`,
+                  `| Analysis Report | \`${specDir}/analysis-report.md\` |`,
+                  `| Requirements Checklist | \`${specDir}/checklists/requirements.md\` |`,
+                  '',
+                  '> **Note**: Branch was not pushed (`SPECKIT_CREATE_BRANCH` is disabled). Artifact links are not available.'
+                );
+              }
+            }
+
             if (prUrl) {
-              lines.push(`**Pull Request**: ${prUrl}`);
+              lines.push('', `**Pull Request**: ${prUrl}`);
             }
 
             lines.push(
               '',
               '### Next Steps',
               '',
-              '1. Review the generated specification',
-              '2. Clarify any `[NEEDS CLARIFICATION]` items',
-              '3. Run `/speckit.plan` to create an implementation plan',
-              '4. Run `/speckit.tasks` to break down into tasks',
+              '1. Review the generated specification and planning artifacts',
+              '2. Check the analysis report for risks and recommendations',
+              '3. Approve the PR to merge the planning suite into the repository',
+              '',
+              '> **Note**: Clarification, planning, task breakdown, and analysis phases were run autonomously by SpecKit.',
               '',
               '---',
               `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
@@ -386,4 +428,4 @@ jobs:
               console.log('Could not update labels:', e.message);
             }
 
-    timeout-minutes: 10
+    timeout-minutes: 30
