@@ -57,36 +57,37 @@ LEGACY_SPEC_FOUND=false
 
 # Restrict search to spec.md files only — other artifacts (e.g. checklists/requirements.md)
 # may also contain "Source Issue" and would produce false positives.
-EXISTING_SPEC=$(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
-
-if [[ -n "$EXISTING_SPEC" ]]; then
-    if check_full_pipeline_artifacts "$EXISTING_SPEC"; then
-        echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
+# Scan ALL matching spec.md files (not just the first) so a legacy match can't hide
+# a full-pipeline match in another directory.
+while IFS= read -r spec_match; do
+    [[ -z "$spec_match" ]] && continue
+    if check_full_pipeline_artifacts "$spec_match"; then
+        echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $spec_match"
         echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-        echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "existing_spec=$spec_match" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         exit 0
     else
         echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
         LEGACY_SPEC_FOUND=true
     fi
-fi
+done < <(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
 
-# Also check for issue URL pattern
+# Also check for issue URL pattern — same all-matches scan as above.
 if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
     URL_PATTERN="github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}([^0-9]|$)"
-    EXISTING_SPEC=$(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1 || true)
 
-    if [[ -n "$EXISTING_SPEC" ]]; then
-        if check_full_pipeline_artifacts "$EXISTING_SPEC"; then
-            echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $EXISTING_SPEC"
+    while IFS= read -r spec_match; do
+        [[ -z "$spec_match" ]] && continue
+        if check_full_pipeline_artifacts "$spec_match"; then
+            echo "✗ Found existing specification for issue #$ISSUE_NUMBER: $spec_match"
             echo "skipped=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-            echo "existing_spec=$EXISTING_SPEC" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            echo "existing_spec=$spec_match" >> "${GITHUB_OUTPUT:-/dev/stdout}"
             exit 0
         else
             echo "⚠ Found spec.md but full pipeline artifacts missing — allowing re-run"
             LEGACY_SPEC_FOUND=true
         fi
-    fi
+    done < <(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
 fi
 
 if [[ "$LEGACY_SPEC_FOUND" == "true" ]]; then
