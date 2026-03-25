@@ -137,3 +137,28 @@ class TestGetRepositoryIdViaRest:
                     project="MyProject",
                     repository="my-repo",
                 )
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    def test_does_not_double_encode_percent_encoded_values(self):
+        """Test that already percent-encoded values are normalized (unquote then quote)."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "repo-guid"}
+
+        mock_requests = MagicMock()
+        mock_requests.get.return_value = mock_response
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.require_requests", return_value=mock_requests):
+            from agentic_devtools.cli.azure_devops.helpers import _get_repository_id_via_rest
+
+            _get_repository_id_via_rest(
+                organization="https://dev.azure.com/myorg",
+                project="My%20Project",
+                repository="my%20repo",
+            )
+
+        call_url = mock_requests.get.call_args[0][0]
+        # Should be single-encoded, not double-encoded (%2520)
+        assert "My%20Project" in call_url
+        assert "my%20repo" in call_url
+        assert "%2520" not in call_url

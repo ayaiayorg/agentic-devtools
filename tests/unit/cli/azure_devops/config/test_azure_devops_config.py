@@ -45,6 +45,26 @@ class TestAzureDevOpsConfig:
         assert config.project == "DragonflyMgmt"
         assert config.repository == "dfly-platform-management"
 
+    def test_from_state_falls_back_to_github_remote_for_repository(
+        self, temp_state_dir, clear_state_before, monkeypatch
+    ):
+        """Test config falls back to get_repository_name_from_git_remote for non-Azure-DevOps remotes."""
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_azure_devops_context_from_git_remote",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_repository_name_from_git_remote",
+            lambda: "agentic-devtools",
+        )
+
+        config = azure_devops.AzureDevOpsConfig.from_state()
+        assert config.repository == "agentic-devtools"
+        assert config.organization == azure_devops.DEFAULT_ORGANIZATION
+        assert config.project == azure_devops.DEFAULT_PROJECT
+
     def test_build_api_url_simple(self):
         """Test building simple API URL."""
         config = azure_devops.AzureDevOpsConfig(

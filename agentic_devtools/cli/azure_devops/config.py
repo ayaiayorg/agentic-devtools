@@ -146,7 +146,11 @@ class AzureDevOpsConfig:
         remote_project = remote_context[1] if remote_context else None
         remote_repository = remote_context[2] if remote_context else None
 
-        repository = get_value("repository") or remote_repository or DEFAULT_REPOSITORY
+        # Fall back to get_repository_name_from_git_remote() for non-Azure-DevOps
+        # remotes (e.g. GitHub) that still carry a usable repository name.
+        repository_from_git_remote = get_repository_name_from_git_remote()
+
+        repository = get_value("repository") or remote_repository or repository_from_git_remote or DEFAULT_REPOSITORY
         organization = get_value("organization") or remote_organization or DEFAULT_ORGANIZATION
         project = get_value("project") or remote_project or DEFAULT_PROJECT
 

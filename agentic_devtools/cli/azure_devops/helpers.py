@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from ...state import is_safe_dir_segment
 from ..subprocess_utils import run_safe
@@ -34,8 +34,10 @@ def _get_repository_id_via_rest(
     from .auth import get_auth_headers, get_pat
 
     headers = get_auth_headers(get_pat())
-    project_encoded = quote(project, safe="")
-    repository_encoded = quote(repository, safe="")
+    # Normalize to avoid double-encoding values that may already be
+    # percent-encoded (e.g. from a git remote URL).
+    project_encoded = quote(unquote(project), safe="")
+    repository_encoded = quote(unquote(repository), safe="")
     url = f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/{repository_encoded}?api-version=7.0"
 
     response = requests.get(url, headers=headers, timeout=30)
