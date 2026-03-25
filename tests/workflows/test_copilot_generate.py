@@ -13,7 +13,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).resolve().parent.parent / ".github" / "scripts" / "speckit-trigger" / "copilot_generate.py"
+SCRIPT_PATH = (
+    Path(__file__).resolve().parent.parent.parent / ".github" / "scripts" / "speckit-trigger" / "copilot_generate.py"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -54,13 +56,14 @@ class TestCreateSessionCallSite:
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "create_session"
         ]
-        assert calls
+        assert calls, "Expected at least one create_session() call in the script"
 
-        kw_names = {kw.arg for kw in calls[0].keywords}
-        assert "model" in kw_names, "create_session() must pass 'model' as a keyword arg"
-        assert "on_permission_request" in kw_names, (
-            "create_session() must pass 'on_permission_request' as a keyword arg"
-        )
+        for call in calls:
+            kw_names = {kw.arg for kw in call.keywords}
+            assert "model" in kw_names, f"create_session() at line {call.lineno} must pass 'model' as a keyword arg"
+            assert "on_permission_request" in kw_names, (
+                f"create_session() at line {call.lineno} must pass 'on_permission_request' as a keyword arg"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -163,3 +166,5 @@ class TestMainFunction:
         assert "model" in call_kwargs.kwargs
         assert call_kwargs.kwargs["model"] == "test-model"
         assert "on_permission_request" in call_kwargs.kwargs
+        assert call_kwargs.kwargs["on_permission_request"] is _mock_copilot_sdk.PermissionHandler.approve_all
+        assert call_kwargs.kwargs["infinite_sessions"] == {"enabled": False}
