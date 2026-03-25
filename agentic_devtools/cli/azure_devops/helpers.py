@@ -36,16 +36,11 @@ def _get_repository_id_via_rest(
     headers = get_auth_headers(get_pat())
     project_encoded = quote(project, safe="")
     repository_encoded = quote(repository, safe="")
-    url = (
-        f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/"
-        f"{repository_encoded}?api-version=7.0"
-    )
+    url = f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/{repository_encoded}?api-version=7.0"
 
     response = requests.get(url, headers=headers, timeout=30)
     if response.status_code != 200:
-        raise RuntimeError(
-            f"REST API returned {response.status_code}: {response.text.strip() or 'No response body'}"
-        )
+        raise RuntimeError(f"REST API returned {response.status_code}: {response.text.strip() or 'No response body'}")
 
     data = response.json()
     repo_id = (data.get("id") or "").strip()

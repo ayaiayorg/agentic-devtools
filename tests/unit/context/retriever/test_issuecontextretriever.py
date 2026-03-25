@@ -340,9 +340,7 @@ class TestRetrieve:
 
         config = _make_config()
         retriever = IssueContextRetriever(jira_config=config, repo_path=str(tmp_path))
-        with patch.object(
-            IssueContextRetriever, "_validate_path", side_effect=OSError("filesystem error")
-        ):
+        with patch.object(IssueContextRetriever, "_validate_path", side_effect=OSError("filesystem error")):
             ctx = await retriever.retrieve("T-1", affected_paths=["some/file.py"])
 
         assert ctx.relevant_files == []

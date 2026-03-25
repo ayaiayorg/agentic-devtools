@@ -12,7 +12,9 @@ class TestGetRepositoryId:
 
     def test_uses_rest_as_first_lookup_option(self, mock_azure_devops_env):
         """Test repository ID is resolved from REST before Azure CLI is attempted."""
-        with patch("agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", return_value="repo-guid-123"):
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", return_value="repo-guid-123"
+        ):
             with patch("agentic_devtools.cli.azure_devops.helpers.run_safe") as mock_run_safe:
                 repo_id = azure_devops.get_repository_id()
 
@@ -25,7 +27,10 @@ class TestGetRepositoryId:
         mock_result.returncode = 0
         mock_result.stdout = "repo-guid-123\n"
 
-        with patch("agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", side_effect=RuntimeError("REST failed")):
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("REST failed"),
+        ):
             with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=mock_result):
                 repo_id = azure_devops.get_repository_id()
 
@@ -37,7 +42,10 @@ class TestGetRepositoryId:
         cli_result.returncode = 1
         cli_result.stderr = "VS800075"
 
-        with patch("agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", side_effect=RuntimeError("Forbidden")):
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("Forbidden"),
+        ):
             with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=cli_result):
                 with pytest.raises(RuntimeError, match="REST lookup failed") as exc_info:
                     azure_devops.get_repository_id(
@@ -54,7 +62,10 @@ class TestGetRepositoryId:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", side_effect=RuntimeError("Forbidden")):
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("Forbidden"),
+        ):
             with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=mock_result):
                 with pytest.raises(RuntimeError, match="Empty repository ID"):
                     azure_devops.get_repository_id()
