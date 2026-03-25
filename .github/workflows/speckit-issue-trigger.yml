@@ -200,6 +200,25 @@ jobs:
               });
             } catch (e) {}
 
+      # Remove speckit:processing when idempotency skips — decoupled from comment toggle
+      # so the label is cleaned up even when SPECKIT_COMMENT_ON_ISSUE is disabled
+      - name: Cleanup Labels (Skipped)
+        if: steps.idempotency.outputs.skipped == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+            } catch (e) {
+              console.log('Could not remove speckit:processing label:', e.message);
+            }
+
       - name: Sanitize Branch Name
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         id: sanitize
@@ -362,13 +381,13 @@ jobs:
               lines.push(
                 '1. Review the planning artifacts in the pull request',
                 '2. Merge the PR when satisfied with the planning output',
-                '3. The `speckit:needs-implementation` label has been applied to signal readiness for implementation'
+                '3. The `speckit:needs-implementation` label will be applied to signal readiness for implementation'
               );
             } else {
               lines.push(
                 `1. Review the planning artifacts in the \`${branchName}\` branch`,
                 `2. No pull request was created — review the artifacts directory directly`,
-                '3. The `speckit:needs-implementation` label has been applied to signal readiness for implementation'
+                '3. The `speckit:needs-implementation` label will be applied to signal readiness for implementation'
               );
             }
 
