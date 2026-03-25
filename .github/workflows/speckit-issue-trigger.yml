@@ -379,7 +379,7 @@ jobs:
             });
 
       - name: Update Labels
-        if: success()
+        if: success() && steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         uses: actions/github-script@v7
         with:
           script: |
