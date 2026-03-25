@@ -149,6 +149,11 @@ jobs:
               },
             );
 
+            // Idempotency: two-layer check for existing implementation PRs.
+            // 1. Label check: speckit:implementation — forward-compatible for when the
+            //    agent or future workflows label implementation PRs explicitly.
+            // 2. Bot-author fallback: copilot-swe-agent[bot] — primary defense since
+            //    agent_assignment PRs are authored by this bot account.
             const implPr = prs.find(pr =>
               pr.labels?.some(l => l.name === 'speckit:implementation') &&
               (pr.title.includes(`#${issueNumber}`) || pr.body?.includes(`#${issueNumber}`))
@@ -208,7 +213,7 @@ jobs:
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
 
-            // Remove the label since it's already being handled — decoupled from comment toggle
+            // Remove the trigger label since it's already being handled — decoupled from comment toggle
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -218,6 +223,32 @@ jobs:
               });
             } catch (e) {
               console.log('Could not remove speckit:needs-implementation label:', e.message);
+            }
+
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
+            // Ensure speckit:implementing is present so the issue reflects
+            // that an implementation PR exists — prevents label gap where
+            // neither needs-implementation nor implementing is set.
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:implementing']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:implementing label:', e.message);
             }
 
       - name: Post Spec Not Found Comment
@@ -291,7 +322,7 @@ jobs:
               agent_assignment: {
                 target_repo: `${context.repo.owner}/${context.repo.repo}`,
                 base_branch: 'main',
-                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
+                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root — resolve to an absolute path before reading files). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
                 custom_agent: 'speckit.implement',
                 model: model
               }
