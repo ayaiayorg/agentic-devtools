@@ -105,6 +105,13 @@ jobs:
               ].join('\n')
             });
 
+      - name: Transition Labels (Started)
+        if: steps.validate-label.outputs.label_matches == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
             // Replace trigger label with processing label
             try {
               await github.rest.issues.removeLabel({
