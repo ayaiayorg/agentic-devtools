@@ -119,6 +119,8 @@ class TestMainFunction:
         """Create a mock session/client pair that fires the given events in order.
 
         Each entry in *events* is a ``(event_type_str, data)`` tuple.
+        Events are delivered from the ``send()`` side-effect (not during
+        ``on()`` registration) to mirror the real Copilot SDK ordering.
         """
         mock_session = AsyncMock()
         mock_session.disconnect = AsyncMock()
@@ -128,7 +130,15 @@ class TestMainFunction:
         mock_client_instance.stop = AsyncMock()
         mock_client_instance.create_session = AsyncMock(return_value=mock_session)
 
+        # Store the callback registered via on(); fire events from send().
+        _callback = None
+
         def fake_on(callback):
+            nonlocal _callback
+            _callback = callback
+
+        async def fake_send(_prompt):
+            assert _callback is not None, "on() must be called before send()"
             for event_type_str, data in events:
 
                 class _Type:
@@ -138,10 +148,10 @@ class TestMainFunction:
                     type = _Type
 
                 _Event.data = data
-                callback(_Event())
+                _callback(_Event())
 
         mock_session.on = fake_on
-        mock_session.send = AsyncMock()
+        mock_session.send = fake_send
 
         _mock_copilot_sdk.CopilotClient.return_value = mock_client_instance
         return mock_session, mock_client_instance
