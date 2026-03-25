@@ -97,6 +97,42 @@ class TestRepositoryDetection:
         result = get_repository_name_from_git_remote()
         assert result == "agentic-devtools"
 
+    def test_get_repository_name_from_authenticated_azure_devops_https(self, monkeypatch):
+        """Test extracting repository name from authenticated Azure DevOps HTTPS URL."""
+        import subprocess
+
+        def mock_run(*args, **kwargs):
+            class MockResult:
+                stdout = "https://albert@dev.azure.com/example-org/ExampleProject/_git/example-repo-name"
+                returncode = 0
+
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
+
+        result = get_repository_name_from_git_remote()
+        assert result == "example-repo-name"
+
+    def test_get_repository_name_from_legacy_azure_devops_https(self, monkeypatch):
+        """Test extracting repository name from legacy Azure DevOps HTTPS URL."""
+        import subprocess
+
+        def mock_run(*args, **kwargs):
+            class MockResult:
+                stdout = "https://example-org.visualstudio.com/ExampleProject/_git/example-repo-name"
+                returncode = 0
+
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        from agentic_devtools.cli.azure_devops.config import get_repository_name_from_git_remote
+
+        result = get_repository_name_from_git_remote()
+        assert result == "example-repo-name"
+
     def test_get_repository_name_from_azure_devops_ssh(self, monkeypatch):
         """Test extracting repository name from Azure DevOps SSH URL (new format)."""
         import subprocess

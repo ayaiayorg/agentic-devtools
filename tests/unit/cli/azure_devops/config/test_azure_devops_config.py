@@ -32,6 +32,64 @@ class TestAzureDevOpsConfig:
         assert config.project == "CustomProject"
         assert config.repository == "custom-repo"
 
+    def test_from_state_uses_azure_devops_git_remote_context(self, temp_state_dir, clear_state_before, monkeypatch):
+        """Test config uses organization and project inferred from Azure DevOps git remote."""
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_azure_devops_context_from_git_remote",
+            lambda: ("https://dev.azure.com/swica", "DragonflyMgmt", "dfly-platform-management"),
+        )
+
+        config = azure_devops.AzureDevOpsConfig.from_state()
+        assert config.organization == "https://dev.azure.com/swica"
+        assert config.project == "DragonflyMgmt"
+        assert config.repository == "dfly-platform-management"
+
+    def test_from_state_falls_back_to_github_remote_for_repository(
+        self, temp_state_dir, clear_state_before, monkeypatch
+    ):
+        """Test config falls back to get_repository_name_from_git_remote for non-Azure-DevOps remotes."""
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_azure_devops_context_from_git_remote",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_repository_name_from_git_remote",
+            lambda: "agentic-devtools",
+        )
+
+        config = azure_devops.AzureDevOpsConfig.from_state()
+        assert config.repository == "agentic-devtools"
+        assert config.organization == azure_devops.DEFAULT_ORGANIZATION
+        assert config.project == azure_devops.DEFAULT_PROJECT
+
+    def test_from_state_skips_repository_name_lookup_when_azure_remote_context_exists(
+        self, temp_state_dir, clear_state_before, monkeypatch
+    ):
+        """Test Azure DevOps remote context avoids a second git remote lookup."""
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_azure_devops_context_from_git_remote",
+            lambda: ("https://dev.azure.com/swica", "DragonflyMgmt", "dfly-platform-management"),
+        )
+
+        def fail_if_called():
+            raise AssertionError("get_repository_name_from_git_remote should not be called when Azure context exists")
+
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_repository_name_from_git_remote",
+            fail_if_called,
+        )
+
+        config = azure_devops.AzureDevOpsConfig.from_state()
+
+        assert config.organization == "https://dev.azure.com/swica"
+        assert config.project == "DragonflyMgmt"
+        assert config.repository == "dfly-platform-management"
+
     def test_build_api_url_simple(self):
         """Test building simple API URL."""
         config = azure_devops.AzureDevOpsConfig(

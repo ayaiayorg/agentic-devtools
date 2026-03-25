@@ -10,32 +10,86 @@ from agentic_devtools.cli import azure_devops
 class TestGetRepositoryId:
     """Tests for get_repository_id function."""
 
-    def test_successful_repo_id_fetch(self):
-        """Test successful repository ID fetch."""
+    def test_uses_rest_as_first_lookup_option(self, mock_azure_devops_env):
+        """Test repository ID is resolved from REST before Azure CLI is attempted."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest", return_value="repo-guid-123"
+        ):
+            with patch("agentic_devtools.cli.azure_devops.helpers.run_safe") as mock_run_safe:
+                repo_id = azure_devops.get_repository_id()
+
+        assert repo_id == "repo-guid-123"
+        mock_run_safe.assert_not_called()
+
+    def test_falls_back_to_az_when_rest_lookup_fails(self):
+        """Test Azure CLI is used when REST lookup fails."""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "repo-guid-123\n"
 
-        with patch("subprocess.run", return_value=mock_result):
-            repo_id = azure_devops.get_repository_id()
-            assert repo_id == "repo-guid-123"
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("REST failed"),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=mock_result):
+                repo_id = azure_devops.get_repository_id()
 
-    def test_raises_on_command_failure(self):
-        """Test raises RuntimeError on command failure."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Command failed"
+        assert repo_id == "repo-guid-123"
 
-        with patch("subprocess.run", return_value=mock_result):
-            with pytest.raises(RuntimeError, match="Failed to get repository ID"):
-                azure_devops.get_repository_id()
+    def test_raises_when_rest_and_az_fail(self):
+        """Test error contains both REST and Azure CLI failures."""
+        cli_result = MagicMock()
+        cli_result.returncode = 1
+        cli_result.stderr = "VS800075"
 
-    def test_raises_on_empty_result(self):
-        """Test raises RuntimeError on empty result."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("Forbidden"),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=cli_result):
+                with pytest.raises(RuntimeError, match="REST lookup failed") as exc_info:
+                    azure_devops.get_repository_id(
+                        organization="https://dev.azure.com/swica",
+                        project="DragonflyMgmt",
+                        repository="dfly-platform-management",
+                    )
+
+        assert "Azure CLI fallback failed" in str(exc_info.value)
+
+    def test_raises_when_rest_fails_and_az_returns_empty_result(self):
+        """Test empty Azure CLI fallback result is surfaced after REST failure."""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("subprocess.run", return_value=mock_result):
-            with pytest.raises(RuntimeError, match="Empty repository ID"):
-                azure_devops.get_repository_id()
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("Forbidden"),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=mock_result):
+                with pytest.raises(RuntimeError, match="Empty repository ID"):
+                    azure_devops.get_repository_id()
+
+    def test_decodes_percent_encoded_values_for_azure_cli_fallback(self):
+        """Test Azure CLI fallback uses decoded project/repository names."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "repo-guid-123\n"
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers._get_repository_id_via_rest",
+            side_effect=RuntimeError("Forbidden"),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.helpers.run_safe", return_value=mock_result) as mock_run_safe:
+                repo_id = azure_devops.get_repository_id(
+                    organization="https://dev.azure.com/swica",
+                    project="Dragonfly%20Mgmt",
+                    repository="dfly-platform%20management",
+                )
+
+        assert repo_id == "repo-guid-123"
+        called_cmd = mock_run_safe.call_args[0][0]
+        assert "Dragonfly Mgmt" in called_cmd
+        assert "dfly-platform management" in called_cmd
+        assert "Dragonfly%20Mgmt" not in called_cmd
+        assert "dfly-platform%20management" not in called_cmd
