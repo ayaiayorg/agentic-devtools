@@ -1,0 +1,469 @@
+name: SpecKit Implementation Trigger
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to trigger implementation for'
+        required: true
+        type: number
+      model:
+        description: 'Model override for the Copilot coding agent (leave empty to use repository default)'
+        required: false
+        default: ''
+        type: string
+
+# Prevent concurrent runs on the same issue
+concurrency:
+  group: speckit-implement-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+env:
+  SPEC_BASE_PATH: specs
+  # Model for Copilot coding agent
+  # Priority: workflow_dispatch input > repository variable > default 'claude-opus-4.6'
+  COPILOT_MODEL: ${{ inputs.model || vars.SPECKIT_COPILOT_MODEL || 'claude-opus-4.6' }}
+
+jobs:
+  trigger-implementation:
+    name: Trigger Copilot Implementation Agent
+    runs-on: ubuntu-latest
+    # Only run if the speckit:needs-implementation label was added, or manual dispatch
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'speckit:needs-implementation'
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    timeout-minutes: 5
+
+    steps:
+      - name: Debug Event
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Label: ${{ github.event.label.name || 'manual' }}"
+          echo "Issue Number: ${{ github.event.issue.number || inputs.issue_number }}"
+          echo "Model: ${{ env.COPILOT_MODEL }}"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Issue Details
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+
+            core.setOutput('number', issue.number);
+            core.setOutput('title', issue.title);
+            core.setOutput('url', issue.html_url);
+
+      - name: Discover Spec Directory
+        id: discover
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          SPECS_DIR: ${{ env.SPEC_BASE_PATH }}
+        run: |
+          if [[ ! -d "$SPECS_DIR" ]]; then
+            echo "No specs directory found"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Reuse the same grep pattern as check-idempotency.sh.
+          # Scan ALL matching spec.md files (not just the first) so a legacy/spec-only
+          # match can't hide a full-pipeline match in another directory.
+          SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}([^0-9]|$)"
+          SPEC_DIR=""
+          ANY_MATCH_FOUND=false
+
+          while IFS= read -r spec_match; do
+            [[ -z "$spec_match" ]] && continue
+            ANY_MATCH_FOUND=true
+            dir=$(dirname "$spec_match")
+            if [[ -f "$dir/tasks.md" ]]; then
+              SPEC_DIR="$dir"
+              break
+            fi
+          done < <(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
+
+          # If no suitable spec directory found yet, also check for issue URL pattern
+          if [[ -z "$SPEC_DIR" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+            URL_PATTERN="github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}([^0-9]|$)"
+            while IFS= read -r spec_match; do
+              [[ -z "$spec_match" ]] && continue
+              ANY_MATCH_FOUND=true
+              dir=$(dirname "$spec_match")
+              if [[ -f "$dir/tasks.md" ]]; then
+                SPEC_DIR="$dir"
+                break
+              fi
+            done < <(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
+          fi
+
+          if [[ -n "$SPEC_DIR" ]]; then
+            echo "Found spec directory: $SPEC_DIR"
+            echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "$ANY_MATCH_FOUND" == true ]]; then
+              echo "Error: Found spec.md files for issue #$ISSUE_NUMBER in $SPECS_DIR/, but none contain tasks.md — required for implementation agent"
+            else
+              echo "Error: No planning artifacts found for issue #$ISSUE_NUMBER in $SPECS_DIR/"
+            fi
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for Existing Implementation PR
+        id: check-pr
+        if: steps.discover.outputs.found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Paginate to cover all open PRs — a single page could miss existing
+            // implementation PRs on busy repos, breaking idempotency.
+            const prs = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              },
+            );
+
+            // Idempotency: two-layer check for existing implementation PRs.
+            // 1. Label check: speckit:implementation — forward-compatible for when the
+            //    agent or future workflows label implementation PRs explicitly.
+            // 2. Bot-author fallback: copilot-swe-agent[bot] — primary defense since
+            //    agent_assignment PRs are authored by this bot account.
+            // Note: we do NOT broaden to "any PR referencing the issue" because
+            // planning PRs also reference the same issue number, causing false positives.
+            // Boundary-aware regex prevents #12 from matching #123.
+            const issueRefPattern = new RegExp(`#${issueNumber}(?!\\d)`);
+            const implPr = prs.find(pr =>
+              pr.labels?.some(l => l.name === 'speckit:implementation') &&
+              (issueRefPattern.test(pr.title) || issueRefPattern.test(pr.body ?? ''))
+            );
+
+            if (implPr) {
+              core.setOutput('exists', 'true');
+              core.setOutput('pr_url', implPr.html_url);
+              console.log(`Found existing implementation PR: ${implPr.html_url}`);
+              return;
+            }
+
+            // Fallback: check for PRs authored by copilot-swe-agent[bot] that reference the issue
+            const copilotPr = prs.find(pr =>
+              pr.user?.login === 'copilot-swe-agent[bot]' &&
+              (issueRefPattern.test(pr.title) || issueRefPattern.test(pr.body ?? ''))
+            );
+
+            if (copilotPr) {
+              core.setOutput('exists', 'true');
+              core.setOutput('pr_url', copilotPr.html_url);
+              console.log(`Found existing Copilot implementation PR: ${copilotPr.html_url}`);
+              return;
+            }
+
+            core.setOutput('exists', 'false');
+            console.log('No existing implementation PR found');
+
+      - name: Post Already Implementing Comment
+        if: steps.check-pr.outputs.exists == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+            const prUrl = '${{ steps.check-pr.outputs.pr_url }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                '## ℹ️ SpecKit: Implementation Already In Progress',
+                '',
+                `An implementation PR already exists for this issue: ${prUrl}`,
+                '',
+                'Skipping implementation trigger.',
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
+            });
+
+      - name: Cleanup Labels (Already Implementing)
+        if: steps.check-pr.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Remove the trigger label since it's already being handled — decoupled from comment toggle
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:needs-implementation'
+              });
+            } catch (e) {
+              console.log('Could not remove speckit:needs-implementation label:', e.message);
+            }
+
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
+            // Ensure speckit:implementing is present so the issue reflects
+            // that an implementation PR exists — prevents label gap where
+            // neither needs-implementation nor implementing is set.
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:implementing']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:implementing label:', e.message);
+            }
+
+      - name: Post Spec Not Found Comment
+        if: steps.discover.outputs.found != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                '## ❌ SpecKit: Planning Artifacts Not Found',
+                '',
+                `Could not find complete planning artifacts (a \`spec.md\` with a corresponding \`tasks.md\`) for issue #${issueNumber} in \`specs/\`. The \`speckit:needs-implementation\` label has been removed (if present). Please ensure the planning pipeline has completed successfully and that both files are present.`,
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
+            });
+
+      - name: Cleanup Labels (Spec Not Found)
+        if: steps.discover.outputs.found != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Remove the needs-implementation label and add failed — decoupled from comment toggle
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:needs-implementation'
+              });
+            } catch (e) {
+              console.log('Could not remove speckit:needs-implementation label:', e.message);
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:failed']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:failed label:', e.message);
+            }
+
+      - name: Assign Copilot Coding Agent
+        id: assign-agent
+        if: steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+            const specDir = '${{ steps.discover.outputs.spec_dir }}';
+            const model = '${{ env.COPILOT_MODEL }}';
+
+            // Assign copilot to the issue with agent_assignment
+            // The custom_agent field references the speckit.implement agent definition
+            // The custom_instructions provide the spec directory context
+            const response = await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              agent_assignment: {
+                target_repo: `${context.repo.owner}/${context.repo.repo}`,
+                base_branch: 'main',
+                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root — resolve to an absolute path before reading files). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
+                custom_agent: 'speckit.implement',
+                model: model
+              }
+            });
+
+            core.setOutput('assigned', 'true');
+            console.log(`Copilot coding agent assigned to issue #${issueNumber} with model: ${model}`);
+            console.log(`Custom agent: speckit.implement`);
+            console.log(`Spec directory: ${specDir}`);
+
+      - name: Update Labels
+        if: steps.assign-agent.outputs.assigned == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Remove needs-implementation label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:needs-implementation'
+              });
+            } catch (e) {
+              console.log('Could not remove speckit:needs-implementation label:', e.message);
+            }
+
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
+            // Add implementing label
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:implementing']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:implementing label:', e.message);
+            }
+
+      - name: Post Implementation Triggered Comment
+        if: steps.assign-agent.outputs.assigned == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+            const specDir = '${{ steps.discover.outputs.spec_dir }}';
+            const model = '${{ env.COPILOT_MODEL }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                '## 🤖 SpecKit: Implementation Agent Assigned',
+                '',
+                'The Copilot coding agent has been assigned to implement this issue using the planning artifacts.',
+                '',
+                `**Spec Directory**: \`${specDir}\``,
+                `**Model**: \`${model}\``,
+                '**Custom Agent**: `speckit.implement`',
+                '',
+                'The agent will read the planning artifacts and open an implementation PR. You can track progress in the agent\'s activity.',
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
+            });
+
+      - name: Post Failed Comment
+        if: failure() && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: [
+                '## ❌ SpecKit: Implementation Trigger Failed',
+                '',
+                'An error occurred while trying to assign the Copilot coding agent for implementation.',
+                '',
+                `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '### Troubleshooting',
+                '',
+                '1. Verify Copilot coding agent is enabled for this repository',
+                '2. Verify the issue has planning artifacts in `specs/`',
+                '3. Review the workflow logs for detailed error messages',
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n')
+            });
+
+      - name: Cleanup Labels (Failed)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            // Update labels: remove needs-implementation, add failed — decoupled from comment toggle
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:needs-implementation'
+              });
+            } catch (e) {
+              console.log('Could not remove speckit:needs-implementation label:', e.message);
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:failed']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:failed label:', e.message);
+            }
