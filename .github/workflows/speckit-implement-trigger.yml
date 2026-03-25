@@ -178,7 +178,7 @@ jobs:
             console.log('No existing implementation PR found');
 
       - name: Post Already Implementing Comment
-        if: steps.check-pr.outputs.exists == 'true'
+        if: steps.check-pr.outputs.exists == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -201,7 +201,14 @@ jobs:
               ].join('\n')
             });
 
-            // Remove the label since it's already being handled
+      - name: Cleanup Labels (Already Implementing)
+        if: steps.check-pr.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Remove the label since it's already being handled — decoupled from comment toggle
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -214,7 +221,7 @@ jobs:
             }
 
       - name: Post Spec Not Found Comment
-        if: steps.discover.outputs.found != 'true'
+        if: steps.discover.outputs.found != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -227,14 +234,21 @@ jobs:
               body: [
                 '## ❌ SpecKit: Planning Artifacts Not Found',
                 '',
-                `Could not find planning artifacts for issue #${issueNumber} in \`specs/\`. The \`speckit:needs-implementation\` label has been removed. Please run the planning pipeline first.`,
+                `Could not find complete planning artifacts (a \`spec.md\` with a corresponding \`tasks.md\`) for issue #${issueNumber} in \`specs/\`. The \`speckit:needs-implementation\` label has been removed. Please ensure the planning pipeline has completed successfully and that both files are present.`,
                 '',
                 '---',
                 `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
               ].join('\n')
             });
 
-            // Remove the needs-implementation label and add failed
+      - name: Cleanup Labels (Spec Not Found)
+        if: steps.discover.outputs.found != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.issue.outputs.number }};
+
+            // Remove the needs-implementation label and add failed — decoupled from comment toggle
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -307,6 +321,18 @@ jobs:
               console.log('Could not remove speckit:needs-implementation label:', e.message);
             }
 
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
             // Add implementing label
             try {
               await github.rest.issues.addLabels({
@@ -320,7 +346,7 @@ jobs:
             }
 
       - name: Post Implementation Triggered Comment
-        if: steps.assign-agent.outputs.assigned == 'true'
+        if: steps.assign-agent.outputs.assigned == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -349,7 +375,7 @@ jobs:
             });
 
       - name: Post Failed Comment
-        if: failure()
+        if: failure() && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -377,7 +403,14 @@ jobs:
               ].join('\n')
             });
 
-            // Update labels: remove needs-implementation, add failed
+      - name: Cleanup Labels (Failed)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
+
+            // Update labels: remove needs-implementation, add failed — decoupled from comment toggle
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
