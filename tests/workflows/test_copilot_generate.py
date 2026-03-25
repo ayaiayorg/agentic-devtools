@@ -136,7 +136,6 @@ class TestMainFunction:
 
                 class _Event:
                     type = _Type
-                    pass
 
                 _Event.data = data
                 callback(_Event())
