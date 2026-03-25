@@ -385,7 +385,7 @@ jobs:
           script: |
             const issueNumber = context.issue?.number || ${{ inputs.issue_number || 0 }};
 
-            // Update label: remove processing, add completed + needs-implementation
+            // Remove processing label (may already be absent — ignore errors)
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -393,6 +393,12 @@ jobs:
                 issue_number: issueNumber,
                 name: 'speckit:processing'
               });
+            } catch (e) {
+              console.log('Could not remove speckit:processing label:', e.message);
+            }
+
+            // Add completion labels (independent of removeLabel outcome)
+            try {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -400,7 +406,7 @@ jobs:
                 labels: ['speckit:completed', 'speckit:needs-implementation']
               });
             } catch (e) {
-              console.log('Could not update labels:', e.message);
+              console.log('Could not add completion labels:', e.message);
             }
 
       - name: Post Failed Comment

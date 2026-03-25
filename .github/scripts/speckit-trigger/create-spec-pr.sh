@@ -110,7 +110,7 @@ $ARTIFACT_LIST
 
 1. [ ] [Review the generated planning artifacts for accuracy and completeness](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR})
 2. [ ] Merge this PR when satisfied
-3. The \`speckit:needs-implementation\` label has been automatically applied to the source issue to signal readiness for implementation
+3. The \`speckit:needs-implementation\` label will be applied to the source issue upon successful pipeline completion to signal readiness for implementation
 
 ## Checklist
 
