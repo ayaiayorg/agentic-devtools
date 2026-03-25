@@ -154,9 +154,13 @@ jobs:
             //    agent or future workflows label implementation PRs explicitly.
             // 2. Bot-author fallback: copilot-swe-agent[bot] — primary defense since
             //    agent_assignment PRs are authored by this bot account.
+            // Note: we do NOT broaden to "any PR referencing the issue" because
+            // planning PRs also reference the same issue number, causing false positives.
+            // Boundary-aware regex prevents #12 from matching #123.
+            const issueRefPattern = new RegExp(`#${issueNumber}(?!\\d)`);
             const implPr = prs.find(pr =>
               pr.labels?.some(l => l.name === 'speckit:implementation') &&
-              (pr.title.includes(`#${issueNumber}`) || pr.body?.includes(`#${issueNumber}`))
+              (issueRefPattern.test(pr.title) || issueRefPattern.test(pr.body ?? ''))
             );
 
             if (implPr) {
@@ -169,7 +173,7 @@ jobs:
             // Fallback: check for PRs authored by copilot-swe-agent[bot] that reference the issue
             const copilotPr = prs.find(pr =>
               pr.user?.login === 'copilot-swe-agent[bot]' &&
-              (pr.title.includes(`#${issueNumber}`) || pr.body?.includes(`#${issueNumber}`))
+              (issueRefPattern.test(pr.title) || issueRefPattern.test(pr.body ?? ''))
             );
 
             if (copilotPr) {
@@ -265,7 +269,7 @@ jobs:
               body: [
                 '## ❌ SpecKit: Planning Artifacts Not Found',
                 '',
-                `Could not find complete planning artifacts (a \`spec.md\` with a corresponding \`tasks.md\`) for issue #${issueNumber} in \`specs/\`. The \`speckit:needs-implementation\` label has been removed. Please ensure the planning pipeline has completed successfully and that both files are present.`,
+                `Could not find complete planning artifacts (a \`spec.md\` with a corresponding \`tasks.md\`) for issue #${issueNumber} in \`specs/\`. The \`speckit:needs-implementation\` label has been removed (if present). Please ensure the planning pipeline has completed successfully and that both files are present.`,
                 '',
                 '---',
                 `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
