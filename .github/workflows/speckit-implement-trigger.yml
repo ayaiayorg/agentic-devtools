@@ -85,31 +85,47 @@ jobs:
             exit 0
           fi
 
-          # Reuse the same grep pattern as check-idempotency.sh
+          # Reuse the same grep pattern as check-idempotency.sh.
+          # Scan ALL matching spec.md files (not just the first) so a legacy/spec-only
+          # match can't hide a full-pipeline match in another directory.
           SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}([^0-9]|$)"
-          MATCH=$(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1)
+          SPEC_DIR=""
+          ANY_MATCH_FOUND=false
 
-          if [[ -z "$MATCH" ]]; then
-            # Also check for issue URL pattern
-            if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
-              URL_PATTERN="github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}([^0-9]|$)"
-              MATCH=$(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null | head -1)
+          while IFS= read -r spec_match; do
+            [[ -z "$spec_match" ]] && continue
+            ANY_MATCH_FOUND=true
+            dir=$(dirname "$spec_match")
+            if [[ -f "$dir/tasks.md" ]]; then
+              SPEC_DIR="$dir"
+              break
             fi
+          done < <(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
+
+          # If no suitable spec directory found yet, also check for issue URL pattern
+          if [[ -z "$SPEC_DIR" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+            URL_PATTERN="github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}([^0-9]|$)"
+            while IFS= read -r spec_match; do
+              [[ -z "$spec_match" ]] && continue
+              ANY_MATCH_FOUND=true
+              dir=$(dirname "$spec_match")
+              if [[ -f "$dir/tasks.md" ]]; then
+                SPEC_DIR="$dir"
+                break
+              fi
+            done < <(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
           fi
 
-          if [[ -n "$MATCH" ]]; then
-            SPEC_DIR=$(dirname "$MATCH")
+          if [[ -n "$SPEC_DIR" ]]; then
             echo "Found spec directory: $SPEC_DIR"
-
-            if [[ -f "$SPEC_DIR/tasks.md" ]]; then
-              echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
-              echo "found=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Error: tasks.md not found in $SPEC_DIR — required for implementation agent"
-              echo "found=false" >> "$GITHUB_OUTPUT"
-            fi
+            echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Error: No planning artifacts found for issue #$ISSUE_NUMBER in $SPECS_DIR/"
+            if [[ "$ANY_MATCH_FOUND" == true ]]; then
+              echo "Error: Found spec.md files for issue #$ISSUE_NUMBER in $SPECS_DIR/, but none contain tasks.md — required for implementation agent"
+            else
+              echo "Error: No planning artifacts found for issue #$ISSUE_NUMBER in $SPECS_DIR/"
+            fi
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -121,14 +137,20 @@ jobs:
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
 
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open'
-            });
+            // Paginate to cover all open PRs — a single page could miss existing
+            // implementation PRs on busy repos, breaking idempotency.
+            const prs = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              },
+            );
 
             const implPr = prs.find(pr =>
-              pr.labels.some(l => l.name === 'speckit:implementation') &&
+              pr.labels?.some(l => l.name === 'speckit:implementation') &&
               (pr.title.includes(`#${issueNumber}`) || pr.body?.includes(`#${issueNumber}`))
             );
 
@@ -255,7 +277,7 @@ jobs:
               agent_assignment: {
                 target_repo: `${context.repo.owner}/${context.repo.repo}`,
                 base_branch: 'main',
-                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/. Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
+                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
                 custom_agent: 'speckit.implement',
                 model: model
               }
