@@ -40,6 +40,59 @@ API_VERSION = "7.0"
 # =============================================================================
 
 
+def _get_git_origin_remote_url() -> str | None:
+    """Return the origin remote URL if available."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        remote_url = result.stdout.strip()
+        if not remote_url or not isinstance(remote_url, str):
+            return None
+        return remote_url
+    except (subprocess.CalledProcessError, FileNotFoundError, AttributeError, TypeError):
+        return None
+
+
+def _parse_azure_devops_context_from_remote_url(remote_url: str) -> tuple[str, str, str] | None:
+    """Extract Azure DevOps organization, project, and repository from a remote URL."""
+    azure_https_match = re.search(
+        r"^https://dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/?#]+)",
+        remote_url,
+    )
+    if azure_https_match:
+        organization_name, project, repository = azure_https_match.groups()
+        return (f"https://dev.azure.com/{organization_name}", project, repository)
+
+    azure_ssh_match = re.search(
+        r"(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com):v3/([^/]+)/([^/]+)/([^/\s]+?)(?:\.git)?$",
+        remote_url,
+    )
+    if azure_ssh_match:
+        organization_name, project, repository = azure_ssh_match.groups()
+        return (f"https://dev.azure.com/{organization_name}", project, repository)
+
+    return None
+
+
+def get_azure_devops_context_from_git_remote() -> tuple[str, str, str] | None:
+    """
+    Extract Azure DevOps organization, project, and repository from the git remote URL.
+
+    Returns:
+        Tuple of (organization_url, project, repository) for Azure DevOps remotes,
+        or None for non-Azure-DevOps remotes and lookup failures.
+    """
+    remote_url = _get_git_origin_remote_url()
+    if not remote_url:
+        return None
+
+    return _parse_azure_devops_context_from_remote_url(remote_url)
+
+
 def get_repository_name_from_git_remote() -> str | None:
     """
     Extract the repository name from the git remote URL.
@@ -54,44 +107,20 @@ def get_repository_name_from_git_remote() -> str | None:
     Returns:
         Repository name if found, None otherwise.
     """
-    try:
-        # Get the origin remote URL
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        remote_url = result.stdout.strip()
-
-        if not remote_url or not isinstance(remote_url, str):
-            return None
-
-        # Azure DevOps HTTPS pattern: https://dev.azure.com/org/project/_git/repo-name
-        azure_match = re.search(r"/_git/([^/?#]+)", remote_url)
-        if azure_match:
-            return azure_match.group(1)
-
-        # Azure DevOps SSH patterns:
-        # New format: git@ssh.dev.azure.com:v3/{org}/{project}/{repo}
-        # Legacy format: {org}@vs-ssh.visualstudio.com:v3/{org}/{project}/{repo}
-        azure_ssh_match = re.search(
-            r"(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com):v3/[^/]+/[^/]+/([^/\s]+?)(?:\.git)?$",
-            remote_url,
-        )
-        if azure_ssh_match:
-            return azure_ssh_match.group(1)
-
-        # GitHub HTTPS pattern: https://github.com/owner/repo-name.git
-        github_https_match = re.search(r"github\.com[:/][\w-]+/([\w-]+?)(?:\.git)?$", remote_url)
-        if github_https_match:
-            return github_https_match.group(1)
-
+    remote_url = _get_git_origin_remote_url()
+    if not remote_url:
         return None
 
-    except (subprocess.CalledProcessError, FileNotFoundError, AttributeError, TypeError):
-        # Git command failed, git not available, or mocked incorrectly in tests
-        return None
+    azure_devops_context = _parse_azure_devops_context_from_remote_url(remote_url)
+    if azure_devops_context:
+        return azure_devops_context[2]
+
+    # GitHub HTTPS pattern: https://github.com/owner/repo-name.git
+    github_https_match = re.search(r"github\.com[:/][\w-]+/([\w-]+?)(?:\.git)?$", remote_url)
+    if github_https_match:
+        return github_https_match.group(1)
+
+    return None
 
 
 # =============================================================================
@@ -112,14 +141,18 @@ class AzureDevOpsConfig:
     @classmethod
     def from_state(cls) -> "AzureDevOpsConfig":
         """Create config from state values or defaults."""
-        # Try to get repository from state, then git remote, then hardcoded default
-        repository = get_value("repository")
-        if not repository:
-            repository = get_repository_name_from_git_remote() or DEFAULT_REPOSITORY
+        remote_context = get_azure_devops_context_from_git_remote()
+        remote_organization = remote_context[0] if remote_context else None
+        remote_project = remote_context[1] if remote_context else None
+        remote_repository = remote_context[2] if remote_context else None
+
+        repository = get_value("repository") or remote_repository or DEFAULT_REPOSITORY
+        organization = get_value("organization") or remote_organization or DEFAULT_ORGANIZATION
+        project = get_value("project") or remote_project or DEFAULT_PROJECT
 
         return cls(
-            organization=get_value("organization") or DEFAULT_ORGANIZATION,
-            project=get_value("project") or DEFAULT_PROJECT,
+            organization=organization,
+            project=project,
             repository=repository,
         )
 

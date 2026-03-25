@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from typing import Any
+from urllib.parse import quote
 
 from ...state import is_safe_dir_segment
 from ..subprocess_utils import run_safe
@@ -20,6 +21,38 @@ from .config import (
     DEFAULT_REPOSITORY,
     AzureDevOpsConfig,
 )
+
+
+def _get_repository_id_via_rest(
+    organization: str,
+    project: str,
+    repository: str,
+) -> str:
+    """Resolve the repository ID via Azure DevOps REST API using PAT auth."""
+    requests = require_requests()
+
+    from .auth import get_auth_headers, get_pat
+
+    headers = get_auth_headers(get_pat())
+    project_encoded = quote(project, safe="")
+    repository_encoded = quote(repository, safe="")
+    url = (
+        f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/"
+        f"{repository_encoded}?api-version=7.0"
+    )
+
+    response = requests.get(url, headers=headers, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"REST API returned {response.status_code}: {response.text.strip() or 'No response body'}"
+        )
+
+    data = response.json()
+    repo_id = (data.get("id") or "").strip()
+    if not repo_id:
+        raise RuntimeError("REST API response did not include a repository id")
+
+    return repo_id
 
 
 def parse_bool_from_state_value(raw_value, default: bool = False) -> bool:
@@ -59,7 +92,17 @@ def get_repository_id(
     project: str = DEFAULT_PROJECT,
     repository: str = DEFAULT_REPOSITORY,
 ) -> str:
-    """Get the repository ID using Azure CLI."""
+    """Get the repository ID, preferring REST and falling back to Azure CLI."""
+    rest_error_message: str | None = None
+    try:
+        return _get_repository_id_via_rest(
+            organization=organization,
+            project=project,
+            repository=repository,
+        )
+    except Exception as rest_error:
+        rest_error_message = f"REST lookup failed for '{repository}': {rest_error}"
+
     cmd = [
         "az",
         "repos",
@@ -78,14 +121,15 @@ def get_repository_id(
 
     result = run_safe(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to get repository ID for '{repository}': {result.stderr}")
+    if result.returncode == 0:
+        repo_id = result.stdout.strip()
+        if repo_id:
+            return repo_id
+        cli_error = f"Empty repository ID returned for '{repository}'"
+    else:
+        cli_error = f"Failed to get repository ID for '{repository}': {result.stderr}"
 
-    repo_id = result.stdout.strip()
-    if not repo_id:
-        raise RuntimeError(f"Empty repository ID returned for '{repository}'")
-
-    return repo_id
+    raise RuntimeError(f"{rest_error_message}\nAzure CLI fallback failed: {cli_error}")
 
 
 def resolve_thread_by_id(

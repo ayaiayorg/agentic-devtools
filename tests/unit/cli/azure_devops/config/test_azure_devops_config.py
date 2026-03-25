@@ -32,6 +32,19 @@ class TestAzureDevOpsConfig:
         assert config.project == "CustomProject"
         assert config.repository == "custom-repo"
 
+    def test_from_state_uses_azure_devops_git_remote_context(self, temp_state_dir, clear_state_before, monkeypatch):
+        """Test config uses organization and project inferred from Azure DevOps git remote."""
+        monkeypatch.setattr(
+            azure_devops.config,
+            "get_azure_devops_context_from_git_remote",
+            lambda: ("https://dev.azure.com/swica", "DragonflyMgmt", "dfly-platform-management"),
+        )
+
+        config = azure_devops.AzureDevOpsConfig.from_state()
+        assert config.organization == "https://dev.azure.com/swica"
+        assert config.project == "DragonflyMgmt"
+        assert config.repository == "dfly-platform-management"
+
     def test_build_api_url_simple(self):
         """Test building simple API URL."""
         config = azure_devops.AzureDevOpsConfig(
