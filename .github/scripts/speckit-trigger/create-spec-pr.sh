@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# create-spec-pr.sh - Create a pull request for a generated specification
+# create-spec-pr.sh - Create a pull request for generated planning artifacts
 #
-# Usage: create-spec-pr.sh <branch_name> <spec_file> <issue_number> <issue_title> [labels_json]
+# Usage: create-spec-pr.sh <branch_name> <spec_dir> <issue_number> <issue_title> [labels_json]
 #
 # Arguments:
 #   branch_name  - The feature branch name
-#   spec_file    - Path to the spec.md file
+#   spec_dir     - Path to the spec directory (repo-relative)
 #   issue_number - The source GitHub issue number
 #   issue_title  - The source issue title
 #   labels_json  - JSON array of label names to apply (optional)
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 BRANCH_NAME="${1:?Branch name is required}"
-SPEC_FILE="${2:?Spec file path is required}"
+SPEC_DIR="${2:?Spec directory path is required}"
 ISSUE_NUMBER="${3:?Issue number is required}"
 ISSUE_TITLE="${4:?Issue title is required}"
 LABELS_JSON="${5:-[]}"
@@ -35,49 +35,88 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
     exit 1
 fi
 
+# Validate GITHUB_REPOSITORY — required for building artifact URLs in the PR body
+if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
+    echo "Error: GITHUB_REPOSITORY is required (expected owner/repo format)" >&2
+    exit 1
+fi
+
+# Ensure GITHUB_REPOSITORY is in the expected owner/repo format
+IFS='/' read -r repo_owner repo_name extra <<<"${GITHUB_REPOSITORY}"
+if [[ -z "${repo_owner:-}" || -z "${repo_name:-}" || -n "${extra:-}" ]]; then
+    echo "Error: GITHUB_REPOSITORY must be in 'owner/repo' format, got '${GITHUB_REPOSITORY}'" >&2
+    exit 1
+fi
+
 echo "=== Creating Pull Request ==="
 echo "Branch: $BRANCH_NAME"
-echo "Spec: $SPEC_FILE"
+echo "Spec Dir: $SPEC_DIR"
 echo "Issue: #$ISSUE_NUMBER"
 
 # Create PR title
-PR_TITLE="spec: Add specification for issue #$ISSUE_NUMBER"
+PR_TITLE="spec: Add planning artifacts for issue #$ISSUE_NUMBER"
+
+# Validate SPEC_DIR exists as a directory
+if [[ ! -d "$SPEC_DIR" ]]; then
+    echo "Error: SPEC_DIR does not exist or is not a directory: $SPEC_DIR" >&2
+    exit 1
+fi
+
+# Build dynamic artifact listing
+SPEC_DIR_ABSOLUTE="$(cd "$SPEC_DIR" && pwd)"
+# Normalize: strip trailing slashes for consistent path joining
+SPEC_DIR="${SPEC_DIR%/}"
+SPEC_DIR_ABSOLUTE="${SPEC_DIR_ABSOLUTE%/}"
+ARTIFACT_LIST=""
+if [[ -d "$SPEC_DIR_ABSOLUTE" ]]; then
+    while IFS= read -r artifact; do
+        rel_path="${artifact#"$SPEC_DIR_ABSOLUTE"/}"
+        # Use full GitHub blob URLs so links resolve correctly in the PR body
+        ARTIFACT_LIST="${ARTIFACT_LIST}
+- [\`${rel_path}\`](https://github.com/${GITHUB_REPOSITORY:-}/blob/${BRANCH_NAME}/${SPEC_DIR}/${rel_path})"
+    done < <(find "$SPEC_DIR_ABSOLUTE" -name '*.md' -type f | sort)
+
+    # List subdirectories
+    while IFS= read -r dir; do
+        [[ "$dir" == "$SPEC_DIR_ABSOLUTE" ]] && continue
+        rel_path="${dir#"$SPEC_DIR_ABSOLUTE"/}"
+        ARTIFACT_LIST="${ARTIFACT_LIST}
+- [\`${rel_path}/\`](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR}/${rel_path}) (directory)"
+    done < <(find "$SPEC_DIR_ABSOLUTE" -mindepth 1 -type d | sort)
+fi
+
+if [[ -z "$ARTIFACT_LIST" ]]; then
+    ARTIFACT_LIST="
+No artifacts found."
+fi
 
 # Create PR body
 PR_BODY=$(cat << EOF
 ## Summary
 
-This PR adds a feature specification automatically generated from issue #$ISSUE_NUMBER.
+This PR adds planning artifacts from the full speckit pipeline, generated from issue #$ISSUE_NUMBER.
 
 **Issue**: $ISSUE_TITLE
 
-## Specification
+## Artifacts
 
-- **File**: \`$SPEC_FILE\`
+- **Artifacts Directory**: \`$SPEC_DIR\`
 - **Branch**: \`$BRANCH_NAME\`
 
-## Generated Content
+## Generated Artifacts
+$ARTIFACT_LIST
 
-The specification includes:
-- User stories with priorities
-- Functional requirements
-- Non-functional requirements
-- Success criteria
-- Requirements checklist
+## Review
 
-## Next Steps
-
-1. [ ] Review the generated specification for accuracy
-2. [ ] Clarify any \`[NEEDS CLARIFICATION]\` items
-3. [ ] Update the specification as needed
-4. [ ] Run \`/speckit.plan\` to create an implementation plan
-5. [ ] Run \`/speckit.tasks\` to break down into tasks
+1. [ ] [Review the generated planning artifacts for accuracy and completeness](https://github.com/${GITHUB_REPOSITORY:-}/tree/${BRANCH_NAME}/${SPEC_DIR})
+2. [ ] Merge this PR when satisfied
+3. The \`speckit:needs-implementation\` label will be applied to the source issue upon successful pipeline completion to signal readiness for implementation
 
 ## Checklist
 
-- [ ] Specification reviewed by team
-- [ ] All \`[NEEDS CLARIFICATION]\` items resolved
-- [ ] Requirements checklist completed
+- [ ] Planning artifacts reviewed by team
+- [ ] Specification is complete and accurate
+- [ ] Implementation plan is feasible
 
 ---
 
