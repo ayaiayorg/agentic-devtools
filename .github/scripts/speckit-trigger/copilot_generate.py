@@ -39,11 +39,9 @@ async def main() -> int:
         await client.start()
 
         session = await client.create_session(
-            {
-                "model": model,
-                "on_permission_request": PermissionHandler.approve_all,
-                "infinite_sessions": {"enabled": False},
-            }
+            model=model,
+            on_permission_request=PermissionHandler.approve_all,
+            infinite_sessions={"enabled": False},
         )
 
         content = ""
