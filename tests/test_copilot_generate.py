@@ -131,9 +131,10 @@ class TestMainFunction:
         # Simulate session.idle event to unblock done.wait()
         def fake_on(callback):
             class FakeEvent:
-                class type:
+                class event_type:
                     value = "session.idle"
 
+                type = event_type
                 data = None
 
             callback(FakeEvent())
@@ -157,9 +158,7 @@ class TestMainFunction:
         mock_client_instance.create_session.assert_called_once()
         call_kwargs = mock_client_instance.create_session.call_args
         # Should have no positional args (beyond self which is implicit)
-        assert call_kwargs.args == () or call_kwargs.args == (), (
-            "create_session should not receive positional arguments"
-        )
+        assert call_kwargs.args == (), "create_session should not receive positional arguments"
         # Should have keyword args
         assert "model" in call_kwargs.kwargs
         assert call_kwargs.kwargs["model"] == "test-model"
