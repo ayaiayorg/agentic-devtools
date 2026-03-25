@@ -115,15 +115,12 @@ class TestMainFunction:
             result = asyncio.run(module.main())
         assert result == 1
 
-    def test_create_session_called_with_keyword_args(self, _mock_copilot_sdk):
-        """Verify that the actual runtime call passes keyword args, not a dict."""
-        module, spec = _load_module()
-        spec.loader.exec_module(module)
+    def _make_mock_session_and_client(self, _mock_copilot_sdk, events):
+        """Create a mock session/client pair that fires the given events in order.
 
-        import asyncio
-
+        Each entry in *events* is a ``(event_type_str, data)`` tuple.
+        """
         mock_session = AsyncMock()
-        mock_session.on = MagicMock()
         mock_session.disconnect = AsyncMock()
 
         mock_client_instance = AsyncMock()
@@ -131,21 +128,37 @@ class TestMainFunction:
         mock_client_instance.stop = AsyncMock()
         mock_client_instance.create_session = AsyncMock(return_value=mock_session)
 
-        # Simulate session.idle event to unblock done.wait()
         def fake_on(callback):
-            class FakeEvent:
-                class event_type:
-                    value = "session.idle"
+            for event_type_str, data in events:
 
-                type = event_type
-                data = None
+                class _Type:
+                    value = event_type_str
 
-            callback(FakeEvent())
+                class _Event:
+                    type = _Type
+                    pass
+
+                _Event.data = data
+                callback(_Event())
 
         mock_session.on = fake_on
         mock_session.send = AsyncMock()
 
         _mock_copilot_sdk.CopilotClient.return_value = mock_client_instance
+        return mock_session, mock_client_instance
+
+    def test_create_session_called_with_keyword_args(self, _mock_copilot_sdk):
+        """Verify that the actual runtime call passes keyword args, not a dict."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+
+        # Simulate assistant.message + session.idle so main() returns 0
+        msg_data = MagicMock()
+        msg_data.content = "generated spec"
+        events = [("assistant.message", msg_data), ("session.idle", None)]
+        _mock_session, mock_client_instance = self._make_mock_session_and_client(_mock_copilot_sdk, events)
 
         with (
             patch("sys.stdin", MagicMock(read=MagicMock(return_value="test prompt"))),
@@ -168,3 +181,103 @@ class TestMainFunction:
         assert "on_permission_request" in call_kwargs.kwargs
         assert call_kwargs.kwargs["on_permission_request"] is _mock_copilot_sdk.PermissionHandler.approve_all
         assert call_kwargs.kwargs["infinite_sessions"] == {"enabled": False}
+
+    def test_successful_response_returns_0(self, _mock_copilot_sdk):
+        """A valid assistant.message followed by session.idle returns 0."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+
+        msg_data = MagicMock()
+        msg_data.content = "spec content"
+        events = [("assistant.message", msg_data), ("session.idle", None)]
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 0
+
+    def test_empty_response_returns_1(self, _mock_copilot_sdk):
+        """session.idle without assistant.message returns 1 (empty response)."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+
+        events = [("session.idle", None)]
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+
+    def test_error_event_returns_1(self, _mock_copilot_sdk):
+        """An error event causes main() to return 1."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+
+        err_data = MagicMock()
+        err_data.message = "authentication failed"
+        events = [("error", err_data)]
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+
+    def test_uses_last_assistant_message(self, _mock_copilot_sdk):
+        """When multiple assistant.message events arrive, the last one is used."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        msg1 = MagicMock()
+        msg1.content = "first draft"
+        msg2 = MagicMock()
+        msg2.content = "final version"
+        events = [
+            ("assistant.message", msg1),
+            ("assistant.message", msg2),
+            ("session.idle", None),
+        ]
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        stdout_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stdout", stdout_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 0
+        assert stdout_buf.getvalue() == "final version"

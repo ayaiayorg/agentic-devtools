@@ -44,14 +44,21 @@ async def main() -> int:
             infinite_sessions={"enabled": False},
         )
 
-        content = ""
+        content_parts: list[str] = []
+        received_events: list[str] = []
+        error_messages: list[str] = []
         done = asyncio.Event()
 
         def on_event(event):
-            nonlocal content
-            if event.type.value == "assistant.message":
-                content = event.data.content
-            elif event.type.value == "session.idle":
+            event_type = event.type.value
+            received_events.append(event_type)
+            if event_type == "assistant.message":
+                content_parts.append(event.data.content)
+            elif event_type == "session.idle":
+                done.set()
+            elif event_type in ("error", "session.error", "assistant.error"):
+                msg = getattr(event.data, "message", None) or str(event.data)
+                error_messages.append(f"{event_type}: {msg}")
                 done.set()
 
         session.on(on_event)
@@ -61,10 +68,24 @@ async def main() -> int:
             await asyncio.wait_for(done.wait(), timeout=300)
         except asyncio.TimeoutError:
             print("Error: Copilot SDK response timed out after 300s", file=sys.stderr)
+            print(f"Events received before timeout: {received_events}", file=sys.stderr)
             return 1
 
+        if error_messages:
+            print(
+                f"Error: Copilot SDK returned error(s): {'; '.join(error_messages)}",
+                file=sys.stderr,
+            )
+            return 1
+
+        content = content_parts[-1] if content_parts else ""
         if not content.strip():
             print("Error: empty response from Copilot SDK", file=sys.stderr)
+            print(f"Events received: {received_events}", file=sys.stderr)
+            print(
+                f"Model: {model}, Prompt length: {len(prompt)} chars",
+                file=sys.stderr,
+            )
             return 1
 
         sys.stdout.write(content)

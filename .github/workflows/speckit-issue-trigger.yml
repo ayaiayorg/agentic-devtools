@@ -226,6 +226,17 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
           .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
 
+      - name: Validate Copilot Token
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not configured. Add a fine-grained PAT with 'Copilot Requests: Read' permission."
+            exit 1
+          fi
+          echo "✓ COPILOT_GITHUB_TOKEN is configured"
+
       - name: Set up Python
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         uses: actions/setup-python@v5
