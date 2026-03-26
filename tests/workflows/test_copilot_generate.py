@@ -291,6 +291,42 @@ class TestMainFunction:
         assert result == 0
         assert stdout_buf.getvalue() == "final version"
 
+    def test_custom_timeout_is_applied(self, _mock_copilot_sdk):
+        """A valid COPILOT_TIMEOUT value is passed to asyncio.wait_for and shown in timeout errors."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        # Use events that never set done, so we hit the timeout path
+        events = []
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "42"},
+                clear=False,
+            ),
+            # Patch wait_for to immediately raise TimeoutError and capture the timeout arg
+            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError) as mock_wait_for,
+        ):
+            result = asyncio.run(module.main())
+
+        assert result == 1
+        # Verify the custom timeout value was passed to asyncio.wait_for
+        mock_wait_for.assert_called_once()
+        _args, kwargs = mock_wait_for.call_args
+        assert kwargs.get("timeout") == 42 or (len(_args) >= 2 and _args[1] == 42), (
+            f"Expected timeout=42 in asyncio.wait_for call, got args={_args}, kwargs={kwargs}"
+        )
+        # Verify the error message reflects the custom value
+        assert "42s" in stderr_buf.getvalue()
+
     def test_invalid_timeout_returns_1(self, _mock_copilot_sdk):
         """A non-integer COPILOT_TIMEOUT returns 1 with an error message."""
         module, spec = _load_module()
