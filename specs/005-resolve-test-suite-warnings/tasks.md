@@ -1,10 +1,20 @@
 # tasks.md
 
+> **Phase mapping** (tasks.md → plan.md):
+> Tasks Phase 1 + Phase 2 = Plan Phase 1 (Audit);
+> Tasks Phase 3 = Plan Phase 2;
+> Tasks Phase 4 = Plan Phase 3;
+> Tasks Phase 5 = Plan Phase 4;
+> Tasks Final Phase = Plan Phase 5
+
 ## Phase 1: Setup — Warning Audit Baseline
 
 - [ ] T001 Run `agdt-test-pattern -W error --no-header -q` and capture full warning output to establish baseline before any changes
 - [ ] T002 Categorise each captured warning as own-code DeprecationWarning, own-code UserWarning (intentional), or unavoidable third-party warning
-- [ ] T003 Populate the Known Third-Party Warning Exemptions table in the spec with findings from T002; confirm `urllib3.exceptions.InsecureRequestWarning` is the only entry
+- [ ] T003 Populate the Known Third-Party Warning Exemptions table in the spec with all
+  unavoidable third-party warnings confirmed in T002; then verify whether
+  `urllib3.exceptions.InsecureRequestWarning` is currently the only exemption before
+  proceeding to the global `filterwarnings` change in Phase 5
 
 ## Phase 2: Foundational — Locate All Warning Emission and Capture Sites
 

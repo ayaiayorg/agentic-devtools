@@ -100,9 +100,9 @@ The outcome should be a **clean, deterministic, warning-free test run by default
 | Entity | Location | Role |
 |--------|----------|------|
 | `tar.extract()` call | `agentic_devtools/cli/setup/gh_cli_installer.py:198` | Source of `DeprecationWarning` on Python 3.12+ |
-| `warnings.warn("--autopilot is not supported…")` | `agentic_devtools/cli/copilot/session.py:287-290` | Intentional `UserWarning` for autopilot fallback |
-| `warnings.warn("gh copilot is not available…")` | `agentic_devtools/cli/copilot/session.py:504-507` | Intentional `UserWarning` for copilot unavailability |
-| `warnings.warn("Prompt truncated…")` | `agentic_devtools/cli/copilot/session.py:402-419` | Intentional `UserWarning` for prompt truncation |
+| `warnings.warn("--autopilot is not supported…")` | `agentic_devtools/cli/copilot/session.py` | Intentional `UserWarning` for autopilot fallback |
+| `warnings.warn("gh copilot is not available…")` | `agentic_devtools/cli/copilot/session.py` | Intentional `UserWarning` for copilot unavailability |
+| `warnings.warn("Prompt truncated…")` | `agentic_devtools/cli/copilot/session.py` | Intentional `UserWarning` for prompt truncation |
 | `warnings.filterwarnings("ignore", category=InsecureRequestWarning)` | `agentic_devtools/cli/jira/helpers.py:35-39` | Source-level suppression of urllib3 warning |
 | `filterwarnings` config | `pyproject.toml [tool.pytest.ini_options]` | Global warning-to-error promotion |
 
