@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# create-spec-pr.sh - Create a pull request for generated planning artifacts
+# create-spec-pr.sh - Creates a spec pull request with planning artifacts from the SpecKit pipeline
+#
+# Creates a PR on the target branch containing generated planning artifacts
+# (specs, implementation plans, etc.) from a source GitHub issue. Automatically
+# applies relevant labels from the source issue and the speckit:spec label,
+# creating any missing labels as needed.
 #
 # Usage: create-spec-pr.sh <branch_name> <spec_dir> <issue_number> <issue_title> [labels_json]
 #
@@ -156,6 +161,7 @@ if [[ "$LABELS_JSON" != "[]" ]] && [[ -n "$LABELS_JSON" ]]; then
         while IFS= read -r label; do
             [[ -z "$label" ]] && continue
             echo "  Adding label: $label"
+            gh label create "$label" --force 2>/dev/null || true
             gh pr edit "$PR_URL" --add-label "$label" 2>/dev/null || {
                 echo "  Warning: Could not add label '$label'"
             }
@@ -165,6 +171,7 @@ fi
 
 # Add speckit label
 echo "Adding speckit:spec label..."
+gh label create "speckit:spec" --force --description "Spec PR created by SpecKit pipeline" --color "0E8A16" 2>/dev/null || true
 gh pr edit "$PR_URL" --add-label "speckit:spec" 2>/dev/null || {
     echo "Warning: Could not add speckit:spec label"
 }
