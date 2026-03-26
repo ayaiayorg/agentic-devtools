@@ -30,7 +30,17 @@ async def main() -> int:
 
     model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
     token = os.environ.get("COPILOT_GITHUB_TOKEN", "")
-    timeout = int(os.environ.get("COPILOT_TIMEOUT", "600"))
+    timeout_str = os.environ.get("COPILOT_TIMEOUT", "600")
+    try:
+        timeout = int(timeout_str)
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
+    except ValueError:
+        print(
+            f"Error: COPILOT_TIMEOUT must be a positive integer (got {timeout_str!r})",
+            file=sys.stderr,
+        )
+        return 1
     if not token:
         print("Error: COPILOT_GITHUB_TOKEN is required", file=sys.stderr)
         return 1

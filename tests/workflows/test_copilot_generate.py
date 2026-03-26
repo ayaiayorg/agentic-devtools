@@ -290,3 +290,70 @@ class TestMainFunction:
             result = asyncio.run(module.main())
         assert result == 0
         assert stdout_buf.getvalue() == "final version"
+
+    def test_invalid_timeout_returns_1(self, _mock_copilot_sdk):
+        """A non-integer COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "not-a-number"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
+        assert "not-a-number" in stderr_buf.getvalue()
+
+    def test_zero_timeout_returns_1(self, _mock_copilot_sdk):
+        """A zero COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "0"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
+
+    def test_negative_timeout_returns_1(self, _mock_copilot_sdk):
+        """A negative COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "-5"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
