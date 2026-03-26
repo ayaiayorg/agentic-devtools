@@ -1350,3 +1350,82 @@ class TestCleanupAutoStartTask:
         with patch(_REMOVE, side_effect=RuntimeError("unexpected failure")):
             # Must not raise despite remove_auto_start_task raising
             _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+
+class TestAutoStartModelFallback:
+    """Tests for model resolution in copilot_auto_start_cmd."""
+
+    def test_uses_cli_model_when_provided(self, tmp_path):
+        """When --model is provided on CLI, it is forwarded to build_copilot_args."""
+        sf = _state_file(tmp_path)
+
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
+                        with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
+                            with pytest.raises(SystemExit):
+                                copilot_auto_start_cmd(
+                                    [
+                                        "--worktree-path",
+                                        str(tmp_path),
+                                        "--start-prompt",
+                                        "hello",
+                                        "--run-id",
+                                        _RUN_ID,
+                                        "--model",
+                                        "gpt-4",
+                                    ]
+                                )
+
+        mock_build.assert_called_once_with("hello", interactive=True, model="gpt-4")
+
+    def test_falls_back_to_state_model_when_cli_omitted(self, tmp_path):
+        """When --model is omitted, reads copilot.model_id from state."""
+        sf = _state_file(tmp_path)
+        # Write model_id to state
+        state_data = json.loads(sf.read_text(encoding="utf-8"))
+        state_data.setdefault("copilot", {})["model_id"] = "claude-3.5-sonnet"
+        sf.write_text(json.dumps(state_data), encoding="utf-8")
+
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
+                        with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
+                            with pytest.raises(SystemExit):
+                                copilot_auto_start_cmd(
+                                    [
+                                        "--worktree-path",
+                                        str(tmp_path),
+                                        "--start-prompt",
+                                        "hello",
+                                        "--run-id",
+                                        _RUN_ID,
+                                    ]
+                                )
+
+        mock_build.assert_called_once_with("hello", interactive=True, model="claude-3.5-sonnet")
+
+    def test_falls_back_to_default_model_when_state_empty(self, tmp_path):
+        """When --model is omitted and state has no model_id, DEFAULT_COPILOT_MODEL is used."""
+        sf = _state_file(tmp_path)
+
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
+                        with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
+                            with pytest.raises(SystemExit):
+                                copilot_auto_start_cmd(
+                                    [
+                                        "--worktree-path",
+                                        str(tmp_path),
+                                        "--start-prompt",
+                                        "hello",
+                                        "--run-id",
+                                        _RUN_ID,
+                                    ]
+                                )
+
+        mock_build.assert_called_once_with("hello", interactive=True, model="gemini-pro-3.1")

@@ -35,6 +35,7 @@ import sys
 from pathlib import Path
 
 from agentic_devtools.cli.copilot.session import (
+    DEFAULT_COPILOT_MODEL,
     build_copilot_args,
     is_gh_copilot_available,
 )
@@ -45,6 +46,30 @@ from agentic_devtools.state import get_state_file_path
 _DEFAULT_TASK_LABEL = "agdt-copilot-auto-start"
 _STATE_KEY = "copilot"
 _TRIGGERED_RUNS_KEY = "auto_start_triggered_runs"
+_MODEL_KEY = "model_id"
+
+
+def _read_model_from_state(state_file_path: Path) -> str | None:
+    """Read ``copilot.model_id`` from the state file.
+
+    Returns the model ID string if present and non-empty, ``None`` otherwise.
+    Swallows all errors so callers can safely fall back to a default.
+    """
+    try:
+        with locked_state_file(state_file_path) as fh:
+            content = fh.read()
+            state = json.loads(content) if content.strip() else {}
+            if not isinstance(state, dict):
+                return None
+            copilot = state.get(_STATE_KEY, {})
+            if not isinstance(copilot, dict):
+                return None
+            model = copilot.get(_MODEL_KEY)
+            if isinstance(model, str) and model.strip():
+                return model.strip()
+            return None
+    except (FileLockError, json.JSONDecodeError, OSError, TypeError, AttributeError):
+        return None
 
 
 def _is_run_triggered(state_file_path: Path, run_id: str) -> bool:
@@ -359,8 +384,23 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
+    # 3c. Resolve model: when --model is omitted, read copilot.model_id from
+    #     the worktree state (set by the initiating workflow command).  Fall back
+    #     to DEFAULT_COPILOT_MODEL so auto-start sessions always use the
+    #     repo-wide default rather than the Copilot binary's implicit default.
+    model = args.model
+    if not model:
+        try:
+            state_model = _read_model_from_state(state_file_path)
+            if state_model:
+                model = state_model
+        except Exception:
+            pass
+    if not model:
+        model = DEFAULT_COPILOT_MODEL
+
     # 4. Build copilot args — bail out early if the prompt exceeds argv length limits.
-    copilot_args = build_copilot_args(start_prompt, interactive=True, model=args.model)
+    copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is None:
         print(
             "agdt-copilot-auto-start: error: start prompt is too large for Copilot CLI argv limits; "

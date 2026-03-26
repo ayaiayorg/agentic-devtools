@@ -1373,6 +1373,7 @@ def inject_auto_start_task(
     start_prompt: str,
     run_id: str,
     task_label: str = _AUTO_START_TASK_LABEL,
+    model: str | None = None,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
 
@@ -1405,6 +1406,10 @@ def inject_auto_start_task(
         task_label: Label for the injected task (default:
             ``"agdt-copilot-auto-start"``).  Used to identify the task
             during cleanup.
+        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+            When not ``None``, ``--model <model>`` is appended to the
+            ``agdt-copilot-auto-start`` args so the auto-start session
+            uses the same model as the workflow that triggered it.
 
     Returns:
         ``True`` if the task was written successfully, ``False`` otherwise
@@ -1514,6 +1519,8 @@ def inject_auto_start_task(
     ]
     if not file_existed:
         command_args.append("--created-new")
+    if model is not None:
+        command_args.extend(["--model", model])
 
     # --- Build the task definition -------------------------------------------
     task_def = {
@@ -2548,7 +2555,7 @@ def _maybe_inject_auto_start_before_vscode(
 
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
-        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped)
+        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped, model=model)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
         else:

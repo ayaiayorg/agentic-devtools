@@ -684,6 +684,13 @@ class TestInitiatePRReviewWorkflowCopilotSession:
         self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "claude-sonnet"])
         assert state.get_value("copilot.model_id") == "claude-sonnet"
 
+    def test_whitespace_only_model_falls_back_to_default(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """--model '   ' is treated as not provided — default model used."""
+        self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "   "])
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
 
 class TestInitiatePRReviewWorkflowBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""

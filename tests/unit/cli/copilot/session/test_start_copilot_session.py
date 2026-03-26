@@ -950,3 +950,39 @@ class TestStartCopilotSessionModel:
 
         captured = capsys.readouterr()
         assert "Copilot model:" not in captured.out
+
+    def test_whitespace_only_model_normalized_to_none(self, temp_state, mock_available, mock_popen_interactive, capsys):
+        """A whitespace-only model is normalized to None — not printed, not persisted."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model="   ",
+            )
+
+        captured = capsys.readouterr()
+        assert "Copilot model:" not in captured.out
+        assert state.get_value("copilot.model_id") is None
+
+    def test_empty_string_model_normalized_to_none(self, temp_state, mock_available, mock_popen_interactive, capsys):
+        """An empty string model is normalized to None — not printed, not persisted."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model="",
+            )
+
+        captured = capsys.readouterr()
+        assert "Copilot model:" not in captured.out
+        assert state.get_value("copilot.model_id") is None

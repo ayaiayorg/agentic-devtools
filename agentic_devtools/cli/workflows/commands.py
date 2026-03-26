@@ -273,8 +273,8 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -545,8 +545,8 @@ def initiate_work_on_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -1140,8 +1140,8 @@ def initiate_create_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -1355,8 +1355,8 @@ def initiate_create_jira_epic_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -1561,8 +1561,8 @@ def initiate_create_jira_subtask_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -1769,8 +1769,8 @@ def initiate_update_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -1946,8 +1946,8 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -2203,8 +2203,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 
@@ -2375,8 +2375,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
-    if model is None and args.model:
-        model = args.model
+    if model is None and args.model and args.model.strip():
+        model = args.model.strip()
     if model is None:
         model = DEFAULT_COPILOT_MODEL
 

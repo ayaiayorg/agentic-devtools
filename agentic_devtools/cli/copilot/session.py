@@ -525,6 +525,11 @@ def start_copilot_session(
     if session_id is None:
         session_id = _make_session_id()
 
+    # Normalise model: treat empty/whitespace-only strings as None so that
+    # stdout, state, and argv all behave consistently.
+    if isinstance(model, str):
+        model = model.strip() or None
+
     start_time = datetime.now(timezone.utc).isoformat()
     mode = "interactive" if interactive else "non-interactive"
 

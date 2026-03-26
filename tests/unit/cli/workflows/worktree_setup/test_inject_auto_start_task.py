@@ -665,3 +665,22 @@ class TestInjectAutoStartTask:
         task_args = data["tasks"][0]["args"]
         assert "--run-id" in task_args
         assert "my-run-123" in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_args_contain_model_when_provided(self, mock_available, tmp_path):
+        """The injected task args contain --model when a model is provided."""
+        _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID, model="gemini-pro-3.1")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task_args = data["tasks"][0]["args"]
+        assert "--model" in task_args
+        assert "gemini-pro-3.1" in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_args_omit_model_when_none(self, mock_available, tmp_path):
+        """The injected task args do NOT contain --model when model is None."""
+        _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID, model=None)
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task_args = data["tasks"][0]["args"]
+        assert "--model" not in task_args
