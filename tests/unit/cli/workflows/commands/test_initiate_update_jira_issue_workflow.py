@@ -95,6 +95,25 @@ class TestInitiateUpdateJiraIssueWorkflowBranches:
         assert "--user-request" in auto_cmd
         assert "Update the description" in auto_cmd
 
+    def test_model_parsed_from_cli(self, temp_state_dir, clear_state_before, capsys):
+        """--model CLI arg overrides the default model."""
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234", "--model", "gpt-4"])
+
+        assert state.get_value("copilot.model_id") == "gpt-4"
+
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""
         with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
