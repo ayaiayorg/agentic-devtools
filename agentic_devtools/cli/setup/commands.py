@@ -489,8 +489,10 @@ def _query_copilot_models() -> list[str]:
     """
     import shutil
     import subprocess
+    import sys
 
-    binary = shutil.which("copilot") or str(Path.home() / ".agdt" / "bin" / "copilot")
+    managed = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
+    binary = shutil.which("copilot") or str(managed)
     try:
         result = subprocess.run(
             [binary, "--list-models"],

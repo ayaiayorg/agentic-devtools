@@ -260,7 +260,7 @@ Examples:
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
@@ -536,7 +536,7 @@ def initiate_work_on_jira_issue_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model))
 
@@ -1125,7 +1125,7 @@ def initiate_create_jira_issue_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(
         _effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive, model)
@@ -1346,7 +1346,7 @@ def initiate_create_jira_epic_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive, model))
 
@@ -1554,7 +1554,7 @@ def initiate_create_jira_subtask_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive, model))
 
@@ -1766,7 +1766,7 @@ def initiate_update_jira_issue_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
@@ -1945,7 +1945,7 @@ Examples:
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
@@ -2204,7 +2204,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
@@ -2378,7 +2378,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+        help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 

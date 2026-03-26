@@ -270,7 +270,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (e.g., gemini-pro-3.1). Forwarded to the Copilot CLI.",
+        help="Copilot model to use (e.g., gpt-4o). Forwarded to the Copilot CLI.",
     )
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])

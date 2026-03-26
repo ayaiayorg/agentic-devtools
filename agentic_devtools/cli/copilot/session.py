@@ -292,7 +292,7 @@ def _build_copilot_args(
             ``gh copilot`` extension fallback is used and both
             ``interactive=True`` and ``autopilot=True``, a warning is emitted
             because the fallback does not support ``--autopilot``.
-        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+        model: Optional Copilot model ID (e.g. ``"gpt-4o"``).
             When not ``None`` and not empty, ``--model <model>`` is inserted
             into the standalone binary args before the ``-i``/``-p`` flag.
             The ``gh copilot suggest`` fallback does not support ``--model``;
@@ -354,7 +354,7 @@ def build_copilot_args(
             standalone binary receives ``--autopilot`` so that the agent
             executes tasks autonomously without requiring the user to press
             Tab.  Has no effect for non-interactive mode.
-        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+        model: Optional Copilot model ID (e.g. ``"gpt-4o"``).
             When not ``None``, ``--model <model>`` is added for the
             standalone binary.  The ``gh copilot suggest`` fallback emits
             a warning and omits the flag.
@@ -536,7 +536,7 @@ def start_copilot_session(
             ``gh copilot`` extension fallback is used and both
             ``interactive=True`` and ``autopilot=True``, a warning is
             emitted because the fallback does not support ``--autopilot``.
-        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+        model: Optional Copilot model ID (e.g. ``"gpt-4o"``).
             Forwarded to ``_build_copilot_args`` and persisted as
             ``copilot.model_id`` in state.
 
