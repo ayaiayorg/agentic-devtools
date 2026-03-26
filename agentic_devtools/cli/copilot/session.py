@@ -71,8 +71,31 @@ from ..subprocess_utils import run_safe
 # Constants
 # ---------------------------------------------------------------------------
 
-# Default Copilot model for all workflow sessions.
-DEFAULT_COPILOT_MODEL = "gemini-pro-3.1"
+# Default Copilot model used as ultimate fallback when no model is configured
+# in project config and none is supplied via --model.
+DEFAULT_COPILOT_MODEL = "gpt-4o"
+
+
+def get_default_copilot_model() -> str:
+    """Return the default Copilot model for workflow sessions.
+
+    Resolution order:
+    1. ``default_copilot_model`` in ``.agdt/config/project.json`` (set by
+       ``agdt-setup`` model selection prompt).
+    2. :data:`DEFAULT_COPILOT_MODEL` hardcoded constant (``"gpt-4o"``).
+
+    Returns:
+        A non-empty model identifier string.
+    """
+    try:
+        from agentic_devtools.cli.config.project_config import get_project_config_value
+
+        configured = get_project_config_value("default_copilot_model")
+        if configured and configured.strip():
+            return configured.strip()
+    except Exception:
+        pass
+    return DEFAULT_COPILOT_MODEL
 
 # State key namespace
 _COPILOT_NS = "copilot"

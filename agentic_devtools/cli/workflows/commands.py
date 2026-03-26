@@ -22,7 +22,7 @@ import sys
 
 from agentic_devtools.state import get_state_dir
 
-from ..copilot.session import DEFAULT_COPILOT_MODEL
+from ..copilot.session import get_default_copilot_model
 from .base import (
     advance_workflow_step,
     clear_state_for_workflow_initiation,
@@ -278,7 +278,7 @@ Examples:
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -552,7 +552,7 @@ def initiate_work_on_jira_issue_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1149,7 +1149,7 @@ def initiate_create_jira_issue_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1366,7 +1366,7 @@ def initiate_create_jira_epic_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1574,7 +1574,7 @@ def initiate_create_jira_subtask_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1784,7 +1784,7 @@ def initiate_update_jira_issue_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1963,7 +1963,7 @@ Examples:
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -2222,7 +2222,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
@@ -2396,7 +2396,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     if isinstance(model, str):
         model = model.strip() or None
     if model is None:
-        model = DEFAULT_COPILOT_MODEL
+        model = get_default_copilot_model()
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.

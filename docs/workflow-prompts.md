@@ -164,15 +164,21 @@ agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive
 ### Copilot Model Selection
 
 All `agdt-initiate-*-workflow` commands accept a `--model` flag to select which Copilot
-model to use for the session.  The default model is `gemini-pro-3.1`.
+model to use for the session.  The default model is resolved in this order:
+
+1. The `--model` CLI flag (highest priority)
+2. `default_copilot_model` in `.agdt/config/project.json` (set by `agdt-setup`)
+3. Hardcoded fallback `gpt-4o`
+
+Run `agdt-setup` to interactively select and persist your preferred default model.
 
 ```bash
-# Use the default model (gemini-pro-3.1)
+# Use the configured default model
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345
 
 # Override with a specific model
-agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --model gpt-4
-agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --model claude-sonnet
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --model gpt-5.3-codex
+agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --model claude-opus-4.6
 ```
 
 The selected model is:
@@ -180,7 +186,7 @@ The selected model is:
 - Passed to the Copilot CLI via `--model <model_id>` (standalone binary only; the
   `gh copilot suggest` fallback does not support this flag — a warning is emitted).
 - Persisted in workflow state as `copilot.model_id` for traceability.
-- Printed to stdout at session start (e.g. `Copilot model: gemini-pro-3.1`).
+- Printed to stdout at session start (e.g. `Copilot model: gpt-5.3-codex`).
 - Forwarded through the auto-setup worktree re-invocation path so the same model is
   used after automatic environment setup.
 

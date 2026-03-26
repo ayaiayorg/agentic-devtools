@@ -179,10 +179,14 @@ class TestInitiateWorkOnJiraIssueInteractive:
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
-                mock_setup.return_value = True
-                commands.initiate_work_on_jira_issue_workflow(model="   ")
+                with patch(
+                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                    return_value="gpt-4o",
+                ):
+                    mock_setup.return_value = True
+                    commands.initiate_work_on_jira_issue_workflow(model="   ")
 
-        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+        assert state.get_value("copilot.model_id") == "gpt-4o"
 
     def test_auto_execute_command_includes_interactive_flag(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
@@ -202,8 +206,12 @@ class TestInitiateWorkOnJiraIssueInteractive:
             )
 
             with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
-                mock_setup.return_value = True
-                commands.initiate_work_on_jira_issue_workflow(_argv=["--interactive", "true"])
+                with patch(
+                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                    return_value="gpt-4o",
+                ):
+                    mock_setup.return_value = True
+                    commands.initiate_work_on_jira_issue_workflow(_argv=["--interactive", "true"])
 
         call_kwargs = mock_setup.call_args[1]
         expected_cmd = [
@@ -213,7 +221,7 @@ class TestInitiateWorkOnJiraIssueInteractive:
             "--interactive",
             "true",
             "--model",
-            "gemini-pro-3.1",
+            "gpt-4o",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 

@@ -468,6 +468,101 @@ def _prompt_project_config() -> None:
         print("\n  ℹ No project configuration values provided.")
 
 
+# Curated list of known-good Copilot models used when the binary cannot be
+# queried for the live list.
+_KNOWN_COPILOT_MODELS = [
+    "gpt-5.3-codex",
+    "claude-opus-4.6",
+    "claude-sonnet-4.5",
+    "gpt-4o",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-pro",
+    "o4-mini",
+]
+
+
+def _query_copilot_models() -> list[str]:
+    """Try to retrieve available models from the installed Copilot binary.
+
+    Runs ``copilot --list-models`` and parses each non-empty line as a model
+    name.  Falls back to :data:`_KNOWN_COPILOT_MODELS` on any error.
+    """
+    import shutil
+    import subprocess
+
+    binary = shutil.which("copilot") or str(Path.home() / ".agdt" / "bin" / "copilot")
+    try:
+        result = subprocess.run(
+            [binary, "--list-models"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            models = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            if models:
+                return models
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return list(_KNOWN_COPILOT_MODELS)
+
+
+def _prompt_copilot_model() -> None:
+    """Prompt the user to select the default Copilot model for workflow sessions.
+
+    Queries available models from the installed Copilot binary; falls back to a
+    curated list when querying fails.  Persists the selection to
+    ``.agdt/config/project.json`` under ``"default_copilot_model"``.
+    """
+    from agentic_devtools.cli.config.project_config import (
+        load_project_config,
+        save_project_config,
+    )
+
+    existing = load_project_config()
+    current_model = existing.get("default_copilot_model", "")
+
+    print()
+    print("─── Copilot Model Configuration ─────────────────────────────")
+    print("  Select the default Copilot model for workflow sessions.")
+    print()
+
+    models = _query_copilot_models()
+
+    print("  Available models:")
+    for i, m in enumerate(models, start=1):
+        print(f"    {i}. {m}")
+    print()
+
+    # Default selection: already-configured model if still in the list, else first
+    default_selection = current_model if current_model in models else models[0]
+
+    try:
+        answer = input(f"  Default Copilot model [{default_selection}]: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
+    if not answer:
+        chosen = default_selection
+    elif answer.isdigit():
+        idx = int(answer) - 1
+        if 0 <= idx < len(models):
+            chosen = models[idx]
+        else:
+            print(f"  ⚠ Invalid selection — keeping current default ({default_selection})")
+            chosen = default_selection
+    else:
+        # Accept a free-form model name typed directly
+        chosen = answer
+
+    config = dict(existing)
+    config["default_copilot_model"] = chosen
+    save_project_config(config)
+    print(f"  ✓ Default Copilot model set to: {chosen}")
+
+
 def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
@@ -588,6 +683,7 @@ def setup_cmd() -> None:
         # ── Project configuration prompts ───────────────────────────────
         if not args.system_only and git_root is not None:
             _prompt_project_config()
+            _prompt_copilot_model()
         # ────────────────────────────────────────────────────────────────
 
         # Inject bundled agent/prompt skills where supported. Skill injection is a
