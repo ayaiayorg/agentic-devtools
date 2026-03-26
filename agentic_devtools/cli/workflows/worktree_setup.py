@@ -1519,8 +1519,16 @@ def inject_auto_start_task(
     ]
     if not file_existed:
         command_args.append("--created-new")
-    if model is not None:
-        command_args.extend(["--model", model])
+    # Normalize model: treat empty/whitespace-only strings as "not provided"
+    # so that the auto-start command falls back to its state → default chain
+    # rather than receiving a blank --model value.
+    normalized_model: str | None = None
+    if isinstance(model, str):
+        stripped = model.strip()
+        if stripped:
+            normalized_model = stripped
+    if normalized_model is not None:
+        command_args.extend(["--model", normalized_model])
 
     # --- Build the task definition -------------------------------------------
     task_def = {

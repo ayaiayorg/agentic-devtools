@@ -684,3 +684,21 @@ class TestInjectAutoStartTask:
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         task_args = data["tasks"][0]["args"]
         assert "--model" not in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_args_omit_model_when_whitespace_only(self, mock_available, tmp_path):
+        """Whitespace-only model is normalized to None and omitted from args."""
+        _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID, model="   ")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task_args = data["tasks"][0]["args"]
+        assert "--model" not in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_args_omit_model_when_empty_string(self, mock_available, tmp_path):
+        """Empty string model is normalized to None and omitted from args."""
+        _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID, model="")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task_args = data["tasks"][0]["args"]
+        assert "--model" not in task_args

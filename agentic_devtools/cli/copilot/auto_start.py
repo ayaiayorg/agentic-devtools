@@ -384,11 +384,14 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    # 3c. Resolve model: when --model is omitted, read copilot.model_id from
-    #     the worktree state (set by the initiating workflow command).  Fall back
-    #     to DEFAULT_COPILOT_MODEL so auto-start sessions always use the
-    #     repo-wide default rather than the Copilot binary's implicit default.
-    model = args.model
+    # 3c. Resolve model: when --model is omitted (or whitespace-only), read
+    #     copilot.model_id from the worktree state (set by the initiating
+    #     workflow command).  Fall back to DEFAULT_COPILOT_MODEL so auto-start
+    #     sessions always use the repo-wide default rather than the Copilot
+    #     binary's implicit default.
+    # Normalize: strip whitespace; treat empty as "not provided" so the
+    # fallback chain (state → default) is exercised.
+    model = args.model.strip() if isinstance(args.model, str) else args.model
     if not model:
         try:
             state_model = _read_model_from_state(state_file_path)
