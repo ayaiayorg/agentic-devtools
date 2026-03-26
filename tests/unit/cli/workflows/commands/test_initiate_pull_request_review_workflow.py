@@ -663,6 +663,27 @@ class TestInitiatePRReviewWorkflowCopilotSession:
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "true"])
         mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gemini-pro-3.1")
 
+    def test_copilot_session_custom_model_from_cli(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """--model CLI arg overrides the default model."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "gpt-4"])
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gpt-4")
+
+    def test_copilot_model_id_persisted_in_state(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """copilot.model_id is persisted in state after initiation."""
+        self._run_with_preflight_passing("999", "feature/some-branch")
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
+    def test_copilot_model_id_custom_persisted_in_state(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Custom --model value is persisted in state."""
+        self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "claude-sonnet"])
+        assert state.get_value("copilot.model_id") == "claude-sonnet"
+
 
 class TestInitiatePRReviewWorkflowBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""

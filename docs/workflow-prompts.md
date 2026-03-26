@@ -161,5 +161,28 @@ session, pass `--interactive true` (requires a TTY and VS Code):
 agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --interactive true
 ```
 
+### Copilot Model Selection
+
+All `agdt-initiate-*-workflow` commands accept a `--model` flag to select which Copilot
+model to use for the session.  The default model is `gemini-pro-3.1`.
+
+```bash
+# Use the default model (gemini-pro-3.1)
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345
+
+# Override with a specific model
+agdt-initiate-pull-request-review-workflow --pull-request-id 12345 --model gpt-4
+agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --model claude-sonnet
+```
+
+The selected model is:
+
+- Passed to the Copilot CLI via `--model <model_id>` (standalone binary only; the
+  `gh copilot suggest` fallback does not support this flag — a warning is emitted).
+- Persisted in workflow state as `copilot.model_id` for traceability.
+- Printed to stdout at session start (e.g. `Copilot model: gemini-pro-3.1`).
+- Forwarded through the auto-setup worktree re-invocation path so the same model is
+  used after automatic environment setup.
+
 For CI pipelines and other headless environments, omit `--interactive` (or pass
 `--interactive false`) to run the session non-interactively.

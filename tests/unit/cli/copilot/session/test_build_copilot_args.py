@@ -53,3 +53,21 @@ class TestBuildCopilotArgs:
         build_copilot_args("hello")
 
         mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True, model=None)
+
+    @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
+    def test_forwards_model_parameter(self, mock_internal):
+        """build_copilot_args forwards model parameter to _build_copilot_args."""
+        mock_internal.return_value = ["copilot", "--model", "gpt-4", "-i", "hello"]
+
+        build_copilot_args("hello", model="gpt-4")
+
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True, model="gpt-4")
+
+    @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
+    def test_model_defaults_to_none(self, mock_internal):
+        """build_copilot_args defaults model to None when not specified."""
+        mock_internal.return_value = ["copilot", "-i", "hello"]
+
+        build_copilot_args("hello", interactive=True, autopilot=False)
+
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=False, model=None)

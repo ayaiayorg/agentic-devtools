@@ -857,3 +857,96 @@ class TestStartCopilotSessionArgsNoneFallback:
         assert any("too large" in str(warning.message) for warning in w)
         captured = capsys.readouterr()
         assert "Some prompt" in captured.out
+
+
+class TestStartCopilotSessionModel:
+    """Tests for the model parameter in start_copilot_session."""
+
+    def test_model_forwarded_to_build_args(self, temp_state, mock_available, mock_popen_interactive):
+        """Model parameter is forwarded to _build_copilot_args."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "--model", "gpt-4", "-i", "hello"],
+        ) as mock_build:
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model="gpt-4",
+            )
+
+        # Check _build_copilot_args was called with model="gpt-4"
+        assert mock_build.call_count == 1
+        _, kwargs = mock_build.call_args
+        assert kwargs.get("model") == "gpt-4"
+
+    def test_model_persisted_in_state(self, temp_state, mock_available, mock_popen_interactive):
+        """copilot.model_id is persisted in state when model is provided."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "--model", "gpt-4", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model="gpt-4",
+            )
+
+        from agentic_devtools.state import get_value
+
+        assert get_value("copilot.model_id") == "gpt-4"
+
+    def test_model_none_not_persisted_in_state(self, temp_state, mock_available, mock_popen_interactive):
+        """copilot.model_id is NOT persisted when model is None."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model=None,
+            )
+
+        from agentic_devtools.state import get_value
+
+        assert get_value("copilot.model_id") is None
+
+    def test_model_printed_to_stdout(self, temp_state, mock_available, mock_popen_interactive, capsys):
+        """Model name is printed to stdout when provided."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "--model", "gemini-pro-3.1", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model="gemini-pro-3.1",
+            )
+
+        captured = capsys.readouterr()
+        assert "Copilot model: gemini-pro-3.1" in captured.out
+
+    def test_model_none_not_printed(self, temp_state, mock_available, mock_popen_interactive, capsys):
+        """No model line printed when model is None."""
+        with patch.object(
+            session_module,
+            "_build_copilot_args",
+            return_value=["copilot", "-i", "hello"],
+        ):
+            start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                model=None,
+            )
+
+        captured = capsys.readouterr()
+        assert "Copilot model:" not in captured.out
