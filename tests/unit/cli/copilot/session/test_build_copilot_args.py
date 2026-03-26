@@ -15,7 +15,7 @@ class TestBuildCopilotArgs:
 
         result = build_copilot_args("hello", interactive=True)
 
-        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True)
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True, model=None)
         assert result == ["copilot", "--autopilot", "-i", "hello"]
 
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
@@ -25,7 +25,7 @@ class TestBuildCopilotArgs:
 
         result = build_copilot_args("prompt", interactive=False)
 
-        mock_internal.assert_called_once_with("prompt", interactive=False, autopilot=True)
+        mock_internal.assert_called_once_with("prompt", interactive=False, autopilot=True, model=None)
         assert result == ["copilot", "--allow-all", "-p", "prompt"]
 
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args", return_value=None)
@@ -42,7 +42,7 @@ class TestBuildCopilotArgs:
 
         result = build_copilot_args("hello", interactive=True, autopilot=False)
 
-        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=False)
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=False, model=None)
         assert result == ["copilot", "-i", "hello"]
 
     @patch("agentic_devtools.cli.copilot.session._build_copilot_args")
@@ -52,4 +52,4 @@ class TestBuildCopilotArgs:
 
         build_copilot_args("hello")
 
-        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True)
+        mock_internal.assert_called_once_with("hello", interactive=True, autopilot=True, model=None)

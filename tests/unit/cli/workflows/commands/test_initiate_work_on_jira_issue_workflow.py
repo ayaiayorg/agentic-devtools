@@ -168,6 +168,8 @@ class TestInitiateWorkOnJiraIssueInteractive:
             "PROJECT-1234",
             "--interactive",
             "true",
+            "--model",
+            "gemini-pro-3.1",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 

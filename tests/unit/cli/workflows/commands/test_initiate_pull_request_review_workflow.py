@@ -526,6 +526,8 @@ class TestInitiatePRReviewWorkflowInteractive:
             "PROJECT-9999",
             "--interactive",
             "false",
+            "--model",
+            "gemini-pro-3.1",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 
@@ -645,21 +647,21 @@ class TestInitiatePRReviewWorkflowCopilotSession:
     ):
         """_start_copilot_session_for_pr_review is called with interactive=False by default."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=False when --interactive false."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "false"])
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
 
     def test_copilot_session_interactive_true_when_explicitly_set(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=True when --interactive true."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "true"])
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gemini-pro-3.1")
 
 
 class TestInitiatePRReviewWorkflowBootstrapScope:

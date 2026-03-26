@@ -22,6 +22,7 @@ import sys
 
 from agentic_devtools.state import get_state_dir
 
+from ..copilot.session import DEFAULT_COPILOT_MODEL
 from .base import (
     advance_workflow_step,
     clear_state_for_workflow_initiation,
@@ -188,6 +189,7 @@ def initiate_pull_request_review_workflow(
     pull_request_id: str | None = None,
     issue_key: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -254,7 +256,13 @@ Examples:
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -265,6 +273,10 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -290,6 +302,7 @@ Examples:
     # Clear workflow tracking state (workflow, agdt_run_id) now that the bootstrap scope
     # is set; load_state()/save_state() will use the correctly scoped directory.
     clear_state_for_workflow_initiation()
+    set_value("copilot.model_id", model)
 
     # Set provided values in state using the NORMALIZED identifiers.  When both issue_key
     # and pull_request_id are provided, write jira.issue_key FIRST so that the engine-side
@@ -424,6 +437,7 @@ Examples:
         if resolved_issue_key:
             auto_execute_command.extend(["--issue-key", resolved_issue_key])
         auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
+        auto_execute_command.extend(["--model", model])
 
         # Automatically set up the environment with the PR's source branch
         if perform_auto_setup(
@@ -462,12 +476,13 @@ Examples:
     # Use the git repo/worktree root (not cwd) so the prompt file is found
     # even when the command is invoked from a subdirectory.
     repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_pr_review(repo_root, interactive=interactive)
+    _start_copilot_session_for_pr_review(repo_root, interactive=interactive, model=model)
 
 
 def initiate_work_on_jira_issue_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -515,7 +530,13 @@ def initiate_work_on_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None and args.issue_key:
@@ -524,9 +545,14 @@ def initiate_work_on_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If issue_key provided via CLI, set it in state
     if issue_key:  # pragma: no cover
@@ -560,6 +586,8 @@ def initiate_work_on_jira_issue_workflow(
             issue_key,
             "--interactive",
             "true" if interactive else "false",
+            "--model",
+            model,
         ]
 
         # Automatically set up the environment
@@ -583,7 +611,7 @@ def initiate_work_on_jira_issue_workflow(
     from .worktree_setup import _start_copilot_session_for_work_on_jira_issue
 
     repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_work_on_jira_issue(repo_root, interactive=interactive)
+    _start_copilot_session_for_work_on_jira_issue(repo_root, interactive=interactive, model=model)
 
 
 def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
@@ -1011,6 +1039,7 @@ def initiate_create_jira_issue_workflow(
     issue_type: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1088,7 +1117,15 @@ def initiate_create_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(
+        _effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive, model)
+    )
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -1103,9 +1140,14 @@ def initiate_create_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
@@ -1169,7 +1211,7 @@ def initiate_create_jira_issue_workflow(
             from .worktree_setup import _start_copilot_session_for_create_jira_issue
 
             repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_issue(repo_root, interactive=interactive)
+            _start_copilot_session_for_create_jira_issue(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1185,6 +1227,8 @@ def initiate_create_jira_issue_workflow(
                 resolved_project_key,
                 "--interactive",
                 "true" if interactive else "false",
+                "--model",
+                model,
             ]
             if resolved_issue_type:
                 auto_execute_command.extend(["--issue-type", resolved_issue_type])
@@ -1222,6 +1266,7 @@ def initiate_create_jira_epic_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1291,7 +1336,13 @@ def initiate_create_jira_epic_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -1304,9 +1355,14 @@ def initiate_create_jira_epic_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If project_key provided via CLI, set it in state
     if project_key:  # pragma: no cover
@@ -1366,7 +1422,7 @@ def initiate_create_jira_epic_workflow(
             from .worktree_setup import _start_copilot_session_for_create_jira_epic
 
             repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_epic(repo_root, interactive=interactive)
+            _start_copilot_session_for_create_jira_epic(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1382,6 +1438,8 @@ def initiate_create_jira_epic_workflow(
                 resolved_project_key,
                 "--interactive",
                 "true" if interactive else "false",
+                "--model",
+                model,
             ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1417,6 +1475,7 @@ def initiate_create_jira_subtask_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1483,7 +1542,13 @@ def initiate_create_jira_subtask_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if parent_key is None:
@@ -1496,9 +1561,14 @@ def initiate_create_jira_subtask_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If parent_key provided via CLI, set it in state
     if parent_key:
@@ -1556,7 +1626,7 @@ def initiate_create_jira_subtask_workflow(
             from .worktree_setup import _start_copilot_session_for_create_jira_subtask
 
             repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_subtask(repo_root, interactive=interactive)
+            _start_copilot_session_for_create_jira_subtask(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1576,6 +1646,8 @@ def initiate_create_jira_subtask_workflow(
                 resolved_parent_key,
                 "--interactive",
                 "true" if interactive else "false",
+                "--model",
+                model,
             ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1623,6 +1695,7 @@ def initiate_update_jira_issue_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1679,7 +1752,13 @@ def initiate_update_jira_issue_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -1690,9 +1769,14 @@ def initiate_update_jira_issue_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If issue_key provided via CLI, set it in state
     if issue_key:
@@ -1732,6 +1816,8 @@ def initiate_update_jira_issue_workflow(
             resolved_issue_key,
             "--interactive",
             "true" if interactive else "false",
+            "--model",
+            model,
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1771,13 +1857,14 @@ def initiate_update_jira_issue_workflow(
     from .worktree_setup import _start_copilot_session_for_update_jira_issue
 
     repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive)
+    _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive, model=model)
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(
     pull_request_id: str | None = None,
     issue_key: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1842,7 +1929,13 @@ Examples:
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -1853,6 +1946,10 @@ Examples:
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -1877,6 +1974,7 @@ Examples:
     # Clear workflow tracking state (workflow, agdt_run_id) now that the bootstrap scope
     # is set; load_state()/save_state() will use the correctly scoped directory.
     clear_state_for_workflow_initiation()
+    set_value("copilot.model_id", model)
 
     # Set provided values in state.  When both issue_key and pull_request_id are provided,
     # write jira.issue_key FIRST so that the engine-side priority guard in set_value()
@@ -1936,6 +2034,7 @@ Examples:
             if resolved_issue_key:
                 auto_execute_command.extend(["--issue-key", resolved_issue_key])
             auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
+            auto_execute_command.extend(["--model", model])
 
             # Automatically set up the environment
             if perform_auto_setup(
@@ -1976,7 +2075,7 @@ Examples:
     # Use the git repo/worktree root (not cwd) so the prompt file is found
     # even when the command is invoked from a subdirectory.
     repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_apply_pr_suggestions(repo_root, interactive=interactive)
+    _start_copilot_session_for_apply_pr_suggestions(repo_root, interactive=interactive, model=model)
 
 
 def _copy_review_state_to_apply_suggestions() -> None:
@@ -2025,6 +2124,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2086,7 +2186,13 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -2097,10 +2203,15 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If issue_key provided via CLI, set it in state
     if issue_key:
@@ -2140,6 +2251,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
             resolved_issue_key,
             "--interactive",
             "true" if interactive else "false",
+            "--model",
+            model,
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -2183,6 +2296,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
     interactive: bool | None = None,
+    model: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2244,7 +2358,13 @@ def initiate_break_down_issue_into_subtasks_workflow(
         type=_parse_bool_interactive,
         help="Start Copilot session interactively (default: false). Pass 'true' or 'false'.",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive))
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (default: gemini-pro-3.1). Example: --model gemini-pro-3.1",
+    )
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -2255,10 +2375,15 @@ def initiate_break_down_issue_into_subtasks_workflow(
         interactive = args.interactive == "true"
     if interactive is None:
         interactive = False
+    if model is None and args.model:
+        model = args.model
+    if model is None:
+        model = DEFAULT_COPILOT_MODEL
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+    set_value("copilot.model_id", model)
 
     # If issue_key provided via CLI, set it in state
     if issue_key:
@@ -2298,6 +2423,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
             resolved_issue_key,
             "--interactive",
             "true" if interactive else "false",
+            "--model",
+            model,
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])

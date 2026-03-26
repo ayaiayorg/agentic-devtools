@@ -433,7 +433,7 @@ class TestCopilotAutoStartCmd:
         sf = _state_file(tmp_path)
         call_order = []
 
-        def fake_build_args(prompt, interactive):
+        def fake_build_args(prompt, interactive, model=None):
             return ["copilot", "-i", prompt]
 
         def fake_subprocess_run(args, **kwargs):

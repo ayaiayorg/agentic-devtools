@@ -241,6 +241,12 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         action="store_true",
         help="When set, cleanup deletes tasks.json (and .vscode/ if empty) instead of rewriting when no tasks remain.",
     )
+    parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Copilot model to use (e.g., gemini-pro-3.1). Forwarded to the Copilot CLI.",
+    )
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -354,7 +360,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     # 4. Build copilot args — bail out early if the prompt exceeds argv length limits.
-    copilot_args = build_copilot_args(start_prompt, interactive=True)
+    copilot_args = build_copilot_args(start_prompt, interactive=True, model=args.model)
     if copilot_args is None:
         print(
             "agdt-copilot-auto-start: error: start prompt is too large for Copilot CLI argv limits; "

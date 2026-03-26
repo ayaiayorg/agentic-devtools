@@ -26,10 +26,16 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When copilot args are available and run_id is present, inject the auto-start task."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
-        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
+        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True, model=None)
         mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123")
         captured = capsys.readouterr()
         assert "auto-start task injected" in captured.out
@@ -88,13 +94,21 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
     ):
         """When a custom start_prompt is provided, it is forwarded to build_copilot_args."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
             _maybe_inject_auto_start_before_vscode(
                 str(tmp_path),
                 start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
             )
 
-        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True)
+        mock_build_args.assert_called_once_with(
+            COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True, model=None
+        )
         mock_inject.assert_called_once()
 
     def test_returns_false_in_pytest_environment(self, tmp_path):
