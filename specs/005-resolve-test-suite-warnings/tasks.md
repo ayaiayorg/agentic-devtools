@@ -10,16 +10,17 @@
 
 - [ ] T004 [P] Grep entire test suite for `warnings.catch_warnings` usages; record file paths, line numbers, and whether each use is an assertion or a suppression
 - [ ] T005 [P] Grep `agentic_devtools/` source for all `warnings.warn(` call sites; record file, line, category, message, and trigger condition to complete the Warning Emission Site inventory
-- [ ] T006 Confirm that `sys` is not already imported at module scope in
-  `agentic_devtools/cli/setup/gh_cli_installer.py`; note the exact line number
-  of the `tar.extract(member, path=tmp_dir)` call (~line 196)
+- [ ] T006 Confirm that `sys` is imported at module scope in `agentic_devtools/cli/setup/gh_cli_installer.py` and note the exact line number of the `tar.extract(member, path=tmp_dir)` call (~line 198)
 
 ## Phase 3: US1 — Fix tarfile DeprecationWarning at Source
 
 - [ ] T007 [US1] Write a failing test in `tests/unit/cli/setup/gh_cli_installer/` that patches `sys.version_info` to `(3, 12, 0)` and asserts `tar.extract()` is called with `filter="data"`
 - [ ] T008 [US1] Write a failing test in `tests/unit/cli/setup/gh_cli_installer/` that patches `sys.version_info` to `(3, 11, 0)` and asserts `tar.extract()` is called without the `filter` kwarg
 - [ ] T009 [US1] Ensure `__init__.py` files exist for any new test directories created in T007/T008; run `python scripts/validate_test_structure.py` to confirm structure is valid
-- [ ] T010 [US1] Add `import sys` at module scope in `agentic_devtools/cli/setup/gh_cli_installer.py` if not already present
+- [ ] T010 [US1] Confirm that no duplicate `import sys` is introduced in
+  `agentic_devtools/cli/setup/gh_cli_installer.py`; reuse the existing
+  module-scope `sys` import when implementing the version-guarded
+  `tar.extract()` change
 - [ ] T011 [US1] Replace the bare `tar.extract(member, path=tmp_dir)` call in
   `agentic_devtools/cli/setup/gh_cli_installer.py` with the version-guarded
   form: `if sys.version_info >= (3, 12): tar.extract(member, path=tmp_dir, filter="data")` /

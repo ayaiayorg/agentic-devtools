@@ -50,8 +50,8 @@
 - [ ] CHK010 The spec documents key assumptions — including the minimum
   supported Python version (3.10+), the rationale for the
   `sys.version_info >= (3, 12)` version guard, and the fact that the Known
-  Third-Party Warning Exemptions table is currently empty and will be populated
-  during implementation
+  Third-Party Warning Exemptions table currently contains only
+  `urllib3.exceptions.InsecureRequestWarning` and may be expanded during implementation
 
 ## Feature Readiness
 

@@ -6,8 +6,8 @@
 
 | ID | Pass | Severity | Location(s) | Summary | Recommendation |
 |----|------|----------|-------------|---------|----------------|
-| F01 | D — Constitution | **CRITICAL** | `specs/005-resolve-test-suite-warnings/spec.md` (file on disk) | The spec.md file on disk contains only a generation summary paragraph, not the actual specification document. All section headers (FRs, NFRs, ACs, Edge Cases) referenced in the plan and tasks are unreachable for verification. | Replace file content with the full spec document. All downstream analysis is blocked without the authoritative text. |
-| F02 | F — Inconsistency | **HIGH** | Plan §3 Phase 3a example vs Spec Clarification #3 | Warning `match` string is inconsistent: Spec Clarification #3 states `match="--autopilot is not supported"`; Plan Phase 3a code sample uses `match="gh copilot is not available"`. These resolve to different branches of `session.py`. | Verify the exact `warnings.warn()` message in `session.py` and canonicalise one match string across spec, plan, and tasks. |
+| F01 | A — Resolved | **INFO** | `specs/005-resolve-test-suite-warnings/spec.md` (file on disk) | The `spec.md` file now contains the full specification document, including FRs, NFRs, ACs, and Edge Cases. The earlier placeholder-only content issue has been addressed. | No action required; keep this row as a historical note and ensure future updates keep the spec, plan, and tasks aligned. |
+| F02 | A — Resolved | **INFO** | Plan §3 Phase 3a example vs Spec Clarification #3 | The warning `match` string for the `session.py` autopilot case has been aligned between the spec and the plan, so they now describe the same behavior. | No action required; if the warning text changes in `session.py` in future, update both spec and plan together to preserve consistency. |
 | F03 | F — Inconsistency | **HIGH** | Plan §4 Phase labels vs Task list Phase labels | Phase numbering is offset by 1 throughout: the plan has 5 phases; the task list has 6 phases because it splits plan Phase 1 (Audit) into two (Phase 1 = audit baseline, Phase 2 = locate sites). All subsequent phase numbers differ (Plan Phase 2 = Task Phase 3, etc.). | Add a cross-reference table mapping plan phases to task phases, or renumber one artifact to match the other. |
 | F04 | A — Duplication | **HIGH** | T004 vs T013 | T004 already instructs: "grep entire test suite for `warnings.catch_warnings` usages; record… whether each use is an assertion or a suppression." T013 repeats the identical assertion-vs-suppression classification scoped to one file already in T004's scope. | Delete the classification step from T013; task T013 to only document conversion targets using T004's output as input. Mark T013 as depending on T004. |
 | F05 | E — Coverage Gap | **HIGH** | Spec §Edge Cases (5 items) → Task list | None of the 5 spec Edge Cases are referenced or mapped to any task. Scenarios such as `filter="data"` rejecting a valid binary member, or `ResourceWarning` from unclosed handles, have no dedicated test or verification step. | Add edge-case coverage notes to existing tasks (T007, T025) or introduce explicit tasks per edge case; at minimum annotate T001 to specifically surface each EC during audit. |
@@ -41,14 +41,14 @@
 | US1 — Fix `tarfile.extract()` DeprecationWarning at source | ✅ Yes | T007, T008, T009, T010, T011, T012 | Fully covered; T006/T010 merge recommended (F17) |
 | US2 — Fix autopilot warning test patterns | ✅ Yes | T013, T014, T015, T016, T017, T018 | Covered; T013 has parallel-tag/dependency conflict (F07); T013/T004 duplication (F04) |
 | US3 — Configure global `filterwarnings = ["error"]` | ✅ Yes | T019, T020, T021, T022, T023 | Covered; blocked on T003 completing first (F10) |
-| FR1–FR6 (not individually enumerable — spec file is placeholder) | ⚠️ Partial | T007–T023 | Cannot verify FR-by-FR; all inferred FRs appear embedded in US task coverage (F01) |
+| FR1–FR6 | ✅ Yes | T007–T023 | All FRs are defined in spec.md §5 and covered by US task coverage (F01 resolved) |
 | NFR: `pytest` exits 0 with `filterwarnings=["error"]` active | ✅ Yes | T024, T025 | |
 | NFR: No `DeprecationWarning` from `tarfile` on Python 3.12+ | ✅ Yes | T012, T023 | NFR ID not annotated on tasks (F06) |
 | NFR: No `UserWarning` from autopilot in non-intentional tests | ✅ Yes | T018, T022 | NFR ID not annotated on tasks (F06) |
 | NFR: Intentional-warning tests use `pytest.warns()` | ✅ Yes | T014 | NFR ID not annotated (F06) |
 | NFR: 100% coverage maintained | ⚠️ Conditional | T026 | Task is conditional ("if coverage drops"); should be unconditional verification |
 | NFR: `run-pr-checks.sh` exits 0 | ✅ Yes | T027 | |
-| EC1–EC5 (5 Edge Cases — not enumerable, spec unreadable) | ❌ No | — | Zero task coverage for any edge case (F05) |
+| EC1–EC5 (5 Edge Cases) | ❌ No | — | Zero task coverage for any edge case (F05) |
 | Known Third-Party Warning Exemptions table (spec §) | ⚠️ Partial | T003 | Table is empty in spec; T003 must populate before T019; no blocker enforced (F10) |
 | Warning Audit Baseline (Phase 1 deliverable) | ✅ Yes | T001, T002, T003 | Output artifact destination unspecified (F12) |
 | Warning Emission Site inventory | ⚠️ Partial | T005 | No output artifact location specified (F12) |
@@ -65,14 +65,14 @@
 | Total Tasks | 29 (T001–T029) |
 | Requirements with ≥1 task | 15 / 20 |
 | **Coverage %** | **75%** |
-| Ambiguity Count (Pass B findings) | 7 (F02, F08, F09, F10, F15, F19, F23) |
+| Ambiguity Count (Pass B findings) | 7 (F08, F09, F10, F15, F19, F23 + match-string drift resolved) |
 | Duplication Count (Pass A findings) | 3 (F04, F18, F22) |
 | Underspecification Count (Pass C) | 6 (F10, F12, F17, F21, F24, F25) |
-| Constitution Issues (Pass D) | 2 (F01, F11) |
+| Constitution Issues (Pass D) | 1 (F11) |
 | Coverage Gaps (Pass E) | 5 (F05, F06, F16, F24 + NFR annotation gap) |
-| Inconsistency Count (Pass F) | 7 (F02, F03, F07, F13, F14, F20 + match-string drift) |
-| **Critical Issues** | **1** (F01 — spec file is a placeholder, not the actual document) |
-| HIGH Severity Issues | 9 (F02–F10) |
+| Inconsistency Count (Pass F) | 5 (F03, F07, F13, F14, F20) |
+| **Critical Issues** | **0** (F01 resolved — spec file now contains the full document) |
+| HIGH Severity Issues | 7 (F03–F10, excluding resolved F02) |
 | MEDIUM Severity Issues | 10 (F11–F20) |
 | LOW Severity Issues | 5 (F21–F25) |
 | **Total Findings** | **25** |
