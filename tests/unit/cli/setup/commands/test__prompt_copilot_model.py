@@ -113,3 +113,19 @@ class TestPromptCopilotModel:
         for model in _KNOWN_COPILOT_MODELS:
             assert isinstance(model, str)
             assert model.strip() == model
+
+    def test_strips_whitespace_from_existing_configured_model(self, capsys):
+        """Strips leading/trailing whitespace from existing config before matching."""
+        models = ["gpt-5.3-codex", "gpt-4o", "claude-opus-4.6"]
+        with patch("agentic_devtools.cli.setup.commands._query_copilot_models", return_value=models):
+            with patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"default_copilot_model": "  claude-opus-4.6  "},
+            ):
+                with patch("agentic_devtools.cli.config.project_config.save_project_config") as mock_save:
+                    # Enter selects default (should match claude-opus-4.6 after strip)
+                    with patch("agentic_devtools.cli.setup.commands.input", return_value=""):
+                        _prompt_copilot_model()
+
+        saved = mock_save.call_args[0][0]
+        assert saved["default_copilot_model"] == "claude-opus-4.6"

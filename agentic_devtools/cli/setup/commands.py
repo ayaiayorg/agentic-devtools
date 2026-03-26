@@ -487,12 +487,13 @@ def _query_copilot_models() -> list[str]:
     Runs ``copilot --list-models`` and parses each non-empty line as a model
     name.  Falls back to :data:`_KNOWN_COPILOT_MODELS` on any error.
     """
-    import shutil
     import subprocess
-    import sys
 
-    managed = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
-    binary = shutil.which("copilot") or str(managed)
+    from agentic_devtools.cli.copilot.session import _get_copilot_binary
+
+    binary = _get_copilot_binary()
+    if binary is None:
+        return list(_KNOWN_COPILOT_MODELS)
     try:
         result = subprocess.run(
             [binary, "--list-models"],
@@ -523,7 +524,7 @@ def _prompt_copilot_model() -> None:
     )
 
     existing = load_project_config()
-    current_model = existing.get("default_copilot_model", "")
+    current_model = existing.get("default_copilot_model", "").strip()
 
     print()
     print("─── Copilot Model Configuration ─────────────────────────────")

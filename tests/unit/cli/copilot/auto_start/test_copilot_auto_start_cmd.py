@@ -16,6 +16,7 @@ _CLEANUP = "agentic_devtools.cli.copilot.auto_start._cleanup_auto_start_task"
 _REMOVE = "agentic_devtools.cli.copilot.auto_start.remove_auto_start_task"
 _WHICH = "agentic_devtools.cli.copilot.auto_start.shutil.which"
 _GET_STATE_FILE = "agentic_devtools.cli.copilot.auto_start.get_state_file_path"
+_DEFAULT_MODEL = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
 
 _RUN_ID = "test-run-123"
 
@@ -46,6 +47,19 @@ class TestCopilotAutoStartCmd:
     def mock_agdt_which(self):
         """Patch shutil.which so agdt-advance-workflow appears on PATH by default."""
         with patch(_WHICH, return_value="/usr/local/bin/agdt-advance-workflow"):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def mock_default_model(self):
+        """Patch get_default_copilot_model to avoid real subprocess calls.
+
+        The ``_SUBPROC`` mock replaces ``subprocess.run`` globally (via
+        module reference), so any real ``subprocess.run`` call — including
+        ``git rev-parse`` inside ``get_default_copilot_model()`` — would
+        hit the mock and produce unexpected side-effects (e.g.
+        KeyboardInterrupt from tests that set ``side_effect=KeyboardInterrupt``).
+        """
+        with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
             yield
 
     # ------------------------------------------------------------------
@@ -432,7 +446,6 @@ class TestCopilotAutoStartCmd:
         """Run ID is marked in state before the copilot subprocess runs."""
         sf = _state_file(tmp_path)
         call_order = []
-        _DEFAULT = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
 
         def fake_build_args(prompt, interactive, model=None):
             return ["copilot", "-i", prompt]
@@ -448,7 +461,7 @@ class TestCopilotAutoStartCmd:
 
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_AVAIL, return_value=True):
-                with patch(_DEFAULT, return_value="gpt-4o"):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
                     with patch(_BUILD, side_effect=fake_build_args):
                         with patch(_SUBPROC, side_effect=fake_subprocess_run):
                             with pytest.raises(SystemExit) as exc_info:
@@ -782,11 +795,10 @@ class TestCopilotAutoStartCmd:
     def test_exits_0_when_run_id_already_marked_by_concurrent_invocation(self, tmp_path):
         """Exits 0 (without running Copilot) when _mark_run_triggered returns False (race)."""
         sf = _state_file(tmp_path)
-        _DEFAULT = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
 
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_AVAIL, return_value=True):
-                with patch(_DEFAULT, return_value="gpt-4o"):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
                     with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
                         with patch(
                             "agentic_devtools.cli.copilot.auto_start._mark_run_triggered",
@@ -1414,12 +1426,11 @@ class TestAutoStartModelFallback:
     def test_falls_back_to_default_model_when_state_empty(self, tmp_path):
         """When --model is omitted and state has no model_id, get_default_copilot_model() is used."""
         sf = _state_file(tmp_path)
-        _DEFAULT = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
 
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_AVAIL, return_value=True):
                 with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
-                    with patch(_DEFAULT, return_value="gpt-4o"):
+                    with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
                         with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
                             with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
                                 with pytest.raises(SystemExit):
@@ -1467,12 +1478,11 @@ class TestAutoStartModelFallback:
     def test_whitespace_only_model_falls_back_to_default(self, tmp_path):
         """--model '   ' with no state model_id falls back to get_default_copilot_model()."""
         sf = _state_file(tmp_path)
-        _DEFAULT = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
 
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_AVAIL, return_value=True):
                 with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
-                    with patch(_DEFAULT, return_value="gpt-4o"):
+                    with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
                         with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
                             with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
                                 with pytest.raises(SystemExit):
@@ -1496,12 +1506,11 @@ class TestAutoStartModelFallback:
         sf = _state_file(tmp_path)
 
         _READ = "agentic_devtools.cli.copilot.auto_start._read_model_from_state"
-        _DEFAULT = "agentic_devtools.cli.copilot.auto_start.get_default_copilot_model"
         with patch(_GET_STATE_FILE, return_value=sf):
             with patch(_AVAIL, return_value=True):
                 with patch(_WHICH, return_value="/usr/bin/agdt-advance-workflow"):
                     with patch(_READ, side_effect=OSError("corrupt state")):
-                        with patch(_DEFAULT, return_value="gpt-4o"):
+                        with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
                             with patch(_BUILD, return_value=["copilot", "-i", "hello"]) as mock_build:
                                 with patch(_SUBPROC, return_value=MagicMock(returncode=0)):
                                     with pytest.raises(SystemExit):

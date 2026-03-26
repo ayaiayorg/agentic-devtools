@@ -333,6 +333,11 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+
+        # Resolve the default model while CWD is still set to the target
+        # worktree so that .agdt/config/project.json is read from the
+        # correct repository, not from wherever this command was invoked.
+        worktree_default_model = get_default_copilot_model()
     finally:
         try:
             os.chdir(original_cwd)
@@ -400,7 +405,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         except Exception:
             pass
     if not model:
-        model = get_default_copilot_model()
+        model = worktree_default_model
 
     # 4. Build copilot args — bail out early if the prompt exceeds argv length limits.
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
