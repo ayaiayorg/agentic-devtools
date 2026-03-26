@@ -1,5 +1,3 @@
-The spec file only contains summary text. I'll generate the checklist based on the detailed summary provided.
-
 # Specification Quality Checklist: Resolve Test Suite Warnings
 
 **Purpose**: Validate specification completeness before proceeding to planning
