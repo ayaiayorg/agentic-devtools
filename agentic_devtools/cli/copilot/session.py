@@ -71,6 +71,9 @@ from ..subprocess_utils import run_safe
 # Constants
 # ---------------------------------------------------------------------------
 
+# Default Copilot model for all workflow sessions.
+DEFAULT_COPILOT_MODEL = "gemini-pro-3.1"
+
 # State key namespace
 _COPILOT_NS = "copilot"
 
@@ -227,7 +230,9 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     return state_dir / _LOG_DIR_NAME / filename
 
 
-def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> list[str] | None:
+def _build_copilot_args(
+    prompt: str, *, interactive: bool = True, autopilot: bool = True, model: str | None = None
+) -> list[str] | None:
     """Build the copilot argument list.
 
     Uses the standalone ``copilot`` binary when available (preferred), falling
@@ -263,24 +268,35 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: boo
             ``gh copilot`` extension fallback is used and both
             ``interactive=True`` and ``autopilot=True``, a warning is emitted
             because the fallback does not support ``--autopilot``.
+        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+            When not ``None`` and not empty, ``--model <model>`` is inserted
+            into the standalone binary args before the ``-i``/``-p`` flag.
+            The ``gh copilot suggest`` fallback does not support ``--model``;
+            a warning is emitted and the flag is omitted.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
         when the prompt is too large for the argv path.
     """
+    # Normalise: treat empty/whitespace-only model as None.
+    if isinstance(model, str):
+        model = model.strip() or None
+
     if len(prompt) > _MAX_GH_COPILOT_ARGV_LENGTH:
         return None
     standalone = _get_copilot_binary()
     if standalone:
         flag = "-i" if interactive else "-p"
-        # --autopilot and --allow-all must come before -p/-i so that argument
-        # parsers which stop processing flags after the first positional
-        # argument still recognise them.
+        # --autopilot, --allow-all, and --model must come before -p/-i so
+        # that argument parsers which stop processing flags after the first
+        # positional argument still recognise them.
         args = [standalone]
         if interactive and autopilot:
             args.append("--autopilot")
         if not interactive:
             args.append("--allow-all")
+        if model is not None:
+            args.extend(["--model", model])
         args.extend([flag, prompt])
         return args
     if interactive and autopilot:
@@ -288,10 +304,17 @@ def _build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: boo
             "--autopilot is not supported by the gh copilot extension fallback; autopilot mode will not be activated.",
             stacklevel=2,
         )
+    if model is not None:
+        warnings.warn(
+            "--model is not supported by the gh copilot extension fallback; model selection will not be applied.",
+            stacklevel=2,
+        )
     return ["gh", "copilot", "suggest", prompt]
 
 
-def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool = True) -> list[str] | None:
+def build_copilot_args(
+    prompt: str, *, interactive: bool = True, autopilot: bool = True, model: str | None = None
+) -> list[str] | None:
     """Build the copilot argument list (public API).
 
     Public wrapper around the internal argument builder.  Use this when you
@@ -307,6 +330,10 @@ def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool
             standalone binary receives ``--autopilot`` so that the agent
             executes tasks autonomously without requiring the user to press
             Tab.  Has no effect for non-interactive mode.
+        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+            When not ``None``, ``--model <model>`` is added for the
+            standalone binary.  The ``gh copilot suggest`` fallback emits
+            a warning and omits the flag.
 
     Returns:
         List of strings suitable for :func:`subprocess.Popen`, or ``None``
@@ -320,10 +347,10 @@ def build_copilot_args(prompt: str, *, interactive: bool = True, autopilot: bool
         behavior.  Callers should be prepared for this additional stderr
         output in that configuration.
     """
-    return _build_copilot_args(prompt, interactive=interactive, autopilot=autopilot)
+    return _build_copilot_args(prompt, interactive=interactive, autopilot=autopilot, model=model)
 
 
-def _persist_session_state(result: CopilotSessionResult) -> None:
+def _persist_session_state(result: CopilotSessionResult, model: str | None = None) -> None:
     """Write session metadata to ``agdt-state.json``.
 
     Keys written (all under the ``copilot.`` namespace):
@@ -332,15 +359,19 @@ def _persist_session_state(result: CopilotSessionResult) -> None:
     - ``copilot.prompt_file``
     - ``copilot.start_time``
     - ``copilot.pid`` (empty string when not applicable)
+    - ``copilot.model_id`` (only when *model* is not ``None``)
 
     Args:
         result: The :class:`CopilotSessionResult` to persist.
+        model: Optional Copilot model ID to persist.
     """
     set_value(f"{_COPILOT_NS}.session_id", result.session_id)
     set_value(f"{_COPILOT_NS}.mode", result.mode)
     set_value(f"{_COPILOT_NS}.prompt_file", result.prompt_file)
     set_value(f"{_COPILOT_NS}.start_time", result.start_time)
     set_value(f"{_COPILOT_NS}.pid", result.pid if result.pid is not None else "")
+    if model is not None:
+        set_value(f"{_COPILOT_NS}.model_id", model)
 
 
 def _print_fallback_prompt(prompt: str) -> None:
@@ -432,6 +463,7 @@ def start_copilot_session(
     session_id: str | None = None,
     *,
     autopilot: bool = True,
+    model: str | None = None,
 ) -> CopilotSessionResult:
     """Start a ``gh copilot`` CLI session with the given prompt.
 
@@ -480,6 +512,9 @@ def start_copilot_session(
             ``gh copilot`` extension fallback is used and both
             ``interactive=True`` and ``autopilot=True``, a warning is
             emitted because the fallback does not support ``--autopilot``.
+        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+            Forwarded to ``_build_copilot_args`` and persisted as
+            ``copilot.model_id`` in state.
 
     Returns:
         A :class:`CopilotSessionResult` with session metadata.
@@ -490,6 +525,11 @@ def start_copilot_session(
     if session_id is None:
         session_id = _make_session_id()
 
+    # Normalise model: treat empty/whitespace-only strings as None so that
+    # stdout, state, and argv all behave consistently.
+    if isinstance(model, str):
+        model = model.strip() or None
+
     start_time = datetime.now(timezone.utc).isoformat()
     mode = "interactive" if interactive else "non-interactive"
 
@@ -498,6 +538,10 @@ def start_copilot_session(
     prompt_file_path.parent.mkdir(parents=True, exist_ok=True)
     prompt_file_path.write_text(prompt, encoding="utf-8")
     prompt_file = str(prompt_file_path)
+
+    # --- Log model selection -------------------------------------------------
+    if model:
+        print(f"Copilot model: {model}")
 
     # --- Check availability --------------------------------------------------
     if not is_gh_copilot_available():
@@ -514,7 +558,7 @@ def start_copilot_session(
             pid=None,
             process=None,
         )
-        _persist_session_state(result)
+        _persist_session_state(result, model=model)
         return result
 
     # --- Build command -------------------------------------------------------
@@ -522,7 +566,7 @@ def start_copilot_session(
     # separators) for both interactive and non-interactive modes.  The file
     # on disk still contains the multi-line version for manual reuse.
     argv_prompt = _inline_prompt(prompt, prompt_file)
-    args = _build_copilot_args(argv_prompt, interactive=interactive, autopilot=autopilot)
+    args = _build_copilot_args(argv_prompt, interactive=interactive, autopilot=autopilot, model=model)
 
     # When the prompt is too large for safe argv passing, fall back to
     # printing the prompt.  This applies regardless of binary variant.
@@ -540,7 +584,7 @@ def start_copilot_session(
             pid=None,
             process=None,
         )
-        _persist_session_state(result)
+        _persist_session_state(result, model=model)
         return result
 
     # --- Launch process -------------------------------------------------------
@@ -646,5 +690,5 @@ def start_copilot_session(
             process=process,
         )
 
-    _persist_session_state(result)
+    _persist_session_state(result, model=model)
     return result

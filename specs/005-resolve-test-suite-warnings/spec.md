@@ -82,7 +82,7 @@ The outcome should be a **clean, deterministic, warning-free test run by default
 - AC3.1: `[tool.pytest.ini_options]` in `pyproject.toml` includes `filterwarnings = ["error", ...]`.
 - AC3.2: Unavoidable third-party warnings (e.g., `urllib3.exceptions.InsecureRequestWarning`) have explicit `ignore` entries.
 - AC3.3: The full test suite passes with zero warnings under the new configuration.
-- AC3.4: `pytest --co -q` (collection only) succeeds without errors, confirming syntactic validity.
+- AC3.4: `agdt-test-pattern tests/ --co -q` (collection only) succeeds without errors, confirming syntactic validity.
 
 ## 5. Functional Requirements
 

@@ -29,7 +29,7 @@
 
 ## Phase 4: US2 — Fix Autopilot Warning Test Patterns
 
-- [ ] T013 [P] [US2] For each `warnings.catch_warnings` site in
+- [ ] T013 [US2] For each `warnings.catch_warnings` site in
   `tests/unit/cli/copilot/session/test_start_copilot_session.py` identified in
   T004, classify each as assertion (warns expected) or suppression (warns
   incidental) and document the conversion target

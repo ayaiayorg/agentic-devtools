@@ -526,6 +526,8 @@ class TestInitiatePRReviewWorkflowInteractive:
             "PROJECT-9999",
             "--interactive",
             "false",
+            "--model",
+            "gemini-pro-3.1",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 
@@ -645,21 +647,81 @@ class TestInitiatePRReviewWorkflowCopilotSession:
     ):
         """_start_copilot_session_for_pr_review is called with interactive=False by default."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch")
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=False when --interactive false."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "false"])
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
 
     def test_copilot_session_interactive_true_when_explicitly_set(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """_start_copilot_session_for_pr_review is called with interactive=True when --interactive true."""
         mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--interactive", "true"])
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=True)
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gemini-pro-3.1")
+
+    def test_copilot_session_custom_model_from_cli(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """--model CLI arg overrides the default model."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "gpt-4"])
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gpt-4")
+
+    def test_copilot_model_id_persisted_in_state(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """copilot.model_id is persisted in state after initiation."""
+        self._run_with_preflight_passing("999", "feature/some-branch")
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
+    def test_copilot_model_id_custom_persisted_in_state(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Custom --model value is persisted in state."""
+        self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "claude-sonnet"])
+        assert state.get_value("copilot.model_id") == "claude-sonnet"
+
+    def test_whitespace_only_model_falls_back_to_default(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """--model '   ' is treated as not provided — default model used."""
+        self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "   "])
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
+    def test_programmatic_whitespace_model_falls_back_to_default(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Programmatic model='   ' is normalized to None and falls back to default."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        state.set_value("pull_request_id", "999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/some-branch"
+            with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+                mock_find.return_value = None
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_pf:
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name="feature/some-branch",
+                        issue_key=None,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                            ):
+                                commands.initiate_pull_request_review_workflow(model="   ")
+
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
 
 
 class TestInitiatePRReviewWorkflowBootstrapScope:

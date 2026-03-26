@@ -26,11 +26,17 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When copilot args are available and run_id is present, inject the auto-start task."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
-        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True)
-        mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123")
+        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True, model=None)
+        mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None)
         captured = capsys.readouterr()
         assert "auto-start task injected" in captured.out
         assert result is True
@@ -88,13 +94,21 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
     ):
         """When a custom start_prompt is provided, it is forwarded to build_copilot_args."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
             _maybe_inject_auto_start_before_vscode(
                 str(tmp_path),
                 start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
             )
 
-        mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True)
+        mock_build_args.assert_called_once_with(
+            COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE, interactive=True, model=None
+        )
         mock_inject.assert_called_once()
 
     def test_returns_false_in_pytest_environment(self, tmp_path):
@@ -171,3 +185,53 @@ class TestMaybeInjectAutoStartBeforeVscode:
         assert result is False
         captured = capsys.readouterr()
         assert "agdt_run_id is empty or whitespace" in captured.out
+
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_forwards_model_to_inject_auto_start_task(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """When model is provided, it is forwarded to inject_auto_start_task."""
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path), model="gpt-4")
+
+        mock_inject.assert_called_once_with(
+            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model="gpt-4"
+        )
+
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_reads_model_from_state_when_not_provided(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """When model is not provided, reads copilot.model_id from state."""
+
+        def _get_value_side_effect(key, **kwargs):
+            if key == "agdt_run_id":
+                return "run-123"
+            if key == "copilot.model_id":
+                return "claude-3.5-sonnet"
+            return None
+
+        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        mock_inject.assert_called_once_with(
+            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model="claude-3.5-sonnet"
+        )

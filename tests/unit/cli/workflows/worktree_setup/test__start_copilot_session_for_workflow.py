@@ -267,6 +267,7 @@ class TestStartCopilotSessionForWorkflow:
             prompt=_CUSTOM_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=True,
+            model=None,
         )
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
@@ -297,6 +298,7 @@ class TestStartCopilotSessionForWorkflow:
             prompt=_CUSTOM_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
+            model=None,
         )
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
@@ -335,6 +337,7 @@ class TestStartCopilotSessionForWorkflow:
             prompt=_CUSTOM_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
+            model=None,
         )
 
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
@@ -606,6 +609,7 @@ class TestStartCopilotSessionForWorkflow:
             prompt=_CUSTOM_START_PROMPT,
             working_directory=str(tmp_path),
             interactive=False,
+            model=None,
         )
 
     # ------------------------------------------------------------------

@@ -161,7 +161,7 @@ filterwarnings = [
 |---|---|---|
 | `urllib3.exceptions.InsecureRequestWarning` | urllib3 | Jira SSL-verify=False code path; suppressed in source but may fire before module init |
 
-**Verification**: Run `pytest --co -q` (collection only) — zero errors means the configuration is syntactically valid. Then run the full suite.
+**Verification**: Run `agdt-test-pattern tests/ --co -q` (collection only) — zero errors means the configuration is syntactically valid. Then run the full suite.
 
 ---
 

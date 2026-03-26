@@ -1373,6 +1373,7 @@ def inject_auto_start_task(
     start_prompt: str,
     run_id: str,
     task_label: str = _AUTO_START_TASK_LABEL,
+    model: str | None = None,
 ) -> bool:
     """Write a ``.vscode/tasks.json`` task that auto-runs when the folder opens.
 
@@ -1405,6 +1406,10 @@ def inject_auto_start_task(
         task_label: Label for the injected task (default:
             ``"agdt-copilot-auto-start"``).  Used to identify the task
             during cleanup.
+        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+            When not ``None``, ``--model <model>`` is appended to the
+            ``agdt-copilot-auto-start`` args so the auto-start session
+            uses the same model as the workflow that triggered it.
 
     Returns:
         ``True`` if the task was written successfully, ``False`` otherwise
@@ -1514,6 +1519,16 @@ def inject_auto_start_task(
     ]
     if not file_existed:
         command_args.append("--created-new")
+    # Normalize model: treat empty/whitespace-only strings as "not provided"
+    # so that the auto-start command falls back to its state → default chain
+    # rather than receiving a blank --model value.
+    normalized_model: str | None = None
+    if isinstance(model, str):
+        stripped = model.strip()
+        if stripped:
+            normalized_model = stripped
+    if normalized_model is not None:
+        command_args.extend(["--model", normalized_model])
 
     # --- Build the task definition -------------------------------------------
     task_def = {
@@ -2020,6 +2035,7 @@ def _start_copilot_session_for_workflow(
     start_prompt: str,
     workflow_name: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Wait for the workflow setup to complete, then start a ``gh copilot`` session.
 
@@ -2198,6 +2214,7 @@ def _start_copilot_session_for_workflow(
             prompt=start_prompt,
             working_directory=worktree_path,
             interactive=effective_interactive,
+            model=model,
         )
         return True
     finally:
@@ -2211,6 +2228,7 @@ def _start_copilot_session_for_workflow(
 def _start_copilot_session_for_pr_review(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the pull-request-review workflow.
 
@@ -2221,6 +2239,7 @@ def _start_copilot_session_for_pr_review(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2234,6 +2253,7 @@ def _start_copilot_session_for_pr_review(
         start_prompt=COPILOT_SESSION_START_PROMPT,
         workflow_name="pull-request-review",
         interactive=interactive,
+        model=model,
     )
 
 
@@ -2297,6 +2317,7 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
 def _start_copilot_session_for_apply_pr_suggestions(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the apply-pull-request-review-suggestions workflow.
 
@@ -2306,6 +2327,7 @@ def _start_copilot_session_for_apply_pr_suggestions(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2319,12 +2341,14 @@ def _start_copilot_session_for_apply_pr_suggestions(
         start_prompt=COPILOT_SESSION_START_PROMPT_APPLY_PR_SUGGESTIONS,
         workflow_name="apply-pull-request-review-suggestions",
         interactive=interactive,
+        model=model,
     )
 
 
 def _start_copilot_session_for_work_on_jira_issue(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the work-on-jira-issue workflow.
 
@@ -2334,6 +2358,7 @@ def _start_copilot_session_for_work_on_jira_issue(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2347,12 +2372,14 @@ def _start_copilot_session_for_work_on_jira_issue(
         start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
         workflow_name="work-on-jira-issue",
         interactive=interactive,
+        model=model,
     )
 
 
 def _start_copilot_session_for_create_jira_issue(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the create-jira-issue workflow.
 
@@ -2362,6 +2389,7 @@ def _start_copilot_session_for_create_jira_issue(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2375,12 +2403,14 @@ def _start_copilot_session_for_create_jira_issue(
         start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_ISSUE,
         workflow_name="create-jira-issue",
         interactive=interactive,
+        model=model,
     )
 
 
 def _start_copilot_session_for_create_jira_epic(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the create-jira-epic workflow.
 
@@ -2390,6 +2420,7 @@ def _start_copilot_session_for_create_jira_epic(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2401,12 +2432,14 @@ def _start_copilot_session_for_create_jira_epic(
         start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_EPIC,
         workflow_name="create-jira-epic",
         interactive=interactive,
+        model=model,
     )
 
 
 def _start_copilot_session_for_create_jira_subtask(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the create-jira-subtask workflow.
 
@@ -2416,6 +2449,7 @@ def _start_copilot_session_for_create_jira_subtask(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2429,12 +2463,14 @@ def _start_copilot_session_for_create_jira_subtask(
         start_prompt=COPILOT_SESSION_START_PROMPT_CREATE_JIRA_SUBTASK,
         workflow_name="create-jira-subtask",
         interactive=interactive,
+        model=model,
     )
 
 
 def _start_copilot_session_for_update_jira_issue(
     worktree_path: str,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """Start a Copilot session for the update-jira-issue workflow.
 
@@ -2444,6 +2480,7 @@ def _start_copilot_session_for_update_jira_issue(
     Args:
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
+        model: Optional Copilot model ID to use.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
@@ -2457,12 +2494,14 @@ def _start_copilot_session_for_update_jira_issue(
         start_prompt=COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
         workflow_name="update-jira-issue",
         interactive=interactive,
+        model=model,
     )
 
 
 def _maybe_inject_auto_start_before_vscode(
     worktree_path: str,
     start_prompt: str = COPILOT_SESSION_START_PROMPT,
+    model: str | None = None,
 ) -> bool:
     """Inject a VS Code auto-start task before VS Code opens.
 
@@ -2501,6 +2540,11 @@ def _maybe_inject_auto_start_before_vscode(
         from agentic_devtools.state import get_value
 
         run_id = get_value("agdt_run_id")
+        # If model was not provided, read it from state.
+        if model is None:
+            state_model = get_value("copilot.model_id")
+            if isinstance(state_model, str) and state_model.strip():
+                model = state_model.strip()
     except Exception:
         # Missing or unreadable run ID is a hard stop for auto-start injection.
         print("Auto-start injection skipped: could not read agdt_run_id from state.")
@@ -2517,9 +2561,9 @@ def _maybe_inject_auto_start_before_vscode(
         print("Auto-start injection skipped: agdt_run_id is empty or whitespace.")
         return False
 
-    copilot_args = build_copilot_args(start_prompt, interactive=True)
+    copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
-        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped)
+        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped, model=model)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
         else:
