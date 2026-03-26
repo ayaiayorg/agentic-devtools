@@ -52,7 +52,7 @@ No new test infrastructure is needed. All changes are surgical: one `pyproject.t
 **Goal**: Establish a complete baseline of all warnings currently emitted.
 
 **Steps**:
-1. Run `pytest -W error --no-header -q 2>&1 | grep -E "Warning|FAILED|ERROR"` to surface all promotion candidates without `filterwarnings` in `pyproject.toml` yet.
+1. Run `agdt-test-pattern -W error --no-header -q 2>&1 | grep -E "Warning|FAILED|ERROR"` to surface all promotion candidates without `filterwarnings` in `pyproject.toml` yet.
 2. Categorise each warning:
    - **Own code DeprecationWarning** → fix at source
    - **Own code UserWarning (intentional)** → assert with `pytest.warns()`
@@ -76,9 +76,9 @@ import sys
 
 # inside the extraction block, replacing the bare tar.extract(member, path=tmp_dir):
 if sys.version_info >= (3, 12):
-    tar.extract(member, path=tmp_dir, filter="data")  # noqa: S202
+    tar.extract(member, path=tmp_dir, filter="data")
 else:
-    tar.extract(member, path=tmp_dir)  # noqa: S202
+    tar.extract(member, path=tmp_dir)
 ```
 
 **Why `filter="data"`**: Strips path-traversal sequences and special files (devices, symlinks to absolute paths). Python security advisory recommendation. Safe for this use-case — we're extracting a single, name-validated `gh` binary from a trusted GitHub release archive.
@@ -102,10 +102,10 @@ Tests that *assert* that a warning is emitted must be converted to `pytest.warns
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     start_copilot_session(prompt="...", working_directory=str(temp_state))
-assert any("gh copilot is not available" in str(warning.message) for warning in w)
+assert any("--autopilot is not supported" in str(warning.message) for warning in w)
 
 # AFTER
-with pytest.warns(UserWarning, match="gh copilot is not available"):
+with pytest.warns(UserWarning, match="--autopilot is not supported"):
     start_copilot_session(prompt="...", working_directory=str(temp_state))
 ```
 
