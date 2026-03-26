@@ -104,10 +104,11 @@ call_with_retry() {
 
     local attempt=1
     while [[ $attempt -le $max_attempts ]]; do
-        if "$@"; then
+        local exit_code=0
+        "$@" || exit_code=$?
+        if [[ $exit_code -eq 0 ]]; then
             return 0
         fi
-        local exit_code=$?
         if [[ $attempt -lt $max_attempts ]]; then
             echo "Attempt $attempt/$max_attempts failed (exit $exit_code). Retrying in ${delay}s..." >&2
             sleep "$delay"
@@ -674,17 +675,17 @@ echo "✓ Phase 3 complete: checklists/requirements.md"
 
 echo ""
 echo "=== Phase 4/6: Plan ==="
-run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
+COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
 echo "✓ Phase 4 complete: plan.md (+ optional artifacts)"
 
 echo ""
 echo "=== Phase 5/6: Tasks ==="
-run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
+COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
 echo "✓ Phase 5 complete: tasks.md"
 
 echo ""
 echo "=== Phase 6/6: Analyze ==="
-run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
+COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
 echo "✓ Phase 6 complete: analysis-report.md"
 
 # Output results (spec_dir as repo-relative path for portability)

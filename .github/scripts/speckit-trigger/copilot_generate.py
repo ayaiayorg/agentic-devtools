@@ -7,6 +7,8 @@ model, and prints the assistant's response to stdout.
 Environment Variables:
     COPILOT_GITHUB_TOKEN  - Required. Fine-grained PAT with Copilot Requests: Read permission.
     COPILOT_MODEL         - Optional. Model to use (default: claude-opus-4.6).
+    COPILOT_TIMEOUT       - Optional. Seconds to wait for a response (default: 600).
+                            Heavy phases (Plan, Tasks, Analyze) may need 900s or more.
 
 Exit Codes:
     0 - Success (spec content written to stdout)
@@ -28,6 +30,7 @@ async def main() -> int:
 
     model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
     token = os.environ.get("COPILOT_GITHUB_TOKEN", "")
+    timeout = int(os.environ.get("COPILOT_TIMEOUT", "600"))
     if not token:
         print("Error: COPILOT_GITHUB_TOKEN is required", file=sys.stderr)
         return 1
@@ -65,9 +68,9 @@ async def main() -> int:
         await session.send(prompt)
 
         try:
-            await asyncio.wait_for(done.wait(), timeout=300)
+            await asyncio.wait_for(done.wait(), timeout=timeout)
         except asyncio.TimeoutError:
-            print("Error: Copilot SDK response timed out after 300s", file=sys.stderr)
+            print(f"Error: Copilot SDK response timed out after {timeout}s", file=sys.stderr)
             print(f"Events received before timeout: {received_events}", file=sys.stderr)
             return 1
 
