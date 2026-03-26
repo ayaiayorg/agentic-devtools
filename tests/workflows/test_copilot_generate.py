@@ -290,3 +290,112 @@ class TestMainFunction:
             result = asyncio.run(module.main())
         assert result == 0
         assert stdout_buf.getvalue() == "final version"
+
+    def test_custom_timeout_is_applied(self, _mock_copilot_sdk):
+        """A valid COPILOT_TIMEOUT value is passed to asyncio.wait_for and shown in timeout errors."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        # Use events that never set done, so we hit the timeout path
+        events = []
+        self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        # Track the timeout arg passed to asyncio.wait_for, then properly
+        # close the awaitable before raising TimeoutError to avoid
+        # "coroutine was never awaited" warnings.
+        captured_timeout = None
+
+        async def fake_wait_for(awaitable, *, timeout=None):
+            nonlocal captured_timeout
+            captured_timeout = timeout
+            awaitable.close()
+            raise asyncio.TimeoutError
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "42"},
+                clear=False,
+            ),
+            patch("asyncio.wait_for", side_effect=fake_wait_for),
+        ):
+            result = asyncio.run(module.main())
+
+        assert result == 1
+        # Verify the custom timeout value was passed to asyncio.wait_for
+        assert captured_timeout == 42, f"Expected timeout=42, got {captured_timeout}"
+        # Verify the error message reflects the custom value
+        assert "42s" in stderr_buf.getvalue()
+
+    def test_invalid_timeout_returns_1(self, _mock_copilot_sdk):
+        """A non-integer COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "not-a-number"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
+        assert "not-a-number" in stderr_buf.getvalue()
+
+    def test_zero_timeout_returns_1(self, _mock_copilot_sdk):
+        """A zero COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "0"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
+
+    def test_negative_timeout_returns_1(self, _mock_copilot_sdk):
+        """A negative COPILOT_TIMEOUT returns 1 with an error message."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "-5"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+        assert result == 1
+        assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
