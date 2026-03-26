@@ -97,6 +97,7 @@ def get_default_copilot_model() -> str:
         pass
     return DEFAULT_COPILOT_MODEL
 
+
 # State key namespace
 _COPILOT_NS = "copilot"
 
