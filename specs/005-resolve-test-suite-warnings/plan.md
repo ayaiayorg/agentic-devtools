@@ -11,12 +11,14 @@
   - `agentic_devtools/cli/jira/helpers.py` — suppresses `InsecureRequestWarning` inline at module import time
 - **Key test files**:
   - `tests/unit/cli/copilot/session/test_start_copilot_session.py` — catches autopilot `UserWarning` via raw `warnings.catch_warnings(record=True)`; this pattern is not pytest-native and leaks warnings
-  - `tests/unit/cli/setup/gh_cli_installer/test_download_and_install.py` — creates in-memory tar archives as fixtures (does NOT call `extract`; these trigger no warnings directly)
+  - `tests/unit/cli/setup/gh_cli_installer/test_download_and_install.py` — creates in-memory tar archives as fixtures
+    and calls `download_and_install(...)`, which in turn uses `tarfile.extract()`
+    (so these tests do exercise the `extract` code path and can trigger its warnings)
 - **CI scripts**: `scripts/run-pr-checks.sh` (step 2 runs pytest; failures propagate via `set -euo pipefail`)
 
 ## 2. Research Summary
 
-See `research.md` for full decisions. Key choices:
+Key research decisions (summarized here):
 
 | Decision | Choice |
 |---|---|
