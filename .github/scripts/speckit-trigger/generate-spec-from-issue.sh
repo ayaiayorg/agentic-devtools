@@ -16,8 +16,10 @@
 #   COPILOT_GITHUB_TOKEN - Fine-grained PAT with Copilot Requests: Read permission
 #
 # Environment Variables (optional):
-#   COPILOT_MODEL  - Model to use via the Copilot SDK (default: claude-opus-4.6)
-#   SPEC_BASE_PATH - Base path for specs (default: specs)
+#   COPILOT_MODEL   - Model to use via the Copilot SDK (default: claude-opus-4.6)
+#   COPILOT_TIMEOUT - Seconds to wait for a Copilot SDK response (default: 600).
+#                     Plan, Tasks, and Analyze phases override this to 900.
+#   SPEC_BASE_PATH  - Base path for specs (default: specs)
 #
 # Outputs:
 #   GITHUB_OUTPUT: branch_name, spec_file, feature_num, spec_dir

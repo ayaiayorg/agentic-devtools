@@ -303,6 +303,17 @@ class TestMainFunction:
         events = []
         self._make_mock_session_and_client(_mock_copilot_sdk, events)
 
+        # Track the timeout arg passed to asyncio.wait_for, then properly
+        # close the awaitable before raising TimeoutError to avoid
+        # "coroutine was never awaited" warnings.
+        captured_timeout = None
+
+        async def fake_wait_for(awaitable, *, timeout=None):
+            nonlocal captured_timeout
+            captured_timeout = timeout
+            awaitable.close()
+            raise asyncio.TimeoutError
+
         stderr_buf = io.StringIO()
         with (
             patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
@@ -312,18 +323,13 @@ class TestMainFunction:
                 {"COPILOT_GITHUB_TOKEN": "fake-token", "COPILOT_TIMEOUT": "42"},
                 clear=False,
             ),
-            # Patch wait_for to immediately raise TimeoutError and capture the timeout arg
-            patch("asyncio.wait_for", side_effect=asyncio.TimeoutError) as mock_wait_for,
+            patch("asyncio.wait_for", side_effect=fake_wait_for),
         ):
             result = asyncio.run(module.main())
 
         assert result == 1
         # Verify the custom timeout value was passed to asyncio.wait_for
-        mock_wait_for.assert_called_once()
-        _args, kwargs = mock_wait_for.call_args
-        assert kwargs.get("timeout") == 42 or (len(_args) >= 2 and _args[1] == 42), (
-            f"Expected timeout=42 in asyncio.wait_for call, got args={_args}, kwargs={kwargs}"
-        )
+        assert captured_timeout == 42, f"Expected timeout=42, got {captured_timeout}"
         # Verify the error message reflects the custom value
         assert "42s" in stderr_buf.getvalue()
 
