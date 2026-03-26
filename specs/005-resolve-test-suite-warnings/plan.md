@@ -30,7 +30,7 @@ See `research.md` for full decisions. Key choices:
 
 The core mechanism is:
 
-```
+```text
 pyproject.toml filterwarnings = ["error"]
         │
         ├─► Any unhandled warning → test FAILS (hard, non-zero exit)
@@ -52,7 +52,9 @@ No new test infrastructure is needed. All changes are surgical: one `pyproject.t
 **Goal**: Establish a complete baseline of all warnings currently emitted.
 
 **Steps**:
-1. Run `agdt-test-pattern -W error --no-header -q 2>&1 | grep -E "Warning|FAILED|ERROR"` to surface all promotion candidates without `filterwarnings` in `pyproject.toml` yet.
+
+1. Run `agdt-test-pattern -W error --no-header -q 2>&1 | grep -E "Warning|FAILED|ERROR"`
+   to surface all promotion candidates without `filterwarnings` in `pyproject.toml` yet.
 2. Categorise each warning:
    - **Own code DeprecationWarning** → fix at source
    - **Own code UserWarning (intentional)** → assert with `pytest.warns()`
@@ -81,7 +83,8 @@ else:
     tar.extract(member, path=tmp_dir)
 ```
 
-**Why `filter="data"`**: Strips path-traversal sequences and special files (devices, symlinks to absolute paths). Python security advisory recommendation. Safe for this use-case — we're extracting a single, name-validated `gh` binary from a trusted GitHub release archive.
+**Why `filter="data"`**: Strips path-traversal sequences and special files (devices, symlinks to absolute paths). Python security advisory
+recommendation. Safe for this use-case — we're extracting a single, name-validated `gh` binary from a trusted GitHub release archive.
 
 **Verification**: `agdt-test-pattern tests/unit/cli/setup/gh_cli_installer/ -v` — all tests still pass; no `DeprecationWarning` emitted.
 
@@ -165,6 +168,7 @@ filterwarnings = [
 **Goal**: Confirm zero warnings, zero failures, 100% coverage.
 
 **Steps**:
+
 1. `agdt-test` (full suite with coverage, background task)
 2. `agdt-task-wait`
 3. Inspect log — look for any `PytestUnraisableExceptionWarning`, `DeprecationWarning`, `ResourceWarning`, or `UserWarning` lines.
@@ -172,6 +176,7 @@ filterwarnings = [
 5. `bash scripts/run-pr-checks.sh` — all 8 steps must pass.
 
 **Success criteria** (from spec):
+
 - [ ] `pytest` exits with code 0 with `filterwarnings = ["error"]` active
 - [ ] No `DeprecationWarning` from `tarfile` on Python 3.12+
 - [ ] No `UserWarning` from autopilot fallback in non-intentional tests
@@ -195,16 +200,19 @@ filterwarnings = [
 ## 6. Dependencies
 
 ### External
+
 - Python 3.12+ to reproduce the `tarfile` `DeprecationWarning` locally (CI covers this)
 - No new third-party packages required
 
 ### Internal
+
 - Phase 1 (audit) must complete before Phase 4 (configure `filterwarnings`) — the `ignore` list depends on what the audit finds
 - Phase 2 and Phase 3 are independent — can be done in parallel
 - Phase 4 depends on Phases 2 and 3 being complete (otherwise promoting warnings to errors will fail the suite immediately)
 - Phase 5 depends on all prior phases
 
 ### Safe sequencing order (from spec Implementation Notes)
+
 1. Audit → 2. Fix source → 3. Fix tests → 4. Add `filterwarnings = ["error"]` → 5. Full verification
 
 ---

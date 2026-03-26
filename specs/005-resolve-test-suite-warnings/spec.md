@@ -21,7 +21,8 @@ The outcome should be a **clean, deterministic, warning-free test run by default
 
 ### 2.1 Goals
 
-- **G1 — Clean default test run**: `agdt-test` and `agdt-test-quick` must complete without emitting any warnings, on all supported Python versions and supported platforms, given a correctly configured environment.
+- **G1 — Clean default test run**: `agdt-test` and `agdt-test-quick` must complete without emitting any warnings, on all supported Python
+  versions and supported platforms, given a correctly configured environment.
 - **G2 — CI enforcement**: Any **unexpected** warning (originating from tests or production code under test) must cause CI test jobs to fail (non-zero exit).
 - **G3 — Intentional warning coverage**: Where our code legitimately emits warnings (e.g., deprecated CLI flags, behavioral guards), these must be:
   - Covered by explicit tests that assert the warning via `pytest.warns` or equivalent, and
