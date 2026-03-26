@@ -140,6 +140,27 @@ class TestInitiateWorkOnJiraIssueInteractive:
         captured = capsys.readouterr()
         assert "--issue-key cannot be empty or whitespace-only" in captured.err
 
+    def test_model_parsed_from_cli(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys):
+        """--model CLI arg overrides the default model."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_work_on_jira_issue_workflow(_argv=["--model", "gpt-4"])
+
+        assert state.get_value("copilot.model_id") == "gpt-4"
+
     def test_auto_execute_command_includes_interactive_flag(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):

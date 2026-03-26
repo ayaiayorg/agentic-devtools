@@ -152,6 +152,28 @@ class TestInitiateApplyPRSuggestionsWorkflowBranches:
         assert "Not in the correct context" in captured.out
         assert "Copilot session will start automatically" in captured.out
 
+    def test_model_parsed_from_cli(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys):
+        """--model CLI arg overrides the default model."""
+        state.set_value("pull_request_id", "123")
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=["--model", "gpt-4"])
+
+        assert state.get_value("copilot.model_id") == "gpt-4"
+
     def test_preflight_fails_and_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when preflight fails and auto-setup also fails."""
         state.set_value("pull_request_id", "123")
