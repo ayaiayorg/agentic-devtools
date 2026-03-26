@@ -691,6 +691,38 @@ class TestInitiatePRReviewWorkflowCopilotSession:
         self._run_with_preflight_passing("999", "feature/some-branch", argv=["--model", "   "])
         assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
 
+    def test_programmatic_whitespace_model_falls_back_to_default(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Programmatic model='   ' is normalized to None and falls back to default."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        state.set_value("pull_request_id", "999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = "feature/some-branch"
+            with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+                mock_find.return_value = None
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_pf:
+                    mock_pf.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name="feature/some-branch",
+                        issue_key=None,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                            ):
+                                commands.initiate_pull_request_review_workflow(model="   ")
+
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
 
 class TestInitiatePRReviewWorkflowBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""

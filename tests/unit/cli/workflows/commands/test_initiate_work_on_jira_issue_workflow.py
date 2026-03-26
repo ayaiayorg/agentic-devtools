@@ -161,6 +161,29 @@ class TestInitiateWorkOnJiraIssueInteractive:
 
         assert state.get_value("copilot.model_id") == "gpt-4"
 
+    def test_programmatic_whitespace_model_falls_back_to_default(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Programmatic model='   ' is normalized to None and falls back to default."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_work_on_jira_issue_workflow(model="   ")
+
+        assert state.get_value("copilot.model_id") == "gemini-pro-3.1"
+
     def test_auto_execute_command_includes_interactive_flag(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):
