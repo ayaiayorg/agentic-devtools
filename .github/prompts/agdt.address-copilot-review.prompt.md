@@ -52,10 +52,15 @@ https://github.com/{owner}/{repo}/pull/{pr_number}#pullrequestreview-{review_id}
 
 Retrieve all comments belonging to this specific review using the GitHub REST API.
 
+Reviews can exceed 100 comments, so you **must** handle pagination.
+
 ### Command
 
 ```bash
-gh api "repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments?per_page=100"
+# Use --paginate to ensure ALL pages of comments are fetched, not just the first 100
+gh api --paginate \
+  "repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments" \
+  --jq '.[]'
 ```
 
 ### Relevant Fields per Comment
@@ -103,7 +108,18 @@ Document a triage table:
 ## Phase 4: Make Changes for Addressable Comments
 
 Edit files to address every comment classified as **addressable**. After **all** edits are
-complete, commit and push once (not per-comment).
+complete, verify with tests, then commit and push once (not per-comment).
+
+### Verify Changes
+
+Run the test suite before committing to ensure edits don't break anything:
+
+```bash
+agdt-test
+agdt-task-wait
+```
+
+If tests fail, fix the issues before proceeding.
 
 ### Commit & Push
 
@@ -126,8 +142,8 @@ Choose the commit **type** based on the nature of the changes:
 | `docs` | Documentation-only changes |
 | `chore` | Maintenance tasks that don't affect production code |
 
-> If no GitHub issue is linked to the PR, use the PR number in the commit scope or
-> ask the user for the issue number.
+> If no GitHub issue is linked to the PR, do **not** use the PR number in the commit scope.
+> Ask the user which GitHub issue to use, or ask them to create/link an issue before committing.
 
 ### Capture the Commit Hash
 
@@ -182,11 +198,16 @@ After all replies are posted, resolve the corresponding discussion threads using
 
 ### Step 1 — Map Comment IDs to Thread IDs
 
+PRs can have more than 100 review threads, so you **must** paginate using `pageInfo`
+and `endCursor`. Fetch pages until `hasNextPage` is `false`.
+
 ```bash
+# First page (adjust "after" cursor for subsequent pages)
 gh api graphql -f query='query {
   repository(owner: "{owner}", name: "{repo}") {
     pullRequest(number: {pr_number}) {
       reviewThreads(first: 100) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id
           isResolved
@@ -199,6 +220,10 @@ gh api graphql -f query='query {
   }
 }'
 ```
+
+If `pageInfo.hasNextPage` is `true`, fetch the next page by adding
+`after: "{endCursor}"` to the `reviewThreads` arguments. Repeat until all
+threads are collected.
 
 Filter the results to threads whose first comment `databaseId` is in the set of comment
 IDs from Phase 2, and that are **not already resolved**.
