@@ -387,8 +387,12 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
                             "agentic_devtools.cli.workflows.worktree_setup"
                             "._start_copilot_session_for_apply_pr_suggestions"
                         ) as mock_session:
-                            commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=argv)
-                            return mock_session
+                            with patch(
+                                "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                return_value="gpt-4o",
+                            ):
+                                commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=argv)
+                                return mock_session
 
     def test_copilot_session_started_when_preflight_passes(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
@@ -404,7 +408,7 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
     ):
         """_start_copilot_session_for_apply_pr_suggestions is called with interactive=False by default."""
         mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999")
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gpt-4o")
 
     def test_copilot_session_respects_interactive_false(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
@@ -413,14 +417,14 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         mock_session = self._run_with_preflight_passing(
             "999", issue_key="PROJECT-9999", argv=["--interactive", "false"]
         )
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gemini-pro-3.1")
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=False, model="gpt-4o")
 
     def test_copilot_session_interactive_true_when_explicitly_set(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """Session is called with interactive=True when --interactive true."""
         mock_session = self._run_with_preflight_passing("999", issue_key="PROJECT-9999", argv=["--interactive", "true"])
-        mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gemini-pro-3.1")
+        mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gpt-4o")
 
 
 class TestInitiateApplyPRSuggestionsBootstrapScope:

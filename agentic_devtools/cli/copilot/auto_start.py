@@ -35,8 +35,8 @@ import sys
 from pathlib import Path
 
 from agentic_devtools.cli.copilot.session import (
-    DEFAULT_COPILOT_MODEL,
     build_copilot_args,
+    get_default_copilot_model,
     is_gh_copilot_available,
 )
 from agentic_devtools.cli.vscode_tasks import remove_auto_start_task
@@ -270,7 +270,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         "--model",
         dest="model",
         default=None,
-        help="Copilot model to use (e.g., gemini-pro-3.1). Forwarded to the Copilot CLI.",
+        help="Copilot model to use (e.g., gpt-4o). Forwarded to the Copilot CLI.",
     )
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
@@ -333,6 +333,11 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+
+        # Resolve the default model while CWD is still set to the target
+        # worktree so that .agdt/config/project.json is read from the
+        # correct repository, not from wherever this command was invoked.
+        worktree_default_model = get_default_copilot_model()
     finally:
         try:
             os.chdir(original_cwd)
@@ -386,9 +391,9 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
 
     # 3c. Resolve model: when --model is omitted (or whitespace-only), read
     #     copilot.model_id from the worktree state (set by the initiating
-    #     workflow command).  Fall back to DEFAULT_COPILOT_MODEL so auto-start
-    #     sessions always use the repo-wide default rather than the Copilot
-    #     binary's implicit default.
+    #     workflow command).  Fall back to get_default_copilot_model() so
+    #     auto-start sessions always use the repo-wide configured default
+    #     rather than the Copilot binary's implicit default.
     # Normalize: strip whitespace; treat empty as "not provided" so the
     # fallback chain (state → default) is exercised.
     model = args.model.strip() if isinstance(args.model, str) else args.model
@@ -400,7 +405,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         except Exception:
             pass
     if not model:
-        model = DEFAULT_COPILOT_MODEL
+        model = worktree_default_model
 
     # 4. Build copilot args — bail out early if the prompt exceeds argv length limits.
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)

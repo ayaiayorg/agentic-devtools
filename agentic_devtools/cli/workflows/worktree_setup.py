@@ -1406,7 +1406,7 @@ def inject_auto_start_task(
         task_label: Label for the injected task (default:
             ``"agdt-copilot-auto-start"``).  Used to identify the task
             during cleanup.
-        model: Optional Copilot model ID (e.g. ``"gemini-pro-3.1"``).
+        model: Optional Copilot model ID (e.g. ``"gpt-4o"``).
             When not ``None``, ``--model <model>`` is appended to the
             ``agdt-copilot-auto-start`` args so the auto-start session
             uses the same model as the workflow that triggered it.
