@@ -195,7 +195,10 @@ def download_and_install(version: str, asset_url: str, asset_name: str) -> bool:
                             member.name = gh_binary
                             # Safe: archive source is verified as github.com and we
                             # select a single, name-validated member (no path traversal).
-                            tar.extract(member, path=tmp_dir)  # noqa: S202
+                            if sys.version_info >= (3, 12):
+                                tar.extract(member, path=tmp_dir, filter="data")  # noqa: S202
+                            else:
+                                tar.extract(member, path=tmp_dir)  # noqa: S202
                             Path(tmp_dir, gh_binary).replace(dest)
                             extracted = True
                             break

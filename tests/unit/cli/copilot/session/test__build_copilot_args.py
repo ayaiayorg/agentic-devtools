@@ -1,7 +1,8 @@
 """Tests for _build_copilot_args internal function."""
 
-import warnings
 from unittest.mock import patch
+
+import pytest
 
 from agentic_devtools.cli.copilot import session as session_module
 from agentic_devtools.cli.copilot.session import _build_copilot_args
@@ -84,36 +85,26 @@ class TestBuildCopilotArgsAutopilot:
         """gh copilot fallback + interactive + autopilot=True → warning emitted."""
         with patch.object(session_module, "_get_copilot_binary", return_value=None):
             with patch.object(session_module.shutil, "which", return_value=None):
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
+                with pytest.warns(UserWarning, match="--autopilot is not supported"):
                     result = _build_copilot_args("hello", interactive=True, autopilot=True)
 
         assert result == ["gh", "copilot", "suggest", "hello"]
-        assert len(w) == 1
-        assert "--autopilot" in str(w[0].message)
-        assert "not supported" in str(w[0].message)
 
     def test_fallback_interactive_autopilot_false_no_warning(self):
         """gh copilot fallback + interactive + autopilot=False → no warning."""
         with patch.object(session_module, "_get_copilot_binary", return_value=None):
             with patch.object(session_module.shutil, "which", return_value=None):
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    result = _build_copilot_args("hello", interactive=True, autopilot=False)
+                result = _build_copilot_args("hello", interactive=True, autopilot=False)
 
         assert result == ["gh", "copilot", "suggest", "hello"]
-        assert len(w) == 0
 
     def test_fallback_non_interactive_autopilot_true_no_warning(self):
         """gh copilot fallback + non-interactive + autopilot=True → no warning."""
         with patch.object(session_module, "_get_copilot_binary", return_value=None):
             with patch.object(session_module.shutil, "which", return_value=None):
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    result = _build_copilot_args("hello", interactive=False, autopilot=True)
+                result = _build_copilot_args("hello", interactive=False, autopilot=True)
 
         assert result == ["gh", "copilot", "suggest", "hello"]
-        assert len(w) == 0
 
 
 class TestBuildCopilotArgsModel:
@@ -196,21 +187,16 @@ class TestBuildCopilotArgsModel:
         """gh copilot fallback + model → warning emitted, no --model in args."""
         with patch.object(session_module, "_get_copilot_binary", return_value=None):
             with patch.object(session_module.shutil, "which", return_value=None):
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
+                with pytest.warns(UserWarning, match="--model is not supported"):
                     result = _build_copilot_args("hello", interactive=True, autopilot=False, model="gpt-4")
 
         assert result == ["gh", "copilot", "suggest", "hello"]
         assert "--model" not in result
-        assert any("--model" in str(warning.message) and "not supported" in str(warning.message) for warning in w)
 
     def test_fallback_model_none_no_warning(self):
         """gh copilot fallback + model=None → no model warning."""
         with patch.object(session_module, "_get_copilot_binary", return_value=None):
             with patch.object(session_module.shutil, "which", return_value=None):
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
-                    result = _build_copilot_args("hello", interactive=True, autopilot=False, model=None)
+                result = _build_copilot_args("hello", interactive=True, autopilot=False, model=None)
 
         assert result == ["gh", "copilot", "suggest", "hello"]
-        assert len(w) == 0

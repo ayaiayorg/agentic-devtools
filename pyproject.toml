@@ -180,6 +180,18 @@ markers = [
     "linux_only: mark test to run only on Linux/Unix (fcntl file locking)",
     "e2e: mark test as end-to-end smoke test",
 ]
+filterwarnings = [
+    "error",
+    # urllib3 InsecureRequestWarning is suppressed at source in jira/helpers.py;
+    # this entry is a belt-and-suspenders guard for any test that imports the
+    # module before the suppression fires.
+    "ignore::urllib3.exceptions.InsecureRequestWarning",
+    # PytestUnraisableExceptionWarning fires when background file handles
+    # (e.g. log files opened by the tee thread) are garbage-collected after
+    # the test closes the temp directory.  These are test-environment artifacts
+    # and not indicative of production resource leaks.
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.ruff]
 line-length = 120

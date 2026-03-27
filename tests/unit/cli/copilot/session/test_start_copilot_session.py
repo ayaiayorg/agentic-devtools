@@ -1,7 +1,6 @@
 """Tests for start_copilot_session."""
 
 import io
-import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,6 +71,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert isinstance(result, CopilotSessionResult)
 
@@ -81,6 +81,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert result.mode == "interactive"
 
@@ -90,6 +91,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert result.session_id
         assert len(result.session_id) == 32  # UUID4 hex
@@ -100,6 +102,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
             session_id="custom-id-123",
         )
         assert result.session_id == "custom-id-123"
@@ -110,6 +113,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Hello copilot",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         from pathlib import Path
 
@@ -121,6 +125,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert result.start_time
         assert "T" in result.start_time  # ISO-8601 datetime contains 'T'
@@ -131,6 +136,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert result.pid is None
 
@@ -141,6 +147,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         call_kwargs = mock_popen.call_args[1]
         assert call_kwargs.get("shell") is False
@@ -153,6 +160,7 @@ class TestStartCopilotSessionInteractive:
                 prompt="Do something",
                 working_directory=str(temp_state),
                 interactive=True,
+                autopilot=False,
             )
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
@@ -183,6 +191,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         mock_proc.wait.assert_called_once()
 
@@ -192,6 +201,7 @@ class TestStartCopilotSessionInteractive:
             prompt="Do something",
             working_directory=str(temp_state),
             interactive=True,
+            autopilot=False,
         )
         assert state.get_value("copilot.session_id") == result.session_id
         assert state.get_value("copilot.mode") == "interactive"
@@ -206,6 +216,7 @@ class TestStartCopilotSessionInteractive:
                 prompt="Do something",
                 working_directory=str(temp_state),
                 interactive=True,
+                autopilot=False,
             )
 
         call_kwargs = mock_popen.call_args[1]
@@ -220,6 +231,7 @@ class TestStartCopilotSessionInteractive:
                 prompt="Do something",
                 working_directory=str(temp_state),
                 interactive=True,
+                autopilot=False,
             )
 
         call_kwargs = mock_popen.call_args[1]
@@ -305,7 +317,7 @@ class TestStartCopilotSessionFallback:
 
     def test_returns_result_without_process(self, temp_state, mock_unavailable):
         """Returns a CopilotSessionResult with no process when gh copilot unavailable."""
-        with warnings.catch_warnings(record=True):
+        with pytest.warns(UserWarning, match="gh copilot is not available"):
             result = start_copilot_session(
                 prompt="Do something",
                 working_directory=str(temp_state),
@@ -316,17 +328,15 @@ class TestStartCopilotSessionFallback:
 
     def test_issues_warning(self, temp_state, mock_unavailable):
         """Issues a UserWarning when gh copilot is unavailable."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="gh copilot is not available"):
             start_copilot_session(
                 prompt="Do something",
                 working_directory=str(temp_state),
             )
-        assert any("gh copilot is not available" in str(warning.message) for warning in w)
 
     def test_prints_prompt_to_stdout(self, temp_state, mock_unavailable, capsys):
         """Prints the prompt to stdout as fallback."""
-        with warnings.catch_warnings(record=True):
+        with pytest.warns(UserWarning, match="gh copilot is not available"):
             start_copilot_session(
                 prompt="My fallback prompt",
                 working_directory=str(temp_state),
@@ -336,7 +346,7 @@ class TestStartCopilotSessionFallback:
 
     def test_state_is_persisted_in_fallback(self, temp_state, mock_unavailable):
         """Session state is still persisted even in fallback mode."""
-        with warnings.catch_warnings(record=True):
+        with pytest.warns(UserWarning, match="gh copilot is not available"):
             result = start_copilot_session(
                 prompt="Do something",
                 working_directory=str(temp_state),
@@ -348,7 +358,7 @@ class TestStartCopilotSessionFallback:
         """Prompt file is written even when gh copilot is unavailable."""
         from pathlib import Path
 
-        with warnings.catch_warnings(record=True):
+        with pytest.warns(UserWarning, match="gh copilot is not available"):
             result = start_copilot_session(
                 prompt="Fallback prompt text",
                 working_directory=str(temp_state),
@@ -506,17 +516,16 @@ class TestStartCopilotSessionLargePromptFallback:
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="too large for inline"):
             result = start_copilot_session(
                 prompt=large_prompt,
                 working_directory=str(temp_state),
+                autopilot=False,
             )
 
         # Popen IS called (prompt was replaced with a short file-reference)
         mock_popen.assert_called_once()
         assert result.session_id
-        assert any("too large for inline" in str(warning.message).lower() for warning in w)
         # Verify the file-reference prompt preserves the backup path
         cmd = mock_popen.call_args[0][0]
         argv_prompt = cmd[-1]  # The prompt is the last argument
@@ -530,10 +539,11 @@ class TestStartCopilotSessionLargePromptFallback:
         mock_popen, _ = mock_popen_interactive
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
-        with warnings.catch_warnings(record=True):
+        with pytest.warns(UserWarning, match="too large for inline"):
             result = start_copilot_session(
                 prompt=large_prompt,
                 working_directory=str(temp_state),
+                autopilot=False,
             )
 
         assert Path(result.prompt_file).read_text(encoding="utf-8") == large_prompt
@@ -544,8 +554,7 @@ class TestStartCopilotSessionLargePromptFallback:
         large_prompt = "x" * (session_module._MAX_GH_COPILOT_ARGV_LENGTH + 1)
 
         with patch.object(session_module, "_get_copilot_binary", return_value="/usr/local/bin/copilot"):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
+            with pytest.warns(UserWarning, match="too large for inline"):
                 result = start_copilot_session(
                     prompt=large_prompt,
                     working_directory=str(temp_state),
@@ -554,7 +563,6 @@ class TestStartCopilotSessionLargePromptFallback:
 
         mock_popen.assert_called_once()
         assert result.session_id
-        assert any("too large for inline" in str(warning.message).lower() for warning in w)
 
 
 class TestStartCopilotSessionNonInteractiveTee:
@@ -745,12 +753,10 @@ class TestInlinePrompt:
         from agentic_devtools.cli.copilot.session import _SAFE_ARGV_LENGTH, _inline_prompt
 
         large_prompt = "x" * (_SAFE_ARGV_LENGTH + 1000)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="(?i)too large for inline"):
             result = _inline_prompt(large_prompt, "/tmp/prompt.md")
         assert len(result) <= _SAFE_ARGV_LENGTH
         assert "The full prompt is also saved at: /tmp/prompt.md" in result
-        assert any("too large for inline" in str(warning.message).lower() for warning in w)
 
     def test_truncation_of_focus_areas_section(self):
         """When prompt with focus areas exceeds the limit, focus areas are trimmed first."""
@@ -762,24 +768,19 @@ class TestInlinePrompt:
         suffix_section = "\n## Review Outcomes\nSome outcomes here."
         prompt = prefix + focus_content + suffix_section
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="(?i)truncated"):
             result = _inline_prompt(prompt, "/tmp/prompt.md")
 
         assert len(result) <= _SAFE_ARGV_LENGTH
         # The Review Outcomes section should still be present
         assert "Review Outcomes" in result
-        assert any("truncated" in str(warning.message).lower() for warning in w)
 
     def test_no_truncation_for_short_prompts(self):
         """Short prompts are not truncated."""
         from agentic_devtools.cli.copilot.session import _inline_prompt
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = _inline_prompt("Short prompt", "/tmp/prompt.md")
+        result = _inline_prompt("Short prompt", "/tmp/prompt.md")
         assert "Short prompt" in result
-        assert not any("truncated" in str(warning.message).lower() for warning in w)
 
     def test_partial_truncation_of_focus_areas(self):
         """When focus areas are partially truncated to fit, partial content is kept."""
@@ -800,15 +801,13 @@ class TestInlinePrompt:
         focus_content = ("F" * (available - 50)) + "\n" + ("G" * 100) + "\n"
         prompt = base_before + focus_content + base_after
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="(?i)trimmed"):
             result = _inline_prompt(prompt, "/tmp/prompt.md")
 
         assert len(result) <= _SAFE_ARGV_LENGTH
         # The result should contain partial focus content (Fs, not Gs after the trim)
         assert "FFF" in result
         assert "Review Outcomes" in result
-        assert any("trimmed" in str(warning.message).lower() for warning in w)
 
     def test_focus_areas_fully_removed_when_partial_insufficient(self):
         """When partial truncation doesn't help, focus areas are fully removed."""
@@ -821,12 +820,10 @@ class TestInlinePrompt:
         focus_content = "focus\n" * 100
         prompt = base_before + focus_content + base_after
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="(?i)fully removed"):
             result = _inline_prompt(prompt, "/tmp/prompt.md")
 
         assert len(result) <= _SAFE_ARGV_LENGTH
-        assert any("fully removed" in str(warning.message).lower() for warning in w)
 
 
 class TestBuildCopilotArgsLargePrompt:
@@ -846,15 +843,13 @@ class TestStartCopilotSessionArgsNoneFallback:
     def test_fallback_when_build_args_returns_none(self, temp_state, mock_available, capsys):
         """Falls back to printing the prompt when _build_copilot_args returns None."""
         with patch.object(session_module, "_build_copilot_args", return_value=None):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
+            with pytest.warns(UserWarning, match="too large"):
                 result = start_copilot_session(
                     prompt="Some prompt",
                     working_directory=str(temp_state),
                 )
         assert result.process is None
         assert result.pid is None
-        assert any("too large" in str(warning.message) for warning in w)
         captured = capsys.readouterr()
         assert "Some prompt" in captured.out
 
