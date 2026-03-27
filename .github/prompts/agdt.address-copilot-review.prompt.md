@@ -42,7 +42,8 @@ https://github.com/{owner}/{repo}/pull/{pr_number}#pullrequestreview-{review_id}
 
 ### Validation
 
-- Confirm the URL matches the expected pattern.
+- Confirm the URL matches the expected pattern (note: the fragment uses
+  `pullrequestreview-` — singular, not plural).
 - If the URL is malformed or missing, **stop** and ask the user for a valid URL.
 
 ---
@@ -107,13 +108,23 @@ complete, commit and push once (not per-comment).
 ### Commit & Push
 
 ```bash
-agdt-git-save-work --commit-message "fix([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
+agdt-git-save-work --commit-message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
 
 - <summary of changes>
 
 [#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
 agdt-task-wait
 ```
+
+Choose the commit **type** based on the nature of the changes:
+
+| Type | When to use |
+|------|-------------|
+| `fix` | Bug fixes, incorrect behavior |
+| `refactor` | Code quality, readability, or structure improvements |
+| `style` | Formatting, naming, whitespace changes |
+| `docs` | Documentation-only changes |
+| `chore` | Maintenance tasks that don't affect production code |
 
 > If no GitHub issue is linked to the PR, use the PR number in the commit scope or
 > ask the user for the issue number.
