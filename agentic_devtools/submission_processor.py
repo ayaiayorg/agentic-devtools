@@ -16,6 +16,8 @@ inner closure can be called safely from the worker thread.
 
 from __future__ import annotations
 
+import sys
+import types
 from collections.abc import Callable
 from typing import Any
 
@@ -45,6 +47,26 @@ _REQUEST_CHANGES = "request-changes"
 _REQUEST_CHANGES_WITH_SUGGESTION = "request-changes-with-suggestion"
 
 _VALID_OUTCOMES = frozenset({_APPROVE, _REQUEST_CHANGES, _REQUEST_CHANGES_WITH_SUGGESTION})
+
+# Required keys in each suggestion dict.
+_REQUIRED_SUGGESTION_KEYS = ("line", "severity", "content")
+
+
+def _validate_suggestions(suggestions: list[dict[str, Any]]) -> None:
+    """Validate suggestion dicts have required keys before state mutation.
+
+    Called early in ``process_submission()`` so that malformed input is
+    rejected with a clear ``ValueError`` before any state changes or
+    HTTP calls are made.
+
+    Raises:
+        ValueError: If any suggestion is missing ``line``, ``severity``,
+            or ``content``.
+    """
+    for i, s in enumerate(suggestions):
+        missing = [k for k in _REQUIRED_SUGGESTION_KEYS if k not in s]
+        if missing:
+            raise ValueError(f"Suggestion at index {i} is missing required key(s): {', '.join(missing)}")
 
 
 def _get_attribution_params(
@@ -119,7 +141,9 @@ def process_submission(
             Defaults to ``import requests`` at runtime.
 
     Raises:
-        ValueError: If ``item.outcome`` is not a recognized outcome.
+        ValueError: If ``item.outcome`` is not a recognized outcome, or
+            if any suggestion dict is missing required keys (``line``,
+            ``severity``, ``content``).
         FileNotFoundError: If ``review-state.json`` does not exist.
         KeyError: If the file is not present in the review state.
     """
@@ -136,6 +160,12 @@ def process_submission(
     status = ReviewStatus.APPROVED.value if is_approve else ReviewStatus.NEEDS_WORK.value
     thread_status = "closed" if is_approve else "active"
 
+    # Validate suggestion dicts upfront — before acquiring the state lock or
+    # making any HTTP calls — so malformed input is rejected with a clear
+    # ValueError and no state mutation occurs.
+    if not is_approve and item.suggestions:
+        _validate_suggestions(item.suggestions)
+
     # Compute base_url outside the review-state lock — it's a pure string
     # computation with no I/O, so there's no reason to hold the lock for it.
     base_url = build_pr_base_url(config, item.pr_id)
@@ -150,6 +180,7 @@ def process_submission(
     # with whatever progress was made, matching the ``try/finally:
     # save_review_state()`` pattern used in ``file_review_commands.py``.
     _deferred_exc: BaseException | None = None
+    _deferred_tb: types.TracebackType | None = None
 
     with read_modify_write_review_state(item.pr_id) as review_state:
         # Re-review: rotate old suggestions to audit trail.  The KeyError is
@@ -290,12 +321,14 @@ def process_submission(
             )
         except Exception as exc:
             _deferred_exc = exc
+            _deferred_tb = sys.exc_info()[2]
 
     # The context manager has saved state (including any partial progress).
     # Now re-raise the deferred exception so the SubmissionManager worker
-    # marks the item as FAILED.
+    # marks the item as FAILED.  We use .with_traceback() to preserve the
+    # original failure site rather than pointing at this re-raise line.
     if _deferred_exc is not None:
-        raise _deferred_exc
+        raise _deferred_exc.with_traceback(_deferred_tb)
 
 
 def create_review_processor(

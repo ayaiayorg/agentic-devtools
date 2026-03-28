@@ -1,97 +1,13 @@
-"""Tests for agentic_devtools.submission_processor."""
+"""Tests for agentic_devtools.submission_processor.process_submission."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-from agentic_devtools.cli.azure_devops.review_state import (
-    FileEntry,
-    FolderGroup,
-    OverallSummary,
-    ReviewSession,
-    ReviewState,
-    ReviewStatus,
-    SuggestionEntry,
-)
-from agentic_devtools.submission_manager import SubmissionItem
-from agentic_devtools.submission_processor import (
-    create_review_processor,
-    process_submission,
-)
+from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
+from agentic_devtools.submission_processor import process_submission
 
-_ORG = "https://dev.azure.com/testorg"
-_PROJECT = "testproject"
-_REPO = "testrepo"
-_REPO_ID = "repo-guid-123"
-_PR_ID = 42
-_FILE_PATH = "/src/app.ts"
-_THREAD_ID = 100
-_COMMENT_ID = 200
-_BASE_URL = f"{_ORG}/{_PROJECT}/_git/{_REPO}/pullrequest/{_PR_ID}"
-
-
-def _make_config() -> AzureDevOpsConfig:
-    return AzureDevOpsConfig(organization=_ORG, project=_PROJECT, repository=_REPO)
-
-
-def _make_review_state(
-    file_status: str = ReviewStatus.UNREVIEWED.value,
-    sessions: list[ReviewSession] | None = None,
-    model_id: str | None = "test-model",
-    suggestions: list[SuggestionEntry] | None = None,
-    commit_hash: str | None = "abc1234",
-) -> ReviewState:
-    file_entry = FileEntry(
-        threadId=_THREAD_ID,
-        commentId=_COMMENT_ID,
-        folder="src",
-        fileName="app.ts",
-        status=file_status,
-        suggestions=suggestions or [],
-    )
-    return ReviewState(
-        prId=_PR_ID,
-        repoId=_REPO_ID,
-        repoName=_REPO,
-        project=_PROJECT,
-        organization=_ORG,
-        latestIterationId=1,
-        scaffoldedUtc="2026-01-01T00:00:00Z",
-        overallSummary=OverallSummary(threadId=1, commentId=2),
-        folders={"src": FolderGroup(files=[_FILE_PATH])},
-        files={_FILE_PATH: file_entry},
-        commitHash=commit_hash,
-        modelId=model_id,
-        sessions=sessions or [],
-    )
-
-
-def _make_item(
-    outcome: str = "approve",
-    summary: str = "LGTM",
-    suggestions: list[dict] | None = None,
-) -> SubmissionItem:
-    return SubmissionItem(
-        id="item-001",
-        pr_id=_PR_ID,
-        file_path=_FILE_PATH,
-        outcome=outcome,
-        summary=summary,
-        suggestions=suggestions,
-    )
-
-
-def _make_session(model_id: str = "claude-opus-4") -> ReviewSession:
-    return ReviewSession(sessionId="sess-1", modelId=model_id, startedUtc="2026-01-01T00:00:00Z")
-
-
-def _setup_rmw_mock(mock_rmw, review_state: ReviewState):
-    """Configure a mock for read_modify_write_review_state to yield the given state."""
-    ctx = MagicMock()
-    ctx.__enter__ = MagicMock(return_value=review_state)
-    ctx.__exit__ = MagicMock(return_value=False)
-    mock_rmw.return_value = ctx
+from .conftest import FILE_PATH, REPO_ID, make_item, make_review_state, make_session, setup_rmw_mock
 
 
 class TestProcessSubmission:
@@ -107,7 +23,7 @@ class TestProcessSubmission:
     @patch("agentic_devtools.submission_processor.update_file_status")
     @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
-    def test_approve_calls_correct_sequence(
+    def test_approve_calls_all_expected_functions(
         self,
         mock_rmw,
         mock_clear,
@@ -119,21 +35,20 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
-        """Verify approve outcome calls functions in correct order."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        """Verify approve outcome calls each function exactly once."""
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
-        item = _make_item(outcome="approve", summary="LGTM")
-        config = _make_config()
+        item = make_item(outcome="approve", summary="LGTM")
         mock_requests = MagicMock()
 
-        process_submission(item, config, {"Authorization": "Basic xxx"}, _REPO_ID, requests_module=mock_requests)
+        process_submission(item, config, {"Authorization": "Basic xxx"}, REPO_ID, requests_module=mock_requests)
 
-        # Verify call order
         mock_clear.assert_called_once()
-        mock_update_status.assert_called_once_with(state, _FILE_PATH, "approved", summary="LGTM")
+        mock_update_status.assert_called_once_with(state, FILE_PATH, "approved", summary="LGTM")
         mock_record_verdict.assert_called_once()
         mock_render.assert_called_once()
         mock_patch_comment.assert_called_once()
@@ -170,10 +85,11 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Verify request-changes POSTs suggestion threads then PATCHes."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
         mock_add_suggestion.side_effect = lambda rs, fp, se: rs
 
@@ -183,10 +99,9 @@ class TestProcessSubmission:
         mock_requests.post.return_value = mock_response
 
         suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
-        item = _make_item(outcome="request-changes", summary="Issues found", suggestions=suggestions)
-        config = _make_config()
+        item = make_item(outcome="request-changes", summary="Issues found", suggestions=suggestions)
 
-        process_submission(item, config, {"Authorization": "Basic xxx"}, _REPO_ID, requests_module=mock_requests)
+        process_submission(item, config, {"Authorization": "Basic xxx"}, REPO_ID, requests_module=mock_requests)
 
         # Verify POST was called for suggestion thread
         mock_requests.post.assert_called_once()
@@ -197,7 +112,7 @@ class TestProcessSubmission:
         assert kwargs["status"] == "active"
 
         # Verify update_file_status was called with needs-work
-        mock_update_status.assert_called_once_with(state, _FILE_PATH, "needs-work", summary="Issues found")
+        mock_update_status.assert_called_once_with(state, FILE_PATH, "needs-work", summary="Issues found")
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -223,10 +138,11 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Verify request-changes-with-suggestion follows same path as request-changes."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
         mock_add_suggestion.side_effect = lambda rs, fp, se: rs
 
@@ -236,45 +152,45 @@ class TestProcessSubmission:
         mock_requests.post.return_value = mock_response
 
         suggestions = [{"line": 5, "severity": "medium", "content": "Rename var"}]
-        item = _make_item(
+        item = make_item(
             outcome="request-changes-with-suggestion",
             summary="Naming issue",
             suggestions=suggestions,
         )
 
-        process_submission(item, _make_config(), {"Auth": "x"}, _REPO_ID, requests_module=mock_requests)
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
 
-        mock_update_status.assert_called_once_with(state, _FILE_PATH, "needs-work", summary="Naming issue")
+        mock_update_status.assert_called_once_with(state, FILE_PATH, "needs-work", summary="Naming issue")
         mock_requests.post.assert_called_once()
         _, kwargs = mock_patch_thread.call_args
         assert kwargs["status"] == "active"
 
-    def test_unknown_outcome_raises_valueerror(self):
+    def test_unknown_outcome_raises_valueerror(self, config):
         """Verify ValueError raised for unknown outcome."""
-        item = _make_item(outcome="invalid")
+        item = make_item(outcome="invalid")
         with pytest.raises(ValueError, match="Unknown outcome"):
-            process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
     @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
     @patch("agentic_devtools.submission_processor.update_file_status", side_effect=KeyError("not found"))
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
-    def test_file_not_found_raises_keyerror(self, mock_rmw, mock_update_status, mock_clear):
+    def test_file_not_found_raises_keyerror(self, mock_rmw, mock_update_status, mock_clear, config):
         """Verify KeyError from update_file_status propagates."""
-        state = _make_review_state()
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state()
+        setup_rmw_mock(mock_rmw, state)
 
-        item = _make_item(outcome="approve")
+        item = make_item(outcome="approve")
         with pytest.raises(KeyError, match="not found"):
-            process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
-    def test_review_state_missing_raises_filenotfounderror(self, mock_rmw):
+    def test_review_state_missing_raises_filenotfounderror(self, mock_rmw, config):
         """Verify FileNotFoundError propagates when review-state.json is missing."""
         mock_rmw.side_effect = FileNotFoundError("review-state.json not found")
 
-        item = _make_item(outcome="approve")
+        item = make_item(outcome="approve")
         with pytest.raises(FileNotFoundError, match="review-state.json"):
-            process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -298,6 +214,7 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Pre-populated suggestion should cause duplicate to be skipped."""
         existing_suggestion = SuggestionEntry(
@@ -310,35 +227,20 @@ class TestProcessSubmission:
             linkText="line 10",
             content="Fix this",
         )
-        state = _make_review_state(model_id="test-model", suggestions=[existing_suggestion])
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model", suggestions=[existing_suggestion])
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
         mock_requests = MagicMock()
 
         # Same suggestion data as existing
         suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
-        item = _make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
 
-        process_submission(item, _make_config(), {"Auth": "x"}, _REPO_ID, requests_module=mock_requests)
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
 
         # No POST should have been made (duplicate detected)
         mock_requests.post.assert_not_called()
-
-    @patch("agentic_devtools.submission_processor.process_submission")
-    def test_create_review_processor_returns_callable(self, mock_process):
-        """Verify create_review_processor returns a callable that invokes process_submission."""
-        config = _make_config()
-        headers = {"Auth": "x"}
-        mock_requests = MagicMock()
-
-        processor = create_review_processor(config, headers, _REPO_ID, requests_module=mock_requests)
-        assert callable(processor)
-
-        item = _make_item()
-        processor(item)
-
-        mock_process.assert_called_once_with(item, config, headers, _REPO_ID, requests_module=mock_requests)
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -362,14 +264,15 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """When no model ID is available, record_verdict should NOT be called."""
-        state = _make_review_state(sessions=[], model_id=None)
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(sessions=[], model_id=None)
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
-        item = _make_item(outcome="approve")
-        process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+        item = make_item(outcome="approve")
+        process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
         mock_record_verdict.assert_not_called()
 
@@ -395,10 +298,11 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Verify clear_suggestions_for_re_review is called before update_file_status."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
         call_order = []
@@ -411,8 +315,8 @@ class TestProcessSubmission:
 
         mock_update_status.side_effect = tracked_update
 
-        item = _make_item(outcome="approve")
-        process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+        item = make_item(outcome="approve")
+        process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
         assert call_order == ["clear", "update"]
 
@@ -428,20 +332,55 @@ class TestProcessSubmission:
         mock_update_status,
         mock_clear,
         mock_rmw,
+        config,
     ):
         """patch_comment raises; exception propagates AND state is saved (partial progress)."""
-        state = _make_review_state(model_id=None, sessions=[])
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id=None, sessions=[])
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
-        item = _make_item(outcome="approve")
+        item = make_item(outcome="approve")
         with pytest.raises(Exception, match="API error"):
-            process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
         # Verify the context manager exited normally (state was saved) — the
         # exception is deferred and re-raised *after* the with block.
         ctx = mock_rmw.return_value
         ctx.__exit__.assert_called_once_with(None, None, None)
+
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.patch_comment", side_effect=Exception("API error"))
+    def test_deferred_exception_preserves_traceback(
+        self,
+        mock_patch_comment,
+        mock_render,
+        mock_update_status,
+        mock_clear,
+        mock_rmw,
+        config,
+    ):
+        """Deferred re-raise preserves the original traceback from the failure site."""
+        state = make_review_state(model_id=None, sessions=[])
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        item = make_item(outcome="approve")
+        with pytest.raises(Exception, match="API error") as exc_info:
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+        # The traceback should reference the original failure site (patch_comment),
+        # not just the re-raise line.
+        assert exc_info.value.__traceback__ is not None
+        tb = exc_info.value.__traceback__
+        # Walk to the deepest frame
+        while tb.tb_next is not None:
+            tb = tb.tb_next
+        # The deepest frame should be in the mock's side_effect machinery,
+        # not at the bare `raise _deferred_exc` line in submission_processor.py.
+        assert tb.tb_lineno != 0  # sanity check: traceback has a real line number
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -465,19 +404,20 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Request-changes with empty suggestions: no POST, but file still patched as needs-work."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
 
         mock_requests = MagicMock()
-        item = _make_item(outcome="request-changes", summary="Issues", suggestions=[])
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=[])
 
-        process_submission(item, _make_config(), {"Auth": "x"}, _REPO_ID, requests_module=mock_requests)
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
 
         mock_requests.post.assert_not_called()
-        mock_update_status.assert_called_once_with(state, _FILE_PATH, "needs-work", summary="Issues")
+        mock_update_status.assert_called_once_with(state, FILE_PATH, "needs-work", summary="Issues")
         _, kwargs = mock_patch_thread.call_args
         assert kwargs["status"] == "active"
 
@@ -503,19 +443,20 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """Verify case-insensitive outcome matching: 'Approve' and 'APPROVE' both work."""
-        state = _make_review_state(model_id="test-model")
+        state = make_review_state(model_id="test-model")
 
         for outcome_str in ("Approve", "APPROVE", "approve"):
-            _setup_rmw_mock(mock_rmw, state)
+            setup_rmw_mock(mock_rmw, state)
             mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
             mock_update_status.reset_mock()
 
-            item = _make_item(outcome=outcome_str)
-            process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+            item = make_item(outcome=outcome_str)
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
-            mock_update_status.assert_called_once_with(state, _FILE_PATH, "approved", summary="LGTM")
+            mock_update_status.assert_called_once_with(state, FILE_PATH, "approved", summary="LGTM")
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -541,10 +482,11 @@ class TestProcessSubmission:
         mock_mark_reviewed,
         mock_cascade,
         mock_exec_cascade,
+        config,
     ):
         """POST succeeds but PATCH fails: suggestion thread ID still persisted via state save."""
-        state = _make_review_state(model_id="test-model")
-        _setup_rmw_mock(mock_rmw, state)
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
         mock_add_suggestion.side_effect = lambda rs, fp, se: rs
 
@@ -554,10 +496,10 @@ class TestProcessSubmission:
         mock_requests.post.return_value = mock_response
 
         suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
-        item = _make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
 
         with pytest.raises(Exception, match="PATCH failed"):
-            process_submission(item, _make_config(), {"Auth": "x"}, _REPO_ID, requests_module=mock_requests)
+            process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
 
         # The POST succeeded and add_suggestion_to_file was called
         mock_requests.post.assert_called_once()
@@ -566,3 +508,184 @@ class TestProcessSubmission:
         # The context manager exited normally (state was saved with partial progress)
         ctx = mock_rmw.return_value
         ctx.__exit__.assert_called_once_with(None, None, None)
+
+    def test_malformed_suggestion_raises_valueerror_before_state_mutation(self, config):
+        """Malformed suggestion dict (missing 'line') raises ValueError before state lock."""
+        suggestions = [{"severity": "high", "content": "Fix this"}]  # missing 'line'
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        with pytest.raises(ValueError, match="missing required key.*line"):
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+    def test_malformed_suggestion_multiple_missing_keys(self, config):
+        """Suggestion missing multiple keys reports all of them."""
+        suggestions = [{}]  # missing all three keys
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        with pytest.raises(ValueError, match="line.*severity.*content"):
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review", side_effect=KeyError("x"))
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_clear_suggestions_keyerror_is_suppressed(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """KeyError from clear_suggestions_for_re_review is silently caught."""
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        item = make_item(outcome="approve")
+        # Should NOT raise despite clear_suggestions raising KeyError
+        process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+        mock_clear.assert_called_once()
+        mock_update_status.assert_called_once()
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.add_suggestion_to_file")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_suggestion_with_custom_link_text(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_add_suggestion,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """Suggestion with explicit link_text uses it instead of auto-generated."""
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+        mock_add_suggestion.side_effect = lambda rs, fp, se: rs
+
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 600, "comments": [{"id": 601}]}
+        mock_requests.post.return_value = mock_response
+
+        suggestions = [{"line": 10, "severity": "high", "content": "Fix", "link_text": "custom link"}]
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
+
+        # Verify the SuggestionEntry was created with custom link_text
+        se = mock_add_suggestion.call_args[0][2]
+        assert se.linkText == "custom link"
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.add_suggestion_to_file")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_suggestion_multiline_generates_range_link_text(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_add_suggestion,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """Multi-line suggestion (end_line != line) generates 'lines X - Y' link_text."""
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+        mock_add_suggestion.side_effect = lambda rs, fp, se: rs
+
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 700, "comments": [{"id": 701}]}
+        mock_requests.post.return_value = mock_response
+
+        suggestions = [{"line": 5, "end_line": 10, "severity": "medium", "content": "Refactor"}]
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
+
+        se = mock_add_suggestion.call_args[0][2]
+        assert se.linkText == "lines 5 - 10"
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_approve_with_session_uses_session_model_for_verdict(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """When sessions are populated, verdict uses model ID from last session."""
+        session = make_session(model_id="gpt-4")
+        state = make_review_state(sessions=[session], model_id=None)
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        item = make_item(outcome="approve")
+        process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+        mock_record_verdict.assert_called_once()
+        # Verify the model_id argument passed to record_verdict
+        args = mock_record_verdict.call_args[0]
+        assert args[1] == "gpt-4"
