@@ -139,8 +139,12 @@ def process_submission(
     with read_modify_write_review_state(item.pr_id) as review_state:
         base_url = build_pr_base_url(config, item.pr_id)
 
-        # Re-review: rotate old suggestions to audit trail (ignore KeyError
-        # so update_file_status raises it with a clear message instead).
+        # Re-review: rotate old suggestions to audit trail.  The KeyError is
+        # caught and ignored here because the file may not exist yet in state
+        # (e.g. new file added after scaffolding).  The subsequent
+        # update_file_status() will raise KeyError with a clear message if
+        # the file is truly missing — that error is intentionally NOT caught
+        # so the SubmissionManager marks the item as FAILED.
         try:
             clear_suggestions_for_re_review(review_state, item.file_path)
         except KeyError:
