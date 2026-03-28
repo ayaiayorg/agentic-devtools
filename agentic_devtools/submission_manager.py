@@ -121,6 +121,11 @@ class SubmissionManager:
     Accepts submission payloads via enqueue(), immediately returns the queued
     SubmissionItem, and processes items serially in a background daemon thread
     through an injected processor callable.
+
+    This class retains all enqueued items in memory for status introspection.
+    It is designed for short-lived, per-session use (e.g., one manager per PR
+    review). Callers that need long-lived managers should periodically discard
+    completed items or create fresh instances.
     """
 
     def __init__(self, processor: Callable[[SubmissionItem], None] | None = None) -> None:
@@ -153,7 +158,10 @@ class SubmissionManager:
             suggestions: Optional list of suggestion dicts
 
         Returns:
-            The created SubmissionItem with status=queued
+            The created SubmissionItem (initially status=QUEUED).  Because the
+            worker thread starts immediately, the returned object may have
+            already transitioned to PROCESSING or SUCCEEDED by the time the
+            caller inspects it.
 
         Raises:
             RuntimeError: If the manager has been shut down
@@ -224,8 +232,16 @@ class SubmissionManager:
                 self._queue.put(None)
             worker = self._worker
 
-        if wait and worker is not None and worker.is_alive():
-            worker.join()
+        if wait:
+            if worker is None:
+                # A concurrent enqueue() may have queued items but not yet
+                # called _ensure_worker_started().  Start the worker so
+                # there is a thread to join (it will drain the queue and
+                # then see the sentinel).
+                self._ensure_worker_started()
+                worker = self._worker
+            if worker is not None and worker.is_alive():
+                worker.join()
 
     def _ensure_worker_started(self) -> None:
         """Start the worker thread if not already running."""

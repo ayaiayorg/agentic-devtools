@@ -319,6 +319,31 @@ class TestSubmissionManager:
                     SubmissionStatus.FAILED,
                 ), f"Item {item.file_path} stranded with status={item.status}"
 
+    def test_shutdown_wait_starts_worker_when_not_yet_started(self):
+        """shutdown(wait=True) must drain and join even if the worker hasn't started yet."""
+        manager = SubmissionManager()
+        # Directly put an item and sentinel on the queue WITHOUT starting the worker,
+        # simulating the interleaving where enqueue() put the item but hasn't called
+        # _ensure_worker_started() yet when shutdown(wait=True) runs.
+        item = SubmissionItem(
+            id="test-id",
+            pr_id=1,
+            file_path="file.ts",
+            outcome="approve",
+            summary="ok",
+        )
+        manager._items[item.id] = item
+        manager._queue.put(item)
+        # Worker is still None at this point
+        assert manager._worker is None
+
+        # shutdown(wait=True) should start the worker, drain the queue, and join
+        manager.shutdown(wait=True)
+
+        assert manager._worker is not None
+        assert not manager._worker.is_alive()
+        assert item.status == SubmissionStatus.SUCCEEDED
+
     def test_enqueue_after_shutdown_raises(self):
         """Verify RuntimeError when enqueueing after shutdown."""
         manager = SubmissionManager()
@@ -343,8 +368,8 @@ class TestSubmissionManager:
         try:
             manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
             # Wait deterministically for the worker thread to be created
-            start = time.time()
-            while manager._worker is None and time.time() - start < 1.0:
+            start = time.monotonic()
+            while manager._worker is None and time.monotonic() - start < 1.0:
                 time.sleep(0.005)
             assert manager._worker is not None, "Worker thread was not started within timeout"
             assert manager._worker.daemon is True
