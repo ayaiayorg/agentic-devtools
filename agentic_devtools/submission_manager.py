@@ -207,7 +207,14 @@ class SubmissionManager:
             return [item for item in self._items.values() if item.pr_id == pr_id]
 
     def get_queue_depth(self) -> int:
-        """Return the number of items waiting in the queue (not yet picked up)."""
+        """Return the number of items currently marked as queued.
+
+        This counts items whose status is still ``QUEUED`` in the manager's
+        internal state. Because the worker thread dequeues items from the
+        underlying queue before updating their status to ``PROCESSING``,
+        this value is an approximate debugging metric rather than a precise
+        reflection of the underlying queue's contents at any given instant.
+        """
         with self._lock:
             return sum(1 for item in self._items.values() if item.status == SubmissionStatus.QUEUED)
 
