@@ -300,13 +300,19 @@ def process_submission(
                 status=thread_status,
             )
 
-            # Mark file as reviewed in Azure DevOps
-            mark_file_reviewed(
+            # Mark file as reviewed in Azure DevOps.
+            # mark_file_reviewed() returns False on failure (does not raise),
+            # so we check the return value and surface the failure explicitly.
+            marked = mark_file_reviewed(
                 file_path=item.file_path,
                 pull_request_id=item.pr_id,
                 config=config,
                 repo_id=repo_id,
             )
+            if not marked:
+                raise RuntimeError(
+                    f"Failed to mark file {item.file_path!r} as reviewed for PR {item.pr_id}"
+                )
 
             # Cascade overall PR summary
             cascade_attrs = _get_attribution_params(review_state, config)

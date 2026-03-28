@@ -689,3 +689,41 @@ class TestProcessSubmission:
         # Verify the model_id argument passed to record_verdict
         args = mock_record_verdict.call_args[0]
         assert args[1] == "gpt-4"
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed", return_value=False)
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_mark_file_reviewed_failure_raises_runtime_error(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """When mark_file_reviewed returns False, a RuntimeError is raised."""
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        item = make_item(outcome="approve")
+
+        with pytest.raises(RuntimeError, match="Failed to mark file.*as reviewed"):
+            process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+        mock_mark_reviewed.assert_called_once()
+        # cascade should NOT be called — the failure happens before it
+        mock_exec_cascade.assert_not_called()
