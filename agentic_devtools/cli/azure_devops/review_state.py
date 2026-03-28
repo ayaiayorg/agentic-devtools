@@ -4,16 +4,23 @@ Provides dataclasses for each schema level and load/save/update functions.
 File location: .agdt/workflows/{identity}/{worktree_key}/reviews/review-state.json
 """
 
+import contextlib
 import json
+import os
 import sys
+import tempfile
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from ...file_locking import FileLockError, locked_file  # noqa: F401 — FileLockError re-exported
 from ...state import get_state_dir
 
 REVIEW_STATE_SUBDIR = "reviews"
 REVIEW_STATE_FILENAME = "review-state.json"
+
+_LOCK_TIMEOUT_SECONDS = 10.0
 
 
 class ReviewStatus(str, Enum):
@@ -458,6 +465,45 @@ def get_review_state_file_path(pr_id: int) -> Path:
     return get_state_dir() / REVIEW_STATE_SUBDIR / REVIEW_STATE_FILENAME
 
 
+def _get_lock_file_path(pr_id: int) -> Path:
+    """Return the sidecar lock file path for review-state.json.
+
+    The lock file is located alongside the data file:
+    ``<state_dir>/reviews/review-state.json.lock``
+
+    Args:
+        pr_id: Pull request ID (forwarded to ``get_review_state_file_path``).
+    """
+    return get_review_state_file_path(pr_id).parent / "review-state.json.lock"
+
+
+def _atomic_write_json(file_path: Path, content: str) -> None:
+    """Write *content* to *file_path* atomically via a temp file + ``os.replace``.
+
+    The temporary file is created in the **same directory** as *file_path*
+    to guarantee that ``os.replace`` never crosses filesystem boundaries.
+    On error, the temp file is cleaned up (best-effort) and the original
+    file remains untouched.
+    """
+    fd = tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=file_path.parent,
+        suffix=".tmp",
+        delete=False,
+        encoding="utf-8",
+    )
+    try:
+        fd.write(content)
+        fd.flush()
+        fd.close()
+        os.replace(fd.name, str(file_path))
+    except BaseException:
+        fd.close()
+        with contextlib.suppress(OSError):
+            os.unlink(fd.name)
+        raise
+
+
 def _validate_and_deserialize(
     data: dict,
     pr_id: int,
@@ -630,7 +676,11 @@ def load_review_state(
     file_path = get_review_state_file_path(pr_id)
 
     if file_path.exists():
-        content = file_path.read_text(encoding="utf-8")
+        lock_path = _get_lock_file_path(pr_id)
+        # Use "r+" so the handle starts at offset 0 — required for
+        # consistent byte-range locking on Windows (msvcrt.locking).
+        with locked_file(lock_path, mode="r+", exclusive=False, timeout=_LOCK_TIMEOUT_SECONDS):
+            content = file_path.read_text(encoding="utf-8")
         data = json.loads(content)
         return _validate_and_deserialize(data, pr_id, file_path, delete_on_migration=True)
 
@@ -645,20 +695,82 @@ def load_review_state(
 
 def save_review_state(review_state: ReviewState) -> None:
     """
-    Save review state to JSON file.
+    Save review state to JSON file atomically.
 
-    After writing, calls ``mark_dirty()`` so the auto-persist hook
-    commits the change to the ``-agdt`` branch.
+    Acquires an exclusive lock on the sidecar ``.lock`` file, writes JSON
+    to a temporary file in the same directory, then atomically replaces
+    the target via ``os.replace()``.  After writing, calls ``mark_dirty()``
+    so the auto-persist hook commits the change to the ``-agdt`` branch.
 
     Args:
         review_state: ReviewState object to save.
+
+    Raises:
+        FileLockError: If the exclusive lock cannot be acquired within
+            the configured timeout.
     """
     file_path = get_review_state_file_path(review_state.prId)
+    lock_path = _get_lock_file_path(review_state.prId)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(review_state.to_dict(), indent=2, ensure_ascii=False)
-    file_path.write_text(content, encoding="utf-8")
+
+    # Use "r+" so the handle starts at offset 0 — required for
+    # consistent byte-range locking on Windows (msvcrt.locking).
+    with locked_file(lock_path, mode="r+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
+        _atomic_write_json(file_path, content)
 
     # Signal that review state has been mutated for auto-persist.
+    try:
+        from ..git.agdt_branch import mark_dirty
+
+        mark_dirty()
+    except ImportError:
+        pass  # agdt_branch not available (e.g., minimal install)
+
+
+@contextlib.contextmanager
+def read_modify_write_review_state(pr_id: int) -> Iterator[ReviewState]:
+    """Load, mutate, and atomically save review state under an exclusive lock.
+
+    Holds an exclusive lock across the entire load → mutate → save cycle
+    so that concurrent processes cannot interleave reads and writes.
+
+    Usage::
+
+        with read_modify_write_review_state(pr_id) as state:
+            state.latestIterationId += 1
+
+    If the caller raises an exception inside the context, the save is
+    skipped and the exception propagates.  The lock is always released.
+
+    Args:
+        pr_id: Pull request ID.
+
+    Yields:
+        The loaded ``ReviewState`` for in-place mutation.
+
+    Raises:
+        FileNotFoundError: If the review-state.json file does not exist.
+        FileLockError: If the exclusive lock cannot be acquired.
+    """
+    file_path = get_review_state_file_path(pr_id)
+    lock_path = _get_lock_file_path(pr_id)
+
+    # Use "r+" so the handle starts at offset 0 — required for
+    # consistent byte-range locking on Windows (msvcrt.locking).
+    with locked_file(lock_path, mode="r+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
+        # Read under the exclusive lock (no branch fallback — local only).
+        content = file_path.read_text(encoding="utf-8")
+        data = json.loads(content)
+        state = _validate_and_deserialize(data, pr_id, file_path, delete_on_migration=True)
+
+        yield state
+
+        # Save atomically (still under the exclusive lock).
+        new_content = json.dumps(state.to_dict(), indent=2, ensure_ascii=False)
+        _atomic_write_json(file_path, new_content)
+
+    # mark_dirty *after* the lock is released (same pattern as save_review_state).
     try:
         from ..git.agdt_branch import mark_dirty
 
