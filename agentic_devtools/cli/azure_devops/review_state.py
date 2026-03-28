@@ -677,7 +677,9 @@ def load_review_state(
 
     if file_path.exists():
         lock_path = _get_lock_file_path(pr_id)
-        with locked_file(lock_path, mode="a+", exclusive=False, timeout=_LOCK_TIMEOUT_SECONDS):
+        # Use "r+" so the handle starts at offset 0 — required for
+        # consistent byte-range locking on Windows (msvcrt.locking).
+        with locked_file(lock_path, mode="r+", exclusive=False, timeout=_LOCK_TIMEOUT_SECONDS):
             content = file_path.read_text(encoding="utf-8")
         data = json.loads(content)
         return _validate_and_deserialize(data, pr_id, file_path, delete_on_migration=True)
@@ -712,7 +714,9 @@ def save_review_state(review_state: ReviewState) -> None:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(review_state.to_dict(), indent=2, ensure_ascii=False)
 
-    with locked_file(lock_path, mode="a+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
+    # Use "r+" so the handle starts at offset 0 — required for
+    # consistent byte-range locking on Windows (msvcrt.locking).
+    with locked_file(lock_path, mode="r+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
         _atomic_write_json(file_path, content)
 
     # Signal that review state has been mutated for auto-persist.
@@ -752,7 +756,9 @@ def read_modify_write_review_state(pr_id: int) -> Iterator[ReviewState]:
     file_path = get_review_state_file_path(pr_id)
     lock_path = _get_lock_file_path(pr_id)
 
-    with locked_file(lock_path, mode="a+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
+    # Use "r+" so the handle starts at offset 0 — required for
+    # consistent byte-range locking on Windows (msvcrt.locking).
+    with locked_file(lock_path, mode="r+", exclusive=True, timeout=_LOCK_TIMEOUT_SECONDS):
         # Read under the exclusive lock (no branch fallback — local only).
         content = file_path.read_text(encoding="utf-8")
         data = json.loads(content)
