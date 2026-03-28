@@ -421,7 +421,7 @@ class TestProcessSubmission:
     @patch("agentic_devtools.submission_processor.update_file_status")
     @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
     @patch("agentic_devtools.submission_processor.patch_comment", side_effect=Exception("API error"))
-    def test_api_failure_propagates_and_state_not_saved(
+    def test_api_failure_propagates_but_state_is_saved(
         self,
         mock_patch_comment,
         mock_render,
@@ -429,7 +429,7 @@ class TestProcessSubmission:
         mock_clear,
         mock_rmw,
     ):
-        """Mock patch_comment to raise; verify exception propagates out of with block."""
+        """patch_comment raises; exception propagates AND state is saved (partial progress)."""
         state = _make_review_state(model_id=None, sessions=[])
         _setup_rmw_mock(mock_rmw, state)
         mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
@@ -437,6 +437,11 @@ class TestProcessSubmission:
         item = _make_item(outcome="approve")
         with pytest.raises(Exception, match="API error"):
             process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
+
+        # Verify the context manager exited normally (state was saved) — the
+        # exception is deferred and re-raised *after* the with block.
+        ctx = mock_rmw.return_value
+        ctx.__exit__.assert_called_once_with(None, None, None)
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
@@ -511,3 +516,53 @@ class TestProcessSubmission:
             process_submission(item, _make_config(), {}, _REPO_ID, requests_module=MagicMock())
 
             mock_update_status.assert_called_once_with(state, _FILE_PATH, "approved", summary="LGTM")
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment", side_effect=Exception("PATCH failed"))
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.add_suggestion_to_file")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_partial_progress_saved_when_patch_fails_after_post(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_add_suggestion,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+    ):
+        """POST succeeds but PATCH fails: suggestion thread ID still persisted via state save."""
+        state = _make_review_state(model_id="test-model")
+        _setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+        mock_add_suggestion.side_effect = lambda rs, fp, se: rs
+
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 500, "comments": [{"id": 501}]}
+        mock_requests.post.return_value = mock_response
+
+        suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
+        item = _make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        with pytest.raises(Exception, match="PATCH failed"):
+            process_submission(item, _make_config(), {"Auth": "x"}, _REPO_ID, requests_module=mock_requests)
+
+        # The POST succeeded and add_suggestion_to_file was called
+        mock_requests.post.assert_called_once()
+        mock_add_suggestion.assert_called_once()
+
+        # The context manager exited normally (state was saved with partial progress)
+        ctx = mock_rmw.return_value
+        ctx.__exit__.assert_called_once_with(None, None, None)

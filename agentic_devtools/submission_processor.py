@@ -136,9 +136,22 @@ def process_submission(
     status = ReviewStatus.APPROVED.value if is_approve else ReviewStatus.NEEDS_WORK.value
     thread_status = "closed" if is_approve else "active"
 
-    with read_modify_write_review_state(item.pr_id) as review_state:
-        base_url = build_pr_base_url(config, item.pr_id)
+    # Compute base_url outside the review-state lock — it's a pure string
+    # computation with no I/O, so there's no reason to hold the lock for it.
+    base_url = build_pr_base_url(config, item.pr_id)
 
+    # Use a deferred-exception pattern so that partial progress (e.g. thread
+    # IDs from successfully POSTed suggestions) is persisted even when a
+    # later network call fails.  The ``read_modify_write_review_state``
+    # context manager only saves on normal exit; if we let the exception
+    # propagate directly, earlier in-memory mutations would be lost and a
+    # retry would re-POST duplicate suggestion threads.  By capturing the
+    # exception and re-raising *after* the context exits, the state is saved
+    # with whatever progress was made, matching the ``try/finally:
+    # save_review_state()`` pattern used in ``file_review_commands.py``.
+    _deferred_exc: BaseException | None = None
+
+    with read_modify_write_review_state(item.pr_id) as review_state:
         # Re-review: rotate old suggestions to audit trail.  The KeyError is
         # caught and ignored here because the file may not exist yet in state
         # (e.g. new file added after scaffolding).  The subsequent
@@ -155,121 +168,134 @@ def process_submission(
         normalized = normalize_file_path(item.file_path)
         file_entry = review_state.files[normalized]
 
-        # POST suggestion threads for request-changes outcomes
-        if not is_approve and item.suggestions:
-            existing = file_entry.suggestions
+        # POST suggestion threads for request-changes outcomes.
+        # Each successfully POSTed thread is immediately added to the
+        # in-memory state via add_suggestion_to_file().  If a later POST
+        # or PATCH fails, the deferred-exception pattern ensures these
+        # thread IDs are still persisted, making retries idempotent.
+        try:
+            if not is_approve and item.suggestions:
+                existing = file_entry.suggestions
 
-            def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
-                for e in existing:
-                    if (
-                        e.line == line
-                        and e.endLine == end_line
-                        and e.severity == severity
-                        and e.content == content
-                        and e.outOfScope == out_of_scope
-                        and e.linkText == link_text
-                    ):
-                        return True
-                return False
+                def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+                    for e in existing:
+                        if (
+                            e.line == line
+                            and e.endLine == end_line
+                            and e.severity == severity
+                            and e.content == content
+                            and e.outOfScope == out_of_scope
+                            and e.linkText == link_text
+                        ):
+                            return True
+                    return False
 
-            threads_url = config.build_api_url(repo_id, "pullRequests", item.pr_id, "threads")
-            for s in item.suggestions:
-                line = s["line"]
-                end_line = s.get("end_line", line)
-                severity = s["severity"]
-                out_of_scope = s.get("out_of_scope", False)
-                content = s["content"]
+                threads_url = config.build_api_url(repo_id, "pullRequests", item.pr_id, "threads")
+                for s in item.suggestions:
+                    line = s["line"]
+                    end_line = s.get("end_line", line)
+                    severity = s["severity"]
+                    out_of_scope = s.get("out_of_scope", False)
+                    content = s["content"]
 
-                if s.get("link_text"):
-                    link_text = s["link_text"]
-                elif end_line != line:
-                    link_text = f"lines {line} - {end_line}"
-                else:
-                    link_text = f"line {line}"
+                    if s.get("link_text"):
+                        link_text = s["link_text"]
+                    elif end_line != line:
+                        link_text = f"lines {line} - {end_line}"
+                    else:
+                        link_text = f"line {line}"
 
-                if _already_posted(line, end_line, severity, content, out_of_scope, link_text):
-                    continue
+                    if _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+                        continue
 
-                thread_context = build_thread_context(normalized, line, end_line)
-                thread_body = {
-                    "comments": [{"content": content, "commentType": "text"}],
-                    "status": "active",
-                    "threadContext": thread_context,
-                }
-                response = requests_module.post(threads_url, headers=headers, json=thread_body, timeout=30)
-                response.raise_for_status()
-                result = response.json()
-                thread_id = result["id"]
-                comment_id = result["comments"][0]["id"]
+                    thread_context = build_thread_context(normalized, line, end_line)
+                    thread_body = {
+                        "comments": [{"content": content, "commentType": "text"}],
+                        "status": "active",
+                        "threadContext": thread_context,
+                    }
+                    response = requests_module.post(threads_url, headers=headers, json=thread_body, timeout=30)
+                    response.raise_for_status()
+                    result = response.json()
+                    thread_id = result["id"]
+                    comment_id = result["comments"][0]["id"]
 
-                add_suggestion_to_file(
-                    review_state,
-                    item.file_path,
-                    SuggestionEntry(
-                        threadId=thread_id,
-                        commentId=comment_id,
-                        line=line,
-                        endLine=end_line,
-                        severity=severity,
-                        outOfScope=out_of_scope,
-                        linkText=link_text,
-                        content=content,
-                    ),
-                )
+                    add_suggestion_to_file(
+                        review_state,
+                        item.file_path,
+                        SuggestionEntry(
+                            threadId=thread_id,
+                            commentId=comment_id,
+                            line=line,
+                            endLine=end_line,
+                            severity=severity,
+                            outOfScope=out_of_scope,
+                            linkText=link_text,
+                            content=content,
+                        ),
+                    )
 
-        # Record verdict when a model ID is available
-        if review_state.sessions:
-            model_id = review_state.sessions[-1].modelId
-        else:
-            model_id = getattr(review_state, "modelId", None)
-        if model_id:
-            record_verdict(file_entry, model_id, VerdictType.AGREE, status)
+            # Record verdict when a model ID is available
+            if review_state.sessions:
+                model_id = review_state.sessions[-1].modelId
+            else:
+                model_id = getattr(review_state, "modelId", None)
+            if model_id:
+                record_verdict(file_entry, model_id, VerdictType.AGREE, status)
 
-        # PATCH file summary comment
-        attrs = _get_attribution_params(review_state, config, file_path=item.file_path)
-        suggestions_for_render = [] if is_approve else file_entry.suggestions
-        file_content = render_file_summary(file_entry, suggestions_for_render, base_url, **attrs)
-        patch_comment(
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=item.pr_id,
-            thread_id=file_entry.threadId,
-            comment_id=file_entry.commentId,
-            new_content=file_content,
-        )
+            # PATCH file summary comment
+            attrs = _get_attribution_params(review_state, config, file_path=item.file_path)
+            suggestions_for_render = [] if is_approve else file_entry.suggestions
+            file_content = render_file_summary(file_entry, suggestions_for_render, base_url, **attrs)
+            patch_comment(
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=item.pr_id,
+                thread_id=file_entry.threadId,
+                comment_id=file_entry.commentId,
+                new_content=file_content,
+            )
 
-        # PATCH file thread status
-        patch_thread_status(
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=item.pr_id,
-            thread_id=file_entry.threadId,
-            status=thread_status,
-        )
+            # PATCH file thread status
+            patch_thread_status(
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=item.pr_id,
+                thread_id=file_entry.threadId,
+                status=thread_status,
+            )
 
-        # Mark file as reviewed in Azure DevOps
-        mark_file_reviewed(
-            file_path=item.file_path,
-            pull_request_id=item.pr_id,
-            config=config,
-            repo_id=repo_id,
-        )
+            # Mark file as reviewed in Azure DevOps
+            mark_file_reviewed(
+                file_path=item.file_path,
+                pull_request_id=item.pr_id,
+                config=config,
+                repo_id=repo_id,
+            )
 
-        # Cascade overall PR summary
-        cascade_attrs = _get_attribution_params(review_state, config)
-        patch_operations = cascade_status_update(review_state, item.file_path, base_url, **cascade_attrs)
-        execute_cascade(
-            patch_operations=patch_operations,
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=item.pr_id,
-        )
+            # Cascade overall PR summary
+            cascade_attrs = _get_attribution_params(review_state, config)
+            patch_operations = cascade_status_update(review_state, item.file_path, base_url, **cascade_attrs)
+            execute_cascade(
+                patch_operations=patch_operations,
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=item.pr_id,
+            )
+        except Exception as exc:
+            _deferred_exc = exc
+
+    # The context manager has saved state (including any partial progress).
+    # Now re-raise the deferred exception so the SubmissionManager worker
+    # marks the item as FAILED.
+    if _deferred_exc is not None:
+        raise _deferred_exc
 
 
 def create_review_processor(
