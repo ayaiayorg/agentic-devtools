@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from agentic_devtools.skill_injector import _ensure_github_gitignore_unignores_agdt
 
 
@@ -18,7 +20,8 @@ class TestEnsureGithubGitignoreUnignoresAgdt:
         github_gitignore.write_text(original, encoding="utf-8")
 
         with patch("pathlib.Path.read_text", side_effect=OSError("cannot read")):
-            _ensure_github_gitignore_unignores_agdt(tmp_path)
+            with pytest.warns(RuntimeWarning, match="failed to read"):
+                _ensure_github_gitignore_unignores_agdt(tmp_path)
 
         assert github_gitignore.read_text(encoding="utf-8") == original
 
@@ -29,6 +32,7 @@ class TestEnsureGithubGitignoreUnignoresAgdt:
         github_gitignore = github_dir / ".gitignore"
 
         with patch("pathlib.Path.write_text", side_effect=OSError("cannot write")):
-            _ensure_github_gitignore_unignores_agdt(tmp_path)
+            with pytest.warns(RuntimeWarning, match="failed to write"):
+                _ensure_github_gitignore_unignores_agdt(tmp_path)
 
         assert not github_gitignore.exists()

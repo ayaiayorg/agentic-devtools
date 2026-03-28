@@ -216,7 +216,8 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Ensured .agdt/.gitignore" in out
@@ -235,7 +236,8 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to create/update .agdt/.gitignore" in err
@@ -253,10 +255,11 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.skill_injector.inject_skills", return_value=True
-                                            ):
-                                                commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.skill_injector.inject_skills", return_value=True
+                                                ):
+                                                    commands.setup_cmd()
 
         out = capsys.readouterr().out
         assert "Injected agent/prompt skills" in out
@@ -274,10 +277,11 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.skill_injector.inject_skills", return_value=False
-                                            ):
-                                                commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.skill_injector.inject_skills", return_value=False
+                                                ):
+                                                    commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to inject agent/prompt skills" in err
@@ -305,8 +309,9 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch("builtins.__import__", side_effect=_raising_import):
-                                                commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch("builtins.__import__", side_effect=_raising_import):
+                                                    commands.setup_cmd()
 
         err = capsys.readouterr().err
         assert "Failed to import skill injector" in err
@@ -418,23 +423,24 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                return_value=mock_result,
-                                            ) as mock_detect:
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
-                                                    return_value={"issue_adapter": "jira"},
-                                                ) as mock_confirm:
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    return_value=mock_result,
+                                                ) as mock_detect:
                                                     with patch(
-                                                        "agentic_devtools.config.save_platform_config",
-                                                        return_value=True,
-                                                    ) as mock_save:
+                                                        "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
+                                                        return_value={"issue_adapter": "jira"},
+                                                    ) as mock_confirm:
                                                         with patch(
-                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                            return_value=[],
-                                                        ):
-                                                            commands.setup_cmd()
+                                                            "agentic_devtools.config.save_platform_config",
+                                                            return_value=True,
+                                                        ) as mock_save:
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                                return_value=[],
+                                                            ):
+                                                                commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Platform configuration saved" in out
         mock_detect.assert_called_once_with(str(tmp_path))
@@ -454,17 +460,18 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                            ) as mock_detect:
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.config.save_platform_config",
-                                                ) as mock_save:
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                ) as mock_detect:
                                                     with patch(
-                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                        return_value=[],
-                                                    ):
-                                                        commands.setup_cmd()
+                                                        "agentic_devtools.config.save_platform_config",
+                                                    ) as mock_save:
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                            return_value=[],
+                                                        ):
+                                                            commands.setup_cmd()
         mock_detect.assert_not_called()
         mock_save.assert_not_called()
 
@@ -488,22 +495,23 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                            ) as mock_detect:
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.config.load_platform_config",
-                                                    return_value=existing_config,
-                                                ) as mock_load:
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                ) as mock_detect:
                                                     with patch(
-                                                        "agentic_devtools.config.save_platform_config",
-                                                        return_value=True,
-                                                    ) as mock_save:
+                                                        "agentic_devtools.config.load_platform_config",
+                                                        return_value=existing_config,
+                                                    ) as mock_load:
                                                         with patch(
-                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                            return_value=[],
-                                                        ):
-                                                            commands.setup_cmd()
+                                                            "agentic_devtools.config.save_platform_config",
+                                                            return_value=True,
+                                                        ) as mock_save:
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                                return_value=[],
+                                                            ):
+                                                                commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Issue adapter configured: jira" in out
         mock_detect.assert_not_called()
@@ -534,23 +542,24 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                return_value=mock_result,
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
-                                                    return_value={"issue_adapter": "jira"},
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    return_value=mock_result,
                                                 ):
                                                     with patch(
-                                                        "agentic_devtools.config.save_platform_config",
-                                                        return_value=False,
+                                                        "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
+                                                        return_value={"issue_adapter": "jira"},
                                                     ):
                                                         with patch(
-                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                            return_value=[],
+                                                            "agentic_devtools.config.save_platform_config",
+                                                            return_value=False,
                                                         ):
-                                                            commands.setup_cmd()
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                                return_value=[],
+                                                            ):
+                                                                commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Failed to save platform configuration" in err
 
@@ -567,15 +576,16 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("boom"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("boom"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Platform setup failed" in err
         assert "boom" in err
@@ -606,18 +616,19 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[
-                                                        Path("/tmp/a.py"),
-                                                        Path("/tmp/b.py"),
-                                                    ],
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[
+                                                            Path("/tmp/a.py"),
+                                                            Path("/tmp/b.py"),
+                                                        ],
+                                                    ):
+                                                        commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Generated template:" in out
 
@@ -634,14 +645,15 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                ) as mock_gen:
-                                                    commands.setup_cmd()
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                    ) as mock_gen:
+                                                        commands.setup_cmd()
         mock_gen.assert_not_called()
 
     def test_templates_empty_list_prints_info(self, capsys, tmp_path):
@@ -657,15 +669,16 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Workflow templates already exist" in out
 
@@ -682,15 +695,16 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    side_effect=OSError("disk full"),
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        side_effect=OSError("disk full"),
+                                                    ):
+                                                        commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Template generation failed" in err
         assert "disk full" in err
@@ -708,15 +722,16 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
-                                                ) as mock_gen:
-                                                    commands.setup_cmd()
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ) as mock_gen:
+                                                        commands.setup_cmd()
         mock_gen.assert_called_once_with(tmp_path / ".agdt" / "workflow-definitions")
 
     # ── Import failure tests ───────────────────────────────────────────
@@ -743,12 +758,13 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch("builtins.__import__", side_effect=_raising_import):
-                                                with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
-                                                ) as mock_gen:
-                                                    commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch("builtins.__import__", side_effect=_raising_import):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ) as mock_gen:
+                                                        commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Platform setup failed" in err
         mock_gen.assert_called_once()
@@ -775,8 +791,9 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch("builtins.__import__", side_effect=_raising_import):
-                                                commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch("builtins.__import__", side_effect=_raising_import):
+                                                    commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Template generation failed" in err
 
@@ -796,23 +813,24 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                return_value=mock_result,
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
-                                                    return_value={"issue_adapter": "github"},
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    return_value=mock_result,
                                                 ):
                                                     with patch(
-                                                        "agentic_devtools.config.save_platform_config",
-                                                        return_value=True,
+                                                        "agentic_devtools.cli.setup.platform_detection.confirm_and_override",
+                                                        return_value={"issue_adapter": "github"},
                                                     ):
                                                         with patch(
-                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                            return_value=[Path("/tmp/a.py")],
+                                                            "agentic_devtools.config.save_platform_config",
+                                                            return_value=True,
                                                         ):
-                                                            commands.setup_cmd()
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                                return_value=[Path("/tmp/a.py")],
+                                                            ):
+                                                                commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Setup complete! ✅" in out
 
@@ -829,15 +847,16 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("detection failed"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    side_effect=OSError("template failed"),
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("detection failed"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        side_effect=OSError("template failed"),
+                                                    ):
+                                                        commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Setup complete! ✅" in out
 
@@ -854,25 +873,26 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.config.load_platform_config",
-                                                return_value={
-                                                    "issue_adapter": "jira",
-                                                    "code_hosting": "other",
-                                                    "jira": {},
-                                                    "github": {},
-                                                    "azure_devops": {},
-                                                },
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.config.save_platform_config",
-                                                    return_value=False,
+                                                    "agentic_devtools.config.load_platform_config",
+                                                    return_value={
+                                                        "issue_adapter": "jira",
+                                                        "code_hosting": "other",
+                                                        "jira": {},
+                                                        "github": {},
+                                                        "azure_devops": {},
+                                                    },
                                                 ):
                                                     with patch(
-                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                        return_value=[],
+                                                        "agentic_devtools.config.save_platform_config",
+                                                        return_value=False,
                                                     ):
-                                                        commands.setup_cmd()
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                            return_value=[],
+                                                        ):
+                                                            commands.setup_cmd()
         err = capsys.readouterr().err
         assert "Failed to save platform configuration" in err
 
@@ -889,14 +909,15 @@ class TestSetupCmd:
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
                                     ):
                                         with patch.object(commands, "_prompt_project_config"):
-                                            with patch(
-                                                "agentic_devtools.cli.setup.platform_detection.detect_platforms",
-                                                side_effect=RuntimeError("skip"),
-                                            ):
+                                            with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
-                                                    return_value=[],
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
                                                 ):
-                                                    commands.setup_cmd()
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Platform & Workflow Setup" in out

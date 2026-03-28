@@ -4,6 +4,7 @@ import io
 import json
 import tarfile
 import zipfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -213,3 +214,55 @@ class TestDownloadAndInstallGh:
                         )
         assert result is False
         assert "Extraction failed" in capsys.readouterr().err
+
+    def test_tar_extract_uses_filter_on_python_312(self, tmp_path):
+        """On Python 3.12+, tar.extract() is called with filter='data'."""
+        tar_content = _make_tar_gz_bytes("gh", b"gh-binary-content")
+        mock_resp = _make_mock_response(tar_content)
+        version_file = tmp_path / "v.json"
+
+        def _side_effect(member, *, path, **kwargs):
+            Path(path, member.name).parent.mkdir(parents=True, exist_ok=True)
+            Path(path, member.name).write_bytes(b"gh-binary-content")
+
+        with patch.object(gh_cli_installer, "_INSTALL_DIR", tmp_path):
+            with patch.object(gh_cli_installer, "_VERSION_FILE", version_file):
+                with patch.object(gh_cli_installer, "_BINARY_NAME", "gh"):
+                    with patch("requests.get", return_value=mock_resp):
+                        with patch.object(gh_cli_installer.sys, "version_info", (3, 12, 0)):
+                            with patch.object(tarfile.TarFile, "extract", side_effect=_side_effect) as mock_extract:
+                                result = gh_cli_installer.download_and_install(
+                                    "v2.65.0",
+                                    "https://github.com/releases/gh.tar.gz",
+                                    "gh_2.65.0_linux_amd64.tar.gz",
+                                )
+        assert result is True
+        assert mock_extract.call_count == 1
+        _, kwargs = mock_extract.call_args
+        assert kwargs.get("filter") == "data"
+
+    def test_tar_extract_no_filter_on_python_311(self, tmp_path):
+        """On Python < 3.12, tar.extract() is called without filter kwarg."""
+        tar_content = _make_tar_gz_bytes("gh", b"gh-binary-content")
+        mock_resp = _make_mock_response(tar_content)
+        version_file = tmp_path / "v.json"
+
+        def _side_effect(member, *, path, **kwargs):
+            Path(path, member.name).parent.mkdir(parents=True, exist_ok=True)
+            Path(path, member.name).write_bytes(b"gh-binary-content")
+
+        with patch.object(gh_cli_installer, "_INSTALL_DIR", tmp_path):
+            with patch.object(gh_cli_installer, "_VERSION_FILE", version_file):
+                with patch.object(gh_cli_installer, "_BINARY_NAME", "gh"):
+                    with patch("requests.get", return_value=mock_resp):
+                        with patch.object(gh_cli_installer.sys, "version_info", (3, 11, 0)):
+                            with patch.object(tarfile.TarFile, "extract", side_effect=_side_effect) as mock_extract:
+                                result = gh_cli_installer.download_and_install(
+                                    "v2.65.0",
+                                    "https://github.com/releases/gh.tar.gz",
+                                    "gh_2.65.0_linux_amd64.tar.gz",
+                                )
+        assert result is True
+        assert mock_extract.call_count == 1
+        _, kwargs = mock_extract.call_args
+        assert "filter" not in kwargs
