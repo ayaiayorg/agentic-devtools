@@ -167,6 +167,7 @@ from .review_state import (
     get_review_state_file_path,
     load_review_state,
     normalize_file_path,
+    read_modify_write_review_state,
     save_review_state,
     update_file_status,
 )
@@ -313,6 +314,7 @@ __all__ = [
     "get_review_state_file_path",
     "load_review_state",
     "save_review_state",
+    "read_modify_write_review_state",
     "get_file_entry",
     "get_folder_entry",
     "update_file_status",
