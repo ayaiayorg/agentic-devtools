@@ -203,7 +203,7 @@ class TestSubmissionManager:
             # Enqueue first item — it will block in the processor
             manager.enqueue(pr_id=1, file_path="first.ts", outcome="approve", summary="s1")
             # Wait until the worker has picked up the first item
-            processing_started.wait(timeout=5)
+            assert processing_started.wait(timeout=5), "Worker did not start processing within 5 seconds"
 
             # Enqueue more items — they should be waiting in the queue
             manager.enqueue(pr_id=1, file_path="second.ts", outcome="approve", summary="s2")
