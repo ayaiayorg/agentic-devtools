@@ -124,11 +124,12 @@ If tests fail, fix the issues before proceeding.
 ### Commit & Push
 
 ```bash
-agdt-git-save-work --commit-message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
+agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
 
 - <summary of changes>
 
 [#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
+agdt-git-save-work
 agdt-task-wait
 ```
 
