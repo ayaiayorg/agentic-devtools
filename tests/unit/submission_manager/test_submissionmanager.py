@@ -259,6 +259,66 @@ class TestSubmissionManager:
         manager.shutdown(wait=True)
         assert not manager._worker.is_alive()
 
+    def test_concurrent_enqueue_and_shutdown_no_stranded_items(self):
+        """Items enqueued concurrently with shutdown are either processed or rejected."""
+        processed: list[str] = []
+        lock = threading.Lock()
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            with lock:
+                processed.append(item.file_path)
+
+        # Run multiple iterations to increase the chance of exposing interleavings.
+        # The lock-based fix is deterministic, so 20 iterations is sufficient to
+        # exercise both orderings (enqueue-before-shutdown, shutdown-before-enqueue).
+        for _ in range(20):
+            manager = SubmissionManager(processor=tracking_processor)
+            processed.clear()
+            enqueued_items: list[SubmissionItem] = []
+            errors: list[RuntimeError] = []
+
+            # Enqueue one item to start the worker
+            first = manager.enqueue(pr_id=1, file_path="first.ts", outcome="approve", summary="s")
+            enqueued_items.append(first)
+
+            ready = threading.Event()
+
+            def enqueue_task() -> None:
+                ready.wait(timeout=5)
+                try:
+                    item = manager.enqueue(pr_id=1, file_path="concurrent.ts", outcome="approve", summary="s")
+                    enqueued_items.append(item)
+                except RuntimeError as exc:
+                    errors.append(exc)
+
+            def shutdown_task() -> None:
+                ready.wait(timeout=5)
+                manager.shutdown(wait=True)
+
+            t_enqueue = threading.Thread(target=enqueue_task)
+            t_shutdown = threading.Thread(target=shutdown_task)
+            t_enqueue.start()
+            t_shutdown.start()
+
+            # Release both threads simultaneously to maximise interleaving
+            ready.set()
+            t_enqueue.join(timeout=5)
+            t_shutdown.join(timeout=5)
+
+            # Verify threads completed (no deadlock)
+            assert not t_enqueue.is_alive(), "enqueue thread hung"
+            assert not t_shutdown.is_alive(), "shutdown thread hung"
+
+            # The concurrent enqueue was either accepted or rejected
+            assert len(enqueued_items) + len(errors) >= 2  # first + concurrent outcome
+
+            # Every successfully enqueued item must have been processed
+            for item in enqueued_items:
+                assert item.status in (
+                    SubmissionStatus.SUCCEEDED,
+                    SubmissionStatus.FAILED,
+                ), f"Item {item.file_path} stranded with status={item.status}"
+
     def test_enqueue_after_shutdown_raises(self):
         """Verify RuntimeError when enqueueing after shutdown."""
         manager = SubmissionManager()

@@ -214,12 +214,18 @@ class SubmissionManager:
         Args:
             wait: Whether to block until the worker exits
         """
-        if not self._shutdown_event.is_set():
-            self._shutdown_event.set()
-            self._queue.put(None)  # sentinel to unblock the worker
+        worker: threading.Thread | None = None
+        with self._lock:
+            if not self._shutdown_event.is_set():
+                self._shutdown_event.set()
+                # Enqueue sentinel under the same lock used by enqueue()
+                # to prevent interleavings where the sentinel appears
+                # before a newly queued item.
+                self._queue.put(None)
+            worker = self._worker
 
-        if wait and self._worker is not None and self._worker.is_alive():
-            self._worker.join()
+        if wait and worker is not None and worker.is_alive():
+            worker.join()
 
     def _ensure_worker_started(self) -> None:
         """Start the worker thread if not already running."""
