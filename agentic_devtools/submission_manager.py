@@ -85,13 +85,15 @@ class SubmissionItem:
     def from_dict(cls, data: dict[str, Any]) -> SubmissionItem:
         """Create a SubmissionItem from a dictionary."""
         status_value = data.get("status", SubmissionStatus.QUEUED.value)
-        if isinstance(status_value, str):
+        if isinstance(status_value, SubmissionStatus):
+            status = status_value
+        elif isinstance(status_value, str):
             try:
                 status = SubmissionStatus(status_value)
             except ValueError:
                 status = SubmissionStatus.QUEUED
         else:
-            status = status_value
+            status = SubmissionStatus.QUEUED
 
         return cls(
             id=data.get("id", str(uuid.uuid4())),
@@ -156,9 +158,6 @@ class SubmissionManager:
         Raises:
             RuntimeError: If the manager has been shut down
         """
-        if self._shutdown_event.is_set():
-            raise RuntimeError("SubmissionManager has been shut down")
-
         item = SubmissionItem(
             id=str(uuid.uuid4()),
             pr_id=pr_id,
@@ -169,9 +168,11 @@ class SubmissionManager:
         )
 
         with self._lock:
+            if self._shutdown_event.is_set():
+                raise RuntimeError("SubmissionManager has been shut down")
             self._items[item.id] = item
+            self._queue.put(item)
 
-        self._queue.put(item)
         self._ensure_worker_started()
 
         return item
@@ -199,31 +200,36 @@ class SubmissionManager:
 
     def get_queue_depth(self) -> int:
         """Return the number of items waiting in the queue (not yet picked up)."""
-        return self._queue.qsize()
+        with self._lock:
+            return sum(1 for item in self._items.values() if item.status == SubmissionStatus.QUEUED)
 
     def shutdown(self, wait: bool = True) -> None:
         """Signal the worker thread to stop.
 
         If wait=True, blocks until the worker thread has finished processing
-        the current item and exited. Multiple calls are idempotent.
+        the current item and exited. Multiple calls are idempotent w.r.t. the
+        shutdown signal, but subsequent calls with wait=True will still join
+        the worker thread.
 
         Args:
             wait: Whether to block until the worker exits
         """
-        if self._shutdown_event.is_set():
-            return
+        if not self._shutdown_event.is_set():
+            self._shutdown_event.set()
+            self._queue.put(None)  # sentinel to unblock the worker
 
-        self._shutdown_event.set()
-        self._queue.put(None)  # sentinel to unblock the worker
-
-        if wait and self._worker is not None:
+        if wait and self._worker is not None and self._worker.is_alive():
             self._worker.join()
 
     def _ensure_worker_started(self) -> None:
         """Start the worker thread if not already running."""
+        # Fast-path check without lock, followed by a locked double-check to
+        # prevent multiple concurrent enqueue() calls from starting multiple workers.
         if self._worker is None or not self._worker.is_alive():
-            self._worker = threading.Thread(target=self._worker_loop, daemon=True)
-            self._worker.start()
+            with self._lock:
+                if self._worker is None or not self._worker.is_alive():
+                    self._worker = threading.Thread(target=self._worker_loop, daemon=True)
+                    self._worker.start()
 
     def _worker_loop(self) -> None:
         """Process items from the queue serially."""

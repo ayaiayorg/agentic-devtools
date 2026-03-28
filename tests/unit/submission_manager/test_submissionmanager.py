@@ -51,7 +51,6 @@ class TestSubmissionManager:
         lock = threading.Lock()
 
         def recording_processor(item: SubmissionItem) -> None:
-            time.sleep(0.01)  # small delay to ensure ordering
             with lock:
                 order.append(item.file_path)
 
@@ -193,16 +192,18 @@ class TestSubmissionManager:
     def test_get_queue_depth(self):
         """Enqueue items with a blocking processor, check depth > 0."""
         barrier = threading.Event()
+        processing_started = threading.Event()
 
         def blocking_processor(item: SubmissionItem) -> None:
+            processing_started.set()
             barrier.wait(timeout=5)
 
         manager = SubmissionManager(processor=blocking_processor)
         try:
             # Enqueue first item — it will block in the processor
             manager.enqueue(pr_id=1, file_path="first.ts", outcome="approve", summary="s1")
-            # Give the worker a moment to pick it up
-            time.sleep(0.05)
+            # Wait until the worker has picked up the first item
+            processing_started.wait(timeout=5)
 
             # Enqueue more items — they should be waiting in the queue
             manager.enqueue(pr_id=1, file_path="second.ts", outcome="approve", summary="s2")
@@ -236,6 +237,28 @@ class TestSubmissionManager:
         manager.shutdown(wait=True)
         manager.shutdown(wait=True)  # second call should be a no-op
 
+    def test_shutdown_wait_true_after_wait_false(self):
+        """shutdown(wait=True) still joins worker even after shutdown(wait=False)."""
+        barrier = threading.Event()
+
+        def blocking_processor(item: SubmissionItem) -> None:
+            barrier.wait(timeout=5)
+
+        manager = SubmissionManager(processor=blocking_processor)
+        manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # First shutdown without waiting — signals but doesn't join
+        manager.shutdown(wait=False)
+        assert manager._worker is not None
+        assert manager._worker.is_alive()
+
+        # Release the processor so the worker can finish
+        barrier.set()
+
+        # Second shutdown with wait — must still join the worker
+        manager.shutdown(wait=True)
+        assert not manager._worker.is_alive()
+
     def test_enqueue_after_shutdown_raises(self):
         """Verify RuntimeError when enqueueing after shutdown."""
         manager = SubmissionManager()
@@ -259,9 +282,11 @@ class TestSubmissionManager:
         manager = SubmissionManager()
         try:
             manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
-            # Give it a moment to start
-            time.sleep(0.02)
-            assert manager._worker is not None
+            # Wait deterministically for the worker thread to be created
+            start = time.time()
+            while manager._worker is None and time.time() - start < 1.0:
+                time.sleep(0.005)
+            assert manager._worker is not None, "Worker thread was not started within timeout"
             assert manager._worker.daemon is True
         finally:
             manager.shutdown(wait=True)

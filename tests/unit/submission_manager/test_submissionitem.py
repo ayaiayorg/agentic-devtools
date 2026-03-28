@@ -149,8 +149,8 @@ class TestSubmissionItem:
         item = SubmissionItem.from_dict(data)
         assert item.status == SubmissionStatus.PROCESSING
 
-    def test_from_dict_with_non_string_status_passthrough(self):
-        """Test from_dict passes through non-string status values as-is."""
+    def test_from_dict_with_non_string_status_defaults_to_queued(self):
+        """Test from_dict normalizes non-string/non-enum status to QUEUED."""
         data = {
             "id": "passthrough",
             "pr_id": 1,
@@ -160,7 +160,7 @@ class TestSubmissionItem:
             "status": 42,
         }
         item = SubmissionItem.from_dict(data)
-        assert item.status == 42
+        assert item.status == SubmissionStatus.QUEUED
 
     def test_roundtrip(self):
         """Test SubmissionItem survives dict roundtrip."""
