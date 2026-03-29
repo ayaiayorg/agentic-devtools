@@ -1923,11 +1923,18 @@ def submit_reviews() -> None:
         }
 
     Raises:
-        SystemExit: On fatal validation errors (missing batch_reviews,
-            invalid JSON, empty array).  Per-file errors are collected and
-            reported at the end without aborting the batch.
+        SystemExit: On fatal validation errors (missing batch_reviews.items,
+            missing pull_request_id, invalid JSON, empty array), or when
+            one or more file reviews fail (exit code 1 after summary).
     """
     from ...state import set_value
+
+    # Fail fast: validate pull_request_id once before the loop so a missing
+    # value produces a single clear error instead of N identical per-file errors.
+    pr_id = get_pull_request_id(required=False)
+    if pr_id is None:
+        print("Error: 'pull_request_id' is required.", file=sys.stderr)
+        sys.exit(1)
 
     batch_json = get_value("batch_reviews.items")
     if not batch_json:
@@ -1938,17 +1945,17 @@ def submit_reviews() -> None:
         try:
             reviews = json.loads(batch_json)
         except json.JSONDecodeError as e:
-            print(f"Error: 'batch_reviews' is not valid JSON: {e}", file=sys.stderr)
+            print(f"Error: 'batch_reviews.items' is not valid JSON: {e}", file=sys.stderr)
             sys.exit(1)
     else:
         reviews = batch_json
 
     if not isinstance(reviews, list):
-        print("Error: 'batch_reviews' must be a JSON array.", file=sys.stderr)
+        print("Error: 'batch_reviews.items' must be a JSON array.", file=sys.stderr)
         sys.exit(1)
 
     if not reviews:
-        print("Error: 'batch_reviews' must contain at least one review.", file=sys.stderr)
+        print("Error: 'batch_reviews.items' must contain at least one review.", file=sys.stderr)
         sys.exit(1)
 
     default_outcome = get_value("batch_reviews.default_outcome") or _BATCH_OUTCOME_APPROVE
@@ -1971,7 +1978,19 @@ def submit_reviews() -> None:
             failed += 1
             continue
 
-        outcome = (review.get("outcome") or default_outcome).lower()
+        # Resolve outcome with defensive type checking for user-supplied JSON
+        raw_outcome = review.get("outcome")
+        if raw_outcome is None or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
+            raw_outcome = default_outcome
+
+        if not isinstance(raw_outcome, str):
+            errors.append(
+                f"Review at index {i} ({file_path}): 'outcome' must be a string (got {type(raw_outcome).__name__})."
+            )
+            failed += 1
+            continue
+
+        outcome = raw_outcome.strip().lower()
         summary = review.get("summary") or default_summary
         suggestions = review.get("suggestions")
 
@@ -2023,3 +2042,6 @@ def submit_reviews() -> None:
         print("Errors:", file=sys.stderr)
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
+
+    if failed:
+        sys.exit(1)

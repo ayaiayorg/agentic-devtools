@@ -1354,7 +1354,17 @@ def submit_reviews_async(
 
     # Validate required values
     _require_value("pull_request_id", "agdt-submit-reviews --pull-request-id 12345")
-    raw = _require_value("batch_reviews.items", "agdt-submit-reviews --reviews '[...]'")
+
+    # Use get_value() directly instead of _require_value() for batch_reviews.items
+    # because _require_value() coerces to str, which would turn a list stored
+    # directly in state into its repr — breaking JSON validation below.
+    raw = get_value("batch_reviews.items")
+    if not raw:
+        print(
+            "Error: batch_reviews.items is required. Use: agdt-submit-reviews --reviews '[...]'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Early-validate JSON structure
     try:

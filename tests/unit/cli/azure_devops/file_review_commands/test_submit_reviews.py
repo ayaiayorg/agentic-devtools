@@ -11,8 +11,22 @@ from agentic_devtools.cli.azure_devops.file_review_commands import submit_review
 class TestSubmitReviews:
     """Tests for the batch submit_reviews sync function."""
 
+    def test_exits_when_pull_request_id_missing(self, temp_state_dir, clear_state_before, capsys):
+        """Should fail fast when pull_request_id is not set."""
+        from agentic_devtools.state import set_value
+
+        set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts"}]))
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "pull_request_id" in captured.err
+
     def test_exits_when_batch_reviews_items_missing(self, temp_state_dir, clear_state_before, capsys):
         """Should exit with code 1 when batch_reviews.items is not set."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
         with pytest.raises(SystemExit) as exc_info:
             submit_reviews()
         assert exc_info.value.code == 1
@@ -23,64 +37,76 @@ class TestSubmitReviews:
         """Should exit when batch_reviews.items is not valid JSON."""
         from agentic_devtools.state import set_value
 
+        set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", "not-json")
         with pytest.raises(SystemExit) as exc_info:
             submit_reviews()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
+        assert "batch_reviews.items" in captured.err
         assert "not valid JSON" in captured.err
 
     def test_exits_when_batch_reviews_not_array(self, temp_state_dir, clear_state_before, capsys):
         """Should exit when batch_reviews.items is a JSON object instead of array."""
         from agentic_devtools.state import set_value
 
+        set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", json.dumps({"file_path": "a.ts"}))
         with pytest.raises(SystemExit) as exc_info:
             submit_reviews()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
+        assert "batch_reviews.items" in captured.err
         assert "JSON array" in captured.err
 
     def test_exits_when_batch_reviews_empty_array(self, temp_state_dir, clear_state_before, capsys):
         """Should exit when batch_reviews.items is an empty array."""
         from agentic_devtools.state import set_value
 
+        set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", "[]")
         with pytest.raises(SystemExit) as exc_info:
             submit_reviews()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
+        assert "batch_reviews.items" in captured.err
         assert "at least one" in captured.err
 
     def test_reports_missing_file_path(self, temp_state_dir, clear_state_before, capsys):
-        """Should report error for entry missing file_path and continue."""
+        """Should report error for entry missing file_path and exit non-zero."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", json.dumps([{"outcome": "approve"}]))
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "0/1 succeeded" in captured.out
         assert "1/1 failed" in captured.out
         assert "missing or empty 'file_path'" in captured.err
 
     def test_reports_unknown_outcome(self, temp_state_dir, clear_state_before, capsys):
-        """Should report error for unknown outcome."""
+        """Should report error for unknown outcome and exit non-zero."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts", "outcome": "bogus"}]))
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "unknown outcome" in captured.err
 
     def test_reports_non_dict_entry(self, temp_state_dir, clear_state_before, capsys):
-        """Should report error for entry that is not a JSON object."""
+        """Should report error for entry that is not a JSON object and exit non-zero."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
         set_value("batch_reviews.items", json.dumps(["not-an-object"]))
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "not a JSON object" in captured.err
 
@@ -93,7 +119,9 @@ class TestSubmitReviews:
             "batch_reviews.items",
             json.dumps([{"file_path": "a.ts", "outcome": "request-changes"}]),
         )
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "summary is required" in captured.err
 
@@ -114,9 +142,55 @@ class TestSubmitReviews:
                 ]
             ),
         )
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "suggestions required" in captured.err
+
+    def test_reports_non_string_outcome(self, temp_state_dir, clear_state_before, capsys):
+        """Should report error when outcome is a non-string type (e.g. number)."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts", "outcome": 42}]))
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "'outcome' must be a string" in captured.err
+
+    def test_empty_string_outcome_uses_default(self, temp_state_dir, clear_state_before, capsys):
+        """Empty-string outcome should fall back to the default."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "a.ts", "outcome": "", "summary": "OK"}]),
+        )
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.approve_file",
+            return_value=None,
+        ) as mock_approve:
+            submit_reviews()
+            mock_approve.assert_called_once()
+
+    def test_whitespace_outcome_uses_default(self, temp_state_dir, clear_state_before, capsys):
+        """Whitespace-only outcome should fall back to the default."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "a.ts", "outcome": "  ", "summary": "OK"}]),
+        )
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands.approve_file",
+            return_value=None,
+        ) as mock_approve:
+            submit_reviews()
+            mock_approve.assert_called_once()
 
     @patch(
         "agentic_devtools.cli.azure_devops.file_review_commands.approve_file",
@@ -215,8 +289,10 @@ class TestSubmitReviews:
         "agentic_devtools.cli.azure_devops.file_review_commands.approve_file",
         side_effect=SystemExit(1),
     )
-    def test_continues_on_per_file_failure(self, mock_approve, temp_state_dir, clear_state_before, capsys):
-        """Should continue processing remaining files when one fails."""
+    def test_continues_on_per_file_failure_and_exits_nonzero(
+        self, mock_approve, temp_state_dir, clear_state_before, capsys
+    ):
+        """Should continue processing remaining files when one fails, then exit non-zero."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
@@ -229,7 +305,9 @@ class TestSubmitReviews:
                 ]
             ),
         )
-        submit_reviews()
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
         assert mock_approve.call_count == 2
         captured = capsys.readouterr()
         assert "0/2 succeeded" in captured.out
@@ -240,7 +318,7 @@ class TestSubmitReviews:
         side_effect=SystemExit(0),
     )
     def test_counts_exit_zero_as_success(self, mock_approve, temp_state_dir, clear_state_before, capsys):
-        """SystemExit(0) should count as success."""
+        """SystemExit(0) should count as success and exit cleanly."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
