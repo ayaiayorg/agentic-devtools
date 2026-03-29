@@ -6,8 +6,9 @@ from :mod:`agentic_devtools.submission_manager`.  The processor receives a
 review submission: load review state, update file status/summary/suggestions,
 POST suggestion threads for request-changes outcomes, PATCH the scaffolded
 file summary comment, PATCH the file thread status, mark the file as
-reviewed in Azure DevOps, cascade the overall PR summary, and persist state
-atomically via ``read_modify_write_review_state()``.
+reviewed in Azure DevOps, cascade the overall PR summary (derived directly
+from file statuses — folder-level threads have been eliminated), and persist
+state atomically via ``read_modify_write_review_state()``.
 
 A companion factory ``create_review_processor()`` captures stable
 dependencies (config, auth headers, repo_id) at construction time so the
@@ -206,10 +207,15 @@ def process_submission(
         # thread IDs are still persisted, making retries idempotent.
         try:
             if not is_approve and item.suggestions:
-                existing = file_entry.suggestions
+                # Check both current and rotated suggestions for duplicates.
+                # On retry after partial failure, clear_suggestions_for_re_review()
+                # may have rotated POSTed entries to previousSuggestions; without
+                # checking both lists, those entries would be re-POSTed.
+                previous = file_entry.previousSuggestions or []
+                all_known = [*file_entry.suggestions, *previous]
 
                 def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
-                    for e in existing:
+                    for e in all_known:
                         if (
                             e.line == line
                             and e.endLine == end_line

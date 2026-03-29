@@ -36,6 +36,7 @@ def make_review_state(
     sessions: list[ReviewSession] | None = None,
     model_id: str | None = "test-model",
     suggestions: list[SuggestionEntry] | None = None,
+    previous_suggestions: list[SuggestionEntry] | None = None,
     commit_hash: str | None = "abc1234",
 ) -> ReviewState:
     file_entry = FileEntry(
@@ -45,6 +46,7 @@ def make_review_state(
         fileName="app.ts",
         status=file_status,
         suggestions=suggestions or [],
+        previousSuggestions=previous_suggestions,
     )
     return ReviewState(
         prId=PR_ID,

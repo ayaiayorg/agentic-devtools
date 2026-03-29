@@ -252,6 +252,66 @@ class TestProcessSubmission:
     @patch("agentic_devtools.submission_processor.update_file_status")
     @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_duplicate_detection_checks_previous_suggestions(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """Duplicate detection includes previousSuggestions (rotated entries from re-review).
+
+        On retry after partial failure, clear_suggestions_for_re_review() may rotate
+        POSTed entries from suggestions to previousSuggestions.  The duplicate detector
+        must check both lists to avoid re-POSTing the same suggestion threads.
+        """
+        rotated_suggestion = SuggestionEntry(
+            threadId=999,
+            commentId=998,
+            line=10,
+            endLine=10,
+            severity="high",
+            outOfScope=False,
+            linkText="line 10",
+            content="Fix this",
+        )
+        # Suggestion was rotated to previousSuggestions (as happens after re-review rotation)
+        state = make_review_state(
+            model_id="test-model",
+            suggestions=[],
+            previous_suggestions=[rotated_suggestion],
+        )
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        mock_requests = MagicMock()
+
+        # Same suggestion data as rotated entry
+        suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
+
+        # No POST should have been made (duplicate detected in previousSuggestions)
+        mock_requests.post.assert_not_called()
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
     def test_approve_no_model_id_skips_verdict(
         self,
         mock_rmw,
@@ -515,13 +575,17 @@ class TestProcessSubmission:
         ctx = mock_rmw.return_value
         ctx.__exit__.assert_called_once_with(None, None, None)
 
-    def test_malformed_suggestion_raises_valueerror_before_state_mutation(self, config):
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_malformed_suggestion_raises_valueerror_before_state_mutation(self, mock_rmw, config):
         """Malformed suggestion dict (missing 'line') raises ValueError before state lock."""
         suggestions = [{"severity": "high", "content": "Fix this"}]  # missing 'line'
         item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
 
         with pytest.raises(ValueError, match="missing required key.*line"):
             process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
+
+        # Verify the state lock was never acquired
+        mock_rmw.assert_not_called()
 
     def test_malformed_suggestion_multiple_missing_keys(self, config):
         """Suggestion missing multiple keys reports all of them."""
