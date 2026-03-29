@@ -60,6 +60,7 @@ from .async_commands import (
     update_pipeline_async,
     wait_for_run_async,
 )
+from .approve_files import approve_files_cli
 from .auth import get_auth_headers, get_pat
 
 # Command exports
@@ -132,6 +133,9 @@ from .pr_summary_commands import (
 # Pull request details command exports
 from .pull_request_details_commands import get_pull_request_details
 
+# Request changes batch command
+from .request_changes_batch import request_changes_batch_cli
+
 # Review attribution exports
 from .review_attribution import (
     SHORT_HASH_LENGTH,
@@ -186,6 +190,9 @@ from .status_cascade import (
     derive_overall_status,
     execute_cascade,
 )
+
+# Submit reviews helpers
+from .submit_reviews import resolve_batch_reviews, validate_batch_reviews
 
 # Suggestion commands exports
 from .suggestion_commands import confirm_suggestion_addressed, reject_suggestion_resolution
@@ -293,6 +300,12 @@ __all__ = [
     "request_changes_with_suggestion_async",
     "request_changes_with_suggestion_async_cli",
     "mark_file_reviewed_async",
+    # Batch convenience commands
+    "approve_files_cli",
+    "request_changes_batch_cli",
+    # Submit reviews helpers
+    "resolve_batch_reviews",
+    "validate_batch_reviews",
     # Mark reviewed
     "mark_file_reviewed",
     "mark_file_reviewed_cli",
