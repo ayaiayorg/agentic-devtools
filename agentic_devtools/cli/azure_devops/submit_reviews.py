@@ -45,6 +45,11 @@ def resolve_batch_reviews(payload: dict) -> list[dict]:
 
     resolved: list[dict] = []
     for item in items:
+        # Non-dict items are passed through so validate_batch_reviews()
+        # can surface a user-friendly error instead of an opaque TypeError.
+        if not isinstance(item, dict):
+            resolved.append(item)
+            continue
         resolved_item = dict(item)  # shallow copy
 
         # Apply default outcome if missing/empty

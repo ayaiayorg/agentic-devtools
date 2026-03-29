@@ -2,7 +2,7 @@
 
 import json
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -30,7 +30,7 @@ class TestRequestChangesBatchCli:
     # -- success path -------------------------------------------------------
 
     def test_successful_batch(self, temp_state_dir, clear_state_before, capsys):
-        """Verify resolve → validate → enqueue is called correctly."""
+        """Verify resolve → validate → submit_reviews_async is called correctly."""
         reviews_json = json.dumps(
             {
                 "default_summary": "Needs fixes",
@@ -42,12 +42,7 @@ class TestRequestChangesBatchCli:
                 ],
             }
         )
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -67,6 +62,9 @@ class TestRequestChangesBatchCli:
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
             ) as mock_validate,
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli("--reviews", reviews_json, "-p", "12345")
 
@@ -76,11 +74,11 @@ class TestRequestChangesBatchCli:
         assert payload["default_outcome"] == "request-changes"
 
         mock_validate.assert_called_once()
-        assert mock_manager.enqueue.call_count == 1
-        assert mock_manager.enqueue.call_args.kwargs["pr_id"] == 12345
 
-        captured = capsys.readouterr()
-        assert "1 file(s) enqueued with request-changes" in captured.out
+        # submit_reviews_async called with correct args
+        mock_submit.assert_called_once()
+        assert mock_submit.call_args.kwargs["pull_request_id"] == 12345
+        assert mock_submit.call_args.kwargs["default_outcome"] == "request-changes"
 
     def test_default_outcome_injection(self, temp_state_dir, clear_state_before):
         """default_outcome is set to 'request-changes' via setdefault."""
@@ -89,12 +87,7 @@ class TestRequestChangesBatchCli:
                 "items": [{"file_path": "/a.ts"}],
             }
         )
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -106,6 +99,9 @@ class TestRequestChangesBatchCli:
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
             ),
         ):
             _run_cli("--reviews", reviews_json, "-p", "1")
@@ -121,12 +117,7 @@ class TestRequestChangesBatchCli:
                 "items": [{"file_path": "/a.ts"}],
             }
         )
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -139,6 +130,9 @@ class TestRequestChangesBatchCli:
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ),
         ):
             _run_cli("--reviews", reviews_json, "-p", "1")
 
@@ -148,12 +142,7 @@ class TestRequestChangesBatchCli:
     def test_pr_id_via_cli(self, temp_state_dir, clear_state_before):
         """--pull-request-id is used when provided."""
         reviews_json = json.dumps({"items": [{"file_path": "/a.ts"}]})
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -166,20 +155,18 @@ class TestRequestChangesBatchCli:
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli("--reviews", reviews_json, "-p", "777")
 
-        assert mock_manager.enqueue.call_args.kwargs["pr_id"] == 777
+        assert mock_submit.call_args.kwargs["pull_request_id"] == 777
 
     def test_pr_id_falls_back_to_state(self, temp_state_dir, clear_state_before):
         """Falls back to get_pull_request_id when --pull-request-id not given."""
         reviews_json = json.dumps({"items": [{"file_path": "/a.ts"}]})
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -196,10 +183,13 @@ class TestRequestChangesBatchCli:
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli("--reviews", reviews_json)
 
-        assert mock_manager.enqueue.call_args.kwargs["pr_id"] == 333
+        assert mock_submit.call_args.kwargs["pull_request_id"] == 333
 
     # -- dry-run ------------------------------------------------------------
 
@@ -242,6 +232,18 @@ class TestRequestChangesBatchCli:
         assert exc.value.code == 1
         assert "must be a JSON object" in capsys.readouterr().err
 
+    def test_empty_items_exits_1(self, temp_state_dir, clear_state_before, capsys):
+        """--reviews with empty or missing items exits 1."""
+        reviews_json = json.dumps({"items": []})
+        with patch(
+            "agentic_devtools.cli.azure_devops.request_changes_batch.resolve_batch_reviews",
+            return_value=[],
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _run_cli("--reviews", reviews_json, "-p", "1")
+        assert exc.value.code == 1
+        assert "at least one item" in capsys.readouterr().err
+
     def test_validation_failure_exits_1(self, temp_state_dir, clear_state_before, capsys):
         """Errors from validate_batch_reviews are printed to stderr and exit 1."""
         reviews_json = json.dumps({"items": [{"file_path": "/x.ts"}]})
@@ -271,7 +273,7 @@ class TestRequestChangesBatchCli:
                 _run_cli("--reviews", reviews_json)
 
     def test_success_output(self, temp_state_dir, clear_state_before, capsys):
-        """Success output contains count and file paths."""
+        """submit_reviews_async is called for valid items."""
         reviews_json = json.dumps(
             {
                 "items": [
@@ -280,12 +282,7 @@ class TestRequestChangesBatchCli:
                 ],
             }
         )
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
                 return_value=False,
@@ -301,10 +298,10 @@ class TestRequestChangesBatchCli:
                 "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli("--reviews", reviews_json, "-p", "1")
 
-        captured = capsys.readouterr()
-        assert "2 file(s) enqueued with request-changes" in captured.out
-        assert "/a.ts" in captured.out
-        assert "/b.ts" in captured.out
+        mock_submit.assert_called_once()

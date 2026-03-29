@@ -3,8 +3,7 @@ Batch approve multiple files with a shared summary.
 
 Provides ``approve_files_cli()`` — a convenience wrapper that constructs an
 ``agdt-submit-reviews``-compatible payload with ``default_outcome="approve"``
-and delegates all resolution, validation, and enqueue logic to the shared
-helpers in :mod:`submit_reviews`.
+and delegates to ``submit_reviews_async()`` for durable background execution.
 """
 
 from __future__ import annotations
@@ -106,19 +105,14 @@ Examples:
             print(f"  {item['file_path']} — {item['outcome']}")
         return
 
-    # Enqueue
-    from agentic_devtools.submission_manager_instance import get_submission_manager
+    # Delegate to submit_reviews_async for durable background execution.
+    # This stores the payload in state and spawns a background subprocess
+    # via run_function_in_background, consistent with other agdt action commands.
+    from .async_commands import submit_reviews_async
 
-    manager = get_submission_manager()
-    for item in resolved:
-        manager.enqueue(
-            pr_id=pr_id,
-            file_path=item["file_path"],
-            outcome=item["outcome"],
-            summary=item["summary"],
-            suggestions=item.get("suggestions"),
-        )
-
-    print(f"✅ {len(resolved)} file(s) approved and enqueued.")
-    for item in resolved:
-        print(f"  {item['file_path']}")
+    submit_reviews_async(
+        reviews=json.dumps([{"file_path": p} for p in file_paths]),
+        default_outcome="approve",
+        default_summary=args.summary,
+        pull_request_id=pr_id,
+    )

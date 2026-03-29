@@ -122,3 +122,9 @@ class TestResolveBatchReviews:
         payload = {"default_outcome": "approve", "items": items}
         resolve_batch_reviews(payload)
         assert "outcome" not in items[0]
+
+    def test_non_dict_item_passed_through(self):
+        """Non-dict items are passed through for validation to catch."""
+        payload = {"items": ["not a dict", 42]}
+        result = resolve_batch_reviews(payload)
+        assert result == ["not a dict", 42]

@@ -1,7 +1,7 @@
 """Tests for agentic_devtools.cli.azure_devops.approve_files.approve_files_cli."""
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -29,13 +29,8 @@ class TestApproveFilesCli:
     # -- success path -------------------------------------------------------
 
     def test_successful_batch_approval(self, temp_state_dir, clear_state_before, capsys):
-        """Verify resolve → validate → enqueue is called correctly."""
-        mock_manager = MagicMock()
+        """Verify resolve → validate → submit_reviews_async is called correctly."""
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.approve_files.is_dry_run",
                 return_value=False,
@@ -51,6 +46,9 @@ class TestApproveFilesCli:
                 "agentic_devtools.cli.azure_devops.approve_files.validate_batch_reviews",
                 return_value=[],
             ) as mock_validate,
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli(
                 "--summary",
@@ -71,26 +69,16 @@ class TestApproveFilesCli:
         # validate called
         mock_validate.assert_called_once()
 
-        # enqueue called for each file
-        assert mock_manager.enqueue.call_count == 2
-        calls = mock_manager.enqueue.call_args_list
-        assert calls[0].kwargs["pr_id"] == 12345
-        assert calls[0].kwargs["file_path"] == "/src/a.ts"
-        assert calls[1].kwargs["file_path"] == "/src/b.ts"
-
-        captured = capsys.readouterr()
-        assert "2 file(s) approved and enqueued" in captured.out
-        assert "/src/a.ts" in captured.out
-        assert "/src/b.ts" in captured.out
+        # submit_reviews_async called with correct args
+        mock_submit.assert_called_once()
+        call_kwargs = mock_submit.call_args.kwargs
+        assert call_kwargs["default_outcome"] == "approve"
+        assert call_kwargs["default_summary"] == "LGTM"
+        assert call_kwargs["pull_request_id"] == 12345
 
     def test_pr_id_from_cli_arg(self, temp_state_dir, clear_state_before):
         """--pull-request-id is used when provided."""
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.approve_files.is_dry_run",
                 return_value=False,
@@ -103,6 +91,9 @@ class TestApproveFilesCli:
                 "agentic_devtools.cli.azure_devops.approve_files.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli(
                 "--summary",
@@ -113,16 +104,11 @@ class TestApproveFilesCli:
                 "999",
             )
 
-        assert mock_manager.enqueue.call_args.kwargs["pr_id"] == 999
+        assert mock_submit.call_args.kwargs["pull_request_id"] == 999
 
     def test_pr_id_falls_back_to_state(self, temp_state_dir, clear_state_before):
         """Falls back to get_pull_request_id when --pull-request-id not given."""
-        mock_manager = MagicMock()
         with (
-            patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=mock_manager,
-            ),
             patch(
                 "agentic_devtools.cli.azure_devops.approve_files.is_dry_run",
                 return_value=False,
@@ -139,10 +125,13 @@ class TestApproveFilesCli:
                 "agentic_devtools.cli.azure_devops.approve_files.validate_batch_reviews",
                 return_value=[],
             ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
         ):
             _run_cli("--summary", "ok", "--file-paths", '["/x.ts"]')
 
-        assert mock_manager.enqueue.call_args.kwargs["pr_id"] == 555
+        assert mock_submit.call_args.kwargs["pull_request_id"] == 555
 
     # -- dry-run ------------------------------------------------------------
 
@@ -237,10 +226,6 @@ class TestApproveFilesCli:
         """Verify the payload dict passed to resolve_batch_reviews."""
         with (
             patch(
-                "agentic_devtools.submission_manager_instance.get_submission_manager",
-                return_value=MagicMock(),
-            ),
-            patch(
                 "agentic_devtools.cli.azure_devops.approve_files.is_dry_run",
                 return_value=False,
             ),
@@ -251,6 +236,9 @@ class TestApproveFilesCli:
             patch(
                 "agentic_devtools.cli.azure_devops.approve_files.validate_batch_reviews",
                 return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
             ),
         ):
             _run_cli(
