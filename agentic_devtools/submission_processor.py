@@ -211,11 +211,13 @@ def process_submission(
                 # On retry after partial failure, clear_suggestions_for_re_review()
                 # may have rotated POSTed entries to previousSuggestions; without
                 # checking both lists, those entries would be re-POSTed.
-                previous = file_entry.previousSuggestions or []
-                all_known = [*file_entry.suggestions, *previous]
+                # Uses live references (not a snapshot) so that suggestions appended
+                # within the same loop iteration via add_suggestion_to_file() are
+                # visible to later iterations, preventing intra-submission duplicates.
 
                 def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
-                    for e in all_known:
+                    previous = file_entry.previousSuggestions or []
+                    for e in [*file_entry.suggestions, *previous]:
                         if (
                             e.line == line
                             and e.endLine == end_line

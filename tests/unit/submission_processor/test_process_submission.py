@@ -312,6 +312,55 @@ class TestProcessSubmission:
     @patch("agentic_devtools.submission_processor.update_file_status")
     @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_intra_submission_duplicate_suggestions_skipped(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """Duplicate entries within the same submission are POSTed only once.
+
+        If item.suggestions contains two identical entries, only the first should
+        be POSTed; the second should be detected as already-posted via the live
+        file_entry.suggestions reference (not a stale snapshot).
+        """
+        state = make_review_state(model_id="test-model")
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": 500, "comments": [{"id": 501}]}
+        mock_requests.post.return_value = mock_response
+
+        # Two identical suggestion dicts in the same submission
+        dup = {"line": 10, "severity": "high", "content": "Fix this"}
+        suggestions = [dup, dup.copy()]
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
+
+        # Only one POST should have been made (second entry is intra-submission duplicate)
+        assert mock_requests.post.call_count == 1
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
     def test_approve_no_model_id_skips_verdict(
         self,
         mock_rmw,
