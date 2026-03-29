@@ -14,6 +14,13 @@ from __future__ import annotations
 _VALID_OUTCOMES = frozenset({"approve", "request-changes", "request-changes-with-suggestion"})
 
 
+def _is_empty_or_whitespace(value: object) -> bool:
+    """Return True if *value* is falsy or a whitespace-only string."""
+    if not value:
+        return True
+    return isinstance(value, str) and not value.strip()
+
+
 def resolve_batch_reviews(payload: dict) -> list[dict]:
     """Resolve defaults into individual review items from a batch payload.
 
@@ -42,14 +49,14 @@ def resolve_batch_reviews(payload: dict) -> list[dict]:
 
         # Apply default outcome if missing/empty
         raw_outcome = resolved_item.get("outcome")
-        if not raw_outcome or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
+        if _is_empty_or_whitespace(raw_outcome):
             resolved_item["outcome"] = default_outcome
         elif isinstance(raw_outcome, str):
             resolved_item["outcome"] = raw_outcome.strip().lower()
 
         # Apply default summary if missing/empty
         raw_summary = resolved_item.get("summary")
-        if not raw_summary or (isinstance(raw_summary, str) and not raw_summary.strip()):
+        if _is_empty_or_whitespace(raw_summary):
             resolved_item["summary"] = default_summary
         elif isinstance(raw_summary, str):
             resolved_item["summary"] = raw_summary.strip()
@@ -97,7 +104,7 @@ def validate_batch_reviews(resolved_items: list[dict]) -> list[str]:
             continue
 
         summary = item.get("summary")
-        if not summary or (isinstance(summary, str) and not summary.strip()):
+        if _is_empty_or_whitespace(summary):
             errors.append(f"Item {i} ({file_path}): summary is required.")
             continue
 
