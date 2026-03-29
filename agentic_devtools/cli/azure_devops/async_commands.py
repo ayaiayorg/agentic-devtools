@@ -837,7 +837,7 @@ def update_pipeline_async() -> None:  # pragma: no cover
 # =============================================================================
 
 
-def _auto_advance_after_submission(
+def _auto_advance_after_submission(  # pragma: no cover — dead code, cleanup deferred to #788
     task_id: str,
     file_path: str,
     outcome: str,
@@ -847,6 +847,10 @@ def _auto_advance_after_submission(
 
     Marks the file as submission-pending in the queue, then prints
     the next file prompt (or checks for failures).
+
+    .. deprecated::
+        No longer called by file review async commands (replaced by
+        SubmissionManager enqueue pattern in #783). Will be removed in #788.
 
     Args:
         task_id: Background task ID
@@ -859,7 +863,7 @@ def _auto_advance_after_submission(
     )
 
     pr_id = get_value("pull_request_id")
-    if not pr_id:  # pragma: no cover
+    if not pr_id:
         return
 
     pr_id_int = int(pr_id)
