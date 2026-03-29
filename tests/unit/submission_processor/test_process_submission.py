@@ -371,16 +371,22 @@ class TestProcessSubmission:
         with pytest.raises(Exception, match="API error") as exc_info:
             process_submission(item, config, {}, REPO_ID, requests_module=MagicMock())
 
-        # The traceback should reference the original failure site (patch_comment),
-        # not just the re-raise line.
+        # The traceback should reference the original failure site (patch_comment
+        # call inside process_submission), not just the deferred re-raise line.
+        # With traceback preservation, the chain contains both the re-raise
+        # site AND the original call site within process_submission.  Without
+        # preservation, only the re-raise line would appear.
         assert exc_info.value.__traceback__ is not None
         tb = exc_info.value.__traceback__
-        # Walk to the deepest frame
-        while tb.tb_next is not None:
+        process_submission_lines: list[int] = []
+        while tb is not None:
+            if tb.tb_frame.f_code.co_name == "process_submission":
+                process_submission_lines.append(tb.tb_lineno)
             tb = tb.tb_next
-        # The deepest frame should be in the mock's side_effect machinery,
-        # not at the bare `raise _deferred_exc` line in submission_processor.py.
-        assert tb.tb_lineno != 0  # sanity check: traceback has a real line number
+        assert len(process_submission_lines) >= 2, (
+            f"Expected ≥2 frames from process_submission (re-raise + original call site), "
+            f"got {len(process_submission_lines)} at lines {process_submission_lines}"
+        )
 
     @patch("agentic_devtools.submission_processor.execute_cascade")
     @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
