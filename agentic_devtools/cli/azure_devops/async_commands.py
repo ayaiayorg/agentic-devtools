@@ -1298,6 +1298,155 @@ def mark_file_reviewed_async() -> None:
 
 
 # =============================================================================
+# Batch Review Submission (Async)
+# =============================================================================
+
+
+def submit_reviews_async(
+    reviews: str | None = None,
+    default_outcome: str | None = None,
+    default_summary: str | None = None,
+    pull_request_id: int | None = None,
+) -> None:
+    """
+    Submit multiple file reviews in a single batch, running in the background.
+
+    Accepts a JSON array of review objects. Each entry requires ``file_path``
+    and may optionally specify ``outcome``, ``summary``, and ``suggestions``.
+    Top-level ``--outcome`` and ``--summary`` flags set defaults inherited by
+    any entry that omits them, enabling a mechanical-refactor mode where the
+    same verdict applies to many files.
+
+    Args:
+        reviews: JSON string containing an array of review objects.
+        default_outcome: Default outcome applied to entries without one.
+            One of ``"approve"``, ``"request-changes"``,
+            ``"request-changes-with-suggestion"``.  Defaults to ``"approve"``.
+        default_summary: Default summary text for entries without one.
+        pull_request_id: Pull request ID (overrides state).
+
+    State keys (used as fallbacks):
+        pull_request_id (required): PR ID
+        batch_reviews.items (required): JSON array of review objects
+        batch_reviews.default_outcome (optional): Default outcome
+        batch_reviews.default_summary (optional): Default summary
+
+    Usage:
+        agdt-submit-reviews \\
+          --reviews '[{"file_path":"src/a.ts"},{"file_path":"src/b.ts"}]' \\
+          --outcome approve --summary "LGTM - mechanical refactor"
+
+        # Or using state:
+        agdt-set pull_request_id 12345
+        agdt-set batch_reviews.items '[{"file_path":"src/a.ts"},{"file_path":"src/b.ts"}]'
+        agdt-set batch_reviews.default_outcome approve
+        agdt-set batch_reviews.default_summary "LGTM"
+        agdt-submit-reviews
+    """
+    import json
+
+    # Store CLI args in state if provided
+    _set_value_if_provided("batch_reviews.items", reviews)
+    _set_value_if_provided("batch_reviews.default_outcome", default_outcome)
+    _set_value_if_provided("batch_reviews.default_summary", default_summary)
+    if pull_request_id is not None:
+        set_value("pull_request_id", pull_request_id)
+
+    # Validate required values
+    _require_value("pull_request_id", "agdt-submit-reviews --pull-request-id 12345")
+    raw = _require_value("batch_reviews.items", "agdt-submit-reviews --reviews '[...]'")
+
+    # Early-validate JSON structure
+    try:
+        reviews_list = json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError as e:
+        print(f"Error: --reviews is not valid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not isinstance(reviews_list, list) or not reviews_list:
+        print("Error: --reviews must be a non-empty JSON array.", file=sys.stderr)
+        sys.exit(1)
+
+    task = run_function_in_background(
+        _FILE_REVIEW_MODULE,
+        "submit_reviews",
+        command_display_name="agdt-submit-reviews",
+    )
+    print_task_tracking_info(task, f"Submitting {len(reviews_list)} file review(s)")
+
+
+def submit_reviews_cli() -> None:
+    """CLI entry point for submit_reviews_async with argument parsing."""
+    parser = argparse.ArgumentParser(
+        prog="agdt-submit-reviews",
+        description="Submit multiple file reviews in a single batch",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Approve multiple files with the same summary
+  agdt-submit-reviews \\
+    --reviews '[{"file_path":"src/a.ts"},{"file_path":"src/b.ts"}]' \\
+    --outcome approve --summary "LGTM - mechanical refactor" \\
+    --pull-request-id 12345
+
+  # Mixed outcomes with per-file overrides
+  agdt-submit-reviews \\
+    --reviews '[
+      {"file_path":"src/a.ts"},
+      {"file_path":"src/b.ts","outcome":"request-changes",
+       "summary":"Issues found",
+       "suggestions":[{"line":10,"severity":"high","content":"Fix null check"}]}
+    ]' \\
+    --outcome approve --summary "LGTM"
+
+  # Using state for pull_request_id
+  agdt-set pull_request_id 12345
+  agdt-submit-reviews --reviews '[{"file_path":"src/a.ts"}]' --outcome approve
+        """,
+    )
+    parser.add_argument(
+        "--reviews",
+        "-r",
+        type=str,
+        default=None,
+        help="JSON array of review objects (falls back to batch_reviews state)",
+    )
+    parser.add_argument(
+        "--outcome",
+        "-o",
+        type=str,
+        default=None,
+        help=(
+            'Default outcome for entries that omit it: "approve", '
+            '"request-changes", or "request-changes-with-suggestion" '
+            "(falls back to batch_reviews.default_outcome state; "
+            'default: "approve")'
+        ),
+    )
+    parser.add_argument(
+        "--summary",
+        "-s",
+        type=str,
+        default=None,
+        help="Default summary for entries that omit it (falls back to batch_reviews.default_summary state)",
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        type=int,
+        default=None,
+        help="Pull request ID (falls back to pull_request_id state)",
+    )
+    args = parser.parse_args()
+    submit_reviews_async(
+        reviews=args.reviews,
+        default_outcome=args.outcome,
+        default_summary=args.summary,
+        pull_request_id=args.pull_request_id,
+    )
+
+
+# =============================================================================
 # Review Workflow Commands (Async)
 # =============================================================================
 

@@ -1883,3 +1883,143 @@ def request_changes_with_suggestion() -> None:
     finally:
         if suggestions_raw:
             set_value("file_review.suggestions", suggestions_raw)
+
+
+# Valid outcomes for batch reviews (compared case-insensitively)
+_BATCH_OUTCOME_APPROVE = "approve"
+_BATCH_OUTCOME_CHANGES = "request-changes"
+_BATCH_OUTCOME_SUGGEST = "request-changes-with-suggestion"
+_BATCH_VALID_OUTCOMES = frozenset({_BATCH_OUTCOME_APPROVE, _BATCH_OUTCOME_CHANGES, _BATCH_OUTCOME_SUGGEST})
+
+
+def submit_reviews() -> None:
+    """
+    Submit multiple file reviews in a single batch.
+
+    Reads a JSON array of review objects from state, applies defaults for
+    outcome and summary, then processes each file sequentially by delegating
+    to the existing sync functions (approve_file, request_changes,
+    request_changes_with_suggestion).
+
+    State keys read:
+        - pull_request_id (required): Pull request ID
+        - batch_reviews.items (required): JSON array of review objects.
+          Each object has ``file_path`` (required) and optionally ``outcome``,
+          ``summary``, ``suggestions``.
+        - batch_reviews.default_outcome (optional): Default outcome applied to
+          entries that omit ``outcome``.  Defaults to ``"approve"``.
+        - batch_reviews.default_summary (optional): Default summary applied to
+          entries that omit ``summary``.
+        - dry_run: If true, only print what would be done
+
+    Review entry schema::
+
+        {
+            "file_path": str,             # Required
+            "outcome": str | None,        # "approve" | "request-changes" |
+                                          # "request-changes-with-suggestion"
+            "summary": str | None,        # Override default summary
+            "suggestions": list | None    # Required for non-approve outcomes
+        }
+
+    Raises:
+        SystemExit: On fatal validation errors (missing batch_reviews,
+            invalid JSON, empty array).  Per-file errors are collected and
+            reported at the end without aborting the batch.
+    """
+    from ...state import set_value
+
+    batch_json = get_value("batch_reviews.items")
+    if not batch_json:
+        print("Error: 'batch_reviews.items' is required.", file=sys.stderr)
+        sys.exit(1)
+
+    if isinstance(batch_json, str):
+        try:
+            reviews = json.loads(batch_json)
+        except json.JSONDecodeError as e:
+            print(f"Error: 'batch_reviews' is not valid JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        reviews = batch_json
+
+    if not isinstance(reviews, list):
+        print("Error: 'batch_reviews' must be a JSON array.", file=sys.stderr)
+        sys.exit(1)
+
+    if not reviews:
+        print("Error: 'batch_reviews' must contain at least one review.", file=sys.stderr)
+        sys.exit(1)
+
+    default_outcome = get_value("batch_reviews.default_outcome") or _BATCH_OUTCOME_APPROVE
+    default_summary = get_value("batch_reviews.default_summary")
+
+    total = len(reviews)
+    succeeded = 0
+    failed = 0
+    errors: list[str] = []
+
+    for i, review in enumerate(reviews):
+        if not isinstance(review, dict):
+            errors.append(f"Review at index {i}: not a JSON object.")
+            failed += 1
+            continue
+
+        file_path = review.get("file_path")
+        if not file_path or not isinstance(file_path, str) or not file_path.strip():
+            errors.append(f"Review at index {i}: missing or empty 'file_path'.")
+            failed += 1
+            continue
+
+        outcome = (review.get("outcome") or default_outcome).lower()
+        summary = review.get("summary") or default_summary
+        suggestions = review.get("suggestions")
+
+        if outcome not in _BATCH_VALID_OUTCOMES:
+            errors.append(f"Review at index {i} ({file_path}): unknown outcome '{outcome}'.")
+            failed += 1
+            continue
+
+        if outcome != _BATCH_OUTCOME_APPROVE and not summary:
+            errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
+            failed += 1
+            continue
+
+        if outcome != _BATCH_OUTCOME_APPROVE and not suggestions:
+            errors.append(f"Review at index {i} ({file_path}): suggestions required for '{outcome}'.")
+            failed += 1
+            continue
+
+        # Set per-file state
+        set_value("file_review.file_path", file_path)
+        if summary:
+            set_value("file_review.summary", summary)
+        if suggestions is not None:
+            set_value(
+                "file_review.suggestions",
+                json.dumps(suggestions) if isinstance(suggestions, list) else suggestions,
+            )
+
+        print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
+
+        try:
+            if outcome == _BATCH_OUTCOME_APPROVE:
+                approve_file()
+            elif outcome == _BATCH_OUTCOME_CHANGES:
+                request_changes()
+            else:
+                request_changes_with_suggestion()
+            succeeded += 1
+            print("  ✅ Done")
+        except SystemExit as exc:
+            if exc.code and exc.code != 0:
+                errors.append(f"Review at index {i} ({file_path}): exited with code {exc.code}")
+                failed += 1
+            else:
+                succeeded += 1
+
+    print(f"\nBatch complete: {succeeded}/{total} succeeded, {failed}/{total} failed.")
+    if errors:
+        print("Errors:", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
