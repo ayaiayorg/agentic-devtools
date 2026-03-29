@@ -47,11 +47,11 @@ class TestValidateBatchReviews:
         assert "unknown outcome" in errors[0]
 
     def test_missing_summary(self):
-        """Missing summary produces an error."""
+        """Missing summary (None) produces a type error."""
         items = [{"file_path": "/a.ts", "outcome": "approve", "summary": None}]
         errors = validate_batch_reviews(items)
         assert len(errors) == 1
-        assert "summary is required" in errors[0]
+        assert "must be a string" in errors[0]
 
     def test_empty_summary(self):
         """Empty summary produces an error."""
@@ -59,6 +59,22 @@ class TestValidateBatchReviews:
         errors = validate_batch_reviews(items)
         assert len(errors) == 1
         assert "summary is required" in errors[0]
+
+    def test_non_string_summary_integer(self):
+        """Non-string summary (integer) produces a type error."""
+        items = [{"file_path": "/a.ts", "outcome": "approve", "summary": 42}]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "must be a string" in errors[0]
+        assert "int" in errors[0]
+
+    def test_non_string_summary_boolean(self):
+        """Non-string summary (bool) produces a type error."""
+        items = [{"file_path": "/a.ts", "outcome": "approve", "summary": True}]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "must be a string" in errors[0]
+        assert "bool" in errors[0]
 
     def test_request_changes_missing_suggestions(self):
         """request-changes without suggestions produces an error."""

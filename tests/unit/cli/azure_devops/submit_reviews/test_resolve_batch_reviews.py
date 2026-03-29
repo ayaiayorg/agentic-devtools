@@ -128,3 +128,23 @@ class TestResolveBatchReviews:
         payload = {"items": ["not a dict", 42]}
         result = resolve_batch_reviews(payload)
         assert result == ["not a dict", 42]
+
+    def test_falsy_non_string_outcome_not_replaced(self):
+        """Non-string falsy outcome (e.g., False, 0) is preserved, not replaced by default."""
+        payload = {
+            "default_outcome": "approve",
+            "items": [{"file_path": "/a.ts", "outcome": False}],
+        }
+        result = resolve_batch_reviews(payload)
+        # False is preserved so validation can catch the type error
+        assert result[0]["outcome"] is False
+
+    def test_falsy_non_string_summary_not_replaced(self):
+        """Non-string falsy summary (e.g., 0) is preserved, not replaced by default."""
+        payload = {
+            "default_summary": "Default",
+            "items": [{"file_path": "/a.ts", "summary": 0}],
+        }
+        result = resolve_batch_reviews(payload)
+        # 0 is preserved so validation can catch the type error
+        assert result[0]["summary"] == 0

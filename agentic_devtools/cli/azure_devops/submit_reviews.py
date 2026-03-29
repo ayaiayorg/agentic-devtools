@@ -15,13 +15,21 @@ _VALID_OUTCOMES = frozenset({"approve", "request-changes", "request-changes-with
 
 
 def _is_empty_or_whitespace(value: object) -> bool:
-    """Return True if *value* is falsy or a whitespace-only string."""
-    if not value:
+    """Return True if *value* is None or a whitespace-only string.
+
+    Non-string falsy values (e.g., ``False``, ``0``, ``[]``) are **not**
+    treated as empty — they are left untouched so that
+    :func:`validate_batch_reviews` can surface a type error instead of
+    silently replacing them with a default.
+    """
+    if value is None:
         return True
-    return isinstance(value, str) and not value.strip()
+    if isinstance(value, str):
+        return not value.strip()
+    return False
 
 
-def resolve_batch_reviews(payload: dict) -> list[dict]:
+def resolve_batch_reviews(payload: dict) -> list[object]:
     """Resolve defaults into individual review items from a batch payload.
 
     Takes a payload dict with optional ``default_outcome``,
@@ -43,7 +51,7 @@ def resolve_batch_reviews(payload: dict) -> list[dict]:
     default_summary = payload.get("default_summary")
     items = payload.get("items", [])
 
-    resolved: list[dict] = []
+    resolved: list[object] = []
     for item in items:
         # Non-dict items are passed through so validate_batch_reviews()
         # can surface a user-friendly error instead of an opaque TypeError.
@@ -71,7 +79,7 @@ def resolve_batch_reviews(payload: dict) -> list[dict]:
     return resolved
 
 
-def validate_batch_reviews(resolved_items: list[dict]) -> list[str]:
+def validate_batch_reviews(resolved_items: list[object]) -> list[str]:
     """Validate a list of resolved batch review items.
 
     Checks that every item has a valid ``file_path``, a recognised
@@ -109,7 +117,13 @@ def validate_batch_reviews(resolved_items: list[dict]) -> list[str]:
             continue
 
         summary = item.get("summary")
-        if _is_empty_or_whitespace(summary):
+        if not isinstance(summary, str):
+            errors.append(
+                f"Item {i} ({file_path}): 'summary' must be a string (got {type(summary).__name__})."
+            )
+            continue
+
+        if not summary.strip():
             errors.append(f"Item {i} ({file_path}): summary is required.")
             continue
 
