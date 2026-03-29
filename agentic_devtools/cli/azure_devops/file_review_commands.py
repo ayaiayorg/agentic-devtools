@@ -1991,7 +1991,20 @@ def submit_reviews() -> None:
             continue
 
         outcome = raw_outcome.strip().lower()
-        summary = review.get("summary") or default_summary
+        # Resolve summary: per-entry overrides default; validate type + non-empty after strip
+        # to match the constraints of delegated commands (approve_file, request_changes).
+        raw_summary = review.get("summary")
+        if raw_summary is None or (isinstance(raw_summary, str) and not raw_summary.strip()):
+            raw_summary = default_summary
+
+        if raw_summary is not None and not isinstance(raw_summary, str):
+            errors.append(
+                f"Review at index {i} ({file_path}): 'summary' must be a string (got {type(raw_summary).__name__})."
+            )
+            failed += 1
+            continue
+
+        summary = raw_summary.strip() if raw_summary else None
         suggestions = review.get("suggestions")
 
         if outcome not in _BATCH_VALID_OUTCOMES:

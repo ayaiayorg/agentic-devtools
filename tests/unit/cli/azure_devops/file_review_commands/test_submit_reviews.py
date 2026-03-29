@@ -449,3 +449,28 @@ class TestSubmitReviews:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "at least one" in captured.err
+
+    def test_reports_non_string_summary(self, temp_state_dir, clear_state_before, capsys):
+        """Should report error when summary is a non-string type (e.g. number)."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts", "summary": 42}]))
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "'summary' must be a string" in captured.err
+        assert "int" in captured.err
+
+    def test_whitespace_only_summary_reports_error(self, temp_state_dir, clear_state_before, capsys):
+        """Whitespace-only summary should be treated as missing and report per-entry error."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts", "summary": "   "}]))
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "summary is required" in captured.err
