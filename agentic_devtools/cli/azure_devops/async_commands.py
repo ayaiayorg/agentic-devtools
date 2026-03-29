@@ -1359,7 +1359,7 @@ def submit_reviews_async(
     # because _require_value() coerces to str, which would turn a list stored
     # directly in state into its repr — breaking JSON validation below.
     raw = get_value("batch_reviews.items")
-    if not raw:
+    if raw is None or raw == "":
         print(
             "Error: batch_reviews.items is required. Use: agdt-submit-reviews --reviews '[...]'",
             file=sys.stderr,

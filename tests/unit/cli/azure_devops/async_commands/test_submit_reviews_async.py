@@ -89,4 +89,16 @@ class TestSubmitReviewsAsync:
             submit_reviews_async()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "batch_reviews" in captured.err
+        assert "batch_reviews.items" in captured.err
+
+    def test_empty_list_in_state_reports_non_empty_error(self, mock_background_and_state, capsys):
+        """Empty list stored in state should report 'non-empty', not 'is required'."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", [])
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews_async()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "non-empty" in captured.err

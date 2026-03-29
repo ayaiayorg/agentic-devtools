@@ -1937,7 +1937,7 @@ def submit_reviews() -> None:
         sys.exit(1)
 
     batch_json = get_value("batch_reviews.items")
-    if not batch_json:
+    if batch_json is None or batch_json == "":
         print("Error: 'batch_reviews.items' is required.", file=sys.stderr)
         sys.exit(1)
 
@@ -1999,15 +1999,33 @@ def submit_reviews() -> None:
             failed += 1
             continue
 
-        if outcome != _BATCH_OUTCOME_APPROVE and not summary:
+        if not summary:
             errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
             failed += 1
             continue
 
-        if outcome != _BATCH_OUTCOME_APPROVE and not suggestions:
-            errors.append(f"Review at index {i} ({file_path}): suggestions required for '{outcome}'.")
-            failed += 1
-            continue
+        if outcome != _BATCH_OUTCOME_APPROVE:
+            # For non-approve outcomes, suggestions must be a non-empty list of dicts
+            if not isinstance(suggestions, list) or not suggestions:
+                errors.append(
+                    f"Review at index {i} ({file_path}): suggestions must be a non-empty list for '{outcome}'."
+                )
+                failed += 1
+                continue
+
+            invalid_suggestion = False
+            for j, suggestion in enumerate(suggestions):
+                if not isinstance(suggestion, dict):
+                    errors.append(
+                        f"Review at index {i} ({file_path}): suggestion at index {j} must be an object/dict"
+                        f" (got {type(suggestion).__name__})."
+                    )
+                    failed += 1
+                    invalid_suggestion = True
+                    break
+
+            if invalid_suggestion:
+                continue
 
         # Set per-file state
         set_value("file_review.file_path", file_path)

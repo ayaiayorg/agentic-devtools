@@ -146,7 +146,7 @@ class TestSubmitReviews:
             submit_reviews()
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "suggestions required" in captured.err
+        assert "suggestions must be a non-empty list" in captured.err
 
     def test_reports_non_string_outcome(self, temp_state_dir, clear_state_before, capsys):
         """Should report error when outcome is a non-string type (e.g. number)."""
@@ -377,3 +377,75 @@ class TestSubmitReviews:
         ) as mock_approve:
             submit_reviews()
             mock_approve.assert_called_once()
+
+    def test_requires_summary_for_approve(self, temp_state_dir, clear_state_before, capsys):
+        """Should report error when approve entry lacks summary."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "a.ts", "outcome": "approve"}]))
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "summary is required" in captured.err
+
+    def test_reports_non_list_suggestions(self, temp_state_dir, clear_state_before, capsys):
+        """Should report error when suggestions is not a list."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {
+                        "file_path": "a.ts",
+                        "outcome": "request-changes",
+                        "summary": "Issues",
+                        "suggestions": "not-a-list",
+                    }
+                ]
+            ),
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "suggestions must be a non-empty list" in captured.err
+
+    def test_reports_non_dict_suggestion_entry(self, temp_state_dir, clear_state_before, capsys):
+        """Should report error when a suggestion entry is not a dict."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {
+                        "file_path": "a.ts",
+                        "outcome": "request-changes",
+                        "summary": "Issues",
+                        "suggestions": ["not-a-dict"],
+                    }
+                ]
+            ),
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "suggestion at index 0 must be an object/dict" in captured.err
+
+    def test_empty_list_batch_reviews_items_reports_correct_error(self, temp_state_dir, clear_state_before, capsys):
+        """Empty list in state should report 'must contain at least one review', not 'is required'."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", [])
+        with pytest.raises(SystemExit) as exc_info:
+            submit_reviews()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "at least one" in captured.err
