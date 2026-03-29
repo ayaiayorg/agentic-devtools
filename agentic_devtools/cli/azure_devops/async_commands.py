@@ -1370,11 +1370,17 @@ def submit_reviews_async(
     try:
         reviews_list = json.loads(raw) if isinstance(raw, str) else raw
     except json.JSONDecodeError as e:
-        print(f"Error: --reviews is not valid JSON: {e}", file=sys.stderr)
+        print(
+            f"Error: batch_reviews.items (or --reviews) is not valid JSON: {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not isinstance(reviews_list, list) or not reviews_list:
-        print("Error: --reviews must be a non-empty JSON array.", file=sys.stderr)
+        print(
+            "Error: batch_reviews.items (or --reviews) must be a non-empty JSON array.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     task = run_function_in_background(
