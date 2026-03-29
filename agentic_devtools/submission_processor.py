@@ -318,7 +318,9 @@ def process_submission(
                 repo_id=repo_id,
             )
             if not marked:
-                raise RuntimeError(f"Failed to mark file {item.file_path!r} as reviewed for PR {item.pr_id}")
+                raise RuntimeError(
+                    f"Failed to mark file {item.file_path!r} as reviewed for PR {item.pr_id}"
+                )
 
             # Cascade overall PR summary
             cascade_attrs = _get_attribution_params(review_state, config)

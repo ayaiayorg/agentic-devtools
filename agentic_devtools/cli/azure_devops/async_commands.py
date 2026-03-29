@@ -837,7 +837,7 @@ def update_pipeline_async() -> None:  # pragma: no cover
 # =============================================================================
 
 
-def _auto_advance_after_submission(  # pragma: no cover — dead code, cleanup deferred to #788
+def _auto_advance_after_submission(
     task_id: str,
     file_path: str,
     outcome: str,
@@ -847,10 +847,6 @@ def _auto_advance_after_submission(  # pragma: no cover — dead code, cleanup d
 
     Marks the file as submission-pending in the queue, then prints
     the next file prompt (or checks for failures).
-
-    .. deprecated::
-        No longer called by file review async commands (replaced by
-        SubmissionManager enqueue pattern in #783). Will be removed in #788.
 
     Args:
         task_id: Background task ID
@@ -863,7 +859,7 @@ def _auto_advance_after_submission(  # pragma: no cover — dead code, cleanup d
     )
 
     pr_id = get_value("pull_request_id")
-    if not pr_id:
+    if not pr_id:  # pragma: no cover
         return
 
     pr_id_int = int(pr_id)
@@ -882,12 +878,10 @@ def approve_file_async(
     pull_request_id: int | None = None,
 ) -> None:
     """
-    Approve a file in a pull request.
+    Approve a file in a pull request asynchronously in the background.
 
-    Validates inputs, enqueues the submission to the SubmissionManager,
-    updates the review queue, prints an ACK with remaining files, and
-    returns immediately.  The worker thread handles the PATCH cascade
-    asynchronously.
+    After spawning the background task, immediately marks the file as
+    submission-pending and shows the next file to review.
 
     Args:
         file_path: Path of file to approve (overrides state)
@@ -909,9 +903,6 @@ def approve_file_async(
         agdt-set file_review.summary "Clean implementation."
         agdt-approve-file
     """
-    from ...submission_manager_instance import get_submission_manager
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
-
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
     if pull_request_id is not None:
@@ -939,16 +930,19 @@ def approve_file_async(
             set_value("file_review.summary", state_content)
 
     # Validate required values
-    pr_id_str = _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
+    _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
-    resolved_summary = _require_value("file_review.summary", 'agdt-approve-file --summary "Approval summary"')
+    _require_value("file_review.summary", 'agdt-approve-file --summary "Approval summary"')
 
-    pr_id = int(pr_id_str)
-    manager = get_submission_manager()
-    manager.enqueue(pr_id, resolved_file_path, "approve", resolved_summary)
-    _update_queue_after_review(pr_id, resolved_file_path, "Approve")
-    print(f"✅ Submission queued for {resolved_file_path}")
-    print_next_file_prompt(pr_id)
+    task = run_function_in_background(
+        _FILE_REVIEW_MODULE,
+        "approve_file",
+        command_display_name="agdt-approve-file",
+    )
+    print_task_tracking_info(task, f"Approving file: {resolved_file_path}")
+
+    # Auto-advance: mark as submission-pending and show next file
+    _auto_advance_after_submission(task.id, resolved_file_path, "Approve")
 
 
 def approve_file_async_cli() -> None:
@@ -1035,16 +1029,14 @@ def request_changes_async(
     pull_request_id: int | None = None,
 ) -> None:
     """
-    Request changes on a file in a pull request.
-
-    Validates inputs, enqueues the submission to the SubmissionManager,
-    updates the review queue, prints an ACK with remaining files, and
-    returns immediately.  The worker thread handles the PATCH cascade
-    asynchronously.
+    Request changes on a file asynchronously in the background.
 
     Accepts multiple suggestions with severity, out-of-scope flag, and custom
     link text. Each suggestion will create a separate line-anchored thread.
     The file summary is PATCHed with categorized suggestion links.
+
+    After spawning the background task, immediately marks the file as
+    submission-pending and shows the next file to review.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1073,11 +1065,6 @@ def request_changes_async(
         agdt-set file_review.suggestions '[{"line":42,"severity":"high","content":"Missing null check"}]'
         agdt-request-changes
     """
-    import json as _json
-
-    from ...submission_manager_instance import get_submission_manager
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
-
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
     _set_value_if_provided("file_review.summary", summary)
@@ -1086,21 +1073,20 @@ def request_changes_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    pr_id_str = _require_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
+    _require_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-request-changes --file-path "path/to/file"')
-    resolved_summary = _require_value("file_review.summary", 'agdt-request-changes --summary "Overall assessment"')
-    suggestions_str = _require_value(
-        "file_review.suggestions", "agdt-request-changes --suggestions '[{\"line\":42,...}]'"
+    _require_value("file_review.summary", 'agdt-request-changes --summary "Overall assessment"')
+    _require_value("file_review.suggestions", "agdt-request-changes --suggestions '[{\"line\":42,...}]'")
+
+    task = run_function_in_background(
+        _FILE_REVIEW_MODULE,
+        "request_changes",
+        command_display_name="agdt-request-changes",
     )
+    print_task_tracking_info(task, f"Requesting changes on file: {resolved_file_path}")
 
-    parsed_suggestions = _json.loads(suggestions_str) if suggestions_str else []
-
-    pr_id = int(pr_id_str)
-    manager = get_submission_manager()
-    manager.enqueue(pr_id, resolved_file_path, "request-changes", resolved_summary, suggestions=parsed_suggestions)
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
-    print(f"✅ Submission queued for {resolved_file_path}")
-    print_next_file_prompt(pr_id)
+    # Auto-advance: mark as submission-pending and show next file
+    _auto_advance_after_submission(task.id, resolved_file_path, "Changes")
 
 
 def request_changes_async_cli() -> None:
@@ -1165,15 +1151,13 @@ def request_changes_with_suggestion_async(
     pull_request_id: int | None = None,
 ) -> None:
     """
-    Request changes with code suggestion(s) on a file in a pull request.
-
-    Validates inputs, enqueues the submission to the SubmissionManager,
-    updates the review queue, prints an ACK with remaining files, and
-    returns immediately.  The worker thread handles the PATCH cascade
-    asynchronously.
+    Request changes with code suggestion(s) asynchronously in the background.
 
     Each suggestion must include a replacement_code field. The command auto-wraps
     replacement_code in suggestion fences before posting.
+
+    After spawning the background task, immediately marks the file as
+    submission-pending and shows the next file to review.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1205,11 +1189,6 @@ def request_changes_with_suggestion_async(
                                             "severity":"high","replacement_code":"..."}]'
         agdt-request-changes-with-suggestion
     """
-    import json as _json
-
-    from ...submission_manager_instance import get_submission_manager
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
-
     # Store CLI args in state if provided
     _set_value_if_provided("file_review.file_path", file_path)
     _set_value_if_provided("file_review.summary", summary)
@@ -1218,33 +1197,26 @@ def request_changes_with_suggestion_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    pr_id_str = _require_value("pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345")
+    _require_value("pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345")
     resolved_file_path = _require_value(
         "file_review.file_path", 'agdt-request-changes-with-suggestion --file-path "path/to/file"'
     )
-    resolved_summary = _require_value(
-        "file_review.summary", 'agdt-request-changes-with-suggestion --summary "Overall assessment"'
-    )
-    suggestions_str = _require_value(
+    _require_value("file_review.summary", 'agdt-request-changes-with-suggestion --summary "Overall assessment"')
+    _require_value(
         "file_review.suggestions",
         "agdt-request-changes-with-suggestion "
         '--suggestions \'[{"line":42,"severity":"high","content":"...","replacement_code":"..."}]\'',
     )
 
-    parsed_suggestions = _json.loads(suggestions_str) if suggestions_str else []
-
-    pr_id = int(pr_id_str)
-    manager = get_submission_manager()
-    manager.enqueue(
-        pr_id,
-        resolved_file_path,
-        "request-changes-with-suggestion",
-        resolved_summary,
-        suggestions=parsed_suggestions,
+    task = run_function_in_background(
+        _FILE_REVIEW_MODULE,
+        "request_changes_with_suggestion",
+        command_display_name="agdt-request-changes-with-suggestion",
     )
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
-    print(f"✅ Submission queued for {resolved_file_path}")
-    print_next_file_prompt(pr_id)
+    print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
+
+    # Auto-advance: mark as submission-pending and show next file
+    _auto_advance_after_submission(task.id, resolved_file_path, "Changes")
 
 
 def request_changes_with_suggestion_async_cli() -> None:
