@@ -53,6 +53,36 @@ def mock_background_and_state(tmp_path):
                     }
 
 
+@pytest.fixture
+def mock_enqueue_and_state(tmp_path):
+    """Mock SubmissionManager singleton, queue update, and state for file review commands."""
+    mock_manager = MagicMock()
+    mock_manager.enqueue.return_value = MagicMock()
+    with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+        with patch("agentic_devtools.task_state.get_state_dir", return_value=tmp_path):
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+                return_value=tmp_path,
+            ):
+                with patch(
+                    "agentic_devtools.submission_manager_instance.get_submission_manager",
+                    return_value=mock_manager,
+                ) as mock_get_sm:
+                    with patch(
+                        "agentic_devtools.cli.azure_devops.file_review_commands._update_queue_after_review",
+                    ) as mock_update_queue:
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.file_review_commands.print_next_file_prompt",
+                        ) as mock_print_next:
+                            yield {
+                                "state_dir": tmp_path,
+                                "mock_manager": mock_manager,
+                                "mock_get_sm": mock_get_sm,
+                                "mock_update_queue": mock_update_queue,
+                                "mock_print_next": mock_print_next,
+                            }
+
+
 def _get_script_from_call(mock_popen):
     """Extract the Python script from the Popen call args."""
     call_args = mock_popen.call_args[0][0]  # First positional arg is the command list
@@ -358,9 +388,8 @@ class TestGetRunDetailsAsync:
 class TestApproveFileAsync:
     """Tests for approve_file_async command."""
 
-    def test_spawns_background_task(self, mock_background_and_state, capsys):
-        """Test command spawns a background task calling the correct function."""
-        # Set required state values for validation
+    def test_enqueues_submission(self, mock_enqueue_and_state, capsys):
+        """Test command enqueues a submission to the SubmissionManager."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
@@ -370,12 +399,13 @@ class TestApproveFileAsync:
         approve_file_async()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued for src/app/component.ts" in captured.out
 
-        script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(script, "agentic_devtools.cli.azure_devops.file_review_commands", "approve_file")
+        mock_enqueue_and_state["mock_manager"].enqueue.assert_called_once_with(
+            12345, "src/app/component.ts", "approve", "LGTM"
+        )
 
-    def test_accepts_cli_parameters(self, mock_background_and_state, capsys):
+    def test_accepts_cli_parameters(self, mock_enqueue_and_state, capsys):
         """Test command accepts CLI parameters that override state."""
         approve_file_async(
             file_path="src/cli/test.ts",
@@ -384,7 +414,7 @@ class TestApproveFileAsync:
         )
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
         # Verify state was set from CLI params
         from agentic_devtools.state import get_value
@@ -413,9 +443,8 @@ class TestSubmitFileReviewAsync:
 class TestRequestChangesAsync:
     """Tests for request_changes_async command."""
 
-    def test_spawns_background_task(self, mock_background_and_state, capsys):
-        """Test command spawns a background task calling the correct function."""
-        # Set required state values for validation
+    def test_enqueues_submission(self, mock_enqueue_and_state, capsys):
+        """Test command enqueues a submission to the SubmissionManager."""
         from agentic_devtools.state import set_value
 
         set_value("pull_request_id", 12345)
@@ -426,12 +455,17 @@ class TestRequestChangesAsync:
         request_changes_async()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued for src/app/component.ts" in captured.out
 
-        script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(script, "agentic_devtools.cli.azure_devops.file_review_commands", "request_changes")
+        mock_enqueue_and_state["mock_manager"].enqueue.assert_called_once_with(
+            12345,
+            "src/app/component.ts",
+            "request-changes",
+            "Error handling issues found.",
+            suggestions=[{"line": 42, "severity": "high", "content": "Fix this"}],
+        )
 
-    def test_accepts_cli_parameters(self, mock_background_and_state, capsys):
+    def test_accepts_cli_parameters(self, mock_enqueue_and_state, capsys):
         """Test command accepts CLI parameters that override state."""
         request_changes_async(
             file_path="src/cli/test.ts",
@@ -441,7 +475,7 @@ class TestRequestChangesAsync:
         )
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
         # Verify state was set from CLI params
         from agentic_devtools.state import get_value
@@ -454,8 +488,8 @@ class TestRequestChangesAsync:
 class TestRequestChangesWithSuggestionAsync:
     """Tests for request_changes_with_suggestion_async command."""
 
-    def test_spawns_background_task(self, mock_background_and_state, capsys):
-        """Test command spawns a background task calling the correct function."""
+    def test_enqueues_submission(self, mock_enqueue_and_state, capsys):
+        """Test command enqueues a submission to the SubmissionManager."""
         import json
 
         from agentic_devtools.state import set_value
@@ -480,14 +514,24 @@ class TestRequestChangesWithSuggestionAsync:
         request_changes_with_suggestion_async()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued for src/app/component.ts" in captured.out
 
-        script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(
-            script, "agentic_devtools.cli.azure_devops.file_review_commands", "request_changes_with_suggestion"
+        mock_enqueue_and_state["mock_manager"].enqueue.assert_called_once_with(
+            12345,
+            "src/app/component.ts",
+            "request-changes-with-suggestion",
+            "Null handling needs improvement.",
+            suggestions=[
+                {
+                    "line": 42,
+                    "severity": "high",
+                    "content": "Use null-conditional",
+                    "replacement_code": "var x = y?.Z;",
+                }
+            ],
         )
 
-    def test_accepts_cli_parameters(self, mock_background_and_state, capsys):
+    def test_accepts_cli_parameters(self, mock_enqueue_and_state, capsys):
         """Test command accepts CLI parameters that override state."""
         import json
 
@@ -502,7 +546,7 @@ class TestRequestChangesWithSuggestionAsync:
         )
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
         # Verify state was set from CLI params
         from agentic_devtools.state import get_value
@@ -661,7 +705,7 @@ class TestAsyncCliEntryPoints:
         captured = capsys.readouterr()
         assert "Background task started" in captured.out
 
-    def test_approve_file_async_cli_with_args(self, mock_background_and_state, capsys, monkeypatch):
+    def test_approve_file_async_cli_with_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test approve_file_async_cli parses CLI arguments."""
         from agentic_devtools.cli.azure_devops.async_commands import approve_file_async_cli
         from agentic_devtools.state import set_value
@@ -677,9 +721,9 @@ class TestAsyncCliEntryPoints:
         approve_file_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
-    def test_approve_file_async_cli_without_args(self, mock_background_and_state, capsys, monkeypatch):
+    def test_approve_file_async_cli_without_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test approve_file_async_cli uses state when no args provided."""
         from agentic_devtools.cli.azure_devops.async_commands import approve_file_async_cli
         from agentic_devtools.state import set_value
@@ -692,9 +736,9 @@ class TestAsyncCliEntryPoints:
         approve_file_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
-    def test_request_changes_async_cli_with_args(self, mock_background_and_state, capsys, monkeypatch):
+    def test_request_changes_async_cli_with_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test request_changes_async_cli parses CLI arguments."""
         from agentic_devtools.cli.azure_devops.async_commands import request_changes_async_cli
         from agentic_devtools.state import set_value
@@ -718,9 +762,9 @@ class TestAsyncCliEntryPoints:
         request_changes_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
-    def test_request_changes_async_cli_without_args(self, mock_background_and_state, capsys, monkeypatch):
+    def test_request_changes_async_cli_without_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test request_changes_async_cli uses state when no args provided."""
         from agentic_devtools.cli.azure_devops.async_commands import request_changes_async_cli
         from agentic_devtools.state import set_value
@@ -734,9 +778,9 @@ class TestAsyncCliEntryPoints:
         request_changes_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
-    def test_request_changes_with_suggestion_async_cli_with_args(self, mock_background_and_state, capsys, monkeypatch):
+    def test_request_changes_with_suggestion_async_cli_with_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test request_changes_with_suggestion_async_cli parses CLI arguments."""
         import json
 
@@ -765,11 +809,9 @@ class TestAsyncCliEntryPoints:
         request_changes_with_suggestion_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
-    def test_request_changes_with_suggestion_async_cli_without_args(
-        self, mock_background_and_state, capsys, monkeypatch
-    ):
+    def test_request_changes_with_suggestion_async_cli_without_args(self, mock_enqueue_and_state, capsys, monkeypatch):
         """Test request_changes_with_suggestion_async_cli uses state when no args."""
         import json
 
@@ -797,7 +839,7 @@ class TestAsyncCliEntryPoints:
         request_changes_with_suggestion_async_cli()
 
         captured = capsys.readouterr()
-        assert "Background task started" in captured.out
+        assert "✅ Submission queued" in captured.out
 
 
 # =============================================================================
