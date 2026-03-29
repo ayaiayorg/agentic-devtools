@@ -20,6 +20,7 @@ Example:
 # Config exports
 # Auth exports
 # Async command exports
+from .approve_files import approve_files_cli
 from .async_commands import (
     add_pull_request_comment_async,
     add_pull_request_comment_async_cli,
@@ -60,7 +61,6 @@ from .async_commands import (
     update_pipeline_async,
     wait_for_run_async,
 )
-from .approve_files import approve_files_cli
 from .auth import get_auth_headers, get_pat
 
 # Command exports
