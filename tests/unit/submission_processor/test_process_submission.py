@@ -846,3 +846,13 @@ class TestProcessSubmission:
         mock_mark_reviewed.assert_called_once()
         # cascade should NOT be called — the failure happens before it
         mock_exec_cascade.assert_not_called()
+
+    def test_default_requests_module_import(self, config):
+        """When requests_module is omitted, the real ``requests`` module is imported."""
+        item = make_item(outcome="INVALID-OUTCOME")
+
+        # Calling with requests_module=None (default) triggers the lazy import
+        # on lines 151-154.  The ValueError fires right after, validating that
+        # the import path executed.
+        with pytest.raises(ValueError, match="Unknown outcome"):
+            process_submission(item, config, {}, REPO_ID)
