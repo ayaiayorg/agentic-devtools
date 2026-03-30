@@ -12,7 +12,7 @@ import argparse
 import sys
 
 from agentic_devtools.background_tasks import run_function_in_background
-from agentic_devtools.state import get_value, set_value
+from agentic_devtools.state import get_value, is_dry_run, set_value
 from agentic_devtools.task_state import print_task_tracking_info
 
 
@@ -903,6 +903,9 @@ def approve_file_async(
     resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
     _require_value("file_review.summary", 'agdt-approve-file --summary "Approval summary"')
 
+    # Parse PR ID before starting the task so a non-numeric value fails early.
+    pr_id = int(get_value("pull_request_id"))
+
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "approve_file",
@@ -916,8 +919,7 @@ def approve_file_async(
     # safely no-op when the file is already in completed.
     from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
-    pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Approve")
+    _update_queue_after_review(pr_id, resolved_file_path, "Approve", dry_run=is_dry_run())
     print_next_file_prompt(pr_id)
 
 
@@ -1033,6 +1035,9 @@ def request_changes_async(
     _require_value("file_review.summary", 'agdt-request-changes --summary "Overall assessment"')
     _require_value("file_review.suggestions", "agdt-request-changes --suggestions '[{\"line\":42,...}]'")
 
+    # Parse PR ID before starting the task so a non-numeric value fails early.
+    pr_id = int(get_value("pull_request_id"))
+
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "request_changes",
@@ -1045,8 +1050,7 @@ def request_changes_async(
     # sync request_changes() will call it again and safely no-op.
     from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
-    pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes", dry_run=is_dry_run())
     print_next_file_prompt(pr_id)
 
 
@@ -1171,6 +1175,9 @@ def request_changes_with_suggestion_async(
         '--suggestions \'[{"line":42,"severity":"high","content":"...","replacement_code":"..."}]\'',
     )
 
+    # Parse PR ID before starting the task so a non-numeric value fails early.
+    pr_id = int(get_value("pull_request_id"))
+
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
         "request_changes_with_suggestion",
@@ -1183,8 +1190,7 @@ def request_changes_with_suggestion_async(
     # sync request_changes_with_suggestion() will call it again and safely no-op.
     from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
-    pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes", dry_run=is_dry_run())
     print_next_file_prompt(pr_id)
 
 

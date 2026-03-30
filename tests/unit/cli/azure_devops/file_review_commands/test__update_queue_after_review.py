@@ -168,3 +168,35 @@ class TestUpdateQueueAfterReview:
             unchanged = json.load(f)
         assert len(unchanged["pending"]) == 1
         assert len(unchanged["completed"]) == 1
+
+    def test_warns_when_file_not_in_pending_or_completed(self, tmp_path, capsys):
+        """Should emit a warning when the file is not found in either list.
+
+        This catches bad inputs (path normalization mismatches, wrong casing,
+        etc.) rather than silently doing nothing.
+        """
+        queue_data = {
+            "pending": [{"path": "/src/utils.ts", "status": "pending"}],
+            "completed": [{"path": "/src/other.ts", "status": "completed"}],
+        }
+        queue_path = tmp_path / "queue.json"
+        queue_path.write_text(json.dumps(queue_data))
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
+            return_value=queue_path,
+        ):
+            pending, completed = _update_queue_after_review(
+                pull_request_id=42,
+                file_path="/src/nonexistent.ts",
+                outcome="Approve",
+            )
+
+        # Should return current counts
+        assert pending == 1
+        assert completed == 1
+
+        # Should have printed a warning with both raw and normalized paths
+        captured = capsys.readouterr()
+        assert "not found in pending or completed queue" in captured.err
+        assert "/src/nonexistent.ts" in captured.err

@@ -494,14 +494,14 @@ class TestPullRequestReviewWorkflowEndToEnd:
                 "pull_request_id": "123",
                 "pending_transition": {
                     "to_step": "decision",
-                    "required_tasks": ["agdt-submit-file-review"],
+                    "required_tasks": ["agdt-approve-file"],
                 },
             },
         )
 
         mock_task = MagicMock()
         mock_task.id = "task-submit-xyz-456"
-        mock_task.command = "agdt-submit-file-review"
+        mock_task.command = "agdt-approve-file"
         mock_task.status = MagicMock()
         mock_task.status.value = "running"
 
@@ -513,7 +513,7 @@ class TestPullRequestReviewWorkflowEndToEnd:
 
         assert result.status == PromptStatus.WAITING
         assert result.step == "file-review"
-        assert "agdt-submit-file-review" in result.content
+        assert "agdt-approve-file" in result.content
         # Workflow should not have advanced
         assert state.get_workflow_state()["step"] == "file-review"
 

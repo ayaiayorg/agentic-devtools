@@ -358,8 +358,18 @@ def _update_queue_after_review(
             remaining_pending.append(entry)
 
     if not matched_entry:
-        # File may already have been moved to completed by the async wrapper
-        # (idempotent: the background task's sync function also calls this).
+        # Idempotent: if the file is already in the completed list (moved by
+        # the async wrapper), silently return current counts.  If it's not in
+        # completed either, emit a warning so bad inputs are detectable.
+        already_completed = any(
+            (_normalize_repo_path(e.get("path")) or "").lower() == normalized_target.lower() for e in completed
+        )
+        if not already_completed:
+            print(
+                f"Warning: File '{file_path}' (normalized: '{normalized_target}') "
+                "not found in pending or completed queue.",
+                file=sys.stderr,
+            )
         return len(pending), len(completed)
 
     if dry_run:

@@ -275,7 +275,6 @@ prompt is then loaded and displayed by that command.
 | `agdt-approve-file` | Approve a file in PR review |
 | `agdt-request-changes` | Request changes on a file with suggestions |
 | `agdt-request-changes-with-suggestion` | Request changes with code replacement suggestions |
-| `agdt-submit-file-review` | Submit a file review |
 | `agdt-mark-file-reviewed` | Mark a file as reviewed |
 
 ### Jira Commands
