@@ -30,9 +30,11 @@ Choose a strategy based on your review context:
   Best when remaining files share the same outcome (e.g., mechanical refactor).
   Consider this when 3+ files have similar outcomes.
 
+{% if current_file %}
+
 ## Review Process
 
-For each file:
+For the current file:
 
 1. **Read the file prompt** to see the diff and any existing comment threads
 2. **Analyze the changes** against the review criteria
@@ -59,6 +61,8 @@ agdt-request-changes --file-path "{{current_file}}" --summary "Overall assessmen
 ```bash
 agdt-request-changes-with-suggestion --file-path "{{current_file}}" --summary "Overall assessment of issues found." --suggestions '[{"line": <LINE_NUMBER>, "severity": "high", "content": "Issue description", "replacement_code": "// Your suggested replacement code"}]'
 ```
+
+{% endif %}
 
 ## Strategy B: Batch Commands
 

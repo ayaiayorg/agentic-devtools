@@ -51,6 +51,14 @@ class TestPrReviewFileReviewPromptRendering:
         result = self._render(**variables)
         assert "## Current File" not in result
 
+    def test_strategy_a_commands_absent_when_current_file_empty(self):
+        """Strategy A commands do NOT render --file-path with empty value."""
+        variables = self._base_variables()
+        variables["current_file"] = ""
+        result = self._render(**variables)
+        assert '--file-path ""' not in result
+        assert "## Strategy A" not in result
+
     def test_current_file_section_absent_when_omitted(self):
         """Current file section does NOT render when current_file is omitted."""
         variables = self._base_variables()
@@ -58,9 +66,30 @@ class TestPrReviewFileReviewPromptRendering:
         result = self._render(**variables)
         assert "## Current File" not in result
 
-    def test_strategy_a_commands_present(self):
-        """Strategy A single-file commands appear in rendered output."""
+    def test_strategy_a_commands_absent_when_current_file_omitted(self):
+        """Strategy A commands do NOT render when current_file is omitted."""
+        variables = self._base_variables()
+        del variables["current_file"]
+        result = self._render(**variables)
+        assert '--file-path ""' not in result
+        assert "## Strategy A" not in result
+
+    def test_review_process_absent_when_current_file_empty(self):
+        """Review Process section does NOT render when current_file is empty."""
+        variables = self._base_variables()
+        variables["current_file"] = ""
+        result = self._render(**variables)
+        assert "## Review Process" not in result
+
+    def test_review_process_present_when_current_file_set(self):
+        """Review Process section renders when current_file is provided."""
         result = self._render(**self._base_variables())
+        assert "## Review Process" in result
+
+    def test_strategy_a_commands_present(self):
+        """Strategy A single-file commands appear when current_file is set."""
+        result = self._render(**self._base_variables())
+        assert "## Strategy A" in result
         assert "agdt-approve-file" in result
         assert "agdt-request-changes" in result
         assert "agdt-request-changes-with-suggestion" in result
@@ -68,6 +97,15 @@ class TestPrReviewFileReviewPromptRendering:
     def test_strategy_b_commands_present(self):
         """Strategy B batch commands appear in rendered output."""
         result = self._render(**self._base_variables())
+        assert "agdt-approve-files" in result
+        assert "agdt-submit-reviews" in result
+
+    def test_strategy_b_commands_present_when_current_file_empty(self):
+        """Strategy B batch commands still appear when current_file is empty."""
+        variables = self._base_variables()
+        variables["current_file"] = ""
+        result = self._render(**variables)
+        assert "## Strategy B" in result
         assert "agdt-approve-files" in result
         assert "agdt-submit-reviews" in result
 
