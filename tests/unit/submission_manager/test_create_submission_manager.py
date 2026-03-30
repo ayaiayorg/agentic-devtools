@@ -1,5 +1,7 @@
 """Tests for agentic_devtools.submission_manager.create_submission_manager."""
 
+import json
+
 from agentic_devtools.submission_manager import (
     SubmissionItem,
     SubmissionManager,
@@ -44,3 +46,17 @@ class TestCreateSubmissionManager:
             manager.shutdown(wait=True)
 
         assert item.status == SubmissionStatus.SUCCEEDED
+
+    def test_forwards_persistence_path(self, tmp_path):
+        """Factory forwards persistence_path to SubmissionManager."""
+        persist_file = tmp_path / "queue.json"
+        manager = create_submission_manager(persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        assert persist_file.exists()
+        data = json.loads(persist_file.read_text(encoding="utf-8"))
+        assert data["version"] == 1
+        assert len(data["items"]) == 1

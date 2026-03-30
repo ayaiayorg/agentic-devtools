@@ -1,7 +1,9 @@
 """Tests for agentic_devtools.submission_manager.SubmissionManager."""
 
+import json
 import threading
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -653,4 +655,461 @@ class TestSubmissionManager:
         result = manager.shutdown(wait=False)
         assert result is None
         # Clean up
+        manager.shutdown(wait=True)
+
+    # --- Persistence tests ---
+
+    def test_persistence_path_none_no_file_io(self, tmp_path):
+        """When persistence_path is None, no file is written."""
+        manager = SubmissionManager()
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_enqueue_persists_to_file(self, tmp_path):
+        """Enqueued item is persisted to disk."""
+        persist_file = tmp_path / "queue.json"
+        barrier = threading.Event()
+
+        def blocking_processor(item: SubmissionItem) -> None:
+            barrier.wait(timeout=5)
+
+        manager = SubmissionManager(processor=blocking_processor, persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+            assert persist_file.exists()
+            data = json.loads(persist_file.read_text(encoding="utf-8"))
+            assert data["version"] == 1
+            assert len(data["items"]) == 1
+            assert data["items"][0]["file_path"] == "file.ts"
+        finally:
+            barrier.set()
+            manager.shutdown(wait=True)
+
+    def test_persistence_file_updated_on_every_transition(self, tmp_path):
+        """Persistence file is updated on status transitions."""
+        persist_file = tmp_path / "queue.json"
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        data = json.loads(persist_file.read_text(encoding="utf-8"))
+        assert len(data["items"]) == 1
+        assert data["items"][0]["status"] == "succeeded"
+
+    def test_recovery_loads_succeeded_items_as_is(self, tmp_path):
+        """Succeeded items are loaded without re-processing on recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "done.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        try:
+            item = manager.get_item("item-1")
+            assert item is not None
+            assert item.status == SubmissionStatus.SUCCEEDED
+        finally:
+            manager.shutdown(wait=True)
+
+        assert processed == []
+
+    def test_recovery_loads_failed_items_as_is(self, tmp_path):
+        """Failed items are loaded without re-processing on recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "failed.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "failed",
+                            "attempts": 3,
+                            "error_message": "API error",
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        try:
+            item = manager.get_item("item-1")
+            assert item is not None
+            assert item.status == SubmissionStatus.FAILED
+            assert item.error_message == "API error"
+        finally:
+            manager.shutdown(wait=True)
+
+        assert processed == []
+
+    def test_recovery_resets_processing_to_queued(self, tmp_path):
+        """PROCESSING items are reset to QUEUED and re-processed on recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "in-flight.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "processing",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        # The recovered item is re-enqueued, so we need to start the worker
+        manager._ensure_worker_started()
+        manager.shutdown(wait=True)
+
+        assert "in-flight.ts" in processed
+        item = manager.get_item("item-1")
+        assert item is not None
+        assert item.status == SubmissionStatus.SUCCEEDED
+
+    def test_recovery_requeues_queued_items(self, tmp_path):
+        """QUEUED items are re-enqueued and processed on recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "queued.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": 0,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        manager._ensure_worker_started()
+        manager.shutdown(wait=True)
+
+        assert "queued.ts" in processed
+        item = manager.get_item("item-1")
+        assert item is not None
+        assert item.status == SubmissionStatus.SUCCEEDED
+
+    def test_recovery_resets_retrying_to_queued(self, tmp_path):
+        """RETRYING items are reset to QUEUED and re-processed on recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "retrying.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "retrying",
+                            "attempts": 2,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        manager._ensure_worker_started()
+        manager.shutdown(wait=True)
+
+        assert "retrying.ts" in processed
+
+    def test_recovery_mixed_statuses(self, tmp_path):
+        """Recovery with mixed statuses: only non-terminal items are re-queued."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "succeeded-1",
+                            "pr_id": 1,
+                            "file_path": "done.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        },
+                        {
+                            "id": "processing-1",
+                            "pr_id": 1,
+                            "file_path": "in-flight.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "processing",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        },
+                        {
+                            "id": "failed-1",
+                            "pr_id": 1,
+                            "file_path": "failed.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "failed",
+                            "attempts": 3,
+                            "error_message": "err",
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        manager._ensure_worker_started()
+        manager.shutdown(wait=True)
+
+        # Only the processing item should have been re-processed
+        assert "in-flight.ts" in processed
+        assert "done.ts" not in processed
+        assert "failed.ts" not in processed
+
+        # All 3 items should be in the manager
+        assert len(manager.get_items_by_pr(1)) == 3
+
+    def test_recovery_discards_unknown_version(self, tmp_path):
+        """Unrecognised version causes file to be discarded — manager starts fresh."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 999,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "old.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": 0,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_item("item-1") is None
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_handles_corrupt_file(self, tmp_path):
+        """Corrupt persistence file is handled gracefully — manager starts fresh."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text("not valid json{{{", encoding="utf-8")
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_handles_missing_file(self, tmp_path):
+        """Missing persistence file is handled — manager starts fresh."""
+        persist_file = tmp_path / "queue.json"
+        assert not persist_file.exists()
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_persistence_survives_restart(self, tmp_path):
+        """Full round-trip: enqueue, shutdown, reload, verify items recovered."""
+        persist_file = tmp_path / "queue.json"
+
+        # First session: enqueue and process
+        manager1 = SubmissionManager(persistence_path=persist_file)
+        try:
+            manager1.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager1.shutdown(wait=True)
+
+        # Persistence file should reflect succeeded status
+        data = json.loads(persist_file.read_text(encoding="utf-8"))
+        assert data["items"][0]["status"] == "succeeded"
+
+        # Second session: loads items from disk
+        manager2 = SubmissionManager(persistence_path=persist_file)
+        try:
+            item = manager2.get_item(data["items"][0]["id"])
+            assert item is not None
+            assert item.status == SubmissionStatus.SUCCEEDED
+            assert item.file_path == "file.ts"
+        finally:
+            manager2.shutdown(wait=True)
+
+    def test_persistence_atomic_write_no_leftover_tmp(self, tmp_path):
+        """No leftover .tmp files after persistence writes."""
+        persist_file = tmp_path / "queue.json"
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == []
+
+    def test_persistence_creates_parent_directories(self, tmp_path):
+        """Persistence file creation creates parent directories if needed."""
+        persist_file = tmp_path / "subdir" / "nested" / "queue.json"
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        assert persist_file.exists()
+
+    def test_persistence_enqueue_new_items_after_recovery(self, tmp_path):
+        """After recovery, new items can be enqueued and persisted."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "old-item",
+                            "pr_id": 1,
+                            "file_path": "old.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            manager.enqueue(pr_id=1, file_path="new.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        data = json.loads(persist_file.read_text(encoding="utf-8"))
+        file_paths = [item["file_path"] for item in data["items"]]
+        assert "old.ts" in file_paths
+        assert "new.ts" in file_paths
+        assert len(data["items"]) == 2
+
+    def test_persist_cleans_up_temp_on_replace_error(self, tmp_path):
+        """Temp file is removed when os.replace raises during persistence."""
+        persist_file = tmp_path / "queue.json"
+        manager = SubmissionManager(persistence_path=persist_file)
+
+        with patch("agentic_devtools.submission_manager.os.replace", side_effect=OSError("disk error")):
+            with pytest.raises(OSError, match="disk error"):
+                manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # No leftover temp files
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == []
+
+        # Item is still in-memory despite persistence failure
+        assert manager.get_queue_depth() == 1
         manager.shutdown(wait=True)
