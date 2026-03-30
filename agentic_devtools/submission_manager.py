@@ -308,10 +308,11 @@ class SubmissionManager:
         """Signal the worker thread to stop.
 
         If wait=True, blocks until the worker thread has finished processing
-        the current item and exited, then returns a FailureReport if any items
-        failed (or None if all succeeded). Multiple calls are idempotent
-        w.r.t. the shutdown signal, but subsequent calls with wait=True will
-        still join the worker thread.
+        all items that were enqueued before the shutdown sentinel and exited,
+        then returns a FailureReport if any items failed (or None if all
+        succeeded). Multiple calls are idempotent w.r.t. the shutdown signal,
+        but subsequent calls with wait=True will still join the worker thread
+        if it is still running.
 
         Args:
             wait: Whether to block until the worker exits
