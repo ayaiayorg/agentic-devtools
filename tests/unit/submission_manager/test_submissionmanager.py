@@ -405,6 +405,7 @@ class TestSubmissionManager:
         assert item.status == SubmissionStatus.SUCCEEDED
         assert item.attempts == 3
         assert call_count == 3
+        assert item.error_message is None
 
     def test_transient_error_exhausts_retries(self):
         """Processor always raises TransientSubmissionError — exhausts all retries."""

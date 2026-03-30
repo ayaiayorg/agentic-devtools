@@ -287,21 +287,22 @@ class SubmissionManager:
         Returns:
             FailureReport if any items have status FAILED, None otherwise
         """
+        # Build summaries inside the lock to get a consistent snapshot of
+        # item fields, even if the worker is still running concurrently.
         with self._lock:
-            failed = [item for item in self._items.values() if item.status == SubmissionStatus.FAILED]
-        if not failed:
-            return None
-        return FailureReport(
-            failed_items=[
+            failed_summaries = [
                 FailedItemSummary(
                     item_id=item.id,
                     file_path=item.file_path,
                     last_error=item.error_message or "",
                     attempts=item.attempts,
                 )
-                for item in failed
+                for item in self._items.values()
+                if item.status == SubmissionStatus.FAILED
             ]
-        )
+        if not failed_summaries:
+            return None
+        return FailureReport(failed_items=failed_summaries)
 
     def shutdown(self, wait: bool = True) -> FailureReport | None:
         """Signal the worker thread to stop.
@@ -370,6 +371,7 @@ class SubmissionManager:
                         self._processor(item)
                         with self._lock:
                             item.status = SubmissionStatus.SUCCEEDED
+                            item.error_message = None
                             item.completed_at = datetime.now(timezone.utc).isoformat()
                         break
                     except TransientSubmissionError as exc:
