@@ -85,7 +85,7 @@ def _enter_approve_patch_flow_mocks(stack, review_state, mock_save=None):
     stack.enter_context(patch(f"{_MOD}.patch_thread_status"))
     stack.enter_context(patch(f"{_MOD}.mark_file_reviewed"))
     stack.enter_context(patch(f"{_MOD}._update_queue_after_review", return_value=(2, 1)))
-    stack.enter_context(patch(f"{_MOD}._trigger_workflow_continuation"))
+    stack.enter_context(patch(f"{_MOD}.print_next_file_prompt"))
     return mock_save
 
 

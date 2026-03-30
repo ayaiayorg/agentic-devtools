@@ -117,10 +117,10 @@ class TestPrReviewFileReviewPromptRendering:
         assert "--outcome" in result
         assert "--summary" in result
 
-    def test_task_wait_mentioned_for_pending_submissions(self):
-        """agdt-task-wait appears in the context of pending submissions."""
+    def test_no_task_wait_references(self):
+        """agdt-task-wait should not appear in the prompt (legacy wait logic removed)."""
         result = self._render(**self._base_variables())
-        assert "agdt-task-wait" in result
+        assert "agdt-task-wait" not in result
 
     def test_no_wait_poll_instructions(self):
         """No legacy wait/poll instructions for API completion remain."""
@@ -146,10 +146,11 @@ class TestPrReviewFileReviewPromptRendering:
         result = self._render(**self._base_variables())
         assert "agdt-request-changes-batch" in result
 
-    def test_async_processing_note_present(self):
-        """After Submitting section mentions async processing."""
+    def test_after_submitting_section_present(self):
+        """After Submitting section mentions proceeding to next file."""
         result = self._render(**self._base_variables())
-        assert "asynchronously" in result
+        assert "After Submitting" in result
+        assert "proceed" in result.lower()
 
     def test_prompt_file_path_rendered(self):
         """Prompt file path appears in rendered output."""

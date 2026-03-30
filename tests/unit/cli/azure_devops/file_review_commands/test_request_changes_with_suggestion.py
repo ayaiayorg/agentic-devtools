@@ -505,7 +505,7 @@ def _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=None):
     stack.enter_context(patch(f"{_MOD}.patch_thread_status"))
     stack.enter_context(patch(f"{_MOD}.mark_file_reviewed"))
     stack.enter_context(patch(f"{_MOD}._update_queue_after_review", return_value=(3, 1)))
-    stack.enter_context(patch(f"{_MOD}._trigger_workflow_continuation"))
+    stack.enter_context(patch(f"{_MOD}.print_next_file_prompt"))
 
     return {
         "save": mock_save,
