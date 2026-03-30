@@ -149,360 +149,7 @@ def _get_queue_path(pull_request_id: int) -> Path:
     return new_path
 
 
-def mark_file_as_submission_pending(
-    pull_request_id: int,
-    file_path: str,
-    task_id: str,
-    outcome: str,
-) -> bool:
-    """
-    Mark a file as submission-pending in the queue.
 
-    This is called immediately when a file review async command is invoked,
-    before the background task completes. It moves the file from pending
-    to a new "submission-pending" status and records the task ID.
-
-    Args:
-        pull_request_id: PR ID
-        file_path: Path of file being submitted
-        task_id: Background task ID tracking this submission
-        outcome: Expected review outcome ('Approve', 'Changes', 'Suggest')
-
-    Returns:
-        True if file was successfully marked, False otherwise
-    """
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():
-        print(f"Queue file not found at {queue_path}; cannot mark submission pending.")
-        return False
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"Warning: Failed to read queue file: {e}")
-        return False
-
-    normalized_target = _normalize_repo_path(file_path)
-    if not normalized_target:  # pragma: no cover
-        return False
-
-    pending = queue_data.get("pending", [])
-
-    # Find matching entry in pending
-    matched_index = None
-    for idx, entry in enumerate(pending):
-        entry_normalized = _normalize_repo_path(entry.get("path"))
-        if entry_normalized and entry_normalized.lower() == normalized_target.lower():
-            matched_index = idx
-            break
-
-    if matched_index is None:
-        print(f"File '{file_path}' not found in pending queue.")
-        return False
-
-    # Update the entry to submission-pending
-    pending[matched_index]["status"] = "submission-pending"
-    pending[matched_index]["taskId"] = task_id
-    pending[matched_index]["outcome"] = outcome
-    pending[matched_index]["submittedUtc"] = datetime.now(timezone.utc).isoformat()
-    # Clean up any failure fields from previous attempts
-    pending[matched_index].pop("failedUtc", None)
-    pending[matched_index].pop("errorMessage", None)
-
-    queue_data["lastUpdatedUtc"] = datetime.now(timezone.utc).isoformat()
-
-    try:
-        with open(queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue_data, f, indent=2)
-        return True
-    except OSError as e:  # pragma: no cover
-        print(f"Warning: Failed to write queue file: {e}")
-        return False
-
-
-def update_submission_to_completed(
-    pull_request_id: int,
-    file_path: str,
-) -> bool:
-    """
-    Update a submission-pending file to completed status.
-
-    Called by the background task after successfully posting the review.
-
-    Args:
-        pull_request_id: PR ID
-        file_path: Path of reviewed file
-
-    Returns:
-        True if updated successfully, False otherwise
-    """
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():
-        return False
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError):  # pragma: no cover
-        return False
-
-    normalized_target = _normalize_repo_path(file_path)
-    if not normalized_target:  # pragma: no cover
-        return False
-
-    pending = queue_data.get("pending", [])
-    completed = queue_data.get("completed", [])
-
-    # Find matching entry (should be submission-pending)
-    matched_entry = None
-    remaining_pending = []
-
-    for entry in pending:
-        entry_normalized = _normalize_repo_path(entry.get("path"))
-        if entry_normalized and entry_normalized.lower() == normalized_target.lower():
-            matched_entry = entry
-        else:
-            remaining_pending.append(entry)
-
-    if not matched_entry:
-        return False
-
-    # Update to completed
-    matched_entry["status"] = "completed"
-    matched_entry["completedUtc"] = datetime.now(timezone.utc).isoformat()
-    # Remove task tracking fields
-    matched_entry.pop("taskId", None)
-    matched_entry.pop("submittedUtc", None)
-
-    completed.append(matched_entry)
-
-    queue_data["pending"] = remaining_pending
-    queue_data["completed"] = completed
-    queue_data["lastUpdatedUtc"] = datetime.now(timezone.utc).isoformat()
-
-    try:
-        with open(queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue_data, f, indent=2)
-        return True
-    except OSError:  # pragma: no cover
-        return False
-
-
-def update_submission_to_failed(
-    pull_request_id: int,
-    file_path: str,
-    error_message: str,
-) -> bool:
-    """
-    Update a submission-pending file to failed status.
-
-    Called by the background task if the review submission fails.
-
-    Args:
-        pull_request_id: PR ID
-        file_path: Path of file that failed
-        error_message: Error description
-
-    Returns:
-        True if updated successfully, False otherwise
-    """
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():
-        return False
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError):  # pragma: no cover
-        return False
-
-    normalized_target = _normalize_repo_path(file_path)
-    if not normalized_target:  # pragma: no cover
-        return False
-
-    pending = queue_data.get("pending", [])
-
-    # Find and update matching entry
-    for entry in pending:
-        entry_normalized = _normalize_repo_path(entry.get("path"))
-        if entry_normalized and entry_normalized.lower() == normalized_target.lower():
-            entry["status"] = "failed"
-            entry["failedUtc"] = datetime.now(timezone.utc).isoformat()
-            entry["errorMessage"] = error_message
-            break
-
-    queue_data["lastUpdatedUtc"] = datetime.now(timezone.utc).isoformat()
-
-    try:
-        with open(queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue_data, f, indent=2)
-        return True
-    except OSError:  # pragma: no cover
-        return False
-
-
-def get_failed_submissions(pull_request_id: int) -> list[dict]:
-    """
-    Get all failed submission entries from the queue.
-
-    Args:
-        pull_request_id: PR ID
-
-    Returns:
-        List of failed queue entries with file path and error info
-    """
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():
-        return []
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError):  # pragma: no cover
-        return []
-
-    pending = queue_data.get("pending", [])
-    return [entry for entry in pending if entry.get("status") == "failed"]
-
-
-def reset_failed_submission(pull_request_id: int, file_path: str) -> bool:
-    """
-    Reset a failed submission back to pending status for retry.
-
-    Args:
-        pull_request_id: PR ID
-        file_path: Path of failed file to reset
-
-    Returns:
-        True if reset successfully, False otherwise
-    """
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():  # pragma: no cover
-        return False
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError):  # pragma: no cover
-        return False
-
-    normalized_target = _normalize_repo_path(file_path)
-    if not normalized_target:  # pragma: no cover
-        return False
-
-    pending = queue_data.get("pending", [])
-
-    # Find and reset matching failed entry
-    for entry in pending:
-        entry_normalized = _normalize_repo_path(entry.get("path"))
-        if entry_normalized and entry_normalized.lower() == normalized_target.lower():
-            if entry.get("status") == "failed":
-                entry["status"] = "pending"
-                # Remove failure tracking fields
-                entry.pop("taskId", None)
-                entry.pop("submittedUtc", None)
-                entry.pop("failedUtc", None)
-                entry.pop("errorMessage", None)
-                entry.pop("outcome", None)
-                break
-
-    queue_data["lastUpdatedUtc"] = datetime.now(timezone.utc).isoformat()
-
-    try:
-        with open(queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue_data, f, indent=2)
-        return True
-    except OSError:  # pragma: no cover
-        return False
-
-
-def sync_submission_pending_with_tasks(pull_request_id: int) -> None:
-    """
-    Sync submission-pending entries with their background task status.
-
-    This checks all submission-pending entries and:
-    - If task completed successfully: moves entry to completed
-    - If task failed: marks entry as failed with error message
-    - If task still running: leaves entry unchanged
-
-    Called at the start of print_next_file_prompt() to ensure queue state
-    is accurate before showing the next file.
-
-    Args:
-        pull_request_id: PR ID
-    """
-    from ...task_state import TaskStatus, get_task_by_id
-
-    queue_path = _get_queue_path(pull_request_id)
-
-    if not queue_path.exists():
-        return
-
-    try:
-        with open(queue_path, encoding="utf-8") as f:
-            queue_data = json.load(f)
-    except (json.JSONDecodeError, OSError):  # pragma: no cover
-        return
-
-    pending = queue_data.get("pending", [])
-    completed = queue_data.get("completed", [])
-    modified = False
-
-    # Process submission-pending entries
-    entries_to_complete = []
-    for entry in pending:
-        if entry.get("status") != "submission-pending":
-            continue
-
-        task_id = entry.get("taskId")
-        if not task_id:  # pragma: no cover
-            continue
-
-        task = get_task_by_id(task_id)
-        if not task:
-            # Task not found - mark as failed
-            entry["status"] = "failed"
-            entry["failedUtc"] = datetime.now(timezone.utc).isoformat()
-            entry["errorMessage"] = "Background task not found"
-            modified = True
-        elif task.status == TaskStatus.COMPLETED:
-            # Task completed successfully - move to completed
-            entries_to_complete.append(entry)
-            modified = True
-        elif task.status == TaskStatus.FAILED:
-            # Task failed - mark entry as failed
-            entry["status"] = "failed"
-            entry["failedUtc"] = datetime.now(timezone.utc).isoformat()
-            error_msg = task.error_message or f"Task failed with exit code {task.exit_code}"
-            entry["errorMessage"] = error_msg
-            modified = True
-        # If task is pending or running, leave entry unchanged
-
-    # Move completed entries to completed list
-    for entry in entries_to_complete:
-        pending.remove(entry)
-        entry["status"] = "completed"
-        entry["completedUtc"] = datetime.now(timezone.utc).isoformat()
-        # Clean up task tracking fields
-        entry.pop("taskId", None)
-        entry.pop("submittedUtc", None)
-        entry.pop("failedUtc", None)
-        entry.pop("errorMessage", None)
-        completed.append(entry)
-
-    if modified:
-        queue_data["lastUpdatedUtc"] = datetime.now(timezone.utc).isoformat()
-        try:
-            with open(queue_path, "w", encoding="utf-8") as f:
-                json.dump(queue_data, f, indent=2)
-        except OSError:  # pragma: no cover
-            pass
 
 
 def trigger_in_progress_for_file(
@@ -609,42 +256,14 @@ def trigger_in_progress_for_file(
 
 def print_next_file_prompt(pull_request_id: int) -> None:
     """
-    Print the prompt for the next file to review, checking for failures first.
+    Print the prompt for the next file to review.
 
-    This is the main function called after async submission to continue the workflow.
-    It first syncs submission-pending entries with their background task status,
-    then checks for failed submissions, and finally shows the next pending file.
+    This is the main function called after a file review to continue the workflow.
+    It shows the next pending file or a completion message.
 
     Args:
         pull_request_id: PR ID
     """
-    # Sync submission-pending entries with background task status
-    sync_submission_pending_with_tasks(pull_request_id)
-
-    # Check for failed submissions first
-    failed = get_failed_submissions(pull_request_id)
-    if failed:
-        print("")
-        print("=" * 60)
-        print(f"⚠️  FAILED SUBMISSIONS ({len(failed)})")
-        print("=" * 60)
-        print("")
-        for entry in failed:
-            print(f"  File: {entry.get('path')}")
-            print(f"  Outcome: {entry.get('outcome', 'Unknown')}")
-            print(f"  Error: {entry.get('errorMessage', 'Unknown error')}")
-            print("")
-        print("Action required:")
-        print("  1. Review the error message above")
-        print("  2. If submission parameters were wrong, adjust and resubmit")
-        print("     (e.g., fix line numbers, content formatting)")
-        print("  3. If error appears transient/external, simply resubmit as-is")
-        print("")
-        print("Resubmit using: agdt-approve-file, agdt-request-changes, or")
-        print("                agdt-request-changes-with-suggestion")
-        print("")
-        return
-
     # Get queue status
     status = get_queue_status(pull_request_id)
 
@@ -663,50 +282,19 @@ def print_next_file_prompt(pull_request_id: int) -> None:
     print("=" * 60)
 
     if status["all_complete"]:
-        if status.get("submission_pending_count", 0) > 0:
-            # All files reviewed but submissions still posting to Azure DevOps
-            print("ALL FILES REVIEWED - PENDING SUBMISSION COMPLETION")
-            print("=" * 60)
-            print("")
-            print(f"Total files reviewed: {status['completed_count']}")
-            print("")
-            print("Some file review submissions are still being processed in the background.")
-            print("")
-            print("YOUR ONLY ACTION: Run agdt-task-wait")
-            print("")
-            print("This will wait for submissions to complete and then provide next steps.")
-        else:
-            # All files reviewed and all submissions complete
-            print("ALL FILES REVIEWED - READY FOR DECISION")
-            print("=" * 60)
-            print("")
-            print(f"Total files reviewed: {status['completed_count']}")
-            print("")
-            print("All file review submissions have completed.")
-            print("")
-            print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
-            print("")
-            print("This will advance the workflow to the decision step.")
+        # All files reviewed
+        print("ALL FILES REVIEWED - READY FOR DECISION")
+        print("=" * 60)
+        print("")
+        print(f"Total files reviewed: {status['completed_count']}")
+        print("")
+        print("All file review submissions have completed.")
+        print("")
+        print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
+        print("")
+        print("This will advance the workflow to the decision step.")
     else:
-        # Count submission-pending files
-        queue_path = _get_queue_path(pull_request_id)
-        submission_pending_count = 0
-        if queue_path.exists():
-            try:
-                with open(queue_path, encoding="utf-8") as f:
-                    queue_data = json.load(f)
-                submission_pending_count = sum(
-                    1 for entry in queue_data.get("pending", []) if entry.get("status") == "submission-pending"
-                )
-            except (json.JSONDecodeError, OSError):  # pragma: no cover
-                pass
-
-        pending_count = status["pending_count"] - submission_pending_count
-        print(f"QUEUE STATUS: {status['completed_count']} completed, {pending_count} pending", end="")
-        if submission_pending_count > 0:  # pragma: no cover
-            print(f", {submission_pending_count} submitting")
-        else:
-            print()
+        print(f"QUEUE STATUS: {status['completed_count']} completed, {status['pending_count']} pending")
         print("=" * 60)
         print("")
 
@@ -807,47 +395,6 @@ def _update_queue_after_review(
     return len(remaining_pending), len(completed)
 
 
-def _trigger_workflow_continuation(
-    pull_request_id: int,
-    pending_count: int,
-    completed_count: int,
-) -> None:
-    """
-    Print status after a file review and guide user to next step.
-
-    If there are more files pending, prints instructions to continue.
-    If all files are reviewed, prints completion message.
-
-    Note: Summary generation is NOT triggered here. It is handled by the
-    task completion handler in tasks/commands.py when all async file
-    submissions have completed. This prevents duplicate summary comments.
-
-    Args:
-        pull_request_id: PR ID
-        pending_count: Number of files still pending
-        completed_count: Number of files completed
-    """
-    print("")
-    print("=" * 60)
-
-    if pending_count > 0:
-        print(f"QUEUE STATUS: {completed_count} completed, {pending_count} remaining")
-        print("=" * 60)
-        print("")
-        print("Continue with the next file in the queue.")
-        print(f"Queue location: {_get_queue_path(pull_request_id)}")
-    else:
-        print("ALL FILES REVIEWED")
-        print("=" * 60)
-        print("")
-        print(f"Total files reviewed: {completed_count}")
-        print("")
-        print("Summary generation will be triggered automatically when all")
-        print("background file submission tasks complete.")
-        print("")
-        print("Use 'agdt-task-wait' to monitor pending submissions.")
-
-    print("")
 
 
 def get_queue_status(pull_request_id: int) -> dict:
@@ -864,9 +411,7 @@ def get_queue_status(pull_request_id: int) -> dict:
         Dictionary with queue status:
         - pull_request_id: The PR ID
         - completed_count: Number of files reviewed
-        - pending_count: Number of files still pending (excludes submission-pending/failed)
-        - submission_pending_count: Number of files being submitted
-        - failed_count: Number of failed submissions
+        - pending_count: Number of files still pending
         - total_count: Total number of files
         - current_file: Path of next file to review (or None if done)
         - prompt_file_path: Full path to the current file's prompt (or None)
@@ -878,8 +423,6 @@ def get_queue_status(pull_request_id: int) -> dict:
         "pull_request_id": pull_request_id,
         "completed_count": 0,
         "pending_count": 0,
-        "submission_pending_count": 0,
-        "failed_count": 0,
         "total_count": 0,
         "current_file": None,
         "prompt_file_path": None,
@@ -898,33 +441,16 @@ def get_queue_status(pull_request_id: int) -> dict:
     pending = queue_data.get("pending", [])
     completed = queue_data.get("completed", [])
 
-    # Categorize pending items by status
-    truly_pending = []
-    submission_pending = []
-    failed = []
-
-    for entry in pending:
-        status = entry.get("status", "pending")
-        if status == "submission-pending":
-            submission_pending.append(entry)
-        elif status == "failed":
-            failed.append(entry)
-        else:
-            truly_pending.append(entry)
-
-    result["pending_count"] = len(truly_pending)
-    result["submission_pending_count"] = len(submission_pending)
-    result["failed_count"] = len(failed)
+    result["pending_count"] = len(pending)
     result["completed_count"] = len(completed)
     result["total_count"] = len(pending) + len(completed)
 
-    # All complete when no truly pending files remain
-    # (submission-pending and failed are handled separately)
-    result["all_complete"] = len(truly_pending) == 0 and len(failed) == 0
+    # All complete when no pending files remain
+    result["all_complete"] = len(pending) == 0
 
-    # Get the next file to review (skip submission-pending and failed)
-    if truly_pending:
-        next_file = truly_pending[0]
+    # Get the next file to review
+    if pending:
+        next_file = pending[0]
         file_path = next_file.get("path", "")
         result["current_file"] = file_path
 
@@ -1226,7 +752,7 @@ def approve_file() -> None:  # pragma: no cover
         )
 
     # Update the review queue
-    pending_count, completed_count = _update_queue_after_review(
+    _update_queue_after_review(
         pull_request_id=pull_request_id,
         file_path=file_path,
         outcome="Approve",
@@ -1235,110 +761,8 @@ def approve_file() -> None:  # pragma: no cover
 
     print(f"File '{file_path}' approved successfully.")
 
-    # Trigger workflow continuation
-    _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
-
-
-def submit_file_review() -> None:  # pragma: no cover
-    """
-    Submit a file review (approve, request changes, or suggest).
-
-    This function:
-    1. Posts a review comment
-    2. Marks the file as reviewed in Azure DevOps
-    3. Updates the review queue
-    4. Triggers workflow continuation
-
-    State keys read:
-        - pull_request_id (required): Pull request ID
-        - file_review.file_path (required): Path of file being reviewed
-        - file_review.outcome (required): 'Approve', 'Changes', or 'Suggest'
-        - content (required): Review comment content
-        - line (optional): Line number for comment (required for Changes/Suggest)
-        - end_line (optional): End line for multi-line comment
-        - dry_run: If true, only print what would be done
-
-    Raises:
-        SystemExit: On validation or execution errors.
-    """
-    config = AzureDevOpsConfig.from_state()
-    dry_run = is_dry_run()
-    pull_request_id = get_pull_request_id(required=True)
-
-    file_path = get_value("file_review.file_path")
-    if not file_path:
-        print("Error: 'file_review.file_path' is required.", file=sys.stderr)
-        sys.exit(1)
-
-    outcome = get_value("file_review.outcome")
-    if not outcome or outcome not in ("Approve", "Changes", "Suggest"):
-        print(
-            "Error: 'file_review.outcome' must be 'Approve', 'Changes', or 'Suggest'.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    content = get_value("content")
-    if not content:
-        print("Error: 'content' is required for review comment.", file=sys.stderr)
-        sys.exit(1)
-
-    line = get_value("line")
-    end_line = get_value("end_line")
-
-    # For change requests, line is required
-    if outcome != "Approve" and line is None:
-        print("Error: 'line' is required for change requests.", file=sys.stderr)
-        sys.exit(1)
-
-    if dry_run:
-        print(f"DRY-RUN: Would submit {outcome} review for '{file_path}' on PR {pull_request_id}")
-        print("--- Comment Preview ---")
-        print(content)
-        print("-----------------------")
-        if line is not None:
-            range_text = f"{line}-{end_line}" if end_line and end_line != line else str(line)
-            print(f"Line context: {range_text}")
-        else:
-            print("No line metadata (file-level approval).")
-        return
-
-    # Import here to avoid circular import
-    from ...state import set_value
-    from .commands import add_pull_request_comment
-
-    # Step 1: Post review comment
-    set_value("path", file_path)
-    set_value("is_pull_request_approval", "true" if outcome == "Approve" else "false")
-    set_value("leave_thread_active", "false" if outcome == "Approve" else "true")
-
-    add_pull_request_comment()
-
-    # Step 2: Mark file as reviewed in Azure DevOps
-    pat = get_pat()
-    get_auth_headers(pat)  # Ensure auth is set up
-    repo_id = get_repository_id(config.organization, config.project, config.repository)
-
-    mark_file_reviewed(
-        file_path=file_path,
-        pull_request_id=pull_request_id,
-        config=config,
-        repo_id=repo_id,
-        dry_run=dry_run,
-    )
-
-    # Step 3: Update the review queue
-    pending_count, completed_count = _update_queue_after_review(
-        pull_request_id=pull_request_id,
-        file_path=file_path,
-        outcome=outcome,
-        dry_run=dry_run,
-    )
-
-    print(f"File review ({outcome}) submitted for '{file_path}'.")
-
-    # Step 4: Trigger workflow continuation
-    _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
+    # Show next file prompt
+    print_next_file_prompt(pull_request_id)
 
 
 def request_changes() -> None:
@@ -1764,7 +1188,7 @@ def request_changes() -> None:
         )
 
     # Update the review queue
-    pending_count, completed_count = _update_queue_after_review(
+    _update_queue_after_review(
         pull_request_id=pull_request_id,
         file_path=file_path,
         outcome="Changes",
@@ -1773,8 +1197,8 @@ def request_changes() -> None:
 
     print(f"Changes requested for '{file_path}'. Review suggestions have been posted where needed.")
 
-    # Trigger workflow continuation
-    _trigger_workflow_continuation(pull_request_id, pending_count, completed_count)
+    # Show next file prompt
+    print_next_file_prompt(pull_request_id)
 
 
 def request_changes_with_suggestion() -> None:

@@ -542,10 +542,6 @@ def _try_advance_pr_review_to_decision() -> bool:
     if not queue_status.get("all_complete", False):
         return False
 
-    # Also wait for all submissions to complete
-    if queue_status.get("submission_pending_count", 0) > 0:
-        return False
-
     # All conditions met - advance workflow to decision step using the prompt template
     from ..workflows.base import advance_workflow_step
 

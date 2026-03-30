@@ -22,31 +22,10 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                print_next_file_prompt(pull_request_id=42)
+            print_next_file_prompt(pull_request_id=42)
 
         captured = capsys.readouterr()
         assert captured.out != "" or captured.err != ""
-
-    def test_calls_sync_submission_pending_with_tasks(self, tmp_path):
-        """Should call sync_submission_pending_with_tasks to refresh task status."""
-        queue_data = {
-            "pending": [],
-            "completed": [{"path": "src/a.ts"}],
-        }
-        queue_file = tmp_path / "queue.json"
-        queue_file.write_text(json.dumps(queue_data))
-
-        with patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
-            return_value=queue_file,
-        ):
-            with patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"
-            ) as mock_sync:
-                print_next_file_prompt(pull_request_id=42)
-
-        mock_sync.assert_called_once_with(42)
 
     def test_calls_trigger_in_progress_when_file_pending(self, tmp_path):
         """Should call trigger_in_progress_for_file when there is a pending file."""
@@ -61,12 +40,11 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                with patch(
-                    "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file"
-                ) as mock_trigger:
-                    with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
-                        print_next_file_prompt(pull_request_id=42)
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file"
+            ) as mock_trigger:
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
+                    print_next_file_prompt(pull_request_id=42)
 
         mock_trigger.assert_called_once_with(
             pull_request_id=42,
@@ -87,37 +65,15 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                with patch(
-                    "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file"
-                ) as mock_trigger:
-                    print_next_file_prompt(pull_request_id=42)
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file"
+            ) as mock_trigger:
+                print_next_file_prompt(pull_request_id=42)
 
         mock_trigger.assert_not_called()
 
-    def test_shows_task_wait_when_submissions_pending(self, tmp_path, capsys):
-        """Should show agdt-task-wait instructions when all_complete but submissions still pending."""
-        queue_data = {
-            "pending": [{"path": "src/a.ts", "status": "submission-pending"}],
-            "completed": [{"path": "src/b.ts"}],
-        }
-        queue_file = tmp_path / "queue.json"
-        queue_file.write_text(json.dumps(queue_data))
-
-        with patch(
-            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
-            return_value=queue_file,
-        ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                print_next_file_prompt(pull_request_id=42)
-
-        captured = capsys.readouterr()
-        assert "PENDING SUBMISSION COMPLETION" in captured.out
-        assert "agdt-task-wait" in captured.out
-        assert "agdt-advance-workflow" not in captured.out
-
-    def test_shows_advance_workflow_when_all_complete_no_submissions(self, tmp_path, capsys):
-        """Should show agdt-advance-workflow instructions when all_complete and no submissions pending."""
+    def test_shows_advance_workflow_when_all_complete(self, tmp_path, capsys):
+        """Should show agdt-advance-workflow instructions when all files are reviewed."""
         queue_data = {
             "pending": [],
             "completed": [{"path": "src/a.ts"}, {"path": "src/b.ts"}],
@@ -129,8 +85,7 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                print_next_file_prompt(pull_request_id=42)
+            print_next_file_prompt(pull_request_id=42)
 
         captured = capsys.readouterr()
         assert "READY FOR DECISION" in captured.out
@@ -150,14 +105,13 @@ class TestPrintNextFilePrompt:
             "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
             return_value=queue_file,
         ):
-            with patch("agentic_devtools.cli.azure_devops.file_review_commands.sync_submission_pending_with_tasks"):
-                with patch(
-                    "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file",
-                    side_effect=RuntimeError("boom"),
-                ):
-                    with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
-                        # Should not raise
-                        print_next_file_prompt(pull_request_id=42)
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.trigger_in_progress_for_file",
+                side_effect=RuntimeError("boom"),
+            ):
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
+                    # Should not raise
+                    print_next_file_prompt(pull_request_id=42)
 
         captured = capsys.readouterr()
         assert "Warning" in captured.err

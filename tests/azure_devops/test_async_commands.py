@@ -27,7 +27,6 @@ from agentic_devtools.cli.azure_devops.async_commands import (
     run_e2e_tests_fabric_async,
     run_e2e_tests_synapse_async,
     run_wb_patch_async,
-    submit_file_review_async,
 )
 
 
@@ -394,22 +393,6 @@ class TestApproveFileAsync:
         assert get_value("pull_request_id") == 99999
 
 
-class TestSubmitFileReviewAsync:
-    """Tests for submit_file_review_async command."""
-
-    def test_spawns_background_task(self, mock_background_and_state, capsys):
-        """Test command spawns a background task calling the correct function."""
-        submit_file_review_async()
-
-        captured = capsys.readouterr()
-        assert "Background task started" in captured.out
-
-        script = _get_script_from_call(mock_background_and_state["mock_popen"])
-        _assert_function_in_script(
-            script, "agentic_devtools.cli.azure_devops.file_review_commands", "submit_file_review"
-        )
-
-
 class TestRequestChangesAsync:
     """Tests for request_changes_async command."""
 
@@ -553,7 +536,6 @@ class TestAzureDevOpsAsyncIntegration:
             run_e2e_tests_fabric_async,
             run_e2e_tests_synapse_async,
             run_wb_patch_async,
-            submit_file_review_async,
         )
 
         # All should be callable
@@ -571,7 +553,6 @@ class TestAzureDevOpsAsyncIntegration:
         assert callable(run_wb_patch_async)
         assert callable(get_run_details_async)
         assert callable(approve_file_async)
-        assert callable(submit_file_review_async)
         assert callable(request_changes_async)
         assert callable(request_changes_with_suggestion_async)
         assert callable(mark_file_reviewed_async)

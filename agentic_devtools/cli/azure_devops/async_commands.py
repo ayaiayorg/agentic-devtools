@@ -837,40 +837,6 @@ def update_pipeline_async() -> None:  # pragma: no cover
 # =============================================================================
 
 
-def _auto_advance_after_submission(
-    task_id: str,
-    file_path: str,
-    outcome: str,
-) -> None:
-    """
-    Handle auto-advancement after submitting a file review.
-
-    Marks the file as submission-pending in the queue, then prints
-    the next file prompt (or checks for failures).
-
-    Args:
-        task_id: Background task ID
-        file_path: Path of file being submitted
-        outcome: Review outcome ('Approve', 'Changes', 'Suggest')
-    """
-    from .file_review_commands import (
-        mark_file_as_submission_pending,
-        print_next_file_prompt,
-    )
-
-    pr_id = get_value("pull_request_id")
-    if not pr_id:  # pragma: no cover
-        return
-
-    pr_id_int = int(pr_id)
-
-    # Mark file as submission-pending
-    mark_file_as_submission_pending(pr_id_int, file_path, task_id, outcome)
-
-    # Print the next file prompt
-    print_next_file_prompt(pr_id_int)
-
-
 def approve_file_async(
     file_path: str | None = None,
     content: str | None = None,
@@ -880,8 +846,8 @@ def approve_file_async(
     """
     Approve a file in a pull request asynchronously in the background.
 
-    After spawning the background task, immediately marks the file as
-    submission-pending and shows the next file to review.
+    After spawning the background task, immediately updates the review queue
+    and shows the next file to review.
 
     Args:
         file_path: Path of file to approve (overrides state)
@@ -941,8 +907,12 @@ def approve_file_async(
     )
     print_task_tracking_info(task, f"Approving file: {resolved_file_path}")
 
-    # Auto-advance: mark as submission-pending and show next file
-    _auto_advance_after_submission(task.id, resolved_file_path, "Approve")
+    # Update queue and show next file
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+
+    pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Approve")
+    print_next_file_prompt(pr_id)
 
 
 def approve_file_async_cli() -> None:
@@ -997,29 +967,6 @@ Examples:
         summary=args.summary,
         pull_request_id=args.pull_request_id,
     )
-
-
-def submit_file_review_async() -> None:
-    """
-    Submit a file review asynchronously in the background.
-
-    State keys:
-        pull_request_id (required): PR ID
-        file_path (required): Path of file
-        content (required): Review content
-
-    Usage:
-        agdt-set pull_request_id 12345
-        agdt-set file_path "src/app/component.ts"
-        agdt-set content "Review comments..."
-        agdt-submit-file-review
-    """
-    task = run_function_in_background(
-        _FILE_REVIEW_MODULE,
-        "submit_file_review",
-        command_display_name="agdt-submit-file-review",
-    )
-    print_task_tracking_info(task, "Submitting file review")
 
 
 def request_changes_async(
@@ -1085,8 +1032,12 @@ def request_changes_async(
     )
     print_task_tracking_info(task, f"Requesting changes on file: {resolved_file_path}")
 
-    # Auto-advance: mark as submission-pending and show next file
-    _auto_advance_after_submission(task.id, resolved_file_path, "Changes")
+    # Update queue and show next file
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+
+    pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
+    print_next_file_prompt(pr_id)
 
 
 def request_changes_async_cli() -> None:
@@ -1215,8 +1166,12 @@ def request_changes_with_suggestion_async(
     )
     print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
 
-    # Auto-advance: mark as submission-pending and show next file
-    _auto_advance_after_submission(task.id, resolved_file_path, "Changes")
+    # Update queue and show next file
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+
+    pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
+    print_next_file_prompt(pr_id)
 
 
 def request_changes_with_suggestion_async_cli() -> None:
