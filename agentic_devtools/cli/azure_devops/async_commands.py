@@ -34,6 +34,22 @@ def _require_value(key: str, cli_example: str) -> str:
     return str(value)
 
 
+def _require_int_value(key: str, cli_example: str) -> int:
+    """Get a required integer state value or exit with error.
+
+    Validates both presence and that the value is parseable as an integer.
+    """
+    raw = _require_value(key, cli_example)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        print(
+            f"Error: {key} must be a numeric ID, got {raw!r}. Use: {cli_example}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 # Module paths for the sync functions
 _COMMANDS_MODULE = "agentic_devtools.cli.azure_devops.commands"
 _FILE_REVIEW_MODULE = "agentic_devtools.cli.azure_devops.file_review_commands"
@@ -899,12 +915,9 @@ def approve_file_async(
             set_value("file_review.summary", state_content)
 
     # Validate required values
-    _require_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
+    pr_id = _require_int_value("pull_request_id", "agdt-approve-file --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-approve-file --file-path "path/to/file"')
     _require_value("file_review.summary", 'agdt-approve-file --summary "Approval summary"')
-
-    # Parse PR ID before starting the task so a non-numeric value fails early.
-    pr_id = int(get_value("pull_request_id"))
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -1030,13 +1043,10 @@ def request_changes_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
+    pr_id = _require_int_value("pull_request_id", "agdt-request-changes --pull-request-id 12345")
     resolved_file_path = _require_value("file_review.file_path", 'agdt-request-changes --file-path "path/to/file"')
     _require_value("file_review.summary", 'agdt-request-changes --summary "Overall assessment"')
     _require_value("file_review.suggestions", "agdt-request-changes --suggestions '[{\"line\":42,...}]'")
-
-    # Parse PR ID before starting the task so a non-numeric value fails early.
-    pr_id = int(get_value("pull_request_id"))
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
@@ -1164,7 +1174,9 @@ def request_changes_with_suggestion_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    _require_value("pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345")
+    pr_id = _require_int_value(
+        "pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345"
+    )
     resolved_file_path = _require_value(
         "file_review.file_path", 'agdt-request-changes-with-suggestion --file-path "path/to/file"'
     )
@@ -1174,9 +1186,6 @@ def request_changes_with_suggestion_async(
         "agdt-request-changes-with-suggestion "
         '--suggestions \'[{"line":42,"severity":"high","content":"...","replacement_code":"..."}]\'',
     )
-
-    # Parse PR ID before starting the task so a non-numeric value fails early.
-    pr_id = int(get_value("pull_request_id"))
 
     task = run_function_in_background(
         _FILE_REVIEW_MODULE,
