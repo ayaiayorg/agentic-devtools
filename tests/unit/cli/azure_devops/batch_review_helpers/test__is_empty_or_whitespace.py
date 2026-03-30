@@ -1,6 +1,6 @@
-"""Tests for agentic_devtools.cli.azure_devops.submit_reviews._is_empty_or_whitespace."""
+"""Tests for agentic_devtools.cli.azure_devops.batch_review_helpers._is_empty_or_whitespace."""
 
-from agentic_devtools.cli.azure_devops.submit_reviews import _is_empty_or_whitespace
+from agentic_devtools.cli.azure_devops.batch_review_helpers import _is_empty_or_whitespace
 
 
 class TestIsEmptyOrWhitespace:

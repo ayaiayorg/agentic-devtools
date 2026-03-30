@@ -52,7 +52,16 @@ def resolve_batch_reviews(payload: dict) -> list[object]:
     """
     default_outcome = payload.get("default_outcome", "approve")
     default_summary = payload.get("default_summary")
-    items = payload.get("items", [])
+    raw_items = payload.get("items")
+
+    # Normalize items to a list so non-list / None values surface as
+    # validation errors instead of crashing with TypeError.
+    if raw_items is None:
+        items: list[object] = []
+    elif isinstance(raw_items, list):
+        items = raw_items
+    else:
+        items = [raw_items]
 
     resolved: list[object] = []
     for item in items:

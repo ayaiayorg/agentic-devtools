@@ -63,6 +63,9 @@ from .async_commands import (
 )
 from .auth import get_auth_headers, get_pat
 
+# Batch review helpers
+from .batch_review_helpers import resolve_batch_reviews, validate_batch_reviews
+
 # Command exports
 from .commands import (
     add_pull_request_comment,
@@ -190,9 +193,6 @@ from .status_cascade import (
     derive_overall_status,
     execute_cascade,
 )
-
-# Submit reviews helpers
-from .submit_reviews import resolve_batch_reviews, validate_batch_reviews
 
 # Suggestion commands exports
 from .suggestion_commands import confirm_suggestion_addressed, reject_suggestion_resolution

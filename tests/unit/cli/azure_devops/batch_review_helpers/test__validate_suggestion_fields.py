@@ -1,6 +1,6 @@
-"""Tests for agentic_devtools.cli.azure_devops.submit_reviews._validate_suggestion_fields."""
+"""Tests for agentic_devtools.cli.azure_devops.batch_review_helpers._validate_suggestion_fields."""
 
-from agentic_devtools.cli.azure_devops.submit_reviews import _validate_suggestion_fields
+from agentic_devtools.cli.azure_devops.batch_review_helpers import _validate_suggestion_fields
 
 
 class TestValidateSuggestionFields:

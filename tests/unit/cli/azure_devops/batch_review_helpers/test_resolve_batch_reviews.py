@@ -1,6 +1,6 @@
-"""Tests for agentic_devtools.cli.azure_devops.submit_reviews.resolve_batch_reviews."""
+"""Tests for agentic_devtools.cli.azure_devops.batch_review_helpers.resolve_batch_reviews."""
 
-from agentic_devtools.cli.azure_devops.submit_reviews import resolve_batch_reviews
+from agentic_devtools.cli.azure_devops.batch_review_helpers import resolve_batch_reviews
 
 
 class TestResolveBatchReviews:
@@ -148,3 +148,21 @@ class TestResolveBatchReviews:
         result = resolve_batch_reviews(payload)
         # 0 is preserved so validation can catch the type error
         assert result[0]["summary"] == 0
+
+    def test_items_null_returns_empty(self):
+        """payload with items=null resolves to empty list (no crash)."""
+        payload = {"items": None}
+        result = resolve_batch_reviews(payload)
+        assert result == []
+
+    def test_items_non_list_wrapped(self):
+        """Non-list items value is wrapped so validation can surface error."""
+        payload = {"items": "not-a-list"}
+        result = resolve_batch_reviews(payload)
+        assert result == ["not-a-list"]
+
+    def test_items_missing_returns_empty(self):
+        """Missing items key resolves to empty list."""
+        payload = {}
+        result = resolve_batch_reviews(payload)
+        assert result == []

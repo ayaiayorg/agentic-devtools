@@ -13,7 +13,7 @@ import json
 import sys
 
 from ...state import get_pull_request_id, is_dry_run
-from .submit_reviews import resolve_batch_reviews, validate_batch_reviews
+from .batch_review_helpers import resolve_batch_reviews, validate_batch_reviews
 
 
 def request_changes_batch_cli() -> None:

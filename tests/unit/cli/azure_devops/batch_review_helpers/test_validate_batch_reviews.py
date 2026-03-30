@@ -1,6 +1,6 @@
-"""Tests for agentic_devtools.cli.azure_devops.submit_reviews.validate_batch_reviews."""
+"""Tests for agentic_devtools.cli.azure_devops.batch_review_helpers.validate_batch_reviews."""
 
-from agentic_devtools.cli.azure_devops.submit_reviews import validate_batch_reviews
+from agentic_devtools.cli.azure_devops.batch_review_helpers import validate_batch_reviews
 
 
 class TestValidateBatchReviews:
