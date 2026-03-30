@@ -82,7 +82,14 @@ Examples:
     if args.pull_request_id is not None:
         pr_id = args.pull_request_id
     else:
-        pr_id = get_pull_request_id(required=True)
+        pr_id = get_pull_request_id(required=False)
+        if pr_id is None:
+            print(
+                "Error: pull request ID is required. Provide --pull-request-id "
+                "or set pull_request_id in state.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # Build payload
     payload = {

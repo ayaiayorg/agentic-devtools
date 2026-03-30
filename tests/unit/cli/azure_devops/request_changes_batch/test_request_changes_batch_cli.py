@@ -262,15 +262,17 @@ class TestRequestChangesBatchCli:
         assert exc.value.code == 1
         assert "summary is required" in capsys.readouterr().err
 
-    def test_missing_pr_id_exits(self, temp_state_dir, clear_state_before):
-        """Missing --pull-request-id with no state raises."""
+    def test_missing_pr_id_exits(self, temp_state_dir, clear_state_before, capsys):
+        """Missing --pull-request-id with no state exits with error."""
         reviews_json = json.dumps({"items": [{"file_path": "/x.ts"}]})
         with patch(
             "agentic_devtools.cli.azure_devops.request_changes_batch.get_pull_request_id",
-            side_effect=KeyError("pull_request_id"),
+            return_value=None,
         ):
-            with pytest.raises(KeyError, match="pull_request_id"):
+            with pytest.raises(SystemExit) as exc:
                 _run_cli("--reviews", reviews_json)
+            assert exc.value.code == 1
+            assert "pull request ID is required" in capsys.readouterr().err
 
     def test_success_output(self, temp_state_dir, clear_state_before, capsys):
         """submit_reviews_async is called for valid items."""
