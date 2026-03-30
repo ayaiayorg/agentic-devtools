@@ -94,11 +94,8 @@ agdt-request-changes-batch --reviews '{"default_summary": "Missing error handlin
 
 ## After Submitting
 
-Submissions are processed asynchronously via background tasks.
-
-- If you still have unreviewed files in the queue, proceed immediately to the next file while background tasks run.
-- When all files are reviewed **but submissions are still pending**, use `agdt-task-wait` to wait for submission tasks to complete before moving to the decision step.
-- When all submissions have completed, proceed directly to the decision step.
+After submitting your review command for a file, continue working through the remaining files in the queue.
+When all files have been reviewed, move on to the decision step.
 
 ---
 

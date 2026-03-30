@@ -157,12 +157,6 @@ sequenceDiagram
         end
     end
     
-    Agent->>CLI: agdt-submit-file-review
-    CLI->>Background: Submit remaining file reviews
-    Agent->>CLI: agdt-task-wait
-    CLI->>Background: Wait for all submissions to complete
-    CLI->>State: update_workflow_step("decision")
-    
     Note over Agent: Step 3: Decision
     alt No blocking issues
         Agent->>CLI: agdt-approve-pull-request

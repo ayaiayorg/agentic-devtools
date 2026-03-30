@@ -99,10 +99,6 @@ COMMAND_MAP = {
         "agentic_devtools.cli.azure_devops",
         "approve_file_async_cli",
     ),
-    "agdt-submit-file-review": (
-        "agentic_devtools.cli.azure_devops",
-        "submit_file_review_async",
-    ),
     "agdt-submit-reviews": (
         "agentic_devtools.cli.azure_devops",
         "submit_reviews_cli",

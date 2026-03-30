@@ -129,9 +129,7 @@ def validate_batch_reviews(resolved_items: list[object]) -> list[str]:
 
         file_path = item["file_path"]
         if not isinstance(file_path, str):
-            errors.append(
-                f"Item {i}: 'file_path' must be a string (got {type(file_path).__name__})."
-            )
+            errors.append(f"Item {i}: 'file_path' must be a string (got {type(file_path).__name__}).")
             continue
 
         if not file_path.strip():
@@ -150,9 +148,7 @@ def validate_batch_reviews(resolved_items: list[object]) -> list[str]:
 
         summary = item.get("summary")
         if not isinstance(summary, str):
-            errors.append(
-                f"Item {i} ({file_path}): 'summary' must be a string (got {type(summary).__name__})."
-            )
+            errors.append(f"Item {i} ({file_path}): 'summary' must be a string (got {type(summary).__name__}).")
             continue
 
         if not summary.strip():
@@ -220,8 +216,7 @@ def _validate_suggestion_fields(
             errors.append(f"{prefix}: 'replacement_code' is required for '{outcome}'.")
         elif not isinstance(replacement_code, str):
             errors.append(
-                f"{prefix}: 'replacement_code' must be a non-empty string"
-                f" (got {type(replacement_code).__name__})."
+                f"{prefix}: 'replacement_code' must be a non-empty string (got {type(replacement_code).__name__})."
             )
         elif not replacement_code.strip():
             errors.append(f"{prefix}: 'replacement_code' must not be empty.")

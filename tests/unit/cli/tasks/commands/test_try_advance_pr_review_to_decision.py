@@ -98,28 +98,7 @@ class TestTryAdvancePrReviewToDecision:
             ),
             patch(
                 "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={"all_complete": False, "submission_pending_count": 0},
-            ),
-        ):
-            result = _try_advance_pr_review_to_decision()
-
-        assert result is False
-
-    def test_returns_false_when_submissions_pending(self, mock_state_dir):
-        """Test returns False when submissions are still pending."""
-        from agentic_devtools.cli.tasks.commands import _try_advance_pr_review_to_decision
-        from agentic_devtools.state import set_value
-
-        set_value("pull_request_id", "12345")
-
-        with (
-            patch(
-                "agentic_devtools.state.get_workflow_state",
-                return_value={"active": "pull-request-review", "step": "file-review"},
-            ),
-            patch(
-                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
-                return_value={"all_complete": True, "submission_pending_count": 2},
+                return_value={"all_complete": False},
             ),
         ):
             result = _try_advance_pr_review_to_decision()
@@ -142,7 +121,6 @@ class TestTryAdvancePrReviewToDecision:
                 "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
                 return_value={
                     "all_complete": True,
-                    "submission_pending_count": 0,
                     "completed_count": 3,
                     "pending_count": 0,
                     "total_count": 3,
@@ -190,7 +168,6 @@ class TestTryAdvancePrReviewToDecision:
                 "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
                 return_value={
                     "all_complete": True,
-                    "submission_pending_count": 0,
                     "completed_count": 2,
                     "pending_count": 0,
                     "total_count": 2,
@@ -235,7 +212,6 @@ class TestTryAdvancePrReviewToDecision:
                 "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
                 return_value={
                     "all_complete": True,
-                    "submission_pending_count": 0,
                     "completed_count": 2,
                     "pending_count": 0,
                     "total_count": 2,

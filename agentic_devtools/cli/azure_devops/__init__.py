@@ -55,7 +55,6 @@ from .async_commands import (
     run_e2e_tests_fabric_async,
     run_e2e_tests_synapse_async,
     run_wb_patch_async,
-    submit_file_review_async,
     submit_reviews_async,
     submit_reviews_cli,
     update_pipeline_async,
@@ -94,7 +93,6 @@ from .file_review_commands import (
     get_queue_status,
     request_changes,
     request_changes_with_suggestion,
-    submit_file_review,
     submit_reviews,
 )
 
@@ -285,14 +283,12 @@ __all__ = [
     # File review commands
     "approve_file",
     "get_queue_status",
-    "submit_file_review",
     "submit_reviews",
     "request_changes",
     "request_changes_with_suggestion",
     # File review commands (async)
     "approve_file_async",
     "approve_file_async_cli",
-    "submit_file_review_async",
     "submit_reviews_async",
     "submit_reviews_cli",
     "request_changes_async",

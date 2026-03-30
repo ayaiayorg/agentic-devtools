@@ -917,9 +917,8 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
         elif current_step == "pull-request-overview":
             step = "file-review"
         elif current_step == "file-review":
-            # If all files are complete and no submissions are still pending,
-            # go to decision; otherwise stay in file-review
-            if queue_status["all_complete"] and queue_status.get("submission_pending_count", 0) == 0:
+            # If all files are complete, go to decision; otherwise stay in file-review
+            if queue_status["all_complete"]:
                 step = "decision"
             else:
                 step = "file-review"

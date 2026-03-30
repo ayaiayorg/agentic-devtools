@@ -501,8 +501,7 @@ def _try_advance_pr_review_to_decision() -> bool:
     This function checks if:
     1. Current workflow is pull-request-review
     2. Current step is file-review
-    3. All files have been reviewed (queue all_complete is True)
-    4. No submissions are still pending
+    3. All files in the review queue are complete (queue all_complete is True)
 
     If all conditions are met:
     - Advances workflow to decision step via advance_workflow_step()
@@ -542,11 +541,8 @@ def _try_advance_pr_review_to_decision() -> bool:
     if not queue_status.get("all_complete", False):
         return False
 
-    # Also wait for all submissions to complete
-    if queue_status.get("submission_pending_count", 0) > 0:
-        return False
-
-    # All conditions met - advance workflow to decision step using the prompt template
+    # All files in the review queue are complete (queue_status['all_complete'] is True) –
+    # advance workflow to the decision step using the prompt template.
     from ..workflows.base import advance_workflow_step
 
     context = workflow.get("context", {})

@@ -236,7 +236,6 @@ commands are exposed via `/speckit.*` (for example, `/speckit.plan`).
 | `/agdt.publish-pull-request` | `agdt-publish-pull-request` | Publish a draft pull request |
 | `/agdt.get-pull-request-details` | `agdt-get-pull-request-details` | Retrieve full pull request details |
 | `/agdt.approve-file` | `agdt-approve-file` | Approve a file during PR review |
-| `/agdt.submit-file-review` | `agdt-submit-file-review` | Submit batched file review |
 | `/agdt.request-changes` | `agdt-request-changes` | Request changes on a file |
 | `/agdt.request-changes-with-suggestion` | `agdt-request-changes-with-suggestion` | Request changes with code suggestions |
 | `/agdt.mark-file-reviewed` | `agdt-mark-file-reviewed` | Mark a file as reviewed |
