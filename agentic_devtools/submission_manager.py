@@ -16,6 +16,7 @@ Components:
 from __future__ import annotations
 
 import queue
+import random
 import threading
 import uuid
 from collections.abc import Callable
@@ -25,6 +26,10 @@ from enum import Enum
 from typing import Any
 
 
+class TransientSubmissionError(Exception):
+    """Raised by processors to signal a transient/retryable failure."""
+
+
 class SubmissionStatus(str, Enum):
     """Status values for submission items."""
 
@@ -32,6 +37,7 @@ class SubmissionStatus(str, Enum):
     PROCESSING = "processing"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    RETRYING = "retrying"
 
 
 @dataclass
@@ -110,6 +116,52 @@ class SubmissionItem:
         )
 
 
+@dataclass
+class FailedItemSummary:
+    """Summary of a single failed submission item."""
+
+    item_id: str
+    file_path: str
+    last_error: str
+    attempts: int
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "item_id": self.item_id,
+            "file_path": self.file_path,
+            "last_error": self.last_error,
+            "attempts": self.attempts,
+        }
+
+
+@dataclass
+class FailureReport:
+    """Consolidated report of all failed submission items."""
+
+    failed_items: list[FailedItemSummary]
+    resubmission_guidance: str = (
+        "Review the errors above. Transient failures may succeed"
+        " on resubmission. Use enqueue() to resubmit failed items."
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "failed_items": [item.to_dict() for item in self.failed_items],
+            "resubmission_guidance": self.resubmission_guidance,
+        }
+
+    def to_text(self) -> str:
+        """Render a human-readable text report."""
+        lines: list[str] = ["Failed Submissions:"]
+        for item in self.failed_items:
+            lines.append(f"  - {item.file_path}: {item.last_error} (attempts: {item.attempts}, id: {item.item_id})")
+        lines.append("")
+        lines.append(self.resubmission_guidance)
+        return "\n".join(lines)
+
+
 def _default_processor(item: SubmissionItem) -> None:
     """Default no-op processor. Item is marked succeeded by the worker loop."""
 
@@ -128,13 +180,24 @@ class SubmissionManager:
     completed items or create fresh instances.
     """
 
-    def __init__(self, processor: Callable[[SubmissionItem], None] | None = None) -> None:
+    def __init__(
+        self,
+        processor: Callable[[SubmissionItem], None] | None = None,
+        max_retries: int = 3,
+        backoff_base: float = 1.0,
+    ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
+        if backoff_base <= 0:
+            raise ValueError("backoff_base must be > 0")
         self._processor: Callable[[SubmissionItem], None] = processor or _default_processor
         self._queue: queue.Queue[SubmissionItem | None] = queue.Queue()
         self._items: dict[str, SubmissionItem] = {}
         self._lock = threading.Lock()
         self._worker: threading.Thread | None = None
         self._shutdown_event = threading.Event()
+        self._max_retries = max_retries
+        self._backoff_base = backoff_base
 
     def enqueue(
         self,
@@ -218,16 +281,44 @@ class SubmissionManager:
         with self._lock:
             return sum(1 for item in self._items.values() if item.status == SubmissionStatus.QUEUED)
 
-    def shutdown(self, wait: bool = True) -> None:
+    def get_failure_report(self) -> FailureReport | None:
+        """Return a consolidated report of all failed items.
+
+        Returns:
+            FailureReport if any items have status FAILED, None otherwise
+        """
+        # Build summaries inside the lock to get a consistent snapshot of
+        # item fields, even if the worker is still running concurrently.
+        with self._lock:
+            failed_summaries = [
+                FailedItemSummary(
+                    item_id=item.id,
+                    file_path=item.file_path,
+                    last_error=item.error_message or "",
+                    attempts=item.attempts,
+                )
+                for item in self._items.values()
+                if item.status == SubmissionStatus.FAILED
+            ]
+        if not failed_summaries:
+            return None
+        return FailureReport(failed_items=failed_summaries)
+
+    def shutdown(self, wait: bool = True) -> FailureReport | None:
         """Signal the worker thread to stop.
 
         If wait=True, blocks until the worker thread has finished processing
-        the current item and exited. Multiple calls are idempotent w.r.t. the
-        shutdown signal, but subsequent calls with wait=True will still join
-        the worker thread.
+        all items that were enqueued before the shutdown sentinel and exited,
+        then returns a FailureReport if any items failed (or None if all
+        succeeded). Multiple calls are idempotent w.r.t. the shutdown signal,
+        but subsequent calls with wait=True will still join the worker thread
+        if it is still running.
 
         Args:
             wait: Whether to block until the worker exits
+
+        Returns:
+            FailureReport if any items failed (only when wait=True), else None
         """
         worker: threading.Thread | None = None
         with self._lock:
@@ -249,6 +340,9 @@ class SubmissionManager:
                 worker = self._worker
             if worker is not None and worker.is_alive():
                 worker.join()
+            return self.get_failure_report()
+
+        return None
 
     def _ensure_worker_started(self) -> None:
         """Start the worker thread if not already running."""
@@ -261,7 +355,7 @@ class SubmissionManager:
                     self._worker.start()
 
     def _worker_loop(self) -> None:
-        """Process items from the queue serially."""
+        """Process items from the queue serially, retrying transient failures."""
         while True:
             item = self._queue.get()
             try:
@@ -271,32 +365,64 @@ class SubmissionManager:
 
                 with self._lock:
                     item.status = SubmissionStatus.PROCESSING
-                    item.attempts += 1
+                    item.attempts = 1
 
-                try:
-                    self._processor(item)
-                    with self._lock:
-                        item.status = SubmissionStatus.SUCCEEDED
-                        item.completed_at = datetime.now(timezone.utc).isoformat()
-                except Exception as exc:
-                    with self._lock:
-                        item.status = SubmissionStatus.FAILED
-                        item.error_message = str(exc)
-                        item.completed_at = datetime.now(timezone.utc).isoformat()
+                while True:
+                    try:
+                        self._processor(item)
+                        with self._lock:
+                            item.status = SubmissionStatus.SUCCEEDED
+                            item.error_message = None
+                            item.completed_at = datetime.now(timezone.utc).isoformat()
+                        break
+                    except TransientSubmissionError as exc:
+                        with self._lock:
+                            item.error_message = str(exc)
+                        if item.attempts >= self._max_retries + 1:
+                            with self._lock:
+                                item.status = SubmissionStatus.FAILED
+                                item.completed_at = datetime.now(timezone.utc).isoformat()
+                            break
+                        with self._lock:
+                            item.status = SubmissionStatus.RETRYING
+                        delay = self._backoff_base * (2 ** (item.attempts - 1)) + random.uniform(0, 1.0)
+                        interrupted = self._shutdown_event.wait(delay)
+                        if interrupted:
+                            with self._lock:
+                                item.status = SubmissionStatus.FAILED
+                                item.completed_at = datetime.now(timezone.utc).isoformat()
+                            break
+                        with self._lock:
+                            item.status = SubmissionStatus.PROCESSING
+                            item.attempts += 1
+                    except Exception as exc:
+                        with self._lock:
+                            item.status = SubmissionStatus.FAILED
+                            item.error_message = str(exc)
+                            item.completed_at = datetime.now(timezone.utc).isoformat()
+                        break
             finally:
                 self._queue.task_done()
 
 
 def create_submission_manager(
     processor: Callable[[SubmissionItem], None] | None = None,
+    max_retries: int = 3,
+    backoff_base: float = 1.0,
 ) -> SubmissionManager:
     """Convenience factory for creating a SubmissionManager.
 
     Args:
         processor: Optional callable to process each submission item.
                    Defaults to a no-op processor.
+        max_retries: Maximum number of retries for transient errors (default 3).
+        backoff_base: Base delay in seconds for exponential backoff (default 1.0).
 
     Returns:
         A new SubmissionManager instance
     """
-    return SubmissionManager(processor=processor)
+    return SubmissionManager(
+        processor=processor,
+        max_retries=max_retries,
+        backoff_base=backoff_base,
+    )

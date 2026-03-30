@@ -12,6 +12,7 @@ class TestSubmissionStatus:
         assert SubmissionStatus.PROCESSING.value == "processing"
         assert SubmissionStatus.SUCCEEDED.value == "succeeded"
         assert SubmissionStatus.FAILED.value == "failed"
+        assert SubmissionStatus.RETRYING.value == "retrying"
 
     def test_status_is_str_subclass(self):
         """Test SubmissionStatus members are str instances."""
@@ -24,3 +25,4 @@ class TestSubmissionStatus:
         assert SubmissionStatus("processing") == SubmissionStatus.PROCESSING
         assert SubmissionStatus("succeeded") == SubmissionStatus.SUCCEEDED
         assert SubmissionStatus("failed") == SubmissionStatus.FAILED
+        assert SubmissionStatus("retrying") == SubmissionStatus.RETRYING

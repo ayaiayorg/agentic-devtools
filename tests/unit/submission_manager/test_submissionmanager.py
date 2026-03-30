@@ -5,7 +5,16 @@ import time
 
 import pytest
 
-from agentic_devtools.submission_manager import SubmissionItem, SubmissionManager, SubmissionStatus
+from agentic_devtools.submission_manager import (
+    FailureReport,
+    SubmissionItem,
+    SubmissionManager,
+    SubmissionStatus,
+    TransientSubmissionError,
+    create_submission_manager,
+)
+
+_TERMINAL = (SubmissionStatus.SUCCEEDED, SubmissionStatus.FAILED)
 
 
 class TestSubmissionManager:
@@ -375,3 +384,273 @@ class TestSubmissionManager:
             assert manager._worker.daemon is True
         finally:
             manager.shutdown(wait=True)
+
+    def test_transient_error_retried_and_succeeds(self):
+        """Processor raises TransientSubmissionError on first 2 attempts, succeeds on 3rd."""
+        call_count = 0
+        done = threading.Event()
+
+        def flaky_processor(item: SubmissionItem) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise TransientSubmissionError(f"transient error #{call_count}")
+            done.set()
+
+        manager = SubmissionManager(processor=flaky_processor, max_retries=3, backoff_base=0.01)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        assert done.wait(timeout=10), "Processor did not succeed within timeout"
+        manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.SUCCEEDED
+        assert item.attempts == 3
+        assert call_count == 3
+        assert item.error_message is None
+
+    def test_transient_error_exhausts_retries(self):
+        """Processor always raises TransientSubmissionError — exhausts all retries."""
+
+        def always_transient(item: SubmissionItem) -> None:
+            raise TransientSubmissionError("always failing")
+
+        manager = SubmissionManager(processor=always_transient, max_retries=2, backoff_base=0.01)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Wait for the item to reach terminal state
+        start = time.monotonic()
+        while item.status not in _TERMINAL and time.monotonic() - start < 10:
+            time.sleep(0.01)
+        manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.FAILED
+        assert item.attempts == 3  # 1 initial + 2 retries
+        assert item.error_message == "always failing"
+
+    def test_permanent_error_no_retry(self):
+        """Processor raises ValueError — no retry, immediate failure."""
+
+        def permanent_fail(item: SubmissionItem) -> None:
+            raise ValueError("permanent error")
+
+        manager = SubmissionManager(processor=permanent_fail, max_retries=3, backoff_base=0.01)
+        try:
+            item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.FAILED
+        assert item.attempts == 1
+        assert item.error_message == "permanent error"
+
+    def test_transient_then_permanent_error(self):
+        """Transient on attempt 1, permanent on attempt 2."""
+        call_count = 0
+
+        def mixed_processor(item: SubmissionItem) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TransientSubmissionError("transient")
+            raise ValueError("permanent")
+
+        manager = SubmissionManager(processor=mixed_processor, max_retries=3, backoff_base=0.01)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Wait for the item to reach terminal state
+        start = time.monotonic()
+        while item.status not in _TERMINAL and time.monotonic() - start < 10:
+            time.sleep(0.01)
+        manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.FAILED
+        assert item.attempts == 2
+        assert item.error_message == "permanent"
+
+    def test_retrying_status_visible_during_backoff(self):
+        """Use threading event to observe RETRYING status during backoff."""
+        observed_retrying = threading.Event()
+
+        def transient_once(item: SubmissionItem) -> None:
+            if item.attempts == 1:
+                raise TransientSubmissionError("transient")
+
+        manager = SubmissionManager(processor=transient_once, max_retries=3, backoff_base=0.5)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Poll for RETRYING status
+        start = time.monotonic()
+        while time.monotonic() - start < 5:
+            if item.status == SubmissionStatus.RETRYING:
+                observed_retrying.set()
+                break
+            time.sleep(0.005)
+
+        # Wait for processing to complete
+        start = time.monotonic()
+        while item.status not in _TERMINAL and time.monotonic() - start < 10:
+            time.sleep(0.01)
+        manager.shutdown(wait=True)
+
+        assert observed_retrying.is_set(), "RETRYING status was never observed"
+        assert item.status == SubmissionStatus.SUCCEEDED
+
+    def test_shutdown_interrupts_backoff(self):
+        """Shutdown during backoff sleep completes promptly."""
+
+        def always_transient(item: SubmissionItem) -> None:
+            raise TransientSubmissionError("transient error")
+
+        # Use large backoff so the worker is definitely sleeping when shutdown fires.
+        # This proves that _shutdown_event.wait() returns immediately on shutdown.
+        manager = SubmissionManager(processor=always_transient, max_retries=10, backoff_base=100.0)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Wait a bit for the first attempt to fail and enter backoff
+        time.sleep(0.2)
+
+        start = time.monotonic()
+        manager.shutdown(wait=True)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.0, f"Shutdown took too long: {elapsed:.2f}s"
+        assert item.status == SubmissionStatus.FAILED
+        assert item.error_message == "transient error"
+
+    def test_failure_report_after_shutdown(self):
+        """shutdown(wait=True) returns FailureReport with correct entries."""
+
+        def failing_processor(item: SubmissionItem) -> None:
+            if item.file_path == "fail.ts":
+                raise ValueError("fail reason")
+
+        manager = SubmissionManager(processor=failing_processor, max_retries=0, backoff_base=0.01)
+        manager.enqueue(pr_id=1, file_path="pass.ts", outcome="approve", summary="ok")
+        manager.enqueue(pr_id=1, file_path="fail.ts", outcome="approve", summary="ok")
+
+        report = manager.shutdown(wait=True)
+
+        assert report is not None
+        assert isinstance(report, FailureReport)
+        assert len(report.failed_items) == 1
+        assert report.failed_items[0].file_path == "fail.ts"
+        assert report.failed_items[0].last_error == "fail reason"
+
+    def test_failure_report_none_when_all_succeed(self):
+        """All items succeed — shutdown returns None."""
+        manager = SubmissionManager()
+        manager.enqueue(pr_id=1, file_path="a.ts", outcome="approve", summary="ok")
+        manager.enqueue(pr_id=1, file_path="b.ts", outcome="approve", summary="ok")
+
+        report = manager.shutdown(wait=True)
+        assert report is None
+
+    def test_get_failure_report_on_demand(self):
+        """get_failure_report() returns current failures after processing."""
+
+        def fail_all(item: SubmissionItem) -> None:
+            raise ValueError("error")
+
+        manager = SubmissionManager(processor=fail_all, max_retries=0)
+        manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        manager.shutdown(wait=True)
+
+        report = manager.get_failure_report()
+        assert report is not None
+        assert len(report.failed_items) == 1
+
+    def test_get_failure_report_none_when_no_failures(self):
+        """get_failure_report() returns None when no items have failed."""
+        manager = SubmissionManager()
+        manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        manager.shutdown(wait=True)
+
+        report = manager.get_failure_report()
+        assert report is None
+
+    def test_max_retries_zero_no_retry(self):
+        """max_retries=0 — transient error fails immediately."""
+
+        def transient_fail(item: SubmissionItem) -> None:
+            raise TransientSubmissionError("transient")
+
+        manager = SubmissionManager(processor=transient_fail, max_retries=0, backoff_base=0.01)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.FAILED
+        assert item.attempts == 1
+        assert item.error_message == "transient"
+
+    def test_invalid_max_retries_raises(self):
+        """max_retries=-1 raises ValueError."""
+        with pytest.raises(ValueError, match="max_retries must be >= 0"):
+            SubmissionManager(max_retries=-1)
+
+    def test_invalid_backoff_base_zero_raises(self):
+        """backoff_base=0 raises ValueError."""
+        with pytest.raises(ValueError, match="backoff_base must be > 0"):
+            SubmissionManager(backoff_base=0)
+
+    def test_invalid_backoff_base_negative_raises(self):
+        """backoff_base=-1 raises ValueError."""
+        with pytest.raises(ValueError, match="backoff_base must be > 0"):
+            SubmissionManager(backoff_base=-1)
+
+    def test_create_submission_manager_forwards_retry_params(self):
+        """Factory forwards max_retries and backoff_base."""
+
+        def transient_fail(item: SubmissionItem) -> None:
+            raise TransientSubmissionError("transient")
+
+        manager = create_submission_manager(processor=transient_fail, max_retries=1, backoff_base=0.01)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Wait for the item to reach terminal state
+        start = time.monotonic()
+        while item.status not in _TERMINAL and time.monotonic() - start < 10:
+            time.sleep(0.01)
+        manager.shutdown(wait=True)
+
+        assert item.status == SubmissionStatus.FAILED
+        assert item.attempts == 2  # 1 initial + 1 retry (max_retries=1)
+
+    def test_mixed_items_independent_retry(self):
+        """3 items: transient-fail, succeed, permanent-fail — independent handling."""
+        call_counts: dict[str, int] = {}
+
+        def mixed_processor(item: SubmissionItem) -> None:
+            call_counts[item.file_path] = call_counts.get(item.file_path, 0) + 1
+            if item.file_path == "transient.ts":
+                raise TransientSubmissionError("transient")
+            if item.file_path == "permanent.ts":
+                raise ValueError("permanent")
+
+        manager = SubmissionManager(processor=mixed_processor, max_retries=2, backoff_base=0.01)
+        item1 = manager.enqueue(pr_id=1, file_path="transient.ts", outcome="approve", summary="ok")
+        item2 = manager.enqueue(pr_id=1, file_path="success.ts", outcome="approve", summary="ok")
+        item3 = manager.enqueue(pr_id=1, file_path="permanent.ts", outcome="approve", summary="ok")
+
+        # Wait for all items to reach terminal state
+        items = [item1, item2, item3]
+        start = time.monotonic()
+        while time.monotonic() - start < 15:
+            if all(i.status in _TERMINAL for i in items):
+                break
+            time.sleep(0.01)
+        manager.shutdown(wait=True)
+
+        assert item1.status == SubmissionStatus.FAILED
+        assert item1.attempts == 3  # exhausted retries
+        assert item2.status == SubmissionStatus.SUCCEEDED
+        assert item2.attempts == 1
+        assert item3.status == SubmissionStatus.FAILED
+        assert item3.attempts == 1  # permanent = no retry
+
+    def test_shutdown_wait_false_returns_none(self):
+        """shutdown(wait=False) always returns None."""
+        manager = SubmissionManager()
+        manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        result = manager.shutdown(wait=False)
+        assert result is None
+        # Clean up
+        manager.shutdown(wait=True)
