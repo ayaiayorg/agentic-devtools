@@ -94,8 +94,8 @@ agdt-request-changes-batch --reviews '{"default_summary": "Missing error handlin
 
 ## After Submitting
 
-After submitting your review for a file, proceed directly to the next file in the queue.
-When all files are reviewed, proceed to the decision step.
+After submitting your review command for a file, continue working through the remaining files in the queue.
+When all files have been reviewed, move on to the decision step.
 
 ---
 

@@ -357,8 +357,9 @@ def _update_queue_after_review(
         else:
             remaining_pending.append(entry)
 
-    if not matched_entry:  # pragma: no cover
-        print(f"File '{file_path}' not found in pending queue.")
+    if not matched_entry:
+        # File may already have been moved to completed by the async wrapper
+        # (idempotent: the background task's sync function also calls this).
         return len(pending), len(completed)
 
     if dry_run:

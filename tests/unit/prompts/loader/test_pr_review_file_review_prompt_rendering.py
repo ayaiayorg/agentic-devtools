@@ -147,10 +147,10 @@ class TestPrReviewFileReviewPromptRendering:
         assert "agdt-request-changes-batch" in result
 
     def test_after_submitting_section_present(self):
-        """After Submitting section mentions proceeding to next file."""
+        """After Submitting section mentions continuing to next file."""
         result = self._render(**self._base_variables())
         assert "After Submitting" in result
-        assert "proceed" in result.lower()
+        assert "continue" in result.lower()
 
     def test_prompt_file_path_rendered(self):
         """Prompt file path appears in rendered output."""

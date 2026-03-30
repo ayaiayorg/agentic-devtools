@@ -846,8 +846,11 @@ def approve_file_async(
     """
     Approve a file in a pull request asynchronously in the background.
 
-    After spawning the background task, immediately updates the review queue
-    and shows the next file to review.
+    Spawns a background task to perform the actual approval (API calls,
+    review-state updates, cascade).  The review queue is advanced
+    immediately so the next-file prompt shows the correct file; the
+    background task's sync function will call _update_queue_after_review
+    again on completion, but that call is idempotent and safely no-ops.
 
     Args:
         file_path: Path of file to approve (overrides state)
@@ -907,12 +910,14 @@ def approve_file_async(
     )
     print_task_tracking_info(task, f"Approving file: {resolved_file_path}")
 
-    # Show next file prompt.  The background task's approve_file() handles
-    # the actual queue update (_update_queue_after_review) when it completes,
-    # so we only display the current queue state here.
-    from .file_review_commands import print_next_file_prompt
+    # Advance the queue immediately so print_next_file_prompt shows the next
+    # file.  _update_queue_after_review is idempotent — the background task's
+    # sync approve_file() will call it again after completing and it will
+    # safely no-op when the file is already in completed.
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Approve")
     print_next_file_prompt(pr_id)
 
 
@@ -983,8 +988,10 @@ def request_changes_async(
     link text. Each suggestion will create a separate line-anchored thread.
     The file summary is PATCHed with categorized suggestion links.
 
-    After spawning the background task, shows the next file to review.
-    The queue is updated by the background task when it completes.
+    After spawning the background task, advances the review queue
+    immediately and shows the next file to review.  The queue update is
+    idempotent — the background task's sync function will call
+    _update_queue_after_review again on completion and safely no-op.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1033,12 +1040,13 @@ def request_changes_async(
     )
     print_task_tracking_info(task, f"Requesting changes on file: {resolved_file_path}")
 
-    # Show next file prompt.  The background task's request_changes() handles
-    # the actual queue update (_update_queue_after_review) when it completes,
-    # so we only display the current queue state here.
-    from .file_review_commands import print_next_file_prompt
+    # Advance the queue immediately so print_next_file_prompt shows the next
+    # file.  _update_queue_after_review is idempotent — the background task's
+    # sync request_changes() will call it again and safely no-op.
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
     print_next_file_prompt(pr_id)
 
 
@@ -1109,8 +1117,10 @@ def request_changes_with_suggestion_async(
     Each suggestion must include a replacement_code field. The command auto-wraps
     replacement_code in suggestion fences before posting.
 
-    After spawning the background task, shows the next file to review.
-    The queue is updated by the background task when it completes.
+    After spawning the background task, advances the review queue
+    immediately and shows the next file to review.  The queue update is
+    idempotent — the background task's sync function will call
+    _update_queue_after_review again on completion and safely no-op.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1168,12 +1178,13 @@ def request_changes_with_suggestion_async(
     )
     print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
 
-    # Show next file prompt.  The background task's request_changes_with_suggestion()
-    # handles the actual queue update when it completes, so we only display the
-    # current queue state here.
-    from .file_review_commands import print_next_file_prompt
+    # Advance the queue immediately so print_next_file_prompt shows the next
+    # file.  _update_queue_after_review is idempotent — the background task's
+    # sync request_changes_with_suggestion() will call it again and safely no-op.
+    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
+    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
     print_next_file_prompt(pr_id)
 
 

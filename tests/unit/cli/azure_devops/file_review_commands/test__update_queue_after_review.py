@@ -127,3 +127,44 @@ class TestUpdateQueueAfterReview:
         assert "errorMessage" not in entry
         assert entry["status"] == "completed"
         assert entry["outcome"] == "Changes"
+
+    def test_idempotent_when_file_already_completed(self, tmp_path):
+        """Should silently return current counts when the file is already in completed.
+
+        This happens when the async wrapper calls _update_queue_after_review to
+        advance the queue immediately, and then the background task's sync
+        function calls it again after completing.
+        """
+        queue_data = {
+            "pending": [{"path": "/src/utils.ts", "status": "pending"}],
+            "completed": [
+                {
+                    "path": "/src/app.ts",
+                    "status": "completed",
+                    "outcome": "Approve",
+                    "completedUtc": "2024-01-01T12:00:00Z",
+                },
+            ],
+        }
+        queue_path = tmp_path / "queue.json"
+        queue_path.write_text(json.dumps(queue_data))
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
+            return_value=queue_path,
+        ):
+            pending, completed = _update_queue_after_review(
+                pull_request_id=42,
+                file_path="/src/app.ts",
+                outcome="Approve",
+            )
+
+        # Should return current counts without error
+        assert pending == 1
+        assert completed == 1
+
+        # Queue file should be unchanged
+        with open(queue_path, encoding="utf-8") as f:
+            unchanged = json.load(f)
+        assert len(unchanged["pending"]) == 1
+        assert len(unchanged["completed"]) == 1
