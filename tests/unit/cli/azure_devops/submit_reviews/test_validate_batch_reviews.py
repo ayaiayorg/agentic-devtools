@@ -19,7 +19,7 @@ class TestValidateBatchReviews:
                 "file_path": "/a.ts",
                 "outcome": "request-changes",
                 "summary": "Issues found",
-                "suggestions": [{"line": 10, "content": "Fix"}],
+                "suggestions": [{"line": 10, "severity": "high", "content": "Fix"}],
             },
         ]
         errors = validate_batch_reviews(items)
@@ -149,8 +149,50 @@ class TestValidateBatchReviews:
                 "file_path": "/a.ts",
                 "outcome": "request-changes-with-suggestion",
                 "summary": "Suggestions",
-                "suggestions": [{"line": 5, "content": "Rename", "replacement_code": "x"}],
+                "suggestions": [{"line": 5, "severity": "medium", "content": "Rename", "replacement_code": "x"}],
             },
         ]
         errors = validate_batch_reviews(items)
         assert errors == []
+
+    def test_suggestion_missing_severity(self):
+        """Suggestion missing severity produces an error."""
+        items = [
+            {
+                "file_path": "/a.ts",
+                "outcome": "request-changes",
+                "summary": "Issues",
+                "suggestions": [{"line": 10, "content": "Fix"}],
+            },
+        ]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "severity" in errors[0]
+
+    def test_suggestion_missing_line(self):
+        """Suggestion missing line produces an error."""
+        items = [
+            {
+                "file_path": "/a.ts",
+                "outcome": "request-changes",
+                "summary": "Issues",
+                "suggestions": [{"severity": "high", "content": "Fix"}],
+            },
+        ]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "line" in errors[0]
+
+    def test_suggestion_missing_replacement_code_for_with_suggestion(self):
+        """request-changes-with-suggestion without replacement_code."""
+        items = [
+            {
+                "file_path": "/a.ts",
+                "outcome": "request-changes-with-suggestion",
+                "summary": "Suggestions",
+                "suggestions": [{"line": 5, "severity": "medium", "content": "Rename"}],
+            },
+        ]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "replacement_code" in errors[0]

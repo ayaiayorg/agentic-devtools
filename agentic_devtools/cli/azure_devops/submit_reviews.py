@@ -13,6 +13,9 @@ from __future__ import annotations
 # Valid outcomes for batch reviews (compared case-insensitively)
 _VALID_OUTCOMES = frozenset({"approve", "request-changes", "request-changes-with-suggestion"})
 
+# Valid severity values for suggestions (compared case-insensitively)
+_VALID_SEVERITIES = frozenset({"high", "medium", "low"})
+
 
 def _is_empty_or_whitespace(value: object) -> bool:
     """Return True if *value* is None or a whitespace-only string.
@@ -140,5 +143,53 @@ def validate_batch_reviews(resolved_items: list[object]) -> list[str]:
                         f" (got {type(suggestion).__name__})."
                     )
                     break
+
+                # Validate required suggestion fields: line, severity, content
+                sg_errors = _validate_suggestion_fields(suggestion, i, j, file_path, outcome_lower)
+                if sg_errors:
+                    errors.extend(sg_errors)
+                    break
+
+    return errors
+
+
+def _validate_suggestion_fields(
+    suggestion: dict, item_idx: int, sg_idx: int, file_path: str, outcome: str
+) -> list[str]:
+    """Validate required fields on a single suggestion dict.
+
+    Returns a list of error strings (empty if valid).
+    """
+    errors: list[str] = []
+    prefix = f"Item {item_idx} ({file_path}), suggestion {sg_idx}"
+
+    # line — required, must be int ≥ 1 (reject bool since bool is a subclass of int)
+    line = suggestion.get("line")
+    if isinstance(line, bool) or not isinstance(line, int):
+        errors.append(f"{prefix}: 'line' must be an integer (got {type(line).__name__}).")
+    elif line < 1:
+        errors.append(f"{prefix}: 'line' must be ≥ 1 (got {line}).")
+
+    # severity — required, must be one of high/medium/low
+    severity = suggestion.get("severity")
+    if not isinstance(severity, str):
+        errors.append(f"{prefix}: 'severity' must be a string (got {type(severity).__name__}).")
+    elif severity.strip().lower() not in _VALID_SEVERITIES:
+        errors.append(f"{prefix}: unknown severity '{severity}' (must be high/medium/low).")
+
+    # content — required, non-empty string
+    content = suggestion.get("content")
+    if not isinstance(content, str):
+        errors.append(f"{prefix}: 'content' must be a string (got {type(content).__name__}).")
+    elif not content.strip():
+        errors.append(f"{prefix}: 'content' must not be empty.")
+
+    # replacement_code — required for request-changes-with-suggestion, non-empty string
+    if outcome == "request-changes-with-suggestion":
+        replacement_code = suggestion.get("replacement_code")
+        if not isinstance(replacement_code, str):
+            errors.append(f"{prefix}: 'replacement_code' is required for '{outcome}'.")
+        elif not replacement_code.strip():
+            errors.append(f"{prefix}: 'replacement_code' must not be empty.")
 
     return errors
