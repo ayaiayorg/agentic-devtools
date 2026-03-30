@@ -123,9 +123,19 @@ def validate_batch_reviews(resolved_items: list[object]) -> list[str]:
             errors.append(f"Item {i}: not a JSON object.")
             continue
 
-        file_path = item.get("file_path")
-        if not file_path or not isinstance(file_path, str) or not file_path.strip():
-            errors.append(f"Item {i}: missing or empty 'file_path'.")
+        if "file_path" not in item:
+            errors.append(f"Item {i}: missing required 'file_path'.")
+            continue
+
+        file_path = item["file_path"]
+        if not isinstance(file_path, str):
+            errors.append(
+                f"Item {i}: 'file_path' must be a string (got {type(file_path).__name__})."
+            )
+            continue
+
+        if not file_path.strip():
+            errors.append(f"Item {i}: 'file_path' cannot be empty or whitespace.")
             continue
 
         outcome = item.get("outcome")
@@ -206,8 +216,13 @@ def _validate_suggestion_fields(
     # replacement_code — required for request-changes-with-suggestion, non-empty string
     if outcome == "request-changes-with-suggestion":
         replacement_code = suggestion.get("replacement_code")
-        if not isinstance(replacement_code, str):
+        if replacement_code is None or "replacement_code" not in suggestion:
             errors.append(f"{prefix}: 'replacement_code' is required for '{outcome}'.")
+        elif not isinstance(replacement_code, str):
+            errors.append(
+                f"{prefix}: 'replacement_code' must be a non-empty string"
+                f" (got {type(replacement_code).__name__})."
+            )
         elif not replacement_code.strip():
             errors.append(f"{prefix}: 'replacement_code' must not be empty.")
 

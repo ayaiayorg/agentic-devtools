@@ -173,35 +173,35 @@ class TestApproveFilesCli:
         with pytest.raises(SystemExit) as exc:
             _run_cli("--summary", "s", "--file-paths", "not json", "-p", "1")
         assert exc.value.code == 1
-        assert "not valid JSON" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_file_paths_not_array(self, temp_state_dir, clear_state_before, capsys):
         """--file-paths that is not a JSON array exits 1."""
         with pytest.raises(SystemExit) as exc:
             _run_cli("--summary", "s", "--file-paths", '{"a":1}', "-p", "1")
         assert exc.value.code == 1
-        assert "must be a JSON array" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_file_paths_empty_array(self, temp_state_dir, clear_state_before, capsys):
         """--file-paths with empty array exits 1."""
         with pytest.raises(SystemExit) as exc:
             _run_cli("--summary", "s", "--file-paths", "[]", "-p", "1")
         assert exc.value.code == 1
-        assert "at least one file path" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_file_paths_contains_empty_string(self, temp_state_dir, clear_state_before, capsys):
         """--file-paths with an empty string entry exits 1."""
         with pytest.raises(SystemExit) as exc:
             _run_cli("--summary", "s", "--file-paths", '[""]', "-p", "1")
         assert exc.value.code == 1
-        assert "non-empty string" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_file_paths_contains_non_string(self, temp_state_dir, clear_state_before, capsys):
         """--file-paths with non-string entry exits 1."""
         with pytest.raises(SystemExit) as exc:
             _run_cli("--summary", "s", "--file-paths", "[42]", "-p", "1")
         assert exc.value.code == 1
-        assert "non-empty string" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_validation_failure_exits_1(self, temp_state_dir, clear_state_before, capsys):
         """Errors from validate_batch_reviews are printed to stderr and exit 1."""

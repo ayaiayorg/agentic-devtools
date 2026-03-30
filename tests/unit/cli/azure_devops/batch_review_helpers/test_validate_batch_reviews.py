@@ -30,6 +30,7 @@ class TestValidateBatchReviews:
         items = [{"outcome": "approve", "summary": "ok"}]
         errors = validate_batch_reviews(items)
         assert len(errors) == 1
+        assert "missing required" in errors[0]
         assert "file_path" in errors[0]
 
     def test_empty_file_path(self):
@@ -37,7 +38,22 @@ class TestValidateBatchReviews:
         items = [{"file_path": "", "outcome": "approve", "summary": "ok"}]
         errors = validate_batch_reviews(items)
         assert len(errors) == 1
-        assert "file_path" in errors[0]
+        assert "empty or whitespace" in errors[0]
+
+    def test_non_string_file_path(self):
+        """Non-string file_path produces a type error."""
+        items = [{"file_path": 42, "outcome": "approve", "summary": "ok"}]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "must be a string" in errors[0]
+        assert "int" in errors[0]
+
+    def test_whitespace_only_file_path(self):
+        """Whitespace-only file_path produces an error."""
+        items = [{"file_path": "   ", "outcome": "approve", "summary": "ok"}]
+        errors = validate_batch_reviews(items)
+        assert len(errors) == 1
+        assert "empty or whitespace" in errors[0]
 
     def test_unknown_outcome(self):
         """Unknown outcome produces an error."""

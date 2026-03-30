@@ -172,13 +172,15 @@ class TestValidateSuggestionFields:
         assert "empty" in errors[0]
 
     def test_non_string_replacement_code(self):
-        """Non-string replacement_code produces an error."""
+        """Non-string replacement_code produces a type error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix", "replacement_code": 42},
             item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
         )
         assert len(errors) == 1
         assert "replacement_code" in errors[0]
+        assert "must be a non-empty string" in errors[0]
+        assert "int" in errors[0]
 
     # -- Multiple errors --
 

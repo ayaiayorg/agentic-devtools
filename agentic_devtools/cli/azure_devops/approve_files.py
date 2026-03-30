@@ -61,20 +61,20 @@ Examples:
     try:
         file_paths = json.loads(args.file_paths)
     except json.JSONDecodeError as e:
-        print(f"--file-paths is not valid JSON: {e}", file=sys.stderr)
+        print(f"Error: --file-paths is not valid JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(file_paths, list):
-        print("--file-paths must be a JSON array.", file=sys.stderr)
+        print("Error: --file-paths must be a JSON array.", file=sys.stderr)
         sys.exit(1)
 
     if not file_paths:
-        print("--file-paths must contain at least one file path.", file=sys.stderr)
+        print("Error: --file-paths must contain at least one file path.", file=sys.stderr)
         sys.exit(1)
 
     for i, entry in enumerate(file_paths):
         if not isinstance(entry, str) or not entry.strip():
-            print(f"--file-paths item {i}: must be a non-empty string.", file=sys.stderr)
+            print(f"Error: --file-paths item {i}: must be a non-empty string.", file=sys.stderr)
             sys.exit(1)
         file_paths[i] = entry.strip()
 

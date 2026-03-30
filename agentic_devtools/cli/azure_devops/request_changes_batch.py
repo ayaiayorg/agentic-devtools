@@ -60,11 +60,11 @@ Examples:
     try:
         payload = json.loads(args.reviews)
     except json.JSONDecodeError as e:
-        print(f"--reviews is not valid JSON: {e}", file=sys.stderr)
+        print(f"Error: --reviews is not valid JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
     if not isinstance(payload, dict):
-        print("--reviews must be a JSON object.", file=sys.stderr)
+        print("Error: --reviews must be a JSON object.", file=sys.stderr)
         sys.exit(1)
 
     # Inject default_outcome if not already present
@@ -80,7 +80,7 @@ Examples:
     resolved = resolve_batch_reviews(payload)
 
     if not resolved:
-        print("--reviews must contain at least one item.", file=sys.stderr)
+        print("Error: --reviews must contain at least one item.", file=sys.stderr)
         sys.exit(1)
 
     errors = validate_batch_reviews(resolved)

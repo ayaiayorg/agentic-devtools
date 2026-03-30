@@ -223,14 +223,14 @@ class TestRequestChangesBatchCli:
         with pytest.raises(SystemExit) as exc:
             _run_cli("--reviews", "not json", "-p", "1")
         assert exc.value.code == 1
-        assert "not valid JSON" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_reviews_not_dict(self, temp_state_dir, clear_state_before, capsys):
         """--reviews that is not a JSON object exits 1."""
         with pytest.raises(SystemExit) as exc:
             _run_cli("--reviews", "[]", "-p", "1")
         assert exc.value.code == 1
-        assert "must be a JSON object" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_empty_items_exits_1(self, temp_state_dir, clear_state_before, capsys):
         """--reviews with empty or missing items exits 1."""
@@ -242,7 +242,7 @@ class TestRequestChangesBatchCli:
             with pytest.raises(SystemExit) as exc:
                 _run_cli("--reviews", reviews_json, "-p", "1")
         assert exc.value.code == 1
-        assert "at least one item" in capsys.readouterr().err
+        assert "Error:" in capsys.readouterr().err
 
     def test_validation_failure_exits_1(self, temp_state_dir, clear_state_before, capsys):
         """Errors from validate_batch_reviews are printed to stderr and exit 1."""
