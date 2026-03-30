@@ -24,19 +24,22 @@ Review files and record approvals or requested changes.
 
 ## Prerequisites
 
-- **Required state**: `pull_request_id`, `file_review.file_path`
+- **Single-file commands** (actions 1–2): require `pull_request_id` and `file_review.file_path`
+- **Batch commands** (actions 3–5): require only `pull_request_id` — file paths are passed inline via `--file-paths` or `--reviews`
 - **Set state** (if not already set):
 
   ```bash
   agdt-set pull_request_id <value>
-  agdt-set file_review.file_path <value>
+  agdt-set file_review.file_path <value>   # only needed for single-file commands
   ```
 
 ## Actions
 
-1. Hand off to `@agdt.approve-file` to approve the file.
-
-2. Hand off to `@agdt.request-changes` to request changes.
+1. Hand off to `@agdt.approve-file` to approve a single file.
+2. Hand off to `@agdt.request-changes` to request changes on a single file.
+3. Use `agdt-approve-files` to batch-approve multiple files with a shared summary.
+4. Use `agdt-submit-reviews` to batch-submit reviews with defaults and per-item overrides.
+5. Use `agdt-request-changes-batch` to batch request-changes for multiple files.
 
 ## Expected Outcome
 
