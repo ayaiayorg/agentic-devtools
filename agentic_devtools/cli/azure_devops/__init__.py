@@ -20,6 +20,7 @@ Example:
 # Config exports
 # Auth exports
 # Async command exports
+from .approve_files import approve_files_cli
 from .async_commands import (
     add_pull_request_comment_async,
     add_pull_request_comment_async_cli,
@@ -61,6 +62,9 @@ from .async_commands import (
     wait_for_run_async,
 )
 from .auth import get_auth_headers, get_pat
+
+# Batch review helpers
+from .batch_review_helpers import resolve_batch_reviews, validate_batch_reviews
 
 # Command exports
 from .commands import (
@@ -131,6 +135,9 @@ from .pr_summary_commands import (
 
 # Pull request details command exports
 from .pull_request_details_commands import get_pull_request_details
+
+# Request changes batch command
+from .request_changes_batch import request_changes_batch_cli
 
 # Review attribution exports
 from .review_attribution import (
@@ -293,6 +300,12 @@ __all__ = [
     "request_changes_with_suggestion_async",
     "request_changes_with_suggestion_async_cli",
     "mark_file_reviewed_async",
+    # Batch convenience commands
+    "approve_files_cli",
+    "request_changes_batch_cli",
+    # Submit reviews helpers
+    "resolve_batch_reviews",
+    "validate_batch_reviews",
     # Mark reviewed
     "mark_file_reviewed",
     "mark_file_reviewed_cli",

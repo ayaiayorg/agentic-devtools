@@ -107,6 +107,14 @@ COMMAND_MAP = {
         "agentic_devtools.cli.azure_devops",
         "submit_reviews_cli",
     ),
+    "agdt-approve-files": (
+        "agentic_devtools.cli.azure_devops",
+        "approve_files_cli",
+    ),
+    "agdt-request-changes-batch": (
+        "agentic_devtools.cli.azure_devops",
+        "request_changes_batch_cli",
+    ),
     "agdt-request-changes": (
         "agentic_devtools.cli.azure_devops",
         "request_changes_async_cli",
