@@ -907,11 +907,12 @@ def approve_file_async(
     )
     print_task_tracking_info(task, f"Approving file: {resolved_file_path}")
 
-    # Update queue and show next file
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+    # Show next file prompt.  The background task's approve_file() handles
+    # the actual queue update (_update_queue_after_review) when it completes,
+    # so we only display the current queue state here.
+    from .file_review_commands import print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Approve")
     print_next_file_prompt(pr_id)
 
 
@@ -982,8 +983,8 @@ def request_changes_async(
     link text. Each suggestion will create a separate line-anchored thread.
     The file summary is PATCHed with categorized suggestion links.
 
-    After spawning the background task, immediately marks the file as
-    submission-pending and shows the next file to review.
+    After spawning the background task, shows the next file to review.
+    The queue is updated by the background task when it completes.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1032,11 +1033,12 @@ def request_changes_async(
     )
     print_task_tracking_info(task, f"Requesting changes on file: {resolved_file_path}")
 
-    # Update queue and show next file
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+    # Show next file prompt.  The background task's request_changes() handles
+    # the actual queue update (_update_queue_after_review) when it completes,
+    # so we only display the current queue state here.
+    from .file_review_commands import print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
     print_next_file_prompt(pr_id)
 
 
@@ -1107,8 +1109,8 @@ def request_changes_with_suggestion_async(
     Each suggestion must include a replacement_code field. The command auto-wraps
     replacement_code in suggestion fences before posting.
 
-    After spawning the background task, immediately marks the file as
-    submission-pending and shows the next file to review.
+    After spawning the background task, shows the next file to review.
+    The queue is updated by the background task when it completes.
 
     Args:
         file_path: Path of file (overrides state)
@@ -1166,11 +1168,12 @@ def request_changes_with_suggestion_async(
     )
     print_task_tracking_info(task, f"Requesting changes with suggestion on: {resolved_file_path}")
 
-    # Update queue and show next file
-    from .file_review_commands import _update_queue_after_review, print_next_file_prompt
+    # Show next file prompt.  The background task's request_changes_with_suggestion()
+    # handles the actual queue update when it completes, so we only display the
+    # current queue state here.
+    from .file_review_commands import print_next_file_prompt
 
     pr_id = int(get_value("pull_request_id"))
-    _update_queue_after_review(pr_id, resolved_file_path, "Changes")
     print_next_file_prompt(pr_id)
 
 

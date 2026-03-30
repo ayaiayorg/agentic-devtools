@@ -285,7 +285,7 @@ def print_next_file_prompt(pull_request_id: int) -> None:
         print("")
         print(f"Total files reviewed: {status['completed_count']}")
         print("")
-        print("All file review submissions have completed.")
+        print("The file review queue is complete.")
         print("")
         print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
         print("")
