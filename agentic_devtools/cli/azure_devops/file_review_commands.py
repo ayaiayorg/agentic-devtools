@@ -149,9 +149,6 @@ def _get_queue_path(pull_request_id: int) -> Path:
     return new_path
 
 
-
-
-
 def trigger_in_progress_for_file(
     pull_request_id: int,
     file_path: str,
@@ -393,8 +390,6 @@ def _update_queue_after_review(
         print(f"Warning: Failed to write queue file: {e}")
 
     return len(remaining_pending), len(completed)
-
-
 
 
 def get_queue_status(pull_request_id: int) -> dict:

@@ -12,7 +12,10 @@ class TestValidateSuggestionFields:
         """A suggestion with all required fields produces no errors."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix this"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert errors == []
 
@@ -20,7 +23,10 @@ class TestValidateSuggestionFields:
         """A suggestion with replacement_code for request-changes-with-suggestion."""
         errors = _validate_suggestion_fields(
             {"line": 5, "severity": "medium", "content": "Rename", "replacement_code": "newName"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes-with-suggestion",
         )
         assert errors == []
 
@@ -29,7 +35,10 @@ class TestValidateSuggestionFields:
         for sev in ("High", "MEDIUM", "Low"):
             errors = _validate_suggestion_fields(
                 {"line": 1, "severity": sev, "content": "ok"},
-                item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+                item_idx=0,
+                sg_idx=0,
+                file_path="/a.ts",
+                outcome="request-changes",
             )
             assert errors == [], f"severity '{sev}' should be valid"
 
@@ -39,7 +48,10 @@ class TestValidateSuggestionFields:
         """Missing line produces an error."""
         errors = _validate_suggestion_fields(
             {"severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'line'" in errors[0]
@@ -48,7 +60,10 @@ class TestValidateSuggestionFields:
         """Non-integer line produces an error."""
         errors = _validate_suggestion_fields(
             {"line": "10", "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'line'" in errors[0]
@@ -58,7 +73,10 @@ class TestValidateSuggestionFields:
         """Boolean line is rejected (bool is subclass of int)."""
         errors = _validate_suggestion_fields(
             {"line": True, "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'line'" in errors[0]
@@ -67,7 +85,10 @@ class TestValidateSuggestionFields:
         """Line 0 is invalid (must be ≥ 1)."""
         errors = _validate_suggestion_fields(
             {"line": 0, "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "≥ 1" in errors[0]
@@ -76,7 +97,10 @@ class TestValidateSuggestionFields:
         """Negative line is invalid."""
         errors = _validate_suggestion_fields(
             {"line": -1, "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "≥ 1" in errors[0]
@@ -87,7 +111,10 @@ class TestValidateSuggestionFields:
         """Missing severity produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'severity'" in errors[0]
@@ -96,7 +123,10 @@ class TestValidateSuggestionFields:
         """Non-string severity produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": 42, "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'severity'" in errors[0]
@@ -106,7 +136,10 @@ class TestValidateSuggestionFields:
         """Unknown severity value produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "critical", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "unknown severity" in errors[0]
@@ -117,7 +150,10 @@ class TestValidateSuggestionFields:
         """Missing content produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'content'" in errors[0]
@@ -126,7 +162,10 @@ class TestValidateSuggestionFields:
         """Non-string content produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": 42},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'content'" in errors[0]
@@ -136,7 +175,10 @@ class TestValidateSuggestionFields:
         """Empty content produces an error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "  "},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 1
         assert "'content'" in errors[0]
@@ -148,7 +190,10 @@ class TestValidateSuggestionFields:
         """replacement_code is not required for request-changes."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert errors == []
 
@@ -156,7 +201,10 @@ class TestValidateSuggestionFields:
         """Missing replacement_code for request-changes-with-suggestion."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix"},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes-with-suggestion",
         )
         assert len(errors) == 1
         assert "replacement_code" in errors[0]
@@ -165,7 +213,10 @@ class TestValidateSuggestionFields:
         """Empty replacement_code for request-changes-with-suggestion."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix", "replacement_code": "  "},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes-with-suggestion",
         )
         assert len(errors) == 1
         assert "replacement_code" in errors[0]
@@ -175,7 +226,10 @@ class TestValidateSuggestionFields:
         """Non-string replacement_code produces a type error."""
         errors = _validate_suggestion_fields(
             {"line": 10, "severity": "high", "content": "Fix", "replacement_code": 42},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes-with-suggestion",
         )
         assert len(errors) == 1
         assert "replacement_code" in errors[0]
@@ -188,7 +242,10 @@ class TestValidateSuggestionFields:
         """Missing all required fields produces multiple errors."""
         errors = _validate_suggestion_fields(
             {},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes",
         )
         assert len(errors) == 3  # line, severity, content
 
@@ -196,7 +253,10 @@ class TestValidateSuggestionFields:
         """Missing all fields for request-changes-with-suggestion produces 4 errors."""
         errors = _validate_suggestion_fields(
             {},
-            item_idx=0, sg_idx=0, file_path="/a.ts", outcome="request-changes-with-suggestion",
+            item_idx=0,
+            sg_idx=0,
+            file_path="/a.ts",
+            outcome="request-changes-with-suggestion",
         )
         assert len(errors) == 4  # line, severity, content, replacement_code
 
@@ -206,7 +266,10 @@ class TestValidateSuggestionFields:
         """Error messages include item and suggestion indices."""
         errors = _validate_suggestion_fields(
             {"line": "bad", "severity": "high", "content": "Fix"},
-            item_idx=2, sg_idx=3, file_path="/x.ts", outcome="request-changes",
+            item_idx=2,
+            sg_idx=3,
+            file_path="/x.ts",
+            outcome="request-changes",
         )
         assert "Item 2" in errors[0]
         assert "suggestion 3" in errors[0]

@@ -85,8 +85,7 @@ Examples:
         pr_id = get_pull_request_id(required=False)
         if pr_id is None:
             print(
-                "Error: pull request ID is required. Provide --pull-request-id "
-                "or set pull_request_id in state.",
+                "Error: pull request ID is required. Provide --pull-request-id or set pull_request_id in state.",
                 file=sys.stderr,
             )
             sys.exit(1)
