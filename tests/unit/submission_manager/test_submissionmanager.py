@@ -499,7 +499,8 @@ class TestSubmissionManager:
         def always_transient(item: SubmissionItem) -> None:
             raise TransientSubmissionError("transient error")
 
-        # Use large backoff to ensure shutdown interrupts it
+        # Use large backoff so the worker is definitely sleeping when shutdown fires.
+        # This proves that _shutdown_event.wait() returns immediately on shutdown.
         manager = SubmissionManager(processor=always_transient, max_retries=10, backoff_base=100.0)
         item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
 
