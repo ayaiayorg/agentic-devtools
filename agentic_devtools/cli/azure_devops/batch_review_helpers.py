@@ -2,10 +2,10 @@
 Batch review resolution and validation helpers.
 
 Provides importable pure functions for constructing, resolving, and
-validating batch file-review payloads. These functions are shared by
-``agdt-submit-reviews``, ``agdt-approve-files``, and
-``agdt-request-changes-batch`` so that validation and default-application
-logic is defined in exactly one place.
+validating batch file-review payloads. These helpers are currently used by
+``agdt-approve-files`` and ``agdt-request-changes-batch`` so that validation
+and default-application logic is defined in exactly one place. They are also
+intended to be reused by a future refactor of ``agdt-submit-reviews``.
 """
 
 from __future__ import annotations
