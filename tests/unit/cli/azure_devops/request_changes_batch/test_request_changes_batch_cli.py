@@ -305,3 +305,33 @@ class TestRequestChangesBatchCli:
             _run_cli("--reviews", reviews_json, "-p", "1")
 
         mock_submit.assert_called_once()
+
+    def test_submit_receives_resolved_items(self, temp_state_dir, clear_state_before):
+        """submit_reviews_async receives resolved items, not original payload items."""
+        reviews_json = json.dumps(
+            {
+                "items": [{"file_path": "/a.ts"}],
+            }
+        )
+        resolved = [{"file_path": "/a.ts", "outcome": "request-changes", "summary": "s"}]
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.request_changes_batch.is_dry_run",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.request_changes_batch.resolve_batch_reviews",
+                return_value=resolved,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.request_changes_batch.validate_batch_reviews",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ) as mock_submit,
+        ):
+            _run_cli("--reviews", reviews_json, "-p", "1")
+
+        reviews_arg = json.loads(mock_submit.call_args.kwargs["reviews"])
+        assert reviews_arg == resolved

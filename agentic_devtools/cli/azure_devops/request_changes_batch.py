@@ -42,8 +42,9 @@ Examples:
         type=str,
         required=True,
         help=(
-            "A JSON string with the same schema as agdt-submit-reviews. "
-            'default_outcome is pre-set to "request-changes" if not provided.'
+            "A JSON object containing an 'items' array of per-file reviews, "
+            "with optional 'default_summary' and 'default_outcome' fields. "
+            'If default_outcome is omitted, it is pre-set to "request-changes".'
         ),
     )
     parser.add_argument(
@@ -101,7 +102,7 @@ Examples:
     from .async_commands import submit_reviews_async
 
     submit_reviews_async(
-        reviews=json.dumps(payload.get("items", [])),
+        reviews=json.dumps(resolved),
         default_outcome=payload.get("default_outcome"),
         default_summary=payload.get("default_summary"),
         pull_request_id=pr_id,

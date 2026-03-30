@@ -76,6 +76,7 @@ Examples:
         if not isinstance(entry, str) or not entry.strip():
             print(f"--file-paths item {i}: must be a non-empty string.", file=sys.stderr)
             sys.exit(1)
+        file_paths[i] = entry.strip()
 
     # Resolve pull_request_id
     if args.pull_request_id is not None:
@@ -111,7 +112,7 @@ Examples:
     from .async_commands import submit_reviews_async
 
     submit_reviews_async(
-        reviews=json.dumps([{"file_path": p} for p in file_paths]),
+        reviews=json.dumps(resolved),
         default_outcome="approve",
         default_summary=args.summary,
         pull_request_id=pr_id,

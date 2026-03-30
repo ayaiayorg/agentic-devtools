@@ -166,3 +166,15 @@ class TestResolveBatchReviews:
         payload = {}
         result = resolve_batch_reviews(payload)
         assert result == []
+
+    def test_file_path_whitespace_stripped(self):
+        """Leading/trailing whitespace on file_path is stripped during resolution."""
+        payload = {"items": [{"file_path": "  /src/a.ts  "}]}
+        result = resolve_batch_reviews(payload)
+        assert result[0]["file_path"] == "/src/a.ts"
+
+    def test_non_string_file_path_not_stripped(self):
+        """Non-string file_path is left untouched for validation to catch."""
+        payload = {"items": [{"file_path": 42}]}
+        result = resolve_batch_reviews(payload)
+        assert result[0]["file_path"] == 42

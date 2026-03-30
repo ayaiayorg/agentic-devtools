@@ -75,6 +75,13 @@ class TestApproveFilesCli:
         assert call_kwargs["default_outcome"] == "approve"
         assert call_kwargs["default_summary"] == "LGTM"
         assert call_kwargs["pull_request_id"] == 12345
+        # reviews arg contains the resolved items, not the original file_paths
+        import json
+
+        reviews_data = json.loads(call_kwargs["reviews"])
+        assert len(reviews_data) == 2
+        assert reviews_data[0]["file_path"] == "/src/a.ts"
+        assert reviews_data[0]["outcome"] == "approve"
 
     def test_pr_id_from_cli_arg(self, temp_state_dir, clear_state_before):
         """--pull-request-id is used when provided."""
@@ -256,3 +263,34 @@ class TestApproveFilesCli:
             "default_summary": "LGTM",
             "items": [{"file_path": "/a.ts"}],
         }
+
+    def test_file_paths_whitespace_stripped(self, temp_state_dir, clear_state_before):
+        """Whitespace in --file-paths entries is stripped before building the payload."""
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.approve_files.is_dry_run",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.approve_files.resolve_batch_reviews",
+                return_value=[{"file_path": "/a.ts", "outcome": "approve", "summary": "ok"}],
+            ) as mock_resolve,
+            patch(
+                "agentic_devtools.cli.azure_devops.approve_files.validate_batch_reviews",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.async_commands.submit_reviews_async",
+            ),
+        ):
+            _run_cli(
+                "--summary",
+                "ok",
+                "--file-paths",
+                '["  /a.ts  "]',
+                "-p",
+                "1",
+            )
+
+        payload = mock_resolve.call_args[0][0]
+        assert payload["items"][0]["file_path"] == "/a.ts"

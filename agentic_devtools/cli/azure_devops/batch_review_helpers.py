@@ -86,6 +86,16 @@ def resolve_batch_reviews(payload: dict) -> list[object]:
         elif isinstance(raw_summary, str):
             resolved_item["summary"] = raw_summary.strip()
 
+        # Normalize file_path by stripping leading/trailing whitespace so that
+        # downstream consumers (including review-state lookups) see a
+        # consistent, normalized path.  Non-string values are left untouched so
+        # that validate_batch_reviews() can surface a type error.
+        raw_file_path = resolved_item.get("file_path")
+        if isinstance(raw_file_path, str):
+            stripped_path = raw_file_path.strip()
+            if stripped_path != raw_file_path:
+                resolved_item["file_path"] = stripped_path
+
         resolved.append(resolved_item)
 
     return resolved
