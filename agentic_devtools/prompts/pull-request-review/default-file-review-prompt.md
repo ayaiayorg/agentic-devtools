@@ -78,10 +78,10 @@ agdt-approve-files --summary "Mechanical refactor only. LGTM." --file-paths '["/
 
 ### Mixed Outcomes with Defaults
 
-Use `agdt-submit-reviews` for mixed outcomes with a defaults schema:
+Use `agdt-submit-reviews` for mixed outcomes. Pass defaults via `--outcome` / `--summary` and provide `--reviews` as a JSON array:
 
 ```bash
-agdt-submit-reviews --reviews '{"default_outcome": "approve", "default_summary": "Mechanical refactor. LGTM.", "items": [{"file_path": "/src/a.ts"}, {"file_path": "/src/b.ts"}, {"file_path": "/src/c.ts", "outcome": "request-changes", "summary": "Missing null check.", "suggestions": [{"line": 42, "severity": "high", "content": "Add null guard"}]}]}'
+agdt-submit-reviews --outcome approve --summary "Mechanical refactor. LGTM." --reviews '[{"file_path": "/src/a.ts"}, {"file_path": "/src/b.ts"}, {"file_path": "/src/c.ts", "outcome": "request-changes", "summary": "Missing null check.", "suggestions": [{"line": 42, "severity": "high", "content": "Add null guard"}]}]'
 ```
 
 ### Batch Request Changes
@@ -94,10 +94,11 @@ agdt-request-changes-batch --reviews '{"default_summary": "Missing error handlin
 
 ## After Submitting
 
-Submissions are processed asynchronously — no wait is required.
+Submissions are processed asynchronously via background tasks.
 
-- **Strategy A**: Proceed immediately to the next file.
-- **Strategy B**: If all files have been submitted, proceed to the decision step.
+- If you still have unreviewed files in the queue, proceed immediately to the next file while background tasks run.
+- When all files are reviewed **but submissions are still pending**, use `agdt-task-wait` to wait for submission tasks to complete before moving to the decision step.
+- When all submissions have completed, proceed directly to the decision step.
 
 ---
 

@@ -28,15 +28,15 @@ class TestPrReviewFileReviewPromptRendering:
         assert len(result) > 0
 
     def test_pull_request_id_rendered(self):
-        """Pull request ID appears in rendered output."""
+        """Pull request ID appears in the PR header."""
         result = self._render(**self._base_variables())
-        assert "42" in result
+        assert "Pull Request **#42**" in result
 
     def test_queue_progress_rendered(self):
-        """Completed and pending counts appear in rendered output."""
+        """Completed and pending counts appear in queue progress section."""
         result = self._render(**self._base_variables())
-        assert "3" in result
-        assert "2" in result
+        assert "**Completed**: 3 file(s)" in result
+        assert "**Remaining**: 2 file(s)" in result
 
     def test_current_file_section_present_when_set(self):
         """Current file section renders when current_file is provided."""
@@ -110,25 +110,20 @@ class TestPrReviewFileReviewPromptRendering:
         assert "agdt-submit-reviews" in result
 
     def test_batch_defaults_schema_example_present(self):
-        """Batch defaults schema keys appear in an example."""
+        """Batch submit-reviews example uses --reviews JSON array with --outcome/--summary flags."""
         result = self._render(**self._base_variables())
-        assert "default_outcome" in result
-        assert "default_summary" in result
+        assert "agdt-submit-reviews" in result
+        assert "--reviews" in result
+        assert "--outcome" in result
+        assert "--summary" in result
 
-    def test_no_agdt_task_wait_reference(self):
-        """agdt-task-wait does NOT appear anywhere in rendered output."""
+    def test_task_wait_mentioned_for_pending_submissions(self):
+        """agdt-task-wait appears in the context of pending submissions."""
         result = self._render(**self._base_variables())
-        assert "agdt-task-wait" not in result
-
-    def test_no_agdt_task_wait_when_current_file_empty(self):
-        """agdt-task-wait does NOT appear when current_file is empty."""
-        variables = self._base_variables()
-        variables["current_file"] = ""
-        result = self._render(**variables)
-        assert "agdt-task-wait" not in result
+        assert "agdt-task-wait" in result
 
     def test_no_wait_poll_instructions(self):
-        """No wait/poll instructions for API completion remain."""
+        """No legacy wait/poll instructions for API completion remain."""
         result = self._render(**self._base_variables())
         assert "Wait for the review to post" not in result
         assert "wait for the review to post" not in result
@@ -144,8 +139,7 @@ class TestPrReviewFileReviewPromptRendering:
         """The workflow status line at the bottom still renders."""
         result = self._render(**self._base_variables())
         assert "Workflow Status" in result
-        assert "3" in result
-        assert "5" in result
+        assert "3/5 complete" in result
 
     def test_batch_request_changes_command_present(self):
         """agdt-request-changes-batch command appears in rendered output."""
