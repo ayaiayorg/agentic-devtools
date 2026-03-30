@@ -659,14 +659,15 @@ class TestSubmissionManager:
 
     # --- Persistence tests ---
 
-    def test_persistence_path_none_no_file_io(self, tmp_path):
-        """When persistence_path is None, no file is written."""
-        manager = SubmissionManager()
-        try:
-            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
-        finally:
-            manager.shutdown(wait=True)
-        assert list(tmp_path.iterdir()) == []
+    def test_persistence_path_none_no_file_io(self):
+        """When persistence_path is None, no file I/O occurs."""
+        with patch("agentic_devtools.submission_manager.tempfile.NamedTemporaryFile") as mock_ntf:
+            manager = SubmissionManager()
+            try:
+                manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+            finally:
+                manager.shutdown(wait=True)
+        mock_ntf.assert_not_called()
 
     def test_enqueue_persists_to_file(self, tmp_path):
         """Enqueued item is persisted to disk."""
@@ -813,8 +814,7 @@ class TestSubmissionManager:
             processed.append(item.file_path)
 
         manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
-        # The recovered item is re-enqueued, so we need to start the worker
-        manager._ensure_worker_started()
+        # Worker auto-starts on construction when recovered items are re-enqueued
         manager.shutdown(wait=True)
 
         assert "in-flight.ts" in processed
@@ -852,7 +852,7 @@ class TestSubmissionManager:
             processed.append(item.file_path)
 
         manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
-        manager._ensure_worker_started()
+        # Worker auto-starts on construction when recovered items are re-enqueued
         manager.shutdown(wait=True)
 
         assert "queued.ts" in processed
@@ -890,7 +890,7 @@ class TestSubmissionManager:
             processed.append(item.file_path)
 
         manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
-        manager._ensure_worker_started()
+        # Worker auto-starts on construction when recovered items are re-enqueued
         manager.shutdown(wait=True)
 
         assert "retrying.ts" in processed
@@ -948,7 +948,7 @@ class TestSubmissionManager:
             processed.append(item.file_path)
 
         manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
-        manager._ensure_worker_started()
+        # Worker auto-starts on construction when recovered items are re-enqueued
         manager.shutdown(wait=True)
 
         # Only the processing item should have been re-processed
@@ -1113,3 +1113,221 @@ class TestSubmissionManager:
         # Item is still in-memory despite persistence failure
         assert manager.get_queue_depth() == 1
         manager.shutdown(wait=True)
+
+    def test_recovery_auto_starts_worker(self, tmp_path):
+        """Worker starts automatically when recovered items are re-enqueued."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "recovered.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": 0,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        processed: list[str] = []
+
+        def tracking_processor(item: SubmissionItem) -> None:
+            processed.append(item.file_path)
+
+        # Worker should auto-start — no need to call _ensure_worker_started()
+        manager = SubmissionManager(processor=tracking_processor, persistence_path=persist_file)
+        manager.shutdown(wait=True)
+
+        assert "recovered.ts" in processed
+
+    def test_recovery_no_auto_start_when_no_requeued_items(self, tmp_path):
+        """Worker is NOT started when only terminal items are recovered."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "done.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            # Worker should not have been started — only terminal items were loaded
+            assert manager._worker is None
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_preserves_attempt_count(self, tmp_path):
+        """Recovered items retain their persisted attempt count."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "item-1",
+                            "pr_id": 1,
+                            "file_path": "retried.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "processing",
+                            "attempts": 2,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        attempts_seen: list[int] = []
+
+        def capturing_processor(item: SubmissionItem) -> None:
+            attempts_seen.append(item.attempts)
+
+        manager = SubmissionManager(processor=capturing_processor, persistence_path=persist_file)
+        manager.shutdown(wait=True)
+
+        # Recovered item had attempts=2 — worker should preserve it, not reset to 1
+        assert attempts_seen == [2]
+
+    def test_recovery_skips_non_dict_items(self, tmp_path):
+        """Non-dict entries in items list are skipped without aborting recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        "not a dict",
+                        42,
+                        {
+                            "id": "valid-item",
+                            "pr_id": 1,
+                            "file_path": "valid.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            # Valid item should still be loaded
+            assert manager.get_item("valid-item") is not None
+            assert manager.get_item("valid-item").status == SubmissionStatus.SUCCEEDED
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_handles_invalid_items_field(self, tmp_path):
+        """Non-list 'items' field causes graceful fallback — manager starts fresh."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": "not a list",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_handles_missing_items_field(self, tmp_path):
+        """Missing 'items' field causes graceful fallback — manager starts fresh."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps({"version": 1}),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_skips_item_when_from_dict_raises(self, tmp_path):
+        """Dict items that cause from_dict to raise are skipped gracefully."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "bad-item",
+                            "pr_id": 1,
+                            "file_path": "bad.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                        },
+                        {
+                            "id": "good-item",
+                            "pr_id": 1,
+                            "file_path": "good.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        original_from_dict = SubmissionItem.from_dict
+
+        def failing_from_dict(data):
+            if data.get("id") == "bad-item":
+                raise TypeError("simulated deserialization error")
+            return original_from_dict(data)
+
+        with patch.object(SubmissionItem, "from_dict", side_effect=failing_from_dict):
+            manager = SubmissionManager(persistence_path=persist_file)
+            try:
+                assert manager.get_item("bad-item") is None
+                assert manager.get_item("good-item") is not None
+            finally:
+                manager.shutdown(wait=True)

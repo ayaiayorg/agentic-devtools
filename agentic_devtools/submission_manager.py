@@ -213,6 +213,9 @@ class SubmissionManager:
 
         if persistence_path is not None:
             self._load_persisted()
+            # If persisted items were re-enqueued, start the worker so they are processed
+            if not self._queue.empty():
+                self._ensure_worker_started()
 
     def enqueue(
         self,
@@ -434,9 +437,20 @@ class SubmissionManager:
             )
             return
 
-        items_data = data.get("items", [])
+        items_data = data.get("items")
+        if not isinstance(items_data, list):
+            logger.warning("Persistence file %s has invalid 'items' field — starting fresh", self._persistence_path)
+            return
+
         for item_data in items_data:
-            item = SubmissionItem.from_dict(item_data)
+            try:
+                if not isinstance(item_data, dict):
+                    logger.warning("Skipping non-dict item in persistence file %s", self._persistence_path)
+                    continue
+                item = SubmissionItem.from_dict(item_data)
+            except Exception as exc:
+                logger.warning("Skipping malformed item in persistence file %s: %s", self._persistence_path, exc)
+                continue
             if item.status in (SubmissionStatus.SUCCEEDED, SubmissionStatus.FAILED):
                 self._items[item.id] = item
             else:
@@ -456,7 +470,10 @@ class SubmissionManager:
 
                 with self._lock:
                     item.status = SubmissionStatus.PROCESSING
-                    item.attempts = 1
+                    # Only initialize attempts for fresh items; recovered items
+                    # retain their persisted attempt count.
+                    if item.attempts == 0:
+                        item.attempts = 1
                     self._persist()
 
                 while True:
