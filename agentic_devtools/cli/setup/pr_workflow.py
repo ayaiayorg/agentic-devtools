@@ -123,7 +123,24 @@ def run_setup_with_pr_workflow(
     stash_list_before = run_git("stash", "list", check=False)
     before_count = len(stash_list_before.stdout.strip().splitlines()) if stash_list_before.stdout.strip() else 0
 
-    run_git("stash", "push", "--include-untracked", "-m", "agdt-setup: auto-stash", check=False)
+    stash_push = run_git("stash", "push", "--include-untracked", "-m", "agdt-setup: auto-stash", check=False)
+    if stash_push.returncode != 0:
+        # Stashing can fail during an in-progress merge/rebase.  Fall back
+        # to running setup without the PR workflow so we don't risk
+        # detaching HEAD with a dirty/conflicted working tree.
+        stash_err = stash_push.stderr.strip()
+        print(
+            f"Warning: 'git stash push' failed{f': {stash_err}' if stash_err else ''} "
+            "— running setup without PR workflow.",
+            file=sys.stderr,
+        )
+        setup_fn()
+        return PrWorkflowResult(
+            success=True,
+            branch_created=None,
+            pr_created=False,
+            message="Stash failed; setup ran without PR workflow.",
+        )
 
     stash_list_after = run_git("stash", "list", check=False)
     after_count = len(stash_list_after.stdout.strip().splitlines()) if stash_list_after.stdout.strip() else 0
@@ -229,11 +246,40 @@ def run_setup_with_pr_workflow(
         # Step 12 — restore original branch
         restore = run_git("checkout", original_branch, check=False)
         if restore.returncode != 0:
-            print(
-                f"Warning: Could not restore branch '{original_branch}'. "
-                f"Run 'git checkout {original_branch}' manually.",
-                file=sys.stderr,
+            # The checkout may have failed because setup_fn() left
+            # uncommitted changes in the working tree (e.g. when
+            # checkout -b / add / commit failed partway through).
+            # Stash those changes and retry so the user gets back to
+            # their original branch.
+            emergency_stash = run_git(
+                "stash",
+                "push",
+                "--include-untracked",
+                "-m",
+                "agdt-setup: uncommitted changes blocking branch restore",
+                check=False,
             )
+            if emergency_stash.returncode == 0:
+                retry = run_git("checkout", original_branch, check=False)
+                if retry.returncode == 0:
+                    print(
+                        f"Warning: Uncommitted setup changes were stashed to restore "
+                        f"branch '{original_branch}'. Run 'git stash list' to see them.",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"Warning: Could not restore branch '{original_branch}' "
+                        f"even after stashing uncommitted changes. "
+                        f"Run 'git checkout {original_branch}' manually.",
+                        file=sys.stderr,
+                    )
+            else:
+                print(
+                    f"Warning: Could not restore branch '{original_branch}'. "
+                    f"Run 'git checkout {original_branch}' manually.",
+                    file=sys.stderr,
+                )
 
         # Step 13 — pop stash
         if did_stash:

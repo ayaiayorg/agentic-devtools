@@ -130,6 +130,29 @@ class TestRunSetupWithPrWorkflow:
 
     # ── Stash pop failure ──────────────────────────────────────────────
 
+    def test_stash_push_failure_falls_back_to_normal_setup(self, capsys):
+        """When git stash push fails (e.g. during merge/rebase), runs setup without PR workflow."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _fail("cannot stash"),  # stash push FAILS
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        setup_fn.assert_called_once()
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert result["pr_created"] is False
+        assert "Stash failed" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "git stash push" in err
+        assert "cannot stash" in err
+
     def test_stash_pop_failure_prints_warning(self, capsys):
         """Stash pop failure prints warning but does not raise."""
         setup_fn = MagicMock()
@@ -348,7 +371,7 @@ class TestRunSetupWithPrWorkflow:
     # ── Branch restore failure ─────────────────────────────────────────
 
     def test_branch_restore_failure_prints_warning(self, capsys):
-        """When checkout of original branch fails in finally, prints warning."""
+        """When checkout of original branch fails in finally, tries emergency stash and retry."""
         setup_fn = MagicMock()
 
         with patch(_RUN_GIT) as mock_git:
@@ -361,12 +384,61 @@ class TestRunSetupWithPrWorkflow:
                 _ok(),  # checkout origin/main --detach
                 _ok(""),  # status --porcelain (no changes)
                 _fail("error: pathspec"),  # checkout original branch FAILS (finally)
+                _fail("cannot stash"),  # emergency stash ALSO fails
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         assert result["success"] is True
         err = capsys.readouterr().err
         assert "Could not restore branch" in err
+        assert "feature/work" in err
+
+    def test_branch_restore_emergency_stash_and_retry_success(self, capsys):
+        """When checkout fails but emergency stash + retry succeeds, prints stash warning."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok(),  # emergency stash succeeds
+                _ok(),  # retry checkout succeeds
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        err = capsys.readouterr().err
+        assert "Uncommitted setup changes were stashed" in err
+        assert "feature/work" in err
+
+    def test_branch_restore_emergency_stash_success_retry_fails(self, capsys):
+        """When checkout fails, emergency stash works but retry checkout also fails."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok(),  # emergency stash succeeds
+                _fail("still fails"),  # retry checkout ALSO fails
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        err = capsys.readouterr().err
+        assert "even after stashing" in err
         assert "feature/work" in err
 
     # ── Checkout -b failure ────────────────────────────────────────────
