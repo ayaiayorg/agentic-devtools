@@ -384,6 +384,7 @@ class TestRunSetupWithPrWorkflow:
                 _ok(),  # checkout origin/main --detach
                 _ok(""),  # status --porcelain (no changes)
                 _fail("error: pathspec"),  # checkout original branch FAILS (finally)
+                _ok(""),  # stash list (before emergency)
                 _fail("cannot stash"),  # emergency stash ALSO fails
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
@@ -407,7 +408,9 @@ class TestRunSetupWithPrWorkflow:
                 _ok(),  # checkout origin/main --detach
                 _ok(""),  # status --porcelain (no changes)
                 _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok(""),  # stash list (before emergency)
                 _ok(),  # emergency stash succeeds
+                _ok("stash@{0}\n"),  # stash list (after emergency) — entry created
                 _ok(),  # retry checkout succeeds
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
@@ -431,7 +434,9 @@ class TestRunSetupWithPrWorkflow:
                 _ok(),  # checkout origin/main --detach
                 _ok(""),  # status --porcelain (no changes)
                 _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok(""),  # stash list (before emergency)
                 _ok(),  # emergency stash succeeds
+                _ok("stash@{0}\n"),  # stash list (after emergency) — entry created
                 _fail("still fails"),  # retry checkout ALSO fails
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
@@ -457,24 +462,50 @@ class TestRunSetupWithPrWorkflow:
                 _ok(),  # checkout origin/main --detach
                 _ok(""),  # status --porcelain (no changes)
                 _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok("stash@{0}\n"),  # stash list (before emergency) — 1 entry
                 _ok(),  # emergency stash succeeds
+                _ok("stash@{0}\nstash@{1}\n"),  # stash list (after emergency) — 2 entries
                 _ok(),  # retry checkout succeeds
                 _ok(),  # stash pop stash@{1} (finally)
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         assert result["success"] is True
-        # Verify the emergency stash was created and stash pop targets stash@{1}
+        # Verify stash pop targets stash@{1}
         git_calls = [c.args for c in mock_git.call_args_list]
-        emergency_stash_calls = [
-            c for c in git_calls if len(c) >= 3 and c[:3] == ("stash", "push", "--include-untracked")
-        ]
-        # Two stash pushes: the initial auto-stash and the emergency stash
-        assert len(emergency_stash_calls) == 2
         assert ("stash", "pop", "stash@{1}") in [c[:3] for c in git_calls]
 
         err = capsys.readouterr().err
         assert "Uncommitted setup changes were stashed" in err
+
+    def test_stash_pop_uses_stash_0_when_emergency_stash_noop(self, capsys):
+        """When emergency stash returns 0 but creates no entry, stash pop targets stash@{0}."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after) — stash created
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok("stash@{0}\n"),  # stash list (before emergency) — 1 entry
+                _ok(),  # emergency stash returns 0 (no-op, no changes)
+                _ok("stash@{0}\n"),  # stash list (after emergency) — still 1 entry
+                _ok(),  # retry checkout succeeds
+                _ok(),  # stash pop stash@{0} (finally) — no offset needed
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        # Verify stash pop targets stash@{0} (not stash@{1})
+        git_calls = [c.args for c in mock_git.call_args_list]
+        assert ("stash", "pop", "stash@{0}") in [c[:3] for c in git_calls]
+        # stash@{1} should NOT appear
+        assert ("stash", "pop", "stash@{1}") not in [c[:3] for c in git_calls]
 
     # ── Checkout -b failure ────────────────────────────────────────────
 

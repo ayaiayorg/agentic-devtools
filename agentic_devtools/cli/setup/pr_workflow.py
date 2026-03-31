@@ -252,6 +252,12 @@ def run_setup_with_pr_workflow(
             # checkout -b / add / commit failed partway through).
             # Stash those changes and retry so the user gets back to
             # their original branch.
+            stash_before_emergency = run_git("stash", "list", check=False)
+            before_emergency_count = (
+                len(stash_before_emergency.stdout.strip().splitlines())
+                if stash_before_emergency.stdout.strip()
+                else 0
+            )
             emergency_stash = run_git(
                 "stash",
                 "push",
@@ -261,7 +267,15 @@ def run_setup_with_pr_workflow(
                 check=False,
             )
             if emergency_stash.returncode == 0:
-                emergency_stash_created = True
+                # Verify a new stash entry was actually created (git stash push
+                # returns 0 even when there are no changes to stash).
+                stash_after_emergency = run_git("stash", "list", check=False)
+                after_emergency_count = (
+                    len(stash_after_emergency.stdout.strip().splitlines())
+                    if stash_after_emergency.stdout.strip()
+                    else 0
+                )
+                emergency_stash_created = after_emergency_count > before_emergency_count
                 retry = run_git("checkout", original_branch, check=False)
                 if retry.returncode == 0:
                     print(
