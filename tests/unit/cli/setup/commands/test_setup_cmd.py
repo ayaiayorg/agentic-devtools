@@ -412,9 +412,7 @@ class TestSetupCmd:
 
     def test_reconfigure_flag_threads_to_prompt_functions(self, capsys, tmp_path):
         """--reconfigure passes force_prompt=True to both prompt functions."""
-        with patch(
-            "sys.argv", ["agdt-setup", "--reconfigure", "--skip-platform-detection", "--skip-templates"]
-        ):
+        with patch("sys.argv", ["agdt-setup", "--reconfigure", "--skip-platform-detection", "--skip-templates"]):
             with patch.object(commands, "_prefetch_certs"):
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=True):
@@ -969,3 +967,34 @@ class TestSetupCmd:
                                                         commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Platform & Workflow Setup" in out
+
+    def test_skip_pr_workflow_flag_accepted(self, capsys):
+        """--skip-pr-workflow flag is accepted without error."""
+        with patch("sys.argv", ["agdt-setup", "--skip-pr-workflow"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                commands.setup_cmd()
+
+    def test_skip_pr_workflow_bypasses_pr_workflow(self, capsys, tmp_path):
+        """--skip-pr-workflow runs file-modifying steps directly without PR workflow."""
+        with patch("sys.argv", ["agdt-setup", "--skip-pr-workflow"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow"
+                                                ) as mock_pr:
+                                                    commands.setup_cmd()
+        # PR workflow should NOT be called
+        mock_pr.assert_not_called()
