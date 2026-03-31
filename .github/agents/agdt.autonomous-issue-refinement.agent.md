@@ -58,7 +58,9 @@ Fall back to `ayaiayorg/agentic-devtools` if parsing fails.
 
 ## Command Reference
 
-Use **only** the commands listed here. Do not invent commands.
+Use these commands for issue management and state operations. Do not invent
+`agdt-*` or `gh issue` commands beyond those listed. Standard repository
+inspection tools (file reading, searching, `git` commands) are always allowed.
 
 ### Utility Commands (both modes)
 
@@ -110,7 +112,7 @@ agdt-get-jira-issue
 agdt-task-wait
 ```
 
-Read the output file (`temp/temp-get-issue-details-response.json`). Extract:
+Read the output file (`temp-get-issue-details-response.json` in the state directory). Extract:
 title, description, labels, comments, issue type, parent key (if subtask).
 
 **GitHub mode**:
@@ -138,8 +140,10 @@ Determine whether this issue is a sub-issue or subtask:
 If a parent exists:
 - Retrieve and read the parent issue.
 - Identify all sibling issues/subtasks listed in the parent.
-- Retrieve all siblings that have already been refined (`## Refined Specification`
-  sections present) or implemented (merged PRs). Read their specs or diffs.
+- Retrieve all siblings that have already been refined:
+  - **GitHub mode**: body contains a `## Refined Specification` section.
+  - **Jira mode**: description contains an `h2. Refined Specification` section.
+  - Or that have already been implemented (merged PRs). Read their specs or diffs.
 - Determine this issue's position in the implementation sequence.
 - Note which preceding siblings' outputs this issue builds on, and which following
   siblings' scope this issue must not encroach upon.
@@ -602,7 +606,8 @@ Triggered when Phase 2 finds at least one unresolvable ambiguity.
 
 ## Expected Outcome
 
-The issue is updated with a `## Refined Specification` section that an AI coding
+The issue is updated with a refined specification section (`## Refined Specification`
+for GitHub issues, `h2. Refined Specification` for Jira issues) that an AI coding
 agent can pick up and implement without any further human input. The `refined-for-ai`
 label is present. A completion comment summarises all autonomous decisions made.
 
