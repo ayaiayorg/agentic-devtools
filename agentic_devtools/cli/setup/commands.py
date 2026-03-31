@@ -593,7 +593,7 @@ def setup_cmd() -> None:
 
     Usage:
         agdt-setup [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
-                   [--reconfigure]
+                   [--reconfigure] [--skip-pr-workflow]
 
     Options:
         --system-only   Skip managed installs into ~/.agdt/bin/; only verify
@@ -604,6 +604,8 @@ def setup_cmd() -> None:
         --overwrite-env   Overwrite existing env var lines in shell profile.
         --reconfigure     Re-prompt for all project configuration values
                           and Copilot model selection, even if already set.
+        --skip-pr-workflow  Skip the automatic branch/PR workflow for repo file
+                            changes; apply changes directly to the current branch.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",

@@ -337,11 +337,11 @@ class TestRunSetupWithPrWorkflow:
             with pytest.raises(RuntimeError, match="setup boom"):
                 run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
-        # Verify finally block ran — checkout and stash pop should have been called
+        # Verify finally block ran — checkout and stash pop should have been called.
+        # No emergency stash was created, so stash pop targets stash@{0}.
         git_calls = [c.args for c in mock_git.call_args_list]
-        # The last two calls should be checkout original and stash pop
         assert ("checkout", "main") in [c[:2] for c in git_calls]
-        assert ("stash", "pop") in [c[:2] for c in git_calls]
+        assert ("stash", "pop", "stash@{0}") in [c[:3] for c in git_calls]
 
     # ── Checkout origin/main failure ───────────────────────────────────
 
@@ -440,6 +440,41 @@ class TestRunSetupWithPrWorkflow:
         err = capsys.readouterr().err
         assert "even after stashing" in err
         assert "feature/work" in err
+
+    # ── Stash pop uses correct ref after emergency stash ───────────────
+
+    def test_stash_pop_uses_stash_1_after_emergency_stash(self, capsys):
+        """When emergency stash was created, stash pop targets stash@{1} (user's original)."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after) — stash created
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok(),  # emergency stash succeeds
+                _ok(),  # retry checkout succeeds
+                _ok(),  # stash pop stash@{1} (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        # Verify the emergency stash was created and stash pop targets stash@{1}
+        git_calls = [c.args for c in mock_git.call_args_list]
+        emergency_stash_calls = [
+            c for c in git_calls if len(c) >= 3 and c[:3] == ("stash", "push", "--include-untracked")
+        ]
+        # Two stash pushes: the initial auto-stash and the emergency stash
+        assert len(emergency_stash_calls) == 2
+        assert ("stash", "pop", "stash@{1}") in [c[:3] for c in git_calls]
+
+        err = capsys.readouterr().err
+        assert "Uncommitted setup changes were stashed" in err
 
     # ── Checkout -b failure ────────────────────────────────────────────
 
