@@ -249,3 +249,76 @@ class TestPromptProjectConfig:
         assert saved["vpn_hostnames"] == ""
         # Extra key preserved
         assert saved["extra_key"] == "preserved"
+
+    def test_skip_path_normalises_none_to_empty_string(self, capsys):
+        """Should normalise None values to empty string in the skip path."""
+        existing = {
+            "jira_project_keys": None,
+            "jira_base_url": "https://jira.example.com",
+            "corporate_network_test_host": None,
+            "vpn_url": "",
+            "vpn_hostnames": "host.example.com",
+        }
+
+        mock_input = patch("agentic_devtools.cli.setup.commands.input")
+        with mock_input as m_input:
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config()
+
+        m_input.assert_not_called()
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        # None normalised to ""
+        assert saved["jira_project_keys"] == ""
+        assert saved["corporate_network_test_host"] == ""
+        # Non-None values preserved as-is
+        assert saved["jira_base_url"] == "https://jira.example.com"
+        assert saved["vpn_url"] == ""
+        assert saved["vpn_hostnames"] == "host.example.com"
+
+    def test_skip_path_normalises_non_string_to_str(self, capsys):
+        """Should coerce non-string values (e.g. int) to str in the skip path."""
+        existing = {
+            "jira_project_keys": 42,
+            "jira_base_url": "https://jira.example.com",
+            "corporate_network_test_host": "",
+            "vpn_url": "",
+            "vpn_hostnames": "",
+        }
+
+        mock_input = patch("agentic_devtools.cli.setup.commands.input")
+        with mock_input as m_input:
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config()
+
+        m_input.assert_not_called()
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved["jira_project_keys"] == "42"
+
+    def test_prompt_path_normalises_none_current_value(self, capsys):
+        """Should normalise None current value to empty string in the prompt path."""
+        existing = {
+            "jira_project_keys": None,
+            "jira_base_url": None,
+        }
+        # force_prompt=True forces prompt path; absent keys also prompt
+        inputs = iter(["NEW_KEY", "https://new.example.com", "corp", "vpn", "hosts"])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config(force_prompt=True)
+
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved["jira_project_keys"] == "NEW_KEY"
+        assert saved["jira_base_url"] == "https://new.example.com"

@@ -434,8 +434,12 @@ def _prompt_project_config(*, force_prompt: bool = False) -> None:
         # Skip prompt entirely when the key is already present and re-prompting
         # was not requested (key presence = "already answered").
         if not force_prompt and key in existing:
-            return existing[key]
-        current = existing.get(key, "")
+            # Normalise to str: config is dict[str, Any] so values may be
+            # None or non-string after manual JSON edits.
+            value = existing[key]
+            return "" if value is None else str(value)
+        raw_current = existing.get(key, "")
+        current = "" if raw_current is None else str(raw_current)
         suffix = f" [{current}]" if current else ""
         answer = input(f"  {prompt}{suffix}: ").strip()
         if allow_clear and answer.lower() in {"-", "clear"}:
@@ -532,7 +536,8 @@ def _prompt_copilot_model(*, force_prompt: bool = False) -> None:
     )
 
     existing = load_project_config()
-    current_model = existing.get("default_copilot_model", "").strip()
+    raw_model = existing.get("default_copilot_model", "")
+    current_model = raw_model.strip() if isinstance(raw_model, str) else ""
 
     if not force_prompt and "default_copilot_model" in existing:
         print()
