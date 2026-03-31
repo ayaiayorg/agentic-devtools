@@ -15,15 +15,25 @@ Components:
 
 from __future__ import annotations
 
+import contextlib
+import json
+import logging
+import os
 import queue
 import random
+import tempfile
 import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_PERSISTENCE_VERSION = 1
 
 
 class TransientSubmissionError(Exception):
@@ -185,6 +195,7 @@ class SubmissionManager:
         processor: Callable[[SubmissionItem], None] | None = None,
         max_retries: int = 3,
         backoff_base: float = 1.0,
+        persistence_path: str | Path | None = None,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
@@ -198,6 +209,13 @@ class SubmissionManager:
         self._shutdown_event = threading.Event()
         self._max_retries = max_retries
         self._backoff_base = backoff_base
+        self._persistence_path: Path | None = Path(persistence_path) if persistence_path is not None else None
+
+        if persistence_path is not None:
+            self._load_persisted()
+            # If persisted items were re-enqueued, start the worker so they are processed
+            if not self._queue.empty():
+                self._ensure_worker_started()
 
     def enqueue(
         self,
@@ -243,6 +261,12 @@ class SubmissionManager:
                 raise RuntimeError("SubmissionManager has been shut down")
             self._items[item.id] = item
             self._queue.put(item)
+            try:
+                self._persist()
+            except Exception:
+                logger.exception(
+                    "Failed to persist submission manager state after enqueue; continuing without persistence"
+                )
 
         self._ensure_worker_started()
 
@@ -354,6 +378,114 @@ class SubmissionManager:
                     self._worker = threading.Thread(target=self._worker_loop, daemon=True)
                     self._worker.start()
 
+    def _persist(self) -> None:
+        """Write current items to the persistence file atomically.
+
+        Must be called while ``self._lock`` is held. When
+        ``self._persistence_path`` is ``None`` this is a no-op.
+        """
+        if self._persistence_path is None:
+            return
+        payload = json.dumps(
+            {
+                "version": _PERSISTENCE_VERSION,
+                "items": [item.to_dict() for item in self._items.values()],
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        self._persistence_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=self._persistence_path.parent,
+            suffix=".tmp",
+            delete=False,
+            encoding="utf-8",
+        )
+        try:
+            fd.write(payload)
+            fd.flush()
+            os.fsync(fd.fileno())
+            fd.close()
+            os.replace(fd.name, str(self._persistence_path))
+        except BaseException:
+            fd.close()
+            with contextlib.suppress(OSError):
+                os.unlink(fd.name)
+            raise
+
+    def _persist_safe(self) -> None:
+        """Call ``_persist()`` and swallow any exception.
+
+        Used inside the worker loop where a persistence failure must not
+        kill the daemon thread. Must be called while ``self._lock`` is held.
+        """
+        try:
+            self._persist()
+        except Exception:
+            logger.exception("Failed to persist submission manager state; continuing")
+
+    def _load_persisted(self) -> None:
+        """Load items from the persistence file on construction.
+
+        Recovery rules:
+        - ``SUCCEEDED`` / ``FAILED`` items are loaded as-is (not re-queued).
+        - ``PROCESSING`` items are reset to ``QUEUED`` and re-enqueued.
+        - ``QUEUED`` / ``RETRYING`` items are loaded as ``QUEUED`` and
+          re-enqueued.
+        - If the file version is unrecognised, the file is discarded.
+        """
+        if self._persistence_path is None or not self._persistence_path.exists():
+            return
+        try:
+            raw = self._persistence_path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to read persistence file %s: %s — starting fresh", self._persistence_path, exc)
+            return
+
+        if not isinstance(data, dict):
+            logger.warning("Persistence file %s has non-dict top-level JSON — starting fresh", self._persistence_path)
+            return
+
+        version = data.get("version")
+        if version != _PERSISTENCE_VERSION:
+            logger.warning(
+                "Unrecognised persistence version %r in %s — discarding and starting fresh",
+                version,
+                self._persistence_path,
+            )
+            return
+
+        items_data = data.get("items")
+        if not isinstance(items_data, list):
+            logger.warning("Persistence file %s has invalid 'items' field — starting fresh", self._persistence_path)
+            return
+
+        for item_data in items_data:
+            try:
+                if not isinstance(item_data, dict):
+                    logger.warning("Skipping non-dict item in persistence file %s", self._persistence_path)
+                    continue
+                item = SubmissionItem.from_dict(item_data)
+                # Guard against malformed persistence data with wrong field
+                # types that could crash the worker loop (e.g., string
+                # "attempts" would cause TypeError in integer comparisons).
+                if not isinstance(item.attempts, int) or item.attempts < 0:
+                    raise TypeError(f"Invalid attempts value: {item.attempts!r}")
+                if not isinstance(item.pr_id, int):
+                    raise TypeError(f"Invalid pr_id value: {item.pr_id!r}")
+            except Exception as exc:
+                logger.warning("Skipping malformed item in persistence file %s: %s", self._persistence_path, exc)
+                continue
+            if item.status in (SubmissionStatus.SUCCEEDED, SubmissionStatus.FAILED):
+                self._items[item.id] = item
+            else:
+                # PROCESSING, QUEUED, RETRYING → reset to QUEUED and re-enqueue
+                item.status = SubmissionStatus.QUEUED
+                self._items[item.id] = item
+                self._queue.put(item)
+
     def _worker_loop(self) -> None:
         """Process items from the queue serially, retrying transient failures."""
         while True:
@@ -365,7 +497,11 @@ class SubmissionManager:
 
                 with self._lock:
                     item.status = SubmissionStatus.PROCESSING
-                    item.attempts = 1
+                    # Only initialize attempts for fresh items; recovered items
+                    # retain their persisted attempt count.
+                    if item.attempts == 0:
+                        item.attempts = 1
+                    self._persist_safe()
 
                 while True:
                     try:
@@ -374,6 +510,7 @@ class SubmissionManager:
                             item.status = SubmissionStatus.SUCCEEDED
                             item.error_message = None
                             item.completed_at = datetime.now(timezone.utc).isoformat()
+                            self._persist_safe()
                         break
                     except TransientSubmissionError as exc:
                         with self._lock:
@@ -382,24 +519,29 @@ class SubmissionManager:
                             with self._lock:
                                 item.status = SubmissionStatus.FAILED
                                 item.completed_at = datetime.now(timezone.utc).isoformat()
+                                self._persist_safe()
                             break
                         with self._lock:
                             item.status = SubmissionStatus.RETRYING
+                            self._persist_safe()
                         delay = self._backoff_base * (2 ** (item.attempts - 1)) + random.uniform(0, 1.0)
                         interrupted = self._shutdown_event.wait(delay)
                         if interrupted:
                             with self._lock:
                                 item.status = SubmissionStatus.FAILED
                                 item.completed_at = datetime.now(timezone.utc).isoformat()
+                                self._persist_safe()
                             break
                         with self._lock:
                             item.status = SubmissionStatus.PROCESSING
                             item.attempts += 1
+                            self._persist_safe()
                     except Exception as exc:
                         with self._lock:
                             item.status = SubmissionStatus.FAILED
                             item.error_message = str(exc)
                             item.completed_at = datetime.now(timezone.utc).isoformat()
+                            self._persist_safe()
                         break
             finally:
                 self._queue.task_done()
@@ -409,6 +551,7 @@ def create_submission_manager(
     processor: Callable[[SubmissionItem], None] | None = None,
     max_retries: int = 3,
     backoff_base: float = 1.0,
+    persistence_path: str | Path | None = None,
 ) -> SubmissionManager:
     """Convenience factory for creating a SubmissionManager.
 
@@ -417,6 +560,8 @@ def create_submission_manager(
                    Defaults to a no-op processor.
         max_retries: Maximum number of retries for transient errors (default 3).
         backoff_base: Base delay in seconds for exponential backoff (default 1.0).
+        persistence_path: Optional path to a JSON file for queue persistence.
+                          When ``None`` (the default), no file I/O occurs.
 
     Returns:
         A new SubmissionManager instance
@@ -425,4 +570,5 @@ def create_submission_manager(
         processor=processor,
         max_retries=max_retries,
         backoff_base=backoff_base,
+        persistence_path=persistence_path,
     )
