@@ -1566,12 +1566,12 @@ def setup_pull_request_review_async(  # pragma: no cover
         pull_request_id: PR ID (uses state if not provided)
         jira_issue_key: Optional Jira issue key (uses state if not provided)
         model_id: Optional AI model identifier for the reviewer (uses state
-            ``review.model_id`` if not provided, falls back to ``"unknown"``)
+            ``copilot.model_id`` if not provided, falls back to ``"unknown"``)
 
     State keys:
         pull_request_id (required): PR ID
         jira.issue_key (optional): Jira issue key
-        review.model_id (optional): AI model identifier
+        copilot.model_id (optional): AI model identifier
 
     Usage:
         agdt-set pull_request_id 12345
@@ -1595,9 +1595,9 @@ def setup_pull_request_review_async(  # pragma: no cover
     # Resolve model_id: CLI param > state key > "unknown"
     resolved_model_id = model_id
     if resolved_model_id is None:
-        resolved_model_id = get_value("review.model_id")
+        resolved_model_id = get_value("copilot.model_id")
     if resolved_model_id:
-        set_value("review.model_id", resolved_model_id)
+        set_value("copilot.model_id", resolved_model_id)
 
     # Ensure values are in state for the background function
     set_value("pull_request_id", pr_id)

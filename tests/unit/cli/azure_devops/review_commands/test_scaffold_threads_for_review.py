@@ -430,3 +430,39 @@ class TestScaffoldThreadsForReview:
         captured = capsys.readouterr()
         assert "unexpected type" in captured.err
         assert "int" in captured.err
+
+    def test_reads_model_id_from_copilot_state_key(self):
+        """Reads model_id from copilot.model_id state key and passes it to scaffold_review_threads."""
+        pr_info = self._make_pr_info()
+        pr_details = self._make_pr_details(files=[{"path": "/src/app.ts"}])
+
+        scaffold_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig") as mock_config_cls:
+            mock_config = MagicMock()
+            mock_config.repository = "test-repo"
+            mock_config_cls.from_state.return_value = mock_config
+
+            with patch("agentic_devtools.cli.azure_devops.review_commands.require_requests"):
+                with patch("agentic_devtools.cli.azure_devops.review_commands.get_pat"):
+                    with patch("agentic_devtools.cli.azure_devops.review_commands.get_auth_headers"):
+                        with patch("agentic_devtools.cli.azure_devops.review_commands.is_dry_run", return_value=False):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_scaffold.scaffold_review_threads",
+                                scaffold_mock,
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                                    side_effect=lambda key, *a, **kw: (
+                                        "claude-opus-4.6" if key == "copilot.model_id" else None
+                                    ),
+                                ):
+                                    from agentic_devtools.cli.azure_devops.review_commands import (
+                                        _scaffold_threads_for_review,
+                                    )
+
+                                    _scaffold_threads_for_review(123, pr_details, pr_info, None)
+
+        scaffold_mock.assert_called_once()
+        call_kwargs = scaffold_mock.call_args[1]
+        assert call_kwargs["model_id"] == "claude-opus-4.6"

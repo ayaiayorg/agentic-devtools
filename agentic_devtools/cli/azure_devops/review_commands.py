@@ -639,8 +639,8 @@ def _scaffold_threads_for_review(
             commit_hash_raw = None
         commit_hash = commit_hash_raw
 
-        # Resolve model_id from state; defaults to "unknown" if not set
-        model_id = get_value("review.model_id") or "unknown"
+        # Resolve model_id from state (copilot.model_id); defaults to "unknown" if not set
+        model_id = get_value("copilot.model_id") or "unknown"
 
         config = AzureDevOpsConfig.from_state()
         dry_run = is_dry_run()
@@ -688,7 +688,7 @@ def setup_pull_request_review() -> None:
         pull_request_id (required): PR ID
         jira.issue_key (optional): Jira issue key
         include_reviewed (optional): Whether to include already-reviewed files
-        review.model_id (optional): AI model identifier for the reviewer
+        copilot.model_id (optional): AI model identifier for the reviewer
 
     This function is designed to be called in a background task from the
     workflow initiation command.
@@ -705,7 +705,7 @@ def setup_pull_request_review() -> None:
 
     jira_issue_key = get_value("jira.issue_key")
     include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
-    review_model_id = get_value("review.model_id")
+    copilot_model_id = get_value("copilot.model_id")
     dry_run_val = get_value("dry_run")
 
     # Bootstrap identity + worktree_key before fetching PR details / generating
@@ -738,8 +738,8 @@ def setup_pull_request_review() -> None:
             set_value("jira.issue_key", jira_issue_key_norm)
         if include_reviewed:
             set_value("include_reviewed", "true")
-        if review_model_id:
-            set_value("review.model_id", review_model_id)
+        if copilot_model_id:
+            set_value("copilot.model_id", copilot_model_id)
         if dry_run_val is not None:
             set_value("dry_run", str(dry_run_val))
 
