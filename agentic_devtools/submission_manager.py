@@ -195,7 +195,7 @@ class SubmissionManager:
         processor: Callable[[SubmissionItem], None] | None = None,
         max_retries: int = 3,
         backoff_base: float = 1.0,
-        persistence_path: Path | None = None,
+        persistence_path: str | Path | None = None,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
@@ -209,7 +209,7 @@ class SubmissionManager:
         self._shutdown_event = threading.Event()
         self._max_retries = max_retries
         self._backoff_base = backoff_base
-        self._persistence_path: Path | None = persistence_path
+        self._persistence_path: Path | None = Path(persistence_path) if persistence_path is not None else None
 
         if persistence_path is not None:
             self._load_persisted()
@@ -551,7 +551,7 @@ def create_submission_manager(
     processor: Callable[[SubmissionItem], None] | None = None,
     max_retries: int = 3,
     backoff_base: float = 1.0,
-    persistence_path: Path | None = None,
+    persistence_path: str | Path | None = None,
 ) -> SubmissionManager:
     """Convenience factory for creating a SubmissionManager.
 

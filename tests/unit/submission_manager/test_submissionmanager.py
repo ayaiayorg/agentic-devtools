@@ -1500,3 +1500,17 @@ class TestSubmissionManager:
             assert manager.get_item("bad-pr-id") is None
         finally:
             manager.shutdown(wait=True)
+
+    def test_persistence_path_string_coerced_to_path(self, tmp_path):
+        """String persistence_path is coerced to Path, enabling file I/O."""
+        persist_file = tmp_path / "queue.json"
+        manager = SubmissionManager(persistence_path=str(persist_file))
+        try:
+            manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        finally:
+            manager.shutdown(wait=True)
+
+        assert persist_file.exists()
+        data = json.loads(persist_file.read_text(encoding="utf-8"))
+        assert data["version"] == 1
+        assert len(data["items"]) == 1
