@@ -1098,21 +1098,66 @@ class TestSubmissionManager:
         assert len(data["items"]) == 2
 
     def test_persist_cleans_up_temp_on_replace_error(self, tmp_path):
-        """Temp file is removed when os.replace raises during persistence."""
+        """Temp file is removed when os.replace raises during _persist()."""
         persist_file = tmp_path / "queue.json"
         manager = SubmissionManager(persistence_path=persist_file)
 
-        with patch("agentic_devtools.submission_manager.os.replace", side_effect=OSError("disk error")):
-            with pytest.raises(OSError, match="disk error"):
-                manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+        # Call _persist() directly (under lock) to test atomic cleanup
+        with manager._lock:
+            manager._items["test"] = SubmissionItem(
+                id="test", pr_id=1, file_path="f.ts", outcome="approve", summary="ok"
+            )
+            with patch("agentic_devtools.submission_manager.os.replace", side_effect=OSError("disk error")):
+                with pytest.raises(OSError, match="disk error"):
+                    manager._persist()
 
         # No leftover temp files
         tmp_files = list(tmp_path.glob("*.tmp"))
         assert tmp_files == []
-
-        # Item is still in-memory despite persistence failure
-        assert manager.get_queue_depth() == 1
         manager.shutdown(wait=True)
+
+    def test_enqueue_persist_failure_logs_and_continues(self, tmp_path):
+        """enqueue() logs persistence failure and still returns the queued item."""
+        persist_file = tmp_path / "queue.json"
+        barrier = threading.Event()
+
+        def blocking_processor(item: SubmissionItem) -> None:
+            barrier.wait(timeout=5)
+
+        manager = SubmissionManager(processor=blocking_processor, persistence_path=persist_file)
+
+        with patch.object(manager, "_persist", side_effect=OSError("disk full")):
+            item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        assert item is not None
+        assert item.file_path == "file.ts"
+        barrier.set()
+        manager.shutdown(wait=True)
+
+    def test_worker_survives_persist_failure(self, tmp_path):
+        """Worker continues processing after _persist_safe() swallows an error."""
+        persist_file = tmp_path / "queue.json"
+        barrier = threading.Event()
+        persist_calls: list[bool] = []
+
+        def failing_persist(self_ref):
+            persist_calls.append(True)
+            raise OSError("disk error")
+
+        def blocking_processor(item: SubmissionItem) -> None:
+            barrier.wait(timeout=5)
+
+        manager = SubmissionManager(processor=blocking_processor, persistence_path=persist_file)
+        item = manager.enqueue(pr_id=1, file_path="file.ts", outcome="approve", summary="ok")
+
+        # Now patch _persist to fail for all worker-loop calls via _persist_safe
+        with patch.object(SubmissionManager, "_persist", failing_persist):
+            barrier.set()
+            manager.shutdown(wait=True)
+
+        # Worker should have survived — _persist_safe caught the OSError
+        assert item.status in _TERMINAL
+        assert len(persist_calls) > 0  # confirm _persist was called and raised
 
     def test_recovery_auto_starts_worker(self, tmp_path):
         """Worker starts automatically when recovered items are re-enqueued."""
@@ -1331,3 +1376,25 @@ class TestSubmissionManager:
                 assert manager.get_item("good-item") is not None
             finally:
                 manager.shutdown(wait=True)
+
+    def test_recovery_handles_non_dict_top_level_json(self, tmp_path):
+        """Non-dict top-level JSON (e.g., a list) causes graceful fallback."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_handles_string_top_level_json(self, tmp_path):
+        """String top-level JSON causes graceful fallback."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(json.dumps("hello"), encoding="utf-8")
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_queue_depth() == 0
+        finally:
+            manager.shutdown(wait=True)

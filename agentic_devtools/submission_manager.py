@@ -261,7 +261,12 @@ class SubmissionManager:
                 raise RuntimeError("SubmissionManager has been shut down")
             self._items[item.id] = item
             self._queue.put(item)
-            self._persist()
+            try:
+                self._persist()
+            except Exception:
+                logger.exception(
+                    "Failed to persist submission manager state after enqueue; continuing without persistence"
+                )
 
         self._ensure_worker_started()
 
@@ -409,6 +414,17 @@ class SubmissionManager:
                 os.unlink(fd.name)
             raise
 
+    def _persist_safe(self) -> None:
+        """Call ``_persist()`` and swallow any exception.
+
+        Used inside the worker loop where a persistence failure must not
+        kill the daemon thread. Must be called while ``self._lock`` is held.
+        """
+        try:
+            self._persist()
+        except Exception:
+            logger.exception("Failed to persist submission manager state; continuing")
+
     def _load_persisted(self) -> None:
         """Load items from the persistence file on construction.
 
@@ -426,6 +442,10 @@ class SubmissionManager:
             data = json.loads(raw)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Failed to read persistence file %s: %s — starting fresh", self._persistence_path, exc)
+            return
+
+        if not isinstance(data, dict):
+            logger.warning("Persistence file %s has non-dict top-level JSON — starting fresh", self._persistence_path)
             return
 
         version = data.get("version")
@@ -474,7 +494,7 @@ class SubmissionManager:
                     # retain their persisted attempt count.
                     if item.attempts == 0:
                         item.attempts = 1
-                    self._persist()
+                    self._persist_safe()
 
                 while True:
                     try:
@@ -483,7 +503,7 @@ class SubmissionManager:
                             item.status = SubmissionStatus.SUCCEEDED
                             item.error_message = None
                             item.completed_at = datetime.now(timezone.utc).isoformat()
-                            self._persist()
+                            self._persist_safe()
                         break
                     except TransientSubmissionError as exc:
                         with self._lock:
@@ -492,29 +512,29 @@ class SubmissionManager:
                             with self._lock:
                                 item.status = SubmissionStatus.FAILED
                                 item.completed_at = datetime.now(timezone.utc).isoformat()
-                                self._persist()
+                                self._persist_safe()
                             break
                         with self._lock:
                             item.status = SubmissionStatus.RETRYING
-                            self._persist()
+                            self._persist_safe()
                         delay = self._backoff_base * (2 ** (item.attempts - 1)) + random.uniform(0, 1.0)
                         interrupted = self._shutdown_event.wait(delay)
                         if interrupted:
                             with self._lock:
                                 item.status = SubmissionStatus.FAILED
                                 item.completed_at = datetime.now(timezone.utc).isoformat()
-                                self._persist()
+                                self._persist_safe()
                             break
                         with self._lock:
                             item.status = SubmissionStatus.PROCESSING
                             item.attempts += 1
-                            self._persist()
+                            self._persist_safe()
                     except Exception as exc:
                         with self._lock:
                             item.status = SubmissionStatus.FAILED
                             item.error_message = str(exc)
                             item.completed_at = datetime.now(timezone.utc).isoformat()
-                            self._persist()
+                            self._persist_safe()
                         break
             finally:
                 self._queue.task_done()
