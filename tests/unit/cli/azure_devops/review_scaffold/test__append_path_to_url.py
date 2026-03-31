@@ -35,3 +35,18 @@ class TestAppendPathToUrl:
         """Converts integer segments to strings."""
         result = _append_path_to_url("https://api/threads?api-version=7.0", 10, "comments", 5)
         assert result == "https://api/threads/10/comments/5?api-version=7.0"
+
+    def test_returns_base_url_unchanged_when_no_segments(self):
+        """Returns the original URL when no segments are provided."""
+        assert _append_path_to_url("https://api/threads") == "https://api/threads"
+        assert _append_path_to_url("https://api/threads?api-version=7.0") == "https://api/threads?api-version=7.0"
+
+    def test_no_double_slash_when_base_has_trailing_slash(self):
+        """Avoids double slashes when base URL has a trailing slash."""
+        result = _append_path_to_url("https://api/threads/", 42)
+        assert result == "https://api/threads/42"
+
+    def test_no_double_slash_when_base_has_trailing_slash_with_query(self):
+        """Avoids double slashes when base URL has a trailing slash and query string."""
+        result = _append_path_to_url("https://api/threads/?api-version=7.0", 42)
+        assert result == "https://api/threads/42?api-version=7.0"

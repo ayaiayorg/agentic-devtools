@@ -169,20 +169,33 @@ def _append_path_to_url(base_url: str, *segments: str | int) -> str:
     """Append path segments to a URL, preserving any query string.
 
     If ``base_url`` contains a query string (e.g. ``?api-version=7.0``),
-    the new segments are inserted before it.
+    the new segments are inserted before it.  Trailing/leading slashes are
+    normalised to avoid double-slash artifacts.
 
     Args:
         base_url: The base URL (may include a query string).
         *segments: Path segments to append (converted to str).
 
     Returns:
-        URL with segments appended before the query string.
+        URL with segments appended before the query string, or the
+        original *base_url* unchanged when no segments are provided.
     """
-    suffix = "/".join(str(s) for s in segments)
+    if not segments:
+        return base_url
+
     if "?" in base_url:
         path_part, query_part = base_url.split("?", 1)
-        return f"{path_part}/{suffix}?{query_part}"
-    return f"{base_url}/{suffix}"
+    else:
+        path_part, query_part = base_url, None
+
+    normalized_base = path_part.rstrip("/")
+    suffix = "/".join(str(s).strip("/") for s in segments)
+
+    new_path = f"{normalized_base}/{suffix}" if suffix else normalized_base
+
+    if query_part is not None:
+        return f"{new_path}?{query_part}"
+    return new_path
 
 
 def _post_reply(
