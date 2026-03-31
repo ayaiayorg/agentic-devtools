@@ -33,7 +33,7 @@ Determine the issue management system **before** taking any other action.
 1. If `--mode github` is in `$ARGUMENTS` → **GitHub mode**
 2. If `--mode jira` is in `$ARGUMENTS` → **Jira mode**
 3. If `$ARGUMENTS` contains a key matching `[A-Z]+-\d+` (e.g. `PROJECT-1234`) → **Jira mode**
-4. If `$ARGUMENTS` contains a plain number (e.g. `123` or `#123`) → **GitHub mode**
+4. If `$ARGUMENTS` contains a plain number or `#`-prefixed number (e.g. `123` or `#123`) → **GitHub mode**. Strip any leading `#` to produce a pure numeric `ISSUE_KEY`.
 5. If `jira.issue_key` is set in state (`agdt-get jira.issue_key`) → **Jira mode**
 6. If none of the above, **abort** and ask the user to provide an issue key or number.
 
@@ -372,14 +372,14 @@ h2. Autonomous Clarifications Log
 
 Before proceeding to Phase 4, verify every quality gate:
 
-- [ ] Every `## Detailed Requirements` item is imperative and testable.
-- [ ] Every `## Affected Files & Components` entry uses an exact repo-relative path.
-- [ ] Every `## Implementation Guidance` step names exact files and functions.
+- [ ] Every item in the `Detailed Requirements` section is imperative and testable.
+- [ ] Every entry in the `Affected Files & Components` section uses an exact repo-relative path.
+- [ ] Every step in the `Implementation Guidance` section names exact files and functions.
 - [ ] No vague adjectives remain (`robust`, `intuitive`, `fast`) without a measurable
   criterion attached.
-- [ ] `## Autonomous Clarifications Log` has one row per resolved ambiguity.
-- [ ] `## Out of Scope` lists at least one explicit exclusion.
-- [ ] If sub-issue: `## Parent & Sibling Context` is present and accurate.
+- [ ] The `Autonomous Clarifications Log` section has one row per resolved ambiguity.
+- [ ] The `Out of Scope` section lists at least one explicit exclusion.
+- [ ] If sub-issue: the `Parent & Sibling Context` section is present and accurate.
 
 If any gate fails, revise the specification until all gates pass.
 
