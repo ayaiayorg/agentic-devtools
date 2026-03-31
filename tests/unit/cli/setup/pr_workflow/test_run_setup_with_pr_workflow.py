@@ -355,7 +355,7 @@ class TestRunSetupWithPrWorkflow:
                 _ok("main\n"),  # rev-parse --abbrev-ref HEAD
                 _ok(""),  # stash list (before)
                 _ok(),  # stash push
-                _ok(""),  # stash list (after)
+                _ok(""),  # stash list (after) — nothing stashed
                 _fail("error"),  # checkout origin/main --detach fails
                 _ok(),  # checkout original (finally)
             ]
@@ -367,6 +367,31 @@ class TestRunSetupWithPrWorkflow:
 
         err = capsys.readouterr().err
         assert "Could not checkout origin/main" in err
+
+    def test_checkout_origin_main_failure_pops_stash_before_fallback(self, capsys):
+        """When checkout origin/main fails and stash was created, pop before running setup."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after) — stash created
+                _fail("error"),  # checkout origin/main --detach fails
+                _ok(),  # stash pop (early, before setup_fn)
+                _ok(),  # checkout original (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        setup_fn.assert_called_once()
+        assert result["success"] is True
+        assert "Could not checkout origin/main" in result["message"]
+
+        # Verify stash pop was called before setup_fn via the mock call order
+        git_calls = [c.args for c in mock_git.call_args_list]
+        assert ("stash", "pop") in [c[:2] for c in git_calls]
 
     # ── Branch restore failure ─────────────────────────────────────────
 

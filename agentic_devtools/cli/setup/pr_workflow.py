@@ -160,6 +160,13 @@ def run_setup_with_pr_workflow(
                 "Warning: Could not checkout origin/main — running setup on current branch.",
                 file=sys.stderr,
             )
+            # Pop the auto-stash so setup_fn() runs with the user's
+            # uncommitted changes present (same as running without the
+            # PR workflow).  Clear did_stash to prevent a redundant pop
+            # in the finally block.
+            if did_stash:
+                run_git("stash", "pop", check=False)
+                did_stash = False
             setup_fn()
             return PrWorkflowResult(
                 success=True,
