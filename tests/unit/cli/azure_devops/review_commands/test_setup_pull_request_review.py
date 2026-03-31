@@ -891,8 +891,8 @@ class TestSetupPullRequestReviewPersistence:
         assert len(include_calls) == 1
         assert include_calls[0][0][1] == "true"
 
-    def test_resets_review_model_id_when_present(self):
-        """Regression: review.model_id must be re-set after bootstrap when originally present."""
+    def test_resets_copilot_model_id_when_present(self):
+        """Regression: copilot.model_id must be re-set after bootstrap when originally present."""
         from agentic_devtools.cli.azure_devops.review_commands import (
             setup_pull_request_review,
         )
@@ -902,7 +902,7 @@ class TestSetupPullRequestReviewPersistence:
                 "pull_request_id": "456",
                 "jira.issue_key": None,
                 "include_reviewed": "false",
-                "review.model_id": "gpt-4o",
+                "copilot.model_id": "gpt-4o",
             }
             return mapping.get(key, default)
 
@@ -966,15 +966,15 @@ class TestSetupPullRequestReviewPersistence:
                                                                 with patch("agentic_devtools.state.delete_value"):
                                                                     setup_pull_request_review()
 
-        model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.model_id"]
+        model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "copilot.model_id"]
         assert len(model_calls) >= 1
         assert model_calls[0][0][1] == "gpt-4o"
 
-    def test_does_not_set_review_model_id_when_absent(self):
-        """Regression: review.model_id must NOT be re-set when it was not in state."""
+    def test_does_not_set_copilot_model_id_when_absent(self):
+        """Regression: copilot.model_id must NOT be re-set when it was not in state."""
         _, mock_set_value, _ = self._run_setup_with_captures()
 
-        model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.model_id"]
+        model_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "copilot.model_id"]
         assert len(model_calls) == 0
 
     def test_resets_dry_run_when_present(self):
