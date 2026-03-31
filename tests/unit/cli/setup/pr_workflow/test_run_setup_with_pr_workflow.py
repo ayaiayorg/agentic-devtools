@@ -507,6 +507,38 @@ class TestRunSetupWithPrWorkflow:
         # stash@{1} should NOT appear
         assert ("stash", "pop", "stash@{1}") not in [c[:3] for c in git_calls]
 
+    def test_skips_stash_pop_when_branch_restore_fails(self, capsys):
+        """When branch restore fails completely, stash pop is skipped to avoid wrong branch."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after) — stash created
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok("stash@{0}\n"),  # stash list (before emergency) — 1 entry
+                _ok(),  # emergency stash succeeds
+                _ok("stash@{0}\nstash@{1}\n"),  # stash list (after emergency) — 2 entries
+                _fail("still fails"),  # retry checkout ALSO fails
+                # NO stash pop — skipped because branch restore failed
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        # Verify NO stash pop was attempted
+        git_calls = [c.args for c in mock_git.call_args_list]
+        stash_pop_calls = [c for c in git_calls if len(c) >= 2 and c[:2] == ("stash", "pop")]
+        assert len(stash_pop_calls) == 0
+
+        err = capsys.readouterr().err
+        assert "Skipping stash pop because the original branch could not be restored" in err
+        assert "git stash list" in err
+
     # ── Checkout -b failure ────────────────────────────────────────────
 
     def test_checkout_b_failure_does_not_terminate(self, capsys):

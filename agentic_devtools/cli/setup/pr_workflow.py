@@ -150,6 +150,7 @@ def run_setup_with_pr_workflow(
     pr_created = False
     message = "No file changes detected."
     emergency_stash_created = False
+    branch_restored = False
 
     try:
         # Step 4 — checkout origin/main detached
@@ -246,7 +247,9 @@ def run_setup_with_pr_workflow(
     finally:
         # Step 12 — restore original branch
         restore = run_git("checkout", original_branch, check=False)
-        if restore.returncode != 0:
+        if restore.returncode == 0:
+            branch_restored = True
+        else:
             # The checkout may have failed because setup_fn() left
             # uncommitted changes in the working tree (e.g. when
             # checkout -b / add / commit failed partway through).
@@ -278,6 +281,7 @@ def run_setup_with_pr_workflow(
                 emergency_stash_created = after_emergency_count > before_emergency_count
                 retry = run_git("checkout", original_branch, check=False)
                 if retry.returncode == 0:
+                    branch_restored = True
                     print(
                         f"Warning: Uncommitted setup changes were stashed to restore "
                         f"branch '{original_branch}'. Run 'git stash list' to see them.",
@@ -298,21 +302,33 @@ def run_setup_with_pr_workflow(
                 )
 
         # Step 13 — pop the user's original auto-stash.
-        # If an emergency stash was created above (to unblock branch
-        # restore), it sits at stash@{0} and the user's auto-stash has
-        # been pushed down to stash@{1}.  We must pop the correct entry.
+        # Only pop when the original branch was successfully restored;
+        # otherwise the stash would be applied onto the wrong branch
+        # (detached HEAD or the temporary setup branch).
         if did_stash:
-            stash_ref = "stash@{0}"
-            if emergency_stash_created:
-                stash_ref = "stash@{1}"
-            pop_result = run_git("stash", "pop", stash_ref, check=False)
-            if pop_result.returncode != 0:
+            if not branch_restored:
                 print(
-                    "Warning: Could not auto-restore stashed changes. "
+                    "Warning: Skipping stash pop because the original branch could not be restored. "
                     "Your changes are still saved in git stash. "
-                    "Run 'git stash list' to see them and 'git stash pop' to restore manually.",
+                    "Run 'git stash list' to see them and restore manually after "
+                    "running 'git checkout <your-branch>'.",
                     file=sys.stderr,
                 )
+            else:
+                # If an emergency stash was created above (to unblock branch
+                # restore), it sits at stash@{0} and the user's auto-stash has
+                # been pushed down to stash@{1}.  Pop the correct entry.
+                stash_ref = "stash@{0}"
+                if emergency_stash_created:
+                    stash_ref = "stash@{1}"
+                pop_result = run_git("stash", "pop", stash_ref, check=False)
+                if pop_result.returncode != 0:
+                    print(
+                        "Warning: Could not auto-restore stashed changes. "
+                        "Your changes are still saved in git stash. "
+                        "Run 'git stash list' to see them and 'git stash pop' to restore manually.",
+                        file=sys.stderr,
+                    )
 
     return PrWorkflowResult(
         success=True,
