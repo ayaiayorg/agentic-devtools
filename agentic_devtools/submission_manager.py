@@ -468,6 +468,13 @@ class SubmissionManager:
                     logger.warning("Skipping non-dict item in persistence file %s", self._persistence_path)
                     continue
                 item = SubmissionItem.from_dict(item_data)
+                # Guard against malformed persistence data with wrong field
+                # types that could crash the worker loop (e.g., string
+                # "attempts" would cause TypeError in integer comparisons).
+                if not isinstance(item.attempts, int) or item.attempts < 0:
+                    raise TypeError(f"Invalid attempts value: {item.attempts!r}")
+                if not isinstance(item.pr_id, int):
+                    raise TypeError(f"Invalid pr_id value: {item.pr_id!r}")
             except Exception as exc:
                 logger.warning("Skipping malformed item in persistence file %s: %s", self._persistence_path, exc)
                 continue

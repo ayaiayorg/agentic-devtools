@@ -1398,3 +1398,105 @@ class TestSubmissionManager:
             assert manager.get_queue_depth() == 0
         finally:
             manager.shutdown(wait=True)
+
+    def test_recovery_skips_item_with_string_attempts(self, tmp_path):
+        """Items with non-integer attempts are skipped during recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "bad-attempts",
+                            "pr_id": 1,
+                            "file_path": "bad.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": "3",
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        },
+                        {
+                            "id": "good-item",
+                            "pr_id": 2,
+                            "file_path": "good.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "succeeded",
+                            "attempts": 1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                            "completed_at": "2024-01-01T00:00:01+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_item("bad-attempts") is None
+            assert manager.get_item("good-item") is not None
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_skips_item_with_negative_attempts(self, tmp_path):
+        """Items with negative attempts are skipped during recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "neg-attempts",
+                            "pr_id": 1,
+                            "file_path": "neg.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": -1,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_item("neg-attempts") is None
+        finally:
+            manager.shutdown(wait=True)
+
+    def test_recovery_skips_item_with_string_pr_id(self, tmp_path):
+        """Items with non-integer pr_id are skipped during recovery."""
+        persist_file = tmp_path / "queue.json"
+        persist_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "items": [
+                        {
+                            "id": "bad-pr-id",
+                            "pr_id": "not-a-number",
+                            "file_path": "bad.ts",
+                            "outcome": "approve",
+                            "summary": "ok",
+                            "status": "queued",
+                            "attempts": 0,
+                            "created_at": "2024-01-01T00:00:00+00:00",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manager = SubmissionManager(persistence_path=persist_file)
+        try:
+            assert manager.get_item("bad-pr-id") is None
+        finally:
+            manager.shutdown(wait=True)
