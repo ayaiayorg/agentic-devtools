@@ -10,6 +10,7 @@ and any stashed changes are always restored—even when errors occur.
 from __future__ import annotations
 
 import sys
+import time
 from collections.abc import Callable
 
 from typing_extensions import TypedDict
@@ -26,17 +27,23 @@ class PrWorkflowResult(TypedDict):
     message: str
 
 
+_MAX_BRANCH_SUFFIX_ATTEMPTS = 10
+
+
 def _resolve_branch_name(version: str) -> str:
     """Return a unique ``chore/agdt-setup-{version}`` branch name.
 
     Checks both local refs and the remote for collisions and appends
-    ``-2``, ``-3``, … until an unused name is found.
+    ``-2``, ``-3``, … until an unused name is found.  Gives up after
+    :data:`_MAX_BRANCH_SUFFIX_ATTEMPTS` and falls back to a
+    timestamp-based suffix to guarantee termination (e.g. when
+    ``git ls-remote`` keeps failing due to network/auth issues).
     """
     base = f"chore/agdt-setup-{version}"
     candidate = base
 
     suffix = 1
-    while True:
+    while suffix <= _MAX_BRANCH_SUFFIX_ATTEMPTS:
         # Check local
         local_check = run_git("rev-parse", "--verify", candidate, check=False)
         if local_check.returncode != 0:
@@ -54,6 +61,16 @@ def _resolve_branch_name(version: str) -> str:
         # Name is taken; try next suffix
         suffix += 1
         candidate = f"{base}-{suffix}"
+
+    # Exhausted all suffix attempts — fall back to a timestamp suffix
+    # so agdt-setup can proceed without hanging.
+    fallback = f"{base}-{int(time.time())}"
+    print(
+        f"Warning: Could not find a free branch name after {_MAX_BRANCH_SUFFIX_ATTEMPTS} "
+        f"attempts — using timestamp fallback '{fallback}'.",
+        file=sys.stderr,
+    )
+    return fallback
 
 
 def run_setup_with_pr_workflow(
