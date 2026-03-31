@@ -594,8 +594,8 @@ def setup_cmd() -> None:
                         only on trusted networks).
         --no-persist-env  Do not persist env vars to shell profile.
         --overwrite-env   Overwrite existing env var lines in shell profile.
-        --reconfigure     Re-prompt for all project configuration values,
-                          even if already set.
+        --reconfigure     Re-prompt for all project configuration values
+                          and Copilot model selection, even if already set.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -648,7 +648,7 @@ def setup_cmd() -> None:
         "--reconfigure",
         action="store_true",
         default=False,
-        help="Re-prompt for all project configuration values, even if already set.",
+        help="Re-prompt for all project configuration values and Copilot model selection, even if already set.",
     )
     args = parser.parse_args()
 
