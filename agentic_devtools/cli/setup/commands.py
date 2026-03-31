@@ -431,6 +431,8 @@ def _prompt_project_config(*, force_prompt: bool = False) -> None:
     print()
 
     def _ask(prompt: str, key: str, allow_clear: bool = False) -> str:
+        # Skip prompt entirely when the key is already present and re-prompting
+        # was not requested (key presence = "already answered").
         if not force_prompt and key in existing:
             return existing[key]
         current = existing.get(key, "")

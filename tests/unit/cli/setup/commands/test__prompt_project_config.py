@@ -225,11 +225,15 @@ class TestPromptProjectConfig:
         assert saved["jira_project_keys"] == "NEW"
 
     def test_empty_values_stored_not_popped(self, capsys):
-        """Should store empty strings for all keys when fresh config and empty input."""
+        """Should store empty strings and preserve extra keys in config."""
+        # Start with an extra key that should survive the save
         inputs = iter(["", "", "", "", ""])
 
         with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
-            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value={}):
+            with patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"extra_key": "preserved"},
+            ):
                 with patch(
                     "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
                 ) as mock_save:
@@ -237,8 +241,11 @@ class TestPromptProjectConfig:
 
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
+        # All 5 prompt keys stored as "" (not popped)
         assert saved["jira_project_keys"] == ""
         assert saved["jira_base_url"] == ""
         assert saved["corporate_network_test_host"] == ""
         assert saved["vpn_url"] == ""
         assert saved["vpn_hostnames"] == ""
+        # Extra key preserved
+        assert saved["extra_key"] == "preserved"
