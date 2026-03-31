@@ -400,6 +400,52 @@ class TestSetupCmd:
                             with patch.object(commands, "_persist_env_vars_to_profile"):
                                 commands.setup_cmd()
 
+    def test_reconfigure_flag_accepted(self, capsys):
+        """--reconfigure flag is accepted without error."""
+        with patch("sys.argv", ["agdt-setup", "--reconfigure"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                commands.setup_cmd()
+
+    def test_reconfigure_flag_threads_to_prompt_functions(self, capsys, tmp_path):
+        """--reconfigure passes force_prompt=True to both prompt functions."""
+        with patch("sys.argv", ["agdt-setup", "--reconfigure"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config") as mock_project:
+                                            with patch.object(commands, "_prompt_copilot_model") as mock_copilot:
+                                                commands.setup_cmd()
+        mock_project.assert_called_once_with(force_prompt=True)
+        mock_copilot.assert_called_once_with(force_prompt=True)
+
+    def test_no_reconfigure_passes_false_to_prompt_functions(self, capsys, tmp_path):
+        """Without --reconfigure, force_prompt=False is passed to both prompt functions."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config") as mock_project:
+                                            with patch.object(commands, "_prompt_copilot_model") as mock_copilot:
+                                                commands.setup_cmd()
+        mock_project.assert_called_once_with(force_prompt=False)
+        mock_copilot.assert_called_once_with(force_prompt=False)
+
     def test_invalid_issue_adapter_rejected(self, capsys):
         """Invalid --issue-adapter value is rejected by argparse."""
         with patch("sys.argv", ["agdt-setup", "--issue-adapter", "foo"]):

@@ -48,7 +48,7 @@ class TestPromptCopilotModel:
                 with patch("agentic_devtools.cli.config.project_config.save_project_config") as mock_save:
                     # Enter selects default (should be claude-opus-4.6)
                     with patch("agentic_devtools.cli.setup.commands.input", return_value=""):
-                        _prompt_copilot_model()
+                        _prompt_copilot_model(force_prompt=True)
 
         saved = mock_save.call_args[0][0]
         assert saved["default_copilot_model"] == "claude-opus-4.6"
@@ -125,7 +125,45 @@ class TestPromptCopilotModel:
                 with patch("agentic_devtools.cli.config.project_config.save_project_config") as mock_save:
                     # Enter selects default (should match claude-opus-4.6 after strip)
                     with patch("agentic_devtools.cli.setup.commands.input", return_value=""):
-                        _prompt_copilot_model()
+                        _prompt_copilot_model(force_prompt=True)
 
         saved = mock_save.call_args[0][0]
         assert saved["default_copilot_model"] == "claude-opus-4.6"
+
+    def test_skips_prompt_when_model_already_set(self, capsys):
+        """Should skip prompt when default_copilot_model key exists in config."""
+        existing = {"default_copilot_model": "gpt-5.3-codex"}
+        mock_input = patch("agentic_devtools.cli.setup.commands.input")
+        with mock_input as m_input:
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                _prompt_copilot_model()
+
+        m_input.assert_not_called()
+        out = capsys.readouterr().out
+        assert "Default Copilot model already set: gpt-5.3-codex" in out
+
+    def test_skips_prompt_when_model_is_empty_string(self, capsys):
+        """Should skip prompt even when default_copilot_model is empty string."""
+        existing = {"default_copilot_model": ""}
+        mock_input = patch("agentic_devtools.cli.setup.commands.input")
+        with mock_input as m_input:
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                _prompt_copilot_model()
+
+        m_input.assert_not_called()
+        out = capsys.readouterr().out
+        assert "Default Copilot model already set:" in out
+
+    def test_force_prompt_re_prompts_when_model_set(self, capsys):
+        """Should re-prompt when force_prompt=True even if model exists."""
+        existing = {"default_copilot_model": "gpt-4o"}
+        models = ["gpt-5.3-codex", "gpt-4o"]
+        with patch("agentic_devtools.cli.setup.commands._query_copilot_models", return_value=models):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch("agentic_devtools.cli.config.project_config.save_project_config") as mock_save:
+                    with patch("agentic_devtools.cli.setup.commands.input", return_value="1"):
+                        _prompt_copilot_model(force_prompt=True)
+
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved["default_copilot_model"] == "gpt-5.3-codex"

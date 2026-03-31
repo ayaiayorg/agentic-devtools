@@ -35,3 +35,12 @@ class TestSaveProjectConfig:
         with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=None):
             with pytest.raises(RuntimeError, match="Cannot determine git repository root"):
                 save_project_config({"key": "value"})
+
+    def test_preserves_empty_string_values(self, tmp_path):
+        """Should faithfully store empty string values without stripping them."""
+        config_file = tmp_path / "config" / "project.json"
+        with patch("agentic_devtools.cli.config.project_config._get_config_path", return_value=config_file):
+            save_project_config({"jira_project_keys": "", "vpn_url": ""})
+        data = json.loads(config_file.read_text(encoding="utf-8"))
+        assert data["jira_project_keys"] == ""
+        assert data["vpn_url"] == ""
