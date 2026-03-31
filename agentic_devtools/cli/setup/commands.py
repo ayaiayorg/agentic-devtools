@@ -543,7 +543,7 @@ def _prompt_copilot_model(*, force_prompt: bool = False) -> None:
         current_value = existing["default_copilot_model"]
         print()
         print("─── Copilot Model Configuration ─────────────────────────────")
-        print(f"  ℹ Default Copilot model already set: {current_value!r}")
+        print(f"  ℹ Default Copilot model already set: {current_value}")
         return
 
     print()
