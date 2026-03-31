@@ -540,9 +540,10 @@ def _prompt_copilot_model(*, force_prompt: bool = False) -> None:
     current_model = raw_model.strip() if isinstance(raw_model, str) else ""
 
     if not force_prompt and "default_copilot_model" in existing:
+        current_value = existing["default_copilot_model"]
         print()
         print("─── Copilot Model Configuration ─────────────────────────────")
-        print(f"  ℹ Default Copilot model already set: {existing['default_copilot_model']}")
+        print(f"  ℹ Default Copilot model already set: {current_value!r}")
         return
 
     print()
