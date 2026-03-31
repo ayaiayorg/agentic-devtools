@@ -35,8 +35,7 @@ Determine the issue management system **before** taking any other action.
 3. If `$ARGUMENTS` contains a key matching `[A-Z]+-\d+` (e.g. `PROJECT-1234`) → **Jira mode**
 4. If `$ARGUMENTS` contains a plain number (e.g. `123` or `#123`) → **GitHub mode**
 5. If `jira.issue_key` is set in state (`agdt-get jira.issue_key`) → **Jira mode**
-6. If `issue.number` is set in state (`agdt-get issue.number`) → **GitHub mode**
-7. If none of the above, **abort** and ask the user to provide an issue key or number.
+6. If none of the above, **abort** and ask the user to provide an issue key or number.
 
 ### Set Mode Variables
 
@@ -60,6 +59,15 @@ Fall back to `ayaiayorg/agentic-devtools` if parsing fails.
 ## Command Reference
 
 Use **only** the commands listed here. Do not invent commands.
+
+### Utility Commands (both modes)
+
+| Action | Commands |
+|---|---|
+| Read state value | `agdt-get <KEY>` |
+| Set state value | `agdt-set <KEY> <VALUE>` |
+| Wait for background task | `agdt-task-wait` |
+| Resolve repo identity | `git remote get-url origin` |
 
 ### Jira Mode Commands
 
@@ -215,9 +223,11 @@ An item is **unresolvable** if:
 
 ### 3.1 Write the Refined Specification
 
-Produce the specification in the **mode-appropriate format** using the exact template
-below. Replace every `{placeholder}` with concrete content — no vague adjectives,
-no "TBD", no placeholders left in the output.
+Produce the specification in the **mode-appropriate format** using the template
+that matches your detected mode. Replace every `{placeholder}` with concrete
+content — no vague adjectives, no "TBD", no placeholders left in the output.
+
+**GitHub mode template** (Markdown):
 
 ```
 ## Summary
@@ -286,6 +296,74 @@ Following siblings (out of scope for this issue):
 | 1 | {question} | {answer}   | {heuristic applied} | high/medium/low |
 ```
 
+**Jira mode template** (wiki markup):
+
+```
+h2. Summary
+
+{One paragraph describing what this issue does and why.}
+
+h2. Motivation / Context
+
+{Why this change is needed. Reference the parent story goal if this is a sub-issue.}
+
+h2. Parent & Sibling Context
+
+{Omit this section entirely if this is NOT a sub-issue.}
+
+This is sub-issue {N} of {M} under parent {PARENT_KEY}.
+
+Preceding siblings (already delivered or assumed in-progress):
+* {KEY}: {what it delivers that this issue builds on}
+
+Following siblings (out of scope for this issue):
+* {KEY}: {what it covers; leave extension points for it}
+
+h2. Current Behavior
+
+{Exact description of what happens today. For new features, state "Not yet implemented."}
+
+h2. Desired Behavior
+
+{Exact description of what must happen after this issue is implemented.}
+
+h2. Detailed Requirements
+
+# {Requirement — use imperative, testable language. One behavior per item.}
+# ...
+
+h2. Affected Files & Components
+
+* {{exact/path/to/file.ext}} — {reason affected}
+* ...
+
+h2. Implementation Guidance
+
+# {Step-by-step guidance with exact file paths and function/class names.}
+# ...
+
+h2. Edge Cases & Error Handling
+
+* {Concrete edge case and how it must be handled.}
+* ...
+
+h2. Testing Requirements
+
+* {What must be tested, at what level (unit/integration/e2e), and what the
+  pass criteria are.}
+* ...
+
+h2. Out of Scope
+
+* {Explicit exclusions. Reference sibling issues where applicable.}
+* ...
+
+h2. Autonomous Clarifications Log
+
+||#||Ambiguity||Resolution||Heuristic||Confidence||
+|1|{question}|{answer}|{heuristic applied}|high/medium/low|
+```
+
 ### 3.2 Self-Validation
 
 Before proceeding to Phase 4, verify every quality gate:
@@ -311,12 +389,26 @@ If any gate fails, revise the specification until all gates pass.
 
 Assemble the full updated issue body:
 
+**GitHub mode**:
+
 ```
 {ORIGINAL_ISSUE_BODY}
 
 ---
 
 ## Refined Specification
+
+{SPECIFICATION_FROM_PHASE_3}
+```
+
+**Jira mode**:
+
+```
+{ORIGINAL_ISSUE_BODY}
+
+----
+
+h2. Refined Specification
 
 {SPECIFICATION_FROM_PHASE_3}
 ```
@@ -386,8 +478,9 @@ agdt-get-jira-issue
 agdt-task-wait
 ```
 
-Confirm the description now contains `## Refined Specification` and the
-`refined-for-ai` label is present.
+Confirm the description now contains the refined specification header
+(`h2. Refined Specification` for Jira, `## Refined Specification` for GitHub)
+and the `refined-for-ai` label is present.
 
 **GitHub mode**:
 
@@ -497,7 +590,8 @@ Triggered when Phase 2 finds at least one unresolvable ambiguity.
   to surface and document in the Clarifications Log.
 - **Never truncate** the specification. All sections must be present and fully
   populated.
-- **Never remove original issue content.** Only append below a `---` separator.
+- **Never remove original issue content.** Only append below a mode-appropriate
+  separator (`---` for GitHub, `----` for Jira).
 - **Preserve all existing labels, assignees, milestones, and project metadata.**
   Do not remove or replace them.
 - **Always verify** the issue update in Phase 4.5 before reporting completion.
@@ -514,5 +608,7 @@ label is present. A completion comment summarises all autonomous decisions made.
 
 ## Next Step
 
-Command is complete. If the issue was refined successfully, use the **Work on Jira Issue**
-or equivalent workflow agent to begin implementation.
+Command is complete. If the issue was refined successfully:
+
+- **Jira mode**: Use the **Work on Jira Issue** workflow agent to begin implementation.
+- **GitHub mode**: Trigger the appropriate implementation workflow for this repository.
