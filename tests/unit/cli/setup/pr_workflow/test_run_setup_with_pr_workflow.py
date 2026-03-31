@@ -307,3 +307,27 @@ class TestRunSetupWithPrWorkflow:
 
         err = capsys.readouterr().err
         assert "Could not checkout origin/main" in err
+
+    # ── Branch restore failure ─────────────────────────────────────────
+
+    def test_branch_restore_failure_prints_warning(self, capsys):
+        """When checkout of original branch fails in finally, prints warning."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("error: pathspec"),  # checkout original branch FAILS (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        err = capsys.readouterr().err
+        assert "Could not restore branch" in err
+        assert "feature/work" in err

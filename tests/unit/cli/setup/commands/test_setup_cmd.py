@@ -998,3 +998,33 @@ class TestSetupCmd:
                                                     commands.setup_cmd()
         # PR workflow should NOT be called
         mock_pr.assert_not_called()
+
+    def test_pr_workflow_invoked_when_conditions_met(self, capsys, tmp_path):
+        """PR workflow is invoked when git_root is set and --skip-pr-workflow is not passed."""
+        from agentic_devtools.cli.setup.pr_workflow import PrWorkflowResult
+
+        mock_result = PrWorkflowResult(
+            success=True,
+            branch_created="chore/agdt-setup-0.1.0",
+            pr_created=True,
+            message="PR created from branch 'chore/agdt-setup-0.1.0'.",
+        )
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch(
+                                            "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow",
+                                            return_value=mock_result,
+                                        ) as mock_pr:
+                                            commands.setup_cmd()
+        mock_pr.assert_called_once()
+        out = capsys.readouterr().out
+        assert "Setup changes committed to branch" in out
+        assert "Pull request created for setup changes" in out
