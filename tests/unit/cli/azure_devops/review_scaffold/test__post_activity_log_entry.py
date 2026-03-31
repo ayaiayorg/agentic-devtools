@@ -68,3 +68,18 @@ class TestPostActivityLogEntry:
 
         get_url = requests_mock.get.call_args[0][0]
         assert "42" in get_url
+
+    def test_urls_correct_when_threads_url_has_query_string(self):
+        """GET and POST use the thread_id as path segment before query string."""
+        requests_mock = self._setup_mocks()
+
+        _post_activity_log_entry(requests_mock, {}, "https://api/threads?api-version=7.0", 42, 1, "Entry")
+
+        get_url = requests_mock.get.call_args[0][0]
+        assert get_url == "https://api/threads/42?api-version=7.0"
+
+        post_url = requests_mock.post.call_args[0][0]
+        assert post_url == "https://api/threads/42/comments?api-version=7.0"
+
+        patch_url = requests_mock.patch.call_args[0][0]
+        assert patch_url == "https://api/threads/42/comments/1?api-version=7.0"
