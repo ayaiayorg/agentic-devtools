@@ -406,11 +406,16 @@ def _persist_single_var(profile_path: Path, var_name: str, var_value: str, shell
             pass  # persist_env_var already printed a warning
 
 
-def _prompt_project_config() -> None:
+def _prompt_project_config(*, force_prompt: bool = False) -> None:
     """Prompt the user for project-specific configuration values.
 
     Reads existing values from ``.agdt/config/project.json`` as defaults.
     Saves responses back to the same file.
+
+    When *force_prompt* is ``False`` (the default), prompts are **skipped**
+    for any key that is already present in the config (even if the value is
+    ``""``).  Pass ``force_prompt=True`` (via ``--reconfigure``) to
+    re-prompt for every field.
     """
     from agentic_devtools.cli.config.project_config import (
         load_project_config,
@@ -422,11 +427,19 @@ def _prompt_project_config() -> None:
     print()
     print("─── Project Configuration ───────────────────────────────────")
     print("  Configure project-specific settings.")
-    print("  Press Enter to keep current value; for optional fields, type '-' to clear.")
+    print("  Press Enter to keep current value; for optional fields, type '-' or 'clear' to clear.")
     print()
 
     def _ask(prompt: str, key: str, allow_clear: bool = False) -> str:
-        current = existing.get(key, "")
+        # Skip prompt entirely when the key is already present and re-prompting
+        # was not requested (key presence = "already answered").
+        if not force_prompt and key in existing:
+            # Normalise to str: config is dict[str, Any] so values may be
+            # None or non-string after manual JSON edits.
+            value = existing[key]
+            return "" if value is None else str(value)
+        raw_current = existing.get(key, "")
+        current = "" if raw_current is None else str(raw_current)
         suffix = f" [{current}]" if current else ""
         answer = input(f"  {prompt}{suffix}: ").strip()
         if allow_clear and answer.lower() in {"-", "clear"}:
@@ -440,10 +453,10 @@ def _prompt_project_config() -> None:
 
     jira_keys = _ask("Jira project key(s), comma-separated (e.g. ACME,PROJ)", "jira_project_keys")
     jira_base_url = _ask("Jira base URL (e.g. https://jira.example.com)", "jira_base_url")
-    corp_host = _ask("Corporate network test host (type '-' to clear)", "corporate_network_test_host", allow_clear=True)
-    vpn_url = _ask("VPN portal URL (type '-' to clear)", "vpn_url", allow_clear=True)
+    corp_host = _ask("Corporate network test host (type '-' or 'clear' to clear)", "corporate_network_test_host", allow_clear=True)
+    vpn_url = _ask("VPN portal URL (type '-' or 'clear' to clear)", "vpn_url", allow_clear=True)
     vpn_hostnames = _ask(
-        "VPN hostnames for smart detection, comma-separated (type '-' to clear)",
+        "VPN hostnames for smart detection, comma-separated (type '-' or 'clear' to clear)",
         "vpn_hostnames",
         allow_clear=True,
     )
@@ -456,16 +469,10 @@ def _prompt_project_config() -> None:
         ("vpn_url", vpn_url),
         ("vpn_hostnames", vpn_hostnames),
     ]:
-        if value:
-            config[key] = value
-        else:
-            config.pop(key, None)
+        config[key] = value
 
-    if config:
-        path = save_project_config(config)
-        print(f"\n  ✓ Project configuration saved to {path}")
-    else:
-        print("\n  ℹ No project configuration values provided.")
+    path = save_project_config(config)
+    print(f"\n  ✓ Project configuration saved to {path}")
 
 
 # Curated list of known-good Copilot models used when the binary cannot be
@@ -511,12 +518,17 @@ def _query_copilot_models() -> list[str]:
     return list(_KNOWN_COPILOT_MODELS)
 
 
-def _prompt_copilot_model() -> None:
+def _prompt_copilot_model(*, force_prompt: bool = False) -> None:
     """Prompt the user to select the default Copilot model for workflow sessions.
 
     Queries available models from the installed Copilot binary; falls back to a
     curated list when querying fails.  Persists the selection to
     ``.agdt/config/project.json`` under ``"default_copilot_model"``.
+
+    When *force_prompt* is ``False`` (the default), the prompt is **skipped**
+    if ``"default_copilot_model"`` already exists in the config (even if
+    ``""``).  Pass ``force_prompt=True`` (via ``--reconfigure``) to force
+    re-selection.
     """
     from agentic_devtools.cli.config.project_config import (
         load_project_config,
@@ -524,7 +536,15 @@ def _prompt_copilot_model() -> None:
     )
 
     existing = load_project_config()
-    current_model = existing.get("default_copilot_model", "").strip()
+    raw_model = existing.get("default_copilot_model", "")
+    current_model = raw_model.strip() if isinstance(raw_model, str) else ""
+
+    if not force_prompt and "default_copilot_model" in existing:
+        current_value = existing["default_copilot_model"]
+        print()
+        print("─── Copilot Model Configuration ─────────────────────────────")
+        print(f"  ℹ Default Copilot model already set: {current_value}")
+        return
 
     print()
     print("─── Copilot Model Configuration ─────────────────────────────")
@@ -571,6 +591,7 @@ def setup_cmd() -> None:
 
     Usage:
         agdt-setup [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
+                   [--reconfigure]
 
     Options:
         --system-only   Skip managed installs into ~/.agdt/bin/; only verify
@@ -579,6 +600,8 @@ def setup_cmd() -> None:
                         only on trusted networks).
         --no-persist-env  Do not persist env vars to shell profile.
         --overwrite-env   Overwrite existing env var lines in shell profile.
+        --reconfigure     Re-prompt for all project configuration values
+                          and Copilot model selection, even if already set.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -626,6 +649,12 @@ def setup_cmd() -> None:
         action="store_true",
         default=False,
         help="Skip workflow template generation step.",
+    )
+    parser.add_argument(
+        "--reconfigure",
+        action="store_true",
+        default=False,
+        help="Re-prompt for all project configuration values and Copilot model selection, even if already set.",
     )
     args = parser.parse_args()
 
@@ -685,8 +714,8 @@ def setup_cmd() -> None:
 
         # ── Project configuration prompts ───────────────────────────────
         if not args.system_only and git_root is not None:
-            _prompt_project_config()
-            _prompt_copilot_model()
+            _prompt_project_config(force_prompt=args.reconfigure)
+            _prompt_copilot_model(force_prompt=args.reconfigure)
         # ────────────────────────────────────────────────────────────────
 
         # Inject bundled agent/prompt skills where supported. Skill injection is a
