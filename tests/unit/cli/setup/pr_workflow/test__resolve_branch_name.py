@@ -68,3 +68,19 @@ class TestResolveBranchName:
             result = _resolve_branch_name("2.0.0")
 
         assert result == "chore/agdt-setup-2.0.0-3"
+
+    def test_ls_remote_failure_treats_name_as_taken(self, capsys):
+        """When ls-remote fails (network/auth), treat the name as taken and try the next."""
+        with patch("agentic_devtools.cli.setup.pr_workflow.run_git") as mock_git:
+            mock_git.side_effect = [
+                _fail(),  # rev-parse for base → not local
+                _fail("network error"),  # ls-remote for base → FAILS
+                _fail(),  # rev-parse for -2 → not local
+                _ok(""),  # ls-remote for -2 → not remote, success
+            ]
+
+            result = _resolve_branch_name("1.0.0")
+
+        assert result == "chore/agdt-setup-1.0.0-2"
+        err = capsys.readouterr().err
+        assert "git ls-remote" in err

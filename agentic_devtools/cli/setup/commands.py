@@ -826,7 +826,9 @@ def setup_cmd() -> None:
                 print(f"  ✓ Setup changes committed to branch '{pr_result['branch_created']}'")
             if pr_result["pr_created"]:
                 print("  ✓ Pull request created for setup changes")
-            elif not pr_result["branch_created"]:
+            elif pr_result["branch_created"]:
+                print(f"  ⚠ {pr_result['message']}")
+            else:
                 print(f"  ℹ {pr_result['message']}")
         else:
             _run_file_modifying_steps()

@@ -42,7 +42,13 @@ def _resolve_branch_name(version: str) -> str:
         if local_check.returncode != 0:
             # Not found locally — check remote
             remote_check = run_git("ls-remote", "--heads", "origin", candidate, check=False)
-            if not remote_check.stdout.strip():
+            if remote_check.returncode != 0:
+                # ls-remote failed (network/auth) — treat name as taken to be safe
+                print(
+                    f"Warning: 'git ls-remote' failed for '{candidate}' — skipping this name.",
+                    file=sys.stderr,
+                )
+            elif not remote_check.stdout.strip():
                 return candidate
 
         # Name is taken; try next suffix
@@ -135,45 +141,73 @@ def run_setup_with_pr_workflow(
 
         if has_changes:
             # Step 7 — create branch, commit, push
+            # All git operations use check=False because the PR workflow is
+            # best-effort: a failure here must not terminate agdt-setup.
             branch_name = _resolve_branch_name(version)
-            run_git("checkout", "-b", branch_name)
-
-            commit_msg = f"chore: agdt-setup v{version}"
-            run_git("add", ".")
-            run_git("commit", "-m", commit_msg)
-
-            push_result = run_git("push", "--set-upstream", "origin", branch_name, check=False)
-            if push_result.returncode != 0:
+            branch_result2 = run_git("checkout", "-b", branch_name, check=False)
+            if branch_result2.returncode != 0:
                 print(
-                    f"Error: Failed to push branch '{branch_name}': {push_result.stderr.strip()}",
+                    f"Error: Could not create branch '{branch_name}': {branch_result2.stderr.strip()}",
                     file=sys.stderr,
                 )
-                branch_created = branch_name
-                message = f"Branch '{branch_name}' created and committed but push failed."
+                message = f"Failed to create branch '{branch_name}'."
             else:
-                branch_created = branch_name
-
-                # Step 8 — create PR synchronously
-                try:
-                    from agentic_devtools.cli.azure_devops.commands import (
-                        create_pull_request,
-                    )
-                    from agentic_devtools.state import set_value
-
-                    pr_title = f"chore: agdt-setup v{version}"
-                    set_value("source_branch", branch_name)
-                    set_value("title", pr_title)
-                    set_value("draft", "false")
-
-                    create_pull_request()
-                    pr_created = True
-                    message = f"PR created from branch '{branch_name}'."
-                except Exception as exc:  # noqa: BLE001
+                commit_msg = f"chore: agdt-setup v{version}"
+                add_result = run_git("add", ".", check=False)
+                if add_result.returncode != 0:
                     print(
-                        f"Warning: PR creation failed ({exc}) — branch '{branch_name}' was pushed.",
+                        f"Error: 'git add .' failed: {add_result.stderr.strip()}",
                         file=sys.stderr,
                     )
-                    message = f"Branch '{branch_name}' pushed but PR creation failed."
+                    message = "Failed to stage changes."
+                else:
+                    commit_result = run_git("commit", "-m", commit_msg, check=False)
+                    if commit_result.returncode != 0:
+                        print(
+                            f"Error: 'git commit' failed: {commit_result.stderr.strip()}",
+                            file=sys.stderr,
+                        )
+                        message = "Failed to commit changes."
+                    else:
+                        branch_created = branch_name
+
+                        push_result = run_git("push", "--set-upstream", "origin", branch_name, check=False)
+                        if push_result.returncode != 0:
+                            print(
+                                f"Error: Failed to push branch '{branch_name}': {push_result.stderr.strip()}",
+                                file=sys.stderr,
+                            )
+                            message = f"Branch '{branch_name}' created and committed but push failed."
+                        else:
+                            # Step 8 — create PR synchronously
+                            try:
+                                from agentic_devtools.cli.azure_devops.commands import (
+                                    create_pull_request,
+                                )
+                                from agentic_devtools.state import set_value
+
+                                pr_title = f"chore: agdt-setup v{version}"
+                                set_value("source_branch", branch_name)
+                                set_value("title", pr_title)
+                                set_value("draft", "false")
+
+                                create_pull_request()
+                                pr_created = True
+                                message = f"PR created from branch '{branch_name}'."
+                            except SystemExit as exc:
+                                # create_pull_request() calls sys.exit() on
+                                # validation/az failures — treat as non-fatal.
+                                print(
+                                    f"Warning: PR creation failed ({exc}) — branch '{branch_name}' was pushed.",
+                                    file=sys.stderr,
+                                )
+                                message = f"Branch '{branch_name}' pushed but PR creation failed."
+                            except Exception as exc:  # noqa: BLE001
+                                print(
+                                    f"Warning: PR creation failed ({exc}) — branch '{branch_name}' was pushed.",
+                                    file=sys.stderr,
+                                )
+                                message = f"Branch '{branch_name}' pushed but PR creation failed."
     finally:
         # Step 12 — restore original branch
         restore = run_git("checkout", original_branch, check=False)

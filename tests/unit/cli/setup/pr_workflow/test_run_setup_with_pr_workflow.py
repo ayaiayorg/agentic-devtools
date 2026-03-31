@@ -222,6 +222,43 @@ class TestRunSetupWithPrWorkflow:
         err = capsys.readouterr().err
         assert "PR creation failed" in err
 
+    def test_pr_creation_system_exit_still_restores(self, capsys):
+        """SystemExit from create_pull_request() is caught and treated as non-fatal."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _ok(),  # checkout -b
+                _ok(),  # add .
+                _ok(),  # commit
+                _ok(),  # push
+                _ok(),  # checkout original (finally)
+                _ok(),  # stash pop (finally)
+            ]
+            with patch(
+                _CREATE_PR,
+                side_effect=SystemExit(1),
+            ):
+                with patch(_SET_VALUE):
+                    result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] == "chore/agdt-setup-1.0.0"
+        assert result["pr_created"] is False
+        assert "PR creation failed" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "PR creation failed" in err
+
     # ── Push failure ───────────────────────────────────────────────────
 
     def test_push_failure_still_restores(self, capsys):
@@ -331,3 +368,94 @@ class TestRunSetupWithPrWorkflow:
         err = capsys.readouterr().err
         assert "Could not restore branch" in err
         assert "feature/work" in err
+
+    # ── Checkout -b failure ────────────────────────────────────────────
+
+    def test_checkout_b_failure_does_not_terminate(self, capsys):
+        """checkout -b failure prints error and continues to restore."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _fail("already exists"),  # checkout -b FAILS
+                _ok(),  # checkout original (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert result["pr_created"] is False
+        assert "Failed to create branch" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "Could not create branch" in err
+
+    # ── git add failure ────────────────────────────────────────────────
+
+    def test_git_add_failure_does_not_terminate(self, capsys):
+        """git add failure prints error and continues to restore."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _ok(),  # checkout -b
+                _fail("permission denied"),  # add . FAILS
+                _ok(),  # checkout original (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert "Failed to stage" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "git add" in err
+
+    # ── git commit failure ─────────────────────────────────────────────
+
+    def test_git_commit_failure_does_not_terminate(self, capsys):
+        """git commit failure prints error and continues to restore."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _ok(),  # checkout -b
+                _ok(),  # add .
+                _fail("nothing to commit"),  # commit FAILS
+                _ok(),  # checkout original (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert "Failed to commit" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "git commit" in err
