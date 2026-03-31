@@ -282,18 +282,26 @@ def run_setup_with_pr_workflow(
                 retry = run_git("checkout", original_branch, check=False)
                 if retry.returncode == 0:
                     branch_restored = True
-                    print(
-                        f"Warning: Uncommitted setup changes were stashed to restore "
-                        f"branch '{original_branch}'. Run 'git stash list' to see them.",
-                        file=sys.stderr,
-                    )
+                    if emergency_stash_created:
+                        print(
+                            f"Warning: Uncommitted setup changes were stashed to restore "
+                            f"branch '{original_branch}'. Run 'git stash list' to see them.",
+                            file=sys.stderr,
+                        )
                 else:
-                    print(
-                        f"Warning: Could not restore branch '{original_branch}' "
-                        f"even after stashing uncommitted changes. "
-                        f"Run 'git checkout {original_branch}' manually.",
-                        file=sys.stderr,
-                    )
+                    if emergency_stash_created:
+                        print(
+                            f"Warning: Could not restore branch '{original_branch}' "
+                            f"even after stashing uncommitted changes. "
+                            f"Run 'git checkout {original_branch}' manually.",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"Warning: Could not restore branch '{original_branch}'. "
+                            f"Run 'git checkout {original_branch}' manually.",
+                            file=sys.stderr,
+                        )
             else:
                 print(
                     f"Warning: Could not restore branch '{original_branch}'. "

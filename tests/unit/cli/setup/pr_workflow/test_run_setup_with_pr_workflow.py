@@ -507,6 +507,39 @@ class TestRunSetupWithPrWorkflow:
         # stash@{1} should NOT appear
         assert ("stash", "pop", "stash@{1}") not in [c[:3] for c in git_calls]
 
+        # No misleading "were stashed" warning when emergency stash was a no-op
+        err = capsys.readouterr().err
+        assert "Uncommitted setup changes were stashed" not in err
+
+    def test_emergency_stash_noop_retry_fails_prints_generic_warning(self, capsys):
+        """When emergency stash is a no-op and retry also fails, prints generic warning."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("feature/work\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after) — stash created
+                _ok(),  # checkout origin/main --detach
+                _ok(""),  # status --porcelain (no changes)
+                _fail("dirty tree"),  # checkout original branch FAILS (finally)
+                _ok("stash@{0}\n"),  # stash list (before emergency) — 1 entry
+                _ok(),  # emergency stash returns 0 (no-op)
+                _ok("stash@{0}\n"),  # stash list (after emergency) — still 1 entry
+                _fail("still fails"),  # retry checkout ALSO fails
+                # NO stash pop — branch restore failed
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        err = capsys.readouterr().err
+        # Generic warning (not "even after stashing" since nothing was stashed)
+        assert "Could not restore branch 'feature/work'" in err
+        assert "even after stashing" not in err
+        assert "Skipping stash pop" in err
+
     def test_skips_stash_pop_when_branch_restore_fails(self, capsys):
         """When branch restore fails completely, stash pop is skipped to avoid wrong branch."""
         setup_fn = MagicMock()
