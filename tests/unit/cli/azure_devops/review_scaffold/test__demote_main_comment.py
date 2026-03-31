@@ -124,3 +124,18 @@ class TestDemoteMainComment:
         assert result == 50
         post_body = requests_mock.post.call_args[1]["json"]
         assert post_body["content"] == ""
+
+    def test_urls_correct_when_threads_url_has_query_string(self):
+        """GET, POST, and PATCH URLs have thread ID as path segment before query string."""
+        requests_mock = self._setup_mocks()
+
+        _demote_main_comment(requests_mock, {}, "https://api/threads?api-version=7.0", 10, 1, "New")
+
+        get_url = requests_mock.get.call_args[0][0]
+        assert get_url == "https://api/threads/10?api-version=7.0"
+
+        post_url = requests_mock.post.call_args[0][0]
+        assert post_url == "https://api/threads/10/comments?api-version=7.0"
+
+        patch_url = requests_mock.patch.call_args[0][0]
+        assert patch_url == "https://api/threads/10/comments/1?api-version=7.0"
