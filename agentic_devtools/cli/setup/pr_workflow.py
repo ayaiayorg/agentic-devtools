@@ -144,10 +144,10 @@ def run_setup_with_pr_workflow(
             # All git operations use check=False because the PR workflow is
             # best-effort: a failure here must not terminate agdt-setup.
             branch_name = _resolve_branch_name(version)
-            branch_result2 = run_git("checkout", "-b", branch_name, check=False)
-            if branch_result2.returncode != 0:
+            create_branch = run_git("checkout", "-b", branch_name, check=False)
+            if create_branch.returncode != 0:
                 print(
-                    f"Error: Could not create branch '{branch_name}': {branch_result2.stderr.strip()}",
+                    f"Error: Could not create branch '{branch_name}': {create_branch.stderr.strip()}",
                     file=sys.stderr,
                 )
                 message = f"Failed to create branch '{branch_name}'."
