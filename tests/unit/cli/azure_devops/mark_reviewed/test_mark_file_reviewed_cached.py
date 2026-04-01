@@ -108,8 +108,8 @@ class TestMarkFileReviewedWithCachedContext:
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._update_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_project_id_via_api")
-    def test_mutates_reviewer_entry_in_place(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
-        """After successful update, cached_context.reviewer_entry is mutated in-place."""
+    def test_populates_reviewer_entry_after_success(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
+        """After successful update, cached_context.reviewer_entry is set to the updated reviewer entry."""
         mock_reviewer_entry.return_value = {"reviewedFiles": []}
         mock_project_id.return_value = "proj-id-1"
 
