@@ -968,7 +968,7 @@ class TestSetupCmd:
         out = capsys.readouterr().out
         assert "Platform & Workflow Setup" in out
 
-    def test_skip_pr_workflow_flag_accepted(self, capsys):
+    def test_skip_pr_workflow_flag_accepted(self, capsys, tmp_path):
         """--skip-pr-workflow flag is accepted without error."""
         with patch("sys.argv", ["agdt-setup", "--skip-pr-workflow"]):
             with patch.object(commands, "_prefetch_certs"):
@@ -976,7 +976,21 @@ class TestSetupCmd:
                     with patch.object(commands, "install_gh_cli", return_value=True):
                         with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
                             with patch.object(commands, "_persist_env_vars_to_profile"):
-                                commands.setup_cmd()
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
 
     def test_skip_pr_workflow_bypasses_pr_workflow(self, capsys, tmp_path):
         """--skip-pr-workflow runs file-modifying steps directly without PR workflow."""
