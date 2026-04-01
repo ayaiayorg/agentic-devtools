@@ -1037,7 +1037,9 @@ class TestSetupCmd:
                                             "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow",
                                             return_value=mock_result,
                                         ) as mock_pr:
-                                            commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    commands.setup_cmd()
         mock_pr.assert_called_once()
         out = capsys.readouterr().out
         assert "Setup changes committed to branch" in out
@@ -1067,7 +1069,9 @@ class TestSetupCmd:
                                             "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow",
                                             return_value=mock_result,
                                         ):
-                                            commands.setup_cmd()
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Setup changes committed to branch" in out
         assert "PR creation failed" in out
