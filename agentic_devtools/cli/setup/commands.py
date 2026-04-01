@@ -453,7 +453,9 @@ def _prompt_project_config(*, force_prompt: bool = False) -> None:
 
     jira_keys = _ask("Jira project key(s), comma-separated (e.g. ACME,PROJ)", "jira_project_keys")
     jira_base_url = _ask("Jira base URL (e.g. https://jira.example.com)", "jira_base_url")
-    corp_host = _ask("Corporate network test host (type '-' or 'clear' to clear)", "corporate_network_test_host", allow_clear=True)
+    corp_host = _ask(
+        "Corporate network test host (type '-' or 'clear' to clear)", "corporate_network_test_host", allow_clear=True
+    )
     vpn_url = _ask("VPN portal URL (type '-' or 'clear' to clear)", "vpn_url", allow_clear=True)
     vpn_hostnames = _ask(
         "VPN hostnames for smart detection, comma-separated (type '-' or 'clear' to clear)",
@@ -591,7 +593,7 @@ def setup_cmd() -> None:
 
     Usage:
         agdt-setup [--system-only] [--no-verify-ssl] [--no-persist-env] [--overwrite-env]
-                   [--reconfigure]
+                   [--reconfigure] [--skip-pr-workflow]
 
     Options:
         --system-only   Skip managed installs into ~/.agdt/bin/; only verify
@@ -602,6 +604,8 @@ def setup_cmd() -> None:
         --overwrite-env   Overwrite existing env var lines in shell profile.
         --reconfigure     Re-prompt for all project configuration values
                           and Copilot model selection, even if already set.
+        --skip-pr-workflow  Skip the automatic branch/PR workflow for repo file
+                            changes; apply changes directly to the current branch.
     """
     parser = argparse.ArgumentParser(
         prog="agdt-setup",
@@ -656,6 +660,12 @@ def setup_cmd() -> None:
         default=False,
         help="Re-prompt for all project configuration values and Copilot model selection, even if already set.",
     )
+    parser.add_argument(
+        "--skip-pr-workflow",
+        action="store_true",
+        default=False,
+        help="Skip the automatic branch/PR workflow for repo file changes.",
+    )
     args = parser.parse_args()
 
     original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
@@ -704,102 +714,126 @@ def setup_cmd() -> None:
         from agentic_devtools.state import _get_git_repo_root
 
         git_root = _get_git_repo_root()
-        if ensure_agdt_gitignore(git_root):
-            print(
-                "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
-                "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
-            )
-        elif git_root is not None:
-            print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 
-        # ── Project configuration prompts ───────────────────────────────
-        if not args.system_only and git_root is not None:
-            _prompt_project_config(force_prompt=args.reconfigure)
-            _prompt_copilot_model(force_prompt=args.reconfigure)
-        # ────────────────────────────────────────────────────────────────
-
-        # Inject bundled agent/prompt skills where supported. Skill injection is a
-        # best-effort optional feature: guard the import so that agdt-setup still
-        # works even if the module is missing or uses syntax/features not supported
-        # by the current interpreter.
-        inject_skills = None  # type: ignore[assignment]
-        try:
-            from agentic_devtools.skill_injector import inject_skills as _inject_skills
-
-            inject_skills = _inject_skills
-        except (SyntaxError, ImportError) as exc:
-            if git_root is not None:
+        # ── File-modifying steps (may be wrapped by the PR workflow) ───
+        def _run_file_modifying_steps() -> None:
+            if ensure_agdt_gitignore(git_root):
                 print(
-                    f"  ⚠ Failed to import skill injector ({exc!r}) — skipping agent/prompt skill injection",
+                    "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
+                    "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
+                )
+            elif git_root is not None:
+                print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
+
+            # ── Project configuration prompts ───────────────────────────────
+            if not args.system_only and git_root is not None:
+                _prompt_project_config(force_prompt=args.reconfigure)
+                _prompt_copilot_model(force_prompt=args.reconfigure)
+            # ────────────────────────────────────────────────────────────────
+
+            # Inject bundled agent/prompt skills where supported. Skill injection is a
+            # best-effort optional feature: guard the import so that agdt-setup still
+            # works even if the module is missing or uses syntax/features not supported
+            # by the current interpreter.
+            inject_skills = None  # type: ignore[assignment]
+            try:
+                from agentic_devtools.skill_injector import inject_skills as _inject_skills
+
+                inject_skills = _inject_skills
+            except (SyntaxError, ImportError) as exc:
+                if git_root is not None:
+                    print(
+                        f"  ⚠ Failed to import skill injector ({exc!r}) — skipping agent/prompt skill injection",
+                        file=sys.stderr,
+                    )
+
+            if inject_skills is not None and inject_skills(git_root):
+                print("  ✓ Injected agent/prompt skills into .github/agents/ and .github/prompts/")
+            elif git_root is not None and inject_skills is not None:
+                print(
+                    "  ⚠ Failed to inject agent/prompt skills — this may be due to"
+                    " directory permissions or missing/corrupted bundled skills",
                     file=sys.stderr,
                 )
 
-        if inject_skills is not None and inject_skills(git_root):
-            print("  ✓ Injected agent/prompt skills into .github/agents/ and .github/prompts/")
-        elif git_root is not None and inject_skills is not None:
-            print(
-                "  ⚠ Failed to inject agent/prompt skills — this may be due to directory permissions or missing/corrupted bundled skills",
-                file=sys.stderr,
-            )
+            # ── Platform & Workflow Setup ──────────────────────────────
+            if not args.system_only and git_root is not None:
+                print()
+                print("─── Platform & Workflow Setup ────────────────────────────────")
 
-        # ── Platform & Workflow Setup ──────────────────────────────
-        if not args.system_only and git_root is not None:
-            print()
-            print("─── Platform & Workflow Setup ────────────────────────────────")
-
-            # Step 1: Platform detection + adapter configuration
-            try:
-                if args.issue_adapter is not None:
-                    from agentic_devtools.config import (  # noqa: PLC0415
-                        load_platform_config,
-                        save_platform_config,
-                    )
-
-                    # Load existing config to preserve fields like github.repo
-                    # or azure_devops.project; only override issue_adapter.
-                    platform_config = load_platform_config(str(git_root))
-                    platform_config["issue_adapter"] = args.issue_adapter
-                    if save_platform_config(str(git_root), platform_config):
-                        print(f"  ✓ Issue adapter configured: {args.issue_adapter}")
-                    else:
-                        print(
-                            "  ⚠ Failed to save platform configuration — check directory permissions",
-                            file=sys.stderr,
+                # Step 1: Platform detection + adapter configuration
+                try:
+                    if args.issue_adapter is not None:
+                        from agentic_devtools.config import (  # noqa: PLC0415
+                            load_platform_config,
+                            save_platform_config,
                         )
-                elif not args.skip_platform_detection:
-                    from agentic_devtools.cli.setup.platform_detection import (  # noqa: PLC0415
-                        confirm_and_override,
-                        detect_platforms,
-                    )
-                    from agentic_devtools.config import save_platform_config  # noqa: PLC0415
 
-                    result = detect_platforms(str(git_root))
-                    platform_config = confirm_and_override(result)
-                    if save_platform_config(str(git_root), platform_config):
-                        print("  ✓ Platform configuration saved")
-                    else:
-                        print(
-                            "  ⚠ Failed to save platform configuration — check directory permissions",
-                            file=sys.stderr,
+                        # Load existing config to preserve fields like github.repo
+                        # or azure_devops.project; only override issue_adapter.
+                        platform_config = load_platform_config(str(git_root))
+                        platform_config["issue_adapter"] = args.issue_adapter
+                        if save_platform_config(str(git_root), platform_config):
+                            print(f"  ✓ Issue adapter configured: {args.issue_adapter}")
+                        else:
+                            print(
+                                "  ⚠ Failed to save platform configuration — check directory permissions",
+                                file=sys.stderr,
+                            )
+                    elif not args.skip_platform_detection:
+                        from agentic_devtools.cli.setup.platform_detection import (  # noqa: PLC0415
+                            confirm_and_override,
+                            detect_platforms,
                         )
-            except Exception as exc:  # noqa: BLE001
-                print(f"  ⚠ Platform setup failed ({exc}) — skipping", file=sys.stderr)
+                        from agentic_devtools.config import save_platform_config  # noqa: PLC0415
 
-            # Step 2: Template generation
-            try:
-                if not args.skip_templates:
-                    from agentic_devtools.cli.setup.workflow_templates import (  # noqa: PLC0415
-                        generate_default_templates,
-                    )
+                        result = detect_platforms(str(git_root))
+                        platform_config = confirm_and_override(result)
+                        if save_platform_config(str(git_root), platform_config):
+                            print("  ✓ Platform configuration saved")
+                        else:
+                            print(
+                                "  ⚠ Failed to save platform configuration — check directory permissions",
+                                file=sys.stderr,
+                            )
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ⚠ Platform setup failed ({exc}) — skipping", file=sys.stderr)
 
-                    generated = generate_default_templates(git_root / ".agdt" / "workflow-definitions")
-                    if generated:
-                        for path in generated:
-                            print(f"  ✓ Generated template: {path}")
-                    else:
-                        print("  ℹ Workflow templates already exist (use --skip-templates to suppress this message)")
-            except Exception as exc:  # noqa: BLE001
-                print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
+                # Step 2: Template generation
+                try:
+                    if not args.skip_templates:
+                        from agentic_devtools.cli.setup.workflow_templates import (  # noqa: PLC0415
+                            generate_default_templates,
+                        )
+
+                        generated = generate_default_templates(git_root / ".agdt" / "workflow-definitions")
+                        if generated:
+                            for path in generated:
+                                print(f"  ✓ Generated template: {path}")
+                        else:
+                            print(
+                                "  ℹ Workflow templates already exist (use --skip-templates to suppress this message)"
+                            )
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
+
+        # ── Run file-modifying steps (with or without PR workflow) ─────
+        use_pr_workflow = not args.system_only and git_root is not None and not args.skip_pr_workflow
+        if use_pr_workflow:
+            from agentic_devtools import __version__ as _version
+            from agentic_devtools.cli.setup.pr_workflow import run_setup_with_pr_workflow
+
+            pr_result = run_setup_with_pr_workflow(_run_file_modifying_steps, _version)
+            if pr_result["branch_created"]:
+                print(f"  ✓ Setup changes committed to branch '{pr_result['branch_created']}'")
+            if pr_result["pr_created"]:
+                print("  ✓ Pull request created for setup changes")
+            elif pr_result["branch_created"]:
+                print(f"  ⚠ {pr_result['message']}")
+            else:
+                print(f"  ℹ {pr_result['message']}")
+        else:
+            _run_file_modifying_steps()
 
         print()
         if not copilot_ok or not gh_ok or any_required_missing:

@@ -412,9 +412,7 @@ class TestSetupCmd:
 
     def test_reconfigure_flag_threads_to_prompt_functions(self, capsys, tmp_path):
         """--reconfigure passes force_prompt=True to both prompt functions."""
-        with patch(
-            "sys.argv", ["agdt-setup", "--reconfigure", "--skip-platform-detection", "--skip-templates"]
-        ):
+        with patch("sys.argv", ["agdt-setup", "--reconfigure", "--skip-platform-detection", "--skip-templates"]):
             with patch.object(commands, "_prefetch_certs"):
                 with patch.object(commands, "install_copilot_cli", return_value=True):
                     with patch.object(commands, "install_gh_cli", return_value=True):
@@ -969,3 +967,119 @@ class TestSetupCmd:
                                                         commands.setup_cmd()
         out = capsys.readouterr().out
         assert "Platform & Workflow Setup" in out
+
+    def test_skip_pr_workflow_flag_accepted(self, capsys, tmp_path):
+        """--skip-pr-workflow flag is accepted without error."""
+        with patch("sys.argv", ["agdt-setup", "--skip-pr-workflow"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        commands.setup_cmd()
+
+    def test_skip_pr_workflow_bypasses_pr_workflow(self, capsys, tmp_path):
+        """--skip-pr-workflow runs file-modifying steps directly without PR workflow."""
+        with patch("sys.argv", ["agdt-setup", "--skip-pr-workflow"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow"
+                                                        ) as mock_pr:
+                                                            commands.setup_cmd()
+        # PR workflow should NOT be called
+        mock_pr.assert_not_called()
+
+    def test_pr_workflow_invoked_when_conditions_met(self, capsys, tmp_path):
+        """PR workflow is invoked when git_root is set and --skip-pr-workflow is not passed."""
+        from agentic_devtools.cli.setup.pr_workflow import PrWorkflowResult
+
+        mock_result = PrWorkflowResult(
+            success=True,
+            branch_created="chore/agdt-setup-0.1.0",
+            pr_created=True,
+            message="PR created from branch 'chore/agdt-setup-0.1.0'.",
+        )
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch(
+                                            "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow",
+                                            return_value=mock_result,
+                                        ) as mock_pr:
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    commands.setup_cmd()
+        mock_pr.assert_called_once()
+        out = capsys.readouterr().out
+        assert "Setup changes committed to branch" in out
+        assert "Pull request created for setup changes" in out
+
+    def test_pr_workflow_branch_created_but_pr_failed_shows_warning(self, capsys, tmp_path):
+        """When branch is created but PR creation fails, shows the failure message."""
+        from agentic_devtools.cli.setup.pr_workflow import PrWorkflowResult
+
+        mock_result = PrWorkflowResult(
+            success=True,
+            branch_created="chore/agdt-setup-0.1.0",
+            pr_created=False,
+            message="Branch 'chore/agdt-setup-0.1.0' pushed but PR creation failed.",
+        )
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch(
+                                            "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow",
+                                            return_value=mock_result,
+                                        ):
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    commands.setup_cmd()
+        out = capsys.readouterr().out
+        assert "Setup changes committed to branch" in out
+        assert "PR creation failed" in out
