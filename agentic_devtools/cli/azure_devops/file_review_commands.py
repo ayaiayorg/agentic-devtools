@@ -25,7 +25,7 @@ from .helpers import (
     require_requests,
     resolve_review_artifact_dir_name,
 )
-from .mark_reviewed import mark_file_reviewed
+from .mark_reviewed import fetch_reviewer_context, mark_file_reviewed, set_batch_context
 
 if TYPE_CHECKING:
     from .review_state import ReviewState
@@ -1438,107 +1438,130 @@ def submit_reviews() -> None:
     failed = 0
     errors: list[str] = []
 
-    for i, review in enumerate(reviews):
-        if not isinstance(review, dict):
-            errors.append(f"Review at index {i}: not a JSON object.")
-            failed += 1
-            continue
-
-        file_path = review.get("file_path")
-        if not file_path or not isinstance(file_path, str) or not file_path.strip():
-            errors.append(f"Review at index {i}: missing or empty 'file_path'.")
-            failed += 1
-            continue
-
-        # Resolve outcome with defensive type checking for user-supplied JSON
-        raw_outcome = review.get("outcome")
-        if raw_outcome is None or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
-            raw_outcome = default_outcome
-
-        if not isinstance(raw_outcome, str):
-            errors.append(
-                f"Review at index {i} ({file_path}): 'outcome' must be a string (got {type(raw_outcome).__name__})."
+    # Pre-fetch authenticated user details once for the entire batch.
+    # The cached context is set at module level so that mark_file_reviewed()
+    # (called indirectly via approve_file / request_changes /
+    # request_changes_with_suggestion) can pick it up without signature changes.
+    # Graceful degradation: if context fetch fails (e.g. missing PAT in tests),
+    # each file falls back to per-file fetching inside mark_file_reviewed().
+    dry_run = is_dry_run()
+    # Clear any stale batch context from a previous call before prefetching.
+    set_batch_context(None)
+    if not dry_run:
+        try:
+            batch_ctx = fetch_reviewer_context(AzureDevOpsConfig.from_state())
+            set_batch_context(batch_ctx)
+        except Exception as exc:
+            print(
+                f"Warning: failed to prefetch reviewer context for batch reviews; "
+                f"falling back to per-file fetching ({type(exc).__name__}: {exc})",
+                file=sys.stderr,
             )
-            failed += 1
-            continue
 
-        outcome = raw_outcome.strip().lower()
-        # Resolve summary: per-entry overrides default; validate type + non-empty after strip
-        # to match the constraints of delegated commands (approve_file, request_changes).
-        raw_summary = review.get("summary")
-        if raw_summary is None or (isinstance(raw_summary, str) and not raw_summary.strip()):
-            raw_summary = default_summary
+    try:
+        for i, review in enumerate(reviews):
+            if not isinstance(review, dict):
+                errors.append(f"Review at index {i}: not a JSON object.")
+                failed += 1
+                continue
 
-        if raw_summary is not None and not isinstance(raw_summary, str):
-            errors.append(
-                f"Review at index {i} ({file_path}): 'summary' must be a string (got {type(raw_summary).__name__})."
-            )
-            failed += 1
-            continue
+            file_path = review.get("file_path")
+            if not file_path or not isinstance(file_path, str) or not file_path.strip():
+                errors.append(f"Review at index {i}: missing or empty 'file_path'.")
+                failed += 1
+                continue
 
-        summary = raw_summary.strip() if raw_summary else None
-        suggestions = review.get("suggestions")
+            # Resolve outcome with defensive type checking for user-supplied JSON
+            raw_outcome = review.get("outcome")
+            if raw_outcome is None or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
+                raw_outcome = default_outcome
 
-        if outcome not in _BATCH_VALID_OUTCOMES:
-            errors.append(f"Review at index {i} ({file_path}): unknown outcome '{outcome}'.")
-            failed += 1
-            continue
-
-        if not summary:
-            errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
-            failed += 1
-            continue
-
-        if outcome != _BATCH_OUTCOME_APPROVE:
-            # For non-approve outcomes, suggestions must be a non-empty list of dicts
-            if not isinstance(suggestions, list) or not suggestions:
+            if not isinstance(raw_outcome, str):
                 errors.append(
-                    f"Review at index {i} ({file_path}): suggestions must be a non-empty list for '{outcome}'."
+                    f"Review at index {i} ({file_path}): 'outcome' must be a string (got {type(raw_outcome).__name__})."
                 )
                 failed += 1
                 continue
 
-            invalid_suggestion = False
-            for j, suggestion in enumerate(suggestions):
-                if not isinstance(suggestion, dict):
-                    errors.append(
-                        f"Review at index {i} ({file_path}): suggestion at index {j} must be an object/dict"
-                        f" (got {type(suggestion).__name__})."
-                    )
-                    failed += 1
-                    invalid_suggestion = True
-                    break
+            outcome = raw_outcome.strip().lower()
+            # Resolve summary: per-entry overrides default; validate type + non-empty after strip
+            # to match the constraints of delegated commands (approve_file, request_changes).
+            raw_summary = review.get("summary")
+            if raw_summary is None or (isinstance(raw_summary, str) and not raw_summary.strip()):
+                raw_summary = default_summary
 
-            if invalid_suggestion:
+            if raw_summary is not None and not isinstance(raw_summary, str):
+                errors.append(
+                    f"Review at index {i} ({file_path}): 'summary' must be a string (got {type(raw_summary).__name__})."
+                )
+                failed += 1
                 continue
 
-        # Set per-file state
-        set_value("file_review.file_path", file_path)
-        if summary:
-            set_value("file_review.summary", summary)
-        if suggestions is not None:
-            set_value(
-                "file_review.suggestions",
-                json.dumps(suggestions) if isinstance(suggestions, list) else suggestions,
-            )
+            summary = raw_summary.strip() if raw_summary else None
+            suggestions = review.get("suggestions")
 
-        print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
-
-        try:
-            if outcome == _BATCH_OUTCOME_APPROVE:
-                approve_file()
-            elif outcome == _BATCH_OUTCOME_CHANGES:
-                request_changes()
-            else:
-                request_changes_with_suggestion()
-            succeeded += 1
-            print("  ✅ Done")
-        except SystemExit as exc:
-            if exc.code and exc.code != 0:
-                errors.append(f"Review at index {i} ({file_path}): exited with code {exc.code}")
+            if outcome not in _BATCH_VALID_OUTCOMES:
+                errors.append(f"Review at index {i} ({file_path}): unknown outcome '{outcome}'.")
                 failed += 1
-            else:
+                continue
+
+            if not summary:
+                errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
+                failed += 1
+                continue
+
+            if outcome != _BATCH_OUTCOME_APPROVE:
+                # For non-approve outcomes, suggestions must be a non-empty list of dicts
+                if not isinstance(suggestions, list) or not suggestions:
+                    errors.append(
+                        f"Review at index {i} ({file_path}): suggestions must be a non-empty list for '{outcome}'."
+                    )
+                    failed += 1
+                    continue
+
+                invalid_suggestion = False
+                for j, suggestion in enumerate(suggestions):
+                    if not isinstance(suggestion, dict):
+                        errors.append(
+                            f"Review at index {i} ({file_path}): suggestion at index {j} must be an object/dict"
+                            f" (got {type(suggestion).__name__})."
+                        )
+                        failed += 1
+                        invalid_suggestion = True
+                        break
+
+                if invalid_suggestion:
+                    continue
+
+            # Set per-file state
+            set_value("file_review.file_path", file_path)
+            if summary:
+                set_value("file_review.summary", summary)
+            if suggestions is not None:
+                set_value(
+                    "file_review.suggestions",
+                    json.dumps(suggestions) if isinstance(suggestions, list) else suggestions,
+                )
+
+            print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
+
+            try:
+                if outcome == _BATCH_OUTCOME_APPROVE:
+                    approve_file()
+                elif outcome == _BATCH_OUTCOME_CHANGES:
+                    request_changes()
+                else:
+                    request_changes_with_suggestion()
                 succeeded += 1
+                print("  \u2705 Done")
+            except SystemExit as exc:
+                if exc.code and exc.code != 0:
+                    errors.append(f"Review at index {i} ({file_path}): exited with code {exc.code}")
+                    failed += 1
+                else:
+                    succeeded += 1
+    finally:
+        set_batch_context(None)
 
     print(f"\nBatch complete: {succeeded}/{total} succeeded, {failed}/{total} failed.")
     if errors:
