@@ -106,7 +106,7 @@ def checkout_and_sync_branch(
     pull_request_id: int | None = None,
     save_files_on_branch: bool = False,
     dry_run: bool = False,
-) -> tuple[bool, str | None, set[str]]:
+) -> tuple[bool, str | None, set[str], bool]:
     """
     Checkout the PR source branch, sync it with origin, and rebase onto main.
 
@@ -126,10 +126,11 @@ def checkout_and_sync_branch(
             based on the current HEAD.
 
     Returns:
-        Tuple of (success, error_message, files_on_branch)
+        Tuple of (success, error_message, files_on_branch, had_rebase_conflicts)
         - success: True if checkout succeeded and we can proceed
         - error_message: If success is False, the message to show the user
         - files_on_branch: Set of file paths changed on this branch vs main
+        - had_rebase_conflicts: True if rebase conflicts were detected
     """
     from ..git.operations import (
         checkout_branch,
@@ -156,11 +157,13 @@ def checkout_and_sync_branch(
                 f"  agdt-review-pull-request\n"
                 f"{'=' * 60}",
                 set(),
+                False,
             )
         return (  # pragma: no cover
             False,
             f"Error checking out branch: {checkout_result.message}",
             set(),
+            False,
         )
 
     # Step 1b: Fetch source branch from origin to get latest changes
@@ -169,6 +172,7 @@ def checkout_and_sync_branch(
             False,
             f"Failed to fetch origin/{source_branch}. Cannot proceed with review on potentially stale code.",
             set(),
+            False,
         )
 
     # Step 1c: Reset local branch to match origin
@@ -178,9 +182,11 @@ def checkout_and_sync_branch(
             f"Failed to reset branch to origin/{source_branch}. "
             "See the messages above for details and resolution steps.",
             set(),
+            False,
         )
 
     # Step 2: Fetch latest from main
+    had_rebase_conflicts = False
     fetch_success = fetch_main(dry_run=dry_run)
     if not fetch_success:
         print("Warning: Could not fetch from origin/main, continuing without rebase...")
@@ -192,6 +198,7 @@ def checkout_and_sync_branch(
         if rebase_result.is_success:
             print("Branch is synced with main.")
         elif rebase_result.needs_manual_resolution:
+            had_rebase_conflicts = True
             # Continue with review but warn about conflicts
             print(f"\n{'=' * 60}")
             print("⚠️  REBASE CONFLICTS DETECTED")
@@ -222,7 +229,7 @@ def checkout_and_sync_branch(
             json.dump({"files": list(files_set)}, f, indent=2)
         print(f"Saved files on branch to: {files_on_branch_path}")
 
-    return True, None, files_set
+    return True, None, files_set, had_rebase_conflicts
 
 
 def _normalize_path_for_comparison(path: str) -> str:
@@ -592,6 +599,7 @@ def _scaffold_threads_for_review(
     pr_details: dict[str, Any],
     pr_info: dict[str, Any],
     files_on_branch: set[str] | None,
+    rebase_conflicts: bool = False,
 ) -> None:
     """Scaffold all review threads for a PR.
 
@@ -605,6 +613,7 @@ def _scaffold_threads_for_review(
         pr_info: PR metadata dict (pullRequest sub-key or top-level).
         files_on_branch: Set of file paths on the source branch for filtering,
             or None to include all PR files.
+        rebase_conflicts: True if rebase conflicts were detected during checkout.
     """
     from .review_scaffold import scaffold_review_threads
 
@@ -665,6 +674,7 @@ def _scaffold_threads_for_review(
             dry_run=dry_run,
             commit_hash=commit_hash,
             model_id=model_id,
+            rebase_conflicts=rebase_conflicts,
         )
     except Exception as e:
         print(f"Warning: Scaffolding failed: {e}", file=sys.stderr)
@@ -834,9 +844,10 @@ def setup_pull_request_review() -> None:
     source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
 
     files_on_branch: set[str] | None = None
+    had_rebase_conflicts = False
     if source_branch:
         print(f"\nChecking out source branch '{source_branch}' and syncing with main...")
-        checkout_success, checkout_error, files_on_branch = checkout_and_sync_branch(
+        checkout_success, checkout_error, files_on_branch, had_rebase_conflicts = checkout_and_sync_branch(
             source_branch, pull_request_id, save_files_on_branch=True, dry_run=is_dry_run()
         )
 
@@ -864,7 +875,9 @@ def setup_pull_request_review() -> None:
     )
 
     # Step 5: Scaffold review threads (all file/folder/overall summary threads upfront)
-    _scaffold_threads_for_review(pull_request_id, pr_details, pr_info, files_on_branch)
+    _scaffold_threads_for_review(
+        pull_request_id, pr_details, pr_info, files_on_branch, rebase_conflicts=had_rebase_conflicts
+    )
 
     # Step 6: Print instructions
     print_review_instructions(

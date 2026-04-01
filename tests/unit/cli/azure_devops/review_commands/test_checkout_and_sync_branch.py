@@ -24,11 +24,12 @@ class TestCheckoutAndSyncBranch:
                                 mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                 mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                                 assert success is True
                                 assert error is None
                                 assert files == {"file1.ts", "file2.ts"}
+                                assert had_conflicts is False
 
     def test_checkout_failure_returns_error(self):
         """Test checkout failure returns error message."""
@@ -43,13 +44,14 @@ class TestCheckoutAndSyncBranch:
                 "You have uncommitted changes",
             )
 
-            success, error, files = checkout_and_sync_branch("feature/test")
+            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
             assert success is False
             assert error is not None
             assert "uncommitted" in error.lower() or "cannot checkout" in error.lower()
             # Files is empty set on failure, not None
             assert files == set()
+            assert had_conflicts is False
 
     def test_rebase_conflict_still_returns_files(self):
         """Test rebase conflict still returns files (review can continue)."""
@@ -74,12 +76,13 @@ class TestCheckoutAndSyncBranch:
                                 )
                                 mock_files.return_value = ["file1.ts"]
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                                 # Success because we can still continue with review
                                 assert success is True
                                 assert error is None
                                 assert files == {"file1.ts"}
+                                assert had_conflicts is True
 
     def test_fetch_failure_still_continues(self):
         """Test fetch_main failure doesn't block the workflow."""
@@ -100,11 +103,12 @@ class TestCheckoutAndSyncBranch:
                             mock_fetch.return_value = False
                             mock_files.return_value = ["file.ts"]
 
-                            success, error, files = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                             # Should still succeed
                             assert success is True
                             assert files == {"file.ts"}
+                            assert had_conflicts is False
 
     def test_fetch_source_branch_failure_returns_error(self):
         """Test fetch_branch failure for source branch returns error."""
@@ -118,13 +122,14 @@ class TestCheckoutAndSyncBranch:
                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                 mock_fetch_branch.return_value = False
 
-                success, error, files = checkout_and_sync_branch("feature/test")
+                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                 assert success is False
                 assert error is not None
                 assert "fetch" in error.lower()
                 assert "origin/feature/test" in error
                 assert files == set()
+                assert had_conflicts is False
 
     def test_reset_to_origin_failure_returns_error(self):
         """Test reset_branch_to_origin failure returns error."""
@@ -140,13 +145,14 @@ class TestCheckoutAndSyncBranch:
                     mock_fetch_branch.return_value = True
                     mock_reset.return_value = False
 
-                    success, error, files = checkout_and_sync_branch("feature/test")
+                    success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                     assert success is False
                     assert error is not None
                     assert "reset" in error.lower()
                     assert "origin/feature/test" in error
                     assert files == set()
+                    assert had_conflicts is False
 
     def test_fetch_and_reset_called_before_fetch_main(self):
         """Test fetch_branch and reset_branch_to_origin are called before fetch_main."""
@@ -203,7 +209,9 @@ class TestCheckoutAndSyncBranch:
                                 mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                 mock_files.return_value = ["file.ts"]
 
-                                success, error, files = checkout_and_sync_branch("feature/test", dry_run=True)
+                                success, error, files, had_conflicts = checkout_and_sync_branch(
+                                    "feature/test", dry_run=True
+                                )
 
                                 assert success is True
                                 mock_checkout.assert_called_once_with("feature/test", dry_run=True)

@@ -495,11 +495,12 @@ class TestCheckoutAndSyncBranch:
                                 mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                 mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                                 assert success is True
                                 assert error is None
                                 assert files == {"file1.ts", "file2.ts"}
+                                assert had_conflicts is False
 
     def test_checkout_failure_returns_error(self):
         """Test checkout failure returns error message."""
@@ -514,13 +515,14 @@ class TestCheckoutAndSyncBranch:
                 "You have uncommitted changes",
             )
 
-            success, error, files = checkout_and_sync_branch("feature/test")
+            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
             assert success is False
             assert error is not None
             assert "uncommitted" in error.lower() or "cannot checkout" in error.lower()
             # Files is empty set on failure, not None
             assert files == set()
+            assert had_conflicts is False
 
     def test_rebase_conflict_still_returns_files(self):
         """Test rebase conflict still returns files (review can continue)."""
@@ -545,12 +547,13 @@ class TestCheckoutAndSyncBranch:
                                 )
                                 mock_files.return_value = ["file1.ts"]
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                                 # Success because we can still continue with review
                                 assert success is True
                                 assert error is None
                                 assert files == {"file1.ts"}
+                                assert had_conflicts is True
 
     def test_fetch_failure_still_continues(self):
         """Test fetch_main failure doesn't block the workflow."""
@@ -571,11 +574,12 @@ class TestCheckoutAndSyncBranch:
                             mock_fetch.return_value = False
                             mock_files.return_value = ["file.ts"]
 
-                            success, error, files = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
 
                             # Should still succeed
                             assert success is True
                             assert files == {"file.ts"}
+                            assert had_conflicts is False
 
 
 class TestGetJiraIssueKeyFromState:
@@ -1229,9 +1233,10 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                 checkout_and_sync_branch,
                             )
 
-                            success, error, files = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
                             assert success is True
                             assert error is None
+                            assert had_conflicts is False
                             captured = capsys.readouterr()
                             assert "Could not fetch" in captured.out
 
@@ -1274,9 +1279,10 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                     checkout_and_sync_branch,
                                 )
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
                                 assert success is True
                                 assert error is None
+                                assert had_conflicts is True
                                 captured = capsys.readouterr()
                                 assert "REBASE CONFLICTS DETECTED" in captured.out
 
@@ -1320,8 +1326,9 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                     checkout_and_sync_branch,
                                 )
 
-                                success, error, files = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
                                 assert success is True
+                                assert had_conflicts is False
                                 captured = capsys.readouterr()
                                 assert "Unknown rebase error" in captured.out
 
@@ -1375,7 +1382,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=123,
                                             save_files_on_branch=True,
@@ -1437,7 +1444,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=456,
                                             save_files_on_branch=True,
@@ -1499,7 +1506,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=789,
                                             save_files_on_branch=True,
@@ -1580,7 +1587,7 @@ class TestSetupPullRequestReview:
                         with patch("pathlib.Path.exists", return_value=True):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                                return_value=(True, None, set()),
+                                return_value=(True, None, set(), False),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1665,7 +1672,7 @@ class TestSetupPullRequestReview:
                         with patch("agentic_devtools.state.delete_value"):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                                return_value=(False, "Checkout error", set()),
+                                return_value=(False, "Checkout error", set(), False),
                             ):
                                 from agentic_devtools.cli.azure_devops.review_commands import (
                                     setup_pull_request_review,

@@ -469,3 +469,33 @@ class TestRenderOverallSummary:
         assert f"[{full_path}]" in result
         # The incorrect short path must NOT appear as a link
         assert "[/mgmt-frontend/copilot-instructions.md]" not in result
+
+    def test_rebase_conflicts_warning_present_when_true(self):
+        """Test that the rebase conflicts warning banner appears when rebaseConflicts is True."""
+        state = _make_state()
+        state.rebaseConflicts = True
+        result = render_overall_summary(state, _BASE_URL)
+        assert "⚠️ **Rebase Conflicts Detected**" in result
+
+    def test_rebase_conflicts_warning_absent_when_false(self):
+        """Test that the rebase conflicts warning banner is absent when rebaseConflicts is False."""
+        state = _make_state()
+        state.rebaseConflicts = False
+        result = render_overall_summary(state, _BASE_URL)
+        assert "Rebase Conflicts Detected" not in result
+
+    def test_rebase_conflicts_warning_absent_by_default(self):
+        """Test that the rebase conflicts warning banner is absent by default."""
+        state = _make_state()
+        result = render_overall_summary(state, _BASE_URL)
+        assert "Rebase Conflicts Detected" not in result
+
+    def test_rebase_conflicts_warning_position(self):
+        """Test that the rebase conflicts warning appears after *Status:* and before sections."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        state.rebaseConflicts = True
+        result = render_overall_summary(state, _BASE_URL)
+        status_pos = result.index("*Status:*")
+        warning_pos = result.index("Rebase Conflicts Detected")
+        section_pos = result.index("### ")
+        assert status_pos < warning_pos < section_pos
