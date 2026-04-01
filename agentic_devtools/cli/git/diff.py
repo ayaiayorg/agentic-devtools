@@ -227,6 +227,7 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
         ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -289,6 +290,7 @@ def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLines
         ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
