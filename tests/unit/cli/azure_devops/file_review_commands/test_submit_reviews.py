@@ -601,3 +601,7 @@ class TestSubmitReviewsBatchContext:
         mock_approve.assert_called_once()
         # Cleanup call should still happen
         assert mock_set_ctx.call_args_list[-1] == ((None,),)
+        # Warning should be printed to stderr
+        captured = capsys.readouterr()
+        assert "Warning: failed to prefetch reviewer context" in captured.err
+        assert "PAT missing" in captured.err

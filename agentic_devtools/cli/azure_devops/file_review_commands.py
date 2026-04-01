@@ -1449,8 +1449,12 @@ def submit_reviews() -> None:
         try:
             batch_ctx = fetch_reviewer_context(AzureDevOpsConfig.from_state())
             set_batch_context(batch_ctx)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(
+                f"Warning: failed to prefetch reviewer context for batch reviews; "
+                f"falling back to per-file fetching ({type(exc).__name__}: {exc})",
+                file=sys.stderr,
+            )
 
     try:
         for i, review in enumerate(reviews):

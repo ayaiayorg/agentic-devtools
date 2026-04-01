@@ -40,9 +40,9 @@ class CachedReviewerContext:
     so that ``mark_file_reviewed()`` can skip redundant API calls when
     processing multiple files in a single batch.
 
-    ``reviewer_entry`` is mutated in-place by ``mark_file_reviewed()``
-    after the first successful ``_update_reviewer_entry()`` call, so
-    subsequent files in the batch skip the ``_get_reviewer_entry()`` GET.
+    ``reviewer_entry`` is updated by ``mark_file_reviewed()`` after the
+    first successful ``_update_reviewer_entry()`` call, so subsequent
+    files in the batch skip the ``_get_reviewer_entry()`` GET.
     """
 
     requests: Any  # requests module reference
@@ -51,7 +51,7 @@ class CachedReviewerContext:
     reviewer_id: str
     instance_id: str | None
     organization_account_name: str | None
-    reviewer_entry: dict[str, Any] | None  # Mutated in-place after first update
+    reviewer_entry: dict[str, Any] | None  # Updated after first successful review
 
 
 @dataclass
@@ -690,9 +690,10 @@ def mark_file_reviewed(  # pragma: no cover
         cached_context: Optional pre-fetched reviewer context for batch
             operations.  When provided, skips redundant API calls for
             user details and (when ``reviewer_entry`` is populated)
-            the reviewer entry lookup.  Mutates
-            ``cached_context.reviewer_entry`` in-place after a
-            successful update so subsequent callers benefit.
+            the reviewer entry lookup.  Updates
+            ``cached_context.reviewer_entry`` to the latest reviewer
+            entry after a successful update so subsequent callers
+            benefit.
 
     Returns:
         True if successful, False otherwise
