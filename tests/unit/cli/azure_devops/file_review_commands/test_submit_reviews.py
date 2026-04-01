@@ -474,3 +474,130 @@ class TestSubmitReviews:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "summary is required" in captured.err
+
+
+class TestSubmitReviewsBatchContext:
+    """Tests for batch context caching in submit_reviews."""
+
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.approve_file", return_value=None)
+    def test_fetch_called_once_before_loop(
+        self, mock_approve, mock_set_ctx, mock_fetch, temp_state_dir, clear_state_before, capsys
+    ):
+        """fetch_reviewer_context is called exactly once before the batch loop."""
+        from unittest.mock import MagicMock
+
+        from agentic_devtools.state import set_value
+
+        mock_ctx = MagicMock()
+        mock_fetch.return_value = mock_ctx
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {"file_path": "src/a.ts", "summary": "OK"},
+                    {"file_path": "src/b.ts", "summary": "OK"},
+                ]
+            ),
+        )
+        submit_reviews()
+
+        mock_fetch.assert_called_once()
+        assert mock_approve.call_count == 2
+
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.approve_file", return_value=None)
+    def test_set_batch_context_called_before_and_after_loop(
+        self, mock_approve, mock_set_ctx, mock_fetch, temp_state_dir, clear_state_before, capsys
+    ):
+        """set_batch_context is called with context before loop and None after."""
+        from unittest.mock import MagicMock, call
+
+        from agentic_devtools.state import set_value
+
+        mock_ctx = MagicMock()
+        mock_fetch.return_value = mock_ctx
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]),
+        )
+        submit_reviews()
+
+        # Should be called with context first, then None in finally
+        assert mock_set_ctx.call_args_list == [call(mock_ctx), call(None)]
+
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")
+    @patch(
+        "agentic_devtools.cli.azure_devops.file_review_commands.approve_file",
+        side_effect=SystemExit(1),
+    )
+    def test_set_batch_context_none_on_exception(
+        self, mock_approve, mock_set_ctx, mock_fetch, temp_state_dir, clear_state_before, capsys
+    ):
+        """set_batch_context(None) is called even when the batch loop raises."""
+        from unittest.mock import MagicMock
+
+        from agentic_devtools.state import set_value
+
+        mock_fetch.return_value = MagicMock()
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]),
+        )
+        with pytest.raises(SystemExit):
+            submit_reviews()
+
+        # The last call to set_batch_context must be None (cleanup)
+        assert mock_set_ctx.call_args_list[-1] == ((None,),)
+
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.approve_file", return_value=None)
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=True)
+    def test_dry_run_skips_fetch(
+        self, mock_dry, mock_approve, mock_set_ctx, mock_fetch, temp_state_dir, clear_state_before, capsys
+    ):
+        """In dry-run mode, fetch_reviewer_context is NOT called."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]),
+        )
+        submit_reviews()
+
+        mock_fetch.assert_not_called()
+
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")
+    @patch("agentic_devtools.cli.azure_devops.file_review_commands.approve_file", return_value=None)
+    def test_graceful_degradation_on_fetch_failure(
+        self, mock_approve, mock_set_ctx, mock_fetch, temp_state_dir, clear_state_before, capsys
+    ):
+        """When fetch_reviewer_context fails, batch still processes files (graceful degradation)."""
+        from agentic_devtools.state import set_value
+
+        mock_fetch.side_effect = Exception("PAT missing")
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]),
+        )
+        submit_reviews()
+
+        # set_batch_context should NOT be called with context (fetch failed)
+        # but approve_file should still be called
+        mock_approve.assert_called_once()
+        # Cleanup call should still happen
+        assert mock_set_ctx.call_args_list[-1] == ((None,),)

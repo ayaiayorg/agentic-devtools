@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.azure_devops.mark_reviewed import (
     AuthenticatedUser,
+    CachedReviewerContext,
     ChangeEntry,
     _extract_authenticated_user,
     _get_graph_api_root,
@@ -1436,3 +1437,114 @@ class TestMarkFileReviewedCli:
             mark_file_reviewed_cli()
 
         assert exc_info.value.code == 1
+
+
+class TestCachedReviewerContextDataclass:
+    """Tests for CachedReviewerContext dataclass in the non-unit test suite."""
+
+    def test_dataclass_creation(self):
+        """Test creating CachedReviewerContext instance."""
+        auth_user = AuthenticatedUser(
+            display_name="Test User",
+            descriptor="aad.123",
+            storage_key="guid-456",
+            subject_descriptor="aad.subject789",
+        )
+        ctx = CachedReviewerContext(
+            requests=MagicMock(),
+            headers={"Authorization": "Basic xxx"},
+            auth_user=auth_user,
+            reviewer_id="guid-456",
+            instance_id="inst-1",
+            organization_account_name="test-org",
+            reviewer_entry=None,
+        )
+        assert ctx.reviewer_id == "guid-456"
+        assert ctx.instance_id == "inst-1"
+        assert ctx.organization_account_name == "test-org"
+        assert ctx.reviewer_entry is None
+
+    def test_dataclass_with_reviewer_entry(self):
+        """Test creating CachedReviewerContext with pre-populated reviewer_entry."""
+        auth_user = AuthenticatedUser(
+            display_name="Test",
+            descriptor=None,
+            storage_key="guid-1",
+            subject_descriptor=None,
+        )
+        entry = {"id": "guid-1", "reviewedFiles": ["/src/a.ts"], "vote": 0}
+        ctx = CachedReviewerContext(
+            requests=MagicMock(),
+            headers={},
+            auth_user=auth_user,
+            reviewer_id="guid-1",
+            instance_id=None,
+            organization_account_name=None,
+            reviewer_entry=entry,
+        )
+        assert ctx.reviewer_entry is not None
+        assert ctx.reviewer_entry["reviewedFiles"] == ["/src/a.ts"]
+
+
+class TestFetchReviewerContextIntegration:
+    """Tests for fetch_reviewer_context function."""
+
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.get_auth_headers")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_connection_data")
+    def test_returns_context_with_storage_key(self, mock_conn, mock_auth, mock_pat, mock_req, capsys):
+        """Test fetch_reviewer_context returns a valid context when storageKey is present."""
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.mark_reviewed import fetch_reviewer_context
+
+        mock_req.return_value = MagicMock()
+        mock_pat.return_value = "pat123"
+        mock_auth.return_value = {"Authorization": "Basic xxx"}
+        mock_conn.return_value = {
+            "authenticatedUser": {
+                "storageKey": "guid-789",
+                "providerDisplayName": "Integration Test User",
+            },
+            "instanceId": "inst-2",
+        }
+
+        config = AzureDevOpsConfig(
+            organization="https://dev.azure.com/my-org",
+            project="Proj",
+            repository="Repo",
+        )
+
+        ctx = fetch_reviewer_context(config)
+
+        assert isinstance(ctx, CachedReviewerContext)
+        assert ctx.reviewer_id == "guid-789"
+        assert ctx.auth_user.display_name == "Integration Test User"
+        assert ctx.instance_id == "inst-2"
+        assert ctx.organization_account_name == "my-org"
+        assert ctx.reviewer_entry is None
+
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.require_requests")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.get_pat")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed.get_auth_headers")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_connection_data")
+    def test_raises_when_no_storage_key(self, mock_conn, mock_auth, mock_pat, mock_req):
+        """Test fetch_reviewer_context raises RuntimeError when storageKey cannot be resolved."""
+        import pytest
+
+        from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
+        from agentic_devtools.cli.azure_devops.mark_reviewed import fetch_reviewer_context
+
+        mock_req.return_value = MagicMock()
+        mock_pat.return_value = "pat123"
+        mock_auth.return_value = {"Authorization": "Basic xxx"}
+        mock_conn.return_value = {"authenticatedUser": {}}
+
+        config = AzureDevOpsConfig(
+            organization="https://dev.azure.com/my-org",
+            project="Proj",
+            repository="Repo",
+        )
+
+        with pytest.raises(RuntimeError, match="Unable to resolve reviewer identity"):
+            fetch_reviewer_context(config)
