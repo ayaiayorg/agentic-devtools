@@ -33,6 +33,28 @@ class AuthenticatedUser:
 
 
 @dataclass
+class CachedReviewerContext:
+    """Pre-fetched reviewer context for batch operations.
+
+    Caches authenticated user details, auth headers, and reviewer entry
+    so that ``mark_file_reviewed()`` can skip redundant API calls when
+    processing multiple files in a single batch.
+
+    ``reviewer_entry`` is mutated in-place by ``mark_file_reviewed()``
+    after the first successful ``_update_reviewer_entry()`` call, so
+    subsequent files in the batch skip the ``_get_reviewer_entry()`` GET.
+    """
+
+    requests: Any  # requests module reference
+    headers: dict[str, str]
+    auth_user: AuthenticatedUser
+    reviewer_id: str
+    instance_id: str | None
+    organization_account_name: str | None
+    reviewer_entry: dict[str, Any] | None  # Mutated in-place after first update
+
+
+@dataclass
 class ChangeEntry:
     """PR iteration change entry for a file."""
 
@@ -297,6 +319,91 @@ def _update_reviewer_entry(
     except Exception as e:
         print(f"Error during reviewer entry update: {e}")
         raise
+
+
+# =============================================================================
+# Batch Context (module-level, single-threaded)
+# =============================================================================
+
+_batch_cached_context: CachedReviewerContext | None = None
+
+
+def set_batch_context(ctx: CachedReviewerContext | None) -> None:
+    """Set the module-level batch cached context.
+
+    Called by ``submit_reviews()`` before the batch loop to enable
+    ``mark_file_reviewed()`` to reuse pre-fetched reviewer details.
+    Must be cleared (set to ``None``) in a ``finally`` block after
+    the loop completes.
+    """
+    global _batch_cached_context
+    _batch_cached_context = ctx
+
+
+def get_batch_context() -> CachedReviewerContext | None:
+    """Return the current module-level batch cached context, or ``None``."""
+    return _batch_cached_context
+
+
+def fetch_reviewer_context(config: AzureDevOpsConfig) -> CachedReviewerContext:
+    """Perform the one-time setup to build a ``CachedReviewerContext``.
+
+    Calls ``require_requests()``, ``get_pat()``, ``get_auth_headers()``,
+    ``_get_connection_data()``, and ``_extract_authenticated_user()``.
+    Resolves ``reviewer_id`` (including Graph API fallback) and extracts
+    ``instance_id`` and ``organization_account_name``.
+
+    Args:
+        config: Azure DevOps configuration (used to compute ``org_root``).
+
+    Returns:
+        A fully-populated ``CachedReviewerContext`` with
+        ``reviewer_entry=None`` (lazily populated on first use).
+
+    Raises:
+        RuntimeError: When the reviewer identity cannot be resolved.
+        Exception: On network / auth failures from underlying API calls.
+    """
+    org_root = config.organization.rstrip("/")
+    if not org_root.startswith("http"):  # pragma: no cover
+        org_root = f"https://dev.azure.com/{org_root}"
+
+    requests = require_requests()
+    pat = get_pat()
+    headers = get_auth_headers(pat)
+
+    print("Retrieving authenticated user details (cached for batch)...")
+    connection_data = _get_connection_data(requests, headers, org_root)
+    auth_user = _extract_authenticated_user(connection_data)
+    instance_id = connection_data.get("instanceId")
+    organization_account_name = _get_organization_account_name(org_root)
+
+    reviewer_id = auth_user.storage_key
+    if not reviewer_id:
+        descriptor_to_resolve = auth_user.subject_descriptor or auth_user.descriptor
+        if descriptor_to_resolve:  # pragma: no cover
+            print(f"Resolving storage key via Graph API for descriptor: {descriptor_to_resolve}")
+            reviewer_id = _resolve_storage_key_via_graph(requests, headers, org_root, descriptor_to_resolve)
+
+    if not reviewer_id:
+        raise RuntimeError("Unable to resolve reviewer identity (storage key) for current user.")
+
+    identity_summary = f"Authenticated as '{auth_user.display_name or reviewer_id}'"
+    if auth_user.descriptor:  # pragma: no cover
+        identity_summary += f" (descriptor: {auth_user.descriptor})"
+    if reviewer_id:
+        identity_summary += f" (storageKey: {reviewer_id})"
+    print(identity_summary)
+
+    return CachedReviewerContext(
+        requests=requests,
+        headers=headers,
+        auth_user=auth_user,
+        reviewer_id=reviewer_id,
+        instance_id=instance_id,
+        organization_account_name=organization_account_name,
+        reviewer_entry=None,
+    )
 
 
 # =============================================================================
@@ -565,6 +672,7 @@ def mark_file_reviewed(  # pragma: no cover
     config: AzureDevOpsConfig,
     repo_id: str,
     dry_run: bool = False,
+    cached_context: CachedReviewerContext | None = None,
 ) -> bool:
     """
     Mark a file as reviewed in an Azure DevOps pull request.
@@ -579,6 +687,12 @@ def mark_file_reviewed(  # pragma: no cover
         config: Azure DevOps configuration
         repo_id: Repository ID
         dry_run: If True, only print what would be done
+        cached_context: Optional pre-fetched reviewer context for batch
+            operations.  When provided, skips redundant API calls for
+            user details and (when ``reviewer_entry`` is populated)
+            the reviewer entry lookup.  Mutates
+            ``cached_context.reviewer_entry`` in-place after a
+            successful update so subsequent callers benefit.
 
     Returns:
         True if successful, False otherwise
@@ -598,54 +712,68 @@ def mark_file_reviewed(  # pragma: no cover
         print(f"DRY-RUN: Would mark '{normalized_path}' as reviewed on PR {pull_request_id}.")
         return True
 
-    # Only require requests and PAT for actual execution
-    requests = require_requests()
-    pat = get_pat()
-    headers = get_auth_headers(pat)
+    # Resolve cached context: explicit parameter > module-level batch > fresh fetch
+    ctx = cached_context or get_batch_context()
 
-    # Get authenticated user details
-    print("Retrieving authenticated user details...")
-    try:
-        connection_data = _get_connection_data(requests, headers, org_root)
-    except Exception as e:
-        print(f"Failed to retrieve Azure DevOps connection data: {e}", file=sys.stderr)
-        return False
+    if ctx is not None:
+        # Use pre-fetched values from the cached context
+        requests = ctx.requests
+        headers = ctx.headers
+        reviewer_id = ctx.reviewer_id
+        instance_id = ctx.instance_id
+        organization_account_name = ctx.organization_account_name
+    else:
+        # Standalone (non-batch) path — fetch everything from scratch
+        requests = require_requests()
+        pat = get_pat()
+        headers = get_auth_headers(pat)
 
-    auth_user = _extract_authenticated_user(connection_data)
-    instance_id = connection_data.get("instanceId")
-    organization_account_name = _get_organization_account_name(org_root)
+        # Get authenticated user details
+        print("Retrieving authenticated user details...")
+        try:
+            connection_data = _get_connection_data(requests, headers, org_root)
+        except Exception as e:
+            print(f"Failed to retrieve Azure DevOps connection data: {e}", file=sys.stderr)
+            return False
 
-    # Determine reviewer identifier - must be storage key (GUID), not descriptor
-    # The Reviewers API requires the storage key as the identifier
-    reviewer_id = auth_user.storage_key
+        auth_user = _extract_authenticated_user(connection_data)
+        instance_id = connection_data.get("instanceId")
+        organization_account_name = _get_organization_account_name(org_root)
 
-    # If no storage key in connection data, try to resolve via Graph API
-    if not reviewer_id:
-        # Try subject_descriptor first, then descriptor
-        descriptor_to_resolve = auth_user.subject_descriptor or auth_user.descriptor
-        if descriptor_to_resolve:  # pragma: no cover
-            print(f"Resolving storage key via Graph API for descriptor: {descriptor_to_resolve}")
-            reviewer_id = _resolve_storage_key_via_graph(requests, headers, org_root, descriptor_to_resolve)
+        # Determine reviewer identifier - must be storage key (GUID), not descriptor
+        # The Reviewers API requires the storage key as the identifier
+        reviewer_id = auth_user.storage_key
 
-    if not reviewer_id:
-        print("Unable to resolve reviewer identity (storage key) for current user.", file=sys.stderr)
-        return False
+        # If no storage key in connection data, try to resolve via Graph API
+        if not reviewer_id:
+            # Try subject_descriptor first, then descriptor
+            descriptor_to_resolve = auth_user.subject_descriptor or auth_user.descriptor
+            if descriptor_to_resolve:  # pragma: no cover
+                print(f"Resolving storage key via Graph API for descriptor: {descriptor_to_resolve}")
+                reviewer_id = _resolve_storage_key_via_graph(requests, headers, org_root, descriptor_to_resolve)
 
-    identity_summary = f"Authenticated as '{auth_user.display_name or reviewer_id}'"
-    if auth_user.descriptor:  # pragma: no cover
-        identity_summary += f" (descriptor: {auth_user.descriptor})"
-    if reviewer_id:
-        identity_summary += f" (storageKey: {reviewer_id})"
-    print(identity_summary)
+        if not reviewer_id:
+            print("Unable to resolve reviewer identity (storage key) for current user.", file=sys.stderr)
+            return False
 
-    # Get existing reviewer entry
-    try:
-        reviewer_entry = _get_reviewer_entry(
-            requests, headers, org_root, project_encoded, repo_id, pull_request_id, reviewer_id
-        )
-    except Exception as e:
-        print(f"Failed to retrieve reviewer entry: {e}", file=sys.stderr)
-        return False
+        identity_summary = f"Authenticated as '{auth_user.display_name or reviewer_id}'"
+        if auth_user.descriptor:  # pragma: no cover
+            identity_summary += f" (descriptor: {auth_user.descriptor})"
+        if reviewer_id:
+            identity_summary += f" (storageKey: {reviewer_id})"
+        print(identity_summary)
+
+    # Get existing reviewer entry (skip if cached context has one)
+    if ctx is not None and ctx.reviewer_entry is not None:
+        reviewer_entry = ctx.reviewer_entry
+    else:
+        try:
+            reviewer_entry = _get_reviewer_entry(
+                requests, headers, org_root, project_encoded, repo_id, pull_request_id, reviewer_id
+            )
+        except Exception as e:
+            print(f"Failed to retrieve reviewer entry: {e}", file=sys.stderr)
+            return False
 
     # Check if already reviewed
     existing_reviewed = reviewer_entry.get("reviewedFiles", []) if reviewer_entry else []
@@ -671,6 +799,16 @@ def mark_file_reviewed(  # pragma: no cover
     except Exception as e:
         print(f"Failed to update reviewer entry: {e}", file=sys.stderr)
         return False
+
+    # Cache the updated reviewer entry for subsequent batch calls
+    if ctx is not None:
+        ctx.reviewer_entry = {
+            "id": reviewer_id,
+            "vote": reviewer_entry.get("vote", 0) if reviewer_entry else 0,
+            "isFlagged": reviewer_entry.get("isFlagged", False) if reviewer_entry else False,
+            "hasDeclined": reviewer_entry.get("hasDeclined", False) if reviewer_entry else False,
+            "reviewedFiles": updated_reviewed,
+        }
 
     # Get project ID for Contribution API
     try:
