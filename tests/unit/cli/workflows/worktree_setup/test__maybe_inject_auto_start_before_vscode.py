@@ -260,6 +260,30 @@ class TestMaybeInjectAutoStartBeforeVscode:
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_model_fallback_handles_unreadable_state_file(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """When state file has invalid JSON, model fallback gracefully leaves model as None."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("not valid json{{{", encoding="utf-8")
+
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        mock_inject.assert_called_once_with(
+            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None
+        )
+
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_reads_run_id_from_target_worktree_state_context(
         self,
         mock_in_test,
