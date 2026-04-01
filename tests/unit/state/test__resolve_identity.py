@@ -67,7 +67,7 @@ class TestResolveIdentityBasic:
         assert result == "jdo"
 
     def test_mixed_delimiters(self, tmp_path):
-        """john-paul.doe_smith → 4 parts; first='john', last='smith' → jsm."""
+        """john-paul.doe_smith → 4 parts; first='john', second='paul' → jpa."""
         email = "john-paul.doe_smith@example.com"
         with patch(
             "agentic_devtools.state.subprocess.run",
@@ -76,8 +76,17 @@ class TestResolveIdentityBasic:
             result = state._resolve_identity(tmp_path)
 
         # Split produces ["john", "paul", "doe", "smith"]
-        # first="john"[0] + last="smith"[:2] → "jsm"
-        assert result == "jsm"
+        # first="john"[0] + second="paul"[:2] → "jpa"
+        assert result == "jpa"
+
+    def test_three_part_email_uses_second_segment(self, tmp_path):
+        """Albert.Marsnik.ext@swica.ch → ama (uses 2nd segment 'marsnik', not 3rd 'ext')."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("Albert.Marsnik.ext@swica.ch")):
+            result = state._resolve_identity(tmp_path)
+
+        # Split produces ["albert", "marsnik", "ext"]
+        # first="albert"[0] + second="marsnik"[:2] → "ama"
+        assert result == "ama"
 
     def test_no_git_email_returns_default(self, tmp_path):
         """Returns 'default' when git config user.email fails."""

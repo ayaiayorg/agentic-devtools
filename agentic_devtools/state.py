@@ -68,7 +68,8 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
     Algorithm:
     - Read ``git config user.email``, take the local part (before ``@``).
     - Split on ``.``, ``-``, ``_`` to extract name parts (lowercased).
-    - Initial candidate: ``first_part[0] + last_part[0:2]`` (3 chars).
+    - Initial candidate: ``first_part[0] + second_part[0:2]`` (3 chars).
+      When the email has 3+ segments, uses the 2nd segment (index 1), not the last.
       Single-part names use first 3 chars.  Very short parts use all chars.
     - Scan existing directories under ``{git_root}/.agdt/workflows/`` and read
       ``.identity-owner`` files to detect collisions (same candidate but
@@ -110,7 +111,7 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
         return "default"
 
     first = name_parts[0]
-    last = name_parts[-1] if len(name_parts) > 1 else first
+    last = name_parts[1] if len(name_parts) > 1 else first
 
     # Build initial candidate (3 chars when possible)
     if len(name_parts) == 1:
