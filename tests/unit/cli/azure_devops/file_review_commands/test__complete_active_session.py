@@ -126,6 +126,41 @@ class TestCompleteActiveSession:
         assert data["sessions"][1]["status"] == "completed"
         assert data["sessions"][1]["completedUtc"] is not None
 
+    def test_multi_model_in_progress_sessions_only_latest_completed(self, tmp_path):
+        """Multiple in-progress sessions for different modelIds – only the latest is completed."""
+        s1 = ReviewSession(
+            sessionId="s1",
+            modelId="gpt-5",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            status="in_progress",
+        )
+        s2 = ReviewSession(
+            sessionId="s2",
+            modelId="claude-4",
+            startedUtc="2026-01-01T00:30:00+00:00",
+            status="in_progress",
+        )
+        s3 = ReviewSession(
+            sessionId="s3",
+            modelId="gpt-5",
+            startedUtc="2026-01-01T01:00:00+00:00",
+            status="in_progress",
+        )
+        state_file = _write_state_file(tmp_path, sessions=[s1, s2, s3])
+
+        with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
+            _complete_active_session(pull_request_id=42)
+
+        data = json.loads(state_file.read_text(encoding="utf-8"))
+        # First two sessions should remain in_progress
+        assert data["sessions"][0]["status"] == "in_progress"
+        assert data["sessions"][0]["completedUtc"] is None
+        assert data["sessions"][1]["status"] == "in_progress"
+        assert data["sessions"][1]["completedUtc"] is None
+        # The last (latest) in-progress session should be completed
+        assert data["sessions"][2]["status"] == "completed"
+        assert data["sessions"][2]["completedUtc"] is not None
+
     def test_persists_to_disk(self, tmp_path):
         """Verify the JSON file on disk contains the updated session after the call."""
         session = ReviewSession(
