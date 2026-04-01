@@ -57,8 +57,8 @@ class TestCachedReviewerContext:
         assert ctx.organization_account_name is None
         assert ctx.reviewer_entry is None
 
-    def test_reviewer_entry_mutable_in_place(self):
-        """Test that reviewer_entry can be mutated in-place on the dataclass."""
+    def test_reviewer_entry_can_be_updated(self):
+        """Test that reviewer_entry can be updated on the dataclass."""
         auth_user = AuthenticatedUser(
             display_name="Test", descriptor=None, storage_key="guid-1", subject_descriptor=None
         )

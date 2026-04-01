@@ -775,6 +775,10 @@ def mark_file_reviewed(  # pragma: no cover
         except Exception as e:
             print(f"Failed to retrieve reviewer entry: {e}", file=sys.stderr)
             return False
+        # Cache the fetched entry immediately so early-return paths
+        # (e.g. "already reviewed") don't trigger redundant GETs.
+        if ctx is not None and reviewer_entry is not None:
+            ctx.reviewer_entry = reviewer_entry
 
     # Check if already reviewed
     existing_reviewed = reviewer_entry.get("reviewedFiles", []) if reviewer_entry else []

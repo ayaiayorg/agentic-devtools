@@ -153,6 +153,31 @@ class TestMarkFileReviewedWithCachedContext:
         captured = capsys.readouterr()
         assert "already marked as reviewed" in captured.out
 
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_reviewer_entry")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed._update_reviewer_entry")
+    @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_project_id_via_api")
+    def test_caches_reviewer_entry_on_early_return(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
+        """When reviewer_entry is fetched and file is already reviewed, entry is still cached."""
+        fetched_entry = {"reviewedFiles": ["/src/existing.ts"], "vote": 0}
+        mock_reviewer_entry.return_value = fetched_entry
+
+        ctx = _make_ctx()  # reviewer_entry starts as None
+        assert ctx.reviewer_entry is None
+
+        result = mark_file_reviewed(
+            file_path="src/existing.ts",
+            pull_request_id=123,
+            config=_make_config(),
+            repo_id="repo-guid",
+            dry_run=False,
+            cached_context=ctx,
+        )
+
+        assert result is True
+        mock_update.assert_not_called()
+        # The fetched entry should be cached even though we hit the early return
+        assert ctx.reviewer_entry is fetched_entry
+
 
 class TestMarkFileReviewedWithBatchContext:
     """Tests for mark_file_reviewed picking up the module-level batch context."""
@@ -204,9 +229,12 @@ class TestMarkFileReviewedWithBatchContext:
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._update_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_project_id_via_api")
-    def test_update_failure_leaves_reviewer_entry_none(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
-        """When _update_reviewer_entry fails, cached_context.reviewer_entry stays None."""
-        mock_reviewer_entry.return_value = {"reviewedFiles": []}
+    def test_update_failure_preserves_fetched_reviewer_entry(
+        self, mock_project_id, mock_update, mock_reviewer_entry, capsys
+    ):
+        """When _update_reviewer_entry fails, cached_context.reviewer_entry retains the fetched entry."""
+        fetched_entry = {"reviewedFiles": []}
+        mock_reviewer_entry.return_value = fetched_entry
         mock_update.side_effect = Exception("Update failed")
 
         ctx = _make_ctx()
@@ -222,5 +250,6 @@ class TestMarkFileReviewedWithBatchContext:
         )
 
         assert result is False
-        # reviewer_entry should NOT have been populated since the update failed
-        assert ctx.reviewer_entry is None
+        # reviewer_entry is cached immediately after _get_reviewer_entry(),
+        # even when _update_reviewer_entry() fails, to avoid redundant GETs.
+        assert ctx.reviewer_entry is fetched_entry
