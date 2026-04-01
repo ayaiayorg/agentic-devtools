@@ -489,7 +489,7 @@ class TestRunSetupWithPrWorkflow:
         assert call_order.index("stash_pop") < call_order.index("setup_fn")
 
     def test_checkout_origin_main_failure_stash_pop_failure_emits_warning(self, capsys):
-        """When stash pop fails in checkout-origin/main fallback, warn and keep did_stash."""
+        """When stash pop fails in checkout-origin/main fallback, warn and clear did_stash."""
         setup_fn = MagicMock()
 
         with patch(_RUN_GIT) as mock_git:
@@ -501,8 +501,8 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after) — stash created
                 _fail("error"),  # checkout origin/main --detach fails
                 _fail("conflict"),  # stash pop FAILS (conflicts)
-                _ok(),  # checkout original (finally) — succeeds
-                _fail("pop fail"),  # stash pop in finally — also fails
+                _ok(),  # checkout original (finally) — branch restore succeeds
+                # did_stash is now False — no second pop in finally
             ]
             result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
@@ -514,9 +514,9 @@ class TestRunSetupWithPrWorkflow:
         # The early-pop warning should appear
         assert "git stash pop" in err
         assert "still be stashed" in err
-        # The finally block should also emit a restore-failure warning
-        # since did_stash remained True and the second pop also failed
-        assert "Could not auto-restore stashed changes" in err
+        # did_stash was cleared, so the finally block should NOT attempt
+        # a second stash pop
+        assert "Could not auto-restore stashed changes" not in err
 
     # ── Branch restore failure ─────────────────────────────────────────
 
