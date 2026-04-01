@@ -76,8 +76,8 @@ git fetch origin "${BRANCH}" 2>/dev/null || echo "warning: could not fetch origi
 git rev-list --left-right --count "origin/${BRANCH}...HEAD" 2>/dev/null || echo "no remote tracking branch"
 
 # 3. Check for in-progress cherry-pick or rebase
-ls .git/CHERRY_PICK_HEAD 2>/dev/null && echo "CHERRY_PICK in progress"
-ls .git/REBASE_HEAD 2>/dev/null && echo "REBASE in progress"
+test -f .git/CHERRY_PICK_HEAD 2>/dev/null && echo "CHERRY_PICK in progress"
+test -f .git/REBASE_HEAD 2>/dev/null && echo "REBASE in progress"
 test -d .git/rebase-merge 2>/dev/null && echo "interactive REBASE in progress"
 test -d .git/rebase-apply 2>/dev/null && echo "REBASE/AM in progress"
 ```
@@ -87,14 +87,15 @@ test -d .git/rebase-apply 2>/dev/null && echo "REBASE/AM in progress"
 | Condition | Detection | Action |
 |-----------|-----------|--------|
 | Merge commits present | `git log --merges` returns output | **Safe mode ON**: use soft-reset approach only (Phase 3 Approach A). Merge commits fold in history from other branches; interactive rebase will flatten them, losing their merge structure and potentially producing incorrect results. |
-| Remote divergence | `git rev-list --left-right --count` shows non-zero on both sides (e.g., `2  3` — remote has 2 commits not in local, local has 3 not in remote) | **Safe mode ON**: warn the user that the remote tracking branch has diverged. This may indicate someone else pushed to the branch or a previous force-push was not completed. |
+| Remote divergence (remote has commits not in local) | `git rev-list --left-right --count` shows a non-zero **left** count for `origin/${BRANCH}` (e.g., `2  0` or `2  3` — remote has 2 commits not in local) | **Abort**: do not proceed with squash. Instruct the user to inspect remote-only commits (e.g., `git log --oneline "HEAD..origin/${BRANCH}"`), coordinate with collaborators, and reconcile by pulling/rebasing/merging or otherwise updating the local branch so that it contains all remote commits before restarting the squash workflow. Proceeding would overwrite those remote-only commits on force-push. |
+| Remote divergence (local-only, no remote-ahead) | `git rev-list --left-right --count` shows zero left count but non-zero right count (e.g., `0  3` — local has 3 commits not in remote) | **OK**: this is normal for a feature branch with local-only commits. No action needed. |
 | Cherry-pick / rebase in progress | Sentinel files exist | **Abort**: do not proceed with squash. Instruct the user to complete or abort the in-progress operation first (`git cherry-pick --abort`, `git rebase --abort`). |
 
-If **any** safe-mode condition is detected, print a clear warning:
+If **any** safe-mode condition is detected (e.g., merge commits present), print a clear warning:
 
 ```text
 ⚠️  SAFE MODE ACTIVATED
-Detected: [merge commits | remote divergence | ...]
+Detected: [merge commits | ...]
 Using soft-reset approach to preserve content integrity.
 ```
 
@@ -285,6 +286,10 @@ POST_DIFF_HASH=$(git diff --binary "${MERGE_BASE}"..HEAD | git hash-object --std
 echo "Post-squash diff hash: ${POST_DIFF_HASH}"
 
 # Capture post-squash stats using the same base
+# Note: All verification diffs/hashes in this phase intentionally use the captured
+# ${MERGE_BASE} to avoid instability if origin/main advances. Any other checklist
+# commands that still reference origin/main..HEAD are informational only (latest-main
+# context), not part of the strict equivalence checks.
 POST_STATS=$(git diff --stat "${MERGE_BASE}"..HEAD)
 echo "Post-squash stats:"
 echo "${POST_STATS}"
@@ -310,9 +315,9 @@ If the hashes do **not** match, **do not proceed to Phase 5**. Instead:
 
 ### Verification Report
 
-If a `--report-file <filepath>` argument was provided when the squash was initiated, write a JSON
-verification report to that file. This report can be used by CI pipelines or other tools to
-verify squash integrity programmatically.
+If the user requested a verification report (e.g., by including `report_file=<filepath>` in their
+instructions or specifying a report file path), write a JSON verification report to that file.
+This report can be used by CI pipelines or other tools to verify squash integrity programmatically.
 
 ```bash
 # Only write the report if a filepath was specified
@@ -356,7 +361,7 @@ Confirm all items pass:
 - [ ] No unintended files staged or lost
 - [ ] **Diff hashes match** (pre-squash and post-squash are content-equivalent)
 - [ ] Tests pass (if applicable)
-- [ ] Verification report written (if `--report-file` was specified)
+- [ ] Verification report written (if a report file was requested)
 
 ---
 
@@ -418,9 +423,11 @@ computed against the merge-base.
    e.g. `git reset --soft "${MERGE_BASE}"`, which preserves only the working tree delta
    against the PR base.
 3. **Diverged remote**: If the remote tracking branch has diverged (e.g., a collaborator pushed
-   additional commits), the local squash may be based on a different state than the remote. The
-   `--force-with-lease` in Phase 5 protects against this by refusing to push if the remote has
-   moved.
+   additional commits), the local squash may be based on a different state than the remote. Phase 1
+   surfaces this remote-ahead divergence so you can explicitly decide whether overwriting those
+   remote commits is acceptable before proceeding. The `--force-with-lease` in Phase 5 only
+   protects against _unexpected_ new commits that appear on the remote **after** your last
+   `git fetch` — it does not prevent overwriting commits you already fetched and chose to ignore.
 
 ### Key rule
 
