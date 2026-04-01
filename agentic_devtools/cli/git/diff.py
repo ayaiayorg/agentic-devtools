@@ -113,7 +113,7 @@ def sync_git_ref(ref: str) -> bool:
         return False
 
     # Check if ref exists locally
-    result = run_safe(["git", "rev-parse", "--verify", ref], capture_output=True, text=True)
+    result = run_safe(["git", "rev-parse", "--verify", ref], capture_output=True, text=True, shell=False)
 
     if result.returncode == 0:
         return True
@@ -123,7 +123,7 @@ def sync_git_ref(ref: str) -> bool:
     if ref.startswith("origin/"):
         fetch_ref = ref[7:]  # Remove "origin/" prefix
 
-    result = run_safe(["git", "fetch", "origin", fetch_ref], capture_output=True, text=True)
+    result = run_safe(["git", "fetch", "origin", fetch_ref], capture_output=True, text=True, shell=False)
     return result.returncode == 0
 
 
@@ -142,6 +142,7 @@ def get_diff_entries(base_ref: str, compare_ref: str) -> list[DiffEntry]:
         ["git", "diff", "--name-status", "--find-renames", base_ref, compare_ref],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -203,6 +204,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
 
     added_lines = []
     current_line = 0
+    in_hunk = False
 
     for raw_line in output_lines:
         # Parse hunk header: @@ -X,Y +A,B @@
@@ -210,11 +212,12 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
             match = re.match(r"@@ [^+]*\+(\d+)(?:,(\d+))? @@", raw_line)
             if match:
                 current_line = int(match.group(1))
+            in_hunk = True
             continue
 
-        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
-        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
-        if _is_diff_file_header(raw_line):
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
             continue
 
         if raw_line.startswith("+"):
@@ -266,6 +269,7 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
 
     removed_lines = []
     current_line = 0
+    in_hunk = False
 
     for raw_line in output_lines:
         # Parse hunk header: @@ -X,Y +A,B @@
@@ -273,11 +277,12 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
             match = re.match(r"@@ -(\d+)(?:,(\d+))? [^@]* @@", raw_line)
             if match:
                 current_line = int(match.group(1))
+            in_hunk = True
             continue
 
-        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
-        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
-        if _is_diff_file_header(raw_line):
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
             continue
 
         if raw_line.startswith("-"):
@@ -340,6 +345,7 @@ def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLines
     removed_lines: list[RemovedLine] = []
     current_new_line = 0
     current_old_line = 0
+    in_hunk = False
 
     for raw_line in output_lines:
         # Parse hunk header: @@ -X,Y +A,B @@
@@ -348,11 +354,12 @@ def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLines
             if match:
                 current_old_line = int(match.group(1))
                 current_new_line = int(match.group(2))
+            in_hunk = True
             continue
 
-        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
-        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
-        if _is_diff_file_header(raw_line):
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
             continue
 
         if raw_line.startswith("+"):
@@ -399,6 +406,7 @@ def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
         ["git", "diff", "--no-color", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():

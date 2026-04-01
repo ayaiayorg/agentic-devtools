@@ -232,3 +232,43 @@ class TestGetDiffLinesInfo:
             get_diff_lines_info("main", "feature", "file.py")
 
             assert mock_run.call_count == 1
+
+    def test_does_not_skip_content_starting_with_plus_plus_b_slash(self):
+        """Should not skip added lines whose content starts with '++ b/' (matches header format)."""
+        diff_output = """diff --git a/file.py b/file.py
+--- a/file.py
++++ b/file.py
+@@ -1,2 +1,3 @@
+ line 1
++++ b/some path reference
+ line 2"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_diff_lines_info("main", "feature", "file.py")
+
+            assert len(result.added.lines) == 1
+            assert result.added.lines[0].content == "++ b/some path reference"
+
+    def test_does_not_skip_content_starting_with_dash_dash_a_slash(self):
+        """Should not skip removed lines whose content starts with '-- a/' (matches header format)."""
+        diff_output = """diff --git a/file.py b/file.py
+--- a/file.py
++++ b/file.py
+@@ -1,3 +1,2 @@
+ line 1
+--- a/some path reference
+ line 3"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_diff_lines_info("main", "feature", "file.py")
+
+            assert len(result.removed.lines) == 1
+            assert result.removed.lines[0].content == "-- a/some path reference"
