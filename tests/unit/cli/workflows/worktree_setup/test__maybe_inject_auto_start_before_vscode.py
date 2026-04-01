@@ -232,7 +232,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
     ):
         """When model is not provided, reads copilot.model_id from target worktree state file."""
         state_file = tmp_path / "state.json"
-        state_file.write_text(json.dumps({"copilot.model_id": "claude-3.5-sonnet"}), encoding="utf-8")
+        state_file.write_text(json.dumps({"copilot": {"model_id": "claude-3.5-sonnet"}}), encoding="utf-8")
 
         with patch(
             f"{_MODULE}._resolve_state_context_in_worktree",

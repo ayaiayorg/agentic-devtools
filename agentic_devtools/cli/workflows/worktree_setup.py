@@ -2561,7 +2561,12 @@ def _maybe_inject_auto_start_before_vscode(
             state_data = None
 
         if isinstance(state_data, dict):
-            state_model = state_data.get("copilot.model_id")
+            # State files written via set_value/get_value store dot-notation
+            # keys as nested objects, e.g. {"copilot": {"model_id": "..."}}.
+            state_model = None
+            copilot_obj = state_data.get("copilot")
+            if isinstance(copilot_obj, dict):
+                state_model = copilot_obj.get("model_id")
             if isinstance(state_model, str) and state_model.strip():
                 model = state_model.strip()
 
