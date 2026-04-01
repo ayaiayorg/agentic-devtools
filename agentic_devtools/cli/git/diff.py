@@ -53,6 +53,14 @@ class RemovedLinesInfo:
     is_binary: bool
 
 
+@dataclass
+class DiffLinesInfo:
+    """Combined added and removed line information from a single diff parse."""
+
+    added: AddedLinesInfo
+    removed: RemovedLinesInfo
+
+
 def normalize_ref_name(ref: str | None) -> str | None:
     """
     Normalize a git ref by stripping refs/heads/ prefix.
@@ -258,6 +266,86 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
             current_line += 1
 
     return RemovedLinesInfo(lines=removed_lines, is_binary=False)
+
+
+def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLinesInfo:
+    """
+    Get both added and removed line information from a single diff call.
+
+    This avoids spawning two separate git subprocesses per file by parsing
+    both added and removed lines from one ``git diff --unified=0`` invocation.
+
+    Args:
+        base_ref: Base commit/branch.
+        compare_ref: Compare commit/branch.
+        path: File path (repo-root-relative).
+
+    Returns:
+        DiffLinesInfo with added and removed line details.
+    """
+    # Use :/ prefix to make path repo-root-relative (works from any subdirectory)
+    repo_path = f":/{path}"
+    result = run_safe(
+        ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return DiffLinesInfo(
+            added=AddedLinesInfo(lines=[], is_binary=False),
+            removed=RemovedLinesInfo(lines=[], is_binary=False),
+        )
+
+    output_lines = result.stdout.split("\n")
+
+    # Check for binary file — the marker may appear after a "diff --git" header
+    if any(line.startswith("Binary files") for line in output_lines):
+        return DiffLinesInfo(
+            added=AddedLinesInfo(lines=[], is_binary=True),
+            removed=RemovedLinesInfo(lines=[], is_binary=True),
+        )
+
+    added_lines: list[AddedLine] = []
+    removed_lines: list[RemovedLine] = []
+    current_new_line = 0
+    current_old_line = 0
+
+    for raw_line in output_lines:
+        # Parse hunk header: @@ -X,Y +A,B @@
+        if raw_line.startswith("@@ "):
+            match = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", raw_line)
+            if match:
+                current_old_line = int(match.group(1))
+                current_new_line = int(match.group(2))
+            continue
+
+        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
+        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
+        if raw_line.startswith("+") and not raw_line.startswith("+++ "):
+            added_lines.append(
+                AddedLine(
+                    line_number=current_new_line,
+                    content=raw_line[1:],  # Strip leading +
+                )
+            )
+            current_new_line += 1
+        elif raw_line.startswith("-") and not raw_line.startswith("--- "):
+            removed_lines.append(
+                RemovedLine(
+                    line_number=current_old_line,
+                    content=raw_line[1:],  # Strip leading -
+                )
+            )
+            current_old_line += 1
+        elif raw_line.startswith(" "):
+            current_new_line += 1
+            current_old_line += 1
+
+    return DiffLinesInfo(
+        added=AddedLinesInfo(lines=added_lines, is_binary=False),
+        removed=RemovedLinesInfo(lines=removed_lines, is_binary=False),
+    )
 
 
 def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
