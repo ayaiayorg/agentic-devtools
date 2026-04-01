@@ -95,6 +95,7 @@ class TestMarkFileReviewedMainPath:
         assert result is False
         captured = capsys.readouterr()
         assert "Failed to set up reviewer context" in captured.err
+        assert "Connection failed" in captured.err
 
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed.require_requests")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed.get_pat")
