@@ -280,3 +280,61 @@ class TestReviewState:
         s2 = _make_review_state()
         s1.sessions.append(ReviewSession(sessionId="x", modelId="m", startedUtc="t"))
         assert s2.sessions == []
+
+    def test_rebase_conflicts_defaults_false(self):
+        """Test that rebaseConflicts defaults to False."""
+        state = _make_review_state()
+        assert state.rebaseConflicts is False
+
+    def test_rebase_conflicts_to_dict_false(self):
+        """Test that to_dict includes rebaseConflicts as False by default."""
+        state = _make_review_state()
+        d = state.to_dict()
+        assert d["rebaseConflicts"] is False
+
+    def test_rebase_conflicts_to_dict_true(self):
+        """Test that to_dict includes rebaseConflicts as True when set."""
+        state = _make_review_state(rebaseConflicts=True)
+        d = state.to_dict()
+        assert d["rebaseConflicts"] is True
+
+    def test_rebase_conflicts_from_dict_true(self):
+        """Test that from_dict reads rebaseConflicts=True."""
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+            "rebaseConflicts": True,
+        }
+        state = ReviewState.from_dict(data)
+        assert state.rebaseConflicts is True
+
+    def test_rebase_conflicts_from_dict_missing_defaults_false(self):
+        """Test that from_dict defaults rebaseConflicts to False when field is absent."""
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+        }
+        state = ReviewState.from_dict(data)
+        assert state.rebaseConflicts is False
+
+    def test_rebase_conflicts_roundtrip(self):
+        """Test rebaseConflicts round-trips through to_dict/from_dict."""
+        original = _make_review_state(rebaseConflicts=True)
+        restored = ReviewState.from_dict(original.to_dict())
+        assert restored.rebaseConflicts is True

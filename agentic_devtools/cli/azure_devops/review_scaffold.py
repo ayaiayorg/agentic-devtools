@@ -679,6 +679,7 @@ def scaffold_review_threads(
     dry_run: bool = False,
     commit_hash: str | None = None,
     model_id: str | None = None,
+    rebase_conflicts: bool = False,
 ) -> ReviewState | None:
     """Create all summary threads upfront before reviewing files.
 
@@ -713,6 +714,7 @@ def scaffold_review_threads(
         commit_hash: Commit hash (``lastMergeSourceCommit.commitId``) from
             the Azure DevOps PR API.
         model_id: AI model identifier that initiated scaffolding.
+        rebase_conflicts: True if rebase conflicts were detected during checkout.
 
     Returns:
         ReviewState with all thread IDs saved.  Returns the existing state
@@ -739,6 +741,15 @@ def scaffold_review_threads(
         threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
         short_hash = (commit_hash or "unknown")[:7]
 
+        # Update rebase-conflict status to reflect the current checkout,
+        # regardless of which idempotency path is taken below.  Paths that
+        # already call save_review_state() (resume_stale, different_model)
+        # will include the updated value automatically; paths that skip
+        # saving (already_reviewed, first_review) get an explicit save when
+        # the value has changed.
+        rebase_conflicts_changed = existing_state.rebaseConflicts != rebase_conflicts
+        existing_state.rebaseConflicts = rebase_conflicts
+
         if status == "already_reviewed":
             print(f"Commit {short_hash} already reviewed by {effective_model} for PR {pull_request_id}. Skipping.")
             if not dry_run and existing_state.activityLogThreadId:
@@ -764,6 +775,8 @@ def scaffold_review_threads(
                     )
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
+            if rebase_conflicts_changed and not dry_run:
+                save_review_state(existing_state)
             return existing_state
 
         if status == "in_progress":
@@ -810,6 +823,8 @@ def scaffold_review_threads(
                     )
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
+            if rebase_conflicts_changed and not dry_run:
+                save_review_state(existing_state)
             return None
 
         if status == "resume_stale":
@@ -905,6 +920,7 @@ def scaffold_review_threads(
                 commit_hash=commit_hash,
                 model_id=effective_model,
                 now=now,
+                rebase_conflicts=rebase_conflicts,
             )
 
         # status == "first_review" — same commit, no sessions recorded.
@@ -913,6 +929,8 @@ def scaffold_review_threads(
         # tracking was introduced.
         if status == "first_review":
             print(f"Scaffolding already exists for PR {pull_request_id}. Skipping.")
+            if rebase_conflicts_changed and not dry_run:
+                save_review_state(existing_state)
             return existing_state
 
     elif existing_state is not None and existing_state.overallSummary.threadId == 0:
@@ -934,6 +952,7 @@ def scaffold_review_threads(
         commit_hash=commit_hash,
         model_id=effective_model,
         now=now,
+        rebase_conflicts=rebase_conflicts,
     )
 
 
@@ -955,6 +974,7 @@ def _fresh_scaffold(
     commit_hash: str | None,
     model_id: str,
     now: datetime | None = None,
+    rebase_conflicts: bool = False,
 ) -> ReviewState | None:
     """Perform a first-time full scaffolding of all review threads.
 
@@ -1010,6 +1030,7 @@ def _fresh_scaffold(
             modelId=model_id,
             activityLogThreadId=activity_log_thread_id,
             sessions=[session],
+            rebaseConflicts=rebase_conflicts,
         )
 
     # Step 1: Create file summary threads
@@ -1149,6 +1170,7 @@ def _incremental_rescaffold(
     commit_hash: str | None,
     model_id: str,
     now: datetime | None = None,
+    rebase_conflicts: bool = False,
 ) -> ReviewState | None:
     """Perform incremental re-scaffolding for a new commit.
 
@@ -1430,6 +1452,13 @@ def _incremental_rescaffold(
             new_folders[folder_name] = []
     existing_state.folders = {k: FolderGroup(files=v) for k, v in new_folders.items()}
 
+    # Update commit hash, iteration, and rebase conflict status.
+    # rebaseConflicts must be set before rendering the overall summary so the
+    # warning banner is included in the posted comment.
+    existing_state.commitHash = commit_hash
+    existing_state.latestIterationId = latest_iteration_id
+    existing_state.rebaseConflicts = rebase_conflicts
+
     # Demote and update overall summary
     if n_new > 0 or n_mod > 0 or n_del > 0:
         overall = existing_state.overallSummary
@@ -1466,10 +1495,6 @@ def _incremental_rescaffold(
                 )
             except Exception as exc:
                 print(f"Warning: Could not update overall summary: {exc}", file=sys.stderr)
-
-    # Update commit hash and iteration
-    existing_state.commitHash = commit_hash
-    existing_state.latestIterationId = latest_iteration_id
 
     # Create new session
     session = _create_session(model_id, commit_hash=commit_hash, now=now)

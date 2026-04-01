@@ -281,6 +281,13 @@ def render_overall_summary(
 
     lines.append(f"*Status:* {overall_status}")
 
+    if state.rebaseConflicts:
+        _rebase_warning = (
+            "> ⚠️ **Rebase Conflicts Detected** — This review was performed on code that could"
+            " not be rebased onto the target branch. The reviewed code may be out of date with main."
+        )
+        lines.extend(["", _rebase_warning])
+
     # Status sections in display priority order
     sections = [
         (ReviewStatus.NEEDS_WORK.value, "📝 Needs Work"),

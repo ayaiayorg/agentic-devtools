@@ -365,6 +365,7 @@ class ReviewState:
     sessions: list[ReviewSession] = field(default_factory=list)
     reviewerModels: list[str] | None = None
     bossModel: str | None = None
+    rebaseConflicts: bool = False
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -388,6 +389,7 @@ class ReviewState:
             result["reviewerModels"] = list(self.reviewerModels)
         if self.bossModel is not None:
             result["bossModel"] = self.bossModel
+        result["rebaseConflicts"] = self.rebaseConflicts
         return result
 
     @classmethod
@@ -423,6 +425,7 @@ class ReviewState:
             sessions=sessions,
             reviewerModels=data.get("reviewerModels"),
             bossModel=data.get("bossModel"),
+            rebaseConflicts=data.get("rebaseConflicts", False),
         )
 
     @property
