@@ -285,9 +285,7 @@ def run_setup_with_pr_workflow(
             # their original branch.
             stash_before_emergency = run_git("stash", "list", check=False)
             before_emergency_count = (
-                len(stash_before_emergency.stdout.strip().splitlines())
-                if stash_before_emergency.stdout.strip()
-                else 0
+                len(stash_before_emergency.stdout.strip().splitlines()) if stash_before_emergency.stdout.strip() else 0
             )
             emergency_stash = run_git(
                 "stash",

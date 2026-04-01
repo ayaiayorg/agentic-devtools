@@ -2535,35 +2535,44 @@ def _maybe_inject_auto_start_before_vscode(
 
     from ..copilot import build_copilot_args
 
-    # Read the current run ID from state to pass through to the task.
-    try:
-        from agentic_devtools.state import get_value
+    # Read the run ID from the TARGET worktree's state context,
+    # not the parent process's state.
+    state_file_path, run_id = _resolve_state_context_in_worktree(worktree_path, include_run_id=True)
 
-        run_id = get_value("agdt_run_id")
-        # If model was not provided, read it from state.
-        if model is None:
-            state_model = get_value("copilot.model_id")
+    if state_file_path is None:
+        # _resolve_state_context_in_worktree failed (unreadable state).
+        print(f"Auto-start injection skipped: could not read agdt_run_id from state in {worktree_path}.")
+        return False
+
+    if not run_id:
+        # run_id is empty — the agdt_run_id value is missing or was
+        # whitespace-only in the target worktree's state.
+        print(f"Auto-start injection skipped: missing or empty agdt_run_id in {worktree_path}.")
+        return False
+
+    # If model was not provided, read it from the target worktree's state file
+    # that was already resolved by _resolve_state_context_in_worktree.
+    if model is None:
+        try:
+            with state_file_path.open("r", encoding="utf-8") as f:
+                state_data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            # Best-effort only; leave model as None if we can't read the state.
+            state_data = None
+
+        if isinstance(state_data, dict):
+            # State files written via set_value/get_value store dot-notation
+            # keys as nested objects, e.g. {"copilot": {"model_id": "..."}}.
+            state_model = None
+            copilot_obj = state_data.get("copilot")
+            if isinstance(copilot_obj, dict):
+                state_model = copilot_obj.get("model_id")
             if isinstance(state_model, str) and state_model.strip():
                 model = state_model.strip()
-    except Exception:
-        # Missing or unreadable run ID is a hard stop for auto-start injection.
-        print("Auto-start injection skipped: could not read agdt_run_id from state.")
-        return False
-
-    if not isinstance(run_id, str):
-        # Do not inject an auto-start task without a valid, non-empty string run ID.
-        print("Auto-start injection skipped: agdt_run_id is not a string.")
-        return False
-
-    run_id_stripped = run_id.strip()
-    if not run_id_stripped:
-        # Do not inject an auto-start task when the run ID is whitespace-only.
-        print("Auto-start injection skipped: agdt_run_id is empty or whitespace.")
-        return False
 
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
-        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id_stripped, model=model)
+        injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id, model=model)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
         else:

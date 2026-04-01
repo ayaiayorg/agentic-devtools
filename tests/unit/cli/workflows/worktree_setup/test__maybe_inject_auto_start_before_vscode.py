@@ -1,5 +1,6 @@
 """Tests for _maybe_inject_auto_start_before_vscode."""
 
+import json
 from unittest.mock import patch
 
 from agentic_devtools.cli.workflows.worktree_setup import (
@@ -26,15 +27,15 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When copilot args are available and run_id is present, inject the auto-start task."""
-
-        def _get_value_side_effect(key, **kwargs):
-            if key == "agdt_run_id":
-                return "run-123"
-            return None
-
-        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ) as mock_resolve:
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
+        mock_resolve.assert_called_once_with(str(tmp_path), include_run_id=True)
         mock_build_args.assert_called_once_with(COPILOT_SESSION_START_PROMPT, interactive=True, model=None)
         mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None)
         captured = capsys.readouterr()
@@ -53,7 +54,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When build_copilot_args returns None (prompt too large), skip injection."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_called_once()
@@ -74,7 +80,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         capsys,
     ):
         """When inject_auto_start_task returns False, a warning message should be printed."""
-        with patch("agentic_devtools.state.get_value", return_value="run-123"):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_inject.assert_called_once()
@@ -94,13 +105,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
     ):
         """When a custom start_prompt is provided, it is forwarded to build_copilot_args."""
-
-        def _get_value_side_effect(key, **kwargs):
-            if key == "agdt_run_id":
-                return "run-123"
-            return None
-
-        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
             _maybe_inject_auto_start_before_vscode(
                 str(tmp_path),
                 start_prompt=COPILOT_SESSION_START_PROMPT_WORK_ON_JIRA_ISSUE,
@@ -126,7 +136,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_skips_injection_when_get_value_raises(
+    def test_skips_injection_when_resolve_returns_none_state_path(
         self,
         mock_in_test,
         mock_build_args,
@@ -134,8 +144,11 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When get_value raises, injection is skipped and False is returned."""
-        with patch("agentic_devtools.state.get_value", side_effect=RuntimeError("state unavailable")):
+        """When _resolve_state_context_in_worktree returns None state path, injection is skipped."""
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(None, ""),
+        ):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_not_called()
@@ -143,11 +156,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         assert result is False
         captured = capsys.readouterr()
         assert "could not read agdt_run_id" in captured.out
+        assert str(tmp_path) in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task")
     @patch("agentic_devtools.cli.copilot.build_copilot_args")
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_skips_injection_when_run_id_is_not_string(
+    def test_skips_injection_when_run_id_is_empty(
         self,
         mock_in_test,
         mock_build_args,
@@ -155,36 +169,20 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When agdt_run_id is not a string, helper returns False before building args."""
-        with patch("agentic_devtools.state.get_value", return_value=123):
+        """When agdt_run_id is empty (missing or whitespace-only, normalized by resolver), helper returns False."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, ""),
+        ):
             result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_build_args.assert_not_called()
         mock_inject.assert_not_called()
         assert result is False
         captured = capsys.readouterr()
-        assert "agdt_run_id is not a string" in captured.out
-
-    @patch(f"{_MODULE}.inject_auto_start_task")
-    @patch("agentic_devtools.cli.copilot.build_copilot_args")
-    @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_skips_injection_when_run_id_is_whitespace_only(
-        self,
-        mock_in_test,
-        mock_build_args,
-        mock_inject,
-        tmp_path,
-        capsys,
-    ):
-        """When agdt_run_id is only whitespace, helper returns False before building args."""
-        with patch("agentic_devtools.state.get_value", return_value="   "):
-            result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
-
-        mock_build_args.assert_not_called()
-        mock_inject.assert_not_called()
-        assert result is False
-        captured = capsys.readouterr()
-        assert "agdt_run_id is empty or whitespace" in captured.out
+        assert "missing or empty agdt_run_id" in captured.out
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
@@ -197,13 +195,12 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
     ):
         """When model is provided, it is forwarded to inject_auto_start_task."""
-
-        def _get_value_side_effect(key, **kwargs):
-            if key == "agdt_run_id":
-                return "run-123"
-            return None
-
-        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
             _maybe_inject_auto_start_before_vscode(str(tmp_path), model="gpt-4")
 
         mock_inject.assert_called_once_with(
@@ -220,18 +217,63 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_inject,
         tmp_path,
     ):
-        """When model is not provided, reads copilot.model_id from state."""
+        """When model is not provided, reads copilot.model_id from target worktree state file."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text(json.dumps({"copilot": {"model_id": "claude-3.5-sonnet"}}), encoding="utf-8")
 
-        def _get_value_side_effect(key, **kwargs):
-            if key == "agdt_run_id":
-                return "run-123"
-            if key == "copilot.model_id":
-                return "claude-3.5-sonnet"
-            return None
-
-        with patch("agentic_devtools.state.get_value", side_effect=_get_value_side_effect):
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
             _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_inject.assert_called_once_with(
             str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model="claude-3.5-sonnet"
         )
+
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_model_fallback_handles_unreadable_state_file(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """When state file has invalid JSON, model fallback gracefully leaves model as None."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("not valid json{{{", encoding="utf-8")
+
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-123"),
+        ):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        mock_inject.assert_called_once_with(
+            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None
+        )
+
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_reads_run_id_from_target_worktree_state_context(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        tmp_path,
+    ):
+        """Verifies _resolve_state_context_in_worktree is called with correct worktree_path."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-456"),
+        ) as mock_resolve:
+            result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        mock_resolve.assert_called_once_with(str(tmp_path), include_run_id=True)
+        mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-456", model=None)
+        assert result is True
