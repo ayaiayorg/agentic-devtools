@@ -251,19 +251,23 @@ def trigger_in_progress_for_file(
             save_review_state(review_state)
 
 
+class _NoChange(Exception):
+    """Sentinel raised inside read_modify_write_review_state to skip save."""
+
+
 def _complete_active_session(pull_request_id: int) -> None:
     """Mark the latest in-progress review session as completed.
 
-    Uses ``read_modify_write_review_state`` for atomic load→mutate→save
+    Uses ``read_modify_write_review_state`` for atomic load-mutate-save
     under an exclusive file lock.  If no in-progress session exists the
-    call is a no-op.
+    call is a no-op — a ``_NoChange`` sentinel is raised inside the
+    context manager so the file is not rewritten needlessly.
+
+    Silently returns when ``review-state.json`` does not exist (matching
+    the pattern in ``trigger_in_progress_for_file``).
 
     Args:
         pull_request_id: PR ID whose review state to update.
-
-    Raises:
-        FileNotFoundError: Silently caught — mirrors the pattern in
-            ``trigger_in_progress_for_file``.
     """
     from .review_state import read_modify_write_review_state
 
@@ -275,8 +279,11 @@ def _complete_active_session(pull_request_id: int) -> None:
                     session.status = "completed"
                     session.completedUtc = datetime.now(timezone.utc).isoformat()
                     break
-    except FileNotFoundError:
-        return  # No review state yet; skip
+            else:
+                # No in-progress session found — skip the save.
+                raise _NoChange
+    except (FileNotFoundError, _NoChange):
+        return
 
 
 def print_next_file_prompt(pull_request_id: int) -> None:

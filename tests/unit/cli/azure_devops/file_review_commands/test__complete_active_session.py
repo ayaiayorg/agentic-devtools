@@ -61,7 +61,7 @@ class TestCompleteActiveSession:
         assert data["sessions"][0]["completedUtc"] is not None
 
     def test_noop_when_no_in_progress_sessions(self, tmp_path):
-        """Should not change anything when all sessions are already completed."""
+        """Should not rewrite the file when all sessions are already completed."""
         session = ReviewSession(
             sessionId="s1",
             modelId="gpt-5",
@@ -70,23 +70,28 @@ class TestCompleteActiveSession:
             completedUtc="2026-01-01T01:00:00+00:00",
         )
         state_file = _write_state_file(tmp_path, sessions=[session])
+        original_content = state_file.read_text(encoding="utf-8")
+        mtime_before = state_file.stat().st_mtime_ns
 
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             _complete_active_session(pull_request_id=42)
 
-        data = json.loads(state_file.read_text(encoding="utf-8"))
-        assert data["sessions"][0]["status"] == "completed"
-        assert data["sessions"][0]["completedUtc"] == "2026-01-01T01:00:00+00:00"
+        # File must not have been rewritten
+        assert state_file.read_text(encoding="utf-8") == original_content
+        assert state_file.stat().st_mtime_ns == mtime_before
 
     def test_noop_when_no_sessions_exist(self, tmp_path):
-        """Should not error when the sessions list is empty."""
+        """Should not rewrite the file when the sessions list is empty."""
         state_file = _write_state_file(tmp_path, sessions=[])
+        original_content = state_file.read_text(encoding="utf-8")
+        mtime_before = state_file.stat().st_mtime_ns
 
         with patch.object(rs_module, "get_state_dir", return_value=tmp_path):
             _complete_active_session(pull_request_id=42)
 
-        data = json.loads(state_file.read_text(encoding="utf-8"))
-        assert data["sessions"] == []
+        # File must not have been rewritten
+        assert state_file.read_text(encoding="utf-8") == original_content
+        assert state_file.stat().st_mtime_ns == mtime_before
 
     def test_noop_when_review_state_missing(self, tmp_path):
         """Should silently return when review-state.json does not exist."""
