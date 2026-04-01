@@ -71,15 +71,21 @@ following checks:
 git log --oneline --merges origin/main..HEAD
 
 # 2. Detect divergence between local branch and its remote tracking branch
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-git fetch origin "${BRANCH}" 2>/dev/null || echo "warning: could not fetch origin/${BRANCH} (branch may not exist on remote)"
-git rev-list --left-right --count "origin/${BRANCH}...HEAD" 2>/dev/null || echo "no remote tracking branch"
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || echo "")
+if [ -z "${UPSTREAM}" ]; then
+  echo "no remote tracking branch"
+else
+  REMOTE=${UPSTREAM%%/*}
+  REMOTE_BRANCH=${UPSTREAM#*/}
+  git fetch "${REMOTE}" "${REMOTE_BRANCH}" 2>/dev/null || echo "warning: could not fetch ${UPSTREAM} (branch may not exist on remote)"
+  git rev-list --left-right --count "${UPSTREAM}...HEAD" 2>/dev/null || echo "could not compute divergence against ${UPSTREAM}"
+fi
 
-# 3. Check for in-progress cherry-pick or rebase
-test -f .git/CHERRY_PICK_HEAD 2>/dev/null && echo "CHERRY_PICK in progress"
-test -f .git/REBASE_HEAD 2>/dev/null && echo "REBASE in progress"
-test -d .git/rebase-merge 2>/dev/null && echo "interactive REBASE in progress"
-test -d .git/rebase-apply 2>/dev/null && echo "REBASE/AM in progress"
+# 3. Check for in-progress cherry-pick or rebase (works in normal repos and worktrees)
+test -f "$(git rev-parse --git-path CHERRY_PICK_HEAD)" 2>/dev/null && echo "CHERRY_PICK in progress"
+test -f "$(git rev-parse --git-path REBASE_HEAD)" 2>/dev/null && echo "REBASE in progress"
+test -d "$(git rev-parse --git-path rebase-merge)" 2>/dev/null && echo "interactive REBASE in progress"
+test -d "$(git rev-parse --git-path rebase-apply)" 2>/dev/null && echo "REBASE/AM in progress"
 ```
 
 **Interpretation:**
@@ -87,7 +93,7 @@ test -d .git/rebase-apply 2>/dev/null && echo "REBASE/AM in progress"
 | Condition | Detection | Action |
 |-----------|-----------|--------|
 | Merge commits present | `git log --merges` returns output | **Safe mode ON**: use soft-reset approach only (Phase 3 Approach A). Merge commits fold in history from other branches; interactive rebase will flatten them, losing their merge structure and potentially producing incorrect results. |
-| Remote divergence (remote has commits not in local) | `git rev-list --left-right --count` shows a non-zero **left** count for `origin/${BRANCH}` (e.g., `2  0` or `2  3` — remote has 2 commits not in local) | **Abort**: do not proceed with squash. Instruct the user to inspect remote-only commits (e.g., `git log --oneline "HEAD..origin/${BRANCH}"`), coordinate with collaborators, and reconcile by pulling/rebasing/merging or otherwise updating the local branch so that it contains all remote commits before restarting the squash workflow. Proceeding would overwrite those remote-only commits on force-push. |
+| Remote divergence (remote has commits not in local) | `git rev-list --left-right --count` shows a non-zero **left** count for `${UPSTREAM}` (e.g., `2  0` or `2  3` — remote has 2 commits not in local) | **Abort**: do not proceed with squash. Instruct the user to inspect remote-only commits (e.g., `git log --oneline "HEAD..${UPSTREAM}"`), coordinate with collaborators, and reconcile by pulling/rebasing/merging or otherwise updating the local branch so that it contains all remote commits before restarting the squash workflow. Proceeding would overwrite those remote-only commits on force-push. |
 | Remote divergence (local-only, no remote-ahead) | `git rev-list --left-right --count` shows zero left count but non-zero right count (e.g., `0  3` — local has 3 commits not in remote) | **OK**: this is normal for a feature branch with local-only commits. No action needed. |
 | Cherry-pick / rebase in progress | Sentinel files exist | **Abort**: do not proceed with squash. Instruct the user to complete or abort the in-progress operation first (`git cherry-pick --abort`, `git rebase --abort`). |
 
@@ -218,8 +224,9 @@ Use **only** when the history is linear (no merge commits, no divergence) and yo
 control over individual commits. **Do not use this approach if safe mode was activated.**
 
 ```bash
-# Interactive rebase against origin/main
-git rebase -i origin/main
+# Interactive rebase against the captured merge-base (NOT origin/main directly,
+# which may have advanced and would change the PR's merge-base and diff)
+git rebase -i "${MERGE_BASE}"
 
 # In the editor:
 # - Keep the first commit as "pick"
@@ -254,7 +261,8 @@ git status
 # 2. Verify exactly one commit ahead of origin/main
 git rev-list --count origin/main..HEAD
 
-# 3. Verify all changes are preserved (diff stats should match expected changes; compare to pre-squash diff if needed)
+# 3. Verify all changes are preserved (informational — latest-main context only;
+#    the strict equivalence checks below use ${MERGE_BASE}, not origin/main)
 git diff origin/main..HEAD --stat
 
 # 4. Verify commit message follows conventions
@@ -287,9 +295,12 @@ echo "Post-squash diff hash: ${POST_DIFF_HASH}"
 
 # Capture post-squash stats using the same base
 # Note: All verification diffs/hashes in this phase intentionally use the captured
-# ${MERGE_BASE} to avoid instability if origin/main advances. Any other checklist
-# commands that still reference origin/main..HEAD are informational only (latest-main
-# context), not part of the strict equivalence checks.
+# ${MERGE_BASE} to avoid instability if origin/main advances.
+# In particular, the earlier "Verify all changes are preserved" checklist step that
+# suggests `git diff origin/main..HEAD --stat` MUST be treated as informational only
+# (latest-main context). The strict equivalence checks are:
+#   - PRE_DIFF_HASH vs POST_DIFF_HASH (both from ${MERGE_BASE}..HEAD)
+#   - PRE_STATS vs POST_STATS (both from ${MERGE_BASE}..HEAD)
 POST_STATS=$(git diff --stat "${MERGE_BASE}"..HEAD)
 echo "Post-squash stats:"
 echo "${POST_STATS}"
