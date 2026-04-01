@@ -37,6 +37,22 @@ class AddedLinesInfo:
     is_binary: bool
 
 
+@dataclass
+class RemovedLine:
+    """Represents a removed line in a diff."""
+
+    line_number: int
+    content: str
+
+
+@dataclass
+class RemovedLinesInfo:
+    """Information about removed lines in a file diff."""
+
+    lines: list[RemovedLine]
+    is_binary: bool
+
+
 def normalize_ref_name(ref: str | None) -> str | None:
     """
     Normalize a git ref by stripping refs/heads/ prefix.
@@ -181,6 +197,63 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
             current_line += 1
 
     return AddedLinesInfo(lines=added_lines, is_binary=False)
+
+
+def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> RemovedLinesInfo:
+    """
+    Get information about removed lines for a specific file.
+
+    Args:
+        base_ref: Base commit/branch.
+        compare_ref: Compare commit/branch.
+        path: File path (repo-root-relative).
+
+    Returns:
+        RemovedLinesInfo with line details and binary flag.
+    """
+    # Use :/ prefix to make path repo-root-relative (works from any subdirectory)
+    repo_path = f":/{path}"
+    result = run_safe(
+        ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return RemovedLinesInfo(lines=[], is_binary=False)
+
+    output_lines = result.stdout.split("\n")
+
+    # Check for binary file — the marker may appear after a "diff --git" header
+    if any(line.startswith("Binary files") for line in output_lines):
+        return RemovedLinesInfo(lines=[], is_binary=True)
+
+    removed_lines = []
+    current_line = 0
+
+    for raw_line in output_lines:
+        # Parse hunk header: @@ -X,Y +A,B @@
+        if raw_line.startswith("@@ "):
+            match = re.match(r"@@ -(\d+)(?:,(\d+))? [^@]* @@", raw_line)
+            if match:
+                current_line = int(match.group(1))
+            continue
+
+        if raw_line.startswith("-") and not raw_line.startswith("---"):
+            removed_lines.append(
+                RemovedLine(
+                    line_number=current_line,
+                    content=raw_line[1:],  # Strip leading -
+                )
+            )
+            current_line += 1
+        elif raw_line.startswith("+") and not raw_line.startswith("+++"):
+            # Added line, don't increment old-file counter
+            continue
+        elif raw_line.startswith(" "):
+            current_line += 1
+
+    return RemovedLinesInfo(lines=removed_lines, is_binary=False)
 
 
 def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
