@@ -2552,7 +2552,7 @@ def _maybe_inject_auto_start_before_vscode(
 
     # If model was not provided, read it from the target worktree's state file
     # that was already resolved by _resolve_state_context_in_worktree.
-    if model is None and state_file_path is not None:
+    if model is None:
         try:
             with state_file_path.open("r", encoding="utf-8") as f:
                 state_data = json.load(f)

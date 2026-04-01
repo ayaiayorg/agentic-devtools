@@ -161,32 +161,6 @@ class TestMaybeInjectAutoStartBeforeVscode:
     @patch(f"{_MODULE}.inject_auto_start_task")
     @patch("agentic_devtools.cli.copilot.build_copilot_args")
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_skips_injection_when_run_id_is_missing(
-        self,
-        mock_in_test,
-        mock_build_args,
-        mock_inject,
-        tmp_path,
-        capsys,
-    ):
-        """When agdt_run_id is missing from the target worktree state, helper returns False."""
-        state_file = tmp_path / "state.json"
-        state_file.write_text("{}", encoding="utf-8")
-        with patch(
-            f"{_MODULE}._resolve_state_context_in_worktree",
-            return_value=(state_file, ""),
-        ):
-            result = _maybe_inject_auto_start_before_vscode(str(tmp_path))
-
-        mock_build_args.assert_not_called()
-        mock_inject.assert_not_called()
-        assert result is False
-        captured = capsys.readouterr()
-        assert "missing or empty agdt_run_id" in captured.out
-
-    @patch(f"{_MODULE}.inject_auto_start_task")
-    @patch("agentic_devtools.cli.copilot.build_copilot_args")
-    @patch(f"{_MODULE}._in_test_environment", return_value=False)
     def test_skips_injection_when_run_id_is_empty(
         self,
         mock_in_test,
@@ -195,7 +169,7 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When agdt_run_id is empty (e.g. whitespace-only, normalized by resolver), helper returns False."""
+        """When agdt_run_id is empty (missing or whitespace-only, normalized by resolver), helper returns False."""
         state_file = tmp_path / "state.json"
         state_file.write_text("{}", encoding="utf-8")
         with patch(
