@@ -251,6 +251,34 @@ def trigger_in_progress_for_file(
             save_review_state(review_state)
 
 
+def _complete_active_session(pull_request_id: int) -> None:
+    """Mark the latest in-progress review session as completed.
+
+    Uses ``read_modify_write_review_state`` for atomic load→mutate→save
+    under an exclusive file lock.  If no in-progress session exists the
+    call is a no-op.
+
+    Args:
+        pull_request_id: PR ID whose review state to update.
+
+    Raises:
+        FileNotFoundError: Silently caught — mirrors the pattern in
+            ``trigger_in_progress_for_file``.
+    """
+    from .review_state import read_modify_write_review_state
+
+    try:
+        with read_modify_write_review_state(pull_request_id) as review_state:
+            # Iterate in reverse to find the latest in-progress session
+            for session in reversed(review_state.sessions):
+                if session.status == "in_progress":
+                    session.status = "completed"
+                    session.completedUtc = datetime.now(timezone.utc).isoformat()
+                    break
+    except FileNotFoundError:
+        return  # No review state yet; skip
+
+
 def print_next_file_prompt(pull_request_id: int) -> None:
     """
     Print the prompt for the next file to review.
@@ -279,6 +307,12 @@ def print_next_file_prompt(pull_request_id: int) -> None:
     print("=" * 60)
 
     if status["all_complete"]:
+        # Mark the active review session as completed
+        try:
+            _complete_active_session(pull_request_id)
+        except Exception as e:
+            print(f"Warning: Could not complete review session: {e}", file=sys.stderr)
+
         # All files reviewed
         print("ALL FILES REVIEWED - READY FOR DECISION")
         print("=" * 60)
