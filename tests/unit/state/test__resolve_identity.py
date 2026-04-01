@@ -117,7 +117,7 @@ class TestResolveIdentityCollision:
         # Both 4 chars → prefer second name (amar)
         assert result == "amar"
 
-    def test_collision_prefers_last_name_on_tie(self, tmp_path):
+    def test_collision_prefers_second_name_on_tie(self, tmp_path):
         """When both extensions yield same length, prefer second name."""
         _setup_identity_owner(tmp_path, "ama", "other@example.com")
 
