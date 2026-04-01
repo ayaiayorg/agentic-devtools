@@ -1174,9 +1174,7 @@ def request_changes_with_suggestion_async(
         set_value("pull_request_id", pull_request_id)
 
     # Validate required values
-    pr_id = _require_int_value(
-        "pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345"
-    )
+    pr_id = _require_int_value("pull_request_id", "agdt-request-changes-with-suggestion --pull-request-id 12345")
     resolved_file_path = _require_value(
         "file_review.file_path", 'agdt-request-changes-with-suggestion --file-path "path/to/file"'
     )
