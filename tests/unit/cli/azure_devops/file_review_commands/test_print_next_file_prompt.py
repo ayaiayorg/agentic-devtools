@@ -142,7 +142,8 @@ class TestPrintNextFilePrompt:
             with patch(
                 "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
             ) as mock_complete:
-                print_next_file_prompt(pull_request_id=99)
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
+                    print_next_file_prompt(pull_request_id=99)
 
         mock_complete.assert_called_once_with(99)
 
@@ -187,11 +188,33 @@ class TestPrintNextFilePrompt:
                 "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
                 side_effect=RuntimeError("lock timeout"),
             ):
-                # Should not raise
-                print_next_file_prompt(pull_request_id=42)
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=False):
+                    # Should not raise
+                    print_next_file_prompt(pull_request_id=42)
 
         captured = capsys.readouterr()
         assert "Warning" in captured.err
         assert "complete review session" in captured.err
         # The completion message should still be printed
         assert "READY FOR DECISION" in captured.out
+
+    def test_skips_complete_active_session_in_dry_run(self, tmp_path):
+        """Should not call _complete_active_session when dry_run is enabled."""
+        queue_data = {
+            "pending": [],
+            "completed": [{"path": "src/a.ts"}],
+        }
+        queue_file = tmp_path / "queue.json"
+        queue_file.write_text(json.dumps(queue_data))
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
+            return_value=queue_file,
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
+            ) as mock_complete:
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=True):
+                    print_next_file_prompt(pull_request_id=42)
+
+        mock_complete.assert_not_called()
