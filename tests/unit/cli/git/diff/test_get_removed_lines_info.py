@@ -118,3 +118,20 @@ class TestGetRemovedLinesInfo:
 
             call_args = mock_run.call_args[0][0]
             assert ":/src/file.py" in call_args
+
+    def test_does_not_skip_content_starting_with_double_dash(self):
+        """Should not skip removed lines whose content starts with '--'."""
+        diff_output = """@@ -1,3 +1,2 @@
+ line 1
+---decrement operator
+ line 3"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_removed_lines_info("main", "feature", "file.py")
+
+            assert len(result.lines) == 1
+            assert result.lines[0].content == "--decrement operator"

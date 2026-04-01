@@ -115,3 +115,20 @@ class TestGetAddedLinesInfo:
 
             call_args = mock_run.call_args[0][0]
             assert ":/src/file.py" in call_args
+
+    def test_does_not_skip_content_starting_with_double_plus(self):
+        """Should not skip added lines whose content starts with '++'."""
+        diff_output = """@@ -1,2 +1,3 @@
+ line 1
++++increment operator
+ line 2"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_added_lines_info("main", "feature", "file.py")
+
+            assert len(result.lines) == 1
+            assert result.lines[0].content == "++increment operator"

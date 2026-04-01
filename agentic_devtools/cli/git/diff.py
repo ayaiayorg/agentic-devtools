@@ -182,7 +182,9 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
                 current_line = int(match.group(1))
             continue
 
-        if raw_line.startswith("+") and not raw_line.startswith("+++"):
+        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
+        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
+        if raw_line.startswith("+") and not raw_line.startswith("+++ "):
             added_lines.append(
                 AddedLine(
                     line_number=current_line,
@@ -190,7 +192,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
                 )
             )
             current_line += 1
-        elif raw_line.startswith("-") and not raw_line.startswith("---"):
+        elif raw_line.startswith("-") and not raw_line.startswith("--- "):
             # Removed line, don't increment
             continue
         elif raw_line.startswith(" "):
@@ -239,7 +241,9 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
                 current_line = int(match.group(1))
             continue
 
-        if raw_line.startswith("-") and not raw_line.startswith("---"):
+        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
+        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
+        if raw_line.startswith("-") and not raw_line.startswith("--- "):
             removed_lines.append(
                 RemovedLine(
                     line_number=current_line,
@@ -247,7 +251,7 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
                 )
             )
             current_line += 1
-        elif raw_line.startswith("+") and not raw_line.startswith("+++"):
+        elif raw_line.startswith("+") and not raw_line.startswith("+++ "):
             # Added line, don't increment old-file counter
             continue
         elif raw_line.startswith(" "):
