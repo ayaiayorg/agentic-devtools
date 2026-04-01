@@ -529,8 +529,8 @@ class TestSubmitReviewsBatchContext:
         )
         submit_reviews()
 
-        # Should be called with context first, then None in finally
-        assert mock_set_ctx.call_args_list == [call(mock_ctx), call(None)]
+        # Should be called with None first (clear stale), then context, then None in finally
+        assert mock_set_ctx.call_args_list == [call(None), call(mock_ctx), call(None)]
 
     @patch("agentic_devtools.cli.azure_devops.file_review_commands.fetch_reviewer_context")
     @patch("agentic_devtools.cli.azure_devops.file_review_commands.set_batch_context")

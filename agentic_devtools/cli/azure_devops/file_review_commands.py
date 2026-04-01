@@ -1445,6 +1445,8 @@ def submit_reviews() -> None:
     # Graceful degradation: if context fetch fails (e.g. missing PAT in tests),
     # each file falls back to per-file fetching inside mark_file_reviewed().
     dry_run = is_dry_run()
+    # Clear any stale batch context from a previous call before prefetching.
+    set_batch_context(None)
     if not dry_run:
         try:
             batch_ctx = fetch_reviewer_context(AzureDevOpsConfig.from_state())
