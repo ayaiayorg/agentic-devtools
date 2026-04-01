@@ -72,6 +72,7 @@ git log --oneline --merges origin/main..HEAD
 
 # 2. Detect divergence between local branch and its remote tracking branch
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git fetch origin "${BRANCH}" 2>/dev/null || echo "warning: could not fetch origin/${BRANCH} (branch may not exist on remote)"
 git rev-list --left-right --count "origin/${BRANCH}...HEAD" 2>/dev/null || echo "no remote tracking branch"
 
 # 3. Check for in-progress cherry-pick or rebase
@@ -189,11 +190,14 @@ Approach A** — interactive rebase does not handle merge commits or diverged hi
 
 ### Approach A: Soft Reset (Recommended — Required in Safe Mode)
 
-Simpler and handles merge commits cleanly:
+Simpler and handles merge commits cleanly. Use the `MERGE_BASE` SHA captured in Phase 1 as the
+reset target — **not** `origin/main` directly — to avoid staging unintended reversions if
+`origin/main` has advanced since the branch was created.
 
 ```bash
-# Soft reset to origin/main — keeps all changes staged
-git reset --soft origin/main
+# Soft reset to the captured merge-base — keeps all changes staged
+# (using MERGE_BASE from Phase 1 ensures we reset to the PR's actual base)
+git reset --soft "${MERGE_BASE}"
 
 # Preferred: use agentic-devtools with a multi-line commit message
 # After soft reset, skip auto-stage/rebase/push — the force-push happens in Phase 5
@@ -255,8 +259,9 @@ git diff origin/main..HEAD --stat
 # 4. Verify commit message follows conventions
 git log -1 --format="%B"
 
-# 5. Verify branch still points to correct parent
-git merge-base --is-ancestor origin/main HEAD && echo "OK: origin/main is ancestor" || echo "ERROR: origin/main is not ancestor"
+# 5. Verify the merge-base has not changed (ensures the PR base is stable)
+CURRENT_MERGE_BASE=$(git merge-base origin/main HEAD)
+[ "${CURRENT_MERGE_BASE}" = "${MERGE_BASE}" ] && echo "OK: merge-base unchanged" || echo "WARNING: merge-base changed from ${MERGE_BASE} to ${CURRENT_MERGE_BASE}"
 ```
 
 ### Patch-Equivalence Check
@@ -265,18 +270,22 @@ git merge-base --is-ancestor origin/main HEAD && echo "OK: origin/main is ancest
 captured in Phase 1 to ensure the effective change set has not been altered.
 
 ```bash
-# Recompute the merge-base (should be the same)
+# Sanity check: recompute the merge-base and warn if it changed
 POST_MERGE_BASE=$(git merge-base origin/main HEAD)
+if [ "${POST_MERGE_BASE}" != "${MERGE_BASE}" ]; then
+    echo "WARNING: merge-base changed from ${MERGE_BASE} to ${POST_MERGE_BASE}."
+    echo "Using original MERGE_BASE for diff comparison to keep checks stable."
+fi
 
 # Record post-squash HEAD SHA
 POST_SQUASH_SHA=$(git rev-parse HEAD)
 
-# Compute post-squash diff hash using the same method as Phase 1
-POST_DIFF_HASH=$(git diff --binary "${POST_MERGE_BASE}"..HEAD | git hash-object --stdin)
+# Compute post-squash diff hash using the SAME base as Phase 1 (not the recomputed one)
+POST_DIFF_HASH=$(git diff --binary "${MERGE_BASE}"..HEAD | git hash-object --stdin)
 echo "Post-squash diff hash: ${POST_DIFF_HASH}"
 
-# Capture post-squash stats
-POST_STATS=$(git diff --stat "${POST_MERGE_BASE}"..HEAD)
+# Capture post-squash stats using the same base
+POST_STATS=$(git diff --stat "${MERGE_BASE}"..HEAD)
 echo "Post-squash stats:"
 echo "${POST_STATS}"
 
@@ -343,7 +352,7 @@ Confirm all items pass:
 - [ ] Working tree is clean after squash
 - [ ] Exactly one commit ahead of origin/main
 - [ ] Commit message follows repo conventions
-- [ ] Branch still points to correct parent (origin/main is ancestor)
+- [ ] Branch merge-base is unchanged from Phase 1 capture
 - [ ] No unintended files staged or lost
 - [ ] **Diff hashes match** (pre-squash and post-squash are content-equivalent)
 - [ ] Tests pass (if applicable)
@@ -405,7 +414,9 @@ computed against the merge-base.
 2. **Merge commit contamination**: If the branch contains merge commits (e.g., merging `main`
    into the feature branch), those commits pull in changes from `main` that inflate the diff.
    The soft-reset approach (Phase 3 Approach A) correctly collapses these into the intended
-   change set because `git reset --soft origin/main` preserves only the working tree delta.
+   change set because it resets softly to the captured merge-base SHA (from Phase 1),
+   e.g. `git reset --soft "${MERGE_BASE}"`, which preserves only the working tree delta
+   against the PR base.
 3. **Diverged remote**: If the remote tracking branch has diverged (e.g., a collaborator pushed
    additional commits), the local squash may be based on a different state than the remote. The
    `--force-with-lease` in Phase 5 protects against this by refusing to push if the remote has
