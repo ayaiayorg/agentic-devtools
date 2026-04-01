@@ -1007,9 +1007,17 @@ class TestSetupCmd:
                                         with patch.object(commands, "_prompt_project_config"):
                                             with patch.object(commands, "_prompt_copilot_model"):
                                                 with patch(
-                                                    "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow"
-                                                ) as mock_pr:
-                                                    commands.setup_cmd()
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow"
+                                                        ) as mock_pr:
+                                                            commands.setup_cmd()
         # PR workflow should NOT be called
         mock_pr.assert_not_called()
 
