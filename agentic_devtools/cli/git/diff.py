@@ -11,6 +11,27 @@ from dataclasses import dataclass
 from ..subprocess_utils import run_safe
 
 
+def _is_diff_file_header(raw_line: str) -> bool:
+    """Check whether *raw_line* is a ``---`` / ``+++`` file-header line.
+
+    Git diff file-header lines have very specific formats:
+      ``--- a/<path>``  or  ``--- /dev/null``   (old file)
+      ``+++ b/<path>``  or  ``+++ /dev/null``   (new file)
+
+    A bare ``"+++ "`` or ``"--- "`` prefix check is **not** safe because a
+    content line starting with ``"++ "`` or ``"-- "`` (two symbols + space)
+    would be prefixed with the diff marker and become ``"+++ ..."`` /
+    ``"--- ..."``, matching the naïve check.  This helper avoids that
+    false-positive by matching only the real header prefixes.
+    """
+    return (
+        raw_line.startswith("+++ b/")
+        or raw_line.startswith("--- a/")
+        or raw_line == "+++ /dev/null"
+        or raw_line == "--- /dev/null"
+    )
+
+
 @dataclass
 class DiffEntry:
     """Represents a single file change in a git diff."""
@@ -168,6 +189,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
         ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -190,9 +212,12 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
                 current_line = int(match.group(1))
             continue
 
-        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
-        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
-        if raw_line.startswith("+") and not raw_line.startswith("+++ "):
+        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
+        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
+        if _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("+"):
             added_lines.append(
                 AddedLine(
                     line_number=current_line,
@@ -200,7 +225,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
                 )
             )
             current_line += 1
-        elif raw_line.startswith("-") and not raw_line.startswith("--- "):
+        elif raw_line.startswith("-"):
             # Removed line, don't increment
             continue
         elif raw_line.startswith(" "):
@@ -250,9 +275,12 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
                 current_line = int(match.group(1))
             continue
 
-        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
-        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
-        if raw_line.startswith("-") and not raw_line.startswith("--- "):
+        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
+        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
+        if _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("-"):
             removed_lines.append(
                 RemovedLine(
                     line_number=current_line,
@@ -260,7 +288,7 @@ def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> Remove
                 )
             )
             current_line += 1
-        elif raw_line.startswith("+") and not raw_line.startswith("+++ "):
+        elif raw_line.startswith("+"):
             # Added line, don't increment old-file counter
             continue
         elif raw_line.startswith(" "):
@@ -322,9 +350,12 @@ def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLines
                 current_new_line = int(match.group(2))
             continue
 
-        # Match file header lines by their exact format ("--- a/..." / "+++ b/...")
-        # rather than a bare prefix, so content lines starting with "--" or "++" are not skipped.
-        if raw_line.startswith("+") and not raw_line.startswith("+++ "):
+        # Skip diff file-header lines ("--- a/..." / "+++ b/..." / ".../dev/null")
+        # using _is_diff_file_header() so content starting with "-- " or "++ " is kept.
+        if _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("+"):
             added_lines.append(
                 AddedLine(
                     line_number=current_new_line,
@@ -332,7 +363,7 @@ def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLines
                 )
             )
             current_new_line += 1
-        elif raw_line.startswith("-") and not raw_line.startswith("--- "):
+        elif raw_line.startswith("-"):
             removed_lines.append(
                 RemovedLine(
                     line_number=current_old_line,

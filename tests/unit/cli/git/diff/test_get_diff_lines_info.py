@@ -185,6 +185,40 @@ class TestGetDiffLinesInfo:
             assert len(result.added.lines) == 1
             assert result.added.lines[0].content == "++increment operator"
 
+    def test_does_not_skip_content_starting_with_double_plus_space(self):
+        """Should not skip added lines whose content starts with '++ ' (two plus + space)."""
+        diff_output = """@@ -1,2 +1,3 @@
+ line 1
++++ spaced content
+ line 2"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_diff_lines_info("main", "feature", "file.py")
+
+            assert len(result.added.lines) == 1
+            assert result.added.lines[0].content == "++ spaced content"
+
+    def test_does_not_skip_content_starting_with_double_dash_space(self):
+        """Should not skip removed lines whose content starts with '-- ' (two dashes + space)."""
+        diff_output = """@@ -1,3 +1,2 @@
+ line 1
+--- spaced content
+ line 3"""
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = diff_output
+
+        with patch("agentic_devtools.cli.git.diff.run_safe", return_value=mock_result):
+            result = get_diff_lines_info("main", "feature", "file.py")
+
+            assert len(result.removed.lines) == 1
+            assert result.removed.lines[0].content == "-- spaced content"
+
     def test_single_subprocess_call(self):
         """Should only invoke git diff once (not twice as before)."""
         mock_result = MagicMock()
