@@ -251,6 +251,41 @@ def trigger_in_progress_for_file(
             save_review_state(review_state)
 
 
+class _NoChange(Exception):
+    """Sentinel raised inside read_modify_write_review_state to skip save."""
+
+
+def _complete_active_session(pull_request_id: int) -> None:
+    """Mark the latest in-progress review session as completed.
+
+    Uses ``read_modify_write_review_state`` for atomic load-mutate-save
+    under an exclusive file lock.  If no in-progress session exists the
+    call is a no-op — a ``_NoChange`` sentinel is raised inside the
+    context manager so the file is not rewritten needlessly.
+
+    Silently returns when ``review-state.json`` does not exist (matching
+    the pattern in ``trigger_in_progress_for_file``).
+
+    Args:
+        pull_request_id: PR ID whose review state to update.
+    """
+    from .review_state import read_modify_write_review_state
+
+    try:
+        with read_modify_write_review_state(pull_request_id) as review_state:
+            # Iterate in reverse to find the latest in-progress session
+            for session in reversed(review_state.sessions):
+                if session.status == "in_progress":
+                    session.status = "completed"
+                    session.completedUtc = datetime.now(timezone.utc).isoformat()
+                    break
+            else:
+                # No in-progress session found — skip the save.
+                raise _NoChange
+    except (FileNotFoundError, _NoChange):
+        return
+
+
 def print_next_file_prompt(pull_request_id: int) -> None:
     """
     Print the prompt for the next file to review.
@@ -279,6 +314,13 @@ def print_next_file_prompt(pull_request_id: int) -> None:
     print("=" * 60)
 
     if status["all_complete"]:
+        # Mark the active review session as completed (skipped in dry-run mode)
+        if not is_dry_run():
+            try:
+                _complete_active_session(pull_request_id)
+            except Exception as e:
+                print(f"Warning: Could not complete review session: {e}", file=sys.stderr)
+
         # All files reviewed
         print("ALL FILES REVIEWED - READY FOR DECISION")
         print("=" * 60)
