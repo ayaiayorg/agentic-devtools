@@ -164,11 +164,19 @@ def run_setup_with_pr_workflow(
             )
             # Pop the auto-stash so setup_fn() runs with the user's
             # uncommitted changes present (same as running without the
-            # PR workflow).  Clear did_stash to prevent a redundant pop
-            # in the finally block.
+            # PR workflow).  Only clear did_stash on success; on failure
+            # leave it set so the finally block can still warn the user.
             if did_stash:
-                run_git("stash", "pop", check=False)
-                did_stash = False
+                pop_result = run_git("stash", "pop", check=False)
+                if pop_result.returncode == 0:
+                    did_stash = False
+                else:
+                    print(
+                        "Warning: 'git stash pop' failed while restoring your changes. "
+                        "Your work may still be stashed; please run 'git stash list' "
+                        "and restore it manually.",
+                        file=sys.stderr,
+                    )
             setup_fn()
             return PrWorkflowResult(
                 success=True,
