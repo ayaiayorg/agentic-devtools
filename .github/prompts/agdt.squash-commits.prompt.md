@@ -332,25 +332,27 @@ This report can be used by CI pipelines or other tools to verify squash integrit
 
 ```bash
 # Only write the report if a filepath was specified
-# Construct JSON verification report
-cat > "<filepath>" << 'REPORT_EOF'
+# Note: unquoted heredoc so shell variables are expanded automatically
+EQUIVALENT=$( [ "${PRE_DIFF_HASH}" = "${POST_DIFF_HASH}" ] && echo "true" || echo "false" )
+PRE_STATS_SUMMARY=$(git diff --stat "${MERGE_BASE}".."${PRE_SQUASH_SHA}" | tail -1)
+POST_STATS_SUMMARY=$(git diff --stat "${MERGE_BASE}"..HEAD | tail -1)
+cat > "<filepath>" << REPORT_EOF
 {
-  "merge_base": "<MERGE_BASE value>",
-  "pre_squash_sha": "<PRE_SQUASH_SHA value>",
-  "post_squash_sha": "<POST_SQUASH_SHA value>",
-  "pre_diff_hash": "<PRE_DIFF_HASH value>",
-  "post_diff_hash": "<POST_DIFF_HASH value>",
-  "pre_stats": "<PRE_STATS summary line>",
-  "post_stats": "<POST_STATS summary line>",
-  "equivalent": true_or_false,
-  "warnings": ["list of any warnings from safety detection"]
+  "merge_base": "${MERGE_BASE}",
+  "pre_squash_sha": "${PRE_SQUASH_SHA}",
+  "post_squash_sha": "${POST_SQUASH_SHA}",
+  "pre_diff_hash": "${PRE_DIFF_HASH}",
+  "post_diff_hash": "${POST_DIFF_HASH}",
+  "pre_stats": "${PRE_STATS_SUMMARY}",
+  "post_stats": "${POST_STATS_SUMMARY}",
+  "equivalent": ${EQUIVALENT},
+  "warnings": []
 }
 REPORT_EOF
 ```
 
-Replace the placeholder values with the actual captured values. Set `"equivalent"` to `true` if
-the diff hashes match, `false` otherwise. Include any warnings from the safety detection phase
-(e.g., `"merge commits detected"`, `"remote divergence detected"`).
+Populate the `"warnings"` array with any warnings from the safety detection phase
+(e.g., `"merge commits detected"`, `"merge-base changed"`).
 
 ### Run Tests
 
