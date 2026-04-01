@@ -42,9 +42,7 @@ class TestCachedReviewerContext:
 
     def test_construction_with_none_optional_fields(self):
         """Test creating CachedReviewerContext with None for optional fields."""
-        auth_user = AuthenticatedUser(
-            display_name=None, descriptor=None, storage_key="guid-1", subject_descriptor=None
-        )
+        auth_user = AuthenticatedUser(display_name=None, descriptor=None, storage_key="guid-1", subject_descriptor=None)
         ctx = CachedReviewerContext(
             requests=MagicMock(),
             headers={},

@@ -86,9 +86,7 @@ class TestMarkFileReviewedWithCachedContext:
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._update_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_project_id_via_api")
-    def test_skips_reviewer_entry_fetch_when_cached(
-        self, mock_project_id, mock_update, mock_reviewer_entry, capsys
-    ):
+    def test_skips_reviewer_entry_fetch_when_cached(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
         """When cached_context.reviewer_entry is populated, _get_reviewer_entry is NOT called."""
         mock_project_id.return_value = "proj-id-1"
 
@@ -206,9 +204,7 @@ class TestMarkFileReviewedWithBatchContext:
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._update_reviewer_entry")
     @patch("agentic_devtools.cli.azure_devops.mark_reviewed._get_project_id_via_api")
-    def test_update_failure_leaves_reviewer_entry_none(
-        self, mock_project_id, mock_update, mock_reviewer_entry, capsys
-    ):
+    def test_update_failure_leaves_reviewer_entry_none(self, mock_project_id, mock_update, mock_reviewer_entry, capsys):
         """When _update_reviewer_entry fails, cached_context.reviewer_entry stays None."""
         mock_reviewer_entry.return_value = {"reviewedFiles": []}
         mock_update.side_effect = Exception("Update failed")
