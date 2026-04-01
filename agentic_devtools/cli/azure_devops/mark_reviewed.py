@@ -345,16 +345,16 @@ def get_batch_context() -> CachedReviewerContext | None:
     return _batch_cached_context
 
 
-def fetch_reviewer_context(config: AzureDevOpsConfig) -> CachedReviewerContext:
-    """Perform the one-time setup to build a ``CachedReviewerContext``.
+def _build_reviewer_context(config: AzureDevOpsConfig, *, status_label: str = "") -> CachedReviewerContext:
+    """Shared implementation for building a ``CachedReviewerContext``.
 
-    Calls ``require_requests()``, ``get_pat()``, ``get_auth_headers()``,
-    ``_get_connection_data()``, and ``_extract_authenticated_user()``.
-    Resolves ``reviewer_id`` (including Graph API fallback) and extracts
-    ``instance_id`` and ``organization_account_name``.
+    Contains the common setup logic used by both ``fetch_reviewer_context()``
+    (batch path) and ``mark_file_reviewed()`` (standalone path).
 
     Args:
         config: Azure DevOps configuration (used to compute ``org_root``).
+        status_label: Optional label appended to the status message
+            (e.g. ``"cached for batch"``).
 
     Returns:
         A fully-populated ``CachedReviewerContext`` with
@@ -372,7 +372,8 @@ def fetch_reviewer_context(config: AzureDevOpsConfig) -> CachedReviewerContext:
     pat = get_pat()
     headers = get_auth_headers(pat)
 
-    print("Retrieving authenticated user details (cached for batch)...")
+    label_suffix = f" ({status_label})" if status_label else ""
+    print(f"Retrieving authenticated user details{label_suffix}...")
     connection_data = _get_connection_data(requests, headers, org_root)
     auth_user = _extract_authenticated_user(connection_data)
     instance_id = connection_data.get("instanceId")
@@ -404,6 +405,27 @@ def fetch_reviewer_context(config: AzureDevOpsConfig) -> CachedReviewerContext:
         organization_account_name=organization_account_name,
         reviewer_entry=None,
     )
+
+
+def fetch_reviewer_context(config: AzureDevOpsConfig) -> CachedReviewerContext:
+    """Perform the one-time setup to build a ``CachedReviewerContext``.
+
+    Delegates to ``_build_reviewer_context()`` with a batch-specific
+    status label.  This is the public entry point used by
+    ``submit_reviews()`` to prefetch reviewer details once per batch.
+
+    Args:
+        config: Azure DevOps configuration (used to compute ``org_root``).
+
+    Returns:
+        A fully-populated ``CachedReviewerContext`` with
+        ``reviewer_entry=None`` (lazily populated on first use).
+
+    Raises:
+        RuntimeError: When the reviewer identity cannot be resolved.
+        Exception: On network / auth failures from underlying API calls.
+    """
+    return _build_reviewer_context(config, status_label="cached for batch")
 
 
 # =============================================================================
@@ -724,45 +746,17 @@ def mark_file_reviewed(  # pragma: no cover
         instance_id = ctx.instance_id
         organization_account_name = ctx.organization_account_name
     else:
-        # Standalone (non-batch) path — fetch everything from scratch
-        requests = require_requests()
-        pat = get_pat()
-        headers = get_auth_headers(pat)
-
-        # Get authenticated user details
-        print("Retrieving authenticated user details...")
+        # Standalone (non-batch) path — delegate to shared helper
         try:
-            connection_data = _get_connection_data(requests, headers, org_root)
+            ctx = _build_reviewer_context(config)
         except Exception as e:
-            print(f"Failed to retrieve Azure DevOps connection data: {e}", file=sys.stderr)
+            print(f"Failed to set up reviewer context: {e}", file=sys.stderr)
             return False
-
-        auth_user = _extract_authenticated_user(connection_data)
-        instance_id = connection_data.get("instanceId")
-        organization_account_name = _get_organization_account_name(org_root)
-
-        # Determine reviewer identifier - must be storage key (GUID), not descriptor
-        # The Reviewers API requires the storage key as the identifier
-        reviewer_id = auth_user.storage_key
-
-        # If no storage key in connection data, try to resolve via Graph API
-        if not reviewer_id:
-            # Try subject_descriptor first, then descriptor
-            descriptor_to_resolve = auth_user.subject_descriptor or auth_user.descriptor
-            if descriptor_to_resolve:  # pragma: no cover
-                print(f"Resolving storage key via Graph API for descriptor: {descriptor_to_resolve}")
-                reviewer_id = _resolve_storage_key_via_graph(requests, headers, org_root, descriptor_to_resolve)
-
-        if not reviewer_id:
-            print("Unable to resolve reviewer identity (storage key) for current user.", file=sys.stderr)
-            return False
-
-        identity_summary = f"Authenticated as '{auth_user.display_name or reviewer_id}'"
-        if auth_user.descriptor:  # pragma: no cover
-            identity_summary += f" (descriptor: {auth_user.descriptor})"
-        if reviewer_id:
-            identity_summary += f" (storageKey: {reviewer_id})"
-        print(identity_summary)
+        requests = ctx.requests
+        headers = ctx.headers
+        reviewer_id = ctx.reviewer_id
+        instance_id = ctx.instance_id
+        organization_account_name = ctx.organization_account_name
 
     # Get existing reviewer entry (skip if cached context has one)
     if ctx is not None and ctx.reviewer_entry is not None:
