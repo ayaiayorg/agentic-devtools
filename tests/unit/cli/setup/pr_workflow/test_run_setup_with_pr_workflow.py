@@ -10,6 +10,7 @@ from agentic_devtools.cli.setup.pr_workflow import run_setup_with_pr_workflow
 _RUN_GIT = "agentic_devtools.cli.setup.pr_workflow.run_git"
 _CREATE_PR = "agentic_devtools.cli.azure_devops.commands.create_pull_request"
 _SET_VALUE = "agentic_devtools.state.set_value"
+_GET_VALUE = "agentic_devtools.state.get_value"
 
 
 def _ok(stdout: str = "") -> CompletedProcess:
@@ -49,7 +50,8 @@ class TestRunSetupWithPrWorkflow:
             ]
             with patch(_CREATE_PR):
                 with patch(_SET_VALUE) as mock_set:
-                    result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+                    with patch(_GET_VALUE, return_value=None):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         setup_fn.assert_called_once()
         assert result["success"] is True
@@ -60,6 +62,11 @@ class TestRunSetupWithPrWorkflow:
         mock_set.assert_any_call("source_branch", "chore/agdt-setup-1.0.0")
         mock_set.assert_any_call("title", "chore: agdt-setup v1.0.0")
         mock_set.assert_any_call("draft", "false")
+
+        # Verify prior state values were restored (None when previously unset)
+        mock_set.assert_any_call("source_branch", None)
+        mock_set.assert_any_call("title", None)
+        mock_set.assert_any_call("draft", None)
 
     # ── No changes path ────────────────────────────────────────────────
 
@@ -202,7 +209,8 @@ class TestRunSetupWithPrWorkflow:
             ]
             with patch(_CREATE_PR):
                 with patch(_SET_VALUE):
-                    result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+                    with patch(_GET_VALUE, return_value=None):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         assert result["branch_created"] == "chore/agdt-setup-1.0.0-2"
 
@@ -235,7 +243,8 @@ class TestRunSetupWithPrWorkflow:
                 side_effect=RuntimeError("Azure DevOps unavailable"),
             ):
                 with patch(_SET_VALUE):
-                    result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+                    with patch(_GET_VALUE, return_value=None):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         assert result["success"] is True
         assert result["branch_created"] == "chore/agdt-setup-1.0.0"
@@ -272,7 +281,8 @@ class TestRunSetupWithPrWorkflow:
                 side_effect=SystemExit(1),
             ):
                 with patch(_SET_VALUE):
-                    result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+                    with patch(_GET_VALUE, return_value=None):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
 
         assert result["success"] is True
         assert result["branch_created"] == "chore/agdt-setup-1.0.0"
@@ -281,6 +291,83 @@ class TestRunSetupWithPrWorkflow:
 
         err = capsys.readouterr().err
         assert "PR creation failed" in err
+
+    def test_pr_creation_restores_prior_state_values(self):
+        """State keys are restored to their prior values after PR creation."""
+        setup_fn = MagicMock()
+
+        prior_values = {
+            "source_branch": "old-branch",
+            "title": "old-title",
+            "draft": "true",
+        }
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _ok(),  # checkout -b
+                _ok(),  # add .
+                _ok(),  # commit
+                _ok(),  # push
+                _ok(),  # checkout original (finally)
+                _ok(),  # stash pop (finally)
+            ]
+            with patch(_CREATE_PR):
+                with patch(_SET_VALUE) as mock_set:
+                    with patch(_GET_VALUE, side_effect=lambda k: prior_values.get(k)):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["pr_created"] is True
+
+        # The final set_value calls must restore the prior values
+        mock_set.assert_any_call("source_branch", "old-branch")
+        mock_set.assert_any_call("title", "old-title")
+        mock_set.assert_any_call("draft", "true")
+
+    def test_pr_creation_failure_still_restores_state_values(self):
+        """State keys are restored even when PR creation raises."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain
+                _fail(),  # rev-parse --verify → free
+                _ok(""),  # ls-remote → free
+                _ok(),  # checkout -b
+                _ok(),  # add .
+                _ok(),  # commit
+                _ok(),  # push
+                _ok(),  # checkout original (finally)
+                _ok(),  # stash pop (finally)
+            ]
+            with patch(
+                _CREATE_PR,
+                side_effect=RuntimeError("fail"),
+            ):
+                with patch(_SET_VALUE) as mock_set:
+                    with patch(_GET_VALUE, return_value="existing"):
+                        result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["pr_created"] is False
+
+        # Prior values are restored even after failure
+        mock_set.assert_any_call("source_branch", "existing")
+        mock_set.assert_any_call("title", "existing")
+        mock_set.assert_any_call("draft", "existing")
 
     # ── Push failure ───────────────────────────────────────────────────
 

@@ -237,16 +237,27 @@ def run_setup_with_pr_workflow(
                                 from agentic_devtools.cli.azure_devops.commands import (
                                     create_pull_request,
                                 )
-                                from agentic_devtools.state import set_value
+                                from agentic_devtools.state import get_value, set_value
 
-                                pr_title = f"chore: agdt-setup v{version}"
-                                set_value("source_branch", branch_name)
-                                set_value("title", pr_title)
-                                set_value("draft", "false")
+                                # Preserve existing state so we can restore it
+                                prev_source_branch = get_value("source_branch")
+                                prev_title = get_value("title")
+                                prev_draft = get_value("draft")
 
-                                create_pull_request()
-                                pr_created = True
-                                message = f"PR created from branch '{branch_name}'."
+                                try:
+                                    pr_title = f"chore: agdt-setup v{version}"
+                                    set_value("source_branch", branch_name)
+                                    set_value("title", pr_title)
+                                    set_value("draft", "false")
+
+                                    create_pull_request()
+                                    pr_created = True
+                                    message = f"PR created from branch '{branch_name}'."
+                                finally:
+                                    # Restore prior values (None when previously unset)
+                                    set_value("source_branch", prev_source_branch)
+                                    set_value("title", prev_title)
+                                    set_value("draft", prev_draft)
                             except SystemExit as exc:
                                 # create_pull_request() calls sys.exit() on
                                 # validation/az failures — treat as non-fatal.
