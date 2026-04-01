@@ -68,13 +68,14 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
     Algorithm:
     - Read ``git config user.email``, take the local part (before ``@``).
     - Split on ``.``, ``-``, ``_`` to extract name parts (lowercased).
-    - Initial candidate: ``first_part[0] + last_part[0:2]`` (3 chars).
+    - Initial candidate: ``first_part[0] + second_part[0:2]`` (3 chars).
+      When the email has 3+ segments, uses the 2nd segment (index 1), not the last.
       Single-part names use first 3 chars.  Very short parts use all chars.
     - Scan existing directories under ``{git_root}/.agdt/workflows/`` and read
       ``.identity-owner`` files to detect collisions (same candidate but
       different email).
-    - On collision: try extending last name by 1 char and first name by 1 char,
-      pick whichever produces a shorter unique result (prefer last name on tie).
+    - On collision: try extending second name by 1 char and first name by 1 char,
+      pick whichever produces a shorter unique result (prefer second name on tie).
     - If all chars exhausted: append numeric suffix ``1``, ``2``, … until unique.
 
     Returns ``"default"`` when ``git config user.email`` is unavailable.
@@ -110,13 +111,13 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
         return "default"
 
     first = name_parts[0]
-    last = name_parts[-1] if len(name_parts) > 1 else first
+    second = name_parts[1] if len(name_parts) > 1 else first
 
     # Build initial candidate (3 chars when possible)
     if len(name_parts) == 1:
         candidate = first[:3]
     else:
-        candidate = first[0] + last[:2]
+        candidate = first[0] + second[:2]
 
     if not candidate:
         return "default"  # pragma: no cover – defensive; name_parts is non-empty
@@ -147,41 +148,42 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
     if not _is_collision(candidate):
         return candidate
 
-    # Collision resolution: try extending from last name / first name
+    # Collision resolution: try extending from second name / first name
     first_idx = 1  # chars consumed from first name (already used [0])
-    last_idx = 2 if len(name_parts) > 1 else 3  # chars consumed from last name
+    second_idx = 2 if len(name_parts) > 1 else 3  # chars consumed from second name
 
-    max_iters = len(first) + len(last) + 10  # safety bound
+    max_iters = len(first) + len(second) + 10  # safety bound
     for _ in range(max_iters):
         opt_a: str | None = None
         opt_b: str | None = None
 
-        # Option A: extend last name
-        if last_idx < len(last):
-            opt_a = first[:first_idx] + last[: last_idx + 1] if len(name_parts) > 1 else first[: last_idx + 1]
+        # Option A: extend second name
+        if second_idx < len(second):
+            opt_a = first[:first_idx] + second[: second_idx + 1] if len(name_parts) > 1 else first[: second_idx + 1]
         # Option B: extend first name
         if first_idx < len(first) and len(name_parts) > 1:
-            opt_b = first[: first_idx + 1] + last[:last_idx]
+            opt_b = first[: first_idx + 1] + second[:second_idx]
 
         # Evaluate which option is unique
         a_unique = opt_a is not None and not _is_collision(opt_a)
         b_unique = opt_b is not None and not _is_collision(opt_b)
 
         if a_unique and b_unique:
-            # Both unique — pick shorter; prefer A (last name) on tie
-            if len(opt_a) <= len(opt_b):  # type: ignore[arg-type]
-                return opt_a  # type: ignore[return-value]
-            return opt_b  # type: ignore[return-value]  # pragma: no cover – opt_a/opt_b same length at equal indices
+            # Both unique — pick shorter; prefer A (second name) on tie
+            assert opt_a is not None and opt_b is not None
+            if len(opt_a) <= len(opt_b):
+                return opt_a
+            return opt_b  # pragma: no cover – opt_a/opt_b same length at equal indices
         elif a_unique:
-            last_idx += 1
-            return opt_a  # type: ignore[return-value]
+            assert opt_a is not None
+            return opt_a
         elif b_unique:
-            first_idx += 1
-            return opt_b  # type: ignore[return-value]
+            assert opt_b is not None
+            return opt_b
         else:
             # Neither unique — advance both indices and keep trying
             if opt_a is not None:
-                last_idx += 1
+                second_idx += 1
                 candidate = opt_a
             if opt_b is not None:
                 first_idx += 1

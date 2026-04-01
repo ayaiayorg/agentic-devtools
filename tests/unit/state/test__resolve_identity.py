@@ -67,7 +67,7 @@ class TestResolveIdentityBasic:
         assert result == "jdo"
 
     def test_mixed_delimiters(self, tmp_path):
-        """john-paul.doe_smith → 4 parts; first='john', last='smith' → jsm."""
+        """john-paul.doe_smith → 4 parts; first='john', second='paul' → jpa."""
         email = "john-paul.doe_smith@example.com"
         with patch(
             "agentic_devtools.state.subprocess.run",
@@ -76,8 +76,17 @@ class TestResolveIdentityBasic:
             result = state._resolve_identity(tmp_path)
 
         # Split produces ["john", "paul", "doe", "smith"]
-        # first="john"[0] + last="smith"[:2] → "jsm"
-        assert result == "jsm"
+        # first="john"[0] + second="paul"[:2] → "jpa"
+        assert result == "jpa"
+
+    def test_three_part_email_uses_second_segment(self, tmp_path):
+        """Albert.Marsnik.ext@swica.ch → ama (uses 2nd segment 'marsnik', not 3rd 'ext')."""
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("Albert.Marsnik.ext@swica.ch")):
+            result = state._resolve_identity(tmp_path)
+
+        # Split produces ["albert", "marsnik", "ext"]
+        # first="albert"[0] + second="marsnik"[:2] → "ama"
+        assert result == "ama"
 
     def test_no_git_email_returns_default(self, tmp_path):
         """Returns 'default' when git config user.email fails."""
@@ -104,18 +113,18 @@ class TestResolveIdentityCollision:
         with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("albert.marsnik@example.com")):
             result = state._resolve_identity(tmp_path)
 
-        # ama collides → try amar (extend last, 4 chars) vs alma (extend first, 4 chars)
-        # Both 4 chars → prefer last name (amar)
+        # ama collides → try amar (extend second, 4 chars) vs alma (extend first, 4 chars)
+        # Both 4 chars → prefer second name (amar)
         assert result == "amar"
 
-    def test_collision_prefers_last_name_on_tie(self, tmp_path):
-        """When both extensions yield same length, prefer last name."""
+    def test_collision_prefers_second_name_on_tie(self, tmp_path):
+        """When both extensions yield same length, prefer second name."""
         _setup_identity_owner(tmp_path, "ama", "other@example.com")
 
         with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("albert.marsnik@example.com")):
             result = state._resolve_identity(tmp_path)
 
-        # amar and alma both 4 chars → prefer amar (last name extension)
+        # amar and alma both 4 chars → prefer amar (second name extension)
         assert result == "amar"
 
     def test_collision_chain(self, tmp_path):
@@ -136,7 +145,7 @@ class TestResolveIdentityCollision:
         # Use a very short email: a.b@example.com → initial "ab"
         # Set up collisions for all possible char extensions
         _setup_identity_owner(tmp_path, "ab", "other1@example.com")
-        # With only 1 char in first ("a") and 1 char in last ("b"),
+        # With only 1 char in first ("a") and 1 char in second ("b"),
         # there are no chars left to extend. Numeric fallback kicks in.
 
         with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("a.b@example.com")):
@@ -191,7 +200,7 @@ class TestResolveIdentityEdgeCases:
 
         # "ama" is treated as claimed → must resolve to something else
         assert result != "ama"
-        assert result == "amar"  # extends last name
+        assert result == "amar"  # extends second name
 
     def test_unreadable_owner_file_is_collision(self, tmp_path):
         """Owner file that raises OSError is treated as collision."""
@@ -218,12 +227,12 @@ class TestResolveIdentityEdgeCases:
 
     def test_collision_both_unique_prefers_shorter(self, tmp_path):
         """When both extensions are unique but different length, pick shorter."""
-        # Set up collision for "ama" with a long first name and short last name
+        # Set up collision for "ama" with a long first name and short second name
         # john.ma → initial "jma"
         _setup_identity_owner(tmp_path, "jma", "other@example.com")
 
-        # Extensions: jma (3) → jmac (extend last, 4) vs joma (extend first, 4)
-        # Both 4 chars → tie → prefer last name (jmac)
+        # Extensions: jma (3) → jmac (extend second, 4) vs joma (extend first, 4)
+        # Both 4 chars → tie → prefer second name (jmac)
         with patch(
             "agentic_devtools.state.subprocess.run",
             return_value=_mock_git_email("john.mack@example.com"),
@@ -249,7 +258,7 @@ class TestResolveIdentityEdgeCases:
         assert result not in ("ama", "amar", "alma")
 
     def test_collision_only_a_unique(self, tmp_path):
-        """When only last-name extension is unique, use it."""
+        """When only second-name extension is unique, use it."""
         # Set up collision for initial candidate
         _setup_identity_owner(tmp_path, "jdo", "user1@example.com")
         # Also make first-name extension collide: jodo
@@ -266,7 +275,7 @@ class TestResolveIdentityEdgeCases:
 
     def test_collision_only_b_unique(self, tmp_path):
         """When only first-name extension is unique, use it."""
-        # ama collides, extend-last (amar) also collides, but extend-first (alma) is unique
+        # ama collides, extend-second (amar) also collides, but extend-first (alma) is unique
         _setup_identity_owner(tmp_path, "ama", "user1@example.com")
         _setup_identity_owner(tmp_path, "amar", "user2@example.com")
 
