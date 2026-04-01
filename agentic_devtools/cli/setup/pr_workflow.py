@@ -3,8 +3,10 @@ PR workflow orchestration for agdt-setup.
 
 When ``agdt-setup`` modifies repository files, this module isolates those
 changes on a dedicated ``chore/agdt-setup-{version}`` branch, commits them,
-pushes the branch, and creates a pull request.  The user's original branch
-and any stashed changes are always restored—even when errors occur.
+pushes the branch, and creates a pull request.  The workflow records the
+user's original branch and any stashed changes and makes a best effort to
+restore them afterwards, emitting warnings and manual recovery instructions
+if restoration fails.
 """
 
 from __future__ import annotations
