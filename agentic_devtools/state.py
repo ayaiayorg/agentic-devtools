@@ -170,15 +170,16 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
 
         if a_unique and b_unique:
             # Both unique — pick shorter; prefer A (second name) on tie
-            if len(opt_a) <= len(opt_b):  # type: ignore[arg-type]
-                return opt_a  # type: ignore[return-value]
-            return opt_b  # type: ignore[return-value]  # pragma: no cover – opt_a/opt_b same length at equal indices
+            assert opt_a is not None and opt_b is not None
+            if len(opt_a) <= len(opt_b):
+                return opt_a
+            return opt_b  # pragma: no cover – opt_a/opt_b same length at equal indices
         elif a_unique:
-            second_idx += 1
-            return opt_a  # type: ignore[return-value]
+            assert opt_a is not None
+            return opt_a
         elif b_unique:
-            first_idx += 1
-            return opt_b  # type: ignore[return-value]
+            assert opt_b is not None
+            return opt_b
         else:
             # Neither unique — advance both indices and keep trying
             if opt_a is not None:
