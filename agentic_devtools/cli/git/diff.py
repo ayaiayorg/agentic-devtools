@@ -11,6 +11,27 @@ from dataclasses import dataclass
 from ..subprocess_utils import run_safe
 
 
+def _is_diff_file_header(raw_line: str) -> bool:
+    """Check whether *raw_line* is a ``---`` / ``+++`` file-header line.
+
+    Git diff file-header lines have very specific formats:
+      ``--- a/<path>``  or  ``--- /dev/null``   (old file)
+      ``+++ b/<path>``  or  ``+++ /dev/null``   (new file)
+
+    A bare ``"+++ "`` or ``"--- "`` prefix check is **not** safe because a
+    content line starting with ``"++ "`` or ``"-- "`` (two symbols + space)
+    would be prefixed with the diff marker and become ``"+++ ..."`` /
+    ``"--- ..."``, matching the naïve check.  This helper avoids that
+    false-positive by matching only the real header prefixes.
+    """
+    return (
+        raw_line.startswith("+++ b/")
+        or raw_line.startswith("--- a/")
+        or raw_line == "+++ /dev/null"
+        or raw_line == "--- /dev/null"
+    )
+
+
 @dataclass
 class DiffEntry:
     """Represents a single file change in a git diff."""
@@ -35,6 +56,30 @@ class AddedLinesInfo:
 
     lines: list[AddedLine]
     is_binary: bool
+
+
+@dataclass
+class RemovedLine:
+    """Represents a removed line in a diff."""
+
+    line_number: int
+    content: str
+
+
+@dataclass
+class RemovedLinesInfo:
+    """Information about removed lines in a file diff."""
+
+    lines: list[RemovedLine]
+    is_binary: bool
+
+
+@dataclass
+class DiffLinesInfo:
+    """Combined added and removed line information from a single diff parse."""
+
+    added: AddedLinesInfo
+    removed: RemovedLinesInfo
 
 
 def normalize_ref_name(ref: str | None) -> str | None:
@@ -68,7 +113,7 @@ def sync_git_ref(ref: str) -> bool:
         return False
 
     # Check if ref exists locally
-    result = run_safe(["git", "rev-parse", "--verify", ref], capture_output=True, text=True)
+    result = run_safe(["git", "rev-parse", "--verify", ref], capture_output=True, text=True, shell=False)
 
     if result.returncode == 0:
         return True
@@ -78,7 +123,7 @@ def sync_git_ref(ref: str) -> bool:
     if ref.startswith("origin/"):
         fetch_ref = ref[7:]  # Remove "origin/" prefix
 
-    result = run_safe(["git", "fetch", "origin", fetch_ref], capture_output=True, text=True)
+    result = run_safe(["git", "fetch", "origin", fetch_ref], capture_output=True, text=True, shell=False)
     return result.returncode == 0
 
 
@@ -97,6 +142,7 @@ def get_diff_entries(base_ref: str, compare_ref: str) -> list[DiffEntry]:
         ["git", "diff", "--name-status", "--find-renames", base_ref, compare_ref],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -144,6 +190,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
         ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -157,6 +204,7 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
 
     added_lines = []
     current_line = 0
+    in_hunk = False
 
     for raw_line in output_lines:
         # Parse hunk header: @@ -X,Y +A,B @@
@@ -164,9 +212,15 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
             match = re.match(r"@@ [^+]*\+(\d+)(?:,(\d+))? @@", raw_line)
             if match:
                 current_line = int(match.group(1))
+            in_hunk = True
             continue
 
-        if raw_line.startswith("+") and not raw_line.startswith("+++"):
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("+"):
             added_lines.append(
                 AddedLine(
                     line_number=current_line,
@@ -174,13 +228,164 @@ def get_added_lines_info(base_ref: str, compare_ref: str, path: str) -> AddedLin
                 )
             )
             current_line += 1
-        elif raw_line.startswith("-") and not raw_line.startswith("---"):
+        elif raw_line.startswith("-"):
             # Removed line, don't increment
             continue
         elif raw_line.startswith(" "):
             current_line += 1
 
     return AddedLinesInfo(lines=added_lines, is_binary=False)
+
+
+def get_removed_lines_info(base_ref: str, compare_ref: str, path: str) -> RemovedLinesInfo:
+    """
+    Get information about removed lines for a specific file.
+
+    Args:
+        base_ref: Base commit/branch.
+        compare_ref: Compare commit/branch.
+        path: File path (repo-root-relative).
+
+    Returns:
+        RemovedLinesInfo with line details and binary flag.
+    """
+    # Use :/ prefix to make path repo-root-relative (works from any subdirectory)
+    repo_path = f":/{path}"
+    result = run_safe(
+        ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return RemovedLinesInfo(lines=[], is_binary=False)
+
+    output_lines = result.stdout.split("\n")
+
+    # Check for binary file — the marker may appear after a "diff --git" header
+    if any(line.startswith("Binary files") for line in output_lines):
+        return RemovedLinesInfo(lines=[], is_binary=True)
+
+    removed_lines = []
+    current_line = 0
+    in_hunk = False
+
+    for raw_line in output_lines:
+        # Parse hunk header: @@ -X,Y +A,B @@
+        if raw_line.startswith("@@ "):
+            match = re.match(r"@@ -(\d+)(?:,(\d+))? [^@]* @@", raw_line)
+            if match:
+                current_line = int(match.group(1))
+            in_hunk = True
+            continue
+
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("-"):
+            removed_lines.append(
+                RemovedLine(
+                    line_number=current_line,
+                    content=raw_line[1:],  # Strip leading -
+                )
+            )
+            current_line += 1
+        elif raw_line.startswith("+"):
+            # Added line, don't increment old-file counter
+            continue
+        elif raw_line.startswith(" "):
+            current_line += 1
+
+    return RemovedLinesInfo(lines=removed_lines, is_binary=False)
+
+
+def get_diff_lines_info(base_ref: str, compare_ref: str, path: str) -> DiffLinesInfo:
+    """
+    Get both added and removed line information from a single diff call.
+
+    This avoids spawning two separate git subprocesses per file by parsing
+    both added and removed lines from one ``git diff --unified=0`` invocation.
+
+    Args:
+        base_ref: Base commit/branch.
+        compare_ref: Compare commit/branch.
+        path: File path (repo-root-relative).
+
+    Returns:
+        DiffLinesInfo with added and removed line details.
+    """
+    # Use :/ prefix to make path repo-root-relative (works from any subdirectory)
+    repo_path = f":/{path}"
+    result = run_safe(
+        ["git", "diff", "--no-color", "--unified=0", base_ref, compare_ref, "--", repo_path],
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return DiffLinesInfo(
+            added=AddedLinesInfo(lines=[], is_binary=False),
+            removed=RemovedLinesInfo(lines=[], is_binary=False),
+        )
+
+    output_lines = result.stdout.split("\n")
+
+    # Check for binary file — the marker may appear after a "diff --git" header
+    if any(line.startswith("Binary files") for line in output_lines):
+        return DiffLinesInfo(
+            added=AddedLinesInfo(lines=[], is_binary=True),
+            removed=RemovedLinesInfo(lines=[], is_binary=True),
+        )
+
+    added_lines: list[AddedLine] = []
+    removed_lines: list[RemovedLine] = []
+    current_new_line = 0
+    current_old_line = 0
+    in_hunk = False
+
+    for raw_line in output_lines:
+        # Parse hunk header: @@ -X,Y +A,B @@
+        if raw_line.startswith("@@ "):
+            match = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", raw_line)
+            if match:
+                current_old_line = int(match.group(1))
+                current_new_line = int(match.group(2))
+            in_hunk = True
+            continue
+
+        # Skip diff file-header lines only before the first hunk; once inside
+        # a hunk every +/- line is content (even if it looks like a header).
+        if not in_hunk and _is_diff_file_header(raw_line):
+            continue
+
+        if raw_line.startswith("+"):
+            added_lines.append(
+                AddedLine(
+                    line_number=current_new_line,
+                    content=raw_line[1:],  # Strip leading +
+                )
+            )
+            current_new_line += 1
+        elif raw_line.startswith("-"):
+            removed_lines.append(
+                RemovedLine(
+                    line_number=current_old_line,
+                    content=raw_line[1:],  # Strip leading -
+                )
+            )
+            current_old_line += 1
+        elif raw_line.startswith(" "):
+            current_new_line += 1
+            current_old_line += 1
+
+    return DiffLinesInfo(
+        added=AddedLinesInfo(lines=added_lines, is_binary=False),
+        removed=RemovedLinesInfo(lines=removed_lines, is_binary=False),
+    )
 
 
 def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
@@ -201,6 +406,7 @@ def get_diff_patch(base_ref: str, compare_ref: str, path: str) -> str | None:
         ["git", "diff", "--no-color", base_ref, compare_ref, "--", repo_path],
         capture_output=True,
         text=True,
+        shell=False,
     )
 
     if result.returncode != 0 or not result.stdout.strip():

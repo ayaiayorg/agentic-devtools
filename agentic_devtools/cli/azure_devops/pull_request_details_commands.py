@@ -12,8 +12,8 @@ from typing import Any
 
 from ...state import get_pull_request_id, get_state_dir, is_dry_run
 from ..git.diff import (
-    get_added_lines_info,
     get_diff_entries,
+    get_diff_lines_info,
     get_diff_patch,
     normalize_ref_name,
     sync_git_ref,
@@ -548,8 +548,8 @@ def get_pull_request_details() -> None:
     diff_entries = get_diff_entries(base_ref, compare_ref)
 
     for entry in diff_entries:  # pragma: no cover
-        added_info = get_added_lines_info(base_ref, compare_ref, entry.path)
-        patch = None if added_info.is_binary else get_diff_patch(base_ref, compare_ref, entry.path)
+        diff_info = get_diff_lines_info(base_ref, compare_ref, entry.path)
+        patch = None if diff_info.added.is_binary else get_diff_patch(base_ref, compare_ref, entry.path)
 
         files_details.append(
             {
@@ -557,9 +557,13 @@ def get_pull_request_details() -> None:
                 "originalPath": entry.original_path,
                 "status": entry.status,
                 "changeType": entry.change_type,
-                "isBinary": added_info.is_binary,
-                "addedLineCount": len(added_info.lines),
-                "addedLines": [{"line": line.line_number, "content": line.content} for line in added_info.lines],
+                "isBinary": diff_info.added.is_binary,
+                "addedLineCount": len(diff_info.added.lines),
+                "addedLines": [{"line": line.line_number, "content": line.content} for line in diff_info.added.lines],
+                "removedLineCount": len(diff_info.removed.lines),
+                "removedLines": [
+                    {"line": line.line_number, "content": line.content} for line in diff_info.removed.lines
+                ],
                 "patch": patch,
             }
         )
