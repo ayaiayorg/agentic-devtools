@@ -826,7 +826,7 @@ def setup_pull_request_review() -> None:
 
     commit_hash_short = ""
     if source_commit_id:
-        commit_hash_short = source_commit_id[:8]
+        commit_hash_short = source_commit_id[:12]
         # Validate that commit_hash_short is safe to persist and use as a path segment.
         if not is_safe_dir_segment(commit_hash_short):
             print(

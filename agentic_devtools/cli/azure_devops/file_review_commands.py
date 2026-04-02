@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run
+from ...state import get_pull_request_id, get_state_dir, get_value, is_dry_run, is_safe_dir_segment
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
 from .helpers import (
@@ -129,10 +129,16 @@ def _get_queue_path(pull_request_id: int) -> Path:
 
     Returns the new commit-hash-scoped path
     (``pull-request-review/<dir_name>/queue.json``).  If that file does not yet
-    exist but the legacy path (``pull-request-review/prompts/<pr_id>/queue.json``)
-    does, the legacy path is returned instead so that in-progress review sessions
-    created before the commit-hash-short refactor continue to work transparently
-    after an upgrade.
+    exist, two backward-compatible fallbacks are tried in order:
+
+    1. **8-char hash directory** – prior versions used ``commit_hash_short[:8]``
+       instead of the current 12-char truncation.  If ``commit_hash_short`` is at
+       least 8 characters long, the 8-char prefix directory is checked.
+    2. **Legacy path** – ``pull-request-review/prompts/<pr_id>/queue.json`` from
+       the original pre-commit-hash layout.
+
+    This ensures in-progress reviews started under either older scheme continue to
+    work transparently after an upgrade.
     """
     commit_hash_short = get_value("review.commit_hash_short")
     # Suppress warnings here: this function is called many times per review command.
@@ -141,10 +147,15 @@ def _get_queue_path(pull_request_id: int) -> Path:
     dir_name = resolve_review_artifact_dir_name(pull_request_id, commit_hash_short, warn=False)
     state_dir = get_state_dir()
     new_path = state_dir / "pull-request-review" / dir_name / "queue.json"
-    # Backward-compatible fallback: silently use the legacy path when the new one
-    # is absent but an old-format queue still exists.  This prevents silent queue
-    # loss (empty/default status) when upgrading mid-review.
     if not new_path.exists():
+        # Fallback 1: 8-char hash directory from prior versions.
+        if isinstance(commit_hash_short, str) and len(commit_hash_short) >= 8:
+            short8_dir_name = commit_hash_short[:8]
+            if is_safe_dir_segment(short8_dir_name):
+                short8_path = state_dir / "pull-request-review" / short8_dir_name / "queue.json"
+                if short8_path.exists():
+                    return short8_path
+        # Fallback 2: legacy pre-commit-hash path.
         legacy_path = state_dir / "pull-request-review" / "prompts" / str(pull_request_id) / "queue.json"
         if legacy_path.exists():
             return legacy_path

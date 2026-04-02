@@ -1064,7 +1064,7 @@ class TestSetupPullRequestReviewPersistence:
         assert len(dry_run_calls) == 0
 
     def test_stores_commit_hash_short_when_pr_has_source_commit(self):
-        """Regression: review.commit_hash_short must be stored from lastMergeSourceCommit.commitId[:8]."""
+        """Regression: review.commit_hash_short must be stored from lastMergeSourceCommit.commitId[:12]."""
         from agentic_devtools.cli.azure_devops.review_commands import (
             setup_pull_request_review,
         )
@@ -1144,7 +1144,7 @@ class TestSetupPullRequestReviewPersistence:
 
         commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
         assert len(commit_hash_calls) == 1
-        assert commit_hash_calls[0][0][1] == "abcdef12"
+        assert commit_hash_calls[0][0][1] == "abcdef123456"
 
     def test_does_not_store_commit_hash_when_no_source_commit(self):
         """review.commit_hash_short must NOT be set when lastMergeSourceCommit is absent.
@@ -1817,7 +1817,7 @@ class TestSetupPullRequestReviewPersistence:
                                                                 ):
                                                                     setup_pull_request_review()
 
-        mock_is_safe_dir_segment.assert_called_once_with("abcdef12")
+        mock_is_safe_dir_segment.assert_called_once_with("abcdef123456")
 
         commit_hash_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.commit_hash_short"]
         assert len(commit_hash_calls) == 0
