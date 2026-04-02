@@ -198,9 +198,8 @@ class TestScaffoldAlreadyReviewed:
                 model_id="gpt-5",
             )
 
-        # Activity log posting involves GET + POST + PATCH (demote_main_comment)
-        assert requests_mock.get.called
-        assert requests_mock.patch.called
+        # Activity log posting is now a reply (POST only, no GET or PATCH)
+        assert requests_mock.post.called
 
 
 class TestScaffoldInProgress:
@@ -386,6 +385,115 @@ class TestScaffoldResumeStale:
 
         assert session.status == "failed"
 
+    def test_updates_failed_activity_log_comment_before_resuming(self):
+        """Updates the stale session activity log reply before creating the new session."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+            activityLogCommentId=42,
+        )
+        state = _make_existing_state(sessions=[session])
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._update_activity_log_comment_status"
+            ) as mock_update,
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        assert result is state
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args[0]
+        assert call_args[3] == state.activityLogThreadId
+        assert call_args[4] == 42
+        assert call_args[5] == "❌"
+        assert call_args[6] == "Failed"
+        assert call_args[7].sessionId == "stale-sess"
+        assert call_args[8] == "abc123"
+        assert call_args[9] == 1
+        assert call_args[10] == "Session timed out (stale)."
+        assert state.sessions[0].status == "failed"
+        assert state.sessions[1].status == "in_progress"
+
+    def test_updates_only_newly_transitioned_failed_sessions(self):
+        """Does not rewrite comments for sessions that were already failed before resume_stale."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        already_failed = ReviewSession(
+            sessionId="blocked-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="failed",
+            completedUtc=stale_started.isoformat(),
+            commitHash="abc123",
+            activityLogCommentId=99,
+        )
+        stale_in_progress = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+            activityLogCommentId=42,
+        )
+        state = _make_existing_state(sessions=[already_failed, stale_in_progress])
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._update_activity_log_comment_status"
+            ) as mock_update,
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        mock_update.assert_called_once()
+        # Only the newly transitioned stale session should be updated.
+        assert mock_update.call_args[0][4] == 42
+        assert mock_update.call_args[0][7].sessionId == "stale-sess"
+        # Resume entry should also reference the newly transitioned stale session,
+        # not an older failed session with the same commit/model.
+        post_calls = str(requests_mock.post.call_args_list)
+        assert "stale-sess" in post_calls
+        assert "blocked-sess" not in post_calls
+
     def test_stale_id_scoped_to_current_commit(self):
         """stale_id lookup only picks up failed sessions from the current commit, not older commits."""
         now = datetime.now(timezone.utc)
@@ -431,10 +539,63 @@ class TestScaffoldResumeStale:
 
         # The activity log entry should reference "current-stale-sess" (just marked failed)
         # not "old-failed-sess" (from a prior commit).
-        # The entry content is PATCHed as the new main comment of the activity log thread.
-        patch_calls = str(requests_mock.patch.call_args_list)
-        assert "current-stale-sess" in patch_calls
-        assert "old-failed-sess" not in patch_calls
+        # The entry content is POSTed as a reply to the activity log thread.
+        post_calls = str(requests_mock.post.call_args_list)
+        assert "current-stale-sess" in post_calls
+        assert "old-failed-sess" not in post_calls
+
+    def test_fallback_stale_id_when_no_sessions_transitioned(self):
+        """Falls back to scanning existing failed sessions when _mark_stale_sessions_failed returns empty."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        # A stale in-progress session triggers "resume_stale" from _check_session_status
+        stale_session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        # A previously failed session with matching model/commit — the fallback should find it
+        prev_failed = ReviewSession(
+            sessionId="prev-failed-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="failed",
+            completedUtc=stale_started.isoformat(),
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[prev_failed, stale_session])
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._mark_stale_sessions_failed",
+                return_value=[],
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        assert result is state
+        # The resume activity log entry should reference the fallback failed session
+        post_calls = str(requests_mock.post.call_args_list)
+        assert "prev-failed-sess" in post_calls
 
 
 class TestScaffoldDifferentModel:
@@ -555,8 +716,8 @@ class TestScaffoldDifferentCommit:
 class TestScaffoldActivityLogExceptionHandling:
     """Activity log posting failures don't break scaffolding."""
 
-    def test_already_reviewed_survives_activity_log_failure(self):
-        """Returns existing state even when activity log posting fails."""
+    def test_already_reviewed_survives_activity_log_failure(self, capsys):
+        """Returns existing state even when activity log reply posting fails."""
         session = ReviewSession(
             sessionId="s1",
             modelId="gpt-5",
@@ -567,7 +728,7 @@ class TestScaffoldActivityLogExceptionHandling:
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = MagicMock()
-        requests_mock.get.side_effect = Exception("Network error")
+        requests_mock.post.side_effect = Exception("Network error")
 
         with patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
@@ -586,9 +747,11 @@ class TestScaffoldActivityLogExceptionHandling:
                 model_id="gpt-5",
             )
 
+        err = capsys.readouterr().err
+        assert "Warning: Could not post activity log entry" in err
         assert result is state
 
-    def test_in_progress_survives_activity_log_failure(self):
+    def test_in_progress_survives_activity_log_failure(self, capsys):
         """Returns None even when activity log posting fails for in-progress path."""
         now = datetime.now(timezone.utc)
         session = ReviewSession(
@@ -600,7 +763,7 @@ class TestScaffoldActivityLogExceptionHandling:
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = MagicMock()
-        requests_mock.get.side_effect = Exception("Network error")
+        requests_mock.post.side_effect = Exception("Network error")
 
         with patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
@@ -619,9 +782,11 @@ class TestScaffoldActivityLogExceptionHandling:
                 model_id="gpt-5",
             )
 
+        err = capsys.readouterr().err
+        assert "Warning: Could not post activity log entry" in err
         assert result is None
 
-    def test_resume_stale_survives_activity_log_failure(self):
+    def test_resume_stale_survives_activity_log_failure(self, capsys):
         """Returns existing state even when activity log posting fails for resume_stale path."""
         now = datetime.now(timezone.utc)
         stale_started = now - timedelta(hours=3)
@@ -631,32 +796,80 @@ class TestScaffoldActivityLogExceptionHandling:
             startedUtc=stale_started.isoformat(),
             status="in_progress",
             commitHash="abc123",
+            activityLogCommentId=42,
         )
         state = _make_existing_state(sessions=[session])
-        requests_mock = MagicMock()
-        requests_mock.get.side_effect = Exception("Network error")
+        requests_mock = _make_requests_mock()
+        requests_mock.post.side_effect = Exception("Network error")
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
-            return_value=state,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
         ):
-            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
-                result = scaffold_review_threads(
-                    pull_request_id=_PR_ID,
-                    files=["/src/a.ts"],
-                    config=_make_config(),
-                    repo_id=_REPO_ID,
-                    repo_name=_REPO,
-                    latest_iteration_id=1,
-                    requests_module=requests_mock,
-                    headers={},
-                    commit_hash="abc123",
-                    model_id="gpt-5",
-                )
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
 
+        err = capsys.readouterr().err
+        assert "Warning: Could not post activity log entry" in err
         assert result is state
 
-    def test_different_model_survives_activity_log_failure(self):
+    def test_resume_stale_survives_failed_session_update_failure(self, capsys):
+        """Returns existing state even when updating the stale session activity log fails."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+            activityLogCommentId=42,
+        )
+        state = _make_existing_state(sessions=[session])
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._update_activity_log_comment_status",
+                side_effect=Exception("Network error"),
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        err = capsys.readouterr().err
+        assert "Warning: Could not update activity log for failed session" in err
+        assert result is state
+
+    def test_different_model_survives_activity_log_failure(self, capsys):
         """Returns existing state when activity log fails for different_model path."""
         session = ReviewSession(
             sessionId="s1",
@@ -668,7 +881,7 @@ class TestScaffoldActivityLogExceptionHandling:
         )
         state = _make_existing_state(sessions=[session])
         requests_mock = MagicMock()
-        requests_mock.get.side_effect = Exception("Network error")
+        requests_mock.post.side_effect = Exception("Network error")
 
         with patch(
             "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
@@ -688,6 +901,8 @@ class TestScaffoldActivityLogExceptionHandling:
                     model_id="gpt-5",
                 )
 
+                err = capsys.readouterr().err
+                assert "Warning: Could not post activity log entry" in err
         assert result is state
 
 
@@ -695,7 +910,7 @@ class TestDryRunDoesNotMutateSessions:
     """Dry-run mode must not mutate existing_state.sessions."""
 
     def test_resume_stale_dry_run_does_not_mutate_sessions(self):
-        """In dry-run mode, resume_stale path must not append a new session."""
+        """In dry-run mode, resume_stale must not mutate sessions or patch activity logs."""
         now = datetime.now(timezone.utc)
         stale_started = now - timedelta(hours=3)
         session = ReviewSession(
@@ -704,33 +919,42 @@ class TestDryRunDoesNotMutateSessions:
             startedUtc=stale_started.isoformat(),
             status="in_progress",
             commitHash="abc123",
+            activityLogCommentId=42,
         )
         state = _make_existing_state(sessions=[session])
         original_session_count = len(state.sessions)
         requests_mock = _make_requests_mock()
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
-            return_value=state,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state") as save_mock,
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._update_activity_log_comment_status"
+            ) as mock_update,
         ):
-            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state") as save_mock:
-                result = scaffold_review_threads(
-                    pull_request_id=_PR_ID,
-                    files=["/src/a.ts"],
-                    config=_make_config(),
-                    repo_id=_REPO_ID,
-                    repo_name=_REPO,
-                    latest_iteration_id=1,
-                    requests_module=requests_mock,
-                    headers={},
-                    commit_hash="abc123",
-                    model_id="gpt-5",
-                    dry_run=True,
-                )
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+                dry_run=True,
+            )
 
         assert result is state
         assert len(state.sessions) == original_session_count
+        assert state.sessions[0].status == "in_progress"
+        assert state.sessions[0].completedUtc is None
         save_mock.assert_not_called()
+        mock_update.assert_not_called()
 
     def test_different_model_dry_run_does_not_mutate_sessions(self):
         """In dry-run mode, different_model path must not append a new session."""

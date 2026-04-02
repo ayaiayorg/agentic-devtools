@@ -15,6 +15,7 @@ class TestReviewSession:
         assert s.completedUtc is None
         assert s.status == "pending"
         assert s.commitHash is None
+        assert s.activityLogCommentId is None
 
     def test_creation_with_all_fields(self):
         """Test creation with all fields specified."""
@@ -25,12 +26,14 @@ class TestReviewSession:
             completedUtc="2026-03-01T10:30:00Z",
             status="completed",
             commitHash="abc123def",
+            activityLogCommentId=42,
         )
         assert s.sessionId == "def-456"
         assert s.modelId == "gpt-5"
         assert s.completedUtc == "2026-03-01T10:30:00Z"
         assert s.status == "completed"
         assert s.commitHash == "abc123def"
+        assert s.activityLogCommentId == 42
 
     def test_to_dict(self):
         """Test serialization to dictionary."""
@@ -41,6 +44,7 @@ class TestReviewSession:
             completedUtc="2026-03-01T10:30:00Z",
             status="completed",
             commitHash="abc123",
+            activityLogCommentId=99,
         )
         d = s.to_dict()
         assert d == {
@@ -50,6 +54,7 @@ class TestReviewSession:
             "completedUtc": "2026-03-01T10:30:00Z",
             "status": "completed",
             "commitHash": "abc123",
+            "activityLogCommentId": 99,
         }
 
     def test_to_dict_defaults(self):
@@ -59,6 +64,7 @@ class TestReviewSession:
         assert d["completedUtc"] is None
         assert d["status"] == "pending"
         assert d["commitHash"] is None
+        assert d["activityLogCommentId"] is None
 
     def test_from_dict(self):
         """Test deserialization from dictionary."""
@@ -69,6 +75,7 @@ class TestReviewSession:
             "completedUtc": "2026-03-01T10:30:00Z",
             "status": "completed",
             "commitHash": "abc123",
+            "activityLogCommentId": 77,
         }
         s = ReviewSession.from_dict(data)
         assert s.sessionId == "abc-123"
@@ -77,6 +84,7 @@ class TestReviewSession:
         assert s.completedUtc == "2026-03-01T10:30:00Z"
         assert s.status == "completed"
         assert s.commitHash == "abc123"
+        assert s.activityLogCommentId == 77
 
     def test_from_dict_defaults(self):
         """Test from_dict with missing optional fields uses defaults."""
@@ -89,6 +97,7 @@ class TestReviewSession:
         assert s.completedUtc is None
         assert s.status == "pending"
         assert s.commitHash is None
+        assert s.activityLogCommentId is None
 
     def test_roundtrip(self):
         """Test to_dict/from_dict round-trips correctly."""
@@ -99,6 +108,7 @@ class TestReviewSession:
             completedUtc="2026-03-01T10:30:00Z",
             status="completed",
             commitHash="abc123",
+            activityLogCommentId=55,
         )
         restored = ReviewSession.from_dict(original.to_dict())
         assert restored.sessionId == original.sessionId
@@ -107,6 +117,7 @@ class TestReviewSession:
         assert restored.completedUtc == original.completedUtc
         assert restored.status == original.status
         assert restored.commitHash == original.commitHash
+        assert restored.activityLogCommentId == original.activityLogCommentId
 
     def test_roundtrip_with_defaults(self):
         """Test round-trip with default values."""
@@ -114,6 +125,7 @@ class TestReviewSession:
         restored = ReviewSession.from_dict(original.to_dict())
         assert restored.completedUtc is None
         assert restored.status == "pending"
+        assert restored.activityLogCommentId is None
 
     def test_valid_status_values(self):
         """Test that all expected status values are accepted."""

@@ -62,3 +62,8 @@ class TestCreateSession:
         """commit_hash defaults to None when not provided."""
         session = _create_session("gpt-5")
         assert session.commitHash is None
+
+    def test_activity_log_comment_id_defaults_to_none(self):
+        """activityLogCommentId defaults to None on creation."""
+        session = _create_session("gpt-5")
+        assert session.activityLogCommentId is None

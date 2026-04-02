@@ -276,6 +276,11 @@ def _complete_active_session(pull_request_id: int) -> None:
     call is a no-op — a ``_NoChange`` sentinel is raised inside the
     context manager so the file is not rewritten needlessly.
 
+    After persisting the status change, updates the corresponding activity
+    log comment in Azure DevOps (if ``activityLogCommentId`` is set) to
+    show ``✅ Completed``.  API errors are caught and logged so that the
+    completion flow is never interrupted.
+
     Silently returns when ``review-state.json`` does not exist (matching
     the pattern in ``trigger_in_progress_for_file``).
 
@@ -284,6 +289,12 @@ def _complete_active_session(pull_request_id: int) -> None:
     """
     from .review_state import read_modify_write_review_state
 
+    completed_session = None
+    activity_log_thread_id = 0
+    commit_hash = None
+    repo_id = None
+    session_index = 0
+
     try:
         with read_modify_write_review_state(pull_request_id) as review_state:
             # Iterate in reverse to find the latest in-progress session
@@ -291,12 +302,44 @@ def _complete_active_session(pull_request_id: int) -> None:
                 if session.status == "in_progress":
                     session.status = "completed"
                     session.completedUtc = datetime.now(timezone.utc).isoformat()
+                    # Capture info for activity log update after lock release
+                    completed_session = session
+                    activity_log_thread_id = review_state.activityLogThreadId
+                    commit_hash = review_state.commitHash
+                    repo_id = review_state.repoId
+                    session_index = review_state.sessions.index(session) + 1
                     break
             else:
                 # No in-progress session found — skip the save.
                 raise _NoChange
     except (FileNotFoundError, _NoChange):
         return
+
+    # Update activity log comment outside the file lock
+    if completed_session is not None and completed_session.activityLogCommentId is not None and activity_log_thread_id:
+        try:
+            from .review_scaffold import _update_activity_log_comment_status
+
+            requests_module = require_requests()
+            headers = get_auth_headers(get_pat())
+            config = AzureDevOpsConfig.from_state()
+            threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+
+            _update_activity_log_comment_status(
+                requests_module,
+                headers,
+                threads_url,
+                activity_log_thread_id,
+                completed_session.activityLogCommentId,
+                "✅",
+                "Completed",
+                completed_session,
+                commit_hash,
+                session_index,
+                "Review session completed successfully.",
+            )
+        except Exception as exc:
+            print(f"Warning: Could not update activity log comment: {exc}", file=sys.stderr)
 
 
 def print_next_file_prompt(pull_request_id: int) -> None:

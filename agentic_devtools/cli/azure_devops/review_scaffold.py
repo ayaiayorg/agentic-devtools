@@ -362,24 +362,69 @@ def _post_activity_log_entry(
     headers: dict[str, str],
     threads_url: str,
     thread_id: int,
-    comment_id: int,
     entry_content: str,
-) -> None:
-    """Post a new activity log entry to the activity log thread.
+) -> int:
+    """Post a new activity log entry as a reply to the activity log thread.
 
-    The main comment always shows the latest entry; older entries are pushed
-    down as replies.  Implementation: read main comment, POST it as reply,
-    PATCH main with the new entry.
+    The header comment ("Review Activity Log") remains pinned as the main
+    (top-level) comment.  New entries are posted as replies.
 
     Args:
         requests_module: requests module for HTTP calls.
         headers: Auth headers.
         threads_url: Base threads URL.
         thread_id: Activity log thread ID.
-        comment_id: Activity log main comment ID.
         entry_content: Formatted markdown for the new entry.
+
+    Returns:
+        The comment ID of the newly-created reply.
     """
-    _demote_main_comment(requests_module, headers, threads_url, thread_id, comment_id, entry_content)
+    return _post_reply(requests_module, headers, threads_url, thread_id, entry_content)
+
+
+def _update_activity_log_comment_status(
+    requests_module: Any,
+    headers: dict[str, str],
+    threads_url: str,
+    thread_id: int,
+    comment_id: int,
+    status_emoji: str,
+    status_text: str,
+    session: "ReviewSession",
+    commit_hash: str | None,
+    sequence_number: int,
+    detail_message: str,
+) -> None:
+    """Update an existing activity log comment to reflect a terminal status.
+
+    Re-renders the entry via ``_format_activity_log_entry`` with the terminal
+    status emoji/text and PATCHes the comment in-place.
+
+    Args:
+        requests_module: requests module for HTTP calls.
+        headers: Auth headers.
+        threads_url: Base threads URL.
+        thread_id: Activity log thread ID.
+        comment_id: Comment ID of the activity log reply to update.
+        status_emoji: Emoji for the terminal status (e.g. "\u2705", "\u274c").
+        status_text: Status text (e.g. "Completed", "Failed").
+        session: The ReviewSession whose entry is being updated.
+        commit_hash: Commit hash for display.
+        sequence_number: Original sequence number of the entry.
+        detail_message: Updated detail message body.
+    """
+    short_hash = (commit_hash or "unknown")[:7]
+    updated_content = _format_activity_log_entry(
+        status_emoji,
+        status_text,
+        session.startedUtc,
+        session.modelId,
+        short_hash,
+        session.sessionId,
+        detail_message,
+        sequence_number,
+    )
+    _patch_comment_content(requests_module, headers, threads_url, thread_id, comment_id, updated_content)
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +500,7 @@ def _mark_stale_sessions_failed(
     commit_hash: str,
     model_id: str,
     now: datetime | None = None,
-) -> None:
+) -> list[ReviewSession]:
     """Mark all stale in-progress sessions as failed for a commit + model.
 
     Args:
@@ -463,9 +508,13 @@ def _mark_stale_sessions_failed(
         commit_hash: Current commit hash.
         model_id: Current model identifier.
         now: Current time (injectable for testing).
+
+    Returns:
+        Sessions that were transitioned from in_progress to failed.
     """
     if now is None:
         now = datetime.now(timezone.utc)
+    transitioned: list[ReviewSession] = []
     for session in existing_state.sessions:
         if (
             session.modelId == model_id
@@ -476,6 +525,8 @@ def _mark_stale_sessions_failed(
             if now - started >= STALE_SESSION_THRESHOLD:
                 session.status = "failed"
                 session.completedUtc = now.isoformat()
+                transitioned.append(session)
+    return transitioned
 
 
 def _create_session(
@@ -770,7 +821,6 @@ def scaffold_review_threads(
                         headers,
                         threads_url,
                         existing_state.activityLogThreadId,
-                        1,
                         entry,
                     )
                 except Exception as exc:
@@ -818,7 +868,6 @@ def scaffold_review_threads(
                         headers,
                         threads_url,
                         existing_state.activityLogThreadId,
-                        1,
                         entry,
                     )
                 except Exception as exc:
@@ -828,21 +877,51 @@ def scaffold_review_threads(
             return None
 
         if status == "resume_stale":
-            _mark_stale_sessions_failed(existing_state, commit_hash or "", effective_model, now=now)
             reviewed = sum(1 for fe in existing_state.files.values() if fe.status != ReviewStatus.UNREVIEWED.value)
             total = len(existing_state.files)
-            stale_id = "unknown"
-            for s in existing_state.sessions:
-                if (
-                    s.modelId == effective_model
-                    and s.status == "failed"
-                    and (s.commitHash or "") == (commit_hash or "")
-                ):
-                    stale_id = s.sessionId
-                    break
             print(f"Resuming stale review session for PR {pull_request_id} ({reviewed}/{total} files reviewed).")
             if dry_run:
                 return existing_state
+
+            transitioned_sessions = _mark_stale_sessions_failed(
+                existing_state,
+                commit_hash or "",
+                effective_model,
+                now=now,
+            )
+            # Update activity log comments for sessions just marked failed
+            if existing_state.activityLogThreadId:
+                for s in transitioned_sessions:
+                    if s.activityLogCommentId is not None:
+                        try:
+                            seq_idx = existing_state.sessions.index(s) + 1
+                            _update_activity_log_comment_status(
+                                requests_module,
+                                headers,
+                                threads_url,
+                                existing_state.activityLogThreadId,
+                                s.activityLogCommentId,
+                                "❌",
+                                "Failed",
+                                s,
+                                commit_hash,
+                                seq_idx,
+                                "Session timed out (stale).",
+                            )
+                        except Exception as exc:
+                            print(f"Warning: Could not update activity log for failed session: {exc}", file=sys.stderr)
+            stale_id = "unknown"
+            if transitioned_sessions:
+                stale_id = transitioned_sessions[-1].sessionId
+            else:
+                for s in reversed(existing_state.sessions):
+                    if (
+                        s.modelId == effective_model
+                        and s.status == "failed"
+                        and (s.commitHash or "") == (commit_hash or "")
+                    ):
+                        stale_id = s.sessionId
+                        break
             new_session = _create_session(effective_model, commit_hash=commit_hash, now=now)
             existing_state.sessions.append(new_session)
             save_review_state(existing_state)
@@ -860,14 +939,15 @@ def scaffold_review_threads(
                     seq,
                 )
                 try:
-                    _post_activity_log_entry(
+                    reply_id = _post_activity_log_entry(
                         requests_module,
                         headers,
                         threads_url,
                         existing_state.activityLogThreadId,
-                        1,
                         entry,
                     )
+                    new_session.activityLogCommentId = reply_id
+                    save_review_state(existing_state)
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
             return existing_state
@@ -892,14 +972,15 @@ def scaffold_review_threads(
                     seq,
                 )
                 try:
-                    _post_activity_log_entry(
+                    reply_id = _post_activity_log_entry(
                         requests_module,
                         headers,
                         threads_url,
                         existing_state.activityLogThreadId,
-                        1,
                         entry,
                     )
+                    new_session.activityLogCommentId = reply_id
+                    save_review_state(existing_state)
                 except Exception as exc:
                     print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
             return existing_state
@@ -1122,14 +1203,15 @@ def _fresh_scaffold(
         1,
     )
     try:
-        _post_activity_log_entry(
+        reply_comment_id = _post_activity_log_entry(
             requests_module,
             headers,
             threads_url,
             activity_log_thread_id,
-            1,
             entry,
         )
+        session.activityLogCommentId = reply_comment_id
+        save_review_state(review_state)
     except Exception as exc:
         print(f"Warning: Could not post initial activity log entry: {exc}", file=sys.stderr)
 
@@ -1296,14 +1378,14 @@ def _incremental_rescaffold(
                             seq,
                         )
                         try:
-                            _post_activity_log_entry(
+                            reply_id = _post_activity_log_entry(
                                 requests_module,
                                 headers,
                                 threads_url,
                                 existing_state.activityLogThreadId,
-                                1,
                                 entry,
                             )
+                            session.activityLogCommentId = reply_id
                         except Exception as exc:
                             print(f"Warning: Could not post activity log: {exc}", file=sys.stderr)
 
@@ -1525,14 +1607,15 @@ def _incremental_rescaffold(
             seq,
         )
         try:
-            _post_activity_log_entry(
+            reply_id = _post_activity_log_entry(
                 requests_module,
                 headers,
                 threads_url,
                 existing_state.activityLogThreadId,
-                1,
                 entry,
             )
+            session.activityLogCommentId = reply_id
+            save_review_state(existing_state)
         except Exception as exc:
             print(f"Warning: Could not post activity log entry: {exc}", file=sys.stderr)
 

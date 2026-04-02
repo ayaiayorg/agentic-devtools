@@ -427,12 +427,12 @@ class TestScaffoldReviewThreadsNormalFlow:
         assert "/src/app.ts" in folder.files
         assert "/src/utils.ts" in folder.files
 
-    def test_save_review_state_called_twice(self):
-        """save_review_state is called 2 times: after files+folders, and after overall."""
+    def test_save_review_state_called_three_times(self):
+        """save_review_state is called 3 times: after files+folders, after overall, after activity log entry."""
         files = ["/src/app.ts"]
         result, _, save_mock = self._run_scaffold(files)
 
-        assert save_mock.call_count == 2
+        assert save_mock.call_count == 3
         # Final call uses the completed ReviewState
         save_mock.assert_called_with(result)
 

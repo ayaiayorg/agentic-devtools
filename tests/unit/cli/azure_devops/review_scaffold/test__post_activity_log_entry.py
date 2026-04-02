@@ -8,78 +8,66 @@ from agentic_devtools.cli.azure_devops.review_scaffold import _post_activity_log
 class TestPostActivityLogEntry:
     """Tests for _post_activity_log_entry."""
 
-    def _setup_mocks(self, old_content="Previous entry", reply_id=99):
-        """Build requests mock for the underlying _demote_main_comment call."""
+    def _setup_mocks(self, reply_id=99):
+        """Build requests mock for the underlying _post_reply call."""
         requests_mock = MagicMock()
-
-        get_resp = MagicMock()
-        get_resp.raise_for_status = MagicMock()
-        get_resp.json.return_value = {"comments": [{"id": 1, "content": old_content}]}
-        requests_mock.get.return_value = get_resp
 
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
         post_resp.json.return_value = {"id": reply_id}
         requests_mock.post.return_value = post_resp
 
-        patch_resp = MagicMock()
-        patch_resp.raise_for_status = MagicMock()
-        requests_mock.patch.return_value = patch_resp
-
         return requests_mock
 
-    def test_delegates_to_demote_main_comment(self):
-        """Calls _demote_main_comment with the correct arguments."""
+    def test_delegates_to_post_reply(self):
+        """Calls _post_reply with the correct arguments."""
         requests_mock = self._setup_mocks()
 
-        with patch("agentic_devtools.cli.azure_devops.review_scaffold._demote_main_comment") as mock_demote:
-            mock_demote.return_value = 42
-            _post_activity_log_entry(
-                requests_mock, {"Auth": "token"}, "https://api/threads", 10, 1, "New entry content"
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold._post_reply") as mock_reply:
+            mock_reply.return_value = 42
+            result = _post_activity_log_entry(
+                requests_mock, {"Auth": "token"}, "https://api/threads", 10, "New entry content"
             )
 
-            mock_demote.assert_called_once_with(
-                requests_mock, {"Auth": "token"}, "https://api/threads", 10, 1, "New entry content"
+            mock_reply.assert_called_once_with(
+                requests_mock, {"Auth": "token"}, "https://api/threads", 10, "New entry content"
             )
+            assert result == 42
 
-    def test_patches_main_comment_with_new_entry(self):
-        """The new entry content ends up as a PATCH on the main comment."""
+    def test_returns_comment_id(self):
+        """Returns the comment ID from the reply."""
+        requests_mock = self._setup_mocks(reply_id=77)
+
+        result = _post_activity_log_entry(requests_mock, {}, "https://api/threads", 10, "Entry content")
+
+        assert result == 77
+
+    def test_posts_entry_as_reply(self):
+        """The entry content is posted as a reply (not as a PATCH on the main comment)."""
         requests_mock = self._setup_mocks()
 
-        _post_activity_log_entry(requests_mock, {}, "https://api/threads", 10, 1, "Fresh entry")
-
-        patch_call = requests_mock.patch.call_args
-        assert patch_call[1]["json"]["content"] == "Fresh entry"
-
-    def test_posts_old_content_as_reply(self):
-        """The previous main comment content is posted as a reply."""
-        requests_mock = self._setup_mocks(old_content="Old log entry")
-
-        _post_activity_log_entry(requests_mock, {}, "https://api/threads", 10, 1, "New entry")
+        _post_activity_log_entry(requests_mock, {}, "https://api/threads", 10, "Fresh entry")
 
         post_call = requests_mock.post.call_args
-        assert post_call[1]["json"]["content"] == "Old log entry"
+        assert post_call[1]["json"]["content"] == "Fresh entry"
+        # No GET or PATCH calls — replies don't read or modify the main comment
+        requests_mock.get.assert_not_called()
+        requests_mock.patch.assert_not_called()
 
     def test_uses_correct_thread_url(self):
-        """GET and POST use the thread_id in the URL."""
+        """POST uses the thread_id in the URL."""
         requests_mock = self._setup_mocks()
 
-        _post_activity_log_entry(requests_mock, {}, "https://api/threads", 42, 1, "Entry")
+        _post_activity_log_entry(requests_mock, {}, "https://api/threads", 42, "Entry")
 
-        get_url = requests_mock.get.call_args[0][0]
-        assert "42" in get_url
+        post_url = requests_mock.post.call_args[0][0]
+        assert "42" in post_url
 
     def test_urls_correct_when_threads_url_has_query_string(self):
-        """GET and POST use the thread_id as path segment before query string."""
+        """POST uses the thread_id as path segment before query string."""
         requests_mock = self._setup_mocks()
 
-        _post_activity_log_entry(requests_mock, {}, "https://api/threads?api-version=7.0", 42, 1, "Entry")
-
-        get_url = requests_mock.get.call_args[0][0]
-        assert get_url == "https://api/threads/42?api-version=7.0"
+        _post_activity_log_entry(requests_mock, {}, "https://api/threads?api-version=7.0", 42, "Entry")
 
         post_url = requests_mock.post.call_args[0][0]
         assert post_url == "https://api/threads/42/comments?api-version=7.0"
-
-        patch_url = requests_mock.patch.call_args[0][0]
-        assert patch_url == "https://api/threads/42/comments/1?api-version=7.0"
