@@ -206,6 +206,24 @@ COMMIT_FULL=$(git log -1 --format="%H")
 COMMIT_SHORT=$(git log -1 --format="%h")
 ```
 
+### Verify Push Was Successful
+
+After `agdt-git-save-work` completes, confirm the local commit was pushed to the
+remote and that the PR head now matches:
+
+```bash
+REMOTE_SHA=$(gh pr view {pr_number} --repo {owner}/{repo} --json headRefOid --jq '.headRefOid')
+REMOTE_SHA_SHORT=$(echo "$REMOTE_SHA" | cut -c1-7)
+```
+
+Compare `REMOTE_SHA` with `COMMIT_FULL`. If they do not match:
+
+1. Print `⚠️ Push verification failed — remote head ({REMOTE_SHA_SHORT}) ≠ local ({COMMIT_SHORT}). Retrying push.`
+2. Run `agdt-git-force-push` and `agdt-task-wait`.
+3. Re-verify with the same `gh pr view` command.
+4. If the SHAs still do not match after the retry, **stop** and report the failure
+   to the user.
+
 ### Edge Case: No Addressable Comments
 
 If every comment was triaged as **not addressable**, skip the commit step and proceed
@@ -243,6 +261,25 @@ For each comment, post a reply:
 gh api "repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies" \
   -f body="<reply text>"
 ```
+
+### Verify Replies Were Posted
+
+After posting all replies, verify each one was actually created:
+
+```bash
+gh api --paginate \
+  "repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments" \
+  --jq '.[] | {id, in_reply_to_id, body}' | jq -s '.'
+```
+
+For each comment you replied to, confirm that a child reply exists (a comment whose
+`in_reply_to_id` matches the original comment's `id`). If any reply is missing:
+
+1. Print `⚠️ Reply to comment {comment_id} was not found — retrying.`
+2. Retry the POST for that specific comment (up to 2 retries).
+3. Re-verify after each retry.
+4. If the reply still cannot be confirmed after retries, log the failure and
+   continue — report it in the Phase 8 summary.
 
 ---
 
@@ -292,6 +329,39 @@ gh api graphql -f query='mutation {
 }'
 ```
 
+### Step 3 — Verify All Threads Are Resolved
+
+After resolving all threads, re-fetch the review threads to confirm resolution:
+
+```bash
+gh api graphql -f query='query {
+  repository(owner: "{owner}", name: "{repo}") {
+    pullRequest(number: {pr_number}) {
+      reviewThreads(first: 100) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isResolved
+          comments(first: 1) {
+            nodes { databaseId }
+          }
+        }
+      }
+    }
+  }
+}'
+```
+
+Paginate as in Step 1. Filter to threads whose first comment `databaseId` is in the
+set of comment IDs from Phase 2. For each thread that **should** be resolved but is
+not (`isResolved == false`):
+
+1. Print `⚠️ Thread {thread_id} is still unresolved — retrying.`
+2. Re-run the `resolveReviewThread` mutation (up to 2 retries).
+3. Re-verify after each retry.
+4. If the thread still cannot be resolved after retries, log the failure and
+   report it in the Phase 8 summary.
+
 ---
 
 ## Phase 7: Re-request Copilot Review
@@ -304,6 +374,25 @@ gh api "repos/{owner}/{repo}/pulls/{pr_number}/requested_reviewers" \
 ```
 
 The Copilot reviewer's login is always `copilot-pull-request-reviewer[bot]`.
+
+### Verify Review Was Requested
+
+After requesting the review, confirm the request was registered:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls/{pr_number}/requested_reviewers" \
+  --jq '[.users[].login]'
+```
+
+Check that `copilot-pull-request-reviewer[bot]` appears in the returned array.
+If it does not:
+
+1. Print `⚠️ Copilot review request not confirmed — retrying.`
+2. Re-send the POST request (up to 2 retries).
+3. Re-verify after each retry.
+4. If the reviewer still does not appear after retries, log the failure and
+   report it in the Phase 8 summary. The merge-manager parent loop will detect
+   the missing review in its next iteration and can recover.
 
 ---
 
@@ -325,12 +414,21 @@ After completing all phases, present a summary to the user:
 | 12345 | src/foo.py | 42 | Addressed | Fixed in {COMMIT_SHORT} |
 | 12346 | README.md | 10 | Not addressed | Already correct (explained) |
 
+### Verification
+
+| Step | Status | Details |
+|------|--------|---------|
+| Push to remote | ✅ Verified | Head SHA matches {COMMIT_SHORT} |
+| Replies posted | ✅ Verified | All X replies confirmed |
+| Threads resolved | ✅ Verified | All Y threads resolved |
+| Copilot re-review requested | ✅ Verified | Reviewer appears in requested list |
+
 ### Status
 
-- [x] All comments replied to
-- [x] All threads resolved
-- [x] Copilot re-review requested
-- [x] Commit: {COMMIT_SHORT} (if changes were made)
+- [x] All comments replied to (verified)
+- [x] All threads resolved (verified)
+- [x] Copilot re-review requested (verified)
+- [x] Commit: {COMMIT_SHORT} (push verified)
 ```
 
 ---
