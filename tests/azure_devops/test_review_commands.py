@@ -786,6 +786,8 @@ class TestPrintReviewInstructions:
         assert "PR ID: 123" in captured.out
         assert "Prompts generated: 5" in captured.out
         assert "Skipped (already reviewed): 2" in captured.out
+        assert "agdt-set pull_request_id" not in captured.out
+        assert "--file-path" in captured.out
 
     def test_prints_skipped_not_on_branch(self, tmp_path, capsys):
         """Test prints skipped not on branch count when non-zero."""
