@@ -174,6 +174,7 @@ The agent delegates to the prompt for full instructions.
 | Command | Description |
 |---------|-------------|
 | `/agdt.address-copilot-review` | Address GitHub Copilot PR review comments end-to-end by review URL |
+| `/agdt.pr-merge-manager` | Poll PR state, address Copilot review comments, approve and merge when green |
 | `/agdt.squash-commits` | Squash multiple commits on a feature branch into a single well-formed commit |
 | `/agdt.resolve-merge-conflicts` | Resolve merge conflicts systematically with file-type-specific strategies |
 
