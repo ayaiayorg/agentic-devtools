@@ -252,7 +252,10 @@ class TestMaybeInjectAutoStartBeforeVscode:
             _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
         mock_inject.assert_called_once_with(
-            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None
+            str(tmp_path),
+            COPILOT_SESSION_START_PROMPT,
+            run_id="run-123",
+            model=None,
         )
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)

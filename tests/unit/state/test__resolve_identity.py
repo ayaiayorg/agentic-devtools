@@ -81,7 +81,9 @@ class TestResolveIdentityBasic:
 
     def test_three_part_email_uses_second_segment(self, tmp_path):
         """Albert.Marsnik.ext@swica.ch → ama (uses 2nd segment 'marsnik', not 3rd 'ext')."""
-        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("Albert.Marsnik.ext@swica.ch")):
+        with patch(
+            "agentic_devtools.state.subprocess.run", return_value=_mock_git_email("Albert.Marsnik.ext@swica.ch")
+        ):
             result = state._resolve_identity(tmp_path)
 
         # Split produces ["albert", "marsnik", "ext"]
