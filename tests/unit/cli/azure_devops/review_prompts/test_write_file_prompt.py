@@ -21,3 +21,4 @@ class TestWriteFilePrompt:
         assert result.suffix == ".md"
         content = result.read_text(encoding="utf-8")
         assert "# PR Review: /src/components/Button.tsx" in content
+        assert "## Full File Content" in content

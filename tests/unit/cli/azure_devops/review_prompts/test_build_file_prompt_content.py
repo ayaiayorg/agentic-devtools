@@ -122,6 +122,8 @@ class TestBuildFilePromptContent:
         )
 
         assert "(no content available)" in result
+        assert "## Full File Content" in result
+        assert "_This file was deleted in this change._" in result
 
     def test_uses_current_timestamp_when_not_provided(self):
         """Test that a timestamp is generated when not provided."""

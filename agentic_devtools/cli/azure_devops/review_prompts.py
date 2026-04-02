@@ -8,11 +8,13 @@ from datetime import datetime
 from pathlib import Path
 
 from .review_helpers import (
+    build_full_file_content_section,
     build_reviewed_paths_set,
     convert_to_prompt_filename,
     get_root_folder,
     get_threads_for_file,
     normalize_repo_path,
+    resolve_repository_root,
 )
 
 
@@ -34,6 +36,7 @@ def build_file_prompt_content(
     threads: list[dict],
     jira_issue_key: str | None = None,
     timestamp: str | None = None,
+    repo_root: Path | None = None,
 ) -> str:
     """
     Build the markdown content for a file review prompt.
@@ -46,6 +49,11 @@ def build_file_prompt_content(
         threads: Review threads for this file
         jira_issue_key: Optional Jira issue key for context
         timestamp: Optional timestamp (defaults to now)
+        repo_root: Optional repository root used to resolve ``file_path`` for
+            the appended full-file-content section. When omitted, path
+            resolution falls back through ``resolve_repository_root()``, which
+            may invoke ``git rev-parse --show-toplevel`` and ultimately falls
+            back to ``Path.cwd()``.
 
     Returns:
         Formatted markdown prompt content
@@ -113,6 +121,8 @@ def build_file_prompt_content(
                 lines.append(f"**{author}**: {content}")
                 lines.append("")
 
+    lines.extend(build_full_file_content_section(file_path, change_type, repo_root=repo_root))
+
     return "\n".join(lines)
 
 
@@ -124,6 +134,7 @@ def write_file_prompt(
     threads: list[dict],
     output_dir: Path,
     jira_issue_key: str | None = None,
+    repo_root: Path | None = None,
 ) -> Path:
     """
     Write a review prompt file for a single changed file.
@@ -136,6 +147,11 @@ def write_file_prompt(
         threads: Review threads for this file
         output_dir: Directory to write prompt file
         jira_issue_key: Optional Jira issue key for context
+        repo_root: Optional repository root forwarded to
+            ``build_file_prompt_content()`` for full-file-content resolution.
+            When omitted, repository resolution may invoke
+            ``git rev-parse --show-toplevel`` and falls back to ``Path.cwd()``
+            if the git toplevel cannot be determined.
 
     Returns:
         Path to the written prompt file
@@ -147,6 +163,7 @@ def write_file_prompt(
         file_content=file_content,
         threads=threads,
         jira_issue_key=jira_issue_key,
+        repo_root=repo_root,
     )
 
     filename = convert_to_prompt_filename(file_path)
@@ -185,6 +202,7 @@ def generate_review_prompts(
     reviewed_paths = build_reviewed_paths_set(pr_details)
 
     results = []
+    repo_root = resolve_repository_root()
 
     for change in changes:
         item = change.get("item", {})
@@ -220,6 +238,7 @@ def generate_review_prompts(
             threads=file_threads,
             output_dir=output_dir,
             jira_issue_key=jira_issue_key,
+            repo_root=repo_root,
         )
 
         if verbose:
