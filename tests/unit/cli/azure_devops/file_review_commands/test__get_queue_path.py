@@ -103,8 +103,57 @@ class TestGetQueuePath:
 
         assert result == tmp_path / "pull-request-review" / "12345678" / "queue.json"
 
+    def test_falls_back_to_8char_path_when_12char_path_missing(self, tmp_path):
+        """Should use 8-char hash directory when 12-char path absent but 8-char exists."""
+        # Create the 8-char directory but NOT the 12-char directory
+        short8_dir = tmp_path / "pull-request-review" / "abcdef12"
+        short8_dir.mkdir(parents=True)
+        short8_queue = short8_dir / "queue.json"
+        short8_queue.write_text("{}")
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+                return_value=tmp_path,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+                return_value="abcdef123456",
+            ),
+        ):
+            result = _get_queue_path(12345)
+
+        assert result == short8_queue
+
+    def test_prefers_12char_path_over_8char_path(self, tmp_path):
+        """Should prefer the 12-char directory when both 12-char and 8-char exist."""
+        # Create both 12-char and 8-char directories
+        new_dir = tmp_path / "pull-request-review" / "abcdef123456"
+        new_dir.mkdir(parents=True)
+        new_queue = new_dir / "queue.json"
+        new_queue.write_text("{}")
+
+        short8_dir = tmp_path / "pull-request-review" / "abcdef12"
+        short8_dir.mkdir(parents=True)
+        short8_queue = short8_dir / "queue.json"
+        short8_queue.write_text("{}")
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+                return_value=tmp_path,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+                return_value="abcdef123456",
+            ),
+        ):
+            result = _get_queue_path(12345)
+
+        assert result == new_queue
+
     def test_falls_back_to_legacy_path_when_new_path_missing(self, tmp_path):
-        """Should use legacy queue path when new path absent but legacy exists."""
+        """Should use legacy queue path when neither 12-char nor 8-char paths exist but legacy exists."""
         # Create the legacy queue file but NOT the new-format file
         legacy_dir = tmp_path / "pull-request-review" / "prompts" / "12345"
         legacy_dir.mkdir(parents=True)
@@ -118,7 +167,28 @@ class TestGetQueuePath:
             ),
             patch(
                 "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
-                return_value="abc12345",
+                return_value="abc12345abcd",
+            ),
+        ):
+            result = _get_queue_path(12345)
+
+        assert result == legacy_queue
+
+    def test_skips_unsafe_8char_fallback_and_uses_legacy_path(self, tmp_path):
+        """Should ignore unsafe 8-char fallback segment and continue to legacy path."""
+        legacy_dir = tmp_path / "pull-request-review" / "prompts" / "12345"
+        legacy_dir.mkdir(parents=True)
+        legacy_queue = legacy_dir / "queue.json"
+        legacy_queue.write_text("{}")
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_state_dir",
+                return_value=tmp_path,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_value",
+                return_value="../evil12",
             ),
         ):
             result = _get_queue_path(12345)
