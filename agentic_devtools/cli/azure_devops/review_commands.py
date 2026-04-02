@@ -557,22 +557,18 @@ def print_review_instructions(
     print("REVIEW COMMANDS")
     print("=" * 60)
     print("")
-    print("Set the file path and review details first:")
-    print(f"  agdt-set pull_request_id {pull_request_id}")
-    print('  agdt-set file_review.file_path "/path/to/file.ts"')
-    print('  agdt-set file_review.summary "Your review comment here"')
+    print("Note: pull_request_id is already set from the workflow state.")
     print("")
-    print("Then use one of these commands:")
+    print("Use one of these commands for each file:")
     print("")
     print("• APPROVE (no issues found):")
-    print("    agdt-approve-file")
+    print('    agdt-approve-file --file-path "/path/to/file.ts" --summary "Your review comment here"')
     print("")
     print("• REQUEST CHANGES:")
     print(
-        "    agdt-set file_review.suggestions "
-        """'[{"line": 42, "severity": "high", "content": "Issue description"}]'"""
+        '    agdt-request-changes --file-path "/path/to/file.ts" --summary "Overall assessment"'
+        ' --suggestions \'[{"line": 42, "severity": "high", "content": "Issue description"}]\''
     )
-    print("    agdt-request-changes")
     print("")
     print("• REQUEST CHANGES WITH CODE SUGGESTION:")
     _suggestion_example = json.dumps(
@@ -585,8 +581,10 @@ def print_review_instructions(
             }
         ]
     )
-    print(f"    agdt-set file_review.suggestions '{_suggestion_example}'")
-    print("    agdt-request-changes-with-suggestion")
+    print(
+        f'    agdt-request-changes-with-suggestion --file-path "/path/to/file.ts"'
+        f" --summary \"Overall assessment\" --suggestions '{_suggestion_example}'"
+    )
     print("")
     print("=" * 60)
     print("IMPORTANT NOTES")
