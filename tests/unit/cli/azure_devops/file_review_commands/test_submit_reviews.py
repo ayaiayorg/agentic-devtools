@@ -1293,9 +1293,7 @@ class TestSubmitReviewsParallelExecution:
         captured = capsys.readouterr()
         assert "duplicate file_path" in captured.err
 
-    def test_materializes_review_state_when_local_copy_missing(
-        self, temp_state_dir, clear_state_before, capsys
-    ):
+    def test_materializes_review_state_when_local_copy_missing(self, temp_state_dir, clear_state_before, capsys):
         """When review state was loaded (e.g. from -agdt branch) but no local file exists, save_review_state is called."""
         from agentic_devtools.state import set_value
 
@@ -1315,7 +1313,9 @@ class TestSubmitReviewsParallelExecution:
             stack.enter_context(patch(f"{_MOD}.get_pat", return_value="test-pat"))
             stack.enter_context(patch(f"{_MOD}.get_auth_headers", return_value={"Authorization": "test"}))
             stack.enter_context(
-                patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=mock_review_state)
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=mock_review_state
+                )
             )
             # Simulate: local file does NOT exist (loaded from remote branch).
             mock_state_path = MagicMock()
@@ -1378,3 +1378,239 @@ class TestSubmitReviewsParallelExecution:
         call_kwargs = parallel_mocks["process"].call_args.kwargs
         assert call_kwargs["file_path"] == "src/a.ts"
         assert call_kwargs["summary"] == "Good"
+
+
+class TestSubmitReviewsDryRunDeferredCascade:
+    """Tests for deferred cascade behavior in submit_reviews dry-run sequential path."""
+
+    def test_batch_passes_skip_cascade_true(self, temp_state_dir, clear_state_before, capsys):
+        """approve_file should be called with skip_cascade=True in dry-run batch mode."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]))
+        with patch(f"{_MOD}.is_dry_run", return_value=True):
+            with patch(f"{_MOD}.approve_file") as mock_approve:
+                submit_reviews()
+                mock_approve.assert_called_once_with(skip_cascade=True)
+
+    def test_batch_passes_skip_cascade_true_to_request_changes(self, temp_state_dir, clear_state_before, capsys):
+        """request_changes should be called with skip_cascade=True in dry-run batch mode."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {
+                        "file_path": "src/a.ts",
+                        "outcome": "request-changes",
+                        "summary": "Fix",
+                        "suggestions": [{"line": 1, "severity": "high", "content": "Fix it"}],
+                    }
+                ]
+            ),
+        )
+        with patch(f"{_MOD}.is_dry_run", return_value=True):
+            with patch(f"{_MOD}.request_changes") as mock_rc:
+                submit_reviews()
+                mock_rc.assert_called_once_with(skip_cascade=True)
+
+    def test_batch_passes_skip_cascade_true_to_suggestion(self, temp_state_dir, clear_state_before, capsys):
+        """request_changes_with_suggestion should be called with skip_cascade=True in dry-run batch."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {
+                        "file_path": "src/a.ts",
+                        "outcome": "request-changes-with-suggestion",
+                        "summary": "Fix",
+                        "suggestions": [
+                            {"line": 1, "severity": "high", "content": "Fix it", "replacement_code": "fixed()"}
+                        ],
+                    }
+                ]
+            ),
+        )
+        with patch(f"{_MOD}.is_dry_run", return_value=True):
+            with patch(f"{_MOD}.request_changes_with_suggestion") as mock_rcs:
+                submit_reviews()
+                mock_rcs.assert_called_once_with(skip_cascade=True)
+
+    def test_batch_cascades_once_after_all_files(self, temp_state_dir, clear_state_before, capsys):
+        """Deferred cascade should run exactly once after all files in dry-run sequential path."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        items = [{"file_path": f"src/file{i}.ts", "summary": "OK"} for i in range(3)]
+        set_value("batch_reviews.items", json.dumps(items))
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid-123"
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.is_dry_run", return_value=True))
+            stack.enter_context(patch(f"{_MOD}.approve_file"))
+            m_require_requests = stack.enter_context(patch(f"{_MOD}.require_requests"))
+            m_get_pat = stack.enter_context(patch(f"{_MOD}.get_pat"))
+            m_get_auth_headers = stack.enter_context(patch(f"{_MOD}.get_auth_headers"))
+            m_cascade = stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                    return_value=[],
+                )
+            )
+            m_exec = stack.enter_context(patch("agentic_devtools.cli.azure_devops.status_cascade.execute_cascade"))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    return_value=mock_review_state,
+                )
+            )
+
+            submit_reviews()
+
+        m_cascade.assert_called_once()
+        m_exec.assert_called_once()
+        m_require_requests.assert_not_called()
+        m_get_pat.assert_not_called()
+        m_get_auth_headers.assert_not_called()
+
+    def test_batch_skips_cascade_when_all_fail(self, temp_state_dir, clear_state_before, capsys):
+        """Post-loop cascade should NOT run when succeeded == 0."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]))
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.is_dry_run", return_value=True))
+            stack.enter_context(patch(f"{_MOD}.approve_file", side_effect=SystemExit(1)))
+            m_cascade = stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                    return_value=[],
+                )
+            )
+
+            with pytest.raises(SystemExit):
+                submit_reviews()
+
+        m_cascade.assert_not_called()
+
+    def test_batch_cascades_on_partial_failure(self, temp_state_dir, clear_state_before, capsys):
+        """Post-loop cascade should run when some files succeed and some fail."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value(
+            "batch_reviews.items",
+            json.dumps(
+                [
+                    {"file_path": "src/a.ts", "summary": "OK"},
+                    {"file_path": "src/b.ts", "summary": "OK"},
+                ]
+            ),
+        )
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid-123"
+
+        call_count = [0]
+
+        def approve_side_effect(**kwargs):
+            call_count[0] += 1
+            if call_count[0] == 2:
+                raise SystemExit(1)
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.is_dry_run", return_value=True))
+            stack.enter_context(patch(f"{_MOD}.approve_file", side_effect=approve_side_effect))
+            m_require_requests = stack.enter_context(patch(f"{_MOD}.require_requests"))
+            m_get_pat = stack.enter_context(patch(f"{_MOD}.get_pat"))
+            m_get_auth_headers = stack.enter_context(patch(f"{_MOD}.get_auth_headers"))
+            m_cascade = stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                    return_value=[],
+                )
+            )
+            stack.enter_context(patch("agentic_devtools.cli.azure_devops.status_cascade.execute_cascade"))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    return_value=mock_review_state,
+                )
+            )
+
+            with pytest.raises(SystemExit):
+                submit_reviews()
+
+        m_cascade.assert_called_once()
+        m_require_requests.assert_not_called()
+        m_get_pat.assert_not_called()
+        m_get_auth_headers.assert_not_called()
+
+    def test_batch_cascade_handles_missing_review_state(self, temp_state_dir, clear_state_before, capsys):
+        """FileNotFoundError from load_review_state should be caught with a warning."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]))
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.is_dry_run", return_value=True))
+            stack.enter_context(patch(f"{_MOD}.approve_file"))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    side_effect=FileNotFoundError("no state"),
+                )
+            )
+
+            submit_reviews()
+
+        captured = capsys.readouterr()
+        assert "review-state.json not found" in captured.err
+
+    def test_batch_cascade_handles_generic_exception(self, temp_state_dir, clear_state_before, capsys):
+        """Generic Exception during cascade should be caught with a warning."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("batch_reviews.items", json.dumps([{"file_path": "src/a.ts", "summary": "OK"}]))
+
+        mock_review_state = MagicMock()
+        mock_review_state.repoId = "repo-guid-123"
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.is_dry_run", return_value=True))
+            stack.enter_context(patch(f"{_MOD}.approve_file"))
+            m_require_requests = stack.enter_context(patch(f"{_MOD}.require_requests"))
+            m_get_pat = stack.enter_context(patch(f"{_MOD}.get_pat"))
+            m_get_auth_headers = stack.enter_context(patch(f"{_MOD}.get_auth_headers"))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    return_value=mock_review_state,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                    side_effect=RuntimeError("cascade boom"),
+                )
+            )
+
+            submit_reviews()
+
+        captured = capsys.readouterr()
+        assert "Warning: cascade update failed" in captured.err
+        m_require_requests.assert_not_called()
+        m_get_pat.assert_not_called()
+        m_get_auth_headers.assert_not_called()

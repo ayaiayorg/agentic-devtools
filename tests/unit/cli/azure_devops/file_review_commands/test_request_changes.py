@@ -1128,3 +1128,48 @@ class TestRequestChangesRecordVerdict:
         # No spurious 'unknown' row should exist
         file_entry = review_state.files["/src/main.py"]
         assert all(mv.modelId != "unknown" for mv in file_entry.modelVerdicts)
+
+
+class TestRequestChangesSkipCascade:
+    """Tests for the skip_cascade parameter in request_changes."""
+
+    def _setup_state(self, set_value, suggestions=None):
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Error handling risk.")
+        set_value("file_review.suggestions", suggestions or _SUGGESTIONS)
+
+    def test_skip_cascade_true_skips_cascade(self, temp_state_dir, clear_state_before):
+        """skip_cascade=True should skip cascade_status_update but still call save_review_state."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(1001, 2001)
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            handles = _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value)
+            request_changes(skip_cascade=True)
+
+        handles["cascade"].assert_not_called()
+        handles["execute"].assert_not_called()
+        mock_save.assert_called_once_with(review_state)
+
+    def test_skip_cascade_false_default_cascades(self, temp_state_dir, clear_state_before):
+        """Default skip_cascade=False should call cascade_status_update and execute_cascade."""
+        from agentic_devtools.state import set_value
+
+        mock_requests = MagicMock()
+        mock_requests.post.return_value = _make_post_response(1001, 2001)
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            handles = _enter_patch_flow_mocks(stack, review_state, mock_requests, mock_save=mock_save)
+            self._setup_state(set_value)
+            request_changes()
+
+        handles["cascade"].assert_called_once()
+        mock_save.assert_called_once_with(review_state)

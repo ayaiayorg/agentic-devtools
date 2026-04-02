@@ -252,7 +252,7 @@ def trigger_in_progress_for_file(
         dry_run=dry_run,
     )
 
-    # Cascade folder and overall summary updates. Persist the updated
+    # Cascade the overall summary update. Persist the updated
     # review_state even if downstream cascade execution fails, so the
     # local state reflects the already-PATCHed file comment.
     try:
@@ -606,7 +606,7 @@ def _resolve_file_threads(
     return resolved_count
 
 
-def approve_file() -> None:  # pragma: no cover
+def approve_file(*, skip_cascade: bool = False) -> None:  # pragma: no cover
     """
     Approve a file in a pull request review.
 
@@ -615,7 +615,7 @@ def approve_file() -> None:  # pragma: no cover
     2. PATCHes the existing file summary comment with rendered markdown
     3. PATCHes the file thread status to "closed"
     4. Marks the file as reviewed in Azure DevOps
-    5. Cascades folder and PR summary updates via PATCH
+    5. Cascades the overall PR summary update via PATCH (unless skip_cascade=True)
     6. Saves updated review state
     7. Updates the review queue and triggers workflow continuation
 
@@ -630,6 +630,12 @@ def approve_file() -> None:  # pragma: no cover
         - file_review.summary (required): Approval summary text
         - content (deprecated): Falls back to file_review.summary with a warning
         - dry_run: If true, only print what would be done
+
+    Args:
+        skip_cascade: When True, skip the overall summary cascade PATCH update
+            for this call. Useful for batch flows that defer cascade execution
+            to a single post-loop update while still persisting per-file review
+            state.
 
     Raises:
         SystemExit: On validation or execution errors.
@@ -765,21 +771,22 @@ def approve_file() -> None:  # pragma: no cover
             dry_run=dry_run,
         )
 
-        # Cascade folder and overall summary updates. Persist the updated
+        # Cascade the overall summary update. Persist the updated
         # review_state even if downstream cascade execution fails, so the
         # local state reflects the already-PATCHed file comment.
         try:
-            cascade_attrs = _get_attribution_params(review_state, config)
-            patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
-            execute_cascade(
-                patch_operations=patch_operations,
-                requests_module=requests,
-                headers=headers,
-                config=config,
-                repo_id=repo_id,
-                pull_request_id=pull_request_id,
-                dry_run=dry_run,
-            )
+            if not skip_cascade:
+                cascade_attrs = _get_attribution_params(review_state, config)
+                patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
+                execute_cascade(
+                    patch_operations=patch_operations,
+                    requests_module=requests,
+                    headers=headers,
+                    config=config,
+                    repo_id=repo_id,
+                    pull_request_id=pull_request_id,
+                    dry_run=dry_run,
+                )
         finally:
             save_review_state(review_state)
 
@@ -826,7 +833,7 @@ def approve_file() -> None:  # pragma: no cover
     print_next_file_prompt(pull_request_id)
 
 
-def request_changes() -> None:
+def request_changes(*, skip_cascade: bool = False) -> None:
     """
     Request changes on a file in a pull request review with multiple suggestions.
 
@@ -837,7 +844,7 @@ def request_changes() -> None:
     4. PATCHes the file summary comment with categorized suggestion links
     5. Sets file thread status to "active" (needs work)
     6. Marks the file as reviewed in Azure DevOps
-    7. Cascades folder and PR summary updates via PATCH
+    7. Cascades the overall PR summary update via PATCH (unless skip_cascade=True)
     8. Saves updated review state
     9. Updates the review queue and triggers workflow continuation
 
@@ -855,6 +862,12 @@ def request_changes() -> None:
           Optional fields: end_line (int | None), out_of_scope (bool), link_text (str | None).
           When end_line is null or omitted, it is treated as equal to line.
         - dry_run: If true, only print what would be done
+
+    Args:
+        skip_cascade: When True, skip the overall summary cascade PATCH update
+            for this call. The command still posts suggestion threads, updates
+            file/thread status, and persists review_state so batch callers can
+            run one deferred overall cascade at the end.
 
     Suggestion schema:
         {
@@ -1122,18 +1135,19 @@ def request_changes() -> None:
                 dry_run=dry_run,
             )
 
-            # Cascade folder and overall summary updates
-            cascade_attrs = _get_attribution_params(review_state, config)
-            patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
-            execute_cascade(
-                patch_operations=patch_operations,
-                requests_module=requests,
-                headers=headers,
-                config=config,
-                repo_id=repo_id,
-                pull_request_id=pull_request_id,
-                dry_run=dry_run,
-            )
+            # Cascade the overall summary update
+            if not skip_cascade:
+                cascade_attrs = _get_attribution_params(review_state, config)
+                patch_operations = cascade_status_update(review_state, file_path, base_url, **cascade_attrs)
+                execute_cascade(
+                    patch_operations=patch_operations,
+                    requests_module=requests,
+                    headers=headers,
+                    config=config,
+                    repo_id=repo_id,
+                    pull_request_id=pull_request_id,
+                    dry_run=dry_run,
+                )
         finally:
             save_review_state(review_state)
 
@@ -1194,7 +1208,7 @@ def request_changes() -> None:
     print_next_file_prompt(pull_request_id)
 
 
-def request_changes_with_suggestion() -> None:
+def request_changes_with_suggestion(*, skip_cascade: bool = False) -> None:
     """
     Request changes with code suggestion(s) on a file in a pull request review.
 
@@ -1204,6 +1218,12 @@ def request_changes_with_suggestion() -> None:
 
     State keys read: same as request_changes, but each suggestion in
     file_review.suggestions requires a replacement_code field.
+
+    Args:
+        skip_cascade: Forwarded to request_changes(). When True, suppresses the
+            overall summary cascade update (overall summary thread status PATCH)
+            while preserving all other request-changes behavior and state
+            persistence.
 
     Suggestion schema:
         {
@@ -1296,7 +1316,7 @@ def request_changes_with_suggestion() -> None:
     # so that replacement_code is preserved in state for retries and dry_run does
     # not leave mutated state behind.
     try:
-        request_changes()
+        request_changes(skip_cascade=skip_cascade)
     finally:
         if suggestions_raw:
             set_value("file_review.suggestions", suggestions_raw)
@@ -1924,11 +1944,11 @@ def submit_reviews() -> None:
                 print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
                 try:
                     if outcome == _BATCH_OUTCOME_APPROVE:
-                        approve_file()
+                        approve_file(skip_cascade=True)
                     elif outcome == _BATCH_OUTCOME_CHANGES:
-                        request_changes()
+                        request_changes(skip_cascade=True)
                     else:
-                        request_changes_with_suggestion()
+                        request_changes_with_suggestion(skip_cascade=True)
                     succeeded += 1
                     print("  \u2705 Done")
                 except SystemExit as exc:
@@ -1937,6 +1957,38 @@ def submit_reviews() -> None:
                         failed += 1
                     else:
                         succeeded += 1
+
+            # Deferred cascade: update overall summary once after all files
+            if succeeded > 0:
+                try:
+                    from .review_scaffold import _build_pr_base_url
+                    from .review_state import load_review_state as _load_rs
+                    from .status_cascade import (
+                        cascade_overall_summary_update,
+                        execute_cascade,
+                    )
+
+                    review_state = _load_rs(pr_id)
+                    cascade_config = AzureDevOpsConfig.from_state()
+                    base_url = _build_pr_base_url(cascade_config, pr_id)
+                    cascade_attrs = _get_attribution_params(review_state, cascade_config)
+                    patch_operations = cascade_overall_summary_update(review_state, base_url, **cascade_attrs)
+                    execute_cascade(
+                        patch_operations=patch_operations,
+                        requests_module=None,
+                        headers={},
+                        config=cascade_config,
+                        repo_id=review_state.repoId,
+                        pull_request_id=pr_id,
+                        dry_run=dry_run,
+                    )
+                except FileNotFoundError:
+                    print(
+                        "Warning: review-state.json not found; skipping overall summary cascade.",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"Warning: cascade update failed: {exc}", file=sys.stderr)
         finally:
             set_batch_context(None)
     elif valid_items:
