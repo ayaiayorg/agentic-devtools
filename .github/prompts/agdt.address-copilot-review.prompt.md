@@ -121,7 +121,40 @@ agdt-task-wait
 
 If tests fail, fix the issues before proceeding.
 
+### Resolve the GitHub Issue Key
+
+Before committing, determine the GitHub issue linked to this PR so your commit message
+follows the repository's required convention (issue link in the scope and footer).
+
+1. Check the **existing commit message** on the branch (if any) for an issue reference
+   like `#1062` in the conventional-commit scope.
+2. If not found there, check the **PR title** and **PR body** for closing keywords
+   (`closes #N`, `fixes #N`, `resolves #N`) or issue links.
+3. If still not found, check the PR's **linked issues** via the GitHub API:
+
+   ```bash
+   gh api graphql -f query='query {
+     repository(owner: "{owner}", name: "{repo}") {
+       pullRequest(number: {pr_number}) {
+         closingIssuesReferences(first: 10) {
+           nodes { number title }
+         }
+       }
+     }
+   }'
+   ```
+
+4. The resolved issue number will be used in the commit message scope and footer
+   (see Commit & Push below). No state key needs to be set — include the issue
+   link directly in the commit message.
+
+5. If **no** issue can be determined after all checks, **create a GitHub issue first**
+   (required by this repo's commit convention — every commit must have an issue link
+   in the scope and footer). Then use the newly created issue number.
+
 ### Commit & Push
+
+When a GitHub issue **was** resolved:
 
 ```bash
 agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
@@ -129,6 +162,29 @@ agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/iss
 - <summary of changes>
 
 [#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
+agdt-set dry_run false
+agdt-set skip_stage false
+agdt-set skip_push false
+agdt-set skip_rebase false
+agdt-git-save-work
+agdt-task-wait
+```
+
+When you **don't yet have** a GitHub issue:
+
+1. **Create or link a GitHub issue first** (required by this repo's commit convention).
+2. Then use the same commit-message pattern as above, including the issue link in both the scope and footer:
+
+```bash
+agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
+
+- <summary of changes>
+
+[#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
+agdt-set dry_run false
+agdt-set skip_stage false
+agdt-set skip_push false
+agdt-set skip_rebase false
 agdt-git-save-work
 agdt-task-wait
 ```
@@ -142,9 +198,6 @@ Choose the commit **type** based on the nature of the changes:
 | `style` | Formatting, naming, whitespace changes |
 | `docs` | Documentation-only changes |
 | `chore` | Maintenance tasks that don't affect production code |
-
-> If no GitHub issue is linked to the PR, do **not** use the PR number in the commit scope.
-> Ask the user which GitHub issue to use, or ask them to create/link an issue before committing.
 
 ### Capture the Commit Hash
 

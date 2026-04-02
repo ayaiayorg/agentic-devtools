@@ -11,6 +11,8 @@ Each command:
 import copy
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -908,83 +910,15 @@ def request_changes() -> None:
         sys.exit(1)
 
     # Validate each suggestion object
-    valid_severities = ("high", "medium", "low")
     for i, s in enumerate(suggestions_data):
         if not isinstance(s, dict):
             print(f"Error: Suggestion at index {i} is not an object.", file=sys.stderr)
             sys.exit(1)
-        for required_field in ("content", "line", "severity"):
-            if required_field not in s:
-                print(f"Error: Suggestion at index {i} is missing required field '{required_field}'.", file=sys.stderr)
-                sys.exit(1)
-        # Validate content is a non-empty string
-        if not isinstance(s["content"], str) or not s["content"].strip():
-            print(f"Error: Suggestion at index {i} field 'content' must be a non-empty string.", file=sys.stderr)
+        field_errors = _validate_suggestion_fields(s, i)
+        if field_errors:
+            for err in field_errors:
+                print(f"Error: {err}", file=sys.stderr)
             sys.exit(1)
-        # Validate severity is a string with a known value
-        if not isinstance(s["severity"], str) or s["severity"] not in valid_severities:
-            print(
-                f"Error: Suggestion at index {i} has invalid severity {s['severity']!r}. "
-                f"Must be one of: {', '.join(valid_severities)}.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        # Validate line fields are true integers >= 1 (reject float, bool, etc.)
-        for int_field in ("line", "end_line"):
-            if int_field in s:
-                val = s[int_field]
-                # Treat None as absent only for end_line; for line it is an error
-                if val is None:
-                    if int_field == "end_line":
-                        del s[int_field]
-                        continue
-                    print(
-                        f"Error: Suggestion at index {i} field 'line' must not be null.",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-                if isinstance(val, bool) or not isinstance(val, int):
-                    print(
-                        f"Error: Suggestion at index {i} field '{int_field}' must be an integer "
-                        f"(got {val!r} of type {type(val).__name__}).",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-                if val < 1:
-                    print(
-                        f"Error: Suggestion at index {i} field '{int_field}' must be >= 1 (got {val}).",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-        # Validate end_line >= line when both present
-        line_val = s["line"]
-        end_line_val = s.get("end_line", line_val)
-        if end_line_val < line_val:
-            print(
-                f"Error: Suggestion at index {i} has end_line ({end_line_val}) < line ({line_val}).",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        # Validate out_of_scope is a bool (not a truthy string)
-        if "out_of_scope" in s and not isinstance(s["out_of_scope"], bool):
-            print(
-                f"Error: Suggestion at index {i} field 'out_of_scope' must be a boolean "
-                f"(got {s['out_of_scope']!r} of type {type(s['out_of_scope']).__name__}).",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        # Validate link_text is a non-empty string when present; treat null/blank as absent
-        if "link_text" in s:
-            if s["link_text"] is None:
-                del s["link_text"]
-            elif not isinstance(s["link_text"], str):
-                print(
-                    f"Error: Suggestion at index {i} field 'link_text' must be a string.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            elif not s["link_text"].strip():
-                del s["link_text"]
 
     if dry_run:
         print(f"DRY-RUN: Would request changes on '{file_path}' on PR {pull_request_id}")
@@ -1363,15 +1297,400 @@ _BATCH_OUTCOME_CHANGES = "request-changes"
 _BATCH_OUTCOME_SUGGEST = "request-changes-with-suggestion"
 _BATCH_VALID_OUTCOMES = frozenset({_BATCH_OUTCOME_APPROVE, _BATCH_OUTCOME_CHANGES, _BATCH_OUTCOME_SUGGEST})
 
+# Default maximum number of worker threads for parallel batch processing.
+_BATCH_DEFAULT_MAX_WORKERS = 5
+
+# Valid severity values for review suggestions.
+_VALID_SEVERITIES = ("high", "medium", "low")
+
+
+def _validate_suggestion_fields(
+    suggestion: dict,
+    suggestion_index: int,
+    *,
+    outcome: str | None = None,
+    context_prefix: str = "",
+) -> list[str]:
+    """Validate and normalize fields within a single suggestion dict.
+
+    Validates required fields (``content``, ``line``, ``severity``) and
+    optional fields (``end_line``, ``out_of_scope``, ``link_text``,
+    ``replacement_code``).  Normalizes ``severity`` to lowercase.
+
+    This function is shared between ``request_changes()`` (single-file)
+    and ``submit_reviews()`` (batch) to ensure consistent validation.
+
+    Args:
+        suggestion: Suggestion dict to validate (mutated in-place for
+            normalization, e.g. severity lowering, null link_text removal).
+        suggestion_index: Zero-based index of the suggestion in the list
+            (used in error messages).
+        outcome: The review outcome; when set to
+            ``"request-changes-with-suggestion"``, ``replacement_code``
+            is also validated as required.
+        context_prefix: Optional prefix for error messages, e.g.
+            ``"Review at index 2 (src/a.ts): "`` for batch context.
+
+    Returns:
+        A list of error message strings; empty if validation passed.
+    """
+    errors: list[str] = []
+    j = suggestion_index
+    pfx = context_prefix
+
+    # --- Required: content (non-empty string) ---
+    content = suggestion.get("content")
+    if not isinstance(content, str) or not content.strip():
+        errors.append(f"{pfx}suggestion at index {j} field 'content' must be a non-empty string.")
+        return errors
+
+    # --- Required: line (integer, not bool/null, >= 1) ---
+    if "line" not in suggestion:
+        errors.append(f"{pfx}suggestion at index {j} field 'line' is required and missing.")
+        return errors
+    line = suggestion["line"]
+    if line is None:
+        errors.append(f"{pfx}suggestion at index {j} field 'line' must not be null.")
+        return errors
+    if isinstance(line, bool) or not isinstance(line, int):
+        errors.append(f"{pfx}suggestion at index {j} has invalid 'line' (expected integer, got {type(line).__name__}).")
+        return errors
+    if line < 1:
+        errors.append(f"{pfx}suggestion at index {j} field 'line' must be >= 1 (got {line}).")
+        return errors
+
+    # --- Required: severity (non-empty string, normalized to lowercase) ---
+    severity = suggestion.get("severity")
+    if not isinstance(severity, str) or not severity.strip():
+        errors.append(f"{pfx}suggestion at index {j} has missing or empty 'severity'.")
+        return errors
+    normalized_severity = severity.strip().lower()
+    if normalized_severity not in _VALID_SEVERITIES:
+        errors.append(
+            f"{pfx}suggestion at index {j} has invalid severity {severity!r}. "
+            f"Must be one of: {', '.join(_VALID_SEVERITIES)}."
+        )
+        return errors
+    suggestion["severity"] = normalized_severity
+
+    # --- Optional: end_line (integer when present, >= line) ---
+    if "end_line" in suggestion:
+        end_line = suggestion["end_line"]
+        if end_line is None:
+            del suggestion["end_line"]
+        elif isinstance(end_line, bool) or not isinstance(end_line, int):
+            errors.append(
+                f"{pfx}suggestion at index {j} field 'end_line' must be an integer "
+                f"(got {end_line!r} of type {type(end_line).__name__})."
+            )
+            return errors
+        elif end_line < 1:
+            errors.append(f"{pfx}suggestion at index {j} field 'end_line' must be >= 1 (got {end_line}).")
+            return errors
+        elif end_line < line:
+            errors.append(f"{pfx}suggestion at index {j} has end_line ({end_line}) < line ({line}).")
+            return errors
+
+    # --- Optional: out_of_scope (must be bool when present) ---
+    if "out_of_scope" in suggestion and not isinstance(suggestion["out_of_scope"], bool):
+        errors.append(
+            f"{pfx}suggestion at index {j} field 'out_of_scope' must be a boolean "
+            f"(got {suggestion['out_of_scope']!r} of type {type(suggestion['out_of_scope']).__name__})."
+        )
+        return errors
+
+    # --- Optional: link_text (string when present; null/blank → remove) ---
+    if "link_text" in suggestion:
+        lt = suggestion["link_text"]
+        if lt is None:
+            del suggestion["link_text"]
+        elif not isinstance(lt, str):
+            errors.append(f"{pfx}suggestion at index {j} field 'link_text' must be a string.")
+            return errors
+        elif not lt.strip():
+            del suggestion["link_text"]
+
+    # --- Conditional: replacement_code (required for request-changes-with-suggestion) ---
+    if outcome == _BATCH_OUTCOME_SUGGEST:
+        replacement_code = suggestion.get("replacement_code")
+        if not isinstance(replacement_code, str) or not replacement_code.strip():
+            errors.append(
+                f"{pfx}suggestion at index {j} has missing or empty 'replacement_code' for '{outcome}' outcome."
+            )
+            return errors
+
+    return errors
+
+
+@dataclass
+class _FileResult:
+    """Result of processing a single file in a parallel batch."""
+
+    file_path: str
+    outcome: str
+    success: bool
+    error: str | None = None
+
+
+def _process_file_parallel(
+    *,
+    file_path: str,
+    outcome: str,
+    summary: str,
+    suggestions: list | None,
+    pull_request_id: int,
+    config: AzureDevOpsConfig,
+    headers: dict[str, str],
+    repo_id: str,
+    requests_module: object,
+) -> _FileResult:
+    """Process a single file review in the parallel batch.
+
+    This function performs per-file operations (POST suggestion threads,
+    PATCH file comment, PATCH thread status) but intentionally **skips**
+    the cascade, queue update, and mark-as-reviewed — those are performed
+    later in ``submit_reviews`` after all parallel workers complete.
+
+    The review-state lock is acquired in two brief phases:
+
+    * **Lock phase 1** (non-terminal): reads current state, may rotate or
+      clear suggestions for re-review (updating ``review-state.json``),
+      captures HTTP parameters, and snapshots the file entry.  No terminal
+      status is written here so that local state stays consistent with
+      Azure DevOps if the subsequent HTTP calls fail.
+    * **Lock phase 2** (after HTTP success): persists the terminal status
+      (approved / needs-work), records the verdict, and stores any new
+      suggestion thread IDs.
+
+    HTTP calls (POST suggestion threads, PATCH comment/thread) run
+    **outside** the lock so that parallel workers do not block each other
+    for the duration of network I/O.  If HTTP calls fail partway through,
+    only the partial suggestion IDs are persisted (error path) — the file
+    status is not changed.
+
+    Args:
+        file_path: Path of the file being reviewed.
+        outcome: Review outcome (``approve``, ``request-changes``,
+            ``request-changes-with-suggestion``).
+        summary: Summary text for the review comment.
+        suggestions: List of suggestion dicts (may be ``None`` for approvals).
+        pull_request_id: Pull request ID.
+        config: Azure DevOps configuration.
+        headers: Auth headers for API calls.
+        repo_id: Azure DevOps repository ID.
+        requests_module: The ``requests`` module (or test double).
+
+    Returns:
+        A ``_FileResult`` indicating success or failure.
+    """
+    from .helpers import build_thread_context
+    from .review_scaffold import _build_pr_base_url
+    from .review_state import (
+        ReviewStatus,
+        SuggestionEntry,
+        add_suggestion_to_file,
+        clear_suggestions_for_re_review,
+        normalize_file_path,
+        read_modify_write_review_state,
+        update_file_status,
+    )
+    from .review_templates import render_file_summary
+    from .verdict_protocol import VerdictType, record_verdict
+
+    is_approve = outcome == _BATCH_OUTCOME_APPROVE
+    status = ReviewStatus.APPROVED.value if is_approve else ReviewStatus.NEEDS_WORK.value
+    thread_status = "closed" if is_approve else "active"
+    base_url = _build_pr_base_url(config, pull_request_id)
+
+    # Handle request-changes-with-suggestion transformation: append
+    # replacement_code into content with suggestion fence formatting,
+    # matching the behavior in request_changes_with_suggestion().
+    if outcome == _BATCH_OUTCOME_SUGGEST and suggestions:
+        suggestions = copy.deepcopy(suggestions)
+        for s in suggestions:
+            if isinstance(s, dict) and "replacement_code" in s:
+                rc = s["replacement_code"]
+                s["content"] = f"{s['content']}\n\n```suggestion\n{rc}\n```"
+                del s["replacement_code"]
+
+    # ── Lock phase 1: Read state, capture HTTP params ───────────────
+    # Acquire the lock only long enough to read/rotate state and capture
+    # values needed for HTTP calls.  May call clear_suggestions_for_re_review()
+    # which mutates review-state.json, but terminal status (approved/needs-work)
+    # is NOT written here so that local state stays consistent with what
+    # was actually applied to Azure DevOps — it is deferred to lock phase 2
+    # after HTTP calls succeed.
+    with read_modify_write_review_state(pull_request_id) as review_state:
+        try:
+            clear_suggestions_for_re_review(review_state, file_path)
+        except KeyError:
+            pass
+
+        normalized = normalize_file_path(file_path)
+        if normalized not in review_state.files:
+            return _FileResult(
+                file_path=file_path,
+                outcome=outcome,
+                success=False,
+                error=f"File {file_path!r} not found in review-state.json",
+            )
+
+        file_entry = review_state.files[normalized]
+
+        # Capture model_id for verdict recording in lock phase 2.
+        if review_state.sessions:
+            model_id = review_state.sessions[-1].modelId
+        else:
+            model_id = getattr(review_state, "modelId", None)
+
+        # Capture values needed for HTTP calls outside the lock.
+        attrs = _get_attribution_params(review_state, config, file_path=file_path)
+        file_thread_id = file_entry.threadId
+        file_comment_id = file_entry.commentId
+
+        # Snapshot current suggestions for retry-idempotency duplicate
+        # detection during the POST phase below.  We intentionally do NOT
+        # include previousSuggestions: those were rotated by
+        # clear_suggestions_for_re_review() to allow a fresh re-review to
+        # create new threads even when the new suggestions match the prior
+        # cycle's entries — matching the semantics of request_changes().
+        existing_suggestions = list(file_entry.suggestions)
+
+        # Snapshot the file entry for rendering outside the lock.
+        snapshot_file_entry = copy.deepcopy(file_entry)
+
+    # ── HTTP phase: Network calls outside the lock ───────────────────
+    # These calls target different Azure DevOps endpoints per-file and are
+    # safe to run concurrently across workers without holding the state lock.
+    try:
+        # POST suggestion threads for non-approve outcomes.
+        posted_suggestions: list[SuggestionEntry] = []
+        if not is_approve and suggestions:
+
+            def _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+                for e in existing_suggestions:
+                    if (
+                        e.line == line
+                        and e.endLine == end_line
+                        and e.severity == severity
+                        and e.content == content
+                        and e.outOfScope == out_of_scope
+                        and e.linkText == link_text
+                    ):
+                        return True
+                return False
+
+            threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+            for s in suggestions:
+                line = s["line"]
+                end_line = s.get("end_line", line)
+                severity = s["severity"]
+                out_of_scope = s.get("out_of_scope", False)
+                content = s["content"]
+
+                if s.get("link_text"):
+                    link_text = s["link_text"]
+                elif end_line != line:
+                    link_text = f"lines {line} - {end_line}"
+                else:
+                    link_text = f"line {line}"
+
+                if _already_posted(line, end_line, severity, content, out_of_scope, link_text):
+                    continue
+
+                thread_context = build_thread_context(normalized, line, end_line)
+                thread_body = {
+                    "comments": [{"content": content, "commentType": "text"}],
+                    "status": "active",
+                    "threadContext": thread_context,
+                }
+                response = requests_module.post(threads_url, headers=headers, json=thread_body, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                posted_entry = SuggestionEntry(
+                    threadId=result["id"],
+                    commentId=result["comments"][0]["id"],
+                    line=line,
+                    endLine=end_line,
+                    severity=severity,
+                    outOfScope=out_of_scope,
+                    linkText=link_text,
+                    content=content,
+                )
+                posted_suggestions.append(posted_entry)
+
+        # Render the file summary using the snapshot with the intended
+        # status/summary applied locally.  This is purely in-memory — the
+        # terminal status is persisted to review-state.json only after HTTP
+        # calls succeed (lock phase 2).
+        snapshot_file_entry.status = status
+        snapshot_file_entry.summary = summary
+        if is_approve:
+            file_content = render_file_summary(snapshot_file_entry, [], base_url, **attrs)
+        else:
+            # For needs-work outcomes, include all current-cycle suggestions
+            # so the rendered summary contains clickable links.
+            all_suggestions = [*existing_suggestions, *posted_suggestions]
+            file_content = render_file_summary(snapshot_file_entry, all_suggestions, base_url, **attrs)
+
+        # PATCH file summary comment.
+        patch_comment(
+            requests_module=requests_module,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_thread_id,
+            comment_id=file_comment_id,
+            new_content=file_content,
+            dry_run=False,
+        )
+
+        # PATCH file thread status.
+        patch_thread_status(
+            requests_module=requests_module,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=file_thread_id,
+            status=thread_status,
+            dry_run=False,
+        )
+    except Exception:
+        # ── Lock phase 2 (error path): Persist partial progress ──────
+        # If HTTP calls failed partway through, persist any suggestion
+        # thread IDs that were successfully POSTed so retries are idempotent.
+        # The terminal status is NOT written — local state stays consistent
+        # with the fact that Azure DevOps was not fully updated.
+        if posted_suggestions:
+            with read_modify_write_review_state(pull_request_id) as review_state:
+                for entry in posted_suggestions:
+                    add_suggestion_to_file(review_state, file_path, entry)
+        raise
+
+    # ── Lock phase 2 (success path): Persist terminal status ─────────
+    # Now that HTTP calls succeeded, commit the terminal status, verdict,
+    # and any posted suggestion thread IDs to review-state.json.
+    with read_modify_write_review_state(pull_request_id) as review_state:
+        update_file_status(review_state, file_path, status, summary=summary)
+        if model_id:
+            file_entry = review_state.files[normalized]
+            record_verdict(file_entry, model_id, VerdictType.AGREE, status)
+        for entry in posted_suggestions:
+            add_suggestion_to_file(review_state, file_path, entry)
+
+    return _FileResult(file_path=file_path, outcome=outcome, success=True)
+
 
 def submit_reviews() -> None:
     """
     Submit multiple file reviews in a single batch.
 
-    Reads a JSON array of review objects from state, applies defaults for
-    outcome and summary, then processes each file sequentially by delegating
-    to the existing sync functions (approve_file, request_changes,
-    request_changes_with_suggestion).
+    Reads a JSON array of review objects from state, validates them
+    sequentially, then processes file-level API operations in parallel
+    using a bounded ``ThreadPoolExecutor``.  After all files complete,
+    a single cascade update and queue update pass run sequentially.
 
     State keys read:
         - pull_request_id (required): Pull request ID
@@ -1440,8 +1759,8 @@ def submit_reviews() -> None:
 
     # Pre-fetch authenticated user details once for the entire batch.
     # The cached context is set at module level so that mark_file_reviewed()
-    # (called indirectly via approve_file / request_changes /
-    # request_changes_with_suggestion) can pick it up without signature changes.
+    # (called sequentially in Phase 3b after parallel processing) can pick
+    # it up without signature changes.
     # Graceful degradation: if context fetch fails (e.g. missing PAT in tests),
     # each file falls back to per-file fetching inside mark_file_reviewed().
     dry_run = is_dry_run()
@@ -1458,109 +1777,300 @@ def submit_reviews() -> None:
                 file=sys.stderr,
             )
 
-    try:
-        for i, review in enumerate(reviews):
-            if not isinstance(review, dict):
-                errors.append(f"Review at index {i}: not a JSON object.")
-                failed += 1
-                continue
+    # ── Phase 1: Sequential validation ────────────────────────────────
+    # Validate each review entry and collect valid items for processing.
+    valid_items: list[tuple[int, str, str, str, list | None]] = []
+    # Track normalized paths to detect duplicate file_path entries.
+    # With parallel execution, two workers on the same file would race on
+    # state updates and produce duplicate POST/PATCH calls.
+    seen_paths: set[str] = set()
+    from .review_state import normalize_file_path as _norm_fp
 
-            file_path = review.get("file_path")
-            if not file_path or not isinstance(file_path, str) or not file_path.strip():
-                errors.append(f"Review at index {i}: missing or empty 'file_path'.")
-                failed += 1
-                continue
+    for i, review in enumerate(reviews):
+        if not isinstance(review, dict):
+            errors.append(f"Review at index {i}: not a JSON object.")
+            failed += 1
+            continue
 
-            # Resolve outcome with defensive type checking for user-supplied JSON
-            raw_outcome = review.get("outcome")
-            if raw_outcome is None or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
-                raw_outcome = default_outcome
+        file_path = review.get("file_path")
+        if not file_path or not isinstance(file_path, str) or not file_path.strip():
+            errors.append(f"Review at index {i}: missing or empty 'file_path'.")
+            failed += 1
+            continue
 
-            if not isinstance(raw_outcome, str):
+        # Normalize whitespace once so all downstream processing
+        # (duplicate detection, state lookups, valid_items) uses a
+        # consistent value.
+        file_path = file_path.strip()
+
+        # Detect duplicate file_path entries (on normalized form) so
+        # parallel workers never operate on the same file concurrently.
+        # Only *check* here; the path is added to seen_paths after the
+        # entry passes all remaining validation, so a failed entry for
+        # the same path doesn't block a later valid entry.
+        norm = _norm_fp(file_path)
+        if norm in seen_paths:
+            errors.append(f"Review at index {i} ({file_path}): duplicate file_path (already present in batch).")
+            failed += 1
+            continue
+
+        # Resolve outcome with defensive type checking for user-supplied JSON
+        raw_outcome = review.get("outcome")
+        if raw_outcome is None or (isinstance(raw_outcome, str) and not raw_outcome.strip()):
+            raw_outcome = default_outcome
+
+        if not isinstance(raw_outcome, str):
+            errors.append(
+                f"Review at index {i} ({file_path}): 'outcome' must be a string (got {type(raw_outcome).__name__})."
+            )
+            failed += 1
+            continue
+
+        outcome = raw_outcome.strip().lower()
+        # Resolve summary: per-entry overrides default; validate type + non-empty after strip
+        # to match the constraints of delegated commands (approve_file, request_changes).
+        raw_summary = review.get("summary")
+        if raw_summary is None or (isinstance(raw_summary, str) and not raw_summary.strip()):
+            raw_summary = default_summary
+
+        if raw_summary is not None and not isinstance(raw_summary, str):
+            errors.append(
+                f"Review at index {i} ({file_path}): 'summary' must be a string (got {type(raw_summary).__name__})."
+            )
+            failed += 1
+            continue
+
+        summary = raw_summary.strip() if raw_summary else None
+        suggestions = review.get("suggestions")
+
+        if outcome not in _BATCH_VALID_OUTCOMES:
+            errors.append(f"Review at index {i} ({file_path}): unknown outcome '{outcome}'.")
+            failed += 1
+            continue
+
+        if not summary:
+            errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
+            failed += 1
+            continue
+
+        if outcome != _BATCH_OUTCOME_APPROVE:
+            # For non-approve outcomes, suggestions must be a non-empty list of dicts
+            if not isinstance(suggestions, list) or not suggestions:
                 errors.append(
-                    f"Review at index {i} ({file_path}): 'outcome' must be a string (got {type(raw_outcome).__name__})."
+                    f"Review at index {i} ({file_path}): suggestions must be a non-empty list for '{outcome}'."
                 )
                 failed += 1
                 continue
 
-            outcome = raw_outcome.strip().lower()
-            # Resolve summary: per-entry overrides default; validate type + non-empty after strip
-            # to match the constraints of delegated commands (approve_file, request_changes).
-            raw_summary = review.get("summary")
-            if raw_summary is None or (isinstance(raw_summary, str) and not raw_summary.strip()):
-                raw_summary = default_summary
-
-            if raw_summary is not None and not isinstance(raw_summary, str):
-                errors.append(
-                    f"Review at index {i} ({file_path}): 'summary' must be a string (got {type(raw_summary).__name__})."
-                )
-                failed += 1
-                continue
-
-            summary = raw_summary.strip() if raw_summary else None
-            suggestions = review.get("suggestions")
-
-            if outcome not in _BATCH_VALID_OUTCOMES:
-                errors.append(f"Review at index {i} ({file_path}): unknown outcome '{outcome}'.")
-                failed += 1
-                continue
-
-            if not summary:
-                errors.append(f"Review at index {i} ({file_path}): summary is required for '{outcome}'.")
-                failed += 1
-                continue
-
-            if outcome != _BATCH_OUTCOME_APPROVE:
-                # For non-approve outcomes, suggestions must be a non-empty list of dicts
-                if not isinstance(suggestions, list) or not suggestions:
+            invalid_suggestion = False
+            for j, suggestion in enumerate(suggestions):
+                if not isinstance(suggestion, dict):
                     errors.append(
-                        f"Review at index {i} ({file_path}): suggestions must be a non-empty list for '{outcome}'."
+                        f"Review at index {i} ({file_path}): suggestion at index {j} must be an object/dict"
+                        f" (got {type(suggestion).__name__})."
                     )
                     failed += 1
-                    continue
+                    invalid_suggestion = True
+                    break
 
-                invalid_suggestion = False
-                for j, suggestion in enumerate(suggestions):
-                    if not isinstance(suggestion, dict):
-                        errors.append(
-                            f"Review at index {i} ({file_path}): suggestion at index {j} must be an object/dict"
-                            f" (got {type(suggestion).__name__})."
-                        )
-                        failed += 1
-                        invalid_suggestion = True
-                        break
-
-                if invalid_suggestion:
-                    continue
-
-            # Set per-file state
-            set_value("file_review.file_path", file_path)
-            if summary:
-                set_value("file_review.summary", summary)
-            if suggestions is not None:
-                set_value(
-                    "file_review.suggestions",
-                    json.dumps(suggestions) if isinstance(suggestions, list) else suggestions,
+                # Validate and normalize all suggestion fields using the
+                # shared validator.  This ensures parity with the single-file
+                # request_changes() path and prevents crashes in worker
+                # threads from malformed optional fields.
+                field_errors = _validate_suggestion_fields(
+                    suggestion,
+                    j,
+                    outcome=outcome,
+                    context_prefix=f"Review at index {i} ({file_path}): ",
                 )
-
-            print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
-
-            try:
-                if outcome == _BATCH_OUTCOME_APPROVE:
-                    approve_file()
-                elif outcome == _BATCH_OUTCOME_CHANGES:
-                    request_changes()
-                else:
-                    request_changes_with_suggestion()
-                succeeded += 1
-                print("  \u2705 Done")
-            except SystemExit as exc:
-                if exc.code and exc.code != 0:
-                    errors.append(f"Review at index {i} ({file_path}): exited with code {exc.code}")
+                if field_errors:
+                    errors.extend(field_errors)
                     failed += 1
-                else:
+                    invalid_suggestion = True
+                    break
+
+            if invalid_suggestion:
+                continue
+
+        # Record this path *after* all validation passes so that a failed
+        # entry for the same file_path doesn't block a later valid entry.
+        seen_paths.add(norm)
+        valid_items.append((i, file_path, outcome, summary, suggestions))
+
+    # ── Phase 2: Dry-run or parallel processing ──────────────────────
+    if dry_run:
+        # Dry-run remains sequential — print per-file plans via existing commands.
+        try:
+            for i, file_path, outcome, summary, suggestions in valid_items:
+                set_value("file_review.file_path", file_path)
+                if summary:
+                    set_value("file_review.summary", summary)
+                if suggestions is not None:
+                    set_value(
+                        "file_review.suggestions",
+                        json.dumps(suggestions) if isinstance(suggestions, list) else suggestions,
+                    )
+                print(f"[{i + 1}/{total}] Processing {outcome} for {file_path}...")
+                try:
+                    if outcome == _BATCH_OUTCOME_APPROVE:
+                        approve_file()
+                    elif outcome == _BATCH_OUTCOME_CHANGES:
+                        request_changes()
+                    else:
+                        request_changes_with_suggestion()
                     succeeded += 1
-    finally:
+                    print("  \u2705 Done")
+                except SystemExit as exc:
+                    if exc.code and exc.code != 0:
+                        errors.append(f"Review at index {i} ({file_path}): exited with code {exc.code}")
+                        failed += 1
+                    else:
+                        succeeded += 1
+        finally:
+            set_batch_context(None)
+    elif valid_items:
+        # Parallel processing of valid items.
+        requests_mod = require_requests()
+        config = AzureDevOpsConfig.from_state()
+        pat = get_pat()
+        headers = get_auth_headers(pat)
+
+        # Use repoId from review state if available; fall back to API lookup.
+        # Materialize the review state locally so that parallel workers
+        # (which call read_modify_write_review_state — local-only) can find
+        # the file even when load_review_state loaded from the -agdt branch.
+        try:
+            from .review_state import get_review_state_file_path, load_review_state, save_review_state
+
+            rs = load_review_state(pr_id)
+            repo_id = rs.repoId
+            # Ensure a local copy exists for parallel workers.
+            if not get_review_state_file_path(pr_id).exists():
+                save_review_state(rs)
+        except FileNotFoundError:
+            repo_id = get_repository_id(config.organization, config.project, config.repository)
+
+        max_workers = min(_BATCH_DEFAULT_MAX_WORKERS, len(valid_items))
+        successful_files: list[tuple[str, str]] = []  # (file_path, outcome_label)
+        future_to_item: dict = {}
+
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for i, file_path, outcome, summary, suggestions in valid_items:
+                    future = executor.submit(
+                        _process_file_parallel,
+                        file_path=file_path,
+                        outcome=outcome,
+                        summary=summary,
+                        suggestions=suggestions,
+                        pull_request_id=pr_id,
+                        config=config,
+                        headers=headers,
+                        repo_id=repo_id,
+                        requests_module=requests_mod,
+                    )
+                    future_to_item[future] = (i, file_path, outcome)
+
+                completed_count = 0
+                for future in as_completed(future_to_item):
+                    completed_count += 1
+                    idx, fp, oc = future_to_item[future]
+                    try:
+                        result = future.result()
+                        if result.success:
+                            succeeded += 1
+                            outcome_label = {
+                                _BATCH_OUTCOME_APPROVE: "Approve",
+                                _BATCH_OUTCOME_CHANGES: "Changes",
+                                _BATCH_OUTCOME_SUGGEST: "Suggest",
+                            }.get(oc, "Unknown")
+                            successful_files.append((fp, outcome_label))
+                            print(f"  [{completed_count}/{len(valid_items)} complete] \u2705 {fp}")
+                        else:
+                            failed += 1
+                            errors.append(f"Review at index {idx} ({fp}): {result.error}")
+                            print(f"  [{completed_count}/{len(valid_items)} complete] \u274c {fp}: {result.error}")
+                    except (Exception, SystemExit) as exc:
+                        if isinstance(exc, SystemExit) and (not exc.code or exc.code == 0):
+                            succeeded += 1
+                            outcome_label = {
+                                _BATCH_OUTCOME_APPROVE: "Approve",
+                                _BATCH_OUTCOME_CHANGES: "Changes",
+                                _BATCH_OUTCOME_SUGGEST: "Suggest",
+                            }.get(oc, "Unknown")
+                            successful_files.append((fp, outcome_label))
+                            print(f"  [{completed_count}/{len(valid_items)} complete] \u2705 {fp}")
+                        else:
+                            failed += 1
+                            err_msg = str(exc) if str(exc) else type(exc).__name__
+                            errors.append(f"Review at index {idx} ({fp}): {err_msg}")
+                            print(f"  [{completed_count}/{len(valid_items)} complete] \u274c {fp}: {err_msg}")
+
+            # ── Phase 3: Single cascade after all files ──────────────
+            if successful_files:
+                try:
+                    from .review_scaffold import _build_pr_base_url
+                    from .review_state import load_review_state as _load_rs
+                    from .review_state import save_review_state as _save_rs
+                    from .status_cascade import (
+                        cascade_overall_summary_update,
+                        execute_cascade,
+                    )
+
+                    review_state = _load_rs(pr_id)
+                    base_url = _build_pr_base_url(config, pr_id)
+                    cascade_attrs = _get_attribution_params(review_state, config)
+                    # Use cascade_overall_summary_update (no file_path needed)
+                    # to derive the overall status from all file statuses.
+                    patch_operations = cascade_overall_summary_update(review_state, base_url, **cascade_attrs)
+                    execute_cascade(
+                        patch_operations=patch_operations,
+                        requests_module=requests_mod,
+                        headers=headers,
+                        config=config,
+                        repo_id=repo_id,
+                        pull_request_id=pr_id,
+                        dry_run=False,
+                    )
+                    _save_rs(review_state)
+                except Exception as cascade_err:
+                    print(
+                        f"Warning: cascade update failed: {cascade_err}",
+                        file=sys.stderr,
+                    )
+
+            # ── Phase 3b: Sequential mark-as-reviewed ───────────────
+            # mark_file_reviewed() mutates a shared reviewer entry
+            # (reviewedFiles list), so it must run sequentially to avoid
+            # lost-update races when parallel workers PATCH the same
+            # entry concurrently (last PATCH wins would drop files).
+            for fp, _label in successful_files:
+                try:
+                    mark_file_reviewed(
+                        file_path=fp,
+                        pull_request_id=pr_id,
+                        config=config,
+                        repo_id=repo_id,
+                        dry_run=False,
+                    )
+                except Exception as mark_err:
+                    print(
+                        f"Warning: failed to mark '{fp}' as reviewed: {mark_err}",
+                        file=sys.stderr,
+                    )
+
+            # ── Phase 4: Sequential queue updates ────────────────────
+            for fp, outcome_label in successful_files:
+                _update_queue_after_review(
+                    pull_request_id=pr_id,
+                    file_path=fp,
+                    outcome=outcome_label,
+                    dry_run=False,
+                )
+        finally:
+            set_batch_context(None)
+    else:
+        # No valid items — just clean up batch context.
         set_batch_context(None)
 
     print(f"\nBatch complete: {succeeded}/{total} succeeded, {failed}/{total} failed.")
