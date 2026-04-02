@@ -345,3 +345,111 @@ class TestApproveFileRecordVerdict:
         # No spurious 'unknown' row should exist
         file_entry = review_state.files["/src/main.py"]
         assert all(mv.modelId != "unknown" for mv in file_entry.modelVerdicts)
+
+
+class TestApproveFileSkipCascade:
+    """Tests for the skip_cascade parameter in approve_file."""
+
+    def _setup_state(self, set_value):
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "LGTM!")
+
+    def test_skip_cascade_true_skips_cascade(self, temp_state_dir, clear_state_before):
+        """skip_cascade=True should skip cascade_status_update but still call save_review_state."""
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            mock_cascade = stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_status_update",
+                    return_value=[],
+                )
+            )
+            mock_execute = stack.enter_context(
+                patch("agentic_devtools.cli.azure_devops.status_cascade.execute_cascade")
+            )
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    return_value=review_state,
+                )
+            )
+            stack.enter_context(patch("agentic_devtools.cli.azure_devops.review_state.save_review_state", mock_save))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_templates.render_file_summary",
+                    return_value="## Approved",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+                    return_value="https://dev.azure.com/org/proj/_git/repo/pullRequest/23046",
+                )
+            )
+            stack.enter_context(patch(f"{_MOD}.require_requests", return_value=MagicMock()))
+            stack.enter_context(patch(f"{_MOD}.get_pat", return_value="fake-pat"))
+            stack.enter_context(patch(f"{_MOD}.get_auth_headers", return_value={"Authorization": "Basic xxx"}))
+            stack.enter_context(patch(f"{_MOD}.patch_comment"))
+            stack.enter_context(patch(f"{_MOD}.patch_thread_status"))
+            stack.enter_context(patch(f"{_MOD}.mark_file_reviewed"))
+            stack.enter_context(patch(f"{_MOD}._update_queue_after_review", return_value=(2, 1)))
+            stack.enter_context(patch(f"{_MOD}.print_next_file_prompt"))
+
+            self._setup_state(set_value)
+            approve_file(skip_cascade=True)
+
+        mock_cascade.assert_not_called()
+        mock_execute.assert_not_called()
+        mock_save.assert_called_once_with(review_state)
+
+    def test_skip_cascade_false_default_cascades(self, temp_state_dir, clear_state_before):
+        """Default skip_cascade=False should call cascade_status_update and execute_cascade."""
+        from agentic_devtools.state import set_value
+
+        review_state = _make_review_state()
+        mock_save = MagicMock()
+        with ExitStack() as stack:
+            mock_cascade = stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.status_cascade.cascade_status_update",
+                    return_value=[],
+                )
+            )
+            stack.enter_context(patch("agentic_devtools.cli.azure_devops.status_cascade.execute_cascade"))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                    return_value=review_state,
+                )
+            )
+            stack.enter_context(patch("agentic_devtools.cli.azure_devops.review_state.save_review_state", mock_save))
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_templates.render_file_summary",
+                    return_value="## Approved",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "agentic_devtools.cli.azure_devops.review_scaffold._build_pr_base_url",
+                    return_value="https://dev.azure.com/org/proj/_git/repo/pullRequest/23046",
+                )
+            )
+            stack.enter_context(patch(f"{_MOD}.require_requests", return_value=MagicMock()))
+            stack.enter_context(patch(f"{_MOD}.get_pat", return_value="fake-pat"))
+            stack.enter_context(patch(f"{_MOD}.get_auth_headers", return_value={"Authorization": "Basic xxx"}))
+            stack.enter_context(patch(f"{_MOD}.patch_comment"))
+            stack.enter_context(patch(f"{_MOD}.patch_thread_status"))
+            stack.enter_context(patch(f"{_MOD}.mark_file_reviewed"))
+            stack.enter_context(patch(f"{_MOD}._update_queue_after_review", return_value=(2, 1)))
+            stack.enter_context(patch(f"{_MOD}.print_next_file_prompt"))
+
+            self._setup_state(set_value)
+            approve_file()
+
+        mock_cascade.assert_called_once()
+        mock_save.assert_called_once_with(review_state)

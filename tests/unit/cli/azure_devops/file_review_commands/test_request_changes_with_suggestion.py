@@ -604,3 +604,20 @@ class TestRequestChangesWithSuggestionPatchFlow:
         # Persisted content should include the fence-wrapped replacement code
         assert "```suggestion" in file_entry.suggestions[0].content
         assert "var x = y?.Z;" in file_entry.suggestions[0].content
+
+
+class TestRequestChangesWithSuggestionSkipCascade:
+    """Tests for skip_cascade forwarding in request_changes_with_suggestion."""
+
+    def test_skip_cascade_forwarded_to_request_changes(self, temp_state_dir, clear_state_before):
+        """skip_cascade=True should be forwarded to request_changes()."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/src/main.py")
+        set_value("file_review.summary", "Error handling risk.")
+        set_value("file_review.suggestions", _SUGGESTIONS)
+
+        with patch(f"{_MOD}.request_changes") as mock_rc:
+            request_changes_with_suggestion(skip_cascade=True)
+            mock_rc.assert_called_once_with(skip_cascade=True)
