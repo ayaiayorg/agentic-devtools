@@ -75,6 +75,14 @@ class TestFreshScaffold:
         assert result.sessions[0].status == "in_progress"
         assert result.sessions[0].modelId == "gpt-5"
 
+    def test_session_has_activity_log_comment_id(self):
+        """Session has activityLogCommentId set after fresh scaffold."""
+        result, _, _ = _run_fresh_scaffold(["/src/a.ts"])
+        assert len(result.sessions) == 1
+        # The activity log entry is posted as a reply, and the comment ID is stored
+        assert result.sessions[0].activityLogCommentId is not None
+        assert isinstance(result.sessions[0].activityLogCommentId, int)
+
     def test_stores_commit_hash(self):
         """Stores the commit hash in the state."""
         result, _, _ = _run_fresh_scaffold(["/src/a.ts"], commit_hash="deadbeef")
@@ -126,8 +134,16 @@ class TestFreshScaffold:
         """Activity log posting failure is caught and doesn't prevent scaffolding."""
         requests_mock = MagicMock()
         id_gen = count(1)
+        post_count = 0
 
         def make_resp(*args, **kwargs):
+            nonlocal post_count
+            post_count += 1
+            # The activity log entry reply is the 4th POST call
+            # (after file thread, overall summary thread, activity log thread).
+            # Make it fail to test error handling.
+            if post_count == 4:
+                raise Exception("Activity log error")
             i = next(id_gen)
             resp = MagicMock()
             resp.raise_for_status = MagicMock()
@@ -135,8 +151,6 @@ class TestFreshScaffold:
             return resp
 
         requests_mock.post.side_effect = make_resp
-        # GET fails → activity log entry posting will fail
-        requests_mock.get.side_effect = Exception("Activity log error")
 
         save_mock = MagicMock()
         with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):

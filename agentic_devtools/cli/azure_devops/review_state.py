@@ -320,6 +320,7 @@ class ReviewSession:
     completedUtc: str | None = None
     status: str = "pending"
     commitHash: str | None = None
+    activityLogCommentId: int | None = None
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -330,6 +331,7 @@ class ReviewSession:
             "completedUtc": self.completedUtc,
             "status": self.status,
             "commitHash": self.commitHash,
+            "activityLogCommentId": self.activityLogCommentId,
         }
 
     @classmethod
@@ -342,6 +344,7 @@ class ReviewSession:
             completedUtc=data.get("completedUtc"),
             status=data.get("status", "pending"),
             commitHash=data.get("commitHash"),
+            activityLogCommentId=data.get("activityLogCommentId"),
         )
 
 

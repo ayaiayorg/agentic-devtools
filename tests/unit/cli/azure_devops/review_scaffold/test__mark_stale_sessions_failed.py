@@ -42,10 +42,11 @@ class TestMarkStaleSessionsFailed:
         )
         state = _make_state(sessions=[session])
 
-        _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
+        transitioned = _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
 
         assert session.status == "failed"
         assert session.completedUtc is not None
+        assert transitioned == [session]
 
     def test_does_not_mark_recent_session(self):
         """Does not mark recent in-progress sessions as failed."""
@@ -59,10 +60,11 @@ class TestMarkStaleSessionsFailed:
         )
         state = _make_state(sessions=[session])
 
-        _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
+        transitioned = _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
 
         assert session.status == "in_progress"
         assert session.completedUtc is None
+        assert transitioned == []
 
     def test_does_not_mark_different_model(self):
         """Does not mark sessions from a different model."""
@@ -115,10 +117,36 @@ class TestMarkStaleSessionsFailed:
         )
         state = _make_state(sessions=[s1, s2])
 
-        _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
+        transitioned = _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
 
         assert s1.status == "failed"
         assert s2.status == "failed"
+        assert transitioned == [s1, s2]
+
+    def test_does_not_return_pre_failed_session(self):
+        """Returns only sessions that transitioned during this call."""
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        already_failed = ReviewSession(
+            sessionId="s-failed",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="failed",
+            completedUtc=stale_started.isoformat(),
+            commitHash="abc123",
+        )
+        stale_in_progress = ReviewSession(
+            sessionId="s-stale",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_state(sessions=[already_failed, stale_in_progress])
+
+        transitioned = _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
+
+        assert transitioned == [stale_in_progress]
 
     def test_does_not_mark_different_commit(self):
         """Does not mark sessions when commit hash doesn't match."""

@@ -242,11 +242,11 @@ class TestIncrementalRescaffold:
         assert result.sessions[0].status == "in_progress"
 
     def test_state_saved(self):
-        """State is saved after re-scaffolding."""
+        """State is saved after re-scaffolding (once for state + once for activity log comment ID)."""
         existing = _make_existing_state()
         _, _, save_mock = self._run_rescaffold(existing, ["/src/a.ts"])
 
-        save_mock.assert_called_once()
+        assert save_mock.call_count == 2
 
     def test_dry_run_returns_none(self):
         """Returns None in dry-run mode."""
@@ -512,9 +512,23 @@ class TestIncrementalRescaffoldExceptionHandling:
         from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
 
         existing = _make_existing_state(files=["/src/a.ts"])
-        result = self._run_with_failure(existing, ["/src/a.ts"], FileChangeResult(unchanged_files=["/src/a.ts"]))
+        requests_mock = MagicMock()
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 999, "comments": [{"id": 1}]}
+        requests_mock.post.side_effect = [post_resp, Exception("Network error")]
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        result = self._run_with_failure(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(unchanged_files=["/src/a.ts"]),
+            requests_mock,
+        )
         err = capsys.readouterr().err
-        assert "Warning: Could not" in err
+        assert "Warning: Could not post activity log entry" in err
         assert result is not None
 
 
