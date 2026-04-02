@@ -474,7 +474,11 @@ def generate_review_prompts(
 
 def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: list) -> Path:
     """Write a file review prompt to disk."""
-    from .review_helpers import convert_to_prompt_filename
+    from .review_helpers import (
+        build_full_file_content_section,
+        convert_to_prompt_filename,
+        resolve_repository_root,
+    )
 
     filename = convert_to_prompt_filename(file_detail.get("path", ""))
     prompt_path = directory / filename
@@ -497,6 +501,14 @@ def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: lis
         threads_json,
         "```",
     ]
+
+    lines.extend(
+        build_full_file_content_section(
+            file_path=file_detail.get("path", ""),
+            change_type=file_detail.get("changeType", "edit"),
+            repo_root=resolve_repository_root(),
+        )
+    )
 
     prompt_path.write_text("\n".join(lines), encoding="utf-8")
     return prompt_path

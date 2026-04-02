@@ -1,12 +1,19 @@
 """
-Pure utility functions for PR review workflow.
+Utility functions for PR review workflow.
 
-These functions have no side effects (no state reading, no API calls, no file I/O).
-They are easily testable and reusable.
+Most functions are pure with no side effects (no state reading, no API calls, no file I/O).
+
+Exceptions:
+- ``build_full_file_content_section`` reads files from disk to embed full file content in prompts.
+- ``resolve_repository_root`` may invoke ``git`` as a subprocess to discover
+    the repository root when no explicit ``repo_root`` is provided.
 """
 
 import hashlib
 import re
+import stat
+import subprocess
+from pathlib import Path
 
 # Regex to extract Jira issue keys from PR titles
 # Matches patterns like: PROJECT-1234, [PROJECT-1234], (PROJECT-1234), feature(PROJECT-1234):
@@ -188,3 +195,211 @@ def build_reviewed_paths_set(pr_details: dict) -> set:
             reviewed_paths.add(normalized.lower())
 
     return reviewed_paths
+
+
+def resolve_repository_root(repo_root: Path | None = None) -> Path:
+    """Return repository root when available, else fall back to current directory."""
+    if repo_root is not None:
+        return repo_root
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except OSError:
+        pass
+
+    return Path.cwd()
+
+
+def _select_markdown_fence(content: str) -> str:
+    """Choose a backtick fence that cannot be closed by content."""
+    longest_run = 0
+    for match in re.finditer(r"`+", content):
+        longest_run = max(longest_run, len(match.group(0)))
+
+    return "`" * max(3, longest_run + 1)
+
+
+# ---------------------------------------------------------------------------
+# Full-file-content helpers for review prompts
+# ---------------------------------------------------------------------------
+
+BINARY_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".otf",
+        ".pdf",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".dat",
+        ".db",
+        ".sqlite",
+    }
+)
+
+MAX_FILE_CONTENT_SIZE: int = 51200  # 50 KB
+
+_EXTENSION_LANGUAGE_MAP: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".js": "javascript",
+    ".jsx": "jsx",
+    ".json": "json",
+    ".md": "markdown",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".html": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".xml": "xml",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".sql": "sql",
+    ".rs": "rust",
+    ".go": "go",
+    ".java": "java",
+    ".cs": "csharp",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".c": "c",
+    ".h": "cpp",
+    ".hpp": "cpp",
+    ".rb": "ruby",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".toml": "toml",
+    ".ini": "ini",
+    ".cfg": "ini",
+    ".txt": "text",
+    ".dockerfile": "dockerfile",
+}
+
+
+def get_language_from_extension(file_path: str) -> str:
+    """
+    Map a file extension to a markdown fenced-code-block language identifier.
+
+    Args:
+        file_path: File path or name (e.g., ``src/app.ts``)
+
+    Returns:
+        Language identifier (e.g., ``typescript``) or ``""`` for unknown extensions.
+    """
+    if not file_path:
+        return ""
+    ext = Path(file_path).suffix.lower()
+    return _EXTENSION_LANGUAGE_MAP.get(ext, "")
+
+
+def is_binary_file(file_path: str) -> bool:
+    """
+    Check whether a file is considered binary based on its extension.
+
+    Args:
+        file_path: File path or name
+
+    Returns:
+        ``True`` if the extension (case-insensitive) is in ``BINARY_EXTENSIONS``.
+    """
+    if not file_path:
+        return False
+    ext = Path(file_path).suffix.lower()
+    return ext in BINARY_EXTENSIONS
+
+
+def build_full_file_content_section(
+    file_path: str,
+    change_type: str,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """
+    Build the ``## Full File Content`` markdown section for a review prompt.
+
+    For added/modified files the full working-tree content is embedded in a
+    fenced code block.  Deleted, binary, oversized, or unreadable files get a
+    short explanatory note instead.
+
+    Args:
+        file_path: Repository-relative file path (may have leading ``/``).
+        change_type: Change type string. Supports both long-form values
+            (``add``, ``edit``, ``delete``, ``rename``) and git-status codes
+            (``A``, ``M``, ``D``, ``R``).
+        repo_root: Optional repository root directory. When ``None``, the
+            repository root is resolved via ``resolve_repository_root()``, which
+            first attempts to discover the git toplevel (and may invoke a ``git``
+            subprocess) and falls back to ``Path.cwd()`` when no repository root
+            can be detected.
+
+    Returns:
+        List of markdown lines to append to the prompt.
+    """
+    header = ["", "## Full File Content", ""]
+
+    # Deleted file
+    normalized_change_type = (change_type or "").strip().lower()
+    if normalized_change_type in {"delete", "d"}:
+        return [*header, "_This file was deleted in this change._"]
+
+    # Binary file
+    if is_binary_file(file_path):
+        return [*header, "_Binary file — content not included._"]
+
+    # Resolve on-disk path and block traversal outside repository root.
+    normalized = file_path.lstrip("/") if file_path else ""
+    repo_root_path = resolve_repository_root(repo_root).resolve()
+    resolved = (repo_root_path / normalized).resolve()
+
+    if resolved != repo_root_path and not resolved.is_relative_to(repo_root_path):
+        return [*header, "_File path is outside repository root._"]
+
+    try:
+        file_stat = resolved.stat()
+    except FileNotFoundError:
+        return [*header, "_File not found on disk._"]
+    except OSError:
+        return [*header, "_File could not be read._"]
+
+    if not stat.S_ISREG(file_stat.st_mode):
+        return [*header, "_File not found on disk._"]
+
+    size = file_stat.st_size
+
+    if size > MAX_FILE_CONTENT_SIZE:
+        return [
+            *header,
+            f"_File too large ({size} bytes) — content not included. Threshold: {MAX_FILE_CONTENT_SIZE} bytes._",
+        ]
+
+    # Read content
+    try:
+        content = resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return [*header, "_File could not be read._"]
+
+    lang = get_language_from_extension(file_path)
+    fence = _select_markdown_fence(content)
+    return [*header, f"{fence}{lang}", content, fence]
