@@ -971,6 +971,42 @@ class TestStartCopilotSessionNonInteractiveJsonl:
         jsonl_content = jsonl_files[0].read_text(encoding="utf-8")
         assert jsonl_content == ""
 
+    def test_tee_continues_logging_when_jsonl_write_fails(self, temp_state, mock_available):
+        """Log file and stdout still receive all output when JSONL write raises OSError."""
+        output = b"line before jsonl error\nline after jsonl error\n"
+        mock_proc = self._make_mock_process(output)
+
+        # Intercept the jsonl file open to inject a broken file handle.
+        broken_jsonl = MagicMock()
+        broken_jsonl.write.side_effect = OSError("disk full")
+
+        original_open = open  # noqa: WPS125
+
+        def _patched_open(path, *args, **kwargs):
+            if str(path).endswith(".jsonl"):
+                return broken_jsonl
+            return original_open(path, *args, **kwargs)
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("builtins.open", side_effect=_patched_open):
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=self._sync_thread_side_effect,
+                ):
+                    start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+
+        # The .log file must still contain all output despite JSONL failure.
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "line before jsonl error" in log_content
+        assert "line after jsonl error" in log_content
+
 
 class TestInlinePrompt:
     """Tests for the _inline_prompt helper and its integration in start_copilot_session."""
