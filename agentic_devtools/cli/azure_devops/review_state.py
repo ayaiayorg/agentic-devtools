@@ -319,7 +319,7 @@ class ReviewSession:
     startedUtc: str
     completedUtc: str | None = None
     status: str = "pending"
-    commitHash: str | None = None
+    commitHash: str | None = None  # Full 40-char SHA of the commit this session reviewed (differs on re-reviews)
     activityLogCommentId: int | None = None
 
     def to_dict(self) -> dict:
@@ -362,7 +362,7 @@ class ReviewState:
     overallSummary: OverallSummary
     folders: dict[str, FolderGroup] = field(default_factory=dict)
     files: dict[str, FileEntry] = field(default_factory=dict)
-    commitHash: str | None = None
+    commitHash: str | None = None  # Canonical full 40-char SHA from lastMergeSourceCommit.commitId, set during scaffold
     modelId: str | None = None
     activityLogThreadId: int = 0
     sessions: list[ReviewSession] = field(default_factory=list)
