@@ -33,5 +33,5 @@ class TestGetJsonlFilePath:
         """The file is placed under background-tasks/logs/."""
         with patch.object(session_module, "get_state_dir", return_value=tmp_path):
             path = _get_jsonl_file_path("sess1", "2026-01-15T08:30:00+00:00")
-        assert "background-tasks" in str(path)
-        assert "logs" in str(path)
+        assert "background-tasks" in path.parts
+        assert "logs" in path.parts
