@@ -222,10 +222,34 @@ class TestPrintNextFilePrompt:
                 "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
             ) as mock_complete:
                 with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=True):
-                    with patch(_AUTO_ADVANCE_PATCH, return_value=True):
-                        print_next_file_prompt(pull_request_id=42)
+                    print_next_file_prompt(pull_request_id=42)
 
         mock_complete.assert_not_called()
+
+    def test_skips_auto_advance_in_dry_run(self, tmp_path, capsys):
+        """Should not call _try_advance_pr_review_to_decision in dry-run mode and show manual instruction."""
+        queue_data = {
+            "pending": [],
+            "completed": [{"path": "src/a.ts"}],
+        }
+        queue_file = tmp_path / "queue.json"
+        queue_file.write_text(json.dumps(queue_data))
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
+            return_value=queue_file,
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
+            ):
+                with patch("agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run", return_value=True):
+                    with patch(_AUTO_ADVANCE_PATCH) as mock_advance:
+                        print_next_file_prompt(pull_request_id=42)
+
+        mock_advance.assert_not_called()
+        captured = capsys.readouterr()
+        assert "READY FOR DECISION" in captured.out
+        assert "YOUR NEXT ACTION: Run agdt-advance-workflow decision" in captured.out
 
     def test_auto_advance_called_when_all_complete(self, tmp_path):
         """Should call _try_advance_pr_review_to_decision when all files are reviewed."""

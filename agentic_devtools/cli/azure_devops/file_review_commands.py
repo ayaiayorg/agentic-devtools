@@ -377,14 +377,16 @@ def print_next_file_prompt(pull_request_id: int) -> None:
             except Exception as e:
                 print(f"Warning: Could not complete review session: {e}", file=sys.stderr)
 
-        # Attempt auto-advance to decision step
+        # Attempt auto-advance to decision step only when not in dry-run mode,
+        # so dry-run remains side-effect free.
         auto_advanced = False
-        try:
-            from ..tasks.commands import _try_advance_pr_review_to_decision  # Avoid circular import
+        if not is_dry_run():
+            try:
+                from ..tasks.commands import _try_advance_pr_review_to_decision  # Avoid circular import
 
-            auto_advanced = _try_advance_pr_review_to_decision()
-        except Exception as e:
-            print(f"Warning: Auto-advance to decision failed: {e}", file=sys.stderr)
+                auto_advanced = _try_advance_pr_review_to_decision()
+            except Exception as e:
+                print(f"Warning: Auto-advance to decision failed: {e}", file=sys.stderr)
 
         if not auto_advanced:
             # Fallback: print manual instruction
