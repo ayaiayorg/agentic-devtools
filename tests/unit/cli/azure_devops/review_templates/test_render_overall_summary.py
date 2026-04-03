@@ -5,6 +5,7 @@ from agentic_devtools.cli.azure_devops.review_state import (
     FolderGroup,
     OverallSummary,
     ReviewState,
+    SkippedFile,
     SuggestionEntry,
 )
 from agentic_devtools.cli.azure_devops.review_templates import build_discussion_url, render_overall_summary
@@ -499,3 +500,50 @@ class TestRenderOverallSummary:
         warning_pos = result.index("Rebase Conflicts Detected")
         section_pos = result.index("### ")
         assert status_pos < warning_pos < section_pos
+
+    def test_skipped_files_not_shown_when_empty(self):
+        """Test that no skipped files line appears when skippedFiles is empty."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        result = render_overall_summary(state, _BASE_URL)
+        assert "*Skipped files:*" not in result
+
+    def test_skipped_files_shown_when_present(self):
+        """Test that skipped files line appears when skippedFiles is non-empty."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        state.skippedFiles = [
+            SkippedFile(path="/src/gone.ts", reason="not_on_branch"),
+            SkippedFile(path="/src/old.ts", reason="already_reviewed"),
+            SkippedFile(path="/lib/removed.ts", reason="not_on_branch"),
+        ]
+        result = render_overall_summary(state, _BASE_URL)
+        assert "*Skipped files:* 3 (2 not on branch, 1 already reviewed)" in result
+
+    def test_skipped_files_only_not_on_branch(self):
+        """Test skipped files line with only not_on_branch reason."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        state.skippedFiles = [
+            SkippedFile(path="/src/gone.ts", reason="not_on_branch"),
+        ]
+        result = render_overall_summary(state, _BASE_URL)
+        assert "*Skipped files:* 1 (1 not on branch)" in result
+
+    def test_skipped_files_only_already_reviewed(self):
+        """Test skipped files line with only already_reviewed reason."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        state.skippedFiles = [
+            SkippedFile(path="/src/old.ts", reason="already_reviewed"),
+            SkippedFile(path="/src/old2.ts", reason="already_reviewed"),
+        ]
+        result = render_overall_summary(state, _BASE_URL)
+        assert "*Skipped files:* 2 (2 already reviewed)" in result
+
+    def test_skipped_files_before_narrative(self):
+        """Test that skipped files section appears before Review Narrative."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        state.skippedFiles = [
+            SkippedFile(path="/src/gone.ts", reason="not_on_branch"),
+        ]
+        result = render_overall_summary(state, _BASE_URL)
+        skipped_pos = result.index("*Skipped files:*")
+        narrative_pos = result.index("### Review Narrative")
+        assert skipped_pos < narrative_pos

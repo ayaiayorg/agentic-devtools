@@ -71,7 +71,7 @@ class TestSetupPullRequestReviewFocusAreas:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -165,7 +165,7 @@ class TestSetupPullRequestReviewFocusAreas:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -225,7 +225,7 @@ class TestSetupPullRequestReviewFocusAreas:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -281,7 +281,7 @@ class TestSetupPullRequestReviewFocusAreas:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -378,7 +378,7 @@ class TestSetupPullRequestReview:
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                    return_value=(5, 0, 0, MagicMock()),
+                                    return_value=(5, 0, 0, MagicMock(), []),
                                 ):
                                     with patch(
                                         "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -509,7 +509,7 @@ class TestSetupPullRequestReview:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                            return_value=(5, 0, 0, MagicMock()),
+                            return_value=(5, 0, 0, MagicMock(), []),
                         ):
                             with patch("agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"):
                                 with patch("agentic_devtools.state.set_workflow_state"):
@@ -587,7 +587,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -689,7 +689,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -775,7 +775,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -860,7 +860,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -939,7 +939,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1025,7 +1025,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1115,7 +1115,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1214,7 +1214,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1308,7 +1308,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1405,7 +1405,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1498,7 +1498,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1593,7 +1593,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1688,7 +1688,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1787,7 +1787,7 @@ class TestSetupPullRequestReviewPersistence:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1890,7 +1890,7 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(3, 0, 0, MagicMock()),
+                                return_value=(3, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1942,3 +1942,233 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
         """When jira.issue_key is a non-string truthy value, worktree_key falls back to PR{id}."""
         mock_set_bootstrap = self._run_setup_with_issue_key(42)
         mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
+
+
+class TestSetupPullRequestReviewSkippedFiles:
+    """Tests for skipped files persistence in setup_pull_request_review."""
+
+    def _make_pr_details(self):
+        return {
+            "pullRequest": {
+                "pullRequestId": 123,
+                "title": "Test PR",
+                "createdBy": {"displayName": "Test User"},
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+            },
+            "files": [],
+            "threads": [],
+        }
+
+    def _default_get_value(self, key, default=None):
+        mapping = {
+            "pull_request_id": "123",
+            "jira.issue_key": None,
+            "include_reviewed": "false",
+        }
+        return mapping.get(key, default)
+
+    def test_persists_skipped_files_to_review_state(self):
+        """Test that skipped files are persisted to review state after scaffolding."""
+        from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
+        from agentic_devtools.cli.azure_devops.review_state import SkippedFile
+
+        skipped = [SkippedFile(path="/src/gone.ts", reason="not_on_branch")]
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_review_state = MagicMock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set(), False),
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 1, MagicMock(), skipped),
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agentic_devtools.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agentic_devtools.state.set_bootstrap_state"):
+                                                            with patch("agentic_devtools.state.set_value"):
+                                                                with patch("agentic_devtools.state.delete_value"):
+                                                                    with patch(
+                                                                        "agentic_devtools.cli.azure_devops.review_state.read_modify_write_review_state"
+                                                                    ) as mock_rmw:
+                                                                        mock_rmw.return_value.__enter__ = MagicMock(
+                                                                            return_value=mock_review_state
+                                                                        )
+                                                                        mock_rmw.return_value.__exit__ = MagicMock(
+                                                                            return_value=False
+                                                                        )
+                                                                        setup_pull_request_review()
+                                                                        mock_rmw.assert_called_once_with(123)
+                                                                        assert mock_review_state.skippedFiles == skipped
+
+    def test_skips_persistence_when_no_skipped_files(self):
+        """Test that read_modify_write_review_state is not called when skipped_files is empty."""
+        from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set(), False),
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock(), []),
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agentic_devtools.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agentic_devtools.state.set_bootstrap_state"):
+                                                            with patch("agentic_devtools.state.set_value"):
+                                                                with patch("agentic_devtools.state.delete_value"):
+                                                                    with patch(
+                                                                        "agentic_devtools.cli.azure_devops.review_state.read_modify_write_review_state"
+                                                                    ) as mock_rmw:
+                                                                        setup_pull_request_review()
+                                                                        mock_rmw.assert_not_called()
+
+    def test_handles_file_not_found_gracefully(self):
+        """Test that FileNotFoundError from read_modify_write_review_state is handled gracefully."""
+        from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
+        from agentic_devtools.cli.azure_devops.review_state import SkippedFile
+
+        skipped = [SkippedFile(path="/src/gone.ts", reason="not_on_branch")]
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set(), False),
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 1, MagicMock(), skipped),
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agentic_devtools.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agentic_devtools.state.set_bootstrap_state"):
+                                                            with patch("agentic_devtools.state.set_value"):
+                                                                with patch("agentic_devtools.state.delete_value"):
+                                                                    with patch(
+                                                                        "agentic_devtools.cli.azure_devops.review_state.read_modify_write_review_state",
+                                                                        side_effect=FileNotFoundError,
+                                                                    ):
+                                                                        # Should not raise — FileNotFoundError is caught
+                                                                        setup_pull_request_review()

@@ -315,6 +315,19 @@ def render_overall_summary(
                         item += f" \u2014 {counts}"
                 lines.append(item)
 
+    # Skipped Files section (informational, before narrative)
+    if state.skippedFiles:
+        not_on_branch = sum(1 for sf in state.skippedFiles if sf.reason == "not_on_branch")
+        already_reviewed = sum(1 for sf in state.skippedFiles if sf.reason == "already_reviewed")
+        total = len(state.skippedFiles)
+        parts = []
+        if not_on_branch:
+            parts.append(f"{not_on_branch} not on branch")
+        if already_reviewed:
+            parts.append(f"{already_reviewed} already reviewed")
+        detail = f" ({', '.join(parts)})" if parts else ""
+        lines.extend(["", f"*Skipped files:* {total}{detail}"])
+
     # Review Narrative section
     lines.extend(["", "### Review Narrative", ""])
     narrative = state.overallSummary.narrativeSummary

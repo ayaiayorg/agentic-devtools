@@ -33,16 +33,19 @@ class TestGenerateReviewPrompts:
                 "get_state_dir",
                 return_value=tmp_path,
             ):
-                prompts_count, skipped_reviewed, skipped_not_on_branch, prompts_dir = generate_review_prompts(
-                    pull_request_id=123,
-                    pr_details=pr_details,
-                    include_reviewed=True,  # Don't skip any
-                    files_on_branch=None,  # Don't filter by branch files
+                prompts_count, skipped_reviewed, skipped_not_on_branch, prompts_dir, skipped_files = (
+                    generate_review_prompts(
+                        pull_request_id=123,
+                        pr_details=pr_details,
+                        include_reviewed=True,  # Don't skip any
+                        files_on_branch=None,  # Don't filter by branch files
+                    )
                 )
 
         assert prompts_count == 2
         assert skipped_reviewed == 0
         assert skipped_not_on_branch == 0
+        assert skipped_files == []
 
     def test_skips_reviewed_files(self, tmp_path):
         """Test skips files already marked as reviewed."""
@@ -66,7 +69,7 @@ class TestGenerateReviewPrompts:
             "get_state_dir",
             return_value=tmp_path,
         ):
-            prompts_count, skipped_reviewed, skipped_not_on_branch, _ = generate_review_prompts(
+            prompts_count, skipped_reviewed, skipped_not_on_branch, _, skipped_files = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
                 include_reviewed=False,  # Skip reviewed files
@@ -75,6 +78,9 @@ class TestGenerateReviewPrompts:
 
         assert prompts_count == 0
         assert skipped_reviewed == 1
+        assert len(skipped_files) == 1
+        assert skipped_files[0].path == "/src/file1.ts"
+        assert skipped_files[0].reason == "already_reviewed"
 
     def test_skips_files_not_on_branch(self, tmp_path):
         """Test skips files not in the branch changes."""
@@ -98,7 +104,7 @@ class TestGenerateReviewPrompts:
             "get_state_dir",
             return_value=tmp_path,
         ):
-            prompts_count, skipped_reviewed, skipped_not_on_branch, _ = generate_review_prompts(
+            prompts_count, skipped_reviewed, skipped_not_on_branch, _, skipped_files = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
                 include_reviewed=True,
@@ -107,3 +113,6 @@ class TestGenerateReviewPrompts:
 
         assert prompts_count == 1
         assert skipped_not_on_branch == 1
+        assert len(skipped_files) == 1
+        assert skipped_files[0].path == "/src/file2.ts"
+        assert skipped_files[0].reason == "not_on_branch"

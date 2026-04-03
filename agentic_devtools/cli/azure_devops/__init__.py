@@ -165,6 +165,7 @@ from .review_state import (
     ReviewSession,
     ReviewState,
     ReviewStatus,
+    SkippedFile,
     SuggestionEntry,
     VerdictType,
     add_suggestion_to_file,
@@ -314,6 +315,7 @@ __all__ = [
     "wait_for_run_async",
     # Review state
     "ReviewStatus",
+    "SkippedFile",
     "SuggestionEntry",
     "OverallSummary",
     "FolderEntry",
