@@ -2106,8 +2106,17 @@ class TestSetupPullRequestReviewSkippedFiles:
                                                                         setup_pull_request_review()
                                                                         mock_rmw.assert_not_called()
 
-    def test_handles_file_not_found_gracefully(self, capsys):
-        """Test that FileNotFoundError from read_modify_write_review_state logs a warning."""
+    @pytest.mark.parametrize(
+        "exc_class",
+        [
+            FileNotFoundError,
+            OSError,
+            ValueError,
+        ],
+        ids=["FileNotFoundError", "OSError", "ValueError"],
+    )
+    def test_handles_persist_errors_gracefully(self, capsys, exc_class):
+        """Test that errors from read_modify_write_review_state log a warning and don't abort setup."""
         from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
         from agentic_devtools.cli.azure_devops.review_state import SkippedFile
 
@@ -2168,9 +2177,80 @@ class TestSetupPullRequestReviewSkippedFiles:
                                                                 with patch("agentic_devtools.state.delete_value"):
                                                                     with patch(
                                                                         "agentic_devtools.cli.azure_devops.review_state.read_modify_write_review_state",
-                                                                        side_effect=FileNotFoundError,
+                                                                        side_effect=exc_class("test error"),
                                                                     ):
-                                                                        # Should not raise — FileNotFoundError is caught
+                                                                        # Should not raise — exception is caught
+                                                                        setup_pull_request_review()
+
+        captured = capsys.readouterr()
+        assert "Could not persist skipped files" in captured.err
+
+    def test_handles_file_lock_error_gracefully(self, capsys):
+        """Test that FileLockError from read_modify_write_review_state logs a warning and doesn't abort."""
+        from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
+        from agentic_devtools.cli.azure_devops.review_state import SkippedFile
+        from agentic_devtools.file_locking import FileLockError
+
+        skipped = [SkippedFile(path="/src/gone.ts", reason="not_on_branch")]
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set(), False),
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 1, MagicMock(), skipped),
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agentic_devtools.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agentic_devtools.state.set_bootstrap_state"):
+                                                            with patch("agentic_devtools.state.set_value"):
+                                                                with patch("agentic_devtools.state.delete_value"):
+                                                                    with patch(
+                                                                        "agentic_devtools.cli.azure_devops.review_state.read_modify_write_review_state",
+                                                                        side_effect=FileLockError("lock contention"),
+                                                                    ):
+                                                                        # Should not raise — FileLockError is caught
                                                                         setup_pull_request_review()
 
         captured = capsys.readouterr()

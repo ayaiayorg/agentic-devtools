@@ -899,17 +899,21 @@ def setup_pull_request_review() -> None:
         pull_request_id, pr_details, pr_info, files_on_branch, rebase_conflicts=had_rebase_conflicts
     )
 
-    # Step 5b: Persist skipped files into review state
+    # Step 5b: Persist skipped files into review state (informational — never abort setup)
     if skipped_files:
         try:
-            from .review_state import read_modify_write_review_state
+            from .review_state import FileLockError, read_modify_write_review_state
 
             with read_modify_write_review_state(pull_request_id) as state:
                 state.skippedFiles = skipped_files
-        except FileNotFoundError:
+        except (FileNotFoundError, FileLockError, OSError, ValueError) as exc:
+            # FileNotFoundError — review-state.json not yet created
+            # FileLockError — lock contention
+            # OSError — permission or I/O issue
+            # ValueError (incl. json.JSONDecodeError) — corrupt state file
             print(
                 "Warning: Could not persist skipped files to review-state.json; "
-                "continuing without skipped-file audit trail.",
+                f"continuing without skipped-file audit trail: {exc}",
                 file=sys.stderr,
             )
 
