@@ -2106,8 +2106,8 @@ class TestSetupPullRequestReviewSkippedFiles:
                                                                         setup_pull_request_review()
                                                                         mock_rmw.assert_not_called()
 
-    def test_handles_file_not_found_gracefully(self):
-        """Test that FileNotFoundError from read_modify_write_review_state is handled gracefully."""
+    def test_handles_file_not_found_gracefully(self, capsys):
+        """Test that FileNotFoundError from read_modify_write_review_state logs a warning."""
         from agentic_devtools.cli.azure_devops.review_commands import setup_pull_request_review
         from agentic_devtools.cli.azure_devops.review_state import SkippedFile
 
@@ -2172,3 +2172,6 @@ class TestSetupPullRequestReviewSkippedFiles:
                                                                     ):
                                                                         # Should not raise — FileNotFoundError is caught
                                                                         setup_pull_request_review()
+
+        captured = capsys.readouterr()
+        assert "Could not persist skipped files" in captured.err
