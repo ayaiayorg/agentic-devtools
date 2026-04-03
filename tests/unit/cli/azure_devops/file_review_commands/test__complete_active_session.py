@@ -200,7 +200,9 @@ class TestCompleteActiveSession:
                 "agentic_devtools.cli.azure_devops.review_scaffold._update_activity_log_comment_status"
             ) as mock_update,
             patch("agentic_devtools.cli.azure_devops.file_review_commands.require_requests") as mock_req,
-            patch("agentic_devtools.cli.azure_devops.file_review_commands.get_pat", return_value="test-pat") as mock_pat,
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_pat", return_value="test-pat"
+            ) as mock_pat,
             patch("agentic_devtools.cli.azure_devops.file_review_commands.get_auth_headers") as mock_auth,
             patch("agentic_devtools.cli.azure_devops.file_review_commands.AzureDevOpsConfig.from_state") as mock_config,
         ):
