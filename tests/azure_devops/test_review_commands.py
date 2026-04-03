@@ -838,7 +838,7 @@ class TestGenerateReviewPrompts:
                 "get_state_dir",
                 return_value=tmp_path,
             ):
-                prompts_count, skipped_reviewed, skipped_not_on_branch, prompts_dir = generate_review_prompts(
+                prompts_count, skipped_reviewed, skipped_not_on_branch, prompts_dir, _ = generate_review_prompts(
                     pull_request_id=123,
                     pr_details=pr_details,
                     include_reviewed=True,  # Don't skip any
@@ -871,7 +871,7 @@ class TestGenerateReviewPrompts:
             "get_state_dir",
             return_value=tmp_path,
         ):
-            prompts_count, skipped_reviewed, skipped_not_on_branch, _ = generate_review_prompts(
+            prompts_count, skipped_reviewed, skipped_not_on_branch, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
                 include_reviewed=False,  # Skip reviewed files
@@ -903,7 +903,7 @@ class TestGenerateReviewPrompts:
             "get_state_dir",
             return_value=tmp_path,
         ):
-            prompts_count, skipped_reviewed, skipped_not_on_branch, _ = generate_review_prompts(
+            prompts_count, skipped_reviewed, skipped_not_on_branch, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
                 include_reviewed=True,
@@ -935,7 +935,7 @@ class TestGenerateReviewPrompts:
                 side_effect=lambda key, *a, **kw: "../../evil" if key == "review.commit_hash_short" else None,
             ),
         ):
-            _, _, _, prompts_dir = generate_review_prompts(
+            _, _, _, prompts_dir, _ = generate_review_prompts(
                 pull_request_id=42,
                 pr_details=pr_details,
                 include_reviewed=True,
@@ -1603,7 +1603,7 @@ class TestSetupPullRequestReview:
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                    return_value=(5, 0, 0, MagicMock()),
+                                    return_value=(5, 0, 0, MagicMock(), []),
                                 ):
                                     with patch(
                                         "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1729,7 +1729,7 @@ class TestSetupPullRequestReview:
                         with patch("agentic_devtools.state.delete_value"):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
-                                return_value=(5, 0, 0, MagicMock()),
+                                return_value=(5, 0, 0, MagicMock(), []),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
@@ -1785,7 +1785,7 @@ class TestGenerateReviewPromptsEdgeCases:
                 generate_review_prompts,
             )
 
-            prompts_count, _, _, _ = generate_review_prompts(
+            prompts_count, _, _, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=None,  # Force loading from file
             )
@@ -1828,7 +1828,7 @@ class TestGenerateReviewPromptsEdgeCases:
                 generate_review_prompts,
             )
 
-            prompts_count, _, skipped_not_on_branch, _ = generate_review_prompts(
+            prompts_count, _, skipped_not_on_branch, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
                 files_on_branch=None,  # Force loading from file

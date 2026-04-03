@@ -5,6 +5,7 @@ from agentic_devtools.cli.azure_devops.review_state import (
     FolderGroup,
     OverallSummary,
     ReviewState,
+    SkippedFile,
 )
 
 
@@ -338,3 +339,88 @@ class TestReviewState:
         original = _make_review_state(rebaseConflicts=True)
         restored = ReviewState.from_dict(original.to_dict())
         assert restored.rebaseConflicts is True
+
+    def test_skipped_files_defaults_empty(self):
+        """Test that skippedFiles defaults to an empty list."""
+        state = _make_review_state()
+        assert state.skippedFiles == []
+
+    def test_to_dict_omits_empty_skipped_files(self):
+        """Test that to_dict omits skippedFiles when empty."""
+        state = _make_review_state()
+        d = state.to_dict()
+        assert "skippedFiles" not in d
+
+    def test_to_dict_includes_skipped_files(self):
+        """Test that to_dict includes skippedFiles when populated."""
+        skipped = [
+            SkippedFile(path="/src/file1.ts", reason="not_on_branch"),
+            SkippedFile(path="/src/file2.ts", reason="already_reviewed"),
+        ]
+        state = _make_review_state(skippedFiles=skipped)
+        d = state.to_dict()
+        assert "skippedFiles" in d
+        assert len(d["skippedFiles"]) == 2
+        assert d["skippedFiles"][0] == {"path": "/src/file1.ts", "reason": "not_on_branch"}
+        assert d["skippedFiles"][1] == {"path": "/src/file2.ts", "reason": "already_reviewed"}
+
+    def test_from_dict_reads_skipped_files(self):
+        """Test that from_dict deserializes skippedFiles."""
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+            "skippedFiles": [
+                {"path": "/src/gone.ts", "reason": "not_on_branch"},
+            ],
+        }
+        state = ReviewState.from_dict(data)
+        assert len(state.skippedFiles) == 1
+        assert isinstance(state.skippedFiles[0], SkippedFile)
+        assert state.skippedFiles[0].path == "/src/gone.ts"
+        assert state.skippedFiles[0].reason == "not_on_branch"
+
+    def test_from_dict_missing_skipped_files_defaults_empty(self):
+        """Test backward compatibility: missing skippedFiles key defaults to empty list."""
+        data = {
+            "prId": 25365,
+            "repoId": "repo-guid",
+            "repoName": "example-repo-name",
+            "project": "ExampleProject",
+            "organization": "https://dev.azure.com/example-org",
+            "latestIterationId": 5,
+            "scaffoldedUtc": "2026-02-25T10:00:00Z",
+            "overallSummary": {"threadId": 161000, "commentId": 1771800000, "status": "unreviewed"},
+            "folders": {},
+            "files": {},
+        }
+        state = ReviewState.from_dict(data)
+        assert state.skippedFiles == []
+
+    def test_skipped_files_roundtrip(self):
+        """Test skippedFiles round-trips through to_dict/from_dict."""
+        skipped = [
+            SkippedFile(path="/src/file1.ts", reason="not_on_branch"),
+            SkippedFile(path="/src/file2.ts", reason="already_reviewed"),
+        ]
+        original = _make_review_state(skippedFiles=skipped)
+        restored = ReviewState.from_dict(original.to_dict())
+        assert len(restored.skippedFiles) == 2
+        assert restored.skippedFiles[0].path == "/src/file1.ts"
+        assert restored.skippedFiles[0].reason == "not_on_branch"
+        assert restored.skippedFiles[1].path == "/src/file2.ts"
+        assert restored.skippedFiles[1].reason == "already_reviewed"
+
+    def test_skipped_files_default_is_independent(self):
+        """Test that default skippedFiles lists are independent per instance."""
+        s1 = _make_review_state()
+        s2 = _make_review_state()
+        s1.skippedFiles.append(SkippedFile(path="/x.py", reason="not_on_branch"))
+        assert s2.skippedFiles == []

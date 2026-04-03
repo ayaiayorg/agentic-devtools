@@ -336,7 +336,7 @@ def generate_review_prompts(
     pr_details: dict | None = None,
     include_reviewed: bool = False,
     files_on_branch: set[str] | None = None,
-) -> tuple[int, int, int, Path]:
+) -> tuple[int, int, int, Path, list]:
     """
     Generate file review prompts from PR details.
 
@@ -353,7 +353,8 @@ def generate_review_prompts(
             came from recently merged PRs).
 
     Returns:
-        Tuple of (prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_directory)
+        Tuple of (prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count,
+        prompts_directory, skipped_files)
     """
     from datetime import datetime, timezone
 
@@ -363,6 +364,7 @@ def generate_review_prompts(
         get_threads_for_file,
         normalize_repo_path,
     )
+    from .review_state import SkippedFile
 
     temp_dir = get_state_dir()
     commit_hash_short = get_value("review.commit_hash_short")
@@ -423,6 +425,7 @@ def generate_review_prompts(
     skipped_reviewed_count = 0
     skipped_not_on_branch_count = 0
     queue_entries = []
+    skipped_files: list[SkippedFile] = []
 
     for file_detail in files_payload:
         file_path = file_detail.get("path", "")
@@ -432,6 +435,7 @@ def generate_review_prompts(
         if not include_reviewed and normalized_path and normalized_path.lower() in reviewed_paths:
             print(f"Skipping already reviewed file: {file_path}")
             skipped_reviewed_count += 1
+            skipped_files.append(SkippedFile(path=file_path, reason="already_reviewed"))
             continue
 
         # Skip files not actually on the branch (from recently merged PRs)
@@ -440,6 +444,7 @@ def generate_review_prompts(
             if normalized_for_comparison not in normalized_branch_files:
                 print(f"Skipping file not on branch (likely from merged PR): {file_path}")
                 skipped_not_on_branch_count += 1
+                skipped_files.append(SkippedFile(path=file_path, reason="not_on_branch"))
                 continue
 
         threads_for_file = get_threads_for_file(threads_payload, file_path)
@@ -469,7 +474,7 @@ def generate_review_prompts(
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(queue_payload, f, indent=2)
 
-    return prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir
+    return prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir, skipped_files
 
 
 def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: list) -> Path:
@@ -877,17 +882,29 @@ def setup_pull_request_review() -> None:
 
     # Step 4: Generate review prompts
     print("\nGenerating file review prompts...")
-    prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir = generate_review_prompts(
-        pull_request_id,
-        pr_details,
-        include_reviewed,
-        files_on_branch,
+    prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir, skipped_files = (
+        generate_review_prompts(
+            pull_request_id,
+            pr_details,
+            include_reviewed,
+            files_on_branch,
+        )
     )
 
     # Step 5: Scaffold review threads (all file/folder/overall summary threads upfront)
     _scaffold_threads_for_review(
         pull_request_id, pr_details, pr_info, files_on_branch, rebase_conflicts=had_rebase_conflicts
     )
+
+    # Step 5b: Persist skipped files into review state
+    if skipped_files:
+        try:
+            from .review_state import read_modify_write_review_state
+
+            with read_modify_write_review_state(pull_request_id) as state:
+                state.skippedFiles = skipped_files
+        except FileNotFoundError:
+            pass  # review-state.json not yet created (scaffolding may have failed)
 
     # Step 6: Print instructions
     print_review_instructions(

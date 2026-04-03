@@ -109,6 +109,23 @@ class SuggestionEntry:
 
 
 @dataclass
+class SkippedFile:
+    """A file that was skipped during prompt generation."""
+
+    path: str
+    reason: str  # "not_on_branch" or "already_reviewed"
+
+    def to_dict(self) -> dict:
+        """Serialize to JSON-compatible dictionary."""
+        return {"path": self.path, "reason": self.reason}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SkippedFile":
+        """Deserialize from a dictionary."""
+        return cls(path=data["path"], reason=data["reason"])
+
+
+@dataclass
 class OverallSummary:
     """Overall PR review summary metadata."""
 
@@ -369,6 +386,7 @@ class ReviewState:
     reviewerModels: list[str] | None = None
     bossModel: str | None = None
     rebaseConflicts: bool = False
+    skippedFiles: list[SkippedFile] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -393,6 +411,8 @@ class ReviewState:
         if self.bossModel is not None:
             result["bossModel"] = self.bossModel
         result["rebaseConflicts"] = self.rebaseConflicts
+        if self.skippedFiles:
+            result["skippedFiles"] = [sf.to_dict() for sf in self.skippedFiles]
         return result
 
     @classmethod
@@ -429,6 +449,7 @@ class ReviewState:
             reviewerModels=data.get("reviewerModels"),
             bossModel=data.get("bossModel"),
             rebaseConflicts=data.get("rebaseConflicts", False),
+            skippedFiles=[SkippedFile.from_dict(sf) for sf in data.get("skippedFiles", [])],
         )
 
     @property
