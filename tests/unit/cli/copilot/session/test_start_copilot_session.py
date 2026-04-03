@@ -1016,45 +1016,34 @@ class TestStartCopilotSessionNonInteractiveJsonl:
 
         call_count = 0
         original_open = open  # noqa: WPS125
-        captured_jsonl_fh = None
+
+        class _FailOnNthWriteFile:
+            """Wrapper that delegates to a real file handle but raises on the Nth write."""
+
+            def __init__(self, inner_fh):
+                self._inner_fh = inner_fh
+
+            def write(self, data):
+                nonlocal call_count
+                call_count += 1
+                if call_count >= 2:
+                    raise OSError("disk full on summary")
+                return self._inner_fh.write(data)
+
+            def __getattr__(self, name):
+                return getattr(self._inner_fh, name)
 
         def _patched_open(path, *args, **kwargs):
-            nonlocal captured_jsonl_fh
             fh = original_open(path, *args, **kwargs)
             if str(path).endswith(".jsonl"):
-                captured_jsonl_fh = fh
+                return _FailOnNthWriteFile(fh)
             return fh
 
         with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
             with patch("builtins.open", side_effect=_patched_open):
-
-                def _thread_with_summary_fail(**kwargs):
-                    target = kwargs.get("target")
-                    thread_args = kwargs.get("args", ())
-
-                    class _SyncThread:
-                        def start(self_inner):
-                            nonlocal call_count
-                            # Monkey-patch the captured jsonl fh to fail on 2nd write.
-                            if captured_jsonl_fh is not None:
-                                real_write = captured_jsonl_fh.write
-
-                                def _counting_write(data):
-                                    nonlocal call_count
-                                    call_count += 1
-                                    if call_count >= 2:
-                                        raise OSError("disk full on summary")
-                                    return real_write(data)
-
-                                captured_jsonl_fh.write = _counting_write
-                            if target is not None:
-                                target(*thread_args)
-
-                    return _SyncThread()
-
                 with patch(
                     "agentic_devtools.cli.copilot.session.threading.Thread",
-                    side_effect=_thread_with_summary_fail,
+                    side_effect=self._sync_thread_side_effect,
                 ):
                     start_copilot_session(
                         prompt="Review the PR",
