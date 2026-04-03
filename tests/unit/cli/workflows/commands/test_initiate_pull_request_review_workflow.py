@@ -570,6 +570,7 @@ class TestInitiatePRReviewWorkflowInteractive:
         assert "--issue-key" not in auto_cmd
         assert "--interactive" in auto_cmd
         assert "false" in auto_cmd
+        assert "--skip-copilot-session" in auto_cmd
 
     def test_auto_execute_command_includes_interactive_true(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
@@ -946,3 +947,58 @@ class TestMissingBootstrapStateShift:
         )
         captured = capsys.readouterr()
         assert "Either --pull-request-id or --issue-key must be provided" not in captured.out
+
+
+class TestSkipCopilotSession:
+    """Tests for the --skip-copilot-session flag."""
+
+    def _run_with_preflight_passing(self, pr_id, source_branch, issue_key=None, argv=None, skip_copilot_session=False):
+        """Helper: run initiate_pull_request_review_workflow with preflight passing."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("pull_request_id", pr_id)
+        if issue_key:
+            state.set_value("jira.issue_key", issue_key)
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+            mock_src.return_value = source_branch
+            with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr") as mock_find:
+                mock_find.return_value = None
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name=source_branch,
+                        issue_key=issue_key,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                            ) as mock_session:
+                                with patch(
+                                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                    return_value="gpt-4o",
+                                ):
+                                    commands.initiate_pull_request_review_workflow(
+                                        _argv=argv,
+                                        skip_copilot_session=skip_copilot_session,
+                                    )
+                                    return mock_session
+
+    def test_skip_copilot_session_prevents_session_launch(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """skip_copilot_session=True prevents _start_copilot_session_for_pr_review from being called."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", skip_copilot_session=True)
+        mock_session.assert_not_called()
+
+    def test_skip_copilot_session_cli_flag(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing):
+        """--skip-copilot-session CLI flag prevents session launch."""
+        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--skip-copilot-session"])
+        mock_session.assert_not_called()

@@ -94,6 +94,7 @@ class TestInitiateUpdateJiraIssueWorkflowBranches:
         auto_cmd = call_kwargs["auto_execute_command"]
         assert "--user-request" in auto_cmd
         assert "Update the description" in auto_cmd
+        assert "--skip-copilot-session" in auto_cmd
 
     def test_model_parsed_from_cli(self, temp_state_dir, clear_state_before, capsys):
         """--model CLI arg overrides the default model."""
@@ -299,3 +300,50 @@ class TestStateDirShiftUpdateJiraIssue:
         # the final resolved state directory after the shift.
         shifted_state_file = shifted_dir / "state.json"
         assert shifted_state_file.exists()
+
+
+class TestSkipCopilotSession:
+    """Tests for the --skip-copilot-session flag."""
+
+    def _run_with_preflight_passing(self, issue_key, argv=None, skip_copilot_session=False):
+        """Helper: run the command with preflight passing, return mock_session."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("jira.issue_key", issue_key)
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name=issue_key,
+                branch_name=f"feature/{issue_key}/implementation",
+                issue_key=issue_key,
+            )
+            with patch(
+                "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                return_value="/fake/repo-root",
+            ):
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                    ) as mock_session:
+                        with patch(
+                            "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                            return_value="gpt-4o",
+                        ):
+                            commands.initiate_update_jira_issue_workflow(
+                                _argv=["--issue-key", issue_key] + argv,
+                                skip_copilot_session=skip_copilot_session,
+                            )
+                            return mock_session
+
+    def test_skip_copilot_session_programmatic(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing):
+        """skip_copilot_session=True prevents copilot session from starting."""
+        mock_session = self._run_with_preflight_passing("PROJECT-1234", skip_copilot_session=True)
+        mock_session.assert_not_called()
+
+    def test_skip_copilot_session_cli_flag(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing):
+        """--skip-copilot-session CLI flag prevents copilot session from starting."""
+        mock_session = self._run_with_preflight_passing("PROJECT-1234", argv=["--skip-copilot-session"])
+        mock_session.assert_not_called()
