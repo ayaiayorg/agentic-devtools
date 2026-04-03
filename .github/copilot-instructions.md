@@ -1846,12 +1846,13 @@ The PR commit hash is stored in multiple locations, each serving a distinct purp
 | Location | Field | Format | Purpose |
 |----------|-------|--------|---------|
 | `review-state.json` | `commitHash` | Full 40-char SHA | **Canonical** source of truth for the reviewed commit, set from `lastMergeSourceCommit.commitId` during scaffolding |
-| `state.json` | `review.commit_hash_short` | First 8 chars | Derived from the canonical hash; used as the artifact directory name under `pull-request-review/` |
+| `state.json` | `review.commit_hash_short` | First 12 chars | Derived from the canonical hash; used as the artifact directory name under `pull-request-review/` |
 | `review-state.json` | `sessions[].commitHash` | Full 40-char SHA | Records which commit each individual review session targeted (may differ across sessions after new pushes) |
-| Artifact directory | `pull-request-review/<hash>/` | First 8 chars | On-disk directory scoping review prompts and queue files, derived from the canonical hash |
+| Artifact directory | `pull-request-review/<hash>/` | First 12 chars | On-disk directory scoping review prompts and queue files, derived from the canonical hash |
 
 `review-state.json` → `commitHash` is the **canonical** full commit hash for the PR under review.
-`state.json` → `review.commit_hash_short` is **derived** from it (first 8 characters) and used for artifact directory resolution.
+`state.json` → `review.commit_hash_short` is **derived** from it (first 12 characters) and used for artifact directory resolution.
+Legacy 8-character directory names may still be recognized as a backward-compatibility fallback.
 Per-session `commitHash` records which specific commit each review session targeted, which may differ from the top-level `commitHash` when the PR is re-reviewed after new pushes.
 
 ### Background Task Storage Structure
