@@ -707,7 +707,7 @@ def start_copilot_session(
             Handles *pipe* or *stdout* being ``None`` gracefully, and
             continues draining to *log_file* if stdout writes fail.
             """
-            session_start = time.monotonic()
+            tee_start = time.monotonic()
             line_count = 0
             try:
                 if pipe is None:
@@ -721,7 +721,7 @@ def start_copilot_session(
                     log_file.flush()
 
                     if jsonl_file is not None:
-                        elapsed_ms = int((time.monotonic() - session_start) * 1000)
+                        elapsed_ms = int((time.monotonic() - tee_start) * 1000)
                         entry = {
                             "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                             "event_type": "output",
@@ -743,7 +743,7 @@ def start_copilot_session(
 
                 # Write summary entry at session end.
                 if jsonl_file is not None:
-                    total_duration_ms = int((time.monotonic() - session_start) * 1000)
+                    total_duration_ms = int((time.monotonic() - tee_start) * 1000)
                     summary = {
                         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                         "event_type": "summary",
