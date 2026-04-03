@@ -730,6 +730,248 @@ class TestStartCopilotSessionNonInteractiveTee:
         assert log_content == ""
 
 
+class TestStartCopilotSessionNonInteractiveJsonl:
+    """Tests for the structured JSONL logging in non-interactive mode."""
+
+    def _make_mock_process(self, output_bytes: bytes) -> MagicMock:
+        """Return a mock Popen whose stdout yields the given bytes."""
+        import io as _io
+
+        proc = MagicMock()
+        proc.pid = 7777
+        proc.stdout = _io.BytesIO(output_bytes)
+        return proc
+
+    def _sync_thread_side_effect(self, **kwargs):
+        """Run the thread target synchronously for deterministic testing."""
+        target = kwargs.get("target")
+        thread_args = kwargs.get("args", ())
+
+        class _SyncThread:
+            def start(self):
+                if target is not None:
+                    target(*thread_args)
+
+        return _SyncThread()
+
+    def test_jsonl_file_created_alongside_log(self, temp_state, mock_available):
+        """A .jsonl file is created in the same directory as the .log file."""
+        mock_proc = self._make_mock_process(b"some output\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_files = list(log_dir.glob("*.jsonl"))
+        assert len(jsonl_files) == 1
+
+    def test_jsonl_file_has_same_stem_as_log(self, temp_state, mock_available):
+        """The .jsonl file shares the same filename stem as the .log file."""
+        mock_proc = self._make_mock_process(b"output\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_stems = {f.stem for f in log_dir.glob("*.log")}
+        jsonl_stems = {f.stem for f in log_dir.glob("*.jsonl")}
+        assert log_stems == jsonl_stems
+
+    def test_each_output_line_produces_jsonl_entry(self, temp_state, mock_available):
+        """Each line from subprocess output produces a JSON object in the .jsonl file."""
+        import json
+
+        output = b"alpha\nbeta\ngamma\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        entries = [json.loads(line) for line in lines]
+        # 3 output entries + 1 summary entry
+        assert len(entries) == 4
+        output_entries = [e for e in entries if e["event_type"] == "output"]
+        assert len(output_entries) == 3
+        assert output_entries[0]["content"] == "alpha"
+        assert output_entries[1]["content"] == "beta"
+        assert output_entries[2]["content"] == "gamma"
+
+    def test_jsonl_entries_include_timestamp(self, temp_state, mock_available):
+        """Each JSONL entry contains a timestamp field."""
+        import json
+
+        mock_proc = self._make_mock_process(b"test line\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        for line in lines:
+            entry = json.loads(line)
+            assert "timestamp" in entry
+
+    def test_jsonl_entries_include_event_type(self, temp_state, mock_available):
+        """Each JSONL entry contains an event_type field."""
+        import json
+
+        mock_proc = self._make_mock_process(b"hello\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        entries = [json.loads(line) for line in lines]
+        assert entries[0]["event_type"] == "output"
+        assert entries[-1]["event_type"] == "summary"
+
+    def test_jsonl_entries_include_duration_ms(self, temp_state, mock_available):
+        """Each JSONL entry contains a duration_ms field."""
+        import json
+
+        mock_proc = self._make_mock_process(b"data\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        for line in lines:
+            entry = json.loads(line)
+            assert "duration_ms" in entry
+            assert isinstance(entry["duration_ms"], int)
+
+    def test_summary_entry_written_at_session_end(self, temp_state, mock_available):
+        """A summary entry with event_type='summary' is the last entry in the .jsonl file."""
+        import json
+
+        output = b"line one\nline two\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        summary = json.loads(lines[-1])
+        assert summary["event_type"] == "summary"
+        assert summary["content"] == "session_end"
+        assert summary["total_lines"] == 2
+
+    def test_existing_log_format_preserved(self, temp_state, mock_available):
+        """The .log file format is unchanged by the addition of JSONL logging."""
+        output = b"log entry alpha\nlog entry beta\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "log entry alpha" in log_content
+        assert "log entry beta" in log_content
+
+    def test_jsonl_content_strips_trailing_newline(self, temp_state, mock_available):
+        """The content field in JSONL entries has trailing newlines stripped."""
+        import json
+
+        mock_proc = self._make_mock_process(b"hello world\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        output_entry = json.loads(lines[0])
+        assert output_entry["content"] == "hello world"
+
+    def test_jsonl_with_none_pipe_produces_empty_file(self, temp_state, mock_available):
+        """When process.stdout is None, the .jsonl file is created but empty."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 7777
+        mock_proc.stdout = None
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_files = list(log_dir.glob("*.jsonl"))
+        assert len(jsonl_files) == 1
+        jsonl_content = jsonl_files[0].read_text(encoding="utf-8")
+        assert jsonl_content == ""
+
+
 class TestInlinePrompt:
     """Tests for the _inline_prompt helper and its integration in start_copilot_session."""
 

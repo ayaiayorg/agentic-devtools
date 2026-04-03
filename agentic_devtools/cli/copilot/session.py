@@ -51,11 +51,13 @@ prints the prompt to stdout so that the user or pipeline can invoke a
 session manually.
 """
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
 import warnings
 from dataclasses import dataclass, field
@@ -252,6 +254,22 @@ def _get_log_file_path(session_id: str, start_time: str) -> Path:
     timestamp = start_time.replace(":", "").replace("-", "").replace(".", "_")[:18]
     filename = f"copilot_session_{timestamp}.log"
     return state_dir / _LOG_DIR_NAME / filename
+
+
+def _get_jsonl_file_path(session_id: str, start_time: str) -> Path:
+    """Return the path for the structured JSON Lines session log file.
+
+    The path mirrors :func:`_get_log_file_path` but uses a ``.jsonl``
+    extension instead of ``.log``.
+
+    Args:
+        session_id: The session identifier.
+        start_time: ISO-8601 timestamp (used in the filename).
+
+    Returns:
+        Absolute :class:`~pathlib.Path` for the ``.jsonl`` file.
+    """
+    return _get_log_file_path(session_id, start_time).with_suffix(".jsonl")
 
 
 def _build_copilot_args(
@@ -647,6 +665,9 @@ def start_copilot_session(
         log_file_path = _get_log_file_path(session_id, start_time)
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Structured JSON Lines log alongside the human-readable log.
+        jsonl_file_path = _get_jsonl_file_path(session_id, start_time)
+
         # Strip NODE_OPTIONS from the subprocess environment: on some systems
         # NODE_OPTIONS contains flags such as ``--no-warnings`` that are
         # intended for the Node.js runtime but are forwarded as CLI arguments
@@ -664,18 +685,30 @@ def start_copilot_session(
             env=env,
         )
 
-        # Open log file without a context manager; the tee thread closes it
-        # after the subprocess pipe reaches EOF.
+        # Open log files without a context manager; the tee thread closes
+        # them after the subprocess pipe reaches EOF.
         # shell=False: same reasoning as the interactive case above.
         log_fh = open(log_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
+        jsonl_fh = open(jsonl_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
         stdout_ref = sys.stdout
 
-        def _tee(pipe: IO[bytes] | None, log_file: IO[str], stdout: IO[str] | None) -> None:
+        def _tee(
+            pipe: IO[bytes] | None,
+            log_file: IO[str],
+            stdout: IO[str] | None,
+            jsonl_file: IO[str] | None = None,
+        ) -> None:
             """Read from *pipe* and mirror every line to *log_file* and *stdout*.
+
+            When *jsonl_file* is not ``None``, each line is also written as a
+            structured JSON object to the ``.jsonl`` file, and a summary entry
+            is appended at EOF.
 
             Handles *pipe* or *stdout* being ``None`` gracefully, and
             continues draining to *log_file* if stdout writes fail.
             """
+            session_start = time.monotonic()
+            line_count = 0
             try:
                 if pipe is None:
                     return
@@ -687,6 +720,18 @@ def start_copilot_session(
                     log_file.write(line)
                     log_file.flush()
 
+                    if jsonl_file is not None:
+                        elapsed_ms = int((time.monotonic() - session_start) * 1000)
+                        entry = {
+                            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                            "event_type": "output",
+                            "content": line.rstrip("\n"),
+                            "duration_ms": elapsed_ms,
+                        }
+                        jsonl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                        jsonl_file.flush()
+                        line_count += 1
+
                     if stdout_ok:
                         try:
                             stdout.write(line)  # type: ignore[union-attr]
@@ -695,14 +740,29 @@ def start_copilot_session(
                             # stdout closed/not writable (common in some CI runners).
                             # Stop mirroring but keep draining the pipe to the log.
                             stdout_ok = False
+
+                # Write summary entry at session end.
+                if jsonl_file is not None:
+                    total_duration_ms = int((time.monotonic() - session_start) * 1000)
+                    summary = {
+                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                        "event_type": "summary",
+                        "content": "session_end",
+                        "duration_ms": total_duration_ms,
+                        "total_lines": line_count,
+                    }
+                    jsonl_file.write(json.dumps(summary, ensure_ascii=False) + "\n")
+                    jsonl_file.flush()
             finally:
                 log_file.close()
+                if jsonl_file is not None:
+                    jsonl_file.close()
 
         # daemon=False: the non-daemon thread keeps the parent process alive
         # until the subprocess finishes and its stdout pipe reaches EOF.  This
         # prevents SIGPIPE / broken-pipe in the child and ensures CI/pipeline
         # steps wait for the full Copilot session output.
-        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref), daemon=False)
+        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref, jsonl_fh), daemon=False)
         tee_thread.start()
 
         result = CopilotSessionResult(
