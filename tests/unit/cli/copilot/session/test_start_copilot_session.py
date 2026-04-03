@@ -1007,6 +1007,129 @@ class TestStartCopilotSessionNonInteractiveJsonl:
         assert "line before jsonl error" in log_content
         assert "line after jsonl error" in log_content
 
+    def test_jsonl_summary_write_failure_does_not_raise(self, temp_state, mock_available):
+        """When the JSONL summary write fails, the tee still completes without raising."""
+        import json
+
+        output = b"line one\n"
+        mock_proc = self._make_mock_process(output)
+
+        call_count = 0
+        original_open = open  # noqa: WPS125
+        captured_jsonl_fh = None
+
+        def _patched_open(path, *args, **kwargs):
+            nonlocal captured_jsonl_fh
+            fh = original_open(path, *args, **kwargs)
+            if str(path).endswith(".jsonl"):
+                captured_jsonl_fh = fh
+            return fh
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("builtins.open", side_effect=_patched_open):
+
+                def _thread_with_summary_fail(**kwargs):
+                    target = kwargs.get("target")
+                    thread_args = kwargs.get("args", ())
+
+                    class _SyncThread:
+                        def start(self_inner):
+                            nonlocal call_count
+                            # Monkey-patch the captured jsonl fh to fail on 2nd write.
+                            if captured_jsonl_fh is not None:
+                                real_write = captured_jsonl_fh.write
+
+                                def _counting_write(data):
+                                    nonlocal call_count
+                                    call_count += 1
+                                    if call_count >= 2:
+                                        raise OSError("disk full on summary")
+                                    return real_write(data)
+
+                                captured_jsonl_fh.write = _counting_write
+                            if target is not None:
+                                target(*thread_args)
+
+                    return _SyncThread()
+
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=_thread_with_summary_fail,
+                ):
+                    start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+
+        # The .log file must still contain all output.
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "line one" in log_content
+
+        # The .jsonl file should have the output entry but no summary.
+        jsonl_files = list(log_dir.glob("*.jsonl"))
+        assert len(jsonl_files) == 1
+        jsonl_content = jsonl_files[0].read_text(encoding="utf-8").strip()
+        entries = [json.loads(line) for line in jsonl_content.split("\n") if line]
+        assert len(entries) == 1
+        assert entries[0]["event_type"] == "output"
+
+    def test_jsonl_content_strips_trailing_crlf(self, temp_state, mock_available):
+        """CRLF line endings are fully stripped from the JSONL content field."""
+        import json
+
+        mock_proc = self._make_mock_process(b"windows line\r\n")
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        jsonl_file = list(log_dir.glob("*.jsonl"))[0]
+        lines = jsonl_file.read_text(encoding="utf-8").strip().split("\n")
+        output_entry = json.loads(lines[0])
+        assert output_entry["content"] == "windows line"
+
+    def test_session_starts_when_jsonl_open_fails(self, temp_state, mock_available):
+        """Session starts and .log works even if .jsonl file creation fails."""
+        output = b"session output\n"
+        mock_proc = self._make_mock_process(output)
+
+        original_open = open  # noqa: WPS125
+
+        def _patched_open(path, *args, **kwargs):
+            if str(path).endswith(".jsonl"):
+                raise OSError("permission denied")
+            return original_open(path, *args, **kwargs)
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("builtins.open", side_effect=_patched_open):
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=self._sync_thread_side_effect,
+                ):
+                    result = start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+
+        assert result is not None
+        # The .log file must still contain all output.
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "session output" in log_content
+
 
 class TestInlinePrompt:
     """Tests for the _inline_prompt helper and its integration in start_copilot_session."""
