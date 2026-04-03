@@ -714,23 +714,30 @@ def start_copilot_session(
                     return
 
                 stdout_ok = stdout is not None
+                # Track JSONL health separately so a write failure (e.g.
+                # disk full) doesn't abort the tee loop and starve the
+                # .log / stdout sinks.
+                jsonl_ok = jsonl_file is not None
 
                 for raw_line in pipe:
                     line = raw_line.decode("utf-8", errors="replace")
                     log_file.write(line)
                     log_file.flush()
 
-                    if jsonl_file is not None:
-                        elapsed_ms = int((time.monotonic() - tee_start) * 1000)
-                        entry = {
-                            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-                            "event_type": "output",
-                            "content": line.rstrip("\n"),
-                            "duration_ms": elapsed_ms,
-                        }
-                        jsonl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                        jsonl_file.flush()
-                        line_count += 1
+                    if jsonl_ok:
+                        try:
+                            elapsed_ms = int((time.monotonic() - tee_start) * 1000)
+                            entry = {
+                                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                                "event_type": "output",
+                                "content": line.rstrip("\n"),
+                                "duration_ms": elapsed_ms,
+                            }
+                            jsonl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")  # type: ignore[union-attr]
+                            jsonl_file.flush()  # type: ignore[union-attr]
+                            line_count += 1
+                        except (OSError, ValueError):
+                            jsonl_ok = False
 
                     if stdout_ok:
                         try:
@@ -742,17 +749,20 @@ def start_copilot_session(
                             stdout_ok = False
 
                 # Write summary entry at session end.
-                if jsonl_file is not None:
-                    total_duration_ms = int((time.monotonic() - tee_start) * 1000)
-                    summary = {
-                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-                        "event_type": "summary",
-                        "content": "session_end",
-                        "duration_ms": total_duration_ms,
-                        "total_lines": line_count,
-                    }
-                    jsonl_file.write(json.dumps(summary, ensure_ascii=False) + "\n")
-                    jsonl_file.flush()
+                if jsonl_ok:
+                    try:
+                        total_duration_ms = int((time.monotonic() - tee_start) * 1000)
+                        summary = {
+                            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                            "event_type": "summary",
+                            "content": "session_end",
+                            "duration_ms": total_duration_ms,
+                            "total_lines": line_count,
+                        }
+                        jsonl_file.write(json.dumps(summary, ensure_ascii=False) + "\n")  # type: ignore[union-attr]
+                        jsonl_file.flush()  # type: ignore[union-attr]
+                    except (OSError, ValueError):
+                        pass
             finally:
                 log_file.close()
                 if jsonl_file is not None:
