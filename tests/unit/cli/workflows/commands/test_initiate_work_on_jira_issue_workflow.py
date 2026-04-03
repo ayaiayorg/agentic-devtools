@@ -350,3 +350,84 @@ class TestWorkflowCommands:
 
         captured = capsys.readouterr()
         assert "jira.issue_key cannot be empty or whitespace-only" in captured.err
+
+
+class TestSkipCopilotSession:
+    """Tests for the --skip-copilot-session flag."""
+
+    def _setup_and_mock_preflight_pass(self, issue_key, argv=None, skip_copilot_session=False):
+        """Helper: run the command with preflight passing, return mock_session."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        argv = argv or []
+        state.set_value("jira.issue_key", issue_key)
+        state.set_value(
+            "jira.last_issue",
+            {
+                "fields": {
+                    "summary": "Test issue",
+                    "issuetype": {"name": "Task"},
+                    "labels": ["backend"],
+                    "description": "Test description",
+                    "comment": {"comments": []},
+                }
+            },
+        )
+
+        with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name=issue_key,
+                branch_name=f"feature/{issue_key}/test",
+                issue_key=issue_key,
+            )
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup"):
+                with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_work_on_jira_issue"
+                    ) as mock_session:
+                        with patch(
+                            "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                            return_value="gpt-4o",
+                        ):
+                            commands.initiate_work_on_jira_issue_workflow(
+                                _argv=argv,
+                                skip_copilot_session=skip_copilot_session,
+                            )
+                            return mock_session
+
+    def test_skip_copilot_session_programmatic(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """skip_copilot_session=True prevents copilot session from starting."""
+        # Setup template for planning step
+        workflow_dir = temp_prompts_dir / "work-on-jira-issue"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-planning-prompt.md"
+        template_file.write_text("Planning work for {{issue_key}}: {{issue_summary}}", encoding="utf-8")
+
+        mock_session = self._setup_and_mock_preflight_pass("PROJECT-1234", skip_copilot_session=True)
+        mock_session.assert_not_called()
+
+    def test_skip_copilot_session_cli_flag(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """--skip-copilot-session CLI flag prevents copilot session from starting."""
+        workflow_dir = temp_prompts_dir / "work-on-jira-issue"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-planning-prompt.md"
+        template_file.write_text("Planning work for {{issue_key}}: {{issue_summary}}", encoding="utf-8")
+
+        mock_session = self._setup_and_mock_preflight_pass("PROJECT-1234", argv=["--skip-copilot-session"])
+        mock_session.assert_not_called()

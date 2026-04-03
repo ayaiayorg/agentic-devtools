@@ -47,6 +47,7 @@ class TestInitiateBreakDownIssueIntoSubtasksWorkflowBranches:
         auto_cmd = call_kwargs["auto_execute_command"]
         assert "--user-request" in auto_cmd
         assert "Split into 3 subtasks" in auto_cmd
+        assert "--skip-copilot-session" in auto_cmd
 
     def test_model_parsed_from_cli(self, temp_state_dir, clear_state_before, capsys):
         """--model CLI arg overrides the default model."""
@@ -327,3 +328,42 @@ class TestStateDirShiftBreakDownIssue:
 
         shifted_state_file = shifted_dir / "state.json"
         assert shifted_state_file.exists()
+
+
+class TestSkipCopilotSession:
+    """Tests for the --skip-copilot-session flag."""
+
+    def test_skip_copilot_session_accepted_without_error(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """--skip-copilot-session is accepted (future-proofing for when session launch is wired)."""
+        workflow_dir = temp_prompts_dir / "break-down-issue-into-subtasks"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(
+            "Breaking down issue {{jira_issue_key}}", encoding="utf-8"
+        )
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/breakdown",
+                issue_key="PROJECT-1234",
+            )
+
+            commands.initiate_break_down_issue_into_subtasks_workflow(
+                _argv=["--issue-key", "PROJECT-1234", "--skip-copilot-session"]
+            )
+
+        workflow = state.get_workflow_state()
+        assert workflow["active"] == "break-down-issue-into-subtasks"
