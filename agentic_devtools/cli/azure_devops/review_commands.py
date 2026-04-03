@@ -8,13 +8,16 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ...state import get_state_dir, get_value, is_dry_run, is_safe_dir_segment
 from ..subprocess_utils import run_safe
 from .auth import get_auth_headers, get_pat
 from .config import AzureDevOpsConfig
 from .helpers import require_requests, resolve_review_artifact_dir_name, verify_az_cli
+
+if TYPE_CHECKING:
+    from .review_state import SkippedFile
 
 # Import helper modules
 
@@ -336,7 +339,7 @@ def generate_review_prompts(
     pr_details: dict | None = None,
     include_reviewed: bool = False,
     files_on_branch: set[str] | None = None,
-) -> tuple[int, int, int, Path, list]:
+) -> tuple[int, int, int, Path, list["SkippedFile"]]:
     """
     Generate file review prompts from PR details.
 
@@ -904,7 +907,11 @@ def setup_pull_request_review() -> None:
             with read_modify_write_review_state(pull_request_id) as state:
                 state.skippedFiles = skipped_files
         except FileNotFoundError:
-            pass  # review-state.json not yet created (scaffolding may have failed)
+            print(
+                "Warning: Could not persist skipped files to review-state.json; "
+                "continuing without skipped-file audit trail.",
+                file=sys.stderr,
+            )
 
     # Step 6: Print instructions
     print_review_instructions(
