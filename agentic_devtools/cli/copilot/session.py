@@ -689,7 +689,13 @@ def start_copilot_session(
         # them after the subprocess pipe reaches EOF.
         # shell=False: same reasoning as the interactive case above.
         log_fh = open(log_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
-        jsonl_fh = open(jsonl_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
+        try:
+            jsonl_fh: IO[str] | None = open(jsonl_file_path, "w", encoding="utf-8", errors="replace")  # noqa: WPS515
+        except OSError:
+            # JSONL logging is best-effort; a creation failure (e.g.
+            # permissions, read-only FS) must not prevent the session
+            # from starting — .log and stdout teeing still work.
+            jsonl_fh = None
         stdout_ref = sys.stdout
 
         def _tee(
@@ -730,7 +736,7 @@ def start_copilot_session(
                             entry = {
                                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                                 "event_type": "output",
-                                "content": line.rstrip("\n"),
+                                "content": line.rstrip("\r\n"),
                                 "duration_ms": elapsed_ms,
                             }
                             jsonl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")  # type: ignore[union-attr]
