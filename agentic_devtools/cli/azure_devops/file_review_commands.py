@@ -377,17 +377,27 @@ def print_next_file_prompt(pull_request_id: int) -> None:
             except Exception as e:
                 print(f"Warning: Could not complete review session: {e}", file=sys.stderr)
 
-        # All files reviewed
-        print("ALL FILES REVIEWED - READY FOR DECISION")
-        print("=" * 60)
-        print("")
-        print(f"Total files reviewed: {status['completed_count']}")
-        print("")
-        print("The file review queue is complete.")
-        print("")
-        print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
-        print("")
-        print("This will advance the workflow to the decision step.")
+        # Attempt auto-advance to decision step
+        auto_advanced = False
+        try:
+            from ..tasks.commands import _try_advance_pr_review_to_decision  # Avoid circular import
+
+            auto_advanced = _try_advance_pr_review_to_decision()
+        except Exception as e:
+            print(f"Warning: Auto-advance to decision failed: {e}", file=sys.stderr)
+
+        if not auto_advanced:
+            # Fallback: print manual instruction
+            print("ALL FILES REVIEWED - READY FOR DECISION")
+            print("=" * 60)
+            print("")
+            print(f"Total files reviewed: {status['completed_count']}")
+            print("")
+            print("The file review queue is complete.")
+            print("")
+            print("YOUR NEXT ACTION: Run agdt-advance-workflow decision")
+            print("")
+            print("This will advance the workflow to the decision step.")
     else:
         print(f"QUEUE STATUS: {status['completed_count']} completed, {status['pending_count']} pending")
         print("=" * 60)

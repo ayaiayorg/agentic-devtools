@@ -536,6 +536,66 @@ class TestPullRequestReviewWorkflowEndToEnd:
         assert result.triggered is False
         assert state.get_workflow_state()["step"] == "decision"
 
+    def test_auto_advance_file_review_to_decision_via_print_next_file_prompt(
+        self, temp_state_dir, temp_output_dir, clear_state_before
+    ):
+        """Test that print_next_file_prompt auto-advances from file-review to decision.
+
+        When all files are reviewed (queue all_complete), print_next_file_prompt
+        calls _try_advance_pr_review_to_decision() which advances the workflow
+        to the decision step without needing a manual agdt-advance-workflow command.
+        """
+        from agentic_devtools.cli.azure_devops.file_review_commands import print_next_file_prompt
+
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "123", "jira_issue_key": "PROJECT-5678"},
+        )
+        state.set_value("pull_request_id", "123")
+
+        complete_queue = {
+            "all_complete": True,
+            "completed_count": 3,
+            "pending_count": 0,
+            "total_count": 3,
+            "current_file": None,
+            "prompt_file_path": None,
+        }
+
+        def _fake_advance(**kwargs):
+            """Simulate advance_workflow_step updating state."""
+            state.update_workflow_step(kwargs.get("step_name", "decision"))
+            return "rendered decision prompt"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands._get_queue_path",
+                return_value=temp_state_dir / "queue.json",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value=complete_queue,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands._complete_active_session",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.is_dry_run",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.base.advance_workflow_step",
+                side_effect=_fake_advance,
+            ),
+        ):
+            print_next_file_prompt(pull_request_id=123)
+
+        # Verify workflow advanced to decision step
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "decision"
+
 
 class TestCreateJiraIssueWorkflowEndToEnd:
     """End-to-end integration tests for the create-jira-issue workflow.
