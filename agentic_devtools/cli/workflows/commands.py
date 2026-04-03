@@ -190,6 +190,7 @@ def initiate_pull_request_review_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -262,6 +263,13 @@ Examples:
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -279,6 +287,8 @@ Examples:
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -440,6 +450,7 @@ Examples:
             auto_execute_command.extend(["--issue-key", resolved_issue_key])
         auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
         auto_execute_command.extend(["--model", model])
+        auto_execute_command.append("--skip-copilot-session")
 
         # Automatically set up the environment with the PR's source branch
         if perform_auto_setup(
@@ -473,18 +484,20 @@ Examples:
     # _start_copilot_session_for_pr_review waits for the prompt file written
     # by the background task before launching the session, bridging the async
     # setup and the interactive session.
-    from .worktree_setup import _start_copilot_session_for_pr_review
+    if not skip_copilot_session:
+        from .worktree_setup import _start_copilot_session_for_pr_review
 
-    # Use the git repo/worktree root (not cwd) so the prompt file is found
-    # even when the command is invoked from a subdirectory.
-    repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_pr_review(repo_root, interactive=interactive, model=model)
+        # Use the git repo/worktree root (not cwd) so the prompt file is found
+        # even when the command is invoked from a subdirectory.
+        repo_root = get_git_repo_root() or os.getcwd()
+        _start_copilot_session_for_pr_review(repo_root, interactive=interactive, model=model)
 
 
 def initiate_work_on_jira_issue_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -538,6 +551,13 @@ def initiate_work_on_jira_issue_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -553,6 +573,8 @@ def initiate_work_on_jira_issue_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -592,6 +614,7 @@ def initiate_work_on_jira_issue_workflow(
             "true" if interactive else "false",
             "--model",
             model,
+            "--skip-copilot-session",
         ]
 
         # Automatically set up the environment
@@ -612,10 +635,11 @@ def initiate_work_on_jira_issue_workflow(
     _execute_retrieve_step(issue_key, preflight_result.branch_name)
 
     # Start a Copilot CLI session after the retrieve step completes.
-    from .worktree_setup import _start_copilot_session_for_work_on_jira_issue
+    if not skip_copilot_session:
+        from .worktree_setup import _start_copilot_session_for_work_on_jira_issue
 
-    repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_work_on_jira_issue(repo_root, interactive=interactive, model=model)
+        repo_root = get_git_repo_root() or os.getcwd()
+        _start_copilot_session_for_work_on_jira_issue(repo_root, interactive=interactive, model=model)
 
 
 def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
@@ -1043,6 +1067,7 @@ def initiate_create_jira_issue_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1126,6 +1151,13 @@ def initiate_create_jira_issue_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(
         _effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive, model)
     )
@@ -1149,6 +1181,8 @@ def initiate_create_jira_issue_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1213,10 +1247,11 @@ def initiate_create_jira_issue_workflow(
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
-            from .worktree_setup import _start_copilot_session_for_create_jira_issue
+            if not skip_copilot_session:
+                from .worktree_setup import _start_copilot_session_for_create_jira_issue
 
-            repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_issue(repo_root, interactive=interactive, model=model)
+                repo_root = get_git_repo_root() or os.getcwd()
+                _start_copilot_session_for_create_jira_issue(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1234,6 +1269,7 @@ def initiate_create_jira_issue_workflow(
                 "true" if interactive else "false",
                 "--model",
                 model,
+                "--skip-copilot-session",
             ]
             if resolved_issue_type:
                 auto_execute_command.extend(["--issue-type", resolved_issue_type])
@@ -1272,6 +1308,7 @@ def initiate_create_jira_epic_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1347,6 +1384,13 @@ def initiate_create_jira_epic_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -1366,6 +1410,8 @@ def initiate_create_jira_epic_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1426,10 +1472,11 @@ def initiate_create_jira_epic_workflow(
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
-            from .worktree_setup import _start_copilot_session_for_create_jira_epic
+            if not skip_copilot_session:
+                from .worktree_setup import _start_copilot_session_for_create_jira_epic
 
-            repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_epic(repo_root, interactive=interactive, model=model)
+                repo_root = get_git_repo_root() or os.getcwd()
+                _start_copilot_session_for_create_jira_epic(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1447,6 +1494,7 @@ def initiate_create_jira_epic_workflow(
                 "true" if interactive else "false",
                 "--model",
                 model,
+                "--skip-copilot-session",
             ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1483,6 +1531,7 @@ def initiate_create_jira_subtask_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1555,6 +1604,13 @@ def initiate_create_jira_subtask_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -1574,6 +1630,8 @@ def initiate_create_jira_subtask_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1632,10 +1690,11 @@ def initiate_create_jira_subtask_workflow(
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
-            from .worktree_setup import _start_copilot_session_for_create_jira_subtask
+            if not skip_copilot_session:
+                from .worktree_setup import _start_copilot_session_for_create_jira_subtask
 
-            repo_root = get_git_repo_root() or os.getcwd()
-            _start_copilot_session_for_create_jira_subtask(repo_root, interactive=interactive, model=model)
+                repo_root = get_git_repo_root() or os.getcwd()
+                _start_copilot_session_for_create_jira_subtask(repo_root, interactive=interactive, model=model)
             return
         else:
             # Not in correct context - auto-setup
@@ -1657,6 +1716,7 @@ def initiate_create_jira_subtask_workflow(
                 "true" if interactive else "false",
                 "--model",
                 model,
+                "--skip-copilot-session",
             ]
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1705,6 +1765,7 @@ def initiate_update_jira_issue_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1767,6 +1828,13 @@ def initiate_update_jira_issue_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -1784,6 +1852,8 @@ def initiate_update_jira_issue_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -1829,6 +1899,7 @@ def initiate_update_jira_issue_workflow(
             "true" if interactive else "false",
             "--model",
             model,
+            "--skip-copilot-session",
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -1865,10 +1936,11 @@ def initiate_update_jira_issue_workflow(
     )
 
     # Start a Copilot CLI session after the workflow is initiated.
-    from .worktree_setup import _start_copilot_session_for_update_jira_issue
+    if not skip_copilot_session:
+        from .worktree_setup import _start_copilot_session_for_update_jira_issue
 
-    repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive, model=model)
+        repo_root = get_git_repo_root() or os.getcwd()
+        _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive, model=model)
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(
@@ -1876,6 +1948,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1946,6 +2019,13 @@ Examples:
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -1963,6 +2043,8 @@ Examples:
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -2048,6 +2130,7 @@ Examples:
                 auto_execute_command.extend(["--issue-key", resolved_issue_key])
             auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
             auto_execute_command.extend(["--model", model])
+            auto_execute_command.append("--skip-copilot-session")
 
             # Automatically set up the environment
             if perform_auto_setup(
@@ -2083,12 +2166,13 @@ Examples:
     # Start a Copilot CLI session with the rendered prompt.
     # _start_copilot_session_for_apply_pr_suggestions waits for the prompt file
     # written by initiate_workflow before launching the session.
-    from .worktree_setup import _start_copilot_session_for_apply_pr_suggestions
+    if not skip_copilot_session:
+        from .worktree_setup import _start_copilot_session_for_apply_pr_suggestions
 
-    # Use the git repo/worktree root (not cwd) so the prompt file is found
-    # even when the command is invoked from a subdirectory.
-    repo_root = get_git_repo_root() or os.getcwd()
-    _start_copilot_session_for_apply_pr_suggestions(repo_root, interactive=interactive, model=model)
+        # Use the git repo/worktree root (not cwd) so the prompt file is found
+        # even when the command is invoked from a subdirectory.
+        repo_root = get_git_repo_root() or os.getcwd()
+        _start_copilot_session_for_apply_pr_suggestions(repo_root, interactive=interactive, model=model)
 
 
 def _copy_review_state_to_apply_suggestions() -> None:
@@ -2138,6 +2222,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2205,6 +2290,13 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -2222,6 +2314,8 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
@@ -2268,6 +2362,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
             "true" if interactive else "false",
             "--model",
             model,
+            "--skip-copilot-session",
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])
@@ -2312,6 +2407,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
+    skip_copilot_session: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2379,6 +2475,13 @@ def initiate_break_down_issue_into_subtasks_workflow(
         default=None,
         help="Copilot model to use (default: project config or gpt-4o). Run agdt-setup to configure.",
     )
+    parser.add_argument(
+        "--skip-copilot-session",
+        dest="skip_copilot_session",
+        action="store_true",
+        default=False,
+        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+    )
     args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
 
     # CLI values override programmatic values only when not already set
@@ -2396,6 +2499,8 @@ def initiate_break_down_issue_into_subtasks_workflow(
         model = model.strip() or None
     if model is None:
         model = get_default_copilot_model()
+    if not skip_copilot_session and args.skip_copilot_session:
+        skip_copilot_session = True
 
     # Resolve identity/scope and clear state in the correct order.
     # Context keys (jira.issue_key, jira.user_request, etc.) are intentionally preserved.
@@ -2442,6 +2547,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
             "true" if interactive else "false",
             "--model",
             model,
+            "--skip-copilot-session",
         ]
         if resolved_user_request:
             auto_execute_command.extend(["--user-request", resolved_user_request])

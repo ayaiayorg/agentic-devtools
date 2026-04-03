@@ -532,6 +532,7 @@ class TestInitiatePRReviewWorkflowInteractive:
             "false",
             "--model",
             "gpt-4o",
+            "--skip-copilot-session",
         ]
         assert call_kwargs["auto_execute_command"] == expected_cmd
 
