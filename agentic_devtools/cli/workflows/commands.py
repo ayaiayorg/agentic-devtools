@@ -190,7 +190,7 @@ def initiate_pull_request_review_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -270,7 +270,9 @@ Examples:
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
+    args = parser.parse_args(
+        _effective_argv(_argv, pull_request_id, issue_key, interactive, model, skip_copilot_session)
+    )
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -497,7 +499,7 @@ def initiate_work_on_jira_issue_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -558,7 +560,7 @@ def initiate_work_on_jira_issue_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model))
+    args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model, skip_copilot_session))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None and args.issue_key:
@@ -1067,7 +1069,7 @@ def initiate_create_jira_issue_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1159,7 +1161,9 @@ def initiate_create_jira_issue_workflow(
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
     args = parser.parse_args(
-        _effective_argv(_argv, project_key, issue_key, issue_type, user_request, interactive, model)
+        _effective_argv(
+            _argv, project_key, issue_key, issue_type, user_request, interactive, model, skip_copilot_session
+        )
     )
 
     # CLI values override programmatic values only when not already set
@@ -1308,7 +1312,7 @@ def initiate_create_jira_epic_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1391,7 +1395,9 @@ def initiate_create_jira_epic_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, project_key, issue_key, user_request, interactive, model))
+    args = parser.parse_args(
+        _effective_argv(_argv, project_key, issue_key, user_request, interactive, model, skip_copilot_session)
+    )
 
     # CLI values override programmatic values only when not already set
     if project_key is None:
@@ -1531,7 +1537,7 @@ def initiate_create_jira_subtask_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1611,7 +1617,9 @@ def initiate_create_jira_subtask_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, parent_key, issue_key, user_request, interactive, model))
+    args = parser.parse_args(
+        _effective_argv(_argv, parent_key, issue_key, user_request, interactive, model, skip_copilot_session)
+    )
 
     # CLI values override programmatic values only when not already set
     if parent_key is None:
@@ -1765,7 +1773,7 @@ def initiate_update_jira_issue_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -1835,7 +1843,7 @@ def initiate_update_jira_issue_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model, skip_copilot_session))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -1948,7 +1956,7 @@ def initiate_apply_pull_request_review_suggestions_workflow(
     issue_key: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2026,7 +2034,9 @@ Examples:
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, pull_request_id, issue_key, interactive, model))
+    args = parser.parse_args(
+        _effective_argv(_argv, pull_request_id, issue_key, interactive, model, skip_copilot_session)
+    )
 
     # CLI values override programmatic values only when not already set
     if pull_request_id is None and args.pull_request_id:
@@ -2222,7 +2232,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2297,7 +2307,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model, skip_copilot_session))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
@@ -2407,7 +2417,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
     user_request: str | None = None,
     interactive: bool | None = None,
     model: str | None = None,
-    skip_copilot_session: bool = False,
+    skip_copilot_session: bool | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -2482,7 +2492,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
-    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model))
+    args = parser.parse_args(_effective_argv(_argv, issue_key, user_request, interactive, model, skip_copilot_session))
 
     # CLI values override programmatic values only when not already set
     if issue_key is None:
