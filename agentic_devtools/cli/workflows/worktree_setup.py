@@ -2598,7 +2598,7 @@ def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None 
 
     run_id = marker.get("run_id")
     start_prompt = marker.get("start_prompt")
-    if not run_id or not start_prompt:
+    if not isinstance(run_id, str) or not run_id or not isinstance(start_prompt, str) or not start_prompt:
         return False
 
     if expected_run_id and run_id != expected_run_id:
@@ -2608,18 +2608,24 @@ def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None 
         )
         return False
 
-    # Build the agdt-copilot-auto-start command line
-    cmd_parts = [
+    # Build the agdt-copilot-auto-start command line.
+    # Validate that all values destined for _shell_quote() are strings;
+    # a corrupted marker file could contain non-str values that would
+    # cause AttributeError/TypeError in _shell_quote().
+    wt_path = marker.get("worktree_path")
+    model = marker.get("model")
+    if not isinstance(wt_path, str):
+        wt_path = worktree_path
+    cmd_parts: list[str] = [
         "agdt-copilot-auto-start",
         "--worktree-path",
-        marker.get("worktree_path", worktree_path),
+        wt_path,
         "--start-prompt",
         start_prompt,
         "--run-id",
         run_id,
     ]
-    model = marker.get("model")
-    if model:
+    if isinstance(model, str) and model:
         cmd_parts.extend(["--model", model])
 
     command_string = " ".join(_shell_quote(p) for p in cmd_parts)
@@ -2629,7 +2635,7 @@ def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None 
 
     try:
         use_shell = platform.system() == "Windows"
-        subprocess.run(  # noqa: S603, S607
+        proc = subprocess.run(  # noqa: S603, S607
             ["code", "--command", "workbench.action.terminal.sendSequence", send_sequence_arg],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -2638,6 +2644,10 @@ def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None 
         )
     except (OSError, subprocess.TimeoutExpired):
         print("--- Terminal sendSequence fallback: 'code --command' failed or timed out. ---")
+        return False
+
+    if proc.returncode != 0:
+        print(f"--- Terminal sendSequence fallback: 'code --command' exited with code {proc.returncode}. ---")
         return False
 
     # Wait up to 15 seconds for the run ID to appear in state
