@@ -2739,7 +2739,7 @@ def _setup_worktree_from_state() -> None:
     interactive_str = get_value("worktree_setup.interactive")
     # Normalize to str | None — get_value() returns Any.
     model_raw = get_value("worktree_setup.model")
-    model = model_raw.strip() or None if isinstance(model_raw, str) else None
+    model = (model_raw.strip() or None) if isinstance(model_raw, str) else None
 
     additional_params = None
     if additional_params_str:
