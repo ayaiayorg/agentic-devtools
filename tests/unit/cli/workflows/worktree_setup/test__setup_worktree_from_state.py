@@ -235,3 +235,51 @@ class TestSetupWorktreeFromState:
 
         call_kwargs = mock_setup_sync.call_args[1]
         assert call_kwargs["interactive"] is False
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_normalizes_whitespace_only_model_to_none(self, mock_get_value, mock_setup_sync):
+        """Test that whitespace-only model from state is normalized to None."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "PROJECT-1234",
+            "worktree_setup.model": "   ",
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["model"] is None
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_normalizes_non_string_model_to_none(self, mock_get_value, mock_setup_sync):
+        """Test that non-string model from state is normalized to None."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "PROJECT-1234",
+            "worktree_setup.model": 42,
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["model"] is None
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
+    @patch("agentic_devtools.state.get_value")
+    def test_strips_model_whitespace(self, mock_get_value, mock_setup_sync):
+        """Test that leading/trailing whitespace is stripped from model."""
+        mock_get_value.side_effect = lambda key: {
+            "worktree_setup.issue_key": "PROJECT-1234",
+            "worktree_setup.model": "  gpt-4o  ",
+        }.get(key)
+
+        from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
+
+        _setup_worktree_from_state()
+
+        call_kwargs = mock_setup_sync.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o"
