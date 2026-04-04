@@ -218,3 +218,57 @@ class TestStartWorktreeSetupBackground:
         )
 
         mock_set_value.assert_any_call("worktree_setup.interactive", "true")
+
+    @patch("agentic_devtools.state.get_value")
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_captures_copilot_model_from_state(self, mock_run_background, mock_set_value, mock_get_value):
+        """Test that copilot.model_id is captured and stored as worktree_setup.model."""
+        mock_task = MagicMock()
+        mock_task.id = "task-model"
+        mock_run_background.return_value = mock_task
+        mock_get_value.return_value = "claude-3.5-sonnet"
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        mock_get_value.assert_called_once_with("copilot.model_id")
+        mock_set_value.assert_any_call("worktree_setup.model", "claude-3.5-sonnet")
+
+    @patch("agentic_devtools.state.get_value")
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_does_not_store_model_when_absent(self, mock_run_background, mock_set_value, mock_get_value):
+        """Test that worktree_setup.model is not stored when copilot.model_id is absent."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-model"
+        mock_run_background.return_value = mock_task
+        mock_get_value.return_value = None
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.model" not in stored_keys
+
+    @patch("agentic_devtools.state.get_value")
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_does_not_store_model_when_whitespace_only(self, mock_run_background, mock_set_value, mock_get_value):
+        """Test that worktree_setup.model is not stored when copilot.model_id is whitespace-only."""
+        mock_task = MagicMock()
+        mock_task.id = "task-ws-model"
+        mock_run_background.return_value = mock_task
+        mock_get_value.return_value = "  "
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.model" not in stored_keys

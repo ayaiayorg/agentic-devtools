@@ -23,6 +23,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": None,
             "worktree_setup.interactive": None,
+            "worktree_setup.model": "gpt-4o",
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -40,6 +41,7 @@ class TestSetupWorktreeFromState:
             auto_execute_command=None,
             auto_execute_timeout=300,
             interactive=False,
+            model="gpt-4o",
         )
 
     @patch("agentic_devtools.state.get_value")
@@ -92,6 +94,7 @@ class TestSetupWorktreeFromState:
             "worktree_setup.auto_execute_command": None,
             "worktree_setup.auto_execute_timeout": None,
             "worktree_setup.interactive": None,
+            "worktree_setup.model": None,
         }.get(key)
 
         from agentic_devtools.cli.workflows.worktree_setup import _setup_worktree_from_state
@@ -109,6 +112,7 @@ class TestSetupWorktreeFromState:
             auto_execute_command=None,
             auto_execute_timeout=300,
             interactive=False,
+            model=None,
         )
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
