@@ -2550,26 +2550,6 @@ def _maybe_inject_auto_start_before_vscode(
         print(f"Auto-start injection skipped: missing or empty agdt_run_id in {worktree_path}.")
         return False
 
-    # If model was not provided, read it from the target worktree's state file
-    # that was already resolved by _resolve_state_context_in_worktree.
-    if model is None:
-        try:
-            with state_file_path.open("r", encoding="utf-8") as f:
-                state_data = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            # Best-effort only; leave model as None if we can't read the state.
-            state_data = None
-
-        if isinstance(state_data, dict):
-            # State files written via set_value/get_value store dot-notation
-            # keys as nested objects, e.g. {"copilot": {"model_id": "..."}}.
-            state_model = None
-            copilot_obj = state_data.get("copilot")
-            if isinstance(copilot_obj, dict):
-                state_model = copilot_obj.get("model_id")
-            if isinstance(state_model, str) and state_model.strip():
-                model = state_model.strip()
-
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
         injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id, model=model)
@@ -2596,6 +2576,7 @@ def setup_worktree_in_background_sync(
     auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 300,
     interactive: bool = False,
+    model: str | None = None,
 ) -> None:
     """
     Perform worktree setup synchronously (called from background task).
@@ -2655,7 +2636,7 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt)
+        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt, model=model)
 
         # Open VS Code
         print("Opening VS Code in the existing worktree (using the workspace file if available)...")
@@ -2702,7 +2683,7 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(result.worktree_path, start_prompt=wf_prompt)
+        _maybe_inject_auto_start_before_vscode(result.worktree_path, start_prompt=wf_prompt, model=model)
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
@@ -2752,6 +2733,7 @@ def _setup_worktree_from_state() -> None:
     auto_execute_command_str = get_value("worktree_setup.auto_execute_command")
     auto_execute_timeout_str = get_value("worktree_setup.auto_execute_timeout")
     interactive_str = get_value("worktree_setup.interactive")
+    model = get_value("worktree_setup.model")
 
     additional_params = None
     if additional_params_str:
@@ -2792,6 +2774,7 @@ def _setup_worktree_from_state() -> None:
         auto_execute_command=auto_execute_command,
         auto_execute_timeout=auto_execute_timeout,
         interactive=interactive,
+        model=model,
     )
 
 
@@ -2838,7 +2821,7 @@ def start_worktree_setup_background(
     import json
 
     from ...background_tasks import run_function_in_background
-    from ...state import set_value
+    from ...state import get_value, set_value
 
     # Store parameters in state for the background function to read
     set_value("worktree_setup.issue_key", issue_key)
@@ -2857,6 +2840,11 @@ def start_worktree_setup_background(
     if auto_execute_timeout != 300:
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
     set_value("worktree_setup.interactive", "true" if interactive else "false")
+
+    # Capture the current model from parent state (correct context at this call site)
+    copilot_model = get_value("copilot.model_id")
+    if isinstance(copilot_model, str) and copilot_model.strip():
+        set_value("worktree_setup.model", copilot_model.strip())
 
     # Build display name for the task
     display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"

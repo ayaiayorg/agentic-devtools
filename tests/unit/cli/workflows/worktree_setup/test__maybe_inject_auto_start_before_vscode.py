@@ -210,14 +210,14 @@ class TestMaybeInjectAutoStartBeforeVscode:
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_reads_model_from_state_when_not_provided(
+    def test_model_none_does_not_read_from_state(
         self,
         mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
     ):
-        """When model is not provided, reads copilot.model_id from target worktree state file."""
+        """When model is not provided, it stays None without reading copilot.model_id from state."""
         state_file = tmp_path / "state.json"
         state_file.write_text(json.dumps({"copilot": {"model_id": "claude-3.5-sonnet"}}), encoding="utf-8")
 
@@ -227,35 +227,30 @@ class TestMaybeInjectAutoStartBeforeVscode:
         ):
             _maybe_inject_auto_start_before_vscode(str(tmp_path))
 
-        mock_inject.assert_called_once_with(
-            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model="claude-3.5-sonnet"
-        )
+        mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model=None)
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
     @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_model_fallback_handles_unreadable_state_file(
+    def test_model_parameter_forwarded_without_state_fallback(
         self,
         mock_in_test,
         mock_build_args,
         mock_inject,
         tmp_path,
     ):
-        """When state file has invalid JSON, model fallback gracefully leaves model as None."""
+        """When model is provided explicitly, it is used directly without any state fallback."""
         state_file = tmp_path / "state.json"
-        state_file.write_text("not valid json{{{", encoding="utf-8")
+        state_file.write_text(json.dumps({"copilot": {"model_id": "stale-model"}}), encoding="utf-8")
 
         with patch(
             f"{_MODULE}._resolve_state_context_in_worktree",
             return_value=(state_file, "run-123"),
         ):
-            _maybe_inject_auto_start_before_vscode(str(tmp_path))
+            _maybe_inject_auto_start_before_vscode(str(tmp_path), model="gpt-4o")
 
         mock_inject.assert_called_once_with(
-            str(tmp_path),
-            COPILOT_SESSION_START_PROMPT,
-            run_id="run-123",
-            model=None,
+            str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-123", model="gpt-4o"
         )
 
     @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
