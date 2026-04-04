@@ -275,3 +275,49 @@ class TestMaybeInjectAutoStartBeforeVscode:
         mock_resolve.assert_called_once_with(str(tmp_path), include_run_id=True)
         mock_inject.assert_called_once_with(str(tmp_path), COPILOT_SESSION_START_PROMPT, run_id="run-456", model=None)
         assert result is True
+
+    @patch(f"{_MODULE}._write_pending_auto_start_marker")
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=True)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_writes_marker_file_after_successful_injection(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        mock_write_marker,
+        tmp_path,
+    ):
+        """When injection succeeds, _write_pending_auto_start_marker is called."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-789"),
+        ):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path), model="gpt-4")
+
+        mock_write_marker.assert_called_once_with(str(tmp_path), "run-789", COPILOT_SESSION_START_PROMPT, model="gpt-4")
+
+    @patch(f"{_MODULE}._write_pending_auto_start_marker")
+    @patch(f"{_MODULE}.inject_auto_start_task", return_value=False)
+    @patch("agentic_devtools.cli.copilot.build_copilot_args", return_value=["copilot", "-i", "prompt"])
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    def test_does_not_write_marker_when_injection_fails(
+        self,
+        mock_in_test,
+        mock_build_args,
+        mock_inject,
+        mock_write_marker,
+        tmp_path,
+    ):
+        """When injection fails, _write_pending_auto_start_marker is NOT called."""
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-fail"),
+        ):
+            _maybe_inject_auto_start_before_vscode(str(tmp_path))
+
+        mock_write_marker.assert_not_called()

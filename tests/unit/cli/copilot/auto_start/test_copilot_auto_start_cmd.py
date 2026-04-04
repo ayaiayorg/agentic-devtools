@@ -1501,6 +1501,34 @@ class TestAutoStartModelFallback:
 
         mock_build.assert_called_once_with("hello", interactive=True, model="gpt-4o")
 
+    def test_cleanup_marker_called_on_success(self, tmp_path):
+        """_cleanup_pending_auto_start_marker is called after a successful copilot run."""
+        sf = _state_file(tmp_path)
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        _MARKER_CLEANUP = "agentic_devtools.cli.workflows.worktree_setup._cleanup_pending_auto_start_marker"
+
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
+                    with patch(_SUBPROC, return_value=mock_result):
+                        with patch(_CLEANUP):
+                            with patch(_MARKER_CLEANUP) as mock_marker_cleanup:
+                                with pytest.raises(SystemExit):
+                                    copilot_auto_start_cmd(
+                                        [
+                                            "--worktree-path",
+                                            str(tmp_path),
+                                            "--start-prompt",
+                                            "hello",
+                                            "--run-id",
+                                            _RUN_ID,
+                                        ]
+                                    )
+
+        mock_marker_cleanup.assert_called_once_with(str(tmp_path))
+
     def test_falls_back_to_default_when_read_model_from_state_raises(self, tmp_path):
         """When _read_model_from_state raises, fall back to get_default_copilot_model()."""
         sf = _state_file(tmp_path)

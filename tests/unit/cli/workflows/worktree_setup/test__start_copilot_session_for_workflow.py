@@ -934,3 +934,52 @@ class TestStartCopilotSessionForWorkflow:
         captured = capsys.readouterr()
         assert "no run ID is available in state" in captured.out
         mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_terminal_send_fallback_returns_true_skips_background_session(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When _try_terminal_send_fallback returns True, the non-interactive session is skipped."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        tasks_data = {
+            "version": "2.0.0",
+            "tasks": [{"label": _AUTO_START_TASK_LABEL, "type": "shell", "command": "copilot"}],
+        }
+        (vscode_dir / "tasks.json").write_text(json.dumps(tasks_data), encoding="utf-8")
+
+        _patch_no_tty(monkeypatch)
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_test" / "_test"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_file = state_dir / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+
+        with patch("time.sleep"):
+            with patch("agentic_devtools.state.get_state_file_path", return_value=state_file):
+                with patch("agentic_devtools.state.get_value", return_value="some-run-id"):
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._try_terminal_send_fallback",
+                        return_value=True,
+                    ):
+                        result = _start_copilot_session_for_workflow(
+                            worktree_path=str(tmp_path),
+                            prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                            start_prompt=_CUSTOM_START_PROMPT,
+                            workflow_name=_CUSTOM_WORKFLOW_NAME,
+                            interactive=False,
+                        )
+
+        assert result is True
+        # Fallback succeeded — non-interactive session must NOT be started
+        mock_copilot.assert_not_called()
