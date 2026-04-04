@@ -2173,8 +2173,11 @@ def _start_copilot_session_for_workflow(
                                 print(
                                     "--- VS Code auto-start task did not fire within "
                                     f"{_TRIGGERED_WAIT_SECONDS}s. "
-                                    "Falling back to background Copilot session. ---"
+                                    "Trying terminal sendSequence fallback... ---"
                                 )
+                                if _try_terminal_send_fallback(worktree_path, expected_run_id=current_run_id):
+                                    return True
+                                print("--- Falling back to background Copilot session. ---")
             except (json.JSONDecodeError, OSError):
                 pass  # Fall through to starting the session directly
 
@@ -2498,6 +2501,190 @@ def _start_copilot_session_for_update_jira_issue(
     )
 
 
+_PENDING_AUTO_START_FILENAME = "pending-auto-start.json"
+
+
+def _write_pending_auto_start_marker(
+    worktree_path: str,
+    run_id: str,
+    start_prompt: str,
+    model: str | None = None,
+) -> None:
+    """Write a JSON marker file for the terminal-send fallback mechanism.
+
+    The marker is written to ``<worktree_path>/.vscode/pending-auto-start.json``
+    and contains the parameters needed to reconstruct the
+    ``agdt-copilot-auto-start`` command line if the primary ``runOn: folderOpen``
+    task does not fire.
+
+    This is a best-effort operation: errors are printed to stderr but never
+    raised to the caller.
+    """
+    from datetime import datetime, timezone
+
+    vscode_dir = os.path.join(worktree_path, ".vscode")
+    marker_path = os.path.join(vscode_dir, _PENDING_AUTO_START_FILENAME)
+    marker = {
+        "run_id": run_id,
+        "start_prompt": start_prompt,
+        "model": model,
+        "worktree_path": worktree_path,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "task_label": _AUTO_START_TASK_LABEL,
+    }
+    try:
+        os.makedirs(vscode_dir, exist_ok=True)
+        with open(marker_path, "w", encoding="utf-8") as fh:
+            json.dump(marker, fh, indent=2, ensure_ascii=False)
+    except OSError as exc:
+        print(
+            f"Warning: failed to write pending auto-start marker at {marker_path}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _cleanup_pending_auto_start_marker(worktree_path: str) -> None:
+    """Delete the pending auto-start marker file if it exists.
+
+    Best-effort: errors are printed to stderr but never raised.
+    """
+    marker_path = os.path.join(worktree_path, ".vscode", _PENDING_AUTO_START_FILENAME)
+    try:
+        if os.path.exists(marker_path):
+            os.remove(marker_path)
+    except OSError as exc:
+        print(
+            f"Warning: failed to remove pending auto-start marker at {marker_path}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None = None) -> bool:
+    """Attempt to start the Copilot session via VS Code terminal sendSequence.
+
+    Reads the ``pending-auto-start.json`` marker file, constructs the
+    ``agdt-copilot-auto-start`` command, and sends it to the VS Code
+    integrated terminal using ``code --command workbench.action.terminal.sendSequence``.
+
+    When *expected_run_id* is provided, the marker's ``run_id`` must match it
+    exactly.  This prevents stale markers (from a prior run) from triggering
+    a false-positive confirmation and causing the caller to skip starting a
+    new background Copilot session.
+
+    Returns ``True`` when the fallback session was confirmed (run ID appeared
+    in ``copilot.auto_start_triggered_runs`` within 15 seconds), ``False``
+    otherwise.
+
+    This function is a **no-op** (returns ``False``) when running in a test
+    environment, mirroring the guard in ``_maybe_inject_auto_start_before_vscode()``.
+    """
+    import time
+
+    if _in_test_environment():
+        return False
+
+    marker_path = os.path.join(worktree_path, ".vscode", _PENDING_AUTO_START_FILENAME)
+    if not os.path.isfile(marker_path):
+        return False
+
+    try:
+        with open(marker_path, encoding="utf-8") as fh:
+            marker = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    if not isinstance(marker, dict):
+        return False
+
+    run_id = marker.get("run_id")
+    start_prompt = marker.get("start_prompt")
+    if not run_id or not start_prompt:
+        return False
+
+    if expected_run_id and run_id != expected_run_id:
+        print(
+            f"--- Terminal sendSequence fallback: marker run_id ({run_id}) "
+            f"does not match expected run_id ({expected_run_id}). Skipping stale marker. ---"
+        )
+        return False
+
+    # Build the agdt-copilot-auto-start command line
+    cmd_parts = [
+        "agdt-copilot-auto-start",
+        "--worktree-path",
+        marker.get("worktree_path", worktree_path),
+        "--start-prompt",
+        start_prompt,
+        "--run-id",
+        run_id,
+    ]
+    model = marker.get("model")
+    if model:
+        cmd_parts.extend(["--model", model])
+
+    command_string = " ".join(_shell_quote(p) for p in cmd_parts)
+    send_sequence_arg = json.dumps({"text": command_string + "\n"})
+
+    print("--- Attempting terminal sendSequence fallback for auto-start... ---")
+
+    try:
+        use_shell = platform.system() == "Windows"
+        subprocess.run(  # noqa: S603, S607
+            ["code", "--command", "workbench.action.terminal.sendSequence", send_sequence_arg],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            shell=use_shell,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        print("--- Terminal sendSequence fallback: 'code --command' failed or timed out. ---")
+        return False
+
+    # Wait up to 15 seconds for the run ID to appear in state
+    from agentic_devtools.cli.copilot.auto_start import _is_run_triggered
+
+    state_file_path, _ = _resolve_state_context_in_worktree(worktree_path)
+    if not state_file_path:
+        return False
+
+    _FALLBACK_WAIT_SECONDS = 15
+    _FALLBACK_POLL_INTERVAL = 1.0
+    waited = 0.0
+    while waited < _FALLBACK_WAIT_SECONDS:
+        if _is_run_triggered(state_file_path, run_id):
+            print("--- Terminal sendSequence fallback confirmed: Copilot session is in the integrated terminal. ---")
+            _cleanup_pending_auto_start_marker(worktree_path)
+            return True
+        time.sleep(_FALLBACK_POLL_INTERVAL)
+        waited += _FALLBACK_POLL_INTERVAL
+
+    print(f"--- Terminal sendSequence fallback: run ID not confirmed within {_FALLBACK_WAIT_SECONDS}s. ---")
+    return False
+
+
+def _shell_quote(s: str) -> str:
+    """Quote a string for safe embedding in a shell command.
+
+    Uses :func:`shlex.quote` on non-Windows platforms. On Windows, wraps
+    the string in double quotes, doubles embedded double quotes, and
+    doubles percent signs to avoid ``%VAR%`` expansion by ``cmd.exe``.
+
+    Note: The quoted strings are embedded in a VS Code terminal
+    ``sendSequence`` text payload. The data originates from the
+    ``pending-auto-start.json`` marker file that we wrote ourselves, so
+    injection risk is minimal.
+    """
+    if platform.system() == "Windows":
+        # This Windows branch does not attempt full cmd.exe metacharacter
+        # escaping. It only doubles embedded double quotes and percent
+        # signs, then wraps the result in double quotes.
+        escaped = s.replace('"', '""').replace("%", "%%")
+        return '"' + escaped + '"'
+    import shlex  # noqa: PLC0415 — lazy import; not needed on Windows
+
+    return shlex.quote(s)
+
+
 def _maybe_inject_auto_start_before_vscode(
     worktree_path: str,
     start_prompt: str = COPILOT_SESSION_START_PROMPT,
@@ -2555,6 +2742,7 @@ def _maybe_inject_auto_start_before_vscode(
         injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id, model=model)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
+            _write_pending_auto_start_marker(worktree_path, run_id, start_prompt, model=model)
         else:
             print(
                 "WARNING: VS Code auto-start task injection failed. "

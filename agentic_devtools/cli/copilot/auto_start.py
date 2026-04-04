@@ -487,6 +487,10 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
         _unmark_run_triggered(state_file_path, run_id)
         sys.exit(exit_code)
 
-    # 7b. On success: best-effort cleanup of the task from tasks.json.
+    # 7b. On success: best-effort cleanup of the task from tasks.json
+    #     and the pending auto-start marker file.
     _cleanup_auto_start_task(worktree_path, task_label, created_new)
+    from agentic_devtools.cli.workflows.worktree_setup import _cleanup_pending_auto_start_marker
+
+    _cleanup_pending_auto_start_marker(worktree_path)
     sys.exit(0)
