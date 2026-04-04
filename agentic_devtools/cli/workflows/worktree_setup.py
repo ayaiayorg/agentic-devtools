@@ -2821,7 +2821,7 @@ def start_worktree_setup_background(
     import json
 
     from ...background_tasks import run_function_in_background
-    from ...state import get_value, set_value
+    from ...state import delete_value, get_value, set_value
 
     # Store parameters in state for the background function to read
     set_value("worktree_setup.issue_key", issue_key)
@@ -2841,10 +2841,14 @@ def start_worktree_setup_background(
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
     set_value("worktree_setup.interactive", "true" if interactive else "false")
 
-    # Capture the current model from parent state (correct context at this call site)
+    # Capture the current model from parent state (correct context at this call site).
+    # Always clear any stale worktree_setup.model from a previous run before
+    # conditionally storing the current value.
     copilot_model = get_value("copilot.model_id")
     if isinstance(copilot_model, str) and copilot_model.strip():
         set_value("worktree_setup.model", copilot_model.strip())
+    else:
+        delete_value("worktree_setup.model")
 
     # Build display name for the task
     display_name = f"agdt-setup-worktree-background --issue-key {issue_key}"
