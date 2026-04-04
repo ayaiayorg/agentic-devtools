@@ -2605,6 +2605,10 @@ def setup_worktree_in_background_sync(
             (default: 300).
         interactive: Whether to start the Copilot session interactively after
             setup (default: False). Set to True for interactive mode.
+        model: Copilot model identifier to use for the session (e.g.
+            ``"claude-3.5-sonnet"``).  Passed through to
+            ``_maybe_inject_auto_start_before_vscode()`` so the model is
+            resolved from the caller's context rather than from state.
     """
     from ...state import set_value
 
@@ -2733,7 +2737,9 @@ def _setup_worktree_from_state() -> None:
     auto_execute_command_str = get_value("worktree_setup.auto_execute_command")
     auto_execute_timeout_str = get_value("worktree_setup.auto_execute_timeout")
     interactive_str = get_value("worktree_setup.interactive")
-    model = get_value("worktree_setup.model")
+    # Normalize to str | None — get_value() returns Any.
+    model_raw = get_value("worktree_setup.model")
+    model = model_raw.strip() or None if isinstance(model_raw, str) else None
 
     additional_params = None
     if additional_params_str:
