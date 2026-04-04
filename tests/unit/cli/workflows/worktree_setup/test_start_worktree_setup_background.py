@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from agentic_devtools.cli.workflows.worktree_setup import (
     start_worktree_setup_background,
 )
@@ -9,6 +11,15 @@ from agentic_devtools.cli.workflows.worktree_setup import (
 
 class TestStartWorktreeSetupBackground:
     """Tests for start_worktree_setup_background function."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_state(self):
+        """Patch get_value and delete_value so tests never touch the real state file."""
+        with (
+            patch("agentic_devtools.state.get_value", return_value=None),
+            patch("agentic_devtools.state.delete_value"),
+        ):
+            yield
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
