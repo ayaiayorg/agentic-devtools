@@ -347,3 +347,20 @@ class TestSkipCopilotSession:
         """--skip-copilot-session CLI flag prevents copilot session from starting."""
         mock_session = self._run_with_preflight_passing("PROJECT-1234", argv=["--skip-copilot-session"])
         mock_session.assert_not_called()
+
+    def test_skip_copilot_session_only_param_does_not_read_sys_argv(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Calling with only skip_copilot_session=True must not parse sys.argv.
+
+        Regression test for the _effective_argv guard: skip_copilot_session uses
+        ``bool | None = None`` so that passing ``True`` triggers the
+        ``any(p is not None)`` check inside _effective_argv, returning ``[]``
+        instead of ``None``.  Without this, argparse would read the host
+        process's sys.argv and potentially raise SystemExit.
+        """
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        # No _argv and no other programmatic params — only skip_copilot_session.
+        # If skip_copilot_session were not included in _effective_argv, this would
+        # try to parse sys.argv and raise SystemExit due to unrecognised flags.
+        commands.initiate_update_jira_issue_workflow(skip_copilot_session=True)
