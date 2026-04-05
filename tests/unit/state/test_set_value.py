@@ -407,10 +407,31 @@ class TestSetValueBootstrapIssueKey:
 
         mock_update.assert_not_called()
 
-    def test_issue_key_non_string_skips_bootstrap(self, temp_state_dir):
-        """set_value('issue_key', non-str) does not touch bootstrap."""
+    def test_issue_key_int_updates_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', int) updates bootstrap (JSON-parsed numeric IDs)."""
         with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
             state.set_value("issue_key", 123)
+
+        mock_update.assert_called_once_with("123")
+
+    def test_issue_key_bool_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', bool) does not touch bootstrap (bool is int subclass)."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", True)
+
+        mock_update.assert_not_called()
+
+    def test_issue_key_dict_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', dict) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", {"bad": "input"})
+
+        mock_update.assert_not_called()
+
+    def test_issue_key_list_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', list) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", ["bad", "input"])
 
         mock_update.assert_not_called()
 
@@ -429,6 +450,24 @@ class TestSetValueBootstrapIssueKey:
             state.set_value("pull_request_id", 99999)
 
         mock_update.assert_not_called()
+
+    def test_pull_request_id_skips_bootstrap_when_int_issue_key_set(self, temp_state_dir):
+        """set_value('pull_request_id', ...) skips bootstrap when issue_key is an int."""
+        state.set_value("issue_key", 42)
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 99999)
+
+        mock_update.assert_not_called()
+
+    def test_pull_request_id_updates_bootstrap_when_bool_issue_key_set(self, temp_state_dir):
+        """set_value('pull_request_id', ...) updates bootstrap when issue_key is a bool."""
+        state.set_value("issue_key", True)
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 42)
+
+        mock_update.assert_called_once_with("PR42")
 
     def test_pull_request_id_updates_bootstrap_when_only_empty_issue_key(self, temp_state_dir):
         """set_value('pull_request_id', ...) updates bootstrap when issue_key is empty."""

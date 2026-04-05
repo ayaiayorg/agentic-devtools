@@ -209,7 +209,11 @@ class TestSetContextValueIssueKey:
         assert state.get_value("pull_request_id") is None
 
     def test_issue_key_does_not_clear_jira_issue_key(self, temp_state_dir):
-        """Test that setting issue_key does NOT clear jira.issue_key (they are aliases)."""
+        """Test that setting issue_key does NOT clear jira.issue_key.
+
+        Both represent issue context; neither clears the other for backward
+        compatibility — they may coexist with different values.
+        """
         state.set_value("jira.issue_key", "PROJECT-1234")
 
         with patch.object(state, "_trigger_cross_lookup"):

@@ -784,8 +784,13 @@ def set_value(key: str, value: Any) -> None:
     try:
         if key == "issue_key":
             # Top-level issue_key — provider-agnostic identifier.
-            # Same validation as jira.issue_key: only non-empty strings.
-            if isinstance(value, str):
+            # Accept both strings ("PROJECT-1234", "#42") and plain ints (42)
+            # because agdt-set JSON-parses numeric values to int.
+            # Reject complex types (dict/list/bool) to avoid writing
+            # unintended values into the bootstrap file.
+            if type(value) is int:  # noqa: E721 – exclude bool (bool is subclass of int)
+                _update_bootstrap_worktree_key(str(value))
+            elif isinstance(value, str):
                 issue_key = value.strip()
                 if issue_key:
                     _update_bootstrap_worktree_key(issue_key)
@@ -814,11 +819,19 @@ def set_value(key: str, value: Any) -> None:
                 # (matching resolve_worktree_key() priority in agdt_branch.py).
                 # This prevents set_value("pull_request_id", ...) from overwriting
                 # the issue-key scope after an issue key has already set it.
-                top_level_issue_key = state.get("issue_key", "")
+                # Normalize issue_key: accept str and plain int (agdt-set
+                # JSON-parses "42" to int), reject complex types (dict/list/bool).
+                raw_issue_key = state.get("issue_key", "")
+                if type(raw_issue_key) is int:  # noqa: E721 – exclude bool
+                    top_level_issue_key = str(raw_issue_key)
+                elif isinstance(raw_issue_key, str):
+                    top_level_issue_key = raw_issue_key.strip()
+                else:
+                    top_level_issue_key = ""
                 jira_val = state.get("jira")
                 existing_jira_key = jira_val.get("issue_key", "") if isinstance(jira_val, dict) else ""
-                has_issue_key = (isinstance(top_level_issue_key, str) and top_level_issue_key.strip()) or (
-                    isinstance(existing_jira_key, str) and existing_jira_key.strip()
+                has_issue_key = bool(top_level_issue_key) or (
+                    isinstance(existing_jira_key, str) and bool(existing_jira_key.strip())
                 )
                 if not has_issue_key:
                     _update_bootstrap_worktree_key(f"PR{pr_id_str}")
@@ -891,7 +904,9 @@ def set_context_value(
 
     # Determine counterparts to clear:
     # - pull_request_id clears both issue_key and jira.issue_key
-    # - issue_key or jira.issue_key only clears pull_request_id (they are aliases)
+    # - issue_key or jira.issue_key only clears pull_request_id
+    #   (both represent issue context; neither clears the other for
+    #   backward compatibility — they may coexist with different values)
     if key == "pull_request_id":
         counterparts = ["jira.issue_key", "issue_key"]
     else:
