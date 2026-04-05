@@ -9,7 +9,7 @@ from agentic_devtools.cli.workflows import commands
 
 
 @pytest.fixture
-def _sample_issue_json():
+def sample_issue_json():
     """Return a sample Jira issue JSON fixture."""
     return {
         "key": "PROJECT-1234",
@@ -37,10 +37,10 @@ def _sample_issue_json():
 class TestFetchIssueForPromptSuccess:
     """Tests for successful pre-fetch scenarios."""
 
-    def test_extracts_all_fields_correctly(self, temp_state_dir, _sample_issue_json):
+    def test_extracts_all_fields_correctly(self, temp_state_dir, sample_issue_json):
         """Verify all 5 output keys are correctly populated from sample JSON."""
         issue_file = temp_state_dir / "temp-get-issue-details-response.json"
-        issue_file.write_text(json.dumps(_sample_issue_json), encoding="utf-8")
+        issue_file.write_text(json.dumps(sample_issue_json), encoding="utf-8")
 
         with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=temp_state_dir):
             with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
@@ -140,6 +140,7 @@ class TestFetchIssueForPromptSuccess:
         # Body should be truncated at 200 chars + "..." suffix + author prefix
         assert "x" * 200 in result["jira_issue_comments"]
         assert "x" * 201 not in result["jira_issue_comments"]
+        assert result["jira_issue_comments"].endswith("...")
 
     def test_only_last_five_comments_included(self, temp_state_dir):
         """Verify only last 5 comments are included."""
