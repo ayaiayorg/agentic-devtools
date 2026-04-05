@@ -863,7 +863,12 @@ class TestStartCopilotSessionNonInteractiveTee:
         mock_proc = self._make_mock_process(output)
 
         # Simulate time: all within 60 seconds
-        # 1: tee_start, 2: line1, 3: line2, 4: SESSION_END, 5: JSONL summary
+        # Calls to time.monotonic():
+        # 1: tee_start (initial)
+        # 2: now_mono for line1 (0.0s elapsed, no heartbeat)
+        # 3: now_mono for line2 (1.0s elapsed, no heartbeat)
+        # 4: elapsed_total after loop (for SESSION_END)
+        # 5: JSONL summary total_duration_ms
         monotonic_values = iter([0.0, 0.0, 1.0, 2.0, 2.0])
 
         with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
