@@ -1768,6 +1768,84 @@ def initiate_create_jira_subtask_workflow(
         sys.exit(1)
 
 
+def _fetch_issue_for_prompt(issue_key: str) -> dict[str, str]:
+    """Pre-fetch Jira issue details for use as template variables.
+
+    Calls ``get_issue()`` synchronously and reads the resulting temp JSON file
+    to extract fields for the prompt template.  On any failure the function
+    prints a warning to *stderr* and returns an empty dict so that the template
+    falls back to the manual fetch instruction.
+
+    Args:
+        issue_key: Jira issue key (must already be set in state).
+
+    Returns:
+        Dict with keys ``jira_issue_summary``, ``jira_issue_type``,
+        ``jira_issue_labels``, ``jira_issue_description``, and
+        ``jira_issue_comments`` — or ``{}`` on failure.
+    """
+    try:
+        from ..jira.get_commands import get_issue
+        from ..jira.state_helpers import set_jira_value
+
+        # Ensure issue key is set in jira state
+        set_jira_value("issue_key", issue_key)
+
+        # Call get_issue synchronously — prints details and saves to temp file
+        get_issue()
+    except SystemExit:
+        print(
+            f"Warning: Failed to fetch issue {issue_key}. The prompt will include a manual fetch instruction.",
+            file=sys.stderr,
+        )
+        return {}
+    except Exception as e:
+        print(f"Warning: Could not fetch Jira issue: {e}", file=sys.stderr)
+        return {}
+
+    # Read the temp file that get_issue() wrote
+    issue_file = get_state_dir() / "temp-get-issue-details-response.json"
+    if not issue_file.exists():
+        print(
+            "Warning: Issue details file not found after fetch. The prompt will include a manual fetch instruction.",
+            file=sys.stderr,
+        )
+        return {}
+
+    try:
+        issue_data = json.loads(issue_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"Warning: Could not read issue file: {e}", file=sys.stderr)
+        return {}
+
+    fields = issue_data.get("fields", {})
+
+    issue_summary = fields.get("summary", "No summary available")
+    issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+    issue_labels = ", ".join(fields.get("labels", [])) or "None"
+    issue_description = fields.get("description", "No description available")
+
+    # Format comments — last 5, truncated to 200 chars each
+    comments_data = fields.get("comment", {}).get("comments", [])
+    if comments_data:
+        comment_lines = []
+        for c in comments_data[-5:]:
+            author = c.get("author", {}).get("displayName", "Unknown")
+            body = c.get("body", "")[:200]
+            comment_lines.append(f"**{author}**: {body}...")
+        issue_comments = "\n".join(comment_lines)
+    else:
+        issue_comments = "No comments"
+
+    return {
+        "jira_issue_summary": issue_summary,
+        "jira_issue_type": issue_type,
+        "jira_issue_labels": issue_labels,
+        "jira_issue_description": issue_description,
+        "jira_issue_comments": issue_comments,
+    }
+
+
 def initiate_update_jira_issue_workflow(
     issue_key: str | None = None,
     user_request: str | None = None,
@@ -1936,10 +2014,14 @@ def initiate_update_jira_issue_workflow(
     if new_state_dir != original_state_dir:
         set_value("jira.issue_key", resolved_issue_key)
 
+    # Pre-fetch Jira issue details for the prompt template
+    issue_variables = _fetch_issue_for_prompt(resolved_issue_key)
+
     initiate_workflow(
         workflow_name="update-jira-issue",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.summary", "jira.description", "jira.comment", "jira.user_request"],
+        additional_variables=issue_variables,
         skip_bootstrap_init=True,
     )
 
