@@ -161,7 +161,7 @@ def commit_cmd() -> None:
         --skip-push: Skip the push step
 
     Example:
-        agdt-set commit_message "feat(#42): add feature"
+        agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature"
         agdt-git-save-work
         agdt-git-save-work --completed "1,2"
         agdt-git-save-work --skip-rebase
