@@ -298,6 +298,12 @@ class TestStartCopilotSessionNonInteractive:
                 working_directory=str(temp_state),
                 interactive=False,
             )
+            # Close file handles that the mocked thread would normally close
+            # in _tee's finally: block to prevent fd leaks across the test suite.
+            tee_args = mock_thread_cls.call_args.kwargs.get("args", ())
+            for idx in (1, 3):  # log_fh, jsonl_fh
+                if idx < len(tee_args) and tee_args[idx] is not None:
+                    tee_args[idx].close()
         # The process handle is stored in the result (not waited on by the main function)
         assert result.process is mock_proc
         # Thread is mocked — wait() should not have been called yet
