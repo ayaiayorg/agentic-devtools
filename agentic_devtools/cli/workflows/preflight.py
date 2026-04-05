@@ -245,7 +245,7 @@ def perform_auto_setup(
     user_request: str | None = None,
     additional_params: dict | None = None,
     auto_execute_command: list[str] | None = None,
-    auto_execute_timeout: int = 300,
+    auto_execute_timeout: int = 60,
     interactive: bool = False,
 ) -> bool:
     """
@@ -275,7 +275,7 @@ def perform_auto_setup(
         auto_execute_command: Optional command to run inside the worktree after
             creation. Passed through to the background setup task.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
-            (default: 300).
+            (default: 60).
         interactive: Whether to start the Copilot session interactively after
             the worktree is ready (default: False). Set to True for interactive mode.
 

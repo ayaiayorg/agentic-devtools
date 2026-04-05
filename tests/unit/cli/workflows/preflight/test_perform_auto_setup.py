@@ -41,7 +41,7 @@ class TestPerformAutoSetup:
             user_request=None,
             additional_params=None,
             auto_execute_command=None,
-            auto_execute_timeout=300,
+            auto_execute_timeout=60,
             interactive=False,
         )
         captured = capsys.readouterr()
@@ -179,3 +179,11 @@ class TestPerformAutoSetup:
         )
 
         assert state.get_value("background.task_id") == "task-auto-set-check"
+
+    def test_auto_execute_timeout_default_is_60(self):
+        """Verify the default value of auto_execute_timeout is 60 via signature inspection."""
+        import inspect
+
+        sig = inspect.signature(perform_auto_setup)
+        default = sig.parameters["auto_execute_timeout"].default
+        assert default == 60
