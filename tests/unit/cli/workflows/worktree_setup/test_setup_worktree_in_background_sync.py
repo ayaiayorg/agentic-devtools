@@ -243,7 +243,7 @@ class TestSetupWorktreeInBackgroundSync:
             auto_execute_command=["agdt-review"],
         )
 
-        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/PROJECT-1234", 300)
+        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/PROJECT-1234", 60)
         mock_set_value.assert_any_call("worktree_setup.auto_execute_exit_code", "0")
 
     @patch("agentic_devtools.state.set_value")
@@ -631,3 +631,11 @@ class TestSetupWorktreeInBackgroundSync:
         assert call_order.index("inject_auto_start") < call_order.index("open_vscode"), (
             "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
         )
+
+    def test_auto_execute_timeout_default_is_60(self):
+        """Verify the default value of auto_execute_timeout is 60 via signature inspection."""
+        import inspect
+
+        sig = inspect.signature(setup_worktree_in_background_sync)
+        default = sig.parameters["auto_execute_timeout"].default
+        assert default == 60

@@ -2779,7 +2779,7 @@ def setup_worktree_in_background_sync(
     user_request: str | None = None,
     additional_params: dict | None = None,
     auto_execute_command: list[str] | None = None,
-    auto_execute_timeout: int = 300,
+    auto_execute_timeout: int = 60,
     interactive: bool = False,
     model: str | None = None,
 ) -> None:
@@ -2807,7 +2807,7 @@ def setup_worktree_in_background_sync(
         auto_execute_command: Optional command to run inside the worktree after
             creation. If the command fails, the error is logged but setup continues.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
-            (default: 300).
+            (default: 60).
         interactive: Whether to start the Copilot session interactively after
             setup (default: False). Set to True for interactive mode.
         model: Copilot model identifier to use for the session (e.g.
@@ -2960,7 +2960,7 @@ def _setup_worktree_from_state() -> None:
         except json.JSONDecodeError:
             pass
 
-    auto_execute_timeout = 300
+    auto_execute_timeout = 60
     if auto_execute_timeout_str:
         try:
             auto_execute_timeout = int(auto_execute_timeout_str)
@@ -2998,7 +2998,7 @@ def start_worktree_setup_background(
     user_request: str | None = None,
     additional_params: dict | None = None,
     auto_execute_command: list[str] | None = None,
-    auto_execute_timeout: int = 300,
+    auto_execute_timeout: int = 60,
     interactive: bool = False,
 ) -> str:
     """
@@ -3022,7 +3022,7 @@ def start_worktree_setup_background(
         auto_execute_command: Optional command to run inside the worktree after
             creation. Passed through to setup_worktree_in_background_sync.
         auto_execute_timeout: Timeout in seconds for the auto-execute command
-            (default: 300).
+            (default: 60).
         interactive: Whether to start the Copilot session interactively after
             setup (default: False). Set to True for interactive mode.
 
@@ -3048,7 +3048,7 @@ def start_worktree_setup_background(
         set_value("worktree_setup.additional_params", json.dumps(additional_params))
     if auto_execute_command:
         set_value("worktree_setup.auto_execute_command", json.dumps(auto_execute_command))
-    if auto_execute_timeout != 300:
+    if auto_execute_timeout != 60:
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
     set_value("worktree_setup.interactive", "true" if interactive else "false")
 

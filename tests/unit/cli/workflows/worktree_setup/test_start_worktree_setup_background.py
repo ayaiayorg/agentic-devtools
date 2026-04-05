@@ -192,7 +192,7 @@ class TestStartWorktreeSetupBackground:
             issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["cmd"],
-            auto_execute_timeout=300,  # Default value
+            auto_execute_timeout=60,  # Default value
         )
 
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
@@ -291,3 +291,11 @@ class TestStartWorktreeSetupBackground:
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
         assert "worktree_setup.model" not in stored_keys
         mock_delete_value.assert_called_once_with("worktree_setup.model")
+
+    def test_auto_execute_timeout_default_is_60(self):
+        """Verify the default value of auto_execute_timeout is 60 via signature inspection."""
+        import inspect
+
+        sig = inspect.signature(start_worktree_setup_background)
+        default = sig.parameters["auto_execute_timeout"].default
+        assert default == 60

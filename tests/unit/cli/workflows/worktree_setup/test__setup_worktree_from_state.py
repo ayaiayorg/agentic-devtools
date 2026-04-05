@@ -39,7 +39,7 @@ class TestSetupWorktreeFromState:
             user_request="Review this PR",
             additional_params={"pr_id": "123"},
             auto_execute_command=None,
-            auto_execute_timeout=300,
+            auto_execute_timeout=60,
             interactive=False,
             model="gpt-4o",
         )
@@ -110,7 +110,7 @@ class TestSetupWorktreeFromState:
             user_request=None,
             additional_params=None,
             auto_execute_command=None,
-            auto_execute_timeout=300,
+            auto_execute_timeout=60,
             interactive=False,
             model=None,
         )
@@ -167,7 +167,7 @@ class TestSetupWorktreeFromState:
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
     @patch("agentic_devtools.state.get_value")
     def test_handles_invalid_int_in_auto_execute_timeout(self, mock_get_value, mock_setup_sync):
-        """Test that invalid integer in auto_execute_timeout defaults to 300."""
+        """Test that invalid integer in auto_execute_timeout defaults to 60."""
         mock_get_value.side_effect = lambda key: {
             "worktree_setup.issue_key": "PROJECT-1234",
             "worktree_setup.branch_prefix": "feature",
@@ -186,7 +186,7 @@ class TestSetupWorktreeFromState:
         _setup_worktree_from_state()
 
         call_kwargs = mock_setup_sync.call_args[1]
-        assert call_kwargs["auto_execute_timeout"] == 300
+        assert call_kwargs["auto_execute_timeout"] == 60
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_in_background_sync")
     @patch("agentic_devtools.state.get_value")
