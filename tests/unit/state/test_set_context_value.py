@@ -329,6 +329,62 @@ class TestSetContextValueBootstrapSync:
         assert call_key == "pull_request_id"
         assert "issue_key" not in passed_state
 
+    def test_int_issue_key_triggers_bootstrap_sync(self, temp_state_dir):
+        """set_context_value('issue_key', int) syncs bootstrap with int value."""
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            state.set_context_value("issue_key", 42, verbose=False)
+
+        mock_sync.assert_called_once()
+        assert mock_sync.call_args[0][1] == 42
+
+    def test_end_to_end_issue_key_updates_bootstrap_file(self, tmp_path, monkeypatch):
+        """End-to-end: set_context_value('issue_key', ...) updates bootstrap file."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_context_value("issue_key", "42", verbose=False)
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "42"
+        assert data["identity"] == "ama"
+
+    def test_end_to_end_pr_id_updates_bootstrap_after_clearing_issue_key(self, tmp_path, monkeypatch):
+        """End-to-end: set_context_value('pull_request_id', ...) updates bootstrap
+        after clearing counterpart issue keys."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            # Pre-set issue_key (this will set bootstrap to "42")
+            state.set_context_value("issue_key", "42", verbose=False)
+
+            data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            assert data["worktree_key"] == "42"
+
+            # Now switch to PR context — should clear issue_key and update bootstrap
+            with patch.object(state, "_trigger_cross_lookup"):
+                state.set_context_value("pull_request_id", 99999, verbose=False)
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "PR99999"
+
 
 class TestTriggerCrossLookup:
     """Tests for _trigger_cross_lookup (called by set_context_value)."""
