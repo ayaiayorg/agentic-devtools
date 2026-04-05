@@ -459,7 +459,10 @@ agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before comm
 ```bash
 agdt-git-save-work --dry-run
 agdt-git-save-work --skip-stage --skip-push
-agdt-git-save-work --skip-push -m "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): my change"
+agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): my change
+
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)"
+agdt-git-save-work --skip-push
 ```
 
 **Optional Git state keys:**
