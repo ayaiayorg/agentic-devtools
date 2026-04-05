@@ -36,9 +36,12 @@ def set_cmd() -> None:
     - Stdin input: echo "content" | agdt-set content -
 
     Context-switching keys (pull_request_id, jira.issue_key, issue_key):
-        When these are set to a NEW value, the temp folder is cleared
-        to provide a fresh context. If set to the same value, no clearing occurs.
-        Cross-lookup is triggered to find related context values.
+        When these are set to a NEW value, the stale counterpart key(s) are
+        cleared atomically (e.g., setting pull_request_id clears issue_key
+        and jira.issue_key). If set to the same value, no clearing occurs.
+        For pull_request_id and jira.issue_key, a background cross-lookup
+        is triggered to find the related context value; issue_key changes
+        do not trigger cross-lookup (provider-agnostic, no lookup target).
 
     Examples:
         agdt-set pull_request_id 23046
