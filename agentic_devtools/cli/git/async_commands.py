@@ -40,13 +40,14 @@ def _create_commit_parser() -> argparse.ArgumentParser:
         description="Save work: stage, commit (or amend), rebase onto main, and push.",
         epilog="""
 Examples:
-  agdt-git-save-work -m "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature"
+  agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature
+
+  [#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)"
+  agdt-git-save-work
   agdt-git-save-work --completed "1,2,3"
   agdt-git-save-work --skip-rebase
   agdt-git-save-work --dry-run
   agdt-git-save-work --skip-stage --skip-push
-  agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature"
-  agdt-git-save-work
 
 Behavior:
   - Stages all changes and commits (or amends if existing commit for issue)
@@ -130,7 +131,10 @@ def commit_async(
         skip_rebase (optional): If true, skip the fetch/rebase onto main step
 
     Usage:
-        agdt-git-save-work -m "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature"
+        agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature
+
+        [#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)"
+        agdt-git-save-work
         agdt-git-save-work --completed "1,2,3"
         agdt-git-save-work --skip-rebase
         agdt-git-save-work --dry-run
