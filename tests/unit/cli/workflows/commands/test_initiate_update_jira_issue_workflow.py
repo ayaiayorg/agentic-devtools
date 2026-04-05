@@ -279,7 +279,7 @@ class TestPrefetchIntegration:
         assert call_kwargs["additional_variables"] == prefetch_data
         assert call_kwargs["step_name"] == "make-updates"
 
-    def test_failed_prefetch_passes_empty_additional_variables(
+    def test_failed_prefetch_passes_none_additional_variables(
         self,
         temp_state_dir,
         temp_prompts_dir,
@@ -288,7 +288,7 @@ class TestPrefetchIntegration:
         mock_workflow_state_clearing,
         capsys,
     ):
-        """Failed pre-fetch passes empty dict as additional_variables — workflow still proceeds."""
+        """Failed pre-fetch passes None as additional_variables and falls back to initiate step."""
         workflow_dir = temp_prompts_dir / "update-jira-issue"
         workflow_dir.mkdir()
         template = "Updating {{jira_issue_key}}"
