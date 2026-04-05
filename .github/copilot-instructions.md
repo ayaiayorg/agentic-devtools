@@ -459,13 +459,14 @@ agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before comm
 ```bash
 agdt-git-save-work --dry-run
 agdt-git-save-work --skip-stage --skip-push
-agdt-git-save-work --skip-push -m "feat(#42): my change"
+agdt-git-save-work --skip-push -m "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): my change"
 ```
 
 **Optional Git state keys:**
 
 - `dry_run` - Preview operations without executing
 - `skip_stage` - Skip the staging step
+- `skip_push` - Skip the push step
 - `skip_publish` - Skip branch publish after initial commit
 
 ### Jira Actions (Background Tasks)
