@@ -570,8 +570,9 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
     so the scoped state path resolves correctly as soon as ``identity.json``
     is present — no ``set_bootstrap_state()`` call required.
 
-    This exists so that ``set_value()`` can keep the bootstrap in sync
-    without interfering with tests that globally mock ``subprocess.run``.
+    This exists so that ``set_value()`` and ``set_context_value()`` can keep
+    the bootstrap in sync without interfering with tests that globally mock
+    ``subprocess.run``.
     """
     try:
         # Choose a subprocess-free starting point (same priority as
@@ -974,7 +975,10 @@ def set_context_value(
     except ImportError:  # pragma: no cover
         pass  # agdt_branch not available (e.g., minimal install)
 
-    # Keep bootstrap in sync when context keys change.
+    # Keep bootstrap in sync — counterparts have already been cleared in
+    # ``state``, so the priority check inside the helper sees the correct
+    # post-clear picture (e.g., pull_request_id won't be skipped due to a
+    # stale issue_key that was just deleted).
     _sync_bootstrap_for_context_key(key, value, state)
 
     # Trigger cross-lookup in background if requested
