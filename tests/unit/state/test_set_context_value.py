@@ -260,6 +260,75 @@ class TestSetContextValueIssueKey:
         assert state.get_value("issue_key") == "#42"
 
 
+class TestSetContextValueBootstrapSync:
+    """Tests for bootstrap sync inside set_context_value.
+
+    set_context_value() must call _sync_bootstrap_for_context_key() so that
+    the bootstrap worktree_key stays in sync when context keys are set via
+    the CLI (agdt-set routes context keys through set_context_value).
+    """
+
+    def test_issue_key_syncs_bootstrap(self, temp_state_dir):
+        """set_context_value('issue_key', ...) syncs bootstrap worktree_key."""
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            state.set_context_value("issue_key", "42", verbose=False)
+
+        mock_sync.assert_called_once()
+        call_args = mock_sync.call_args[0]
+        assert call_args[0] == "issue_key"
+        assert call_args[1] == "42"
+
+    def test_jira_issue_key_syncs_bootstrap(self, temp_state_dir):
+        """set_context_value('jira.issue_key', ...) syncs bootstrap worktree_key."""
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            with patch.object(state, "_trigger_cross_lookup"):
+                state.set_context_value("jira.issue_key", "PROJECT-1234", verbose=False)
+
+        mock_sync.assert_called_once()
+        call_args = mock_sync.call_args[0]
+        assert call_args[0] == "jira.issue_key"
+        assert call_args[1] == "PROJECT-1234"
+
+    def test_pull_request_id_syncs_bootstrap(self, temp_state_dir):
+        """set_context_value('pull_request_id', ...) syncs bootstrap worktree_key."""
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            with patch.object(state, "_trigger_cross_lookup"):
+                state.set_context_value("pull_request_id", 12345, verbose=False)
+
+        mock_sync.assert_called_once()
+        call_args = mock_sync.call_args[0]
+        assert call_args[0] == "pull_request_id"
+        assert call_args[1] == 12345
+
+    def test_no_bootstrap_sync_when_value_unchanged(self, temp_state_dir):
+        """set_context_value does not sync bootstrap when value is unchanged."""
+        state.set_value("issue_key", "42")
+
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            state.set_context_value("issue_key", "42", verbose=False)
+
+        mock_sync.assert_not_called()
+
+    def test_bootstrap_receives_post_clear_state(self, temp_state_dir):
+        """Bootstrap sync receives state after counterparts have been cleared.
+
+        When setting pull_request_id, the counterpart issue_key is cleared
+        from the state dict before bootstrap sync. This ensures the bootstrap
+        update sees the correct state (no stale issue_key blocking the PR
+        bootstrap update).
+        """
+        state.set_value("issue_key", "42")
+
+        with patch.object(state, "_sync_bootstrap_for_context_key") as mock_sync:
+            with patch.object(state, "_trigger_cross_lookup"):
+                state.set_context_value("pull_request_id", 99999, verbose=False)
+
+        mock_sync.assert_called_once()
+        _, _, passed_state = mock_sync.call_args[0]
+        # issue_key should have been cleared before bootstrap sync
+        assert "issue_key" not in passed_state
+
+
 class TestTriggerCrossLookup:
     """Tests for _trigger_cross_lookup (called by set_context_value)."""
 

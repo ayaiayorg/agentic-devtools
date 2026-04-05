@@ -779,8 +779,24 @@ def set_value(key: str, value: Any) -> None:
         pass  # agdt_branch not available (e.g., minimal install)
 
     # Keep bootstrap in sync when context keys change.
-    # Uses _update_bootstrap_worktree_key (subprocess-free) to avoid
-    # consuming mock side_effects in tests that globally patch subprocess.run.
+    _sync_bootstrap_for_context_key(key, value, state)
+
+
+def _sync_bootstrap_for_context_key(key: str, value: Any, state: dict[str, Any]) -> None:
+    """Sync ``runtime-bootstrap.json`` after a context-switching key changes.
+
+    Uses ``_update_bootstrap_worktree_key`` (subprocess-free) to avoid
+    consuming mock ``side_effect``s in tests that globally patch
+    ``subprocess.run``.
+
+    Called from both ``set_value()`` and ``set_context_value()`` to ensure
+    the bootstrap worktree_key stays up-to-date regardless of entry path.
+
+    Args:
+        key: The context-switching key that was just written.
+        value: The value that was written.
+        state: The *current* in-memory state dict (already saved to disk).
+    """
     try:
         if key == "issue_key":
             # Top-level issue_key — provider-agnostic identifier.
@@ -957,6 +973,9 @@ def set_context_value(
         mark_dirty()
     except ImportError:  # pragma: no cover
         pass  # agdt_branch not available (e.g., minimal install)
+
+    # Keep bootstrap in sync when context keys change.
+    _sync_bootstrap_for_context_key(key, value, state)
 
     # Trigger cross-lookup in background if requested
     if trigger_cross_lookup:
