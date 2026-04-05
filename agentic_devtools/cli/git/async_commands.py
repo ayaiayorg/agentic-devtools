@@ -44,6 +44,8 @@ Examples:
   agdt-git-save-work --commit-message "fix: resolve issue"
   agdt-git-save-work --completed "1,2,3"
   agdt-git-save-work --skip-rebase
+  agdt-git-save-work --dry-run
+  agdt-git-save-work --skip-stage --skip-push
   agdt-set commit_message "feature(PROJECT-1234): add feature"
   agdt-git-save-work
 
@@ -80,6 +82,16 @@ Behavior:
         action="store_true",
         help="Show what would happen without making changes",
     )
+    parser.add_argument(
+        "--skip-stage",
+        action="store_true",
+        help="Skip the staging step",
+    )
+    parser.add_argument(
+        "--skip-push",
+        action="store_true",
+        help="Skip the push step",
+    )
     return parser
 
 
@@ -88,6 +100,8 @@ def commit_async(
     completed: str | None = None,
     skip_rebase: bool = False,
     dry_run: bool = False,
+    skip_stage: bool = False,
+    skip_push: bool = False,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -105,6 +119,8 @@ def commit_async(
         completed: Checklist items to mark completed (e.g., "1,2,3")
         skip_rebase: Skip the fetch/rebase onto main step
         dry_run: Show what would happen without making changes
+        skip_stage: Skip the staging step
+        skip_push: Skip the push step
         _argv: CLI arguments (for testing)
 
     State keys:
@@ -121,6 +137,9 @@ def commit_async(
         agdt-git-save-work --completed "1,2,3"
         agdt-git-save-work --skip-rebase
         agdt-git-save-work --dry-run
+        agdt-git-save-work --skip-stage
+        agdt-git-save-work --skip-push
+        agdt-git-save-work --skip-stage --skip-push
         agdt-git-save-work --help
     """
     # Parse CLI arguments
@@ -133,6 +152,8 @@ def commit_async(
     effective_completed = args.completed or completed
     effective_skip_rebase = args.skip_rebase or skip_rebase
     effective_dry_run = args.dry_run or dry_run
+    effective_skip_stage = args.skip_stage or skip_stage
+    effective_skip_push = args.skip_push or skip_push
 
     # Save message to state if provided
     _set_value_if_provided(STATE_COMMIT_MESSAGE, effective_message)
@@ -142,6 +163,10 @@ def commit_async(
 
     # Save skip_rebase to state if true
     _set_bool_value_if_true("skip_rebase", effective_skip_rebase)
+
+    # Save skip_stage and skip_push to state if true
+    _set_bool_value_if_true("skip_stage", effective_skip_stage)
+    _set_bool_value_if_true("skip_push", effective_skip_push)
 
     # Always set dry_run to avoid inheriting previous value
     set_value("dry_run", str(effective_dry_run).lower())

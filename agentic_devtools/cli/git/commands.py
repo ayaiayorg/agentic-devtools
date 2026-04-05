@@ -156,12 +156,17 @@ def commit_cmd() -> None:
     CLI args:
         --completed "1,2,3": Mark checklist items as completed
         --skip-rebase: Skip the fetch/rebase onto main step
+        --dry-run: Preview operations without executing
+        --skip-stage: Skip the staging step
+        --skip-push: Skip the push step
 
     Example:
         agdt-set commit_message "feature(PROJECT-1234): add feature"
         agdt-git-save-work
         agdt-git-save-work --completed "1,2"
         agdt-git-save-work --skip-rebase
+        agdt-git-save-work --dry-run
+        agdt-git-save-work --skip-stage --skip-push
     """
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description="Save work: stage, commit, rebase, push")
@@ -180,6 +185,21 @@ def commit_cmd() -> None:
         action="store_true",
         help="Skip the fetch/rebase onto main step",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview operations without executing",
+    )
+    parser.add_argument(
+        "--skip-stage",
+        action="store_true",
+        help="Skip the staging step",
+    )
+    parser.add_argument(
+        "--skip-push",
+        action="store_true",
+        help="Skip the push step",
+    )
     args, _ = parser.parse_known_args()
 
     # Get commit message (CLI arg overrides state)
@@ -191,10 +211,10 @@ def commit_cmd() -> None:
     # Get completed items (CLI arg overrides state)
     completed_items = args.completed or get_value("completed_items")
 
-    dry_run = is_dry_run()
-    skip_stage = get_bool_state(STATE_SKIP_STAGE)
+    dry_run = args.dry_run or is_dry_run()
+    skip_stage = args.skip_stage or get_bool_state(STATE_SKIP_STAGE)
     skip_rebase = args.skip_rebase or get_bool_state(STATE_SKIP_REBASE)
-    skip_push = get_bool_state(STATE_SKIP_PUSH)
+    skip_push = args.skip_push or get_bool_state(STATE_SKIP_PUSH)
 
     # Determine if we should amend or create new commit
     issue_key = _get_issue_key_from_state()
