@@ -1320,52 +1320,80 @@ def _remove_stale_auto_start_task(
     remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
+class worktree_state_context:
+    """Context manager for cross-worktree state resolution.
+
+    Saves the current CWD and state-related env vars, clears them, and
+    changes to *worktree_path* so that ``get_state_dir()`` /
+    ``get_state_file_path()`` resolve from the target worktree's
+    ``.agdt/runtime-bootstrap.json``.  On exit the original CWD and env
+    vars are restored.
+
+    Usage::
+
+        with worktree_state_context(worktree_path):
+            state_dir = get_state_dir()   # resolves in worktree context
+    """
+
+    _ENV_VARS = ("AGENTIC_DEVTOOLS_STATE_DIR", "AGDT_AI_HELPERS_STATE_DIR")
+
+    def __init__(self, worktree_path: str) -> None:
+        self.worktree_path = worktree_path
+        self._previous_cwd: str = ""
+        self._previous_env: dict[str, str | None] = {}
+
+    def __enter__(self) -> worktree_state_context:
+        self._previous_cwd = os.getcwd()
+        for var in self._ENV_VARS:
+            self._previous_env[var] = os.environ.pop(var, None)
+        try:
+            os.chdir(self.worktree_path)
+        except Exception:
+            # Restore env vars before re-raising since __exit__ won't run.
+            self._restore_env_vars()
+            raise
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        try:
+            os.chdir(self._previous_cwd)
+        except OSError:
+            pass
+
+        self._restore_env_vars()
+
+    def _restore_env_vars(self) -> None:
+        for var in self._ENV_VARS:
+            try:
+                prev = self._previous_env.get(var)
+                if prev is not None:
+                    os.environ[var] = prev
+                else:
+                    os.environ.pop(var, None)
+            except Exception:
+                pass
+
+
 def _resolve_state_context_in_worktree(
     worktree_path: str,
     *,
     include_run_id: bool = False,
 ) -> tuple[Path | None, str]:
     """Resolve workflow state using the target worktree context."""
-    previous_cwd = os.getcwd()
-    previous_state_dir = os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-    previous_legacy_state_dir = os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
-
     try:
-        os.chdir(worktree_path)
+        with worktree_state_context(worktree_path):
+            from agentic_devtools.state import get_state_file_path
 
-        from agentic_devtools.state import get_state_file_path
+            state_file_path = get_state_file_path()
+            run_id = ""
+            if include_run_id:
+                from agentic_devtools.state import get_value
 
-        state_file_path = get_state_file_path()
-        run_id = ""
-        if include_run_id:
-            from agentic_devtools.state import get_value
-
-            run_id_value = get_value("agdt_run_id")
-            run_id = run_id_value.strip() if isinstance(run_id_value, str) else ""
-        return state_file_path, run_id
+                run_id_value = get_value("agdt_run_id")
+                run_id = run_id_value.strip() if isinstance(run_id_value, str) else ""
+            return state_file_path, run_id
     except Exception:
         return None, ""
-    finally:
-        try:
-            os.chdir(previous_cwd)
-        except Exception:
-            pass
-
-        try:
-            if previous_state_dir is not None:
-                os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
-            else:
-                os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        except Exception:
-            pass
-
-        try:
-            if previous_legacy_state_dir is not None:
-                os.environ["AGDT_AI_HELPERS_STATE_DIR"] = previous_legacy_state_dir
-            else:
-                os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
-        except Exception:
-            pass
 
 
 def inject_auto_start_task(
@@ -2199,16 +2227,7 @@ def _start_copilot_session_for_workflow(
     # start_copilot_session() resolves paths via get_state_dir() which is CWD-based;
     # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path
     # so that get_state_dir() resolves from the worktree's .agdt/runtime-bootstrap.json.
-    previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
-    previous_cwd = os.getcwd()
-    try:
-        # Unset the env var before calling get_state_dir() so it resolves from
-        # the worktree context rather than honouring the caller's value.
-        # Both the pop and chdir are inside the try so the finally block always
-        # restores them even if os.chdir() raises (e.g. missing worktree_path).
-        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        os.chdir(worktree_path)
-
+    with worktree_state_context(worktree_path):
         from ...state import get_state_dir
 
         state_dir = get_state_dir()
@@ -2220,12 +2239,6 @@ def _start_copilot_session_for_workflow(
             model=model,
         )
         return True
-    finally:
-        os.chdir(previous_cwd)
-        if previous_state_dir is None:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        else:
-            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
 
 
 def _start_copilot_session_for_pr_review(
@@ -2301,20 +2314,9 @@ def _prompt_file_relative_path(worktree_path: str, prompt_filename: str) -> str:
             pass  # Fall through to bootstrap resolution
 
     # Slow path: resolve get_state_dir() in the worktree context.
-    # Same pattern as _start_copilot_session_for_workflow() itself.
-    previous_state_dir = env_state_dir
-    previous_cwd = os.getcwd()
-    try:
-        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        os.chdir(worktree_path)
+    with worktree_state_context(worktree_path):
         state_dir = get_state_dir()
         return os.path.relpath(str(state_dir / prompt_filename), worktree_path)
-    finally:
-        os.chdir(previous_cwd)
-        if previous_state_dir is None:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        else:
-            os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
 
 
 def _start_copilot_session_for_apply_pr_suggestions(
