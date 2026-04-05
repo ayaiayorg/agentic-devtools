@@ -9,9 +9,46 @@ You are updating Jira issue **{{jira_issue_key}}**.
 {{jira_user_request}}
 {% endif %}
 
+{% if jira_issue_summary %}
+
+## Current Issue State
+
+- **Summary:** {{jira_issue_summary}}
+- **Type:** {{jira_issue_type}}
+- **Labels:** {{jira_issue_labels}}
+
+### Description
+
+{{jira_issue_description}}
+
+### Recent Comments
+
+{{jira_issue_comments}}
+{% endif %}
+
 ## Workflow Steps
 
+{% if jira_issue_summary %}
+
 ### Step 1: Document Current State (Pre-Update Snapshot)
+
+The current issue state is shown above. Add a comment documenting it before
+making changes:
+
+```bash
+agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
+
+*Current Summary:* {{jira_issue_summary}}
+
+*Current Description:*
+<brief summary of current description>
+
+*Reason for Update:*
+<what the user requested to change>"
+```
+{% else %}
+
+### Step 1: Retrieve and Document Current State
 
 First, retrieve and review the current issue state:
 
@@ -33,6 +70,7 @@ agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 *Reason for Update:*
 <what the user requested to change>"
 ```
+{% endif %}
 
 ### Step 2: Make the Requested Updates
 

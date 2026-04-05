@@ -216,14 +216,107 @@ class TestWorkflowCommands:
                 issue_key="PROJECT-1234",
             )
 
-            # Mock session launcher to avoid waiting for prompt file
+            # Mock session launcher and pre-fetch to avoid side effects
             with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"):
-                # Execute command with issue-key
-                commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+                with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value={}):
+                    # Execute command with issue-key
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         # Verify
         workflow = state.get_workflow_state()
         assert workflow["active"] == "update-jira-issue"
+
+
+class TestPrefetchIntegration:
+    """Tests for the pre-fetch integration in initiate_update_jira_issue_workflow."""
+
+    def test_successful_prefetch_passes_additional_variables(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Pre-fetched issue data is passed as additional_variables to initiate_workflow."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        template = "Updating {{jira_issue_key}} - {{jira_issue_summary}}"
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text(template, encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        prefetch_data = {
+            "jira_issue_summary": "Test Summary",
+            "jira_issue_type": "Story",
+            "jira_issue_labels": "backend",
+            "jira_issue_description": "Test description",
+            "jira_issue_comments": "No comments",
+        }
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value=prefetch_data):
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock_iw:
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                    ):
+                        commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        mock_iw.assert_called_once()
+        call_kwargs = mock_iw.call_args[1]
+        assert call_kwargs["additional_variables"] == prefetch_data
+
+    def test_failed_prefetch_passes_empty_additional_variables(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """Failed pre-fetch passes empty dict as additional_variables — workflow still proceeds."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        template = "Updating {{jira_issue_key}}"
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text(template, encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value={}):
+                with patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock_iw:
+                    with patch(
+                        "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                    ):
+                        commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        mock_iw.assert_called_once()
+        call_kwargs = mock_iw.call_args[1]
+        assert call_kwargs["additional_variables"] == {}
 
 
 class TestStateDirShiftUpdateJiraIssue:
@@ -285,7 +378,10 @@ class TestStateDirShiftUpdateJiraIssue:
                         with patch(
                             "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
                         ):
-                            commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+                            with patch(
+                                "agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value={}
+                            ):
+                                commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         # initiate_workflow should have been called (function completed successfully)
         mock_iw.assert_called_once()
@@ -332,11 +428,15 @@ class TestSkipCopilotSession:
                             "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
                             return_value="gpt-4o",
                         ):
-                            commands.initiate_update_jira_issue_workflow(
-                                _argv=["--issue-key", issue_key] + argv,
-                                skip_copilot_session=skip_copilot_session,
-                            )
-                            return mock_session
+                            with patch(
+                                "agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt",
+                                return_value={},
+                            ):
+                                commands.initiate_update_jira_issue_workflow(
+                                    _argv=["--issue-key", issue_key] + argv,
+                                    skip_copilot_session=skip_copilot_session,
+                                )
+                                return mock_session
 
     def test_skip_copilot_session_programmatic(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing):
         """skip_copilot_session=True prevents copilot session from starting."""
@@ -363,4 +463,5 @@ class TestSkipCopilotSession:
         # No _argv and no other programmatic params — only skip_copilot_session.
         # If skip_copilot_session were not included in _effective_argv, this would
         # try to parse sys.argv and raise SystemExit due to unrecognised flags.
-        commands.initiate_update_jira_issue_workflow(skip_copilot_session=True)
+        with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value={}):
+            commands.initiate_update_jira_issue_workflow(skip_copilot_session=True)
