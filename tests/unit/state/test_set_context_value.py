@@ -188,6 +188,74 @@ class TestSetContextValue:
         assert "unchanged" in captured.out
 
 
+class TestSetContextValueIssueKey:
+    """Tests for issue_key as a context-switch key in set_context_value."""
+
+    def test_set_context_value_issue_key(self, temp_state_dir):
+        """Test setting issue_key via set_context_value."""
+        result = state.set_context_value("issue_key", "42", verbose=False)
+
+        assert result is True
+        assert state.get_value("issue_key") == "42"
+
+    def test_issue_key_clears_pull_request_id(self, temp_state_dir):
+        """Test that setting issue_key clears pull_request_id."""
+        state.set_value("pull_request_id", 12345)
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("issue_key", "42", verbose=False)
+
+        assert state.get_value("issue_key") == "42"
+        assert state.get_value("pull_request_id") is None
+
+    def test_issue_key_does_not_clear_jira_issue_key(self, temp_state_dir):
+        """Test that setting issue_key does NOT clear jira.issue_key (they are aliases)."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("issue_key", "42", verbose=False)
+
+        assert state.get_value("issue_key") == "42"
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
+
+    def test_pull_request_id_clears_both_issue_keys(self, temp_state_dir):
+        """Test that setting pull_request_id clears both issue_key and jira.issue_key."""
+        state.set_value("issue_key", "42")
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("pull_request_id", 99999, verbose=False)
+
+        assert state.get_value("pull_request_id") == 99999
+        assert state.get_value("issue_key") is None
+        assert state.get_value("jira.issue_key") is None
+
+    def test_jira_issue_key_does_not_clear_issue_key(self, temp_state_dir):
+        """Test that setting jira.issue_key does NOT clear issue_key."""
+        state.set_value("issue_key", "42")
+
+        with patch.object(state, "_trigger_cross_lookup"):
+            state.set_context_value("jira.issue_key", "PROJECT-1234", verbose=False)
+
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
+        assert state.get_value("issue_key") == "42"
+
+    def test_issue_key_no_change_returns_false(self, temp_state_dir):
+        """Test that setting same issue_key value returns False."""
+        state.set_value("issue_key", "42")
+
+        result = state.set_context_value("issue_key", "42", verbose=False)
+
+        assert result is False
+
+    def test_issue_key_github_format_with_hash(self, temp_state_dir):
+        """Test that GitHub-format issue numbers with # work."""
+        result = state.set_context_value("issue_key", "#42", verbose=False)
+
+        assert result is True
+        assert state.get_value("issue_key") == "#42"
+
+
 class TestTriggerCrossLookup:
     """Tests for _trigger_cross_lookup (called by set_context_value)."""
 

@@ -36,6 +36,60 @@ class TestResolveWorktreeKeyExplicit:
 
 
 # ---------------------------------------------------------------------------
+#  Auto-resolution from issue_key (provider-agnostic)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveWorktreeKeyAutoFromIssueKey:
+    """Tests for auto-resolution from top-level issue_key state."""
+
+    @patch(f"{_MOD}.get_value")
+    def test_resolves_from_issue_key(self, mock_get):
+        """Auto-resolves from issue_key when no explicit key."""
+        mock_get.side_effect = lambda k: "42" if k == "issue_key" else None
+        result = resolve_worktree_key()
+        assert result == "42"
+
+    @patch(f"{_MOD}.get_value")
+    def test_issue_key_takes_priority_over_jira_key(self, mock_get):
+        """issue_key takes priority over jira.issue_key."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": "#42",
+            "jira.issue_key": "PROJECT-1234",
+            "pull_request_id": 99999,
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "#42"
+
+    @patch(f"{_MOD}.get_value")
+    def test_issue_key_stripped(self, mock_get):
+        """issue_key value is stripped of whitespace."""
+        mock_get.side_effect = lambda k: "  42  " if k == "issue_key" else None
+        result = resolve_worktree_key()
+        assert result == "42"
+
+    @patch(f"{_MOD}.get_value")
+    def test_empty_issue_key_falls_through_to_jira(self, mock_get):
+        """Empty issue_key falls through to jira.issue_key."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": "",
+            "jira.issue_key": "PROJECT-1234",
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "PROJECT-1234"
+
+    @patch(f"{_MOD}.get_value")
+    def test_whitespace_issue_key_falls_through_to_jira(self, mock_get):
+        """Whitespace-only issue_key falls through to jira.issue_key."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": "   ",
+            "jira.issue_key": "PROJECT-1234",
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "PROJECT-1234"
+
+
+# ---------------------------------------------------------------------------
 #  Auto-resolution from jira.issue_key
 # ---------------------------------------------------------------------------
 
@@ -79,14 +133,14 @@ class TestResolveWorktreeKeyAutoFromPR:
     @patch(f"{_MOD}.get_value")
     def test_resolves_from_pull_request_id_int(self, mock_get):
         """Auto-resolves from integer pull_request_id with PR prefix."""
-        mock_get.side_effect = lambda k: None if k == "jira.issue_key" else 12345
+        mock_get.side_effect = lambda k: 12345 if k == "pull_request_id" else None
         result = resolve_worktree_key()
         assert result == "PR12345"
 
     @patch(f"{_MOD}.get_value")
     def test_resolves_from_pull_request_id_string(self, mock_get):
         """Auto-resolves from string pull_request_id with PR prefix."""
-        mock_get.side_effect = lambda k: None if k == "jira.issue_key" else "67890"
+        mock_get.side_effect = lambda k: "67890" if k == "pull_request_id" else None
         result = resolve_worktree_key()
         assert result == "PR67890"
 
@@ -94,6 +148,7 @@ class TestResolveWorktreeKeyAutoFromPR:
     def test_pr_id_used_when_jira_key_empty(self, mock_get):
         """Falls through to pull_request_id when jira.issue_key is empty string."""
         mock_get.side_effect = lambda k: {
+            "issue_key": None,
             "jira.issue_key": "",
             "pull_request_id": 12345,
         }.get(k)
@@ -104,6 +159,7 @@ class TestResolveWorktreeKeyAutoFromPR:
     def test_pr_id_used_when_jira_key_whitespace(self, mock_get):
         """Falls through to pull_request_id when jira.issue_key is whitespace-only."""
         mock_get.side_effect = lambda k: {
+            "issue_key": None,
             "jira.issue_key": "   ",
             "pull_request_id": 12345,
         }.get(k)
@@ -145,10 +201,11 @@ class TestResolveWorktreeKeyFailure:
 
     @patch(f"{_MOD}.get_value", return_value=None)
     def test_error_message_is_descriptive(self, _mock):
-        """ValueError message mentions both state keys."""
-        with pytest.raises(ValueError, match="jira.issue_key") as exc_info:
+        """ValueError message mentions all state keys."""
+        with pytest.raises(ValueError, match="issue_key") as exc_info:
             resolve_worktree_key()
         assert "pull_request_id" in str(exc_info.value)
+        assert "jira.issue_key" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

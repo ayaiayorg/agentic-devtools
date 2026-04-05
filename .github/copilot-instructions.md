@@ -329,6 +329,28 @@ NEW STEP: implementation-review
 ...
 ```
 
+### Issue Key (Provider-Agnostic)
+
+The top-level `issue_key` is the canonical, provider-agnostic issue identifier. It supports
+both Jira keys (`PROJECT-1234`) and GitHub issue numbers (`#42`, `42`):
+
+```bash
+# Primary way to set the current issue identifier (provider-agnostic)
+agdt-set issue_key 42
+
+# Jira-specific alias (backward compatible — continues to work)
+agdt-set jira.issue_key PROJECT-1234
+```
+
+All core functions that resolve an issue key check `issue_key` first, then fall back to
+`jira.issue_key`. Both keys are context-switching keys — setting either one clears
+`pull_request_id`, and setting `pull_request_id` clears both `issue_key` and `jira.issue_key`.
+
+**Resolution priority** (used by `_get_issue_key_from_state`, `resolve_worktree_key`, etc.):
+1. `issue_key` (top-level, provider-agnostic)
+2. `jira.issue_key` (backward-compatible alias)
+3. Workflow context `jira_issue_key` (for active workflows)
+
 ### Jira Namespace
 
 Jira commands use keys prefixed with `jira.`:

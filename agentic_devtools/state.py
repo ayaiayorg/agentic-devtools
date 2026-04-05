@@ -782,7 +782,14 @@ def set_value(key: str, value: Any) -> None:
     # Uses _update_bootstrap_worktree_key (subprocess-free) to avoid
     # consuming mock side_effects in tests that globally patch subprocess.run.
     try:
-        if key == "jira.issue_key":
+        if key == "issue_key":
+            # Top-level issue_key — provider-agnostic identifier.
+            # Same validation as jira.issue_key: only non-empty strings.
+            if isinstance(value, str):
+                issue_key = value.strip()
+                if issue_key:
+                    _update_bootstrap_worktree_key(issue_key)
+        elif key == "jira.issue_key":
             # Only accept non-empty strings as issue keys to avoid writing
             # unintended values (e.g., dict/list) into the bootstrap file.
             if isinstance(value, str):
@@ -802,21 +809,25 @@ def set_value(key: str, value: Any) -> None:
                 if candidate.isdigit():
                     pr_id_str = candidate
             if pr_id_str:
-                # Skip the bootstrap update when jira.issue_key is already set —
-                # the issue key has higher priority as worktree_key (matching the
-                # resolve_worktree_key() priority in agdt_branch.py).  This prevents
-                # set_value("pull_request_id", ...) from overwriting the issue-key
-                # scope after set_value("jira.issue_key", ...) has already set it.
+                # Skip the bootstrap update when issue_key or jira.issue_key is
+                # already set — the issue key has higher priority as worktree_key
+                # (matching resolve_worktree_key() priority in agdt_branch.py).
+                # This prevents set_value("pull_request_id", ...) from overwriting
+                # the issue-key scope after an issue key has already set it.
+                top_level_issue_key = state.get("issue_key", "")
                 jira_val = state.get("jira")
-                existing_issue_key = jira_val.get("issue_key", "") if isinstance(jira_val, dict) else ""
-                if not (isinstance(existing_issue_key, str) and existing_issue_key.strip()):
+                existing_jira_key = jira_val.get("issue_key", "") if isinstance(jira_val, dict) else ""
+                has_issue_key = (isinstance(top_level_issue_key, str) and top_level_issue_key.strip()) or (
+                    isinstance(existing_jira_key, str) and existing_jira_key.strip()
+                )
+                if not has_issue_key:
                     _update_bootstrap_worktree_key(f"PR{pr_id_str}")
     except Exception:  # noqa: BLE001 – bootstrap failure is non-fatal
         pass
 
 
 # Context-switching keys that may trigger cross-lookup
-CONTEXT_SWITCH_KEYS = {"pull_request_id", "jira.issue_key"}
+CONTEXT_SWITCH_KEYS = {"pull_request_id", "jira.issue_key", "issue_key"}
 
 
 def set_context_value(
@@ -826,19 +837,25 @@ def set_context_value(
     verbose: bool = True,
 ) -> bool:
     """
-    Set a context-switching value (pull_request_id or jira.issue_key).
+    Set a context-switching value (pull_request_id, jira.issue_key, or issue_key).
 
     When one of these primary context keys changes to a NEW value:
-    1. Atomically updates the value and deletes the counterpart key in a
+    1. Atomically updates the value and deletes the counterpart key(s) in a
        single load/save cycle to prevent stale data
     2. Optionally triggers a background cross-lookup for the related key
+
+    Counterpart logic:
+    - pull_request_id -> clears both issue_key and jira.issue_key
+    - issue_key -> clears pull_request_id (does NOT clear jira.issue_key)
+    - jira.issue_key -> clears pull_request_id (does NOT clear issue_key)
 
     Cross-lookup behavior:
     - pull_request_id change -> looks up jira.issue_key from PR source branch/title
     - jira.issue_key change -> looks up pull_request_id from Jira/Azure DevOps
+    - issue_key change -> no cross-lookup (provider-agnostic)
 
     Args:
-        key: Must be "pull_request_id" or "jira.issue_key"
+        key: Must be "pull_request_id", "jira.issue_key", or "issue_key"
         value: The new value to set
         trigger_cross_lookup: If True, start background task to find related key
         verbose: If True, print status messages
@@ -872,12 +889,19 @@ def set_context_value(
         else:
             print(f"🔄 Setting context: {key} = {value}")
 
-    # Atomic update: set the new key and clear the stale counterpart in a
+    # Determine counterparts to clear:
+    # - pull_request_id clears both issue_key and jira.issue_key
+    # - issue_key or jira.issue_key only clears pull_request_id (they are aliases)
+    if key == "pull_request_id":
+        counterparts = ["jira.issue_key", "issue_key"]
+    else:
+        counterparts = ["pull_request_id"]
+
+    # Atomic update: set the new key and clear the stale counterpart(s) in a
     # single load/save cycle to prevent a transient on-disk state where both
     # context keys exist (which could cause incorrect worktree key resolution
-    # since jira.issue_key has higher priority than pull_request_id in
-    # resolve_worktree_key).  Cross-lookup will repopulate the counterpart.
-    counterpart = "jira.issue_key" if key == "pull_request_id" else "pull_request_id"
+    # since issue_key/jira.issue_key has higher priority than pull_request_id
+    # in resolve_worktree_key).  Cross-lookup will repopulate the counterpart.
     state = load_state()
 
     # Set the new context key (supports dot notation for jira.issue_key)
@@ -892,19 +916,20 @@ def set_context_value(
             current = current[part]
         current[parts[-1]] = value
 
-    # Delete counterpart (supports dot notation for jira.issue_key)
-    cp_parts = counterpart.split(".")
-    if len(cp_parts) == 1:
-        state.pop(counterpart, None)
-    else:
-        cp_current = state
-        for cp_part in cp_parts[:-1]:
-            if not isinstance(cp_current, dict) or cp_part not in cp_current:
-                break
-            cp_current = cp_current[cp_part]
+    # Delete counterparts (supports dot notation for jira.issue_key)
+    for counterpart in counterparts:
+        cp_parts = counterpart.split(".")
+        if len(cp_parts) == 1:
+            state.pop(counterpart, None)
         else:
-            if isinstance(cp_current, dict):
-                cp_current.pop(cp_parts[-1], None)
+            cp_current = state
+            for cp_part in cp_parts[:-1]:
+                if not isinstance(cp_current, dict) or cp_part not in cp_current:
+                    break
+                cp_current = cp_current[cp_part]
+            else:
+                if isinstance(cp_current, dict):
+                    cp_current.pop(cp_parts[-1], None)
 
     save_state(state)
 

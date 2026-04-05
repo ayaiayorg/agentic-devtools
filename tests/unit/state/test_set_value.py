@@ -369,3 +369,72 @@ class TestSetValueBootstrapPriorityAwareNonDictJira:
             state.set_value("pull_request_id", 100)
 
         mock_update.assert_called_once_with("PR100")
+
+
+class TestSetValueBootstrapIssueKey:
+    """Tests for bootstrap sync when setting the top-level issue_key."""
+
+    def test_issue_key_updates_bootstrap(self, tmp_path, monkeypatch):
+        """set_value('issue_key', ...) updates bootstrap worktree_key."""
+        import json
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        bootstrap_path = agdt_dir / "runtime-bootstrap.json"
+        bootstrap_path.write_text(json.dumps({"identity": "ama"}), encoding="utf-8")
+
+        state_dir = tmp_path / ".agdt" / "workflows" / "_unscoped"
+        state_dir.mkdir(parents=True)
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(state, "get_state_dir", return_value=state_dir):
+            state.set_value("issue_key", "42")
+
+        data = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        assert data["worktree_key"] == "42"
+
+    def test_issue_key_empty_string_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', '') does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", "")
+
+        mock_update.assert_not_called()
+
+    def test_issue_key_whitespace_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', '  ') does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", "  ")
+
+        mock_update.assert_not_called()
+
+    def test_issue_key_non_string_skips_bootstrap(self, temp_state_dir):
+        """set_value('issue_key', non-str) does not touch bootstrap."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", 123)
+
+        mock_update.assert_not_called()
+
+    def test_issue_key_github_format_with_hash(self, temp_state_dir):
+        """set_value('issue_key', '#42') triggers bootstrap update."""
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("issue_key", "#42")
+
+        mock_update.assert_called_once_with("#42")
+
+    def test_pull_request_id_skips_bootstrap_when_issue_key_set(self, temp_state_dir):
+        """set_value('pull_request_id', ...) skips bootstrap when issue_key is set."""
+        state.set_value("issue_key", "42")
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 99999)
+
+        mock_update.assert_not_called()
+
+    def test_pull_request_id_updates_bootstrap_when_only_empty_issue_key(self, temp_state_dir):
+        """set_value('pull_request_id', ...) updates bootstrap when issue_key is empty."""
+        state.set_value("issue_key", "")
+
+        with patch.object(state, "_update_bootstrap_worktree_key") as mock_update:
+            state.set_value("pull_request_id", 42)
+
+        mock_update.assert_called_once_with("PR42")

@@ -216,9 +216,10 @@ def resolve_worktree_key(explicit_key: str | None = None) -> str:
 
     Resolution priority:
     1. If *explicit_key* is provided and non-empty, return it directly.
-    2. Check ``get_value("jira.issue_key")`` — return it if set.
-    3. Check ``get_value("pull_request_id")`` — return ``f"PR{value}"`` if set.
-    4. Raise :class:`ValueError` if none of the above resolves.
+    2. Check ``get_value("issue_key")`` — return it if set.
+    3. Check ``get_value("jira.issue_key")`` — return it if set.
+    4. Check ``get_value("pull_request_id")`` — return ``f"PR{value}"`` if set.
+    5. Raise :class:`ValueError` if none of the above resolves.
 
     Args:
         explicit_key: An explicit worktree key override.  When ``None``
@@ -235,6 +236,10 @@ def resolve_worktree_key(explicit_key: str | None = None) -> str:
         if stripped:
             return stripped
 
+    issue_key = get_value("issue_key")
+    if issue_key is not None and str(issue_key).strip():
+        return str(issue_key).strip()
+
     jira_key = get_value("jira.issue_key")
     if jira_key is not None and str(jira_key).strip():
         return str(jira_key).strip()
@@ -246,8 +251,8 @@ def resolve_worktree_key(explicit_key: str | None = None) -> str:
             return f"PR{pr_id_stripped}"
 
     raise ValueError(
-        "Cannot resolve worktree key: neither jira.issue_key nor "
-        "pull_request_id is set in state. Provide an explicit "
+        "Cannot resolve worktree key: none of issue_key, jira.issue_key, "
+        "or pull_request_id is set in state. Provide an explicit "
         "worktree_key parameter."
     )
 
@@ -559,7 +564,7 @@ def load_workflow_artifacts(
         parsed JSON object or raw string.  Returns ``None`` when:
 
         - The worktree key cannot be resolved (no explicit key, and
-          neither ``jira.issue_key`` nor ``pull_request_id`` is set)
+          none of ``issue_key``, ``jira.issue_key``, or ``pull_request_id`` is set)
         - The ``-agdt`` branch does not exist locally or remotely
         - No files match the computed path prefix on the branch
     """
