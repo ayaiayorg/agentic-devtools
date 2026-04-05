@@ -342,9 +342,9 @@ agdt-set issue_key 42
 agdt-set jira.issue_key PROJECT-1234
 ```
 
-Numeric issue IDs (e.g., `42`) are JSON-parsed as integers by `agdt-set` and
-automatically converted to their string representation in all read paths and
-bootstrap operations. Both `agdt-set issue_key 42` and `agdt-set issue_key "42"`
+Numeric issue IDs (e.g., `42`) are JSON-parsed as integers by `agdt-set`.
+Read paths that resolve the current issue key normalize that value to its
+string representation, so `agdt-set issue_key 42` and `agdt-set issue_key "42"`
 produce equivalent behavior.
 
 All core functions that resolve an issue key check `issue_key` first, then fall back to
