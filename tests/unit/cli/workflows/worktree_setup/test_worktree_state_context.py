@@ -1,134 +1,119 @@
-"""Tests for worktree_state_context."""
+"""Tests for WorktreeStateContext."""
 
 import os
 from unittest.mock import patch
 
 import pytest
 
-from agentic_devtools.cli.workflows.worktree_setup import worktree_state_context
+from agentic_devtools.cli.workflows.worktree_setup import WorktreeStateContext
 
 
 class TestWorktreeStateContext:
-    """Tests for the worktree_state_context context manager."""
+    """Tests for the WorktreeStateContext context manager."""
 
-    def test_enter_changes_cwd_and_clears_env_vars(self, tmp_path):
+    def test_enter_changes_cwd_and_clears_env_vars(self, tmp_path, monkeypatch):
         """On enter, CWD is changed and both env vars are cleared."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/some/dir"
-        os.environ["AGDT_AI_HELPERS_STATE_DIR"] = "/legacy/dir"
-        try:
-            ctx = worktree_state_context(str(worktree))
-            ctx.__enter__()
-            try:
-                assert os.getcwd() == str(worktree)
-                assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ
-                assert "AGDT_AI_HELPERS_STATE_DIR" not in os.environ
-            finally:
-                ctx.__exit__(None, None, None)
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/some/dir")
+        monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "/legacy/dir")
 
-    def test_exit_restores_cwd_and_env_vars(self, tmp_path):
+        ctx = WorktreeStateContext(str(worktree))
+        ctx.__enter__()
+        try:
+            assert os.getcwd() == str(worktree)
+            assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ
+            assert "AGDT_AI_HELPERS_STATE_DIR" not in os.environ
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_exit_restores_cwd_and_env_vars(self, tmp_path, monkeypatch):
         """On exit, CWD and both env vars are restored to pre-entry values."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
         original_cwd = os.getcwd()
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/original/modern"
-        os.environ["AGDT_AI_HELPERS_STATE_DIR"] = "/original/legacy"
-        try:
-            with worktree_state_context(str(worktree)):
-                pass
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/original/modern")
+        monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "/original/legacy")
 
-            assert os.getcwd() == original_cwd
-            assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/original/modern"
-            assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/original/legacy"
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        with WorktreeStateContext(str(worktree)):
+            pass
 
-    def test_exit_restores_when_env_vars_were_absent(self, tmp_path):
+        assert os.getcwd() == original_cwd
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/original/modern"
+        assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/original/legacy"
+
+    def test_exit_restores_when_env_vars_were_absent(self, tmp_path, monkeypatch):
         """When env vars were absent before entering, they remain absent after exiting."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
-        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-        os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        monkeypatch.delenv("AGENTIC_DEVTOOLS_STATE_DIR", raising=False)
+        monkeypatch.delenv("AGDT_AI_HELPERS_STATE_DIR", raising=False)
 
-        with worktree_state_context(str(worktree)):
+        with WorktreeStateContext(str(worktree)):
             pass
 
         assert "AGENTIC_DEVTOOLS_STATE_DIR" not in os.environ
         assert "AGDT_AI_HELPERS_STATE_DIR" not in os.environ
 
-    def test_exit_restores_on_exception(self, tmp_path):
+    def test_exit_restores_on_exception(self, tmp_path, monkeypatch):
         """CWD and env vars are restored even when body raises an exception."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
         original_cwd = os.getcwd()
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/before"
-        os.environ["AGDT_AI_HELPERS_STATE_DIR"] = "/legacy-before"
-        try:
-            with pytest.raises(RuntimeError, match="test error"):
-                with worktree_state_context(str(worktree)):
-                    raise RuntimeError("test error")
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/before")
+        monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "/legacy-before")
 
-            assert os.getcwd() == original_cwd
-            assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/before"
-            assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/legacy-before"
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        with pytest.raises(RuntimeError, match="test error"):
+            with WorktreeStateContext(str(worktree)):
+                raise RuntimeError("test error")
 
-    def test_exit_restores_cwd_even_if_env_restore_fails(self, tmp_path):
+        assert os.getcwd() == original_cwd
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/before"
+        assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/legacy-before"
+
+    def test_exit_restores_cwd_even_if_env_restore_fails(self, tmp_path, monkeypatch):
         """CWD is restored even when restoring an env var raises."""
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
         original_cwd = os.getcwd()
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/before"
-        try:
-            ctx = worktree_state_context(str(worktree))
-            ctx.__enter__()
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/before")
 
-            # Sabotage env var restore so it raises on __setitem__
-            real_setitem = os.environ.__class__.__setitem__
-            call_count = 0
+        ctx = WorktreeStateContext(str(worktree))
+        ctx.__enter__()
 
-            def broken_setitem(self_env, key, value):
-                nonlocal call_count
-                if key == "AGENTIC_DEVTOOLS_STATE_DIR":
-                    call_count += 1
-                    if call_count == 1:
-                        raise RuntimeError("env restore failed")
-                return real_setitem(self_env, key, value)
+        # Sabotage env var restore so it raises on __setitem__
+        real_setitem = os.environ.__class__.__setitem__
+        call_count = 0
 
-            with patch.object(os.environ.__class__, "__setitem__", broken_setitem):
-                ctx.__exit__(None, None, None)
+        def broken_setitem(self_env, key, value):
+            nonlocal call_count
+            if key == "AGENTIC_DEVTOOLS_STATE_DIR":
+                call_count += 1
+                if call_count == 1:
+                    raise RuntimeError("env restore failed")
+            return real_setitem(self_env, key, value)
 
-            # CWD must still be restored despite the env restore failure
-            assert os.getcwd() == original_cwd
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        with patch.object(os.environ.__class__, "__setitem__", broken_setitem):
+            ctx.__exit__(None, None, None)
 
-    def test_chdir_failure_restores_env_vars(self, tmp_path):
+        # CWD must still be restored despite the env restore failure
+        assert os.getcwd() == original_cwd
+
+    def test_chdir_failure_restores_env_vars(self, tmp_path, monkeypatch):
         """When os.chdir fails in __enter__, env vars are restored and the exception propagates."""
         nonexistent = str(tmp_path / "does_not_exist")
 
-        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = "/saved/modern"
-        os.environ["AGDT_AI_HELPERS_STATE_DIR"] = "/saved/legacy"
-        try:
-            with pytest.raises((FileNotFoundError, OSError)):
-                with worktree_state_context(nonexistent):
-                    pass  # pragma: no cover
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/saved/modern")
+        monkeypatch.setenv("AGDT_AI_HELPERS_STATE_DIR", "/saved/legacy")
 
-            assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/saved/modern"
-            assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/saved/legacy"
-        finally:
-            os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
-            os.environ.pop("AGDT_AI_HELPERS_STATE_DIR", None)
+        with pytest.raises((FileNotFoundError, OSError)):
+            with WorktreeStateContext(nonexistent):
+                pass  # pragma: no cover
+
+        assert os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR") == "/saved/modern"
+        assert os.environ.get("AGDT_AI_HELPERS_STATE_DIR") == "/saved/legacy"
