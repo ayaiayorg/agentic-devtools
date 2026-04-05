@@ -75,10 +75,7 @@ Review the output from `agdt-update-jira-issue` and verify:
 When writing descriptions or comments, use Jira wiki markup:
 
 - _Headings:_ `h3. +Section Title+` (h3 for main), `h4. *Subsection*` (h4 for
-
   sub)
-  sub)
-
 - _Bold:_ `*text*`
 - _Monospace:_ double curly braces around text
 - _Code blocks:_ `{code:language}...{code}` (use `none` for plain text)
