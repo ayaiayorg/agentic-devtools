@@ -1326,8 +1326,8 @@ class WorktreeStateContext:
     Saves the current CWD and state-related env vars, clears them, and
     changes to *worktree_path* so that ``get_state_dir()`` /
     ``get_state_file_path()`` resolve from the target worktree's
-    ``.agdt/runtime-bootstrap.json``.  On exit the original CWD and env
-    vars are restored.
+    ``.agdt/runtime-bootstrap.json``. On exit it makes a best-effort
+    attempt to restore the original CWD and env vars.
 
     Usage::
 
