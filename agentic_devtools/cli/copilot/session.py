@@ -109,6 +109,12 @@ _LOG_DIR_NAME = "background-tasks/logs"
 # Prompt file naming pattern
 _PROMPT_FILE_PATTERN = "copilot-session-{session_id}-prompt.md"
 
+# Structured lifecycle log marker prefix
+_LOG_PREFIX = "[agdt-copilot-session]"
+
+# Heartbeat interval in seconds for non-interactive session lifecycle logging
+_HEARTBEAT_INTERVAL_SECONDS = 60
+
 # Managed install path for the standalone copilot binary
 _MANAGED_COPILOT = Path.home() / ".agdt" / "bin" / ("copilot.exe" if sys.platform == "win32" else "copilot")
 
@@ -217,6 +223,41 @@ def is_gh_copilot_available() -> bool:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _emit_log_marker(
+    log_file: IO[str],
+    stdout: IO[str] | None,
+    event: str,
+    **fields: object,
+) -> None:
+    """Write a structured lifecycle marker to *log_file* and optionally *stdout*.
+
+    Format::
+
+        [agdt-copilot-session] EVENT 2024-12-19T15:50:26+00:00 key=value ...
+
+    Values containing spaces are quoted.  Writes are flushed immediately.
+    *stdout* failures are silently ignored (same resilience as ``_tee``).
+    """
+    timestamp = datetime.now(timezone.utc).isoformat()
+    parts = [_LOG_PREFIX, event, timestamp]
+    for key, value in fields.items():
+        str_val = str(value)
+        if " " in str_val:
+            str_val = f'"{str_val}"'
+        parts.append(f"{key}={str_val}")
+    line = " ".join(parts) + "\n"
+
+    log_file.write(line)
+    log_file.flush()
+
+    if stdout is not None:
+        try:
+            stdout.write(line)
+            stdout.flush()
+        except (OSError, ValueError):
+            pass
 
 
 def _make_session_id() -> str:
@@ -703,6 +744,8 @@ def start_copilot_session(
             log_file: IO[str],
             stdout: IO[str] | None,
             jsonl_file: IO[str] | None = None,
+            tee_process: subprocess.Popen | None = None,  # type: ignore[type-arg]
+            session_start_time: str = "",
         ) -> None:
             """Read from *pipe* and mirror every line to *log_file* and *stdout*.
 
@@ -710,12 +753,32 @@ def start_copilot_session(
             structured JSON object to the ``.jsonl`` file, and a summary entry
             is appended at EOF.
 
+            Structured lifecycle markers (``SESSION_START``, ``SESSION_HEARTBEAT``,
+            ``SESSION_END``, ``SESSION_ERROR``) are emitted to the log file and
+            stdout for non-interactive session diagnostics.
+
             Handles *pipe* or *stdout* being ``None`` gracefully, and
             continues draining to *log_file* if stdout writes fail.
             """
             tee_start = time.monotonic()
             line_count = 0
+            bytes_read = 0
+            last_heartbeat = tee_start
             try:
+                # Emit SESSION_START before the early-return check so that
+                # partial diagnostic data is captured even when the pipe is
+                # None (degenerate case).
+                _emit_log_marker(
+                    log_file,
+                    stdout,
+                    "SESSION_START",
+                    session_id=session_id,
+                    pid=tee_process.pid if tee_process is not None else "",
+                    model=model or "default",
+                    prompt_length=len(prompt),
+                    working_directory=working_directory,
+                )
+
                 if pipe is None:
                     return
 
@@ -730,9 +793,26 @@ def start_copilot_session(
                     log_file.write(line)
                     log_file.flush()
 
+                    bytes_read += len(raw_line)
+                    line_count += 1
+
+                    # Activity-based heartbeat: emit when >= 60s since last.
+                    now_mono = time.monotonic()
+                    if now_mono - last_heartbeat >= _HEARTBEAT_INTERVAL_SECONDS:
+                        elapsed = round(now_mono - tee_start, 1)
+                        _emit_log_marker(
+                            log_file,
+                            stdout,
+                            "SESSION_HEARTBEAT",
+                            elapsed_seconds=elapsed,
+                            bytes_read=bytes_read,
+                            lines_read=line_count,
+                        )
+                        last_heartbeat = now_mono
+
                     if jsonl_ok:
                         try:
-                            elapsed_ms = int((time.monotonic() - tee_start) * 1000)
+                            elapsed_ms = int((now_mono - tee_start) * 1000)
                             entry = {
                                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                                 "event_type": "output",
@@ -741,7 +821,6 @@ def start_copilot_session(
                             }
                             jsonl_file.write(json.dumps(entry, ensure_ascii=False) + "\n")  # type: ignore[union-attr]
                             jsonl_file.flush()  # type: ignore[union-attr]
-                            line_count += 1
                         except (OSError, ValueError):
                             jsonl_ok = False
 
@@ -753,6 +832,29 @@ def start_copilot_session(
                             # stdout closed/not writable (common in some CI runners).
                             # Stop mirroring but keep draining the pipe to the log.
                             stdout_ok = False
+
+                # Collect exit code after the pipe is drained.
+                rc = tee_process.wait() if tee_process is not None else 0
+
+                if rc != 0:
+                    _emit_log_marker(
+                        log_file,
+                        stdout,
+                        "SESSION_ERROR",
+                        exit_code=rc,
+                        pid=tee_process.pid if tee_process is not None else "",
+                    )
+
+                elapsed_total = round(time.monotonic() - tee_start, 1)
+                _emit_log_marker(
+                    log_file,
+                    stdout,
+                    "SESSION_END",
+                    exit_code=rc,
+                    duration_seconds=elapsed_total,
+                    total_bytes=bytes_read,
+                    total_lines=line_count,
+                )
 
                 # Write summary entry at session end.
                 if jsonl_ok:
@@ -778,7 +880,11 @@ def start_copilot_session(
         # until the subprocess finishes and its stdout pipe reaches EOF.  This
         # prevents SIGPIPE / broken-pipe in the child and ensures CI/pipeline
         # steps wait for the full Copilot session output.
-        tee_thread = threading.Thread(target=_tee, args=(process.stdout, log_fh, stdout_ref, jsonl_fh), daemon=False)
+        tee_thread = threading.Thread(
+            target=_tee,
+            args=(process.stdout, log_fh, stdout_ref, jsonl_fh, process, start_time),
+            daemon=False,
+        )
         tee_thread.start()
 
         result = CopilotSessionResult(
