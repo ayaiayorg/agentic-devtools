@@ -282,15 +282,22 @@ class TestStartCopilotSessionNonInteractive:
         )
         assert result.process is mock_proc
 
-    def test_wait_is_not_called(self, temp_state, mock_available, mock_popen_noninteractive):
-        """process.wait() is NOT called for non-interactive mode."""
+    def test_wait_is_not_called_by_start_function(self, temp_state, mock_available, mock_popen_noninteractive):
+        """process.wait() is NOT called by start_copilot_session directly for non-interactive mode.
+
+        The _tee background thread calls process.wait() to collect the exit code
+        for lifecycle markers, but start_copilot_session itself returns immediately
+        without blocking on wait(). This test verifies the function returns a result
+        with a live process handle, confirming it did not wait for completion.
+        """
         _, mock_proc = mock_popen_noninteractive
-        start_copilot_session(
+        result = start_copilot_session(
             prompt="Review the PR",
             working_directory=str(temp_state),
             interactive=False,
         )
-        mock_proc.wait.assert_not_called()
+        # The process handle is stored in the result (not waited on by the main function)
+        assert result.process is mock_proc
 
     def test_state_mode_persisted(self, temp_state, mock_available, mock_popen_noninteractive):
         """Non-interactive mode is stored in state."""
@@ -568,11 +575,12 @@ class TestStartCopilotSessionLargePromptFallback:
 class TestStartCopilotSessionNonInteractiveTee:
     """Tests for the non-interactive tee behavior: output goes to log file AND stdout."""
 
-    def _make_mock_process(self, output_bytes: bytes) -> MagicMock:
+    def _make_mock_process(self, output_bytes: bytes, exit_code: int = 0) -> MagicMock:
         """Return a mock Popen whose stdout yields the given bytes."""
         proc = MagicMock()
         proc.pid = 7777
         proc.stdout = io.BytesIO(output_bytes)
+        proc.wait.return_value = exit_code
         return proc
 
     def _sync_thread_side_effect(self, **kwargs):
@@ -712,6 +720,7 @@ class TestStartCopilotSessionNonInteractiveTee:
         mock_proc = MagicMock()
         mock_proc.pid = 7777
         mock_proc.stdout = None  # Simulate None stdout pipe
+        mock_proc.wait.return_value = 0
         with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
             with patch(
                 "agentic_devtools.cli.copilot.session.threading.Thread",
@@ -722,12 +731,155 @@ class TestStartCopilotSessionNonInteractiveTee:
                     working_directory=str(temp_state),
                     interactive=False,
                 )
-        # The log file should exist but be empty since pipe was None
+        # The log file should contain only the SESSION_START marker since pipe was None
         log_dir = temp_state / "background-tasks" / "logs"
         log_files = list(log_dir.glob("*.log"))
         assert len(log_files) == 1
         log_content = log_files[0].read_text(encoding="utf-8")
-        assert log_content == ""
+        assert "[agdt-copilot-session] SESSION_START" in log_content
+
+    def test_session_start_marker_in_log(self, temp_state, mock_available):
+        """SESSION_START marker appears in the log file with expected fields."""
+        output = b"some output\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_files = list(log_dir.glob("*.log"))
+        assert len(log_files) == 1
+        log_content = log_files[0].read_text(encoding="utf-8")
+        assert "[agdt-copilot-session] SESSION_START" in log_content
+        assert "pid=7777" in log_content
+        assert "model=default" in log_content
+        assert "prompt_length=" in log_content
+
+    def test_session_end_marker_in_log(self, temp_state, mock_available):
+        """SESSION_END marker appears after all output lines."""
+        output = b"line one\nline two\n"
+        mock_proc = self._make_mock_process(output)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "[agdt-copilot-session] SESSION_END" in log_content
+        assert "exit_code=0" in log_content
+        assert "total_lines=2" in log_content
+        # SESSION_END must appear after the output lines
+        end_pos = log_content.index("[agdt-copilot-session] SESSION_END")
+        assert log_content.index("line two") < end_pos
+
+    def test_session_error_marker_on_nonzero_exit(self, temp_state, mock_available):
+        """SESSION_ERROR marker appears when exit code != 0."""
+        output = b"error output\n"
+        mock_proc = self._make_mock_process(output, exit_code=1)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "[agdt-copilot-session] SESSION_ERROR" in log_content
+        assert "exit_code=1" in log_content
+        # SESSION_ERROR must appear before SESSION_END
+        error_pos = log_content.index("[agdt-copilot-session] SESSION_ERROR")
+        end_pos = log_content.index("[agdt-copilot-session] SESSION_END")
+        assert error_pos < end_pos
+
+    def test_no_session_error_on_zero_exit(self, temp_state, mock_available):
+        """SESSION_ERROR marker is NOT emitted when exit code is 0."""
+        output = b"ok\n"
+        mock_proc = self._make_mock_process(output, exit_code=0)
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "SESSION_ERROR" not in log_content
+
+    def test_heartbeat_marker_emitted_after_interval(self, temp_state, mock_available):
+        """SESSION_HEARTBEAT is emitted when enough time has passed."""
+        output = b"line1\nline2\nline3\n"
+        mock_proc = self._make_mock_process(output)
+
+        # Calls to time.monotonic():
+        # 1: tee_start (initial)
+        # 2: now_mono for line1 (0.0s elapsed, no heartbeat)
+        # 3: now_mono for line2 (61.0s elapsed, heartbeat fires)
+        # 4: now_mono for line3 (62.0s since start, 1.0s since last heartbeat)
+        # 5: elapsed_total after loop (for SESSION_END)
+        # 6: JSONL summary total_duration_ms
+        monotonic_values = iter([0.0, 0.0, 61.0, 62.0, 62.0, 62.0])
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("agentic_devtools.cli.copilot.session.time.monotonic", side_effect=monotonic_values):
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=self._sync_thread_side_effect,
+                ):
+                    start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "[agdt-copilot-session] SESSION_HEARTBEAT" in log_content
+        assert "elapsed_seconds=" in log_content
+        assert "bytes_read=" in log_content
+        assert "lines_read=" in log_content
+
+    def test_no_heartbeat_for_short_sessions(self, temp_state, mock_available):
+        """No heartbeat for sessions < 60s."""
+        output = b"line1\nline2\n"
+        mock_proc = self._make_mock_process(output)
+
+        # Simulate time: all within 60 seconds
+        # 1: tee_start, 2: line1, 3: line2, 4: SESSION_END, 5: JSONL summary
+        monotonic_values = iter([0.0, 0.0, 1.0, 2.0, 2.0])
+
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch("agentic_devtools.cli.copilot.session.time.monotonic", side_effect=monotonic_values):
+                with patch(
+                    "agentic_devtools.cli.copilot.session.threading.Thread",
+                    side_effect=self._sync_thread_side_effect,
+                ):
+                    start_copilot_session(
+                        prompt="Review the PR",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "SESSION_HEARTBEAT" not in log_content
 
 
 class TestStartCopilotSessionNonInteractiveJsonl:
@@ -740,6 +892,7 @@ class TestStartCopilotSessionNonInteractiveJsonl:
         proc = MagicMock()
         proc.pid = 7777
         proc.stdout = _io.BytesIO(output_bytes)
+        proc.wait.return_value = 0
         return proc
 
     def _sync_thread_side_effect(self, **kwargs):
