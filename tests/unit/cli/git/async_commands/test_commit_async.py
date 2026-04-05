@@ -105,3 +105,71 @@ class TestCommitAsync:
     def test_importable(self):
         """Test commit_async can be imported and is callable."""
         assert callable(commit_async)
+
+    def test_skip_stage_flag_saves_to_state(self, mock_background_and_state, capsys):
+        """Test --skip-stage flag saves skip_stage to state as 'true'."""
+        from agentic_devtools.state import get_value
+
+        commit_async(_argv=["--skip-stage"])
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert get_value("skip_stage") == "true"
+
+    def test_skip_push_flag_saves_to_state(self, mock_background_and_state, capsys):
+        """Test --skip-push flag saves skip_push to state as 'true'."""
+        from agentic_devtools.state import get_value
+
+        commit_async(_argv=["--skip-push"])
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert get_value("skip_push") == "true"
+
+    def test_combined_flags_save_to_state(self, mock_background_and_state, capsys):
+        """Test --dry-run --skip-stage --skip-push all save correctly."""
+        from agentic_devtools.state import get_value
+
+        commit_async(_argv=["--dry-run", "--skip-stage", "--skip-push"])
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert get_value("dry_run") == "true"
+        assert get_value("skip_stage") == "true"
+        assert get_value("skip_push") == "true"
+
+    def test_skip_stage_function_param_saves_to_state(self, mock_background_and_state, capsys):
+        """Test skip_stage=True function parameter saves to state."""
+        from agentic_devtools.state import get_value
+
+        commit_async(skip_stage=True)
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert get_value("skip_stage") == "true"
+
+    def test_skip_push_function_param_saves_to_state(self, mock_background_and_state, capsys):
+        """Test skip_push=True function parameter saves to state."""
+        from agentic_devtools.state import get_value
+
+        commit_async(skip_push=True)
+
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+        assert get_value("skip_push") == "true"
+
+    def test_skip_stage_not_saved_when_false(self, mock_background_and_state, capsys):
+        """Test skip_stage is not saved to state when not specified."""
+        from agentic_devtools.state import get_value
+
+        commit_async(_argv=[])
+
+        assert get_value("skip_stage") is None
+
+    def test_skip_push_not_saved_when_false(self, mock_background_and_state, capsys):
+        """Test skip_push is not saved to state when not specified."""
+        from agentic_devtools.state import get_value
+
+        commit_async(_argv=[])
+
+        assert get_value("skip_push") is None

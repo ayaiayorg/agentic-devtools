@@ -449,6 +449,19 @@ Use `--completed` to mark checklist items during commit:
 agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before committing
 ```
 
+**Optional CLI flags:**
+
+- `--dry-run` - Preview operations without executing
+- `--skip-stage` - Skip the staging step
+- `--skip-push` - Skip the push step
+- `--skip-rebase` - Skip the fetch/rebase onto main step
+
+```bash
+agdt-git-save-work --dry-run
+agdt-git-save-work --skip-stage --skip-push
+agdt-git-save-work --skip-push -m "feat(#42): my change"
+```
+
 **Optional Git state keys:**
 
 - `dry_run` - Preview operations without executing

@@ -252,3 +252,93 @@ class TestCommitCommand:
 
         captured = capsys.readouterr()
         assert "All checklist items complete" in captured.out
+
+    def test_commit_cmd_dry_run_cli_flag(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --dry-run CLI flag triggers dry-run mode."""
+        state.set_value("commit_message", "Test commit")
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--dry-run"]):
+            commands.commit_cmd()
+
+        mock_run_safe.assert_not_called()
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+
+    def test_commit_cmd_skip_stage_cli_flag(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --skip-stage CLI flag skips staging."""
+        state.set_value("commit_message", "Test commit")
+
+        mock_run_safe.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # commit
+            MagicMock(returncode=0, stdout="", stderr=""),  # push
+        ]
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--skip-stage"]):
+            commands.commit_cmd()
+
+        assert mock_run_safe.call_count == 2
+        captured = capsys.readouterr()
+        assert "Skipping stage" in captured.out
+
+    def test_commit_cmd_skip_push_cli_flag(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --skip-push CLI flag skips push."""
+        state.set_value("commit_message", "Test commit")
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--skip-push"]):
+            commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Skipping push" in captured.out
+
+    def test_commit_cmd_dry_run_cli_overrides_state(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --dry-run CLI flag works even when state is not set."""
+        state.set_value("commit_message", "Test commit")
+        # dry_run is NOT set in state, but CLI flag should take effect
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--dry-run"]):
+            commands.commit_cmd()
+
+        mock_run_safe.assert_not_called()
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+
+    def test_commit_cmd_skip_stage_cli_overrides_state(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --skip-stage CLI flag works even when state is not set."""
+        state.set_value("commit_message", "Test commit")
+        # skip_stage is NOT set in state, but CLI flag should take effect
+
+        mock_run_safe.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # commit
+            MagicMock(returncode=0, stdout="", stderr=""),  # push
+        ]
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--skip-stage"]):
+            commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Skipping stage" in captured.out
+
+    def test_commit_cmd_all_flags_combined(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --dry-run --skip-stage --skip-push all work together."""
+        state.set_value("commit_message", "Test commit")
+
+        with patch.object(sys, "argv", ["agdt-git-save-work", "--dry-run", "--skip-stage", "--skip-push"]):
+            commands.commit_cmd()
+
+        mock_run_safe.assert_not_called()
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+        assert "Skipping stage" in captured.out
+        assert "Skipping push" in captured.out
