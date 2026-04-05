@@ -324,8 +324,9 @@ class TestSetContextValueBootstrapSync:
                 state.set_context_value("pull_request_id", 99999, verbose=False)
 
         mock_sync.assert_called_once()
-        _, _, passed_state = mock_sync.call_args[0]
+        call_key, _, passed_state = mock_sync.call_args[0]
         # issue_key should have been cleared before bootstrap sync
+        assert call_key == "pull_request_id"
         assert "issue_key" not in passed_state
 
 
