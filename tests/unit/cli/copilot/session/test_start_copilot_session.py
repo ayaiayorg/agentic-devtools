@@ -287,17 +287,21 @@ class TestStartCopilotSessionNonInteractive:
 
         The _tee background thread calls process.wait() to collect the exit code
         for lifecycle markers, but start_copilot_session itself returns immediately
-        without blocking on wait(). This test verifies the function returns a result
-        with a live process handle, confirming it did not wait for completion.
+        without blocking on wait(). The thread is mocked here (not run
+        synchronously), so wait() must not have been called at all.
         """
         _, mock_proc = mock_popen_noninteractive
-        result = start_copilot_session(
-            prompt="Review the PR",
-            working_directory=str(temp_state),
-            interactive=False,
-        )
+        with patch("agentic_devtools.cli.copilot.session.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            result = start_copilot_session(
+                prompt="Review the PR",
+                working_directory=str(temp_state),
+                interactive=False,
+            )
         # The process handle is stored in the result (not waited on by the main function)
         assert result.process is mock_proc
+        # Thread is mocked — wait() should not have been called yet
+        mock_proc.wait.assert_not_called()
 
     def test_state_mode_persisted(self, temp_state, mock_available, mock_popen_noninteractive):
         """Non-interactive mode is stored in state."""
@@ -716,7 +720,7 @@ class TestStartCopilotSessionNonInteractiveTee:
         assert "line after error" in log_content
 
     def test_tee_handles_none_pipe_gracefully(self, temp_state, mock_available):
-        """When process.stdout is None, the tee thread returns early and closes the log."""
+        """When process.stdout is None, the tee thread emits SESSION_START + SESSION_END and closes the log."""
         mock_proc = MagicMock()
         mock_proc.pid = 7777
         mock_proc.stdout = None  # Simulate None stdout pipe
@@ -731,12 +735,36 @@ class TestStartCopilotSessionNonInteractiveTee:
                     working_directory=str(temp_state),
                     interactive=False,
                 )
-        # The log file should contain only the SESSION_START marker since pipe was None
         log_dir = temp_state / "background-tasks" / "logs"
         log_files = list(log_dir.glob("*.log"))
         assert len(log_files) == 1
         log_content = log_files[0].read_text(encoding="utf-8")
         assert "[agdt-copilot-session] SESSION_START" in log_content
+        assert "[agdt-copilot-session] SESSION_END" in log_content
+        assert "total_lines=0" in log_content
+        assert "total_bytes=0" in log_content
+
+    def test_none_pipe_emits_session_error_on_nonzero_exit(self, temp_state, mock_available):
+        """When process.stdout is None and exit code != 0, SESSION_ERROR is emitted."""
+        mock_proc = MagicMock()
+        mock_proc.pid = 7777
+        mock_proc.stdout = None
+        mock_proc.wait.return_value = 2
+        with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
+            with patch(
+                "agentic_devtools.cli.copilot.session.threading.Thread",
+                side_effect=self._sync_thread_side_effect,
+            ):
+                start_copilot_session(
+                    prompt="Review the PR",
+                    working_directory=str(temp_state),
+                    interactive=False,
+                )
+        log_dir = temp_state / "background-tasks" / "logs"
+        log_content = list(log_dir.glob("*.log"))[0].read_text(encoding="utf-8")
+        assert "[agdt-copilot-session] SESSION_ERROR" in log_content
+        assert "exit_code=2" in log_content
+        assert "[agdt-copilot-session] SESSION_END" in log_content
 
     def test_session_start_marker_in_log(self, temp_state, mock_available):
         """SESSION_START marker appears in the log file with expected fields."""
@@ -1113,6 +1141,7 @@ class TestStartCopilotSessionNonInteractiveJsonl:
         mock_proc = MagicMock()
         mock_proc.pid = 7777
         mock_proc.stdout = None
+        mock_proc.wait.return_value = 0
         with patch("agentic_devtools.cli.copilot.session.subprocess.Popen", return_value=mock_proc):
             with patch(
                 "agentic_devtools.cli.copilot.session.threading.Thread",

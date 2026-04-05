@@ -237,15 +237,18 @@ def _emit_log_marker(
 
         [agdt-copilot-session] EVENT 2024-12-19T15:50:26+00:00 key=value ...
 
-    Values containing spaces are quoted.  Writes are flushed immediately.
+    Values that contain whitespace, quotes, backslashes, or control characters
+    are JSON-string-escaped so markers remain machine-parseable for all inputs.
+    Writes are flushed immediately.
     *stdout* failures are silently ignored (same resilience as ``_tee``).
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     parts = [_LOG_PREFIX, event, timestamp]
+    _needs_escape = frozenset('" \\\n\r\t')
     for key, value in fields.items():
         str_val = str(value)
-        if " " in str_val:
-            str_val = f'"{str_val}"'
+        if not str_val or any(ch in _needs_escape or ch.isspace() for ch in str_val):
+            str_val = json.dumps(str_val)
         parts.append(f"{key}={str_val}")
     line = " ".join(parts) + "\n"
 
@@ -745,7 +748,6 @@ def start_copilot_session(
             stdout: IO[str] | None,
             jsonl_file: IO[str] | None = None,
             tee_process: subprocess.Popen | None = None,  # type: ignore[type-arg]
-            session_start_time: str = "",
         ) -> None:
             """Read from *pipe* and mirror every line to *log_file* and *stdout*.
 
@@ -780,6 +782,28 @@ def start_copilot_session(
                 )
 
                 if pipe is None:
+                    # Even without a pipe, wait for the process and emit
+                    # end/error markers so lifecycle logs are never left in an
+                    # indeterminate state.
+                    rc = tee_process.wait() if tee_process is not None else 0
+                    if rc != 0:
+                        _emit_log_marker(
+                            log_file,
+                            stdout,
+                            "SESSION_ERROR",
+                            exit_code=rc,
+                            pid=tee_process.pid if tee_process is not None else "",
+                        )
+                    elapsed_total = round(time.monotonic() - tee_start, 1)
+                    _emit_log_marker(
+                        log_file,
+                        stdout,
+                        "SESSION_END",
+                        exit_code=rc,
+                        duration_seconds=elapsed_total,
+                        total_bytes=0,
+                        total_lines=0,
+                    )
                     return
 
                 stdout_ok = stdout is not None
@@ -885,7 +909,7 @@ def start_copilot_session(
         # steps wait for the full Copilot session output.
         tee_thread = threading.Thread(
             target=_tee,
-            args=(process.stdout, log_fh, stdout_ref, jsonl_fh, process, start_time),
+            args=(process.stdout, log_fh, stdout_ref, jsonl_fh, process),
             daemon=False,
         )
         tee_thread.start()

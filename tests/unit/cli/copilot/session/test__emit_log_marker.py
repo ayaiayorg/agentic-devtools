@@ -54,16 +54,41 @@ class TestEmitLogMarker:
         output = log_file.getvalue()
         assert "SESSION_ERROR" in output
 
-    def test_values_with_spaces_are_quoted(self):
-        """Field values containing spaces are wrapped in double quotes."""
+    def test_values_with_spaces_are_json_escaped(self):
+        """Field values containing spaces are JSON-escaped."""
         log_file = io.StringIO()
         _emit_log_marker(log_file, None, "SESSION_START", working_directory="/home/user/my project")
 
         output = log_file.getvalue()
         assert 'working_directory="/home/user/my project"' in output
 
-    def test_values_without_spaces_are_not_quoted(self):
-        """Field values without spaces are not quoted."""
+    def test_values_with_embedded_quotes_are_json_escaped(self):
+        """Field values containing double quotes are JSON-escaped."""
+        log_file = io.StringIO()
+        _emit_log_marker(log_file, None, "SESSION_START", path='/home/"user"/dir')
+
+        output = log_file.getvalue()
+        # json.dumps produces: "/home/\"user\"/dir"
+        assert 'path="/home/\\"user\\"/dir"' in output
+
+    def test_values_with_backslashes_are_json_escaped(self):
+        """Field values containing backslashes are JSON-escaped."""
+        log_file = io.StringIO()
+        _emit_log_marker(log_file, None, "SESSION_START", path="C:\\Users\\test")
+
+        output = log_file.getvalue()
+        assert 'path="C:\\\\Users\\\\test"' in output
+
+    def test_empty_values_are_json_escaped(self):
+        """Empty string values are JSON-escaped to be unambiguous."""
+        log_file = io.StringIO()
+        _emit_log_marker(log_file, None, "SESSION_START", model="")
+
+        output = log_file.getvalue()
+        assert 'model=""' in output
+
+    def test_values_without_special_chars_are_not_quoted(self):
+        """Field values without special characters are not quoted."""
         log_file = io.StringIO()
         _emit_log_marker(log_file, None, "SESSION_START", pid=1234)
 
