@@ -277,6 +277,7 @@ class TestPrefetchIntegration:
         mock_iw.assert_called_once()
         call_kwargs = mock_iw.call_args[1]
         assert call_kwargs["additional_variables"] == prefetch_data
+        assert call_kwargs["step_name"] == "make-updates"
 
     def test_failed_prefetch_passes_empty_additional_variables(
         self,
@@ -316,7 +317,118 @@ class TestPrefetchIntegration:
 
         mock_iw.assert_called_once()
         call_kwargs = mock_iw.call_args[1]
-        assert call_kwargs["additional_variables"] == {}
+        assert call_kwargs["additional_variables"] is None
+        assert call_kwargs["step_name"] == "initiate"
+
+    def test_successful_prefetch_renders_make_updates_template(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """When pre-fetch succeeds, the make-updates prompt is rendered with issue data."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        template = (
+            "# Update {{jira_issue_key}}\n"
+            "Summary: {{jira_issue_summary}}\n"
+            "Type: {{jira_issue_type}}\n"
+            "Labels: {{jira_issue_labels}}\n"
+            "Desc: {{jira_issue_description}}\n"
+            "Comments: {{jira_issue_comments}}\n"
+            "{% if jira_user_request %}Request: {{jira_user_request}}{% endif %}"
+        )
+        template_file = workflow_dir / "default-make-updates-prompt.md"
+        template_file.write_text(template, encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        state.set_value("jira.user_request", "Update the summary")
+
+        prefetch_data = {
+            "jira_issue_summary": "Test Summary",
+            "jira_issue_type": "Story",
+            "jira_issue_labels": "backend",
+            "jira_issue_description": "Test description",
+            "jira_issue_comments": "No comments",
+        }
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value=prefetch_data):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                ):
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        # Verify workflow state
+        workflow = state.get_workflow_state()
+        assert workflow["active"] == "update-jira-issue"
+        assert workflow["step"] == "make-updates"
+
+        # Verify rendered prompt contains pre-fetched data
+        captured = capsys.readouterr()
+        assert "Test Summary" in captured.out
+        assert "Story" in captured.out
+        assert "backend" in captured.out
+        assert "Test description" in captured.out
+        assert "No comments" in captured.out
+        assert "Update the summary" in captured.out
+
+    def test_failed_prefetch_renders_initiate_template(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """When pre-fetch fails, the initiate prompt is rendered (fallback)."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        template = "Initiate: Updating {{jira_issue_key}}"
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text(template, encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt", return_value={}):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                ):
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        # Verify workflow state
+        workflow = state.get_workflow_state()
+        assert workflow["active"] == "update-jira-issue"
+        assert workflow["step"] == "initiate"
+
+        # Verify rendered prompt is the initiate template
+        captured = capsys.readouterr()
+        assert "Initiate: Updating PROJECT-1234" in captured.out
 
 
 class TestStateDirShiftUpdateJiraIssue:

@@ -2067,11 +2067,15 @@ def initiate_update_jira_issue_workflow(
     # Pre-fetch Jira issue details for the prompt template
     issue_variables = _fetch_issue_for_prompt(resolved_issue_key)
 
+    # Determine step based on pre-fetch result: skip initiate when data is available
+    step = "make-updates" if issue_variables else "initiate"
+
     initiate_workflow(
         workflow_name="update-jira-issue",
         required_state_keys=["jira.issue_key"],
         optional_state_keys=["jira.summary", "jira.description", "jira.comment", "jira.user_request"],
-        additional_variables=issue_variables,
+        additional_variables=issue_variables if issue_variables else None,
+        step_name=step,
         skip_bootstrap_init=True,
     )
 
