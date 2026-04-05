@@ -38,7 +38,7 @@ making changes:
 ```bash
 agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 
-*Current Summary:* {{jira_issue_summary}}
+*Current Summary:* <copy from Current Issue State above>
 
 *Current Description:*
 <brief summary of current description>
