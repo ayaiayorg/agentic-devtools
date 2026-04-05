@@ -347,6 +347,7 @@ All core functions that resolve an issue key check `issue_key` first, then fall 
 `pull_request_id`, and setting `pull_request_id` clears both `issue_key` and `jira.issue_key`.
 
 **Resolution priority** (used by `_get_issue_key_from_state`, `resolve_worktree_key`, etc.):
+
 1. `issue_key` (top-level, provider-agnostic)
 2. `jira.issue_key` (backward-compatible alias)
 3. Workflow context `jira_issue_key` (for active workflows)
