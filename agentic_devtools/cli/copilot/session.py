@@ -797,6 +797,9 @@ def start_copilot_session(
                     line_count += 1
 
                     # Activity-based heartbeat: emit when >= 60s since last.
+                    # ``now_mono`` is intentionally reused below for the JSONL
+                    # elapsed-time calculation to avoid a redundant monotonic()
+                    # call per line.
                     now_mono = time.monotonic()
                     if now_mono - last_heartbeat >= _HEARTBEAT_INTERVAL_SECONDS:
                         elapsed = round(now_mono - tee_start, 1)
