@@ -96,6 +96,15 @@ class TestEmitLogMarker:
         assert "pid=1234" in output
         assert '"1234"' not in output
 
+    def test_non_printable_control_chars_are_json_escaped(self):
+        """Non-printable control characters (e.g. NUL, BEL) are JSON-escaped."""
+        log_file = io.StringIO()
+        _emit_log_marker(log_file, None, "SESSION_START", value="abc\x00def\x07")
+
+        output = log_file.getvalue()
+        # json.dumps escapes \x00 as \u0000, \x07 as \u0007
+        assert 'value="abc\\u0000def\\u0007"' in output
+
     def test_writes_to_both_log_file_and_stdout(self):
         """When stdout is provided and healthy, marker is written to both sinks."""
         log_file = io.StringIO()

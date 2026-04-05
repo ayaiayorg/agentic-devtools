@@ -237,17 +237,17 @@ def _emit_log_marker(
 
         [agdt-copilot-session] EVENT 2024-12-19T15:50:26+00:00 key=value ...
 
-    Values that contain whitespace, quotes, backslashes, or control characters
-    are JSON-string-escaped so markers remain machine-parseable for all inputs.
+    Values that contain whitespace, quotes, backslashes, or non-printable
+    characters are JSON-string-escaped so markers remain machine-parseable.
     Writes are flushed immediately.
     *stdout* failures are silently ignored (same resilience as ``_tee``).
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     parts = [_LOG_PREFIX, event, timestamp]
-    _needs_escape = frozenset('" \\\n\r\t')
+    _needs_escape = frozenset('" \\')
     for key, value in fields.items():
         str_val = str(value)
-        if not str_val or any(ch in _needs_escape or ch.isspace() for ch in str_val):
+        if not str_val or any(ch in _needs_escape or ch.isspace() or not ch.isprintable() for ch in str_val):
             str_val = json.dumps(str_val)
         parts.append(f"{key}={str_val}")
     line = " ".join(parts) + "\n"
