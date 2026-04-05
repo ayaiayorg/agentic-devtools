@@ -85,24 +85,31 @@ class TestWorktreeStateContext:
 
         ctx = WorktreeStateContext(str(worktree))
         ctx.__enter__()
+        try:
+            # Sabotage env var restore so it raises on __setitem__
+            real_setitem = os.environ.__class__.__setitem__
+            call_count = 0
 
-        # Sabotage env var restore so it raises on __setitem__
-        real_setitem = os.environ.__class__.__setitem__
-        call_count = 0
+            def broken_setitem(self_env, key, value):
+                nonlocal call_count
+                if key == "AGENTIC_DEVTOOLS_STATE_DIR":
+                    call_count += 1
+                    if call_count == 1:
+                        raise RuntimeError("env restore failed")
+                return real_setitem(self_env, key, value)
 
-        def broken_setitem(self_env, key, value):
-            nonlocal call_count
-            if key == "AGENTIC_DEVTOOLS_STATE_DIR":
-                call_count += 1
-                if call_count == 1:
-                    raise RuntimeError("env restore failed")
-            return real_setitem(self_env, key, value)
+            with patch.object(os.environ.__class__, "__setitem__", broken_setitem):
+                ctx.__exit__(None, None, None)
 
-        with patch.object(os.environ.__class__, "__setitem__", broken_setitem):
-            ctx.__exit__(None, None, None)
-
-        # CWD must still be restored despite the env restore failure
-        assert os.getcwd() == original_cwd
+            # CWD must still be restored despite the env restore failure
+            assert os.getcwd() == original_cwd
+        finally:
+            # Safety net: restore CWD if setup between __enter__() and
+            # __exit__() raised before __exit__ could run.
+            try:
+                os.chdir(original_cwd)
+            except OSError:
+                pass
 
     def test_chdir_failure_restores_env_vars(self, tmp_path, monkeypatch):
         """When os.chdir fails in __enter__, env vars are restored and the exception propagates."""
