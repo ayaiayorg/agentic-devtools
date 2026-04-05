@@ -158,18 +158,18 @@ class TestCommitAsync:
         assert "Background task started" in captured.out
         assert get_value("skip_push") == "true"
 
-    def test_skip_stage_not_saved_when_false(self, mock_background_and_state, capsys):
-        """Test skip_stage is not saved to state when not specified."""
+    def test_skip_stage_set_to_false_when_not_specified(self, mock_background_and_state, capsys):
+        """Test skip_stage is set to 'false' in state when not specified."""
         from agentic_devtools.state import get_value
 
         commit_async(_argv=[])
 
-        assert get_value("skip_stage") is None
+        assert get_value("skip_stage") == "false"
 
-    def test_skip_push_not_saved_when_false(self, mock_background_and_state, capsys):
-        """Test skip_push is not saved to state when not specified."""
+    def test_skip_push_set_to_false_when_not_specified(self, mock_background_and_state, capsys):
+        """Test skip_push is set to 'false' in state when not specified."""
         from agentic_devtools.state import get_value
 
         commit_async(_argv=[])
 
-        assert get_value("skip_push") is None
+        assert get_value("skip_push") == "false"

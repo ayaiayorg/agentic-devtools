@@ -130,9 +130,7 @@ def commit_async(
         skip_rebase (optional): If true, skip the fetch/rebase onto main step
 
     Usage:
-        agdt-git-save-work -m "feature(PROJECT-1234): add feature"
-        agdt-git-save-work --message "feature(PROJECT-1234): add feature"
-        agdt-git-save-work --commit-message "feature(PROJECT-1234): add feature"
+        agdt-git-save-work -m "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add feature"
         agdt-git-save-work --completed "1,2,3"
         agdt-git-save-work --skip-rebase
         agdt-git-save-work --dry-run
@@ -163,11 +161,9 @@ def commit_async(
     # Save skip_rebase to state if true
     _set_bool_value_if_true("skip_rebase", effective_skip_rebase)
 
-    # Save skip_stage and skip_push to state if true
-    _set_bool_value_if_true("skip_stage", effective_skip_stage)
-    _set_bool_value_if_true("skip_push", effective_skip_push)
-
-    # Always set dry_run to avoid inheriting previous value
+    # Always set skip_stage, skip_push, and dry_run to avoid inheriting prior state
+    set_value("skip_stage", str(effective_skip_stage).lower())
+    set_value("skip_push", str(effective_skip_push).lower())
     set_value("dry_run", str(effective_dry_run).lower())
 
     task = run_function_in_background(
