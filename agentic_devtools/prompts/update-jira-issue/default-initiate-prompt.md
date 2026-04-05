@@ -46,6 +46,7 @@ agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 *Reason for Update:*
 <what the user requested to change>"
 ```
+
 {% else %}
 
 ### Step 1: Retrieve and Document Current State
@@ -70,6 +71,7 @@ agdt-add-jira-comment --jira-comment "h4. Pre-Update Snapshot
 *Reason for Update:*
 <what the user requested to change>"
 ```
+
 {% endif %}
 
 ### Step 2: Make the Requested Updates
