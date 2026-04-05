@@ -695,24 +695,7 @@ def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
         except Exception as e:  # pragma: no cover
             print(f"Warning: Could not read issue file: {e}", file=sys.stderr)
 
-    fields = issue_data.get("fields", {})
-
-    issue_summary = fields.get("summary", "No summary available")
-    issue_type = fields.get("issuetype", {}).get("name", "Unknown")
-    issue_labels = ", ".join(fields.get("labels", [])) or "None"
-    issue_description = fields.get("description", "No description available")
-
-    # Format comments
-    comments_data = fields.get("comment", {}).get("comments", [])
-    if comments_data:
-        comment_lines = []
-        for c in comments_data[-5:]:  # Last 5 comments
-            author = c.get("author", {}).get("displayName", "Unknown")
-            body = c.get("body", "")[:200]  # First 200 chars
-            comment_lines.append(f"**{author}**: {body}...")
-        issue_comments = "\n".join(comment_lines)
-    else:
-        issue_comments = "No comments"
+    prompt_fields = _format_jira_issue_prompt_fields(issue_data)
 
     # Output retrieve prompt (brief summary)
     print("\n" + "=" * 80)
@@ -720,19 +703,19 @@ def _execute_retrieve_step(issue_key: str, branch_name: str) -> None:
     print("STEP: retrieve")
     print("=" * 80)
     print(f"\nIssue {issue_key} retrieved successfully.")
-    print(f"Summary: {issue_summary}")
-    print(f"Type: {issue_type}")
+    print(f"Summary: {prompt_fields['jira_issue_summary']}")
+    print(f"Type: {prompt_fields['jira_issue_type']}")
     print("=" * 80)
 
     # Automatically advance to planning step
     _execute_planning_step(
         issue_key=issue_key,
         branch_name=branch_name,
-        issue_summary=issue_summary,
-        issue_type=issue_type,
-        issue_labels=issue_labels,
-        issue_description=issue_description,
-        issue_comments=issue_comments,
+        issue_summary=prompt_fields["jira_issue_summary"],
+        issue_type=prompt_fields["jira_issue_type"],
+        issue_labels=prompt_fields["jira_issue_labels"],
+        issue_description=prompt_fields["jira_issue_description"],
+        issue_comments=prompt_fields["jira_issue_comments"],
     )
 
 
@@ -1768,6 +1751,97 @@ def initiate_create_jira_subtask_workflow(
         sys.exit(1)
 
 
+def _stringify_jira_text_value(value: object, default: str) -> str:
+    """Convert a Jira text field to string, handling ADF dicts.
+
+    Jira Cloud and newer Server versions may return Atlassian Document Format
+    (ADF) dicts for text fields like ``description`` and comment ``body``.
+    This normalises any value to a plain string.
+
+    Args:
+        value: The raw field value (may be ``str``, ``dict``, ``None``, etc.).
+        default: Fallback when the value is ``None`` or empty.
+
+    Returns:
+        A plain-text string representation of *value*.
+    """
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value or default
+    if isinstance(value, dict):
+        from ..jira.adf import _convert_adf_to_text
+
+        result = _convert_adf_to_text(value)
+        return result.strip() if result else default
+    return str(value) or default
+
+
+def _format_jira_issue_comments(comments_data: object) -> str:
+    """Format the most recent Jira comments for prompt rendering.
+
+    Returns the last 5 comments, each truncated to 200 characters,
+    or ``"No comments"`` when no comments exist.
+
+    Args:
+        comments_data: The ``fields.comment.comments`` list from the Jira API.
+
+    Returns:
+        Formatted string of recent comments.
+    """
+    if not isinstance(comments_data, list) or not comments_data:
+        return "No comments"
+
+    comment_lines: list[str] = []
+    for c in comments_data[-5:]:
+        if not isinstance(c, dict):
+            continue
+        author_data = c.get("author", {})
+        author = author_data.get("displayName", "Unknown") if isinstance(author_data, dict) else "Unknown"
+        body = _stringify_jira_text_value(c.get("body"), "")[:200]
+        comment_lines.append(f"**{author}**: {body}...")
+    return "\n".join(comment_lines) if comment_lines else "No comments"
+
+
+def _format_jira_issue_prompt_fields(issue_data: dict[str, object]) -> dict[str, str]:
+    """Extract and format Jira issue fields for workflow prompt variables.
+
+    Shared by :func:`_fetch_issue_for_prompt` and :func:`_execute_retrieve_step`
+    to keep the two callers in sync.
+
+    Args:
+        issue_data: The full Jira issue JSON (with a ``fields`` key).
+
+    Returns:
+        Dict with keys ``jira_issue_summary``, ``jira_issue_type``,
+        ``jira_issue_labels``, ``jira_issue_description``, and
+        ``jira_issue_comments``.
+    """
+    fields = issue_data.get("fields", {})
+    if not isinstance(fields, dict):
+        fields = {}
+
+    issue_type_data = fields.get("issuetype", {})
+    if not isinstance(issue_type_data, dict):
+        issue_type_data = {}
+
+    labels = fields.get("labels", [])
+    if not isinstance(labels, list):
+        labels = []
+
+    comments = fields.get("comment", {})
+    if not isinstance(comments, dict):
+        comments = {}
+
+    return {
+        "jira_issue_summary": _stringify_jira_text_value(fields.get("summary"), "No summary available"),
+        "jira_issue_type": _stringify_jira_text_value(issue_type_data.get("name"), "Unknown"),
+        "jira_issue_labels": ", ".join(str(label) for label in labels if label) or "None",
+        "jira_issue_description": _stringify_jira_text_value(fields.get("description"), "No description available"),
+        "jira_issue_comments": _format_jira_issue_comments(comments.get("comments", [])),
+    }
+
+
 def _fetch_issue_for_prompt(issue_key: str) -> dict[str, str]:
     """Pre-fetch Jira issue details for use as template variables.
 
@@ -1777,7 +1851,8 @@ def _fetch_issue_for_prompt(issue_key: str) -> dict[str, str]:
     falls back to the manual fetch instruction.
 
     Args:
-        issue_key: Jira issue key (must already be set in state).
+        issue_key: Jira issue key to set in Jira state before fetching issue
+            details. Any existing ``jira.issue_key`` value is overridden.
 
     Returns:
         Dict with keys ``jira_issue_summary``, ``jira_issue_type``,
@@ -1818,32 +1893,7 @@ def _fetch_issue_for_prompt(issue_key: str) -> dict[str, str]:
         print(f"Warning: Could not read issue file: {e}", file=sys.stderr)
         return {}
 
-    fields = issue_data.get("fields", {})
-
-    issue_summary = fields.get("summary", "No summary available")
-    issue_type = fields.get("issuetype", {}).get("name", "Unknown")
-    issue_labels = ", ".join(fields.get("labels", [])) or "None"
-    issue_description = fields.get("description", "No description available")
-
-    # Format comments — last 5, truncated to 200 chars each
-    comments_data = fields.get("comment", {}).get("comments", [])
-    if comments_data:
-        comment_lines = []
-        for c in comments_data[-5:]:
-            author = c.get("author", {}).get("displayName", "Unknown")
-            body = c.get("body", "")[:200]
-            comment_lines.append(f"**{author}**: {body}...")
-        issue_comments = "\n".join(comment_lines)
-    else:
-        issue_comments = "No comments"
-
-    return {
-        "jira_issue_summary": issue_summary,
-        "jira_issue_type": issue_type,
-        "jira_issue_labels": issue_labels,
-        "jira_issue_description": issue_description,
-        "jira_issue_comments": issue_comments,
-    }
+    return _format_jira_issue_prompt_fields(issue_data)
 
 
 def initiate_update_jira_issue_workflow(

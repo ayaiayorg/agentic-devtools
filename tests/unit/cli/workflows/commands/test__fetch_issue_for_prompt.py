@@ -169,6 +169,73 @@ class TestFetchIssueForPromptSuccess:
         assert "User3" in result["jira_issue_comments"]
         assert "User7" in result["jira_issue_comments"]
 
+    def test_adf_description_converted_to_text(self, temp_state_dir):
+        """ADF dict description should be converted to plain text, not rendered raw."""
+        adf_description = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Description from ADF"}],
+                }
+            ],
+        }
+        issue_data = {
+            "fields": {
+                "summary": "Test",
+                "issuetype": {"name": "Task"},
+                "labels": [],
+                "description": adf_description,
+                "comment": {"comments": []},
+            }
+        }
+        issue_file = temp_state_dir / "temp-get-issue-details-response.json"
+        issue_file.write_text(json.dumps(issue_data), encoding="utf-8")
+
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=temp_state_dir):
+            with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    result = commands._fetch_issue_for_prompt("PROJECT-1234")
+
+        assert "Description from ADF" in result["jira_issue_description"]
+        # Should NOT contain raw dict markers
+        assert "{" not in result["jira_issue_description"]
+
+    def test_adf_comment_body_does_not_crash(self, temp_state_dir):
+        """ADF dict comment body should be converted to text, not crash on slicing."""
+        adf_body = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "ADF comment body"}],
+                }
+            ],
+        }
+        issue_data = {
+            "fields": {
+                "summary": "Test",
+                "issuetype": {"name": "Task"},
+                "labels": [],
+                "description": "Desc",
+                "comment": {
+                    "comments": [
+                        {"author": {"displayName": "Alice"}, "body": adf_body},
+                    ]
+                },
+            }
+        }
+        issue_file = temp_state_dir / "temp-get-issue-details-response.json"
+        issue_file.write_text(json.dumps(issue_data), encoding="utf-8")
+
+        with patch("agentic_devtools.cli.workflows.commands.get_state_dir", return_value=temp_state_dir):
+            with patch("agentic_devtools.cli.jira.get_commands.get_issue"):
+                with patch("agentic_devtools.cli.jira.state_helpers.set_jira_value"):
+                    result = commands._fetch_issue_for_prompt("PROJECT-1234")
+
+        assert "ADF comment body" in result["jira_issue_comments"]
+        assert "Alice" in result["jira_issue_comments"]
+
 
 class TestFetchIssueForPromptFailure:
     """Tests for failure/fallback scenarios."""
