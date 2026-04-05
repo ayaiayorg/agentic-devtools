@@ -1320,7 +1320,7 @@ def _remove_stale_auto_start_task(
     remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
-class worktree_state_context:
+class WorktreeStateContext:
     """Context manager for cross-worktree state resolution.
 
     Saves the current CWD and state-related env vars, clears them, and
@@ -1331,7 +1331,7 @@ class worktree_state_context:
 
     Usage::
 
-        with worktree_state_context(worktree_path):
+        with WorktreeStateContext(worktree_path):
             state_dir = get_state_dir()   # resolves in worktree context
     """
 
@@ -1342,7 +1342,7 @@ class worktree_state_context:
         self._previous_cwd: str = ""
         self._previous_env: dict[str, str | None] = {}
 
-    def __enter__(self) -> worktree_state_context:
+    def __enter__(self) -> WorktreeStateContext:
         self._previous_cwd = os.getcwd()
         for var in self._ENV_VARS:
             self._previous_env[var] = os.environ.pop(var, None)
@@ -1372,6 +1372,10 @@ class worktree_state_context:
                     os.environ.pop(var, None)
             except Exception:
                 pass
+
+
+#: Convenience alias so call sites read as ``with worktree_state_context(...):``
+worktree_state_context = WorktreeStateContext
 
 
 def _resolve_state_context_in_worktree(
