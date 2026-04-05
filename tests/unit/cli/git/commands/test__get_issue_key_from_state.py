@@ -28,3 +28,34 @@ class TestGetIssueKeyFromState:
         state.set_value("workflow", {"name": "test", "status": "in-progress"})
         result = commands._get_issue_key_from_state()
         assert result is None
+
+    def test_returns_top_level_issue_key(self, temp_state_dir, clear_state_before):
+        """Test returns top-level issue_key when set."""
+        state.set_value("issue_key", "42")
+        result = commands._get_issue_key_from_state()
+        assert result == "42"
+
+    def test_issue_key_takes_priority_over_jira_issue_key(self, temp_state_dir, clear_state_before):
+        """Test issue_key takes priority over jira.issue_key."""
+        state.set_value("issue_key", "#42")
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        result = commands._get_issue_key_from_state()
+        assert result == "#42"
+
+    def test_falls_back_to_jira_issue_key(self, temp_state_dir, clear_state_before):
+        """Test falls back to jira.issue_key when issue_key is not set."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        result = commands._get_issue_key_from_state()
+        assert result == "PROJECT-1234"
+
+    def test_github_issue_number_as_issue_key(self, temp_state_dir, clear_state_before):
+        """Test GitHub-format issue numbers work as issue_key values."""
+        state.set_value("issue_key", "#42")
+        result = commands._get_issue_key_from_state()
+        assert result == "#42"
+
+    def test_numeric_issue_key(self, temp_state_dir, clear_state_before):
+        """Test numeric issue key (GitHub issue number without #)."""
+        state.set_value("issue_key", "42")
+        result = commands._get_issue_key_from_state()
+        assert result == "42"

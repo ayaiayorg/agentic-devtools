@@ -35,7 +35,7 @@ def set_cmd() -> None:
     - JSON for complex types: agdt-set config '{"key": "value"}'
     - Stdin input: echo "content" | agdt-set content -
 
-    Context-switching keys (pull_request_id, jira.issue_key):
+    Context-switching keys (pull_request_id, jira.issue_key, issue_key):
         When these are set to a NEW value, the temp folder is cleared
         to provide a fresh context. If set to the same value, no clearing occurs.
         Cross-lookup is triggered to find related context values.

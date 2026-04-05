@@ -29,11 +29,22 @@ from .operations import (
 
 
 def _get_issue_key_from_state() -> str | None:
-    """Get the current Jira issue key from state or workflow context."""
-    # Check direct state first
-    issue_key = get_value("jira.issue_key")
+    """Get the current issue key from state or workflow context.
+
+    Resolution priority:
+    1. Top-level ``issue_key`` (provider-agnostic).
+    2. ``jira.issue_key`` (backward-compatible alias).
+    3. ``jira_issue_key`` from the active workflow context.
+    """
+    # Check top-level issue_key first (provider-agnostic)
+    issue_key = get_value("issue_key")
     if issue_key:
         return str(issue_key)
+
+    # Fall back to jira.issue_key
+    jira_issue_key = get_value("jira.issue_key")
+    if jira_issue_key:
+        return str(jira_issue_key)
 
     # Check workflow context
     workflow = get_value("workflow")
