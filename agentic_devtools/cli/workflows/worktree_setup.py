@@ -2226,11 +2226,12 @@ def _start_copilot_session_for_workflow(
         f"\n--- Starting gh copilot session for {workflow_name} "
         f"(mode: {'interactive' if effective_interactive else 'non-interactive'}) ---"
     )
-    # Ensure Copilot session state and artifacts (prompt file, log file, copilot.*
-    # state keys) are written under the target worktree, not the caller's CWD.
-    # start_copilot_session() resolves paths via get_state_dir() which is CWD-based;
-    # we temporarily override AGENTIC_DEVTOOLS_STATE_DIR and chdir to worktree_path
-    # so that get_state_dir() resolves from the worktree's .agdt/runtime-bootstrap.json.
+    # start_copilot_session() resolves paths via get_state_dir(), so we enter
+    # worktree_state_context(worktree_path), which changes into the target worktree
+    # and clears both AGENTIC_DEVTOOLS_STATE_DIR and the legacy
+    # AGDT_AI_HELPERS_STATE_DIR override variables for cross-worktree resolution.
+    # We then set AGENTIC_DEVTOOLS_STATE_DIR to the resolved target state dir so
+    # downstream writes stay pinned to the target worktree for this session.
     with worktree_state_context(worktree_path):
         from ...state import get_state_dir
 
