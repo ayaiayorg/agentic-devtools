@@ -493,27 +493,27 @@ class TestSetContextValueIssueKeyValidation:
 
     def test_rejects_bool_true(self, temp_state_dir):
         """Test that bool True is rejected for issue_key."""
-        with pytest.raises(ValueError, match="non-empty string or integer"):
+        with pytest.raises(ValueError, match="non-empty string or plain integer"):
             state.set_context_value("issue_key", True, verbose=False)
 
     def test_rejects_bool_false(self, temp_state_dir):
         """Test that bool False is rejected for issue_key."""
-        with pytest.raises(ValueError, match="non-empty string or integer"):
+        with pytest.raises(ValueError, match="non-empty string or plain integer"):
             state.set_context_value("issue_key", False, verbose=False)
 
     def test_rejects_dict(self, temp_state_dir):
         """Test that dict is rejected for issue_key."""
-        with pytest.raises(ValueError, match="non-empty string or integer"):
+        with pytest.raises(ValueError, match="non-empty string or plain integer"):
             state.set_context_value("issue_key", {"bad": "value"}, verbose=False)
 
     def test_rejects_list(self, temp_state_dir):
         """Test that list is rejected for issue_key."""
-        with pytest.raises(ValueError, match="non-empty string or integer"):
+        with pytest.raises(ValueError, match="non-empty string or plain integer"):
             state.set_context_value("issue_key", [1, 2], verbose=False)
 
     def test_rejects_none(self, temp_state_dir):
         """Test that None is rejected for issue_key."""
-        with pytest.raises(ValueError, match="non-empty string or integer"):
+        with pytest.raises(ValueError, match="non-empty string or plain integer"):
             state.set_context_value("issue_key", None, verbose=False)
 
     def test_rejects_empty_string(self, temp_state_dir):
