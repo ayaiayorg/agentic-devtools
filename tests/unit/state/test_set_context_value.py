@@ -552,7 +552,5 @@ class TestSetContextValueIssueKeyValidation:
 
     def test_no_validation_for_jira_issue_key(self, temp_state_dir):
         """Test that jira.issue_key is not subject to issue_key validation."""
-        result = state.set_context_value(
-            "jira.issue_key", "PROJECT-1234", verbose=False
-        )
+        result = state.set_context_value("jira.issue_key", "PROJECT-1234", verbose=False)
         assert result is True
