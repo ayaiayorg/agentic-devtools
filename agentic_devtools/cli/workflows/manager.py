@@ -251,68 +251,12 @@ PULL_REQUEST_REVIEW_WORKFLOW = WorkflowDefinition(
 PR_MERGE_ORCHESTRATOR_WORKFLOW = WorkflowDefinition(
     name="pr-merge-orchestrator",
     initial_step="init",
-    transitions=[
-        # Init -> poll (after initial setup)
-        WorkflowTransition(
-            from_step="init",
-            to_step="poll",
-            trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-        ),
-        # Poll -> address-review (Copilot review has comments)
-        WorkflowTransition(
-            from_step="poll",
-            to_step="address-review",
-            trigger_events={WorkflowEvent.PR_MERGE_POLL},
-        ),
-        # Poll -> ready-to-merge (zero comments, gates green)
-        WorkflowTransition(
-            from_step="poll",
-            to_step="ready-to-merge",
-            trigger_events={WorkflowEvent.PR_APPROVED},
-        ),
-        # Poll -> wait-review (awaiting review or checks)
-        WorkflowTransition(
-            from_step="poll",
-            to_step="wait-review",
-            trigger_events={WorkflowEvent.PR_REVIEWED},
-        ),
-        # Address-review -> wait-review (after addressing, wait for new review)
-        WorkflowTransition(
-            from_step="address-review",
-            to_step="wait-review",
-            trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-        ),
-        # Wait-review -> poll (re-poll after waiting)
-        WorkflowTransition(
-            from_step="wait-review",
-            to_step="poll",
-            trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-        ),
-        # Ready-to-merge -> approve (approve the PR)
-        WorkflowTransition(
-            from_step="ready-to-merge",
-            to_step="approve",
-            trigger_events={WorkflowEvent.MANUAL_ADVANCE},
-        ),
-        # Approve -> merge (after approval)
-        WorkflowTransition(
-            from_step="approve",
-            to_step="merge",
-            trigger_events={WorkflowEvent.PR_APPROVED},
-        ),
-        # Merge -> verify (after merge initiated)
-        WorkflowTransition(
-            from_step="merge",
-            to_step="verify",
-            trigger_events={WorkflowEvent.PR_MERGED},
-        ),
-        # Verify -> done (merge confirmed)
-        WorkflowTransition(
-            from_step="verify",
-            to_step="done",
-            trigger_events={WorkflowEvent.PR_MERGED},
-        ),
-    ],
+    # Only the init step is currently implemented (with a prompt template).
+    # Transitions and downstream step templates (poll, address-review,
+    # ready-to-merge, etc.) should be added together with the corresponding
+    # workflow event emitters (PR_MERGE_POLL, PR_MERGED) and prompt files
+    # so the state machine remains functional end-to-end.
+    transitions=[],
 )
 
 # Registry of all workflow definitions

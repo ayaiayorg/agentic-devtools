@@ -2,9 +2,9 @@
 
 from agentic_devtools.cli.workflows.manager import (
     WorkflowDefinition,
-    WorkflowEvent,
     get_workflow_definition,
 )
+from agentic_devtools.prompts.loader import get_template_path
 
 
 class TestGetWorkflowDefinition:
@@ -55,6 +55,8 @@ class TestGetWorkflowDefinition:
 
     def test_work_on_jira_issue_checklist_created_transition(self):
         """Work-on-jira-issue has a CHECKLIST_CREATED transition from checklist-creation."""
+        from agentic_devtools.cli.workflows.manager import WorkflowEvent
+
         definition = get_workflow_definition("work-on-jira-issue")
 
         assert definition is not None
@@ -65,6 +67,8 @@ class TestGetWorkflowDefinition:
 
     def test_work_on_jira_issue_commit_step_has_required_tasks(self):
         """Work-on-jira-issue commit transition has required_tasks for deferred advancement."""
+        from agentic_devtools.cli.workflows.manager import WorkflowEvent
+
         definition = get_workflow_definition("work-on-jira-issue")
 
         assert definition is not None
@@ -75,6 +79,8 @@ class TestGetWorkflowDefinition:
 
     def test_pull_request_review_has_file_review_transition(self):
         """Pull-request-review has a PR_REVIEWED transition that loops back to file-review."""
+        from agentic_devtools.cli.workflows.manager import WorkflowEvent
+
         definition = get_workflow_definition("pull-request-review")
 
         assert definition is not None
@@ -104,69 +110,15 @@ class TestGetWorkflowDefinition:
         assert definition is not None
         assert definition.initial_step == "init"
 
-    def test_pr_merge_orchestrator_has_transitions(self):
-        """PR merge orchestrator workflow has transitions defined."""
+    def test_pr_merge_orchestrator_has_no_transitions_yet(self):
+        """PR merge orchestrator has no transitions until downstream steps are implemented."""
         definition = get_workflow_definition("pr-merge-orchestrator")
 
         assert definition is not None
-        assert len(definition.transitions) > 0
+        assert len(definition.transitions) == 0
 
-    def test_pr_merge_orchestrator_init_to_poll_transition(self):
-        """PR merge orchestrator has MANUAL_ADVANCE transition from init to poll."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
+    def test_pr_merge_orchestrator_init_template_exists(self):
+        """Default init prompt template exists on disk for the pr-merge-orchestrator workflow."""
+        template_path = get_template_path("pr-merge-orchestrator", "init", is_default=True)
 
-        assert definition is not None
-        transition = definition.get_transition("init", WorkflowEvent.MANUAL_ADVANCE)
-
-        assert transition is not None
-        assert transition.to_step == "poll"
-
-    def test_pr_merge_orchestrator_poll_to_address_review_transition(self):
-        """PR merge orchestrator has PR_MERGE_POLL transition from poll to address-review."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
-
-        assert definition is not None
-        transition = definition.get_transition("poll", WorkflowEvent.PR_MERGE_POLL)
-
-        assert transition is not None
-        assert transition.to_step == "address-review"
-
-    def test_pr_merge_orchestrator_poll_to_ready_to_merge_transition(self):
-        """PR merge orchestrator has PR_APPROVED transition from poll to ready-to-merge."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
-
-        assert definition is not None
-        transition = definition.get_transition("poll", WorkflowEvent.PR_APPROVED)
-
-        assert transition is not None
-        assert transition.to_step == "ready-to-merge"
-
-    def test_pr_merge_orchestrator_poll_to_wait_review_transition(self):
-        """PR merge orchestrator has PR_REVIEWED transition from poll to wait-review."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
-
-        assert definition is not None
-        transition = definition.get_transition("poll", WorkflowEvent.PR_REVIEWED)
-
-        assert transition is not None
-        assert transition.to_step == "wait-review"
-
-    def test_pr_merge_orchestrator_merge_to_verify_transition(self):
-        """PR merge orchestrator has PR_MERGED transition from merge to verify."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
-
-        assert definition is not None
-        transition = definition.get_transition("merge", WorkflowEvent.PR_MERGED)
-
-        assert transition is not None
-        assert transition.to_step == "verify"
-
-    def test_pr_merge_orchestrator_verify_to_done_transition(self):
-        """PR merge orchestrator has PR_MERGED transition from verify to done."""
-        definition = get_workflow_definition("pr-merge-orchestrator")
-
-        assert definition is not None
-        transition = definition.get_transition("verify", WorkflowEvent.PR_MERGED)
-
-        assert transition is not None
-        assert transition.to_step == "done"
+        assert template_path.exists(), f"Expected template at {template_path}"
