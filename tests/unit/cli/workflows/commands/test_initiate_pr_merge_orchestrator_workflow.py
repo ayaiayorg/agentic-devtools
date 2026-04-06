@@ -6,25 +6,6 @@ import pytest
 
 from agentic_devtools import state
 from agentic_devtools.cli.workflows import commands
-from agentic_devtools.prompts import loader
-
-
-@pytest.fixture
-def temp_prompts_dir(tmp_path):
-    """Create a temporary prompts directory with test templates."""
-    prompts_dir = tmp_path / "prompts"
-    prompts_dir.mkdir()
-    with patch.object(loader, "get_prompts_dir", return_value=prompts_dir):
-        yield prompts_dir
-
-
-@pytest.fixture
-def temp_output_dir(tmp_path):
-    """Create a temporary output directory."""
-    output_dir = tmp_path / "temp"
-    output_dir.mkdir()
-    with patch.object(loader, "get_temp_output_dir", return_value=output_dir):
-        yield output_dir
 
 
 @pytest.fixture
@@ -61,7 +42,15 @@ class TestInitiatePrMergeOrchestratorWorkflow:
             commands.initiate_pr_merge_orchestrator_workflow(_argv=[])
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
-        assert "--pull-request-id is required" in captured.err
+        assert "empty or whitespace-only" in captured.err
+
+    def test_whitespace_only_pull_request_id_exits(self, temp_state_dir, clear_state_before, capsys):
+        """Test error when --pull-request-id is whitespace-only (programmatic)."""
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_pr_merge_orchestrator_workflow(pull_request_id="   ")
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "empty or whitespace-only" in captured.err
 
     def test_poll_interval_below_minimum_exits(self, temp_state_dir, clear_state_before, capsys):
         """Test error when poll-interval-seconds is below 10."""
