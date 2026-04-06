@@ -894,7 +894,10 @@ def set_context_value(
         True if the value changed, False if unchanged
 
     Raises:
-        ValueError: If key is not a context-switching key
+        ValueError: If key is not a context-switching key, or if
+            ``key == "issue_key"`` and value is not a non-empty string
+            (after stripping whitespace) or a plain ``int`` (excluding
+            ``bool`` and ``int`` subclasses).
     """
     if key not in CONTEXT_SWITCH_KEYS:
         raise ValueError(f"set_context_value only accepts: {CONTEXT_SWITCH_KEYS}")
