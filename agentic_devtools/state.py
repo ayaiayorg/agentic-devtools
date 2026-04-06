@@ -981,8 +981,11 @@ def set_context_value(
     # stale issue_key that was just deleted).
     _sync_bootstrap_for_context_key(key, value, state)
 
-    # Trigger cross-lookup in background if requested
-    if trigger_cross_lookup:
+    # Trigger cross-lookup in background only for supported context keys.
+    # This keeps the behavior aligned with ``_trigger_cross_lookup()``'s
+    # documented contract and avoids relying on it to silently no-op for
+    # unrelated keys such as ``issue_key``.
+    if trigger_cross_lookup and key in {"pull_request_id", "jira.issue_key"}:
         _trigger_cross_lookup(key, value, verbose)
 
     return True

@@ -156,6 +156,18 @@ class TestSetContextValue:
 
             mock_lookup.assert_not_called()
 
+    def test_set_context_value_issue_key_no_cross_lookup(self, temp_state_dir):
+        """Test that issue_key does NOT trigger cross-lookup even when enabled."""
+        with patch.object(state, "_trigger_cross_lookup") as mock_lookup:
+            state.set_context_value(
+                "issue_key",
+                "42",
+                verbose=False,
+                trigger_cross_lookup=True,
+            )
+
+            mock_lookup.assert_not_called()
+
     def test_set_context_value_verbose_output(self, temp_state_dir, capsys):
         """Test verbose output during context switching."""
         state.set_value("pull_request_id", 12345)

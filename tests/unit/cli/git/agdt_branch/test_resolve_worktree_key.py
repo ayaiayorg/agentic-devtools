@@ -88,6 +88,43 @@ class TestResolveWorktreeKeyAutoFromIssueKey:
         result = resolve_worktree_key()
         assert result == "PROJECT-1234"
 
+    @patch(f"{_MOD}.get_value")
+    def test_int_issue_key_stringified(self, mock_get):
+        """Plain int issue_key is stringified (agdt-set JSON-parses to int)."""
+        mock_get.side_effect = lambda k: 42 if k == "issue_key" else None
+        result = resolve_worktree_key()
+        assert result == "42"
+
+    @patch(f"{_MOD}.get_value")
+    def test_bool_issue_key_falls_through(self, mock_get):
+        """Bool issue_key is ignored — falls through to jira.issue_key."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": True,
+            "jira.issue_key": "PROJECT-1234",
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "PROJECT-1234"
+
+    @patch(f"{_MOD}.get_value")
+    def test_dict_issue_key_falls_through(self, mock_get):
+        """Dict issue_key is ignored — falls through to jira.issue_key."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": {"bad": "value"},
+            "jira.issue_key": "PROJECT-1234",
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "PROJECT-1234"
+
+    @patch(f"{_MOD}.get_value")
+    def test_list_issue_key_falls_through(self, mock_get):
+        """List issue_key is ignored — falls through to pull_request_id."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": [1, 2, 3],
+            "pull_request_id": 99,
+        }.get(k)
+        result = resolve_worktree_key()
+        assert result == "PR99"
+
 
 # ---------------------------------------------------------------------------
 #  Auto-resolution from jira.issue_key
