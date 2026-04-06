@@ -486,3 +486,73 @@ class TestStartPrLookupFromJira:
             side_effect=Exception("Network error"),
         ):
             state._start_pr_lookup_from_jira("PROJECT-1234")
+
+
+class TestSetContextValueIssueKeyValidation:
+    """Tests for issue_key type validation in set_context_value."""
+
+    def test_rejects_bool_true(self, temp_state_dir):
+        """Test that bool True is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string or integer"):
+            state.set_context_value("issue_key", True, verbose=False)
+
+    def test_rejects_bool_false(self, temp_state_dir):
+        """Test that bool False is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string or integer"):
+            state.set_context_value("issue_key", False, verbose=False)
+
+    def test_rejects_dict(self, temp_state_dir):
+        """Test that dict is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string or integer"):
+            state.set_context_value("issue_key", {"bad": "value"}, verbose=False)
+
+    def test_rejects_list(self, temp_state_dir):
+        """Test that list is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string or integer"):
+            state.set_context_value("issue_key", [1, 2], verbose=False)
+
+    def test_rejects_none(self, temp_state_dir):
+        """Test that None is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string or integer"):
+            state.set_context_value("issue_key", None, verbose=False)
+
+    def test_rejects_empty_string(self, temp_state_dir):
+        """Test that empty string is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string"):
+            state.set_context_value("issue_key", "", verbose=False)
+
+    def test_rejects_whitespace_string(self, temp_state_dir):
+        """Test that whitespace-only string is rejected for issue_key."""
+        with pytest.raises(ValueError, match="non-empty string"):
+            state.set_context_value("issue_key", "   ", verbose=False)
+
+    def test_accepts_valid_string(self, temp_state_dir):
+        """Test that valid string is accepted for issue_key."""
+        result = state.set_context_value("issue_key", "PROJECT-42", verbose=False)
+        assert result is True
+        assert state.get_value("issue_key") == "PROJECT-42"
+
+    def test_accepts_int(self, temp_state_dir):
+        """Test that int is accepted for issue_key."""
+        result = state.set_context_value("issue_key", 42, verbose=False)
+        assert result is True
+        assert state.get_value("issue_key") == 42
+
+    def test_bool_does_not_clear_pull_request_id(self, temp_state_dir):
+        """Test that rejected bool does not clear pull_request_id."""
+        state.set_value("pull_request_id", 99999)
+        with pytest.raises(ValueError):
+            state.set_context_value("issue_key", True, verbose=False)
+        assert state.get_value("pull_request_id") == 99999
+
+    def test_no_validation_for_pull_request_id(self, temp_state_dir):
+        """Test that pull_request_id is not subject to issue_key validation."""
+        result = state.set_context_value("pull_request_id", 12345, verbose=False)
+        assert result is True
+
+    def test_no_validation_for_jira_issue_key(self, temp_state_dir):
+        """Test that jira.issue_key is not subject to issue_key validation."""
+        result = state.set_context_value(
+            "jira.issue_key", "PROJECT-1234", verbose=False
+        )
+        assert result is True
