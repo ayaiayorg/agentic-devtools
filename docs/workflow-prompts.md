@@ -64,6 +64,7 @@ tracked in the #867 canonical attachments.
 | Create Jira epic | `create-jira-epic/default-initiate-prompt.md` | `agdt-initiate-create-jira-epic-workflow` |
 | Create Jira subtask | `create-jira-subtask/default-initiate-prompt.md` | `agdt-initiate-create-jira-subtask-workflow` |
 | Work on Jira issue | `work-on-jira-issue/default-<step>-prompt.md` (11 steps) | `agdt-initiate-work-on-jira-issue-workflow` |
+| PR merge orchestrator | `pr-merge-orchestrator/default-init-prompt.md` | `agdt-initiate-pr-merge-orchestrator-workflow` |
 
 ---
 

@@ -260,6 +260,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.workflows",
         "initiate_apply_pull_request_review_suggestions_workflow",
     ),
+    "agdt-initiate-pr-merge-orchestrator-workflow": (
+        "agentic_devtools.cli.workflows",
+        "initiate_pr_merge_orchestrator_workflow",
+    ),
     "agdt-advance-workflow": (
         "agentic_devtools.cli.workflows",
         "advance_workflow_cmd",
