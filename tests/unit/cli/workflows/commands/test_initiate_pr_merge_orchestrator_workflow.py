@@ -38,8 +38,16 @@ def clear_state_before(temp_state_dir):
 
 @pytest.fixture
 def mock_workflow_init():
-    """Mock initiate_workflow to avoid template loading."""
-    with patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock:
+    """Mock initiate_workflow and bootstrap to avoid template loading and git I/O."""
+    with (
+        patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock,
+        patch(
+            "agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"
+        ),
+        patch(
+            "agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"
+        ),
+    ):
         mock.return_value = "rendered prompt"
         yield mock
 
@@ -72,6 +80,7 @@ class TestInitiatePrMergeOrchestratorWorkflow:
         mock_workflow_init.assert_called_once()
         call_kwargs = mock_workflow_init.call_args[1]
         assert call_kwargs["workflow_name"] == "pr-merge-orchestrator"
+        assert call_kwargs["step_name"] == "init"
         context = call_kwargs["context"]
         assert context["pull_request_id"] == "123"
         assert context["strategy"] == "squash"
@@ -167,3 +176,31 @@ class TestInitiatePrMergeOrchestratorWorkflow:
         """Test that an invalid strategy value is rejected by argparse."""
         with pytest.raises(SystemExit):
             commands.initiate_pr_merge_orchestrator_workflow(_argv=["--pull-request-id", "1", "--strategy", "invalid"])
+
+    def test_skip_bootstrap_init_passed(self, temp_state_dir, clear_state_before, mock_workflow_init):
+        """Test that skip_bootstrap_init=True is passed to initiate_workflow."""
+        commands.initiate_pr_merge_orchestrator_workflow(_argv=["--pull-request-id", "1"])
+
+        call_kwargs = mock_workflow_init.call_args[1]
+        assert call_kwargs["skip_bootstrap_init"] is True
+
+    def test_bootstrap_scope_set_before_state_writes(self, temp_state_dir, clear_state_before):
+        """Test that bootstrap identity and scope are set before state writes."""
+        call_order = []
+
+        with (
+            patch(
+                "agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope",
+                side_effect=lambda key: call_order.append(("bootstrap", key)),
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation",
+                side_effect=lambda: call_order.append(("clear",)),
+            ),
+            patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock_init,
+        ):
+            mock_init.return_value = "rendered prompt"
+            commands.initiate_pr_merge_orchestrator_workflow(_argv=["--pull-request-id", "42"])
+
+        assert call_order[0] == ("bootstrap", "PR42")
+        assert call_order[1] == ("clear",)

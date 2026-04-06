@@ -3235,8 +3235,17 @@ Examples:
         print("ERROR: --poll-interval-seconds must be at least 10.", file=sys.stderr)
         sys.exit(1)
 
-    # Persist values in state
-    set_value("pull_request_id", str(pull_request_id))
+    # Resolve identity and set the worktree_key scope BEFORE any state I/O,
+    # so that get_state_dir() resolves to the correct scoped directory and
+    # never creates the _unscoped fallback folder.
+    _pr_id_norm = str(pull_request_id).strip()
+    _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
+
+    # Clear workflow tracking state now that the bootstrap scope is set.
+    clear_state_for_workflow_initiation()
+
+    # Persist values in state (after bootstrap scope is established)
+    set_value("pull_request_id", _pr_id_norm)
     set_value("merge.strategy", strategy)
     set_value("merge.delete_branch", delete_branch)
     set_value("merge.poll_interval_seconds", poll_interval_seconds)
@@ -3245,6 +3254,8 @@ Examples:
 
     initiate_workflow(
         workflow_name="pr-merge-orchestrator",
+        step_name="init",
+        skip_bootstrap_init=True,
         required_state_keys=["pull_request_id"],
         optional_state_keys=[
             "merge.strategy",
