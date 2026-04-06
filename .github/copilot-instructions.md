@@ -338,7 +338,7 @@ both Jira keys (`PROJECT-1234`) and GitHub issue numbers (`#42`, `42`):
 # Primary way to set the current issue identifier (provider-agnostic)
 agdt-set issue_key 42
 
-# Jira-specific alias (backward compatible — continues to work)
+# Jira-specific legacy key (backward compatible — continues to work)
 agdt-set jira.issue_key PROJECT-1234
 ```
 
@@ -348,13 +348,14 @@ string representation, so `agdt-set issue_key 42` and `agdt-set issue_key "42"`
 produce equivalent behavior.
 
 All core functions that resolve an issue key check `issue_key` first, then fall back to
-`jira.issue_key`. Both keys are context-switching keys — setting either one clears
+`jira.issue_key`. Both keys can coexist with different values — setting one does **not**
+clear the other. Both are context-switching keys — setting either one clears
 `pull_request_id`, and setting `pull_request_id` clears both `issue_key` and `jira.issue_key`.
 
 **Resolution priority** (used by `_get_issue_key_from_state`, `resolve_worktree_key`, etc.):
 
 1. `issue_key` (top-level, provider-agnostic)
-2. `jira.issue_key` (backward-compatible alias)
+2. `jira.issue_key` (legacy Jira-specific key)
 3. Workflow context `jira_issue_key` (for active workflows)
 4. `pull_request_id` (fallback used by `resolve_worktree_key` when no issue key is set)
 
