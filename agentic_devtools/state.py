@@ -899,6 +899,21 @@ def set_context_value(
     if key not in CONTEXT_SWITCH_KEYS:
         raise ValueError(f"set_context_value only accepts: {CONTEXT_SWITCH_KEYS}")
 
+    # Validate issue_key type before clearing counterparts — accept only
+    # non-empty str or plain int (excluding bool, a subclass of int).
+    # This prevents ``agdt-set issue_key true`` (JSON-parsed to bool) or
+    # complex types (dict/list) from wiping pull_request_id and leaving
+    # no resolvable worktree key.
+    if key == "issue_key":
+        if isinstance(value, bool) or (not isinstance(value, (str, int))):
+            raise ValueError(
+                f"issue_key must be a non-empty string or integer, got {type(value).__name__}: {value!r}"
+            )
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(
+                "issue_key must be a non-empty string (after stripping whitespace)"
+            )
+
     # Normalize value for comparison (convert to string for consistency)
     normalized_value = str(value) if value is not None else None
 

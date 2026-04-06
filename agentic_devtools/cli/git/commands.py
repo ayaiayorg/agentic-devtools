@@ -43,12 +43,18 @@ def _get_issue_key_from_state() -> str | None:
     issue_key = get_value("issue_key")
     if type(issue_key) is int:  # noqa: E721 – exclude bool
         return str(issue_key)
-    if isinstance(issue_key, str) and issue_key.strip():
-        return str(issue_key)
+    if isinstance(issue_key, str):
+        stripped = issue_key.strip()
+        if stripped:
+            return stripped
 
     # Fall back to jira.issue_key
     jira_issue_key = get_value("jira.issue_key")
-    if jira_issue_key:
+    if isinstance(jira_issue_key, str):
+        stripped_jira = jira_issue_key.strip()
+        if stripped_jira:
+            return stripped_jira
+    elif jira_issue_key:
         return str(jira_issue_key)
 
     # Check workflow context

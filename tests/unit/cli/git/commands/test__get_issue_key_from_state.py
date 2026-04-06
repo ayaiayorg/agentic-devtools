@@ -91,3 +91,15 @@ class TestGetIssueKeyFromState:
         state.set_value("jira.issue_key", "PROJECT-999")
         result = commands._get_issue_key_from_state()
         assert result == "PROJECT-999"
+
+    def test_whitespace_issue_key_returns_stripped(self, temp_state_dir, clear_state_before):
+        """Test whitespace-padded issue_key is returned stripped."""
+        state.set_value("issue_key", "  42  ")
+        result = commands._get_issue_key_from_state()
+        assert result == "42"
+
+    def test_whitespace_jira_issue_key_returns_stripped(self, temp_state_dir, clear_state_before):
+        """Test whitespace-padded jira.issue_key is returned stripped."""
+        state.set_value("jira.issue_key", "  PROJECT-1234  ")
+        result = commands._get_issue_key_from_state()
+        assert result == "PROJECT-1234"
