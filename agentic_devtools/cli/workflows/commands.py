@@ -3199,7 +3199,7 @@ Examples:
         )
     )
 
-    # CLI values override programmatic values
+    # Programmatic values take precedence; fall back to CLI args when not set
     if pull_request_id is None:
         pull_request_id = args.pull_request_id
     if strategy is None:
