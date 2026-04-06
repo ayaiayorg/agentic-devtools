@@ -3213,9 +3213,14 @@ Examples:
     if auto_merge is None and args.auto_merge is not None:
         auto_merge = args.auto_merge == "true"
 
-    # Validate required parameter
-    if not pull_request_id:
-        print("ERROR: --pull-request-id is required.", file=sys.stderr)
+    # Normalize and validate required parameter — normalize first so that
+    # whitespace-only values (e.g. "  ") are caught as empty.
+    _pr_id_norm = str(pull_request_id).strip() if pull_request_id is not None else ""
+    if not _pr_id_norm:
+        print(
+            "ERROR: --pull-request-id must not be empty or whitespace-only.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Apply defaults
@@ -3245,7 +3250,6 @@ Examples:
     # Resolve identity and set the worktree_key scope BEFORE any state I/O,
     # so that get_state_dir() resolves to the correct scoped directory and
     # never creates the _unscoped fallback folder.
-    _pr_id_norm = str(pull_request_id).strip()
     _ensure_bootstrap_identity_and_scope(f"PR{_pr_id_norm}")
 
     # Clear workflow tracking state now that the bootstrap scope is set.
