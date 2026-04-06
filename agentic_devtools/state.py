@@ -901,14 +901,24 @@ def set_context_value(
 
     # Validate issue_key type before clearing counterparts — accept only
     # non-empty str or plain int (excluding bool, a subclass of int).
+    # Uses ``type(value) is int`` (not ``isinstance``) to match the read
+    # and resolve paths (_get_issue_key_from_state, resolve_worktree_key)
+    # and bootstrap sync, which all use the same strict check to exclude
+    # bool and int subclasses.
     # This prevents ``agdt-set issue_key true`` (JSON-parsed to bool) or
     # complex types (dict/list) from wiping pull_request_id and leaving
     # no resolvable worktree key.
     if key == "issue_key":
-        if isinstance(value, bool) or (not isinstance(value, (str, int))):
-            raise ValueError(f"issue_key must be a non-empty string or integer, got {type(value).__name__}: {value!r}")
-        if isinstance(value, str) and not value.strip():
-            raise ValueError("issue_key must be a non-empty string (after stripping whitespace)")
+        if isinstance(value, str):
+            if not value.strip():
+                raise ValueError(
+                    "issue_key must be a non-empty string (after stripping whitespace)"
+                )
+        elif type(value) is not int:  # noqa: E721 – exclude bool and int subclasses
+            raise ValueError(
+                f"issue_key must be a non-empty string or plain integer, "
+                f"got {type(value).__name__}: {value!r}"
+            )
 
     # Normalize value for comparison (convert to string for consistency)
     normalized_value = str(value) if value is not None else None

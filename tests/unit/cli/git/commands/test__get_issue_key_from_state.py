@@ -103,3 +103,9 @@ class TestGetIssueKeyFromState:
         state.set_value("jira.issue_key", "  PROJECT-1234  ")
         result = commands._get_issue_key_from_state()
         assert result == "PROJECT-1234"
+
+    def test_non_string_truthy_jira_issue_key_stringified(self, temp_state_dir, clear_state_before):
+        """Test non-string truthy jira.issue_key is stringified (e.g., int)."""
+        state.set_value("jira.issue_key", 12345)
+        result = commands._get_issue_key_from_state()
+        assert result == "12345"
