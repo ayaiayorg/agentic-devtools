@@ -3095,3 +3095,174 @@ def setup_worktree_background_cmd(_argv: list[str] | None = None) -> None:
         user_request=args.user_request,
         additional_params=additional_params,
     )
+
+
+def initiate_pr_merge_orchestrator_workflow(
+    pull_request_id: str | None = None,
+    strategy: str | None = None,
+    delete_branch: bool | None = None,
+    poll_interval_seconds: int | None = None,
+    max_cycles: int | None = None,
+    auto_merge: bool | None = None,
+    _argv: list[str] | None = None,
+) -> None:
+    """
+    Initiate the PR merge orchestrator workflow.
+
+    This workflow continuously monitors an open PR, reacts to Copilot review
+    outcomes on the latest head commit, routes to review-addressing when
+    comments exist, and proceeds through approval and merge when merge gates
+    are satisfied.
+
+    State machine: INIT -> POLL -> ADDRESS_REVIEW (optional) -> WAIT_REVIEW
+    -> READY_TO_MERGE -> APPROVE -> MERGE -> VERIFY -> DONE, with BLOCKED
+    as a terminal failure state.
+
+    Usage:
+        agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078
+        agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078 --strategy squash
+        agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078 --auto-merge true
+
+    Args:
+        pull_request_id: ID of the pull request to merge.
+        strategy: Merge strategy (squash, merge, rebase). Default: squash.
+        delete_branch: Whether to delete the source branch after merge. Default: true.
+        poll_interval_seconds: Seconds between poll cycles. Default: 30, min 10.
+        max_cycles: Maximum number of poll cycles. Default: 120.
+        auto_merge: Whether to auto-merge when gates are green. Default: false.
+        _argv: Command line arguments (for testing). Pass [] in tests to avoid
+            parsing sys.argv.
+    """
+    import argparse
+
+    from ...state import set_value
+
+    parser = argparse.ArgumentParser(
+        description="Initiate the PR merge orchestrator workflow",
+        epilog="""
+Examples:
+  agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078
+  agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078 --strategy squash
+  agdt-initiate-pr-merge-orchestrator-workflow --pull-request-id 1078 --auto-merge true
+        """,
+    )
+    parser.add_argument(
+        "--pull-request-id",
+        "-p",
+        dest="pull_request_id",
+        help="ID of the pull request to merge (required).",
+    )
+    parser.add_argument(
+        "--strategy",
+        dest="strategy",
+        default=None,
+        choices=["squash", "merge", "rebase"],
+        help="Merge strategy (default: squash).",
+    )
+    parser.add_argument(
+        "--delete-branch",
+        dest="delete_branch",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Delete source branch after merge (default: true). Pass 'true' or 'false'.",
+    )
+    parser.add_argument(
+        "--poll-interval-seconds",
+        dest="poll_interval_seconds",
+        default=None,
+        type=int,
+        help="Seconds between poll cycles (default: 30, min: 10).",
+    )
+    parser.add_argument(
+        "--max-cycles",
+        dest="max_cycles",
+        default=None,
+        type=int,
+        help="Maximum number of poll cycles (default: 120).",
+    )
+    parser.add_argument(
+        "--auto-merge",
+        dest="auto_merge",
+        default=None,
+        type=_parse_bool_interactive,
+        help="Auto-merge when gates are green (default: false). Pass 'true' or 'false'.",
+    )
+    args = parser.parse_args(
+        _effective_argv(
+            _argv,
+            pull_request_id,
+            strategy,
+            delete_branch,
+            poll_interval_seconds,
+            max_cycles,
+            auto_merge,
+        )
+    )
+
+    # CLI values override programmatic values
+    if pull_request_id is None:
+        pull_request_id = args.pull_request_id
+    if strategy is None:
+        strategy = args.strategy
+    if delete_branch is None and args.delete_branch is not None:
+        delete_branch = args.delete_branch == "true"
+    if poll_interval_seconds is None:
+        poll_interval_seconds = args.poll_interval_seconds
+    if max_cycles is None:
+        max_cycles = args.max_cycles
+    if auto_merge is None and args.auto_merge is not None:
+        auto_merge = args.auto_merge == "true"
+
+    # Validate required parameter
+    if not pull_request_id:
+        print("ERROR: --pull-request-id is required.", file=sys.stderr)
+        sys.exit(1)
+
+    # Apply defaults
+    if strategy is None:
+        strategy = "squash"
+    if delete_branch is None:
+        delete_branch = True
+    if poll_interval_seconds is None:
+        poll_interval_seconds = 30
+    if max_cycles is None:
+        max_cycles = 120
+    if auto_merge is None:
+        auto_merge = False
+
+    # Validate constraints
+    if poll_interval_seconds < 10:
+        print("ERROR: --poll-interval-seconds must be at least 10.", file=sys.stderr)
+        sys.exit(1)
+
+    # Persist values in state
+    set_value("pull_request_id", str(pull_request_id))
+    set_value("merge.strategy", strategy)
+    set_value("merge.delete_branch", delete_branch)
+    set_value("merge.poll_interval_seconds", poll_interval_seconds)
+    set_value("merge.max_cycles", max_cycles)
+    set_value("merge.auto_merge", auto_merge)
+
+    initiate_workflow(
+        workflow_name="pr-merge-orchestrator",
+        required_state_keys=["pull_request_id"],
+        optional_state_keys=[
+            "merge.strategy",
+            "merge.delete_branch",
+            "merge.poll_interval_seconds",
+            "merge.max_cycles",
+            "merge.auto_merge",
+        ],
+        context={
+            "pull_request_id": str(pull_request_id),
+            "strategy": strategy,
+            "delete_branch": delete_branch,
+            "poll_interval_seconds": poll_interval_seconds,
+            "max_cycles": max_cycles,
+            "auto_merge": auto_merge,
+            "cycle_count": 0,
+            "last_processed_head_sha": None,
+            "last_processed_review_id": None,
+            "last_action": None,
+        },
+    )

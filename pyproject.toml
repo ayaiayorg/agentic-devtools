@@ -136,6 +136,7 @@ agdt-initiate-update-jira-issue-workflow = "agentic_devtools.cli.runner:run_as_s
 agdt-initiate-optimize-issue-for-ai-agent-workflow = "agentic_devtools.cli.runner:run_as_script"
 agdt-initiate-break-down-issue-into-subtasks-workflow = "agentic_devtools.cli.runner:run_as_script"
 agdt-initiate-apply-pr-suggestions-workflow = "agentic_devtools.cli.runner:run_as_script"
+agdt-initiate-pr-merge-orchestrator-workflow = "agentic_devtools.cli.runner:run_as_script"
 agdt-vpn-on = "agentic_devtools.cli.runner:run_as_script"
 agdt-vpn-off = "agentic_devtools.cli.runner:run_as_script"
 agdt-vpn-status = "agentic_devtools.cli.runner:run_as_script"
