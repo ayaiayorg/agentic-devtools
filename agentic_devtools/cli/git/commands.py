@@ -33,7 +33,7 @@ def _get_issue_key_from_state() -> str | None:
 
     Resolution priority:
     1. Top-level ``issue_key`` (provider-agnostic).
-    2. ``jira.issue_key`` (backward-compatible alias).
+    2. ``jira.issue_key`` (legacy Jira-specific key).
     3. ``jira_issue_key`` from the active workflow context.
     """
     # Check top-level issue_key first (provider-agnostic).
