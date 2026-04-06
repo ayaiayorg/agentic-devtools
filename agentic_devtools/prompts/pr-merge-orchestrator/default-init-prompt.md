@@ -25,6 +25,7 @@ With `BLOCKED` as a terminal failure state.
 ### 1. Poll PR State
 
 Check the current PR state including:
+
 - Open/closed/merged status
 - Latest head SHA
 - Mergeability
@@ -46,6 +47,7 @@ At each poll cycle, apply this precedence:
 
 Track `(head_sha, review_id)` pairs. Do not reprocess the same pair.
 Context keys:
+
 - `last_processed_head_sha`
 - `last_processed_review_id`
 - `cycle_count`
@@ -59,6 +61,7 @@ resuming merge evaluation.
 ### 5. Approve and Merge
 
 When all gates are green:
+
 1. Ensure PR is not a draft (publish if allowed)
 2. Approve the PR
 3. Merge using the configured strategy
@@ -67,6 +70,7 @@ When all gates are green:
 ### 6. Verification
 
 After merge:
+
 - Confirm PR state is merged
 - Capture merge commit SHA and timestamps
 - Emit machine-readable summary
