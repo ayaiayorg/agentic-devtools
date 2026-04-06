@@ -77,10 +77,16 @@ After merge:
 
 ## Next Step
 
-Begin by polling the PR state using GitHub CLI:
+Resolve the repository owner/repo from the current git remote:
 
 ```bash
-gh pr view {{pull_request_id}} --json state,mergedAt,locked,mergeable,mergeStateStatus,headRefOid
+git remote get-url origin
+```
+
+Then poll the PR state using GitHub CLI:
+
+```bash
+gh pr view {{pull_request_id}} --repo {OWNER}/{REPO} --json state,mergedAt,locked,mergeable,mergeStateStatus,headRefOid
 ```
 
 Then proceed based on the decision logic above.

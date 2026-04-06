@@ -3231,6 +3231,13 @@ Examples:
         auto_merge = False
 
     # Validate constraints
+    _VALID_STRATEGIES = {"squash", "merge", "rebase"}
+    if strategy not in _VALID_STRATEGIES:
+        print(
+            f"ERROR: --strategy must be one of {', '.join(sorted(_VALID_STRATEGIES))}; got '{strategy}'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if poll_interval_seconds < 10:
         print("ERROR: --poll-interval-seconds must be at least 10.", file=sys.stderr)
         sys.exit(1)
@@ -3265,7 +3272,7 @@ Examples:
             "merge.auto_merge",
         ],
         context={
-            "pull_request_id": str(pull_request_id),
+            "pull_request_id": _pr_id_norm,
             "strategy": strategy,
             "delete_branch": delete_branch,
             "poll_interval_seconds": poll_interval_seconds,
