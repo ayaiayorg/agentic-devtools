@@ -914,13 +914,10 @@ def set_context_value(
     if key == "issue_key":
         if isinstance(value, str):
             if not value.strip():
-                raise ValueError(
-                    "issue_key must be a non-empty string (after stripping whitespace)"
-                )
+                raise ValueError("issue_key must be a non-empty string (after stripping whitespace)")
         elif type(value) is not int:  # noqa: E721 – exclude bool and int subclasses
             raise ValueError(
-                f"issue_key must be a non-empty string or plain integer, "
-                f"got {type(value).__name__}: {value!r}"
+                f"issue_key must be a non-empty string or plain integer, got {type(value).__name__}: {value!r}"
             )
 
     # Normalize value for comparison (convert to string for consistency)
