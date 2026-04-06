@@ -177,6 +177,26 @@ class TestInitiatePrMergeOrchestratorWorkflow:
         with pytest.raises(SystemExit):
             commands.initiate_pr_merge_orchestrator_workflow(_argv=["--pull-request-id", "1", "--strategy", "invalid"])
 
+    def test_invalid_strategy_rejected_programmatic(self, temp_state_dir, clear_state_before, capsys):
+        """Test that an invalid strategy is rejected when passed programmatically."""
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_pr_merge_orchestrator_workflow(
+                pull_request_id="1",
+                strategy="fast-forward",
+            )
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "fast-forward" in captured.err
+
+    def test_context_uses_normalized_pr_id(self, temp_state_dir, clear_state_before, mock_workflow_init):
+        """Test that the context uses the normalized (stripped) pull_request_id."""
+        commands.initiate_pr_merge_orchestrator_workflow(
+            pull_request_id="  99  ",
+        )
+
+        call_kwargs = mock_workflow_init.call_args[1]
+        assert call_kwargs["context"]["pull_request_id"] == "99"
+
     def test_skip_bootstrap_init_passed(self, temp_state_dir, clear_state_before, mock_workflow_init):
         """Test that skip_bootstrap_init=True is passed to initiate_workflow."""
         commands.initiate_pr_merge_orchestrator_workflow(_argv=["--pull-request-id", "1"])
