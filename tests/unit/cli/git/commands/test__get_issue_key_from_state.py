@@ -59,3 +59,35 @@ class TestGetIssueKeyFromState:
         state.set_value("issue_key", "42")
         result = commands._get_issue_key_from_state()
         assert result == "42"
+
+    def test_int_issue_key(self, temp_state_dir, clear_state_before):
+        """Test int issue_key is stringified (agdt-set JSON-parses to int)."""
+        state.set_value("issue_key", 42)
+        result = commands._get_issue_key_from_state()
+        assert result == "42"
+
+    def test_bool_issue_key_ignored(self, temp_state_dir, clear_state_before):
+        """Test bool issue_key is ignored (falls through to jira.issue_key)."""
+        state.set_value("issue_key", True)
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        result = commands._get_issue_key_from_state()
+        assert result == "PROJECT-1234"
+
+    def test_dict_issue_key_ignored(self, temp_state_dir, clear_state_before):
+        """Test dict issue_key is ignored (falls through)."""
+        state.set_value("issue_key", {"bad": "value"})
+        result = commands._get_issue_key_from_state()
+        assert result is None
+
+    def test_list_issue_key_ignored(self, temp_state_dir, clear_state_before):
+        """Test list issue_key is ignored (falls through)."""
+        state.set_value("issue_key", [1, 2, 3])
+        result = commands._get_issue_key_from_state()
+        assert result is None
+
+    def test_empty_issue_key_falls_through(self, temp_state_dir, clear_state_before):
+        """Test empty string issue_key falls through to jira.issue_key."""
+        state.set_value("issue_key", "")
+        state.set_value("jira.issue_key", "PROJECT-999")
+        result = commands._get_issue_key_from_state()
+        assert result == "PROJECT-999"

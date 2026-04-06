@@ -356,6 +356,7 @@ All core functions that resolve an issue key check `issue_key` first, then fall 
 1. `issue_key` (top-level, provider-agnostic)
 2. `jira.issue_key` (backward-compatible alias)
 3. Workflow context `jira_issue_key` (for active workflows)
+4. `pull_request_id` (fallback used by `resolve_worktree_key` when no issue key is set)
 
 ### Jira Namespace
 

@@ -236,9 +236,14 @@ def resolve_worktree_key(explicit_key: str | None = None) -> str:
         if stripped:
             return stripped
 
+    # Accept str (non-empty after strip) and plain int (excluding bool,
+    # which is a subclass of int); ignore dict/list/bool so resolution
+    # falls through to jira.issue_key / pull_request_id.
     issue_key = get_value("issue_key")
-    if issue_key is not None and str(issue_key).strip():
-        return str(issue_key).strip()
+    if type(issue_key) is int:  # noqa: E721 – exclude bool
+        return str(issue_key)
+    if isinstance(issue_key, str) and issue_key.strip():
+        return issue_key.strip()
 
     jira_key = get_value("jira.issue_key")
     if jira_key is not None and str(jira_key).strip():

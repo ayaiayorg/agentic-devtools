@@ -36,9 +36,14 @@ def _get_issue_key_from_state() -> str | None:
     2. ``jira.issue_key`` (backward-compatible alias).
     3. ``jira_issue_key`` from the active workflow context.
     """
-    # Check top-level issue_key first (provider-agnostic)
+    # Check top-level issue_key first (provider-agnostic).
+    # Accept str (non-empty after strip) and plain int (excluding bool,
+    # which is a subclass of int); ignore dict/list/bool so resolution
+    # falls through to jira.issue_key / workflow context.
     issue_key = get_value("issue_key")
-    if issue_key:
+    if type(issue_key) is int:  # noqa: E721 – exclude bool
+        return str(issue_key)
+    if isinstance(issue_key, str) and issue_key.strip():
         return str(issue_key)
 
     # Fall back to jira.issue_key
