@@ -906,13 +906,9 @@ def set_context_value(
     # no resolvable worktree key.
     if key == "issue_key":
         if isinstance(value, bool) or (not isinstance(value, (str, int))):
-            raise ValueError(
-                f"issue_key must be a non-empty string or integer, got {type(value).__name__}: {value!r}"
-            )
+            raise ValueError(f"issue_key must be a non-empty string or integer, got {type(value).__name__}: {value!r}")
         if isinstance(value, str) and not value.strip():
-            raise ValueError(
-                "issue_key must be a non-empty string (after stripping whitespace)"
-            )
+            raise ValueError("issue_key must be a non-empty string (after stripping whitespace)")
 
     # Normalize value for comparison (convert to string for consistency)
     normalized_value = str(value) if value is not None else None
