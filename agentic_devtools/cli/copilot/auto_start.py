@@ -494,3 +494,145 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
 
     _cleanup_pending_auto_start_marker(worktree_path)
     sys.exit(0)
+
+
+def retry_autostart_cmd(argv: list[str] | None = None) -> None:
+    """Entry point for the ``agdt-retry-autostart`` CLI command.
+
+    Reads the ``pending-auto-start.json`` marker file from the target
+    worktree's ``.vscode/`` directory and re-invokes
+    :func:`copilot_auto_start_cmd` with the stored parameters, providing
+    a simple single-command retry path when the primary autostart
+    mechanisms fail.
+
+    Steps
+    -----
+    1. Parse ``--worktree-path`` (default: CWD) and ``--force``.
+    2. Read and validate ``<worktree_path>/.vscode/pending-auto-start.json``.
+    3. Unless ``--force``, check the marker's ``run_id`` against the
+       current ``agdt_run_id`` in state; exit 1 on mismatch.
+    4. Call ``_unmark_run_triggered`` to clear the deduplication guard.
+    5. Delegate to ``copilot_auto_start_cmd`` with the stored parameters.
+    """
+    from agentic_devtools.cli.workflows.worktree_setup import (
+        _PENDING_AUTO_START_FILENAME,
+        _resolve_state_context_in_worktree,
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="agdt-retry-autostart",
+        description="Retry a failed Copilot autostart using the pending marker file.",
+    )
+    parser.add_argument(
+        "--worktree-path",
+        default=None,
+        help="Path to the worktree directory (default: current working directory).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip stale-marker check and proceed with retry regardless.",
+    )
+
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+
+    worktree_path: str = args.worktree_path if args.worktree_path else os.getcwd()
+    force: bool = args.force
+
+    # --- Read the marker file ------------------------------------------------
+    marker_path = os.path.join(worktree_path, ".vscode", _PENDING_AUTO_START_FILENAME)
+
+    if not os.path.isfile(marker_path):
+        print(
+            f"agdt-retry-autostart: error: no pending auto-start marker found at {marker_path}. No autostart to retry.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    try:
+        with open(marker_path, encoding="utf-8") as fh:
+            marker = json.load(fh)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(
+            f"agdt-retry-autostart: error: could not parse pending auto-start marker at {marker_path}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except OSError as exc:
+        print(
+            f"agdt-retry-autostart: error: could not read pending auto-start marker at {marker_path}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if not isinstance(marker, dict):
+        print(
+            f"agdt-retry-autostart: error: pending auto-start marker at {marker_path} "
+            f"has invalid format (expected JSON object).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # --- Validate required fields -------------------------------------------
+    for field in ("run_id", "start_prompt"):
+        value = marker.get(field)
+        if not isinstance(value, str) or not value.strip():
+            print(
+                f"agdt-retry-autostart: error: pending auto-start marker at "
+                f"{marker_path} is missing required field '{field}'.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # --- Validate worktree_path from marker ----------------------------------
+    marker_wt = marker.get("worktree_path", "")
+    effective_wt = args.worktree_path if args.worktree_path else marker_wt
+    if not isinstance(effective_wt, str) or not effective_wt or not os.path.isdir(effective_wt):
+        print(
+            f"agdt-retry-autostart: error: worktree path does not exist or is not a directory: {effective_wt!r}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    run_id: str = marker["run_id"]
+
+    # --- Stale-marker check (unless --force) ---------------------------------
+    state_file_path: Path | None = None
+    if not force:
+        state_file_path, state_run_id = _resolve_state_context_in_worktree(effective_wt, include_run_id=True)
+        if state_file_path is None:
+            # State unreadable — warn but proceed (lenient approach per spec).
+            print(
+                "agdt-retry-autostart: warning: could not read state in worktree; skipping stale-marker check.",
+                file=sys.stderr,
+            )
+        elif state_run_id and state_run_id != run_id:
+            print(
+                f"agdt-retry-autostart: error: marker run_id ({run_id}) does not "
+                f"match current state run_id ({state_run_id}). Use --force to retry "
+                f"anyway.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # --- Resolve state file for _unmark_run_triggered ------------------------
+    if state_file_path is None:
+        state_file_path, _ = _resolve_state_context_in_worktree(effective_wt)
+    if state_file_path is not None:
+        _unmark_run_triggered(state_file_path, run_id)
+
+    # --- Delegate to copilot_auto_start_cmd ----------------------------------
+    constructed_argv: list[str] = [
+        "--worktree-path",
+        effective_wt,
+        "--start-prompt",
+        marker["start_prompt"],
+        "--run-id",
+        run_id,
+    ]
+
+    model = marker.get("model")
+    if isinstance(model, str) and model.strip():
+        constructed_argv.extend(["--model", model])
+
+    copilot_auto_start_cmd(argv=constructed_argv)
