@@ -118,6 +118,21 @@ _WORKFLOW_START_PROMPTS: dict[str, str] = {
     "update-jira-issue": COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
 }
 
+# Mapping from workflow name → prompt filename used by
+# ``_start_copilot_session_for_workflow()`` to locate the rendered prompt
+# file.  Extracted from the workflow-specific wrapper functions so that
+# ``setup_worktree_in_background_sync()`` can call the generic session
+# starter without importing the wrappers.
+_WORKFLOW_PROMPT_FILENAMES: dict[str, str] = {
+    "pull-request-review": "temp-pull-request-review-initiate-prompt.md",
+    "apply-pull-request-review-suggestions": "temp-apply-pull-request-review-suggestions-initiate-prompt.md",
+    "work-on-jira-issue": "temp-work-on-jira-issue-planning-prompt.md",
+    "create-jira-issue": "temp-create-jira-issue-initiate-prompt.md",
+    "create-jira-epic": "temp-create-jira-epic-initiate-prompt.md",
+    "create-jira-subtask": "temp-create-jira-subtask-initiate-prompt.md",
+    "update-jira-issue": "temp-update-jira-issue-initiate-prompt.md",
+}
+
 
 def _in_test_environment() -> bool:
     """Check if running inside a pytest session.
@@ -2970,6 +2985,21 @@ def setup_worktree_in_background_sync(
         vscode_opened = open_vscode_workspace(existing_path)
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
 
+        # Start Copilot session as a secondary fallback.  The primary
+        # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
+        # this call provides the 15-second wait + terminal sendSequence +
+        # background session fallback chain.
+        prompt_filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
+        if prompt_filename:
+            _start_copilot_session_for_workflow(
+                worktree_path=existing_path,
+                prompt_file_relative_path=_prompt_file_relative_path(existing_path, prompt_filename),
+                start_prompt=wf_prompt,
+                workflow_name=workflow_name,
+                interactive=interactive,
+                model=model,
+            )
+
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
         print("\n" + "=" * 80)
@@ -3019,6 +3049,21 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
+
+        # Start Copilot session as a secondary fallback.  The primary
+        # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
+        # this call provides the 15-second wait + terminal sendSequence +
+        # background session fallback chain.
+        prompt_filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
+        if prompt_filename:
+            _start_copilot_session_for_workflow(
+                worktree_path=result.worktree_path,
+                prompt_file_relative_path=_prompt_file_relative_path(result.worktree_path, prompt_filename),
+                start_prompt=wf_prompt,
+                workflow_name=workflow_name,
+                interactive=interactive,
+                model=model,
+            )
 
         print("\n✅ Environment setup complete!")
         print(f"   Worktree: {result.worktree_path}")
