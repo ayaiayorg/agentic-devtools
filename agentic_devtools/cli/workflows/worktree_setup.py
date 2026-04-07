@@ -1632,6 +1632,50 @@ def inject_auto_start_task(
         )
         return False
 
+    # --- Resolve absolute path to agdt-copilot-auto-start --------------------
+    # Process-type tasks resolve the command from the system PATH, not from
+    # terminal.integrated.env.*.PATH. To ensure the task works when the
+    # Scripts directory is not on the system PATH (e.g., virtualenv or
+    # user-site installs), resolve the absolute path at injection time.
+    auto_start_exe = "agdt-copilot-auto-start"
+    scripts_dir = _detect_python_scripts_dir()
+    if scripts_dir is not None:
+        if sys.platform == "win32":
+            candidate = os.path.join(scripts_dir, auto_start_exe + ".exe")
+            if os.path.isfile(candidate):
+                auto_start_exe = candidate
+            else:
+                print(
+                    "Warning: agdt-copilot-auto-start not found at "
+                    f"{candidate!r}; using bare command name fallback "
+                    "(may fail if not on system PATH)",
+                    file=sys.stderr,
+                )
+        else:
+            candidate = os.path.join(scripts_dir, auto_start_exe)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                auto_start_exe = candidate
+            elif os.path.isfile(candidate):
+                print(
+                    "Warning: detected agdt-copilot-auto-start at absolute path "
+                    f"{candidate!r}, but it is not executable; using bare command "
+                    "name fallback instead",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "Warning: agdt-copilot-auto-start not found at "
+                    f"{candidate!r}; using bare command name fallback "
+                    "(may fail if not on system PATH)",
+                    file=sys.stderr,
+                )
+    else:
+        print(
+            "Warning: could not detect agdt-copilot-auto-start absolute path; "
+            "using bare command name (may fail if not on system PATH)",
+            file=sys.stderr,
+        )
+
     command_args = [
         "--worktree-path",
         worktree_path,
@@ -1659,7 +1703,7 @@ def inject_auto_start_task(
     task_def = {
         "label": task_label,
         "type": "process",
-        "command": "agdt-copilot-auto-start",
+        "command": auto_start_exe,
         "args": command_args,
         "runOptions": {"runOn": "folderOpen"},
         "presentation": {

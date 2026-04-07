@@ -2,8 +2,11 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from agentic_devtools.cli.workflows.worktree_setup import inject_auto_start_task as _inject_auto_start_task
 
@@ -193,8 +196,9 @@ class TestInjectAutoStartTask:
         assert task["presentation"]["reveal"] == "always"
         assert task["presentation"]["focus"] is True
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_python_scripts_dir", return_value=None)
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
-    def test_command_contains_agdt_copilot_auto_start(self, mock_available, tmp_path):
+    def test_command_contains_agdt_copilot_auto_start(self, mock_available, mock_detect, tmp_path):
         """The injected task command invokes agdt-copilot-auto-start."""
         inject_auto_start_task(str(tmp_path), "test prompt")
 
@@ -702,3 +706,95 @@ class TestInjectAutoStartTask:
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         task_args = data["tasks"][0]["args"]
         assert "--model" not in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_uses_absolute_path_when_scripts_dir_detected(self, mock_available, tmp_path):
+        """Uses the absolute path to agdt-copilot-auto-start when _detect_python_scripts_dir succeeds."""
+        scripts_dir = tmp_path / "scripts_bin"
+        scripts_dir.mkdir()
+        exe_name = "agdt-copilot-auto-start.exe" if sys.platform == "win32" else "agdt-copilot-auto-start"
+        exe_path = scripts_dir / exe_name
+        exe_path.write_text("", encoding="utf-8")
+        if sys.platform != "win32":
+            exe_path.chmod(0o755)
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._detect_python_scripts_dir",
+            return_value=str(scripts_dir),
+        ):
+            inject_auto_start_task(str(worktree), "test prompt")
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert task["command"] == str(exe_path)
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._detect_python_scripts_dir", return_value=None)
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_falls_back_to_bare_name_when_scripts_dir_is_none(
+        self, mock_available, mock_detect, tmp_path, capsys
+    ):
+        """Falls back to bare command name and prints warning when _detect_python_scripts_dir returns None."""
+        inject_auto_start_task(str(tmp_path), "test prompt")
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert task["command"] == "agdt-copilot-auto-start"
+
+        captured = capsys.readouterr()
+        assert "could not detect agdt-copilot-auto-start absolute path" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_falls_back_to_bare_name_when_exe_not_in_scripts_dir(self, mock_available, tmp_path, capsys):
+        """Falls back to bare command name and warns when Scripts dir exists but the exe is not in it."""
+        scripts_dir = tmp_path / "scripts_bin"
+        scripts_dir.mkdir()
+        # Do NOT create the executable file in scripts_dir
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._detect_python_scripts_dir",
+            return_value=str(scripts_dir),
+        ):
+            inject_auto_start_task(str(worktree), "test prompt")
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert task["command"] == "agdt-copilot-auto-start"
+
+        captured = capsys.readouterr()
+        assert "agdt-copilot-auto-start not found at" in captured.err
+        assert "using bare command name fallback" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_command_falls_back_when_exe_exists_but_not_executable_on_posix(self, mock_available, tmp_path, capsys):
+        """On POSIX, falls back to bare name and warns when exe exists but lacks executable bit."""
+        if sys.platform == "win32":
+            pytest.skip("POSIX-only test: executable bit check not applicable on Windows")
+
+        scripts_dir = tmp_path / "scripts_bin"
+        scripts_dir.mkdir()
+        exe_path = scripts_dir / "agdt-copilot-auto-start"
+        exe_path.write_text("", encoding="utf-8")
+        exe_path.chmod(0o644)  # readable but NOT executable
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup._detect_python_scripts_dir",
+            return_value=str(scripts_dir),
+        ):
+            inject_auto_start_task(str(worktree), "test prompt")
+
+        data = json.loads((worktree / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        task = data["tasks"][0]
+        assert task["command"] == "agdt-copilot-auto-start"
+
+        captured = capsys.readouterr()
+        assert "not executable" in captured.err
+        assert "using bare command name fallback instead" in captured.err
