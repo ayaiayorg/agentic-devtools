@@ -15,9 +15,7 @@ def _make_mock_process(stdout_lines=None, returncode=0):
     """Create a mock Popen process with iterable stdout."""
     mock_process = MagicMock()
     mock_stdout = MagicMock()
-    mock_stdout.__iter__ = MagicMock(
-        return_value=iter(stdout_lines) if stdout_lines else iter([])
-    )
+    mock_stdout.__iter__ = MagicMock(return_value=iter(stdout_lines) if stdout_lines else iter([]))
     mock_process.stdout = mock_stdout
     mock_process.wait.return_value = None
     mock_process.returncode = returncode
