@@ -214,6 +214,12 @@ def initiate_pull_request_review_workflow(
         issue_key: Jira issue key to find the PR by branch name.
         interactive: Whether to start the Copilot session interactively (default: False).
             Set to True for interactive mode.
+        skip_copilot_session: When True, PR review setup runs **synchronously**
+            (blocking) and no Copilot session is started.  This is intended for
+            nested auto-execute invocations inside a background task where the
+            parent process needs all review data available before continuing.
+            When False/None (the default), setup runs asynchronously and a
+            Copilot session is spawned afterward.
         _argv: Command line arguments (for testing). Pass [] in tests to avoid
             parsing sys.argv.  When any programmatic parameter is set and
             ``_argv`` is ``None``, an empty argv is used automatically.
@@ -268,7 +274,11 @@ Examples:
         dest="skip_copilot_session",
         action="store_true",
         default=False,
-        help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
+        help=(
+            "Skip starting a Copilot session and run PR review setup synchronously "
+            "(blocks until complete). Used by auto-execute to avoid duplicate sessions "
+            "when running inside a background task."
+        ),
     )
     args = parser.parse_args(
         _effective_argv(_argv, pull_request_id, issue_key, interactive, model, skip_copilot_session)
@@ -471,22 +481,28 @@ Examples:
             # Setup failed - exit with error
             sys.exit(1)  # pragma: no cover
 
-    # Start background task to set up the PR review workflow
-    # This fetches PR details, checks out the branch, generates prompts/queue,
-    # and initializes the workflow state.
-    from ..azure_devops.async_commands import setup_pull_request_review_async
-
     print(f"\nInitiating pull request review for PR #{resolved_pr_id}...")
-    setup_pull_request_review_async(
-        pull_request_id=int(resolved_pr_id),
-        jira_issue_key=resolved_issue_key,
-    )
 
-    # Start a Copilot CLI session after the background setup completes.
-    # _start_copilot_session_for_pr_review waits for the prompt file written
-    # by the background task before launching the session, bridging the async
-    # setup and the interactive session.
-    if not skip_copilot_session:
+    if skip_copilot_session:
+        # When --skip-copilot-session is set, this is a nested auto-execute
+        # invocation running inside a background task. Run setup synchronously
+        # so all review data (prompts, queue, workflow state) is fully written
+        # before this subprocess exits. The parent process
+        # (setup_worktree_in_background_sync) depends on this data being
+        # available when it proceeds to inject the auto-start task.
+        from ..azure_devops.review_commands import setup_pull_request_review
+
+        setup_pull_request_review()
+    else:
+        # Normal interactive path: spawn setup in background and start
+        # a Copilot session that waits for the prompt file.
+        from ..azure_devops.async_commands import setup_pull_request_review_async
+
+        setup_pull_request_review_async(
+            pull_request_id=int(resolved_pr_id),
+            jira_issue_key=resolved_issue_key,
+        )
+
         from .worktree_setup import _start_copilot_session_for_pr_review
 
         # Use the git repo/worktree root (not cwd) so the prompt file is found
