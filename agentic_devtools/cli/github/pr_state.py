@@ -84,9 +84,12 @@ def _fetch_pr_with_retry(
 
         if result.returncode != 0:
             stderr_text = (result.stderr or "").strip()
-            # Handle unknown field "locked" by retrying without it
-            if "locked" in fields and (
-                "unknown field" in stderr_text.lower() or "invalid field" in stderr_text.lower()
+            # Handle unknown/invalid field error specifically for "locked"
+            stderr_lower = stderr_text.lower()
+            if (
+                "locked" in fields
+                and "locked" in stderr_lower
+                and ("unknown field" in stderr_lower or "invalid field" in stderr_lower)
             ):
                 fields = list(_GH_PR_JSON_FIELDS_NO_LOCKED)
                 # Don't count this as a retry — redo immediately with new fields
@@ -133,8 +136,8 @@ def _fetch_pr_with_retry(
         return data
 
     # Should not reach here, but guard defensively
-    print(f"Error: Exhausted retries for PR #{pr_number}", file=sys.stderr)
-    sys.exit(1)
+    print(f"Error: Exhausted retries for PR #{pr_number}", file=sys.stderr)  # pragma: no cover
+    sys.exit(1)  # pragma: no cover
 
 
 def get_pr_state(pr_number: int, repo: str) -> dict:

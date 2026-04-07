@@ -167,7 +167,10 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 |---------|---------|---------------------------|
 | `agdt-gh-pr-state` | Fetch structured GitHub PR state | `--pr` (int) and optionally `--repo` (owner/repo); falls back to `github.pull_request_number` and `github.repo` state keys or git remote auto-detection |
 
-**State keys written by `agdt-gh-pr-state`:** `github.pull_request_number`, `github.repo`, `github.pr_state`, `github.head_ref_oid`, `github.head_ref_oid_short`, `github.mergeable`, `github.merge_state_status`, `github.is_draft`, `github.is_terminal`
+**State keys written by `agdt-gh-pr-state`:**
+`github.pull_request_number`, `github.repo`, `github.pr_state`,
+`github.head_ref_oid`, `github.head_ref_oid_short`, `github.mergeable`,
+`github.merge_state_status`, `github.is_draft`, `github.is_terminal`
 
 **Usage:**
 
