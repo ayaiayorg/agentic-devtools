@@ -79,3 +79,55 @@ class TestClearStateForWorkflowInitiation:
 
         captured = capsys.readouterr()
         assert "Reset workflow tracking state" in captured.out
+
+    def test_preserve_run_id_true_keeps_agdt_run_id(self, temp_state_dir, capsys):
+        """preserve_run_id=True should preserve agdt_run_id while deleting workflow."""
+        state.set_value("workflow", {"name": "test"})
+        state.set_value("agdt_run_id", "pre-generated-id")
+
+        clear_state_for_workflow_initiation(preserve_run_id=True)
+
+        assert state.get_value("workflow") is None
+        assert state.get_value("agdt_run_id") == "pre-generated-id"
+
+    def test_preserve_run_id_false_deletes_both(self, temp_state_dir, capsys):
+        """preserve_run_id=False (default) should delete both keys — backward compat."""
+        state.set_value("workflow", {"name": "test"})
+        state.set_value("agdt_run_id", "abc123")
+
+        clear_state_for_workflow_initiation(preserve_run_id=False)
+
+        assert state.get_value("workflow") is None
+        assert state.get_value("agdt_run_id") is None
+
+    def test_preserve_run_id_true_no_run_id_in_state(self, temp_state_dir, capsys):
+        """preserve_run_id=True with no agdt_run_id in state should not fail."""
+        state.set_value("workflow", {"name": "test"})
+
+        clear_state_for_workflow_initiation(preserve_run_id=True)
+
+        assert state.get_value("workflow") is None
+        assert state.get_value("agdt_run_id") is None
+
+    def test_preserve_run_id_true_preserves_other_keys(self, temp_state_dir, capsys):
+        """preserve_run_id=True should preserve agdt_run_id and all other non-workflow keys."""
+        state.set_value("workflow", {"name": "test"})
+        state.set_value("agdt_run_id", "pre-generated-id")
+        state.set_value("pull_request_id", 12345)
+        state.set_value("other_key", "should_survive")
+
+        clear_state_for_workflow_initiation(preserve_run_id=True)
+
+        assert state.get_value("workflow") is None
+        assert state.get_value("agdt_run_id") == "pre-generated-id"
+        assert state.get_value("pull_request_id") == 12345
+        assert state.get_value("other_key") == "should_survive"
+
+    def test_preserve_run_id_true_single_save_cycle(self, temp_state_dir, capsys):
+        """preserve_run_id=True should perform at most one save_state call."""
+        state.set_value("workflow", {"name": "test"})
+
+        with patch("agentic_devtools.cli.workflows.base.save_state", wraps=state.save_state) as mock_save:
+            clear_state_for_workflow_initiation(preserve_run_id=True)
+
+        assert mock_save.call_count <= 1
