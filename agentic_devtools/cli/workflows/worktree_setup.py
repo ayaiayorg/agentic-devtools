@@ -2145,27 +2145,59 @@ def _run_auto_execute_command(
         print(f"WARNING: Failed to create state directory {state_dir!s}: {e}")
     env["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
 
+    import threading
+
+    timed_out = False
+
+    def _kill_on_timeout():
+        nonlocal timed_out
+        if process.poll() is None:
+            timed_out = True
+            try:
+                process.kill()
+            except (ProcessLookupError, OSError):
+                # The process may exit between poll() and kill(); treat that as a
+                # successful timeout enforcement so the caller still returns -1.
+                pass
+
     try:
-        exec_result = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=worktree_path,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=timeout,
+            bufsize=1,
             shell=False,  # Security: no shell expansion
             env=env,
         )
-        if exec_result.stdout:
-            print(exec_result.stdout)
-        if exec_result.returncode != 0:
-            print(f"WARNING: Command exited with code {exec_result.returncode}")
-            if exec_result.stderr:
-                print(exec_result.stderr)
-        return exec_result.returncode
-    except subprocess.TimeoutExpired:
-        print(f"WARNING: Command timed out after {timeout} seconds")
-        return -1
+
+        timer = threading.Timer(timeout, _kill_on_timeout)
+        timer.start()
+        try:
+            if process.stdout:
+                for line in process.stdout:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+            process.wait()
+        finally:
+            try:
+                if process.stdout:
+                    process.stdout.close()
+            finally:
+                timer.cancel()
+
+        if timed_out:
+            print(f"WARNING: Command timed out after {timeout} seconds")
+            return -1
+
+        if process.returncode != 0:
+            print(f"WARNING: Command exited with code {process.returncode}")
+
+        return process.returncode
+
     except (FileNotFoundError, OSError) as e:
         print(f"WARNING: Command failed to execute: {e}")
         return -1
