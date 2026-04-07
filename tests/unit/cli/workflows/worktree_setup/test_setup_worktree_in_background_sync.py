@@ -46,6 +46,7 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
@@ -54,6 +55,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists,
         mock_inject_git,
         mock_inject_python,
+        mock_inject_task,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -74,6 +76,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists.assert_called_once_with("PROJECT-1234")
         mock_inject_git.assert_called_once_with("/repos/PROJECT-1234")
         mock_inject_python.assert_called_once_with("/repos/PROJECT-1234")
+        mock_inject_task.assert_called_once_with("/repos/PROJECT-1234")
         mock_open_vscode.assert_called_once_with("/repos/PROJECT-1234")
         captured = capsys.readouterr()
         assert "Worktree already exists" in captured.out
@@ -220,10 +223,16 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_auto_execute_command_runs_for_existing_worktree(
         self,
         mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -419,10 +428,16 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_copilot_session_not_started_for_existing_pr_review_worktree_with_auto_execute(
         self,
         mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -489,10 +504,16 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_copilot_session_not_started_when_auto_execute_fails_existing_worktree(
         self,
         mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -521,10 +542,16 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     def test_auto_execute_runs_before_vscode_opens_existing_worktree(
         self,
         mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
         mock_continuation_prompt,
         mock_ai_prompt,
         mock_run_cmd,
