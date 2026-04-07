@@ -333,6 +333,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.copilot.auto_start",
         "copilot_auto_start_cmd",
     ),
+    "agdt-retry-autostart": (
+        "agentic_devtools.cli.copilot.auto_start",
+        "retry_autostart_cmd",
+    ),
     # Azure context management
     "agdt-azure-context-use": (
         "agentic_devtools.cli.azure_context.commands",
