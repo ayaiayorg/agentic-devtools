@@ -3196,6 +3196,7 @@ def start_worktree_setup_background(
     auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 60,
     interactive: bool = False,
+    model: str | None = None,
 ) -> str:
     """
     Start worktree setup as a background task.
@@ -3221,6 +3222,8 @@ def start_worktree_setup_background(
             (default: 60).
         interactive: Whether to start the Copilot session interactively after
             setup (default: False). Set to True for interactive mode.
+        model: The Copilot model ID to use. When provided (non-None, non-empty
+            after stripping), takes precedence over copilot.model_id in state.
 
     Returns:
         The background task ID for tracking progress
@@ -3248,12 +3251,16 @@ def start_worktree_setup_background(
         set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
     set_value("worktree_setup.interactive", "true" if interactive else "false")
 
-    # Capture the current model from parent state (correct context at this call site).
-    # Always clear any stale worktree_setup.model from a previous run before
-    # conditionally storing the current value.
-    copilot_model = get_value("copilot.model_id")
-    if isinstance(copilot_model, str) and copilot_model.strip():
-        set_value("worktree_setup.model", copilot_model.strip())
+    # Prefer explicit model parameter; fall back to state for backward compatibility.
+    effective_model: str | None = None
+    if isinstance(model, str) and model.strip():
+        effective_model = model.strip()
+    else:
+        copilot_model = get_value("copilot.model_id")
+        if isinstance(copilot_model, str) and copilot_model.strip():
+            effective_model = copilot_model.strip()
+    if effective_model is not None:
+        set_value("worktree_setup.model", effective_model)
     else:
         delete_value("worktree_setup.model")
 

@@ -22,12 +22,8 @@ def mock_workflow_init():
     """Mock initiate_workflow and bootstrap to avoid template loading and git I/O."""
     with (
         patch("agentic_devtools.cli.workflows.commands.initiate_workflow") as mock,
-        patch(
-            "agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"
-        ),
-        patch(
-            "agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"
-        ),
+        patch("agentic_devtools.cli.workflows.commands._ensure_bootstrap_identity_and_scope"),
+        patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"),
     ):
         mock.return_value = "rendered prompt"
         yield mock

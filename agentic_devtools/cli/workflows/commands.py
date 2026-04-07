@@ -478,6 +478,7 @@ Examples:
             additional_params={"pull_request_id": resolved_pr_id} if resolved_pr_id else None,
             auto_execute_command=auto_execute_command,
             interactive=interactive,
+            model=model,
         ):
             # Setup successful - Copilot session will start automatically
             print(_format_auto_setup_success_message("pull-request-review", worktree_identifier))
@@ -646,6 +647,7 @@ def initiate_work_on_jira_issue_workflow(
             "work-on-jira-issue",
             auto_execute_command=auto_execute_command,
             interactive=interactive,
+            model=model,
         ):
             # Setup successful - Copilot session will start automatically
             print(_format_auto_setup_success_message("work-on-jira-issue", issue_key))
@@ -1290,6 +1292,7 @@ def initiate_create_jira_issue_workflow(
                 user_request=resolved_user_request,
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
+                model=model,
             ):
                 print(_format_auto_setup_success_message("create-jira-issue", resolved_issue_key))
                 return
@@ -1515,6 +1518,7 @@ def initiate_create_jira_epic_workflow(
                 user_request=resolved_user_request,
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
+                model=model,
             ):
                 print(_format_auto_setup_success_message("create-jira-epic", resolved_issue_key))
                 return
@@ -1740,6 +1744,7 @@ def initiate_create_jira_subtask_workflow(
                 additional_params={"parent_key": resolved_parent_key},
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
+                model=model,
             ):
                 print(_format_auto_setup_success_message("create-jira-subtask", resolved_issue_key))
                 return
@@ -2067,6 +2072,7 @@ def initiate_update_jira_issue_workflow(
             user_request=resolved_user_request,
             auto_execute_command=auto_execute_command,
             interactive=interactive,
+            model=model,
         ):
             print(_format_auto_setup_success_message("update-jira-issue", resolved_issue_key))
             return
@@ -2306,6 +2312,7 @@ Examples:
                 additional_params={"pull_request_id": resolved_pr_id} if resolved_pr_id else None,
                 auto_execute_command=auto_execute_command,
                 interactive=interactive,
+                model=model,
             ):
                 print(_format_auto_setup_success_message("apply-pull-request-review-suggestions", resolved_issue_key))
                 return
@@ -2540,6 +2547,7 @@ def initiate_optimize_issue_for_ai_agent_workflow(
             user_request=resolved_user_request,
             auto_execute_command=auto_execute_command,
             interactive=interactive,
+            model=model,
         ):
             print(_format_auto_setup_success_message("optimize-issue-for-ai-agent", resolved_issue_key))
             return
@@ -2725,6 +2733,7 @@ def initiate_break_down_issue_into_subtasks_workflow(
             user_request=resolved_user_request,
             auto_execute_command=auto_execute_command,
             interactive=interactive,
+            model=model,
         ):
             print(_format_auto_setup_success_message("break-down-issue-into-subtasks", resolved_issue_key))
             return
