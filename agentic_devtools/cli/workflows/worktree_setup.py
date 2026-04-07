@@ -2706,6 +2706,7 @@ def _maybe_inject_auto_start_before_vscode(
     worktree_path: str,
     start_prompt: str = COPILOT_SESSION_START_PROMPT,
     model: str | None = None,
+    run_id: str | None = None,
 ) -> bool:
     """Inject a VS Code auto-start task before VS Code opens.
 
@@ -2726,6 +2727,15 @@ def _maybe_inject_auto_start_before_vscode(
     message to stdout so that log files capture why injection was skipped
     (the ``_in_test_environment()`` guard returns silently).
 
+    Args:
+        run_id: Optional pre-generated run ID.  When provided (non-empty
+            after stripping whitespace), the function uses it directly
+            instead of reading ``agdt_run_id`` from the target worktree's
+            state — this eliminates the race condition where the background
+            task that writes ``agdt_run_id`` hasn't completed yet.  When
+            ``None`` or empty/whitespace, the existing read-from-state
+            behaviour is preserved.
+
     Returns:
         ``True`` if the auto-start task was successfully written to
         ``tasks.json``, ``False`` otherwise.
@@ -2739,20 +2749,33 @@ def _maybe_inject_auto_start_before_vscode(
 
     from ..copilot import build_copilot_args
 
-    # Read the run ID from the TARGET worktree's state context,
-    # not the parent process's state.
-    state_file_path, run_id = _resolve_state_context_in_worktree(worktree_path, include_run_id=True)
+    # Determine the run ID: use the caller-provided value if it's a
+    # non-empty string after stripping whitespace; otherwise fall back to
+    # reading from the target worktree's state.
+    provided_run_id = run_id.strip() if isinstance(run_id, str) else ""
+    if provided_run_id:
+        # Caller pre-generated a run ID — skip the state read for run_id
+        # but still resolve state_file_path for the _is_run_triggered guard.
+        state_file_path, _ = _resolve_state_context_in_worktree(worktree_path, include_run_id=False)
+        if state_file_path is None:
+            print(f"Auto-start injection skipped: could not resolve state context in {worktree_path}.")
+            return False
+        run_id = provided_run_id
+    else:
+        # Read the run ID from the TARGET worktree's state context,
+        # not the parent process's state.
+        state_file_path, run_id = _resolve_state_context_in_worktree(worktree_path, include_run_id=True)
 
-    if state_file_path is None:
-        # _resolve_state_context_in_worktree failed (unreadable state).
-        print(f"Auto-start injection skipped: could not read agdt_run_id from state in {worktree_path}.")
-        return False
+        if state_file_path is None:
+            # _resolve_state_context_in_worktree failed (unreadable state).
+            print(f"Auto-start injection skipped: could not read agdt_run_id from state in {worktree_path}.")
+            return False
 
-    if not run_id:
-        # run_id is empty — the agdt_run_id value is missing or was
-        # whitespace-only in the target worktree's state.
-        print(f"Auto-start injection skipped: missing or empty agdt_run_id in {worktree_path}.")
-        return False
+        if not run_id:
+            # run_id is empty — the agdt_run_id value is missing or was
+            # whitespace-only in the target worktree's state.
+            print(f"Auto-start injection skipped: missing or empty agdt_run_id in {worktree_path}.")
+            return False
 
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
@@ -2815,7 +2838,15 @@ def setup_worktree_in_background_sync(
             ``_maybe_inject_auto_start_before_vscode()`` so the model is
             resolved from the caller's context rather than from state.
     """
+    import uuid
+
     from ...state import set_value
+
+    # Pre-generate a run ID for auto-start injection.  This eliminates
+    # the race condition where the background task spawned by the
+    # auto-execute command hasn't written ``agdt_run_id`` to state yet
+    # when ``_maybe_inject_auto_start_before_vscode()`` tries to read it.
+    pre_run_id = uuid.uuid4().hex[:12]
 
     print(f"\n{'=' * 80}")
     print("BACKGROUND WORKTREE SETUP")
@@ -2845,7 +2876,7 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt, model=model)
+        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt, model=model, run_id=pre_run_id)
 
         # Open VS Code
         print("Opening VS Code in the existing worktree (using the workspace file if available)...")
@@ -2892,7 +2923,12 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(result.worktree_path, start_prompt=wf_prompt, model=model)
+        _maybe_inject_auto_start_before_vscode(
+            result.worktree_path,
+            start_prompt=wf_prompt,
+            model=model,
+            run_id=pre_run_id,
+        )
 
         # Open VS Code after task injection
         result.vscode_opened = open_vscode_workspace(result.worktree_path)

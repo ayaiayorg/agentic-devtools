@@ -571,6 +571,15 @@ class TestSetupWorktreeInBackgroundSync:
             "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
         )
 
+        # Verify that a pre-generated run_id (12-char hex) is passed.
+        import re
+
+        _call_kwargs = mock_inject_auto_start.call_args[1]
+        assert "run_id" in _call_kwargs, "run_id must be passed as a keyword argument"
+        assert re.fullmatch(r"[0-9a-f]{12}", _call_kwargs["run_id"]), (
+            f"run_id must be a 12-character hex string, got {_call_kwargs['run_id']!r}"
+        )
+
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup._run_auto_execute_command")
@@ -630,6 +639,15 @@ class TestSetupWorktreeInBackgroundSync:
         )
         assert call_order.index("inject_auto_start") < call_order.index("open_vscode"), (
             "_maybe_inject_auto_start_before_vscode must be called before open_vscode_workspace"
+        )
+
+        # Verify that a pre-generated run_id (12-char hex) is passed.
+        import re
+
+        _call_kwargs = mock_inject_auto_start.call_args[1]
+        assert "run_id" in _call_kwargs, "run_id must be passed as a keyword argument"
+        assert re.fullmatch(r"[0-9a-f]{12}", _call_kwargs["run_id"]), (
+            f"run_id must be a 12-character hex string, got {_call_kwargs['run_id']!r}"
         )
 
     def test_auto_execute_timeout_default_is_60(self):
