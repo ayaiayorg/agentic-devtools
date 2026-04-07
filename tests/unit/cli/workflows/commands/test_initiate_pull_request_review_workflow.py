@@ -952,8 +952,20 @@ class TestMissingBootstrapStateShift:
 class TestSkipCopilotSession:
     """Tests for the --skip-copilot-session flag."""
 
-    def _run_with_preflight_passing(self, pr_id, source_branch, issue_key=None, argv=None, skip_copilot_session=False):
-        """Helper: run initiate_pull_request_review_workflow with preflight passing."""
+    def _run_with_preflight_passing(self, pr_id, source_branch, issue_key=None, argv=None, skip_copilot_session=None):
+        """Helper: run initiate_pull_request_review_workflow with preflight passing.
+
+        Args:
+            skip_copilot_session: Passed through to the workflow function.
+                Defaults to ``None`` so that callers omitting it exercise the
+                function's own default (``None``) rather than silently forcing
+                ``False``.
+
+        Returns a dict with mock references:
+            - "session": mock for _start_copilot_session_for_pr_review
+            - "async_setup": mock for setup_pull_request_review_async
+            - "sync_setup": mock for setup_pull_request_review
+        """
         from agentic_devtools.cli.workflows.preflight import PreflightResult
 
         argv = argv or []
@@ -977,28 +989,64 @@ class TestSkipCopilotSession:
                         "agentic_devtools.cli.workflows.commands.get_git_repo_root",
                         return_value="/fake/repo-root",
                     ):
-                        with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"
+                        ) as mock_async_setup:
                             with patch(
-                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
-                            ) as mock_session:
+                                "agentic_devtools.cli.azure_devops.review_commands.setup_pull_request_review"
+                            ) as mock_sync_setup:
                                 with patch(
-                                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
-                                    return_value="gpt-4o",
-                                ):
-                                    commands.initiate_pull_request_review_workflow(
-                                        _argv=argv,
-                                        skip_copilot_session=skip_copilot_session,
-                                    )
-                                    return mock_session
+                                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                                ) as mock_session:
+                                    with patch(
+                                        "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                        return_value="gpt-4o",
+                                    ):
+                                        kwargs = {"_argv": argv}
+                                        if skip_copilot_session is not None:
+                                            kwargs["skip_copilot_session"] = skip_copilot_session
+                                        commands.initiate_pull_request_review_workflow(**kwargs)
+                                        return {
+                                            "session": mock_session,
+                                            "async_setup": mock_async_setup,
+                                            "sync_setup": mock_sync_setup,
+                                        }
 
     def test_skip_copilot_session_prevents_session_launch(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
     ):
         """skip_copilot_session=True prevents _start_copilot_session_for_pr_review from being called."""
-        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", skip_copilot_session=True)
-        mock_session.assert_not_called()
+        mocks = self._run_with_preflight_passing("999", "feature/some-branch", skip_copilot_session=True)
+        mocks["session"].assert_not_called()
 
     def test_skip_copilot_session_cli_flag(self, temp_state_dir, clear_state_before, mock_workflow_state_clearing):
         """--skip-copilot-session CLI flag prevents session launch."""
-        mock_session = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--skip-copilot-session"])
-        mock_session.assert_not_called()
+        mocks = self._run_with_preflight_passing("999", "feature/some-branch", argv=["--skip-copilot-session"])
+        mocks["session"].assert_not_called()
+
+    def test_skip_copilot_session_calls_sync_setup(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """skip_copilot_session=True calls setup_pull_request_review (sync), not async."""
+        mocks = self._run_with_preflight_passing("999", "feature/some-branch", skip_copilot_session=True)
+        mocks["sync_setup"].assert_called_once()
+        mocks["async_setup"].assert_not_called()
+        mocks["session"].assert_not_called()
+
+    def test_no_skip_copilot_session_calls_async_setup(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """skip_copilot_session=False calls setup_pull_request_review_async, not sync."""
+        mocks = self._run_with_preflight_passing("999", "feature/some-branch", skip_copilot_session=False)
+        mocks["async_setup"].assert_called_once()
+        mocks["sync_setup"].assert_not_called()
+        mocks["session"].assert_called_once()
+
+    def test_default_skip_copilot_session_calls_async_setup(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing
+    ):
+        """Default skip_copilot_session (omitted / None) calls async setup and starts copilot session."""
+        mocks = self._run_with_preflight_passing("999", "feature/some-branch")
+        mocks["async_setup"].assert_called_once()
+        mocks["sync_setup"].assert_not_called()
+        mocks["session"].assert_called_once()
