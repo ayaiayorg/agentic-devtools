@@ -92,6 +92,45 @@ class TestFetchPrWithRetry:
 
         assert data["state"] == "OPEN"
 
+    def test_json_parse_error_exhausted_exits(self):
+        """Exits with code 1 after JSON parse retries exhausted."""
+        bad_json = MagicMock()
+        bad_json.returncode = 0
+        bad_json.stdout = "not valid json"
+
+        with patch.object(pr_state_module, "run_safe", return_value=bad_json):
+            with patch.object(pr_state_module.time, "sleep"):
+                with pytest.raises(SystemExit) as exc_info:
+                    pr_state_module._fetch_pr_with_retry(
+                        42,
+                        "owner/repo",
+                        max_retries=1,
+                        retry_delay=0,
+                    )
+
+        assert exc_info.value.code == 1
+
+    def test_unknown_field_not_about_locked_does_not_fallback(self):
+        """Unknown field error about a different field retries normally, not locked fallback."""
+        unknown_other = MagicMock()
+        unknown_other.returncode = 1
+        unknown_other.stderr = "unknown field: fooBar"
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc", "locked": false}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[unknown_other, ok_result]) as mock_run:
+            with patch.object(pr_state_module.time, "sleep"):
+                data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        # Should have retried with the SAME fields (locked still included)
+        first_call_cmd = mock_run.call_args_list[0][0][0]
+        second_call_cmd = mock_run.call_args_list[1][0][0]
+        assert "locked" in first_call_cmd[-1]
+        assert "locked" in second_call_cmd[-1]
+        assert data["state"] == "OPEN"
+
     def test_file_not_found_retries_then_exits(self):
         """FileNotFoundError (gh not installed) retries then exits."""
         with patch.object(pr_state_module, "run_safe", side_effect=FileNotFoundError("gh not found")):
