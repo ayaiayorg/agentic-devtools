@@ -157,6 +157,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 
 | Raw command | Reason still needed |
 |-------------|---------------------|
+| `gh issue` / `gh pr` for repos other than agentic-devtools | No agdt support yet for general GitHub operations |
 | `gh pr review`, `gh pr comment` for external repos | No agdt support yet for general GitHub PR reviews |
 | Other `gh` operations not listed in the command mapping above | No agdt equivalent exists |
 
