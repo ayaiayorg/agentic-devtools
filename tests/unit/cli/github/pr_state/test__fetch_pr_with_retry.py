@@ -1,0 +1,119 @@
+"""Tests for _fetch_pr_with_retry in pr_state module."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from agentic_devtools.cli.github import pr_state as pr_state_module
+
+_MODULE = "agentic_devtools.cli.github.pr_state"
+
+
+class TestFetchPrWithRetry:
+    """Tests for _fetch_pr_with_retry."""
+
+    def test_success_on_first_try(self):
+        """Successful response on first attempt returns parsed JSON."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = '{"state": "OPEN", "headRefOid": "abc1234", "locked": false}'
+
+        with patch.object(pr_state_module, "run_safe", return_value=mock_result):
+            data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        assert data["state"] == "OPEN"
+        assert data["headRefOid"] == "abc1234"
+
+    def test_retry_on_api_failure(self):
+        """Retries on non-zero exit code then succeeds."""
+        fail_result = MagicMock()
+        fail_result.returncode = 1
+        fail_result.stderr = "API rate limit exceeded"
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc1234", "locked": false}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[fail_result, ok_result]):
+            with patch.object(pr_state_module.time, "sleep") as mock_sleep:
+                data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=10.0)
+
+        assert data["state"] == "OPEN"
+        mock_sleep.assert_called_once_with(10.0)
+
+    def test_locked_field_fallback(self):
+        """Falls back to fields without locked on unknown field error."""
+        locked_fail = MagicMock()
+        locked_fail.returncode = 1
+        locked_fail.stderr = "unknown field: locked"
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc1234"}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[locked_fail, ok_result]):
+            data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        assert data["state"] == "OPEN"
+        # locked should be None (added by fallback logic)
+        assert data["locked"] is None
+
+    def test_max_retries_exhausted_exits(self):
+        """Exits with code 1 after all retries exhausted."""
+        fail_result = MagicMock()
+        fail_result.returncode = 1
+        fail_result.stderr = "server error"
+
+        with patch.object(pr_state_module, "run_safe", return_value=fail_result):
+            with patch.object(pr_state_module.time, "sleep"):
+                with pytest.raises(SystemExit) as exc_info:
+                    pr_state_module._fetch_pr_with_retry(
+                        42,
+                        "owner/repo",
+                        max_retries=2,
+                        retry_delay=0,
+                    )
+
+        assert exc_info.value.code == 1
+
+    def test_json_parse_error_retries(self):
+        """Retries on malformed JSON then succeeds."""
+        bad_json = MagicMock()
+        bad_json.returncode = 0
+        bad_json.stdout = "not valid json"
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc", "locked": false}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[bad_json, ok_result]):
+            with patch.object(pr_state_module.time, "sleep"):
+                data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        assert data["state"] == "OPEN"
+
+    def test_file_not_found_retries_then_exits(self):
+        """FileNotFoundError (gh not installed) retries then exits."""
+        with patch.object(pr_state_module, "run_safe", side_effect=FileNotFoundError("gh not found")):
+            with patch.object(pr_state_module.time, "sleep"):
+                with pytest.raises(SystemExit) as exc_info:
+                    pr_state_module._fetch_pr_with_retry(
+                        42,
+                        "owner/repo",
+                        max_retries=1,
+                        retry_delay=0,
+                    )
+
+        assert exc_info.value.code == 1
+
+    def test_uses_shell_false(self):
+        """gh CLI must be called with shell=False."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = '{"state": "OPEN", "headRefOid": "abc", "locked": false}'
+
+        with patch.object(pr_state_module, "run_safe", return_value=mock_result) as mock_run:
+            pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["shell"] is False
