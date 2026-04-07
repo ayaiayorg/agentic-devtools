@@ -158,6 +158,7 @@ agdt-create-agdt-bug-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-feature-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-documentation-issue = "agentic_devtools.cli.runner:run_as_script"
 agdt-create-agdt-task-issue = "agentic_devtools.cli.runner:run_as_script"
+agdt-gh-pr-state = "agentic_devtools.cli.runner:run_as_script"
 agdt-review = "agentic_devtools.cli.runner:run_as_script"
 agdt-mcp-server = "agentic_devtools.mcp.server:main"
 

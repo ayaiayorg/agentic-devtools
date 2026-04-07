@@ -357,6 +357,8 @@ COMMAND_MAP = {
     # Network / VPN wrappers
     "agdt-network-status": ("agentic_devtools.cli.network", "network_status_cmd"),
     "agdt-vpn-run": ("agentic_devtools.cli.vpn", "vpn_run_cmd"),
+    # GitHub PR commands
+    "agdt-gh-pr-state": ("agentic_devtools.cli.github.pr_state", "pr_state_command"),
     # Multi-model review pipeline
     "agdt-review": ("agentic_devtools.cli.review", "main"),
     # NOTE: agdt-mcp-server is intentionally NOT in COMMAND_MAP.
