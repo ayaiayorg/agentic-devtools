@@ -2893,6 +2893,50 @@ def _maybe_inject_auto_start_before_vscode(
     return False
 
 
+def _print_agent_instructions_block(
+    autostart_injected: bool,
+    issue_key: str,
+    workflow_name: str,
+    user_request: str | None = None,
+    additional_params: dict | None = None,
+) -> None:
+    """Print the AI agent instructions block with conditional messaging.
+
+    The header and introductory text vary depending on whether the VS Code
+    auto-start task was successfully injected:
+
+    * **Injected** (``autostart_injected=True``): header says ``(FALLBACK)``
+      and the text explains that an auto-start task was injected and the
+      session will start when the VS Code window opens.
+    * **Not injected** (``autostart_injected=False``): header says
+      ``(MANUAL START REQUIRED)`` and the text instructs the user to start
+      the session manually using the prompt below.
+
+    The ``--- BEGIN/END PROMPT ---`` markers and the prompt itself are always
+    printed regardless of the injection result.
+    """
+    if autostart_injected:
+        print("\n" + "=" * 80)
+        print("AI AGENT INSTRUCTIONS (FALLBACK)")
+        print("=" * 80)
+        print(
+            "\nAn auto-start task was injected into the VS Code workspace.\n"
+            "The Copilot session will start when the VS Code window opens.\n"
+            "The prompt below is a fallback — only provide it to the user if the auto-session did not start:\n"
+        )
+    else:
+        print("\n" + "=" * 80)
+        print("AI AGENT INSTRUCTIONS (MANUAL START REQUIRED)")
+        print("=" * 80)
+        print(
+            "\nAuto-start injection was not successful.\n"
+            "Provide the prompt below to the user to start the Copilot session manually:\n"
+        )
+    print("--- BEGIN PROMPT FOR USER TO COPY ---")
+    print(get_ai_agent_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
+    print("--- END PROMPT FOR USER TO COPY ---")
+
+
 def setup_worktree_in_background_sync(
     issue_key: str,
     branch_prefix: str = "feature",
@@ -2978,7 +3022,9 @@ def setup_worktree_in_background_sync(
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(existing_path, start_prompt=wf_prompt, model=model, run_id=pre_run_id)
+        autostart_injected = _maybe_inject_auto_start_before_vscode(
+            existing_path, start_prompt=wf_prompt, model=model, run_id=pre_run_id
+        )
 
         # Open VS Code
         print("Opening VS Code in the existing worktree (using the workspace file if available)...")
@@ -3002,16 +3048,7 @@ def setup_worktree_in_background_sync(
 
         print("\n✅ Environment ready!")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
-        print("\n" + "=" * 80)
-        print("AI AGENT INSTRUCTIONS (FALLBACK)")
-        print("=" * 80)
-        print("""
-A Copilot session was started automatically in the VS Code integrated terminal.
-The prompt below is a fallback — only provide it to the user if the auto-session did not start:
-""")
-        print("--- BEGIN PROMPT FOR USER TO COPY ---")
-        print(get_ai_agent_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
-        print("--- END PROMPT FOR USER TO COPY ---")
+        _print_agent_instructions_block(autostart_injected, issue_key, workflow_name, user_request, additional_params)
         return
 
     # Create new worktree environment
@@ -3040,7 +3077,7 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
-        _maybe_inject_auto_start_before_vscode(
+        autostart_injected = _maybe_inject_auto_start_before_vscode(
             result.worktree_path,
             start_prompt=wf_prompt,
             model=model,
@@ -3070,16 +3107,7 @@ The prompt below is a fallback — only provide it to the user if the auto-sessi
         print(f"   Branch: {result.branch_name}")
         print(f"   VS Code opened: {'Yes' if result.vscode_opened else 'No'}")
         print(get_worktree_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
-        print("\n" + "=" * 80)
-        print("AI AGENT INSTRUCTIONS (FALLBACK)")
-        print("=" * 80)
-        print("""
-A Copilot session was started automatically in the VS Code integrated terminal.
-The prompt below is a fallback — only provide it to the user if the auto-session did not start:
-""")
-        print("--- BEGIN PROMPT FOR USER TO COPY ---")
-        print(get_ai_agent_continuation_prompt(issue_key, workflow_name, user_request, additional_params))
-        print("--- END PROMPT FOR USER TO COPY ---")
+        _print_agent_instructions_block(autostart_injected, issue_key, workflow_name, user_request, additional_params)
     else:
         print(f"\n❌ Setup failed: {result.error_message}")
         raise RuntimeError(f"Worktree setup failed: {result.error_message}")
