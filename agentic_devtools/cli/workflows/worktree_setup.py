@@ -1265,6 +1265,84 @@ def inject_python_path_settings(worktree_path: str) -> None:
         print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
 
 
+def inject_task_permission_settings(worktree_path: str) -> None:
+    """Inject ``task.allowAutomaticTasks`` into ``.vscode/settings.json``.
+
+    Sets ``"task.allowAutomaticTasks": "on"`` so that tasks with
+    ``"runOn": "folderOpen"`` execute immediately when VS Code opens
+    the workspace, without prompting the user.
+
+    The ``is_vscode_available()`` check is intentionally **not** applied
+    here — writing ``.vscode/settings.json`` is always safe, following
+    the same reasoning as :func:`inject_python_path_settings`.
+
+    Behavior by existing value:
+
+    - Missing, ``"auto"``, or any other unexpected value: set to ``"on"``
+      (eliminates the permission dialog).
+    - ``"on"``: no-op (already configured).
+    - ``"off"``: no-op with warning (respects explicit user choice).
+
+    A no-op (with a warning to stderr) when:
+
+    - An existing ``settings.json`` cannot be parsed (e.g. JSONC), or
+    - ``settings.json`` contains valid JSON but not a root object.
+
+    Args:
+        worktree_path: Path to the worktree directory.
+    """
+    _SETTING_KEY = "task.allowAutomaticTasks"
+
+    vscode_dir = os.path.join(worktree_path, ".vscode")
+    settings_path = os.path.join(vscode_dir, "settings.json")
+
+    settings: dict = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, encoding="utf-8") as fh:
+                loaded = json.load(fh)
+        except (json.JSONDecodeError, OSError) as exc:
+            print(
+                f"Warning: could not read {settings_path}: {exc}",
+                file=sys.stderr,
+            )
+            return
+        if not isinstance(loaded, dict):
+            print(
+                f"Warning: {settings_path} does not contain a JSON object at the root; "
+                "skipping task permission settings injection",
+                file=sys.stderr,
+            )
+            return
+        settings = loaded
+
+    existing_value = settings.get(_SETTING_KEY)
+
+    if existing_value == "on":
+        print(f"Task permission settings already configured in {settings_path}")
+        return
+
+    if existing_value == "off":
+        print(
+            f'Warning: {_SETTING_KEY} is set to "off" in {settings_path}; '
+            "automatic tasks are disabled by user choice — skipping injection",
+            file=sys.stderr,
+        )
+        return
+
+    # Value is missing, "auto", or any other unexpected value — set to "on".
+    settings[_SETTING_KEY] = "on"
+
+    try:
+        os.makedirs(vscode_dir, exist_ok=True)
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump(settings, fh, indent=2)
+            fh.write("\n")
+        print(f"Injected task permission settings into {settings_path}")
+    except OSError as exc:
+        print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Label used to identify the injected auto-start task so it can be removed
 # during cleanup without affecting other user-defined tasks.
@@ -1669,8 +1747,9 @@ def setup_worktree_environment(
     1. Creates a git worktree for the issue
     2. Injects ``.vscode/settings.json`` with Git for Windows PATH entries (Windows only)
     3. Injects ``.vscode/settings.json`` with Python Scripts directory PATH entries (all platforms)
-    4. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
-    5. Opens VS Code with the workspace file
+    4. Injects ``task.allowAutomaticTasks: "on"`` into ``.vscode/settings.json`` (all platforms)
+    5. Runs ``.agdt/agentic-devtools-worktree-setup.py`` if present
+    6. Opens VS Code with the workspace file
 
     Args:
         issue_key: The issue key (e.g., "PROJECT-1234")
@@ -1702,10 +1781,13 @@ def setup_worktree_environment(
     # Step 3: Inject VS Code settings for Python/agdt-* Scripts PATH (all platforms)
     inject_python_path_settings(result.worktree_path)
 
-    # Step 4: Run project-specific worktree setup script if present
+    # Step 4: Inject task.allowAutomaticTasks permission for runOn:folderOpen tasks
+    inject_task_permission_settings(result.worktree_path)
+
+    # Step 5: Run project-specific worktree setup script if present
     run_worktree_setup_script(result.worktree_path)
 
-    # Step 5: Open VS Code
+    # Step 6: Open VS Code
     if open_vscode:
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
@@ -2862,12 +2944,14 @@ def setup_worktree_in_background_sync(
 
         wf_prompt = _WORKFLOW_START_PROMPTS.get(workflow_name, _WORKFLOW_AGNOSTIC_FALLBACK_PROMPT)
 
-        # Inject VS Code PATH settings so agdt-* commands are on PATH even when
-        # the Python extension hasn't activated.  Do this every time VS Code is
-        # opened (not only on first creation) so that worktrees created before
-        # this feature, or opened on a different machine, also benefit.
+        # Inject VS Code settings so agdt-* commands are on PATH and
+        # runOn:folderOpen tasks execute without a permission prompt.  Do this
+        # every time VS Code is opened (not only on first creation) so that
+        # worktrees created before this feature, or opened on a different
+        # machine, also benefit.
         inject_git_path_settings(existing_path)
         inject_python_path_settings(existing_path)
+        inject_task_permission_settings(existing_path)
 
         # When a data-fetching command is provided, run it first so that all
         # workflow context is ready before VS Code opens.  The auto-start task
