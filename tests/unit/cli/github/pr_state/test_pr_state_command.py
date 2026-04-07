@@ -8,8 +8,6 @@ import pytest
 
 from agentic_devtools.cli.github import pr_state as pr_state_module
 
-_MODULE = "agentic_devtools.cli.github.pr_state"
-
 
 class TestPrStateCommand:
     """Tests for pr_state_command."""
@@ -75,3 +73,12 @@ class TestPrStateCommand:
         output = json.loads(capsys.readouterr().out)
         assert output["state"] == "MERGED"
         assert output["isTerminal"] is True
+
+    def test_error_on_non_integer_state_value(self):
+        """Exits with code 1 when state value is not a valid integer."""
+        with patch.object(sys, "argv", ["agdt-gh-pr-state", "--repo", "o/r"]):
+            with patch.object(pr_state_module, "get_value", return_value="not-a-number"):
+                with pytest.raises(SystemExit) as exc_info:
+                    pr_state_module.pr_state_command()
+
+        assert exc_info.value.code == 1

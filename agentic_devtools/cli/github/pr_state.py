@@ -56,8 +56,9 @@ def _fetch_pr_with_retry(
     """
     fields = list(_GH_PR_JSON_FIELDS)
     last_error = ""
+    attempt = 0
 
-    for attempt in range(1 + max_retries):
+    while attempt <= max_retries:
         cmd = [
             "gh",
             "pr",
@@ -78,13 +79,16 @@ def _fetch_pr_with_retry(
                     file=sys.stderr,
                 )
                 time.sleep(retry_delay)
+                attempt += 1
                 continue
             print(last_error, file=sys.stderr)
             sys.exit(1)
 
         if result.returncode != 0:
             stderr_text = (result.stderr or "").strip()
-            # Handle unknown/invalid field error specifically for "locked"
+            # Handle unknown/invalid field error specifically for "locked".
+            # This does NOT consume a retry attempt — redo immediately with
+            # the reduced field list.
             stderr_lower = stderr_text.lower()
             if (
                 "locked" in fields
@@ -92,7 +96,6 @@ def _fetch_pr_with_retry(
                 and ("unknown field" in stderr_lower or "invalid field" in stderr_lower)
             ):
                 fields = list(_GH_PR_JSON_FIELDS_NO_LOCKED)
-                # Don't count this as a retry — redo immediately with new fields
                 continue
 
             last_error = stderr_text or f"gh pr view exited with code {result.returncode}"
@@ -102,6 +105,7 @@ def _fetch_pr_with_retry(
                     file=sys.stderr,
                 )
                 time.sleep(retry_delay)
+                attempt += 1
                 continue
 
             print(
@@ -121,6 +125,7 @@ def _fetch_pr_with_retry(
                     file=sys.stderr,
                 )
                 time.sleep(retry_delay)
+                attempt += 1
                 continue
 
             print(
@@ -211,7 +216,15 @@ def pr_state_command() -> None:
     if pr_number is None:
         pr_number = get_value("github.pull_request_number")
         if pr_number is not None:
-            pr_number = int(pr_number)
+            try:
+                pr_number = int(pr_number)
+            except (TypeError, ValueError):
+                print(
+                    "Error: github.pull_request_number in state must be an integer. "
+                    "Provide --pr or set github.pull_request_number to an integer value.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
     if pr_number is None:
         print(
             "Error: PR number required. Provide --pr or set github.pull_request_number in state.",

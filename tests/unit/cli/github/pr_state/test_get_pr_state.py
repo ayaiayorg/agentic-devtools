@@ -4,8 +4,6 @@ from unittest.mock import call, patch
 
 from agentic_devtools.cli.github import pr_state as pr_state_module
 
-_MODULE = "agentic_devtools.cli.github.pr_state"
-
 
 class TestGetPrState:
     """Tests for get_pr_state."""

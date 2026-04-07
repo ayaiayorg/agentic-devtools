@@ -6,8 +6,6 @@ import pytest
 
 from agentic_devtools.cli.github import pr_state as pr_state_module
 
-_MODULE = "agentic_devtools.cli.github.pr_state"
-
 
 class TestFetchPrWithRetry:
     """Tests for _fetch_pr_with_retry."""
@@ -156,3 +154,25 @@ class TestFetchPrWithRetry:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["shell"] is False
+
+    def test_locked_fallback_does_not_consume_retry(self):
+        """Locked field fallback does not consume a retry attempt.
+
+        With max_retries=0 (no retries allowed), the locked field fallback
+        should still succeed because it doesn't count as a retry.
+        """
+        locked_fail = MagicMock()
+        locked_fail.returncode = 1
+        locked_fail.stderr = "unknown field: locked"
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc"}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[locked_fail, ok_result]):
+            data = pr_state_module._fetch_pr_with_retry(
+                42, "owner/repo", max_retries=0, retry_delay=0
+            )
+
+        assert data["state"] == "OPEN"
+        assert data["locked"] is None

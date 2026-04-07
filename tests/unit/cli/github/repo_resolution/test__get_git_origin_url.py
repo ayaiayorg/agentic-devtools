@@ -4,8 +4,6 @@ from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.github import repo_resolution
 
-_MODULE = "agentic_devtools.cli.github.repo_resolution"
-
 
 class TestGetGitOriginUrl:
     """Tests for _get_git_origin_url."""
