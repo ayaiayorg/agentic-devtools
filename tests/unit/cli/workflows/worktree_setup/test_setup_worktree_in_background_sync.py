@@ -767,6 +767,7 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
@@ -775,6 +776,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists,
         mock_inject_git,
         mock_inject_python,
+        mock_inject_task,
         mock_open_vscode,
         mock_continuation_prompt,
         mock_ai_prompt,
@@ -797,6 +799,7 @@ class TestSetupWorktreeInBackgroundSync:
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
@@ -805,6 +808,7 @@ class TestSetupWorktreeInBackgroundSync:
         mock_check_exists,
         mock_inject_git,
         mock_inject_python,
+        mock_inject_task,
         mock_continuation_prompt,
         mock_ai_prompt,
         mock_open_vscode,
@@ -902,3 +906,153 @@ class TestSetupWorktreeInBackgroundSync:
         mock_start_session.assert_called_once()
         call_kwargs = mock_start_session.call_args[1]
         assert call_kwargs["model"] == "claude-3.5-sonnet"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_existing_worktree_fallback_header_when_autostart_succeeds(
+        self,
+        mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
+        mock_open_vscode,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_inject_auto_start,
+        _mock_start_session,
+        capsys,
+    ):
+        """Existing worktree: header says (FALLBACK) when auto-start injection succeeds."""
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
+        mock_open_vscode.return_value = True
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_inject_auto_start.return_value = True
+
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        captured = capsys.readouterr()
+        assert "AI AGENT INSTRUCTIONS (FALLBACK)" in captured.out
+        assert "auto-start task was injected" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_task_permission_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_python_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_existing_worktree_manual_header_when_autostart_fails(
+        self,
+        mock_check_exists,
+        mock_inject_git,
+        mock_inject_python,
+        mock_inject_task,
+        mock_open_vscode,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_inject_auto_start,
+        _mock_start_session,
+        capsys,
+    ):
+        """Existing worktree: header says (MANUAL START REQUIRED) when auto-start injection fails."""
+        mock_check_exists.return_value = "/repos/PROJECT-1234"
+        mock_open_vscode.return_value = True
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_inject_auto_start.return_value = False
+
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        captured = capsys.readouterr()
+        assert "AI AGENT INSTRUCTIONS (MANUAL START REQUIRED)" in captured.out
+        assert "Auto-start injection was not successful" in captured.out
+        assert "auto-start task was injected" not in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_new_worktree_fallback_header_when_autostart_succeeds(
+        self,
+        mock_check_exists,
+        mock_setup,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_inject_auto_start,
+        _mock_start_session,
+        capsys,
+    ):
+        """New worktree: header says (FALLBACK) when auto-start injection succeeds."""
+        mock_check_exists.return_value = None
+        mock_setup.return_value = WorktreeSetupResult(
+            success=True,
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
+        )
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_inject_auto_start.return_value = True
+
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        captured = capsys.readouterr()
+        assert "AI AGENT INSTRUCTIONS (FALLBACK)" in captured.out
+        assert "auto-start task was injected" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_ai_agent_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.setup_worktree_environment")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    def test_new_worktree_manual_header_when_autostart_fails(
+        self,
+        mock_check_exists,
+        mock_setup,
+        mock_continuation_prompt,
+        mock_ai_prompt,
+        mock_inject_auto_start,
+        _mock_start_session,
+        capsys,
+    ):
+        """New worktree: header says (MANUAL START REQUIRED) when auto-start injection fails."""
+        mock_check_exists.return_value = None
+        mock_setup.return_value = WorktreeSetupResult(
+            success=True,
+            worktree_path="/repos/PROJECT-1234",
+            branch_name="feature/PROJECT-1234/implementation",
+        )
+        mock_continuation_prompt.return_value = "Continue..."
+        mock_ai_prompt.return_value = "AI Agent prompt"
+        mock_inject_auto_start.return_value = False
+
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+        )
+
+        captured = capsys.readouterr()
+        assert "AI AGENT INSTRUCTIONS (MANUAL START REQUIRED)" in captured.out
+        assert "Auto-start injection was not successful" in captured.out
+        assert "auto-start task was injected" not in captured.out
