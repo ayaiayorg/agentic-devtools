@@ -6,8 +6,6 @@ import pytest
 
 from agentic_devtools.cli.github import repo_resolution
 
-_MODULE = "agentic_devtools.cli.github.repo_resolution"
-
 
 class TestResolveGithubRepo:
     """Tests for resolve_github_repo."""
