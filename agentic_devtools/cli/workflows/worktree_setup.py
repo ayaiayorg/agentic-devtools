@@ -3362,10 +3362,16 @@ def start_worktree_setup_background(
         set_value("worktree_setup.user_request", user_request)
     if additional_params:
         set_value("worktree_setup.additional_params", json.dumps(additional_params))
+    # Always clear or persist auto_execute_command so stale commands from a
+    # prior run (e.g. a PR review Copilot session) cannot leak into later
+    # invocations that omit the command.
     if auto_execute_command:
         set_value("worktree_setup.auto_execute_command", json.dumps(auto_execute_command))
-    if auto_execute_timeout != 60:
-        set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
+    else:
+        delete_value("worktree_setup.auto_execute_command")
+    # Always persist the effective timeout so stale non-default values from
+    # prior runs (e.g. 300s for PR review) cannot leak into later invocations.
+    set_value("worktree_setup.auto_execute_timeout", str(auto_execute_timeout))
     set_value("worktree_setup.interactive", "true" if interactive else "false")
 
     # Prefer explicit model parameter; fall back to state for backward compatibility.

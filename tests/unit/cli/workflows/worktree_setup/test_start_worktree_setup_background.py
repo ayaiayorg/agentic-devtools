@@ -17,8 +17,9 @@ class TestStartWorktreeSetupBackground:
         """Patch get_value and delete_value so tests never touch the real state file."""
         with (
             patch("agentic_devtools.state.get_value", return_value=None),
-            patch("agentic_devtools.state.delete_value"),
+            patch("agentic_devtools.state.delete_value") as mock_delete,
         ):
+            self._mock_delete_value = mock_delete
             yield
 
     @patch("agentic_devtools.state.set_value")
@@ -164,8 +165,8 @@ class TestStartWorktreeSetupBackground:
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
-    def test_does_not_store_auto_execute_command_when_none(self, mock_run_background, mock_set_value):
-        """Test that auto_execute_command is not stored when None."""
+    def test_deletes_auto_execute_command_when_none(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_command is explicitly deleted when None to prevent stale leaks."""
         mock_task = MagicMock()
         mock_task.id = "task-no-cmd"
         mock_run_background.return_value = mock_task
@@ -178,12 +179,14 @@ class TestStartWorktreeSetupBackground:
 
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
         assert "worktree_setup.auto_execute_command" not in stored_keys
-        assert "worktree_setup.auto_execute_timeout" not in stored_keys
+        self._mock_delete_value.assert_any_call("worktree_setup.auto_execute_command")
+        # Timeout is always persisted (even the default 60s) to prevent stale leaks
+        mock_set_value.assert_any_call("worktree_setup.auto_execute_timeout", "60")
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
-    def test_does_not_store_timeout_when_default(self, mock_run_background, mock_set_value):
-        """Test that auto_execute_timeout is not stored when using the default value."""
+    def test_stores_timeout_when_default_60(self, mock_run_background, mock_set_value):
+        """Test that auto_execute_timeout=60 is always persisted to prevent stale leaks."""
         mock_task = MagicMock()
         mock_task.id = "task-default-timeout"
         mock_run_background.return_value = mock_task
@@ -192,11 +195,10 @@ class TestStartWorktreeSetupBackground:
             issue_key="PROJECT-1234",
             workflow_name="work-on-jira-issue",
             auto_execute_command=["cmd"],
-            auto_execute_timeout=60,  # Default value
+            auto_execute_timeout=60,
         )
 
-        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
-        assert "worktree_setup.auto_execute_timeout" not in stored_keys
+        mock_set_value.assert_any_call("worktree_setup.auto_execute_timeout", "60")
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")
@@ -268,7 +270,7 @@ class TestStartWorktreeSetupBackground:
 
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
         assert "worktree_setup.model" not in stored_keys
-        mock_delete_value.assert_called_once_with("worktree_setup.model")
+        mock_delete_value.assert_any_call("worktree_setup.model")
 
     @patch("agentic_devtools.state.get_value")
     @patch("agentic_devtools.state.delete_value")
@@ -290,7 +292,7 @@ class TestStartWorktreeSetupBackground:
 
         stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
         assert "worktree_setup.model" not in stored_keys
-        mock_delete_value.assert_called_once_with("worktree_setup.model")
+        mock_delete_value.assert_any_call("worktree_setup.model")
 
     @patch("agentic_devtools.state.set_value")
     @patch("agentic_devtools.background_tasks.run_function_in_background")

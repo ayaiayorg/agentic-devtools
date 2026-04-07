@@ -181,13 +181,13 @@ class TestPerformAutoSetup:
 
         assert state.get_value("background.task_id") == "task-auto-set-check"
 
-    def test_auto_execute_timeout_default_is_60(self):
-        """Verify the default value of auto_execute_timeout is 60 via signature inspection."""
+    def test_auto_execute_timeout_default_is_none(self):
+        """Verify the default value of auto_execute_timeout is None (sentinel)."""
         import inspect
 
         sig = inspect.signature(perform_auto_setup)
         default = sig.parameters["auto_execute_timeout"].default
-        assert default == 60
+        assert default is None
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_passes_model_to_background(self, mock_start_background, capsys):
@@ -217,3 +217,75 @@ class TestPerformAutoSetup:
         mock_start_background.assert_called_once()
         call_kwargs = mock_start_background.call_args[1]
         assert call_kwargs["model"] is None
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_pr_review_workflow_uses_300s_timeout(self, mock_start_background, temp_state_dir):
+        """Test that pull-request-review workflow uses 300s timeout by default."""
+        mock_start_background.return_value = "task-pr-review"
+
+        perform_auto_setup(
+            issue_key="TEST-1",
+            workflow_name="pull-request-review",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 300
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_apply_suggestions_workflow_uses_300s_timeout(self, mock_start_background, temp_state_dir):
+        """Test that apply-pull-request-review-suggestions workflow uses 300s timeout."""
+        mock_start_background.return_value = "task-apply"
+
+        perform_auto_setup(
+            issue_key="TEST-2",
+            workflow_name="apply-pull-request-review-suggestions",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 300
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_explicit_timeout_overrides_workflow_default(self, mock_start_background, temp_state_dir):
+        """Test that an explicit auto_execute_timeout overrides the workflow default."""
+        mock_start_background.return_value = "task-override"
+
+        perform_auto_setup(
+            issue_key="TEST-3",
+            workflow_name="pull-request-review",
+            auto_execute_timeout=120,
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 120
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_explicit_60s_timeout_overrides_workflow_default(self, mock_start_background, temp_state_dir):
+        """Test that an explicit 60s timeout is preserved for mapped workflows."""
+        mock_start_background.return_value = "task-override-60"
+
+        perform_auto_setup(
+            issue_key="TEST-3B",
+            workflow_name="pull-request-review",
+            auto_execute_timeout=60,
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 60
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_unmapped_workflow_uses_60s_default(self, mock_start_background, temp_state_dir):
+        """Test that an unmapped workflow name results in the 60s default timeout."""
+        mock_start_background.return_value = "task-unmapped"
+
+        perform_auto_setup(
+            issue_key="TEST-4",
+            workflow_name="work-on-jira-issue",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["auto_execute_timeout"] == 60
