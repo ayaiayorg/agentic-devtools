@@ -2777,12 +2777,15 @@ def _maybe_inject_auto_start_before_vscode(
             print(f"Auto-start injection skipped: missing or empty agdt_run_id in {worktree_path}.")
             return False
 
+    # Write marker BEFORE injection so the terminal sendSequence fallback
+    # is available even when inject_auto_start_task() fails.
+    _write_pending_auto_start_marker(worktree_path, run_id, start_prompt, model=model)
+
     copilot_args = build_copilot_args(start_prompt, interactive=True, model=model)
     if copilot_args is not None:
         injected = inject_auto_start_task(worktree_path, start_prompt, run_id=run_id, model=model)
         if injected:
             print("   VS Code auto-start task injected (will run on window open).")
-            _write_pending_auto_start_marker(worktree_path, run_id, start_prompt, model=model)
         else:
             print(
                 "WARNING: VS Code auto-start task injection failed. "
