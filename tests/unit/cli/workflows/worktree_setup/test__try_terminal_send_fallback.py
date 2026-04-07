@@ -93,8 +93,10 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
     @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
     def test_falls_back_to_param_worktree_path_when_marker_value_is_not_string(
-        self, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
+        self, mock_focus, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
     ):
         """When marker worktree_path is not a string, uses the function parameter instead."""
         vscode_dir = tmp_path / ".vscode"
@@ -120,8 +122,10 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
     @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
     def test_excludes_non_string_model_from_command(
-        self, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
+        self, mock_focus, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
     ):
         """When marker model is a non-string truthy value, --model is not included."""
         vscode_dir = tmp_path / ".vscode"
@@ -138,14 +142,18 @@ class TestTryTerminalSendFallback:
 
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
     @patch(f"{_MODULE}.subprocess.run", side_effect=OSError("code not found"))
-    def test_returns_false_when_code_command_fails(self, mock_subprocess, mock_env, tmp_path):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_returns_false_when_code_command_fails(self, mock_focus, mock_subprocess, mock_env, tmp_path):
         """Returns False when subprocess.run raises OSError."""
         _write_marker(tmp_path)
         result = _try_terminal_send_fallback(str(tmp_path))
         assert result is False
 
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
-    def test_returns_false_when_code_command_exits_nonzero(self, mock_env, tmp_path, capsys):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_returns_false_when_code_command_exits_nonzero(self, mock_focus, mock_env, tmp_path, capsys):
         """Returns False early when 'code --command' exits with non-zero return code."""
         _write_marker(tmp_path)
         mock_proc = MagicMock()
@@ -159,7 +167,11 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch(f"{_MODULE}._resolve_state_context_in_worktree", return_value=(None, ""))
-    def test_returns_false_when_state_context_unavailable(self, mock_resolve, mock_subprocess, mock_env, tmp_path):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_returns_false_when_state_context_unavailable(
+        self, mock_focus, mock_resolve, mock_subprocess, mock_env, tmp_path
+    ):
         """Returns False when state file path cannot be resolved."""
         _write_marker(tmp_path)
         result = _try_terminal_send_fallback(str(tmp_path))
@@ -169,8 +181,10 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
     @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
     def test_returns_true_when_run_id_confirmed(
-        self, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
+        self, mock_focus, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
     ):
         """Returns True when the run ID is confirmed after sendSequence."""
         _write_marker(tmp_path, run_id="run-confirmed")
@@ -188,8 +202,9 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=False)
     @patch("time.sleep")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
     def test_returns_false_after_timeout_when_run_id_not_confirmed(
-        self, mock_sleep, mock_triggered, mock_subprocess, mock_env, tmp_path
+        self, mock_focus, mock_sleep, mock_triggered, mock_subprocess, mock_env, tmp_path
     ):
         """Returns False when run ID is not confirmed within the wait window."""
         _write_marker(tmp_path)
@@ -204,7 +219,9 @@ class TestTryTerminalSendFallback:
 
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
-    def test_includes_model_in_command_when_present(self, mock_subprocess, mock_env, tmp_path):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_includes_model_in_command_when_present(self, mock_focus, mock_subprocess, mock_env, tmp_path):
         """When model is present in marker, --model flag is included in the command."""
         _write_marker(tmp_path, model="gpt-4")
         state_file = tmp_path / "state.json"
@@ -229,7 +246,9 @@ class TestTryTerminalSendFallback:
 
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
-    def test_does_not_include_model_when_none(self, mock_subprocess, mock_env, tmp_path):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_does_not_include_model_when_none(self, mock_focus, mock_subprocess, mock_env, tmp_path):
         """When model is None in marker, --model flag is not included."""
         _write_marker(tmp_path, model=None)
         state_file = tmp_path / "state.json"
@@ -274,8 +293,10 @@ class TestTryTerminalSendFallback:
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
     @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
     @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
     def test_succeeds_when_expected_run_id_matches_marker(
-        self, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
+        self, mock_focus, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
     ):
         """Returns True when expected_run_id matches the marker's run_id."""
         _write_marker(tmp_path, run_id="matching-run")
@@ -290,7 +311,9 @@ class TestTryTerminalSendFallback:
 
     @patch(f"{_MODULE}._in_test_environment", return_value=False)
     @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
-    def test_calls_code_command_with_send_sequence(self, mock_subprocess, mock_env, tmp_path):
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=True)
+    @patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0)
+    def test_calls_code_command_with_send_sequence(self, mock_focus, mock_subprocess, mock_env, tmp_path):
         """Verifies subprocess.run is called with the correct code --command args."""
         _write_marker(tmp_path)
         state_file = tmp_path / "state.json"
@@ -317,3 +340,57 @@ class TestTryTerminalSendFallback:
         assert "text" in parsed
         assert "agdt-copilot-auto-start" in parsed["text"]
         assert parsed["text"].endswith("\n")
+
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
+    @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
+    @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    def test_focus_vscode_window_called_before_send_sequence(
+        self, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path
+    ):
+        """Verifies _focus_vscode_window is called before the sendSequence subprocess call."""
+        _write_marker(tmp_path)
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        call_order: list[str] = []
+
+        def focus_side_effect(wt_path):
+            call_order.append("focus")
+            return True
+
+        def subprocess_side_effect(*args, **kwargs):
+            call_order.append("subprocess")
+            return MagicMock(returncode=0)
+
+        with (
+            patch(f"{_MODULE}._focus_vscode_window", side_effect=focus_side_effect),
+            patch(f"{_MODULE}.subprocess.run", side_effect=subprocess_side_effect),
+            patch(f"{_MODULE}._resolve_state_context_in_worktree", return_value=(state_file, "run-1")),
+            patch(f"{_MODULE}._FOCUS_SETTLE_SECONDS", 0),
+        ):
+            result = _try_terminal_send_fallback(str(tmp_path))
+
+        assert result is True
+        assert call_order == ["focus", "subprocess"]
+
+    @patch(f"{_MODULE}._in_test_environment", return_value=False)
+    @patch(f"{_MODULE}.subprocess.run", return_value=MagicMock(returncode=0))
+    @patch("agentic_devtools.cli.copilot.auto_start._is_run_triggered", return_value=True)
+    @patch(f"{_MODULE}._cleanup_pending_auto_start_marker")
+    @patch(f"{_MODULE}._focus_vscode_window", return_value=False)
+    def test_proceeds_when_focus_fails(
+        self, mock_focus, mock_cleanup, mock_triggered, mock_subprocess, mock_env, tmp_path, capsys
+    ):
+        """Proceeds with sendSequence even when pre-focus fails."""
+        _write_marker(tmp_path)
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{}", encoding="utf-8")
+        with patch(
+            f"{_MODULE}._resolve_state_context_in_worktree",
+            return_value=(state_file, "run-1"),
+        ):
+            result = _try_terminal_send_fallback(str(tmp_path))
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "Pre-focus failed; proceeding with sendSequence anyway." in captured.out

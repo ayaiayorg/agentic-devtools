@@ -2682,6 +2682,7 @@ def _start_copilot_session_for_update_jira_issue(
 
 
 _PENDING_AUTO_START_FILENAME = "pending-auto-start.json"
+_FOCUS_SETTLE_SECONDS: float = 2.0
 
 
 def _write_pending_auto_start_marker(
@@ -2737,6 +2738,39 @@ def _cleanup_pending_auto_start_marker(worktree_path: str) -> None:
             f"Warning: failed to remove pending auto-start marker at {marker_path}: {exc}",
             file=sys.stderr,
         )
+
+
+def _focus_vscode_window(worktree_path: str) -> bool:
+    """Bring the VS Code window for the given worktree to focus.
+
+    Calls ``code <target>`` where *target* is the ``.code-workspace`` file
+    if one exists, otherwise the worktree folder path.  When VS Code
+    already has a window open for this folder, the CLI brings it to
+    focus; when no window exists, a new one is opened (acceptable —
+    ``sendSequence`` will target it).
+
+    Returns ``True`` when the ``code`` process exits with returncode 0,
+    ``False`` on any error.
+    """
+    target = find_workspace_file(worktree_path) or worktree_path
+    try:
+        use_shell = platform.system() == "Windows"
+        proc = subprocess.run(
+            ["code", target],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            shell=use_shell,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        print("--- Pre-focus: 'code' command failed or timed out. ---")
+        return False
+
+    if proc.returncode != 0:
+        print(f"--- Pre-focus: 'code' exited with code {proc.returncode}. ---")
+        return False
+
+    return True
 
 
 def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None = None) -> bool:
@@ -2812,6 +2846,13 @@ def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None 
     send_sequence_arg = json.dumps({"text": command_string + "\n"})
 
     print("--- Attempting terminal sendSequence fallback for auto-start... ---")
+
+    # Pre-focus the worktree window so sendSequence targets the right terminal.
+    if _focus_vscode_window(worktree_path):
+        print("--- Pre-focus succeeded; waiting for window to settle... ---")
+        time.sleep(_FOCUS_SETTLE_SECONDS)
+    else:
+        print("--- Pre-focus failed; proceeding with sendSequence anyway. ---")
 
     try:
         use_shell = platform.system() == "Windows"
