@@ -27,13 +27,13 @@ The **Category Slug** (kebab-case) is the value used in the JSON schema `categor
 
 | Category Slug | Display Name | Definition | Example |
 |---|---|---|---|
-| `race-condition` | Race Condition | Temporal ordering bug between async operations where one side reads state before the other side has written it. | `agdt_run_id` not yet written to state when auto-start injection reads it (`worktree_setup.py`). |
+| `race-condition` | Race Condition | Temporal ordering bug between async operations where one side reads state before the other side has written it. | Historical/fixed example: `agdt_run_id` was previously vulnerable to a read-before-write race when auto-start injection read it before state persistence in `worktree_setup.py`; current `setup_worktree_in_background_sync()` avoids this by pre-generating the run ID and passing it into `_maybe_inject_auto_start_before_vscode(...)`. |
 | `cascading-failure` | Cascading Failure | Bug A prevents Bug B's mitigation from working, creating a chain of failures. | Missing `pending-auto-start.json` marker prevents terminal `sendSequence` fallback from activating (`worktree_setup.py`). |
 | `silent-failure` | Silent Failure | Operation fails but logs or reports success, hiding the real problem. | Background task log claims auto-start succeeded when no `tasks.json` was written (`worktree_setup.py`). |
-| `missing-integration` | Missing Integration | Code path that should call a function but doesn't, leaving a gap in the workflow. | `clear_state_for_workflow_initiation()` not preserving `agdt_run_id` across nested invocations (`commands.py`). |
+| `missing-integration` | Missing Integration | Code path that should call a function but doesn't, leaving a gap in the workflow. | Historical/possible failure mode: a nested workflow initiator forgets to pass `preserve_run_id` into `clear_state_for_workflow_initiation()` in `agentic_devtools/cli/workflows/base.py`; current nested `--skip-copilot-session` callers in `agentic_devtools/cli/workflows/commands.py` do pass it. |
 | `configuration-gap` | Configuration Gap | Required setting not injected or validated before the code path that depends on it. | `task.allowAutomaticTasks` VS Code setting not set in `.vscode/settings.json` (`worktree_setup.py`). |
-| `timeout-inadequacy` | Timeout Inadequacy | Default timeouts insufficient for real-world conditions, causing premature termination. | `auto_execute_timeout` reduced to 60 s but PR review setup takes 120 s+ (`worktree_setup.py`). |
-| `state-lifecycle-bug` | State Lifecycle Bug | State written or cleared at the wrong time in the workflow, causing reads to see stale or missing data. | Workflow state cleared by nested `clear_state_for_workflow_initiation()` before parent reads it (`state.py`, `commands.py`). |
+| `timeout-inadequacy` | Timeout Inadequacy | Default timeouts insufficient for real-world conditions, causing premature termination. | Generic 60 s fallback timeout used for an unknown workflow causes `perform_auto_setup()` to terminate before a 120 s+ environment setup completes (`preflight.py`, `worktree_setup.py`). |
+| `state-lifecycle-bug` | State Lifecycle Bug | State written or cleared at the wrong time in the workflow, causing reads to see stale or missing data. | Workflow state cleared by nested `clear_state_for_workflow_initiation()` before parent reads it (`state.py`, `agentic_devtools/cli/workflows/commands.py`). |
 | `observability-gap` | Observability Gap | Insufficient logging, misleading messages, or lost output that prevents effective debugging. | "Environment setup complete!" logged before review setup actually finishes (`worktree_setup.py`). |
 
 ### Severity Levels
@@ -52,7 +52,7 @@ provides the integer value used in the prioritization scoring formula.
 
 ## Structured Analysis Output Schema
 
-### JSON Schema (draft-07)
+### JSON Schema (2019-09)
 
 The following JSON Schema defines the structure of analysis output produced by
 `agdt.analyze-workflow` and consumed by `agdt.create-issues-from-analysis`.
@@ -61,11 +61,12 @@ The following JSON Schema defines the structure of analysis output produced by
 > (JSON object keys must be strings). The `cascades_from` and `cascades_to` fields
 > use integer IDs. This asymmetry is intentional — JSON requires object keys to be
 > strings, but integer IDs are more natural for cross-referencing within the
-> `findings` array.
+> `findings` array. For example, a finding with `"id": 1` and `"cascades_to": [4, 5]`
+> corresponds to `cascade_graph` entry `"1": [4, 5]`.
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
   "title": "Workflow Analysis Output",
   "description": "Structured output from an agentic-devtools workflow analysis session.",
   "type": "object",
@@ -213,7 +214,9 @@ The following JSON Schema defines the structure of analysis output produced by
 ### Annotated Example
 
 The example below shows a single finding from the PR review workflow autostart
-analysis (`agdt_run_id` race condition):
+analysis (`agdt_run_id` race condition). This is a **historical analysis excerpt**
+— the race condition described here has since been fixed in `worktree_setup.py`
+(the run ID is now pre-generated and passed as a parameter):
 
 ```json
 {
@@ -241,17 +244,17 @@ analysis (`agdt_run_id` race condition):
       "affected_functions": [
         "_maybe_inject_auto_start_before_vscode"
       ],
-      "description": "The agdt_run_id is not yet written to state when the auto-start injection reads it. The run ID is generated inside run_function_in_background(), but _maybe_inject_auto_start_before_vscode() reads it synchronously before the background task has a chance to write it.",
+      "description": "Historical/fixed: The agdt_run_id was previously not written to state when the auto-start injection read it. The run ID was generated inside run_function_in_background(), but _maybe_inject_auto_start_before_vscode() read it synchronously before the background task had a chance to write it. Current code pre-generates the run ID and passes it as a parameter.",
       "evidence": "Log shows: 'Auto-start injection skipped: missing agdt_run_id in state'. Timestamp of log entry is 0.3s before the background task writes the run ID.",
-      "suggested_fix": "Generate the run ID before spawning the background task and pass it as a parameter. Move the set_value('agdt_run_id', run_id) call to the synchronous parent function.",
+      "suggested_fix": "Already fixed: setup_worktree_in_background_sync() now pre-generates the run ID and passes it into _maybe_inject_auto_start_before_vscode(). No further action needed.",
       "cascades_from": null,
-      "cascades_to": [4, 5],
-      "priority_score": 13
+      "cascades_to": [],
+      "priority_score": 11
     }
   ],
   "priority_order": [1],
   "cascade_graph": {
-    "1": [4, 5]
+    "1": []
   }
 }
 ```
@@ -259,9 +262,9 @@ analysis (`agdt_run_id` race condition):
 **Score breakdown for finding #1:**
 
 - `severity_weight` = 10 (critical)
-- `cascade_impact` = 2 (cascades to findings #4 and #5)
+- `cascade_impact` = 0 (no downstream cascades in this excerpt)
 - `fixability_bonus` = +1 (fix is ~15 lines of code)
-- **`priority_score` = 10 + 2 + 1 = 13**
+- **`priority_score` = 10 + 0 + 1 = 11**
 
 ---
 
@@ -271,10 +274,10 @@ Follow these 8 steps sequentially when analyzing any `agentic-devtools` workflow
 Each step builds on the output of previous steps.
 
 1. **Entry point identification** — Locate the CLI command that starts the workflow
-   and trace it to its handler function. CLI entry points are defined in `pyproject.toml`
-   under `[project.scripts]`. Handler functions live in `agentic_devtools/cli/` and its
-   subpackages. Record the command name, the Python module path, and the handler function
-   name.
+   and trace it to its handler function. CLI entry points are defined in the root
+   `pyproject.toml` under `[project.scripts]`. Handler functions live in
+   `agentic_devtools/cli/` and its subpackages. Record the command name, the Python
+   module path, and the handler function name.
 
 2. **Call graph traversal** — Follow the handler through all function calls, paying
    special attention to cross-module boundaries. Track calls into
@@ -290,11 +293,12 @@ Each step builds on the output of previous steps.
    read-before-write patterns.
 
 4. **Async boundary identification** — Identify every point where the workflow crosses
-   an async boundary: calls to `run_function_in_background()` in `background_tasks.py`,
-   `subprocess.Popen` / `run_safe()` invocations in `agentic_devtools/cli/git/core.py`,
-   and `Popen` calls in `agentic_devtools/cli/workflows/worktree_setup.py`. For each
-   boundary, document the parent→child data contract: what data the parent passes, what
-   the child is expected to produce, and where the result is stored.
+   an async boundary: calls to `run_function_in_background()` in `background_tasks.py`
+   and `Popen` calls in `agentic_devtools/cli/workflows/worktree_setup.py`. Treat
+   `run_safe()` calls such as those in `agentic_devtools/cli/git/core.py` as synchronous
+   subprocess execution to document during call-graph traversal, not as async boundaries.
+   For each boundary, document the parent→child data contract: what data the parent
+   passes, what the child is expected to produce, and where the result is stored.
 
 5. **Failure mode enumeration** — For each async boundary identified in step 4,
    enumerate three failure scenarios: (a) the child process has not completed yet when
@@ -332,26 +336,30 @@ priority_score = severity_weight + cascade_impact + fixability_bonus
 | Component | Definition | Values |
 |---|---|---|
 | `severity_weight` | Integer weight from the severity level table. | critical=10, high=7, medium=4, low=1 |
-| `cascade_impact` | Count of findings in the **transitive closure** of `cascades_to`. | 0, 1, 2, ... |
+| `cascade_impact` | Count of all downstream findings reachable through `cascades_to` (direct children only in simple cases; follow chains for transitive cascades, e.g., 1→4→7 means finding 1 has cascade_impact of 2). | 0, 1, 2, ... |
 | `fixability_bonus` | Adjustment based on estimated fix complexity. | +1 if < 20 lines, 0 if 20–100 lines, -1 if > 100 lines or architectural |
 
 ### Worked Examples
 
-**Finding 1: `agdt_run_id` race condition**
+These examples are **illustrative scoring walkthroughs**, not a continuation of any
+earlier excerpted JSON sample. They may reflect a fuller hypothetical analysis graph
+than the minimal examples shown elsewhere in this document.
+
+**Example A: critical root-cause race condition**
 
 - severity = critical → `severity_weight` = 10
 - `cascades_to` = [4, 5] → `cascade_impact` = 2
 - Fix is ~15 lines → `fixability_bonus` = +1
 - **`priority_score` = 10 + 2 + 1 = 13**
 
-**Finding 4: `pending-auto-start.json` never written**
+**Example B: high-severity downstream persistence bug**
 
 - severity = high → `severity_weight` = 7
 - `cascades_to` = [] → `cascade_impact` = 0
 - Fix is ~8 lines → `fixability_bonus` = +1
 - **`priority_score` = 7 + 0 + 1 = 8**
 
-**Finding 9: misleading success log message**
+**Example C: medium-severity misleading log message**
 
 - severity = medium → `severity_weight` = 4
 - `cascades_to` = [] → `cascade_impact` = 0
@@ -370,7 +378,9 @@ impact (it unblocks more downstream fixes).
 ## Markdown Report Template
 
 Use this template to produce the human-readable companion report alongside the
-JSON output. Replace `{placeholder}` values with analysis data.
+JSON output. Replace `{placeholder}` values with analysis data. Lines containing
+`{for each ...}` are processing instructions — expand them into repeated blocks
+for each item in the collection; do not include the instruction text in the output.
 
 <!-- markdownlint-disable MD024 -->
 
@@ -391,7 +401,7 @@ JSON output. Replace `{placeholder}` values with analysis data.
 
 ## Findings
 
-{for each finding, ordered by priority_score descending:}
+{for each finding in priority_order:}
 
 ### {id}. {title} ({severity} — {category})
 
@@ -412,8 +422,15 @@ JSON output. Replace `{placeholder}` values with analysis data.
 
 #### Affected Code
 
-{for each affected_files + affected_functions}
-- `{file}` — `{function}()`
+**Files**
+
+{for each affected_files}
+- `{file}`
+
+**Functions**
+
+{for each affected_functions}
+- `{function}()`
 
 #### Suggested Fix
 
