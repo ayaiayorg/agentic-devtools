@@ -317,3 +317,73 @@ class TestStartWorktreeSetupBackground:
         sig = inspect.signature(start_worktree_setup_background)
         default = sig.parameters["auto_execute_timeout"].default
         assert default == 60
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_deletes_branch_name_when_none(self, mock_run_background, mock_set_value):
+        """Test that branch_name is deleted from state when None to prevent stale leaks."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-branch"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+            branch_name=None,
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.branch_name" not in stored_keys
+        self._mock_delete_value.assert_any_call("worktree_setup.branch_name")
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_persists_use_existing_branch_false(self, mock_run_background, mock_set_value):
+        """Test that use_existing_branch=False is persisted to prevent stale 'true' leaks."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-existing"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+            use_existing_branch=False,
+        )
+
+        mock_set_value.assert_any_call("worktree_setup.use_existing_branch", "false")
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_deletes_user_request_when_none(self, mock_run_background, mock_set_value):
+        """Test that user_request is deleted from state when None to prevent stale leaks."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-req"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+            user_request=None,
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.user_request" not in stored_keys
+        self._mock_delete_value.assert_any_call("worktree_setup.user_request")
+
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_deletes_additional_params_when_none(self, mock_run_background, mock_set_value):
+        """Test that additional_params is deleted from state when None to prevent stale leaks."""
+        mock_task = MagicMock()
+        mock_task.id = "task-no-params"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+            additional_params=None,
+        )
+
+        stored_keys = [call[0][0] for call in mock_set_value.call_args_list]
+        assert "worktree_setup.additional_params" not in stored_keys
+        self._mock_delete_value.assert_any_call("worktree_setup.additional_params")

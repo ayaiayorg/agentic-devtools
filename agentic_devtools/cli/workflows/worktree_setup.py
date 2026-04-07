@@ -3350,18 +3350,26 @@ def start_worktree_setup_background(
     from ...background_tasks import run_function_in_background
     from ...state import delete_value, get_value, set_value
 
-    # Store parameters in state for the background function to read
+    # Store parameters in state for the background function to read.
+    # Every optional key is explicitly set or deleted so stale values from
+    # a prior run (e.g. a PR-review branch_name leaking into a later
+    # work-on-jira-issue invocation) cannot affect the current setup.
     set_value("worktree_setup.issue_key", issue_key)
     set_value("worktree_setup.branch_prefix", branch_prefix)
     set_value("worktree_setup.workflow_name", workflow_name)
     if branch_name:  # pragma: no cover
         set_value("worktree_setup.branch_name", branch_name)
-    if use_existing_branch:  # pragma: no cover
-        set_value("worktree_setup.use_existing_branch", "true")
+    else:
+        delete_value("worktree_setup.branch_name")
+    set_value("worktree_setup.use_existing_branch", "true" if use_existing_branch else "false")
     if user_request:
         set_value("worktree_setup.user_request", user_request)
+    else:
+        delete_value("worktree_setup.user_request")
     if additional_params:
         set_value("worktree_setup.additional_params", json.dumps(additional_params))
+    else:
+        delete_value("worktree_setup.additional_params")
     # Always clear or persist auto_execute_command so stale commands from a
     # prior run (e.g. a PR review Copilot session) cannot leak into later
     # invocations that omit the command.
