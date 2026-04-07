@@ -323,9 +323,14 @@ Examples:
         # Neither provided — fall back to identity-only; the error path below will exit.
         _ensure_bootstrap_identity()
 
-    # Clear workflow tracking state (workflow, agdt_run_id) now that the bootstrap scope
-    # is set; load_state()/save_state() will use the correctly scoped directory.
-    clear_state_for_workflow_initiation()
+    # Clear workflow tracking state now that the bootstrap scope is set;
+    # load_state()/save_state() will use the correctly scoped directory.
+    # Always clears 'workflow'; clears 'agdt_run_id' only when this is a
+    # fresh user-initiated invocation (skip_copilot_session is falsy).
+    # When skip_copilot_session is set, this is a nested auto-execute
+    # invocation — preserve agdt_run_id so a pre-generated run ID from the
+    # parent process survives.
+    clear_state_for_workflow_initiation(preserve_run_id=bool(skip_copilot_session))
     set_value("copilot.model_id", model)
 
     # Set provided values in state using the NORMALIZED identifiers.  When both issue_key

@@ -75,7 +75,7 @@ class TestEnsureBootstrapIdentityCalledBeforeClear:
         """Return a list and two side-effect functions that record call order."""
         calls = []
         ensure_mock = MagicMock(side_effect=lambda *args, **kwargs: calls.append("ensure"))
-        clear_mock = MagicMock(side_effect=lambda: calls.append("clear"))
+        clear_mock = MagicMock(side_effect=lambda **kwargs: calls.append("clear"))
         return calls, ensure_mock, clear_mock
 
     def test_pull_request_review_calls_ensure_before_clear(self, temp_state_dir, clear_state_before):
