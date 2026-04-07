@@ -10,6 +10,11 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+_WORKFLOW_AUTO_EXECUTE_TIMEOUTS: dict[str, int] = {
+    "pull-request-review": 300,
+    "apply-pull-request-review-suggestions": 300,
+}
+
 
 @dataclass
 class PreflightResult:
@@ -245,7 +250,7 @@ def perform_auto_setup(
     user_request: str | None = None,
     additional_params: dict | None = None,
     auto_execute_command: list[str] | None = None,
-    auto_execute_timeout: int = 60,
+    auto_execute_timeout: int | None = None,
     interactive: bool = False,
     model: str | None = None,
 ) -> bool:
@@ -275,8 +280,10 @@ def perform_auto_setup(
             command (e.g., {"parent_key": "PROJECT-1234", "pull_request_id": "12345"})
         auto_execute_command: Optional command to run inside the worktree after
             creation. Passed through to the background setup task.
-        auto_execute_timeout: Timeout in seconds for the auto-execute command
-            (default: 60).
+        auto_execute_timeout: Timeout in seconds for the auto-execute command.
+            When None (default), uses workflow-specific defaults (e.g., 300s
+            for pull-request-review) or falls back to 60s. Pass an explicit
+            value to override the workflow default.
         interactive: Whether to start the Copilot session interactively after
             the worktree is ready (default: False). Set to True for interactive mode.
         model: The Copilot model ID to use (e.g., "gpt-4o"). When provided,
@@ -288,6 +295,10 @@ def perform_auto_setup(
     """
     from ...state import set_value
     from .worktree_setup import start_worktree_setup_background
+
+    # Resolve workflow-specific timeout when caller used the signature default.
+    if auto_execute_timeout is None:
+        auto_execute_timeout = _WORKFLOW_AUTO_EXECUTE_TIMEOUTS.get(workflow_name, 60)
 
     print(f"\n{'=' * 80}")
     print("AUTOMATIC ENVIRONMENT SETUP (BACKGROUND)")
