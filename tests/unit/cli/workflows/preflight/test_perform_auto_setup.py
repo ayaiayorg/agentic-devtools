@@ -43,6 +43,7 @@ class TestPerformAutoSetup:
             auto_execute_command=None,
             auto_execute_timeout=60,
             interactive=False,
+            model=None,
         )
         captured = capsys.readouterr()
         assert "task-12345" in captured.out
@@ -187,3 +188,32 @@ class TestPerformAutoSetup:
         sig = inspect.signature(perform_auto_setup)
         default = sig.parameters["auto_execute_timeout"].default
         assert default == 60
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_passes_model_to_background(self, mock_start_background, capsys):
+        """Test that model parameter is forwarded to start_worktree_setup_background."""
+        mock_start_background.return_value = "task-model"
+
+        perform_auto_setup(
+            issue_key="TEST-1",
+            workflow_name="pull-request-review",
+            model="gpt-4o",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
+    def test_model_defaults_to_none(self, mock_start_background, capsys):
+        """Test that model defaults to None when not specified."""
+        mock_start_background.return_value = "task-no-model"
+
+        perform_auto_setup(
+            issue_key="TEST-1",
+            workflow_name="work-on-jira-issue",
+        )
+
+        mock_start_background.assert_called_once()
+        call_kwargs = mock_start_background.call_args[1]
+        assert call_kwargs["model"] is None

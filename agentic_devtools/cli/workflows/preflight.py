@@ -247,6 +247,7 @@ def perform_auto_setup(
     auto_execute_command: list[str] | None = None,
     auto_execute_timeout: int = 60,
     interactive: bool = False,
+    model: str | None = None,
 ) -> bool:
     """
     Automatically set up a worktree environment for the issue as a background task.
@@ -278,6 +279,9 @@ def perform_auto_setup(
             (default: 60).
         interactive: Whether to start the Copilot session interactively after
             the worktree is ready (default: False). Set to True for interactive mode.
+        model: The Copilot model ID to use (e.g., "gpt-4o"). When provided,
+            passed explicitly to the background setup task instead of relying
+            on copilot.model_id state.
 
     Returns:
         True if the background task was started, False otherwise
@@ -302,6 +306,7 @@ def perform_auto_setup(
             auto_execute_command=auto_execute_command,
             auto_execute_timeout=auto_execute_timeout,
             interactive=interactive,
+            model=model,
         )
 
         # Automatically save the task ID to state so agdt-task-wait works

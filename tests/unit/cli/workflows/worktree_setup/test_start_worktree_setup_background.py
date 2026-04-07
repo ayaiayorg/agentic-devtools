@@ -292,6 +292,22 @@ class TestStartWorktreeSetupBackground:
         assert "worktree_setup.model" not in stored_keys
         mock_delete_value.assert_called_once_with("worktree_setup.model")
 
+    @patch("agentic_devtools.state.set_value")
+    @patch("agentic_devtools.background_tasks.run_function_in_background")
+    def test_explicit_model_param_takes_precedence_over_state(self, mock_run_background, mock_set_value):
+        """Test that an explicit model parameter is stored instead of copilot.model_id from state."""
+        mock_task = MagicMock()
+        mock_task.id = "task-explicit-model"
+        mock_run_background.return_value = mock_task
+
+        start_worktree_setup_background(
+            issue_key="PROJECT-1234",
+            workflow_name="work-on-jira-issue",
+            model="gpt-4o",
+        )
+
+        mock_set_value.assert_any_call("worktree_setup.model", "gpt-4o")
+
     def test_auto_execute_timeout_default_is_60(self):
         """Verify the default value of auto_execute_timeout is 60 via signature inspection."""
         import inspect
