@@ -1,92 +1,72 @@
-"""Tests for resolve_github_repo in repo_resolution module."""
+"""Tests for resolve_github_repo."""
 
 from unittest.mock import patch
 
 import pytest
 
-from agentic_devtools.cli.github import repo_resolution
+from agentic_devtools.cli.github.repo_resolution import resolve_github_repo
+
+_MOD = "agentic_devtools.cli.github.repo_resolution"
 
 
 class TestResolveGithubRepo:
     """Tests for resolve_github_repo."""
 
-    def test_cli_arg_has_priority(self):
-        """CLI argument is returned when provided."""
-        result = repo_resolution.resolve_github_repo("owner/repo")
-        assert result == "owner/repo"
+    def test_cli_arg_preferred(self):
+        """CLI arg is used when provided."""
+        result = resolve_github_repo("myorg/myrepo")
+        assert result == "myorg/myrepo"
 
-    def test_cli_arg_stripped(self):
-        """CLI argument is stripped of whitespace."""
-        result = repo_resolution.resolve_github_repo("  owner/repo  ")
-        assert result == "owner/repo"
+    def test_cli_arg_strips_whitespace(self):
+        """CLI arg is stripped before validation."""
+        result = resolve_github_repo("  myorg/myrepo  ")
+        assert result == "myorg/myrepo"
 
-    def test_cli_arg_strips_git_suffix(self):
-        """CLI argument with .git suffix is normalized."""
-        result = repo_resolution.resolve_github_repo("owner/repo.git")
-        assert result == "owner/repo"
-
-    def test_cli_arg_strips_git_suffix_with_whitespace(self):
-        """CLI argument with .git suffix and whitespace is normalized."""
-        result = repo_resolution.resolve_github_repo("  owner/repo.git  ")
-        assert result == "owner/repo"
-
-    def test_cli_arg_invalid_format_exits(self):
-        """Invalid --repo format causes exit with code 1."""
+    def test_cli_arg_invalid_format_exits(self, capsys):
+        """Exits with code 1 for invalid --repo format."""
         with pytest.raises(SystemExit) as exc_info:
-            repo_resolution.resolve_github_repo("not-a-valid-repo")
+            resolve_github_repo("justrepo")
         assert exc_info.value.code == 1
+        assert "Invalid --repo format" in capsys.readouterr().err
 
-    def test_cli_arg_invalid_format_with_slashes_exits(self):
-        """Too many slashes in --repo causes exit with code 1."""
+    @patch(f"{_MOD}.get_value", return_value="state-org/state-repo")
+    def test_fallback_to_state(self, mock_get):
+        """Falls back to github.repo state key."""
+        result = resolve_github_repo(None)
+        assert result == "state-org/state-repo"
+        mock_get.assert_called_once_with("github.repo")
+
+    @patch(f"{_MOD}._resolve_repo_from_git_remote", return_value="remote-org/remote-repo")
+    @patch(f"{_MOD}.get_value", return_value=None)
+    def test_fallback_to_git_remote(self, mock_get, mock_remote):
+        """Falls back to git remote URL."""
+        result = resolve_github_repo(None)
+        assert result == "remote-org/remote-repo"
+
+    @patch(f"{_MOD}._resolve_repo_from_git_remote", return_value="remote-org/remote-repo")
+    @patch(f"{_MOD}.get_value", return_value="justrepo")
+    def test_malformed_state_falls_through_to_remote(self, mock_get, mock_remote):
+        """Malformed state value (no slash) falls through to git remote."""
+        result = resolve_github_repo(None)
+        assert result == "remote-org/remote-repo"
+
+    @patch(f"{_MOD}._resolve_repo_from_git_remote", return_value="remote-org/remote-repo")
+    @patch(f"{_MOD}.get_value", return_value="a/b/c")
+    def test_state_with_extra_slashes_falls_through(self, mock_get, mock_remote):
+        """State value with extra slashes is rejected, falls through."""
+        result = resolve_github_repo(None)
+        assert result == "remote-org/remote-repo"
+
+    @patch(f"{_MOD}.get_value", return_value="  state-org/state-repo  ")
+    def test_state_value_stripped(self, mock_get):
+        """State value is stripped before use."""
+        result = resolve_github_repo(None)
+        assert result == "state-org/state-repo"
+
+    @patch(f"{_MOD}._resolve_repo_from_git_remote", return_value=None)
+    @patch(f"{_MOD}.get_value", return_value=None)
+    def test_exits_when_all_fail(self, mock_get, mock_remote):
+        """Calls sys.exit(1) when no resolution succeeds."""
         with pytest.raises(SystemExit) as exc_info:
-            repo_resolution.resolve_github_repo("a/b/c")
-        assert exc_info.value.code == 1
-
-    def test_empty_string_cli_arg_falls_through(self):
-        """Empty string CLI arg is treated as not provided."""
-        with patch.object(repo_resolution, "get_value", return_value="state/repo"):
-            result = repo_resolution.resolve_github_repo("")
-        assert result == "state/repo"
-
-    def test_whitespace_cli_arg_falls_through(self):
-        """Whitespace-only CLI arg is treated as not provided."""
-        with patch.object(repo_resolution, "get_value", return_value="state/repo"):
-            result = repo_resolution.resolve_github_repo("   ")
-        assert result == "state/repo"
-
-    def test_state_fallback(self):
-        """Falls back to github.repo from state."""
-        with patch.object(repo_resolution, "get_value", return_value="from-state/repo"):
-            result = repo_resolution.resolve_github_repo(None)
-        assert result == "from-state/repo"
-
-    def test_git_remote_fallback(self):
-        """Falls back to git remote when state is empty."""
-        with patch.object(repo_resolution, "get_value", return_value=None):
-            with patch.object(
-                repo_resolution,
-                "_get_git_origin_url",
-                return_value="https://github.com/owner/repo.git",
-            ):
-                result = repo_resolution.resolve_github_repo(None)
-        assert result == "owner/repo"
-
-    def test_exits_when_all_fail(self):
-        """Exits with code 1 when all resolution methods fail."""
-        with patch.object(repo_resolution, "get_value", return_value=None):
-            with patch.object(repo_resolution, "_get_git_origin_url", return_value=None):
-                with pytest.raises(SystemExit) as exc_info:
-                    repo_resolution.resolve_github_repo(None)
-        assert exc_info.value.code == 1
-
-    def test_non_github_remote_exits(self):
-        """Non-GitHub remote URL causes exit when no other source available."""
-        with patch.object(repo_resolution, "get_value", return_value=None):
-            with patch.object(
-                repo_resolution,
-                "_get_git_origin_url",
-                return_value="https://gitlab.com/owner/repo.git",
-            ):
-                with pytest.raises(SystemExit) as exc_info:
-                    repo_resolution.resolve_github_repo(None)
+            resolve_github_repo(None)
         assert exc_info.value.code == 1

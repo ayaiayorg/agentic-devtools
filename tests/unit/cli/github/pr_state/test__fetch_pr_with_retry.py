@@ -170,9 +170,7 @@ class TestFetchPrWithRetry:
         ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc"}'
 
         with patch.object(pr_state_module, "run_safe", side_effect=[locked_fail, ok_result]):
-            data = pr_state_module._fetch_pr_with_retry(
-                42, "owner/repo", max_retries=0, retry_delay=0
-            )
+            data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", max_retries=0, retry_delay=0)
 
         assert data["state"] == "OPEN"
         assert data["locked"] is None
