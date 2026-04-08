@@ -328,6 +328,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.pr_approve",
         "pr_approve_command",
     ),
+    "agdt-gh-request-copilot-review": (
+        "agentic_devtools.cli.github.request_copilot_review",
+        "request_copilot_review_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

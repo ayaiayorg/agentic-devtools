@@ -30,6 +30,11 @@ from .pr_approve import approve_pr, pr_approve_command
 from .pr_checks_status import get_pr_checks_status, pr_checks_status_command
 from .pr_state import get_pr_state, pr_state_command
 from .repo_resolution import resolve_github_repo
+from .request_copilot_review import (
+    COPILOT_REVIEWER_LOGIN,
+    request_copilot_review,
+    request_copilot_review_command,
+)
 from .rerun_checks import rerun_checks_command, rerun_failed_checks
 from .resolve_review_threads import (
     resolve_review_threads,
@@ -43,6 +48,7 @@ from .state_helpers import (
 
 __all__ = [
     "AGDT_REPO",
+    "COPILOT_REVIEWER_LOGIN",
     "GITHUB_ISSUE_STATE_NAMESPACE",
     "_classify_review_status",
     "_select_latest_copilot_review",
@@ -70,6 +76,8 @@ __all__ = [
     "pr_approve_command",
     "pr_checks_status_command",
     "pr_state_command",
+    "request_copilot_review",
+    "request_copilot_review_command",
     "rerun_checks_command",
     "rerun_failed_checks",
     "resolve_github_repo",
