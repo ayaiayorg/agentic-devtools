@@ -30,6 +30,10 @@ from .pr_checks_status import get_pr_checks_status, pr_checks_status_command
 from .pr_state import get_pr_state, pr_state_command
 from .repo_resolution import resolve_github_repo
 from .rerun_checks import rerun_checks_command, rerun_failed_checks
+from .resolve_review_threads import (
+    resolve_review_threads,
+    resolve_review_threads_command,
+)
 from .state_helpers import (
     GITHUB_ISSUE_STATE_NAMESPACE,
     get_issue_value,
@@ -66,5 +70,7 @@ __all__ = [
     "rerun_checks_command",
     "rerun_failed_checks",
     "resolve_github_repo",
+    "resolve_review_threads",
+    "resolve_review_threads_command",
     "set_issue_value",
 ]

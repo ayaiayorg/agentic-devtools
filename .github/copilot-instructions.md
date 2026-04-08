@@ -153,6 +153,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh pr checks` + `gh api check-suites` | `agdt-gh-pr-checks-status` |
 | `gh api .../reviews` + GraphQL suppressed pagination | `agdt-gh-copilot-review-status` |
 | `gh api ... actions/runs/{id}/rerun` | `agdt-gh-rerun-checks` |
+| `gh api graphql` (thread pagination + `resolveReviewThread` mutation) | `agdt-gh-resolve-review-threads` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -482,7 +483,7 @@ All file review commands automatically:
 3. Update the hierarchical review threads in Azure DevOps via PATCH requests (file, folder, and overall summary threads), then save the refreshed state to `review-state.json`
 4. Print next steps (continue with next file or advance to summary step)
 
-### GitHub PR Actions (Synchronous)
+### GitHub PR CI Checks (Synchronous)
 
 These commands interact with GitHub PRs via the `gh` CLI and return results directly (not background tasks).
 
@@ -682,6 +683,26 @@ agdt-task-status   # Check current status
 agdt-task-log      # View output log
 agdt-task-wait     # Wait for completion
 ```
+
+### GitHub PR Thread Resolution (Synchronous)
+
+These commands interact with GitHub PRs via the `gh` CLI and GraphQL. They run **synchronously** (not as background tasks) and print structured JSON to stdout.
+
+| Command | Purpose | Required CLI Args / State |
+|---------|---------|---------------------------|
+| `agdt-gh-resolve-review-threads` | Resolve PR review threads via GraphQL | `--pr` or `github.pull_request_number`; `--review-id` or `github.copilot_review_id` or `--comment-ids` |
+
+**`agdt-gh-resolve-review-threads` Usage:**
+
+```bash
+# Resolve all threads for a specific review
+agdt-gh-resolve-review-threads --pr 1115 --repo ayaiayorg/agentic-devtools --review-id 4066913338
+
+# Resolve specific comment IDs only
+agdt-gh-resolve-review-threads --pr 1115 --comment-ids 12345,12346,12347
+```
+
+**State keys written:** `github.threads_resolved_count`, `github.threads_failed_count`, `github.threads_already_resolved_count`, `github.threads_resolution_verified`.
 
 ### Testing Actions
 
