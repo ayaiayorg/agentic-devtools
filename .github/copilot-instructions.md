@@ -150,6 +150,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | Raw Jira REST API calls | `agdt-add-jira-comment`, `agdt-get-jira-issue`, etc. |
 | `gh issue create` (for this repo) | `agdt-create-agdt-feature-issue`, `agdt-create-agdt-bug-issue`, etc. |
 | `gh pr view ... --json` | `agdt-gh-pr-state` |
+| `gh pr checks` + `gh api check-suites` | `agdt-gh-pr-checks-status` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -266,6 +267,8 @@ agentic_devtools/
 | `github/state_helpers.py` | `get_issue_value()` and `set_issue_value()` for the `issue.*` state namespace |
 | `github/issue_commands.py` | Sync implementations: `create_agdt_issue`, `create_agdt_bug_issue`, `create_agdt_feature_issue`, `create_agdt_documentation_issue`, `create_agdt_task_issue` |
 | `github/async_commands.py` | Async wrappers (background tasks) and argparse CLI entry points for all `agdt-create-agdt-*` commands |
+| `github/repo_resolution.py` | `resolve_github_repo()` for resolving `owner/repo` from CLI args or git remote |
+| `github/pr_checks_status.py` | Dual-source CI check verification: `get_pr_checks_status()`, `pr_checks_status_command()` |
 | `prompts/loader.py` | Template loading, variable extraction, validation, substitution, and output saving |
 | `cli/workflows/base.py` | Base workflow utilities: `validate_required_state`, `initiate_workflow`, `advance_workflow_step` |
 | `cli/workflows/commands.py` | Workflow initiation CLI commands for each workflow type |
@@ -476,6 +479,29 @@ All file review commands automatically:
 2. Mark the file as reviewed in Azure DevOps (visible as "viewed" eye icon in PR UI)
 3. Update the hierarchical review threads in Azure DevOps via PATCH requests (file, folder, and overall summary threads), then save the refreshed state to `review-state.json`
 4. Print next steps (continue with next file or advance to summary step)
+
+### GitHub PR Actions (Synchronous)
+
+These commands interact with GitHub PRs via the `gh` CLI and return results directly (not background tasks).
+
+| Command | Purpose | Required State / CLI Args |
+|---------|---------|---------------------------|
+| `agdt-gh-pr-checks-status` | Dual-source CI check verification | `--pr` or `github.pull_request_number`; `--repo` or git remote; optional `--head-sha` or `github.head_ref_oid` |
+
+**`agdt-gh-pr-checks-status`** performs dual verification:
+
+1. Fetches structured check results via `gh pr checks --json`
+2. Verifies check-suite completion via `gh api` check-suites endpoint (when `head_sha` is available)
+
+State keys written: `github.pr_checks_status`, `github.pr_checks_failed`, `github.pr_checks_pending`.
+
+```bash
+# With CLI parameters
+agdt-gh-pr-checks-status --pr 1115 --repo ayaiayorg/agentic-devtools --head-sha abc123
+
+# Using state (set via agdt-set)
+agdt-gh-pr-checks-status
+```
 
 ### Git Workflow Actions (Background Tasks)
 

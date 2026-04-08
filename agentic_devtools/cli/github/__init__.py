@@ -20,6 +20,7 @@ from .issue_commands import (
     create_agdt_issue,
     create_agdt_task_issue,
 )
+from .pr_checks_status import get_pr_checks_status, pr_checks_status_command
 from .pr_state import get_pr_state, pr_state_command
 from .repo_resolution import resolve_github_repo
 from .state_helpers import (
@@ -47,7 +48,9 @@ __all__ = [
     "create_agdt_task_issue_async",
     "create_agdt_task_issue_async_cli",
     "get_issue_value",
+    "get_pr_checks_status",
     "get_pr_state",
+    "pr_checks_status_command",
     "pr_state_command",
     "resolve_github_repo",
     "set_issue_value",
