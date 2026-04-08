@@ -12,6 +12,12 @@ from .async_commands import (
     create_agdt_task_issue_async,
     create_agdt_task_issue_async_cli,
 )
+from .copilot_review_status import (
+    _classify_review_status,
+    _select_latest_copilot_review,
+    copilot_review_status_command,
+    get_copilot_review_status,
+)
 from .issue_commands import (
     AGDT_REPO,
     create_agdt_bug_issue,
@@ -32,6 +38,9 @@ from .state_helpers import (
 __all__ = [
     "AGDT_REPO",
     "GITHUB_ISSUE_STATE_NAMESPACE",
+    "_classify_review_status",
+    "_select_latest_copilot_review",
+    "copilot_review_status_command",
     "create_agdt_bug_issue",
     "create_agdt_bug_issue_async",
     "create_agdt_bug_issue_async_cli",
@@ -47,6 +56,7 @@ __all__ = [
     "create_agdt_task_issue",
     "create_agdt_task_issue_async",
     "create_agdt_task_issue_async_cli",
+    "get_copilot_review_status",
     "get_issue_value",
     "get_pr_checks_status",
     "get_pr_state",

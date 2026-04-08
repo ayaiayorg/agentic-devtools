@@ -310,6 +310,11 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github",
         "create_agdt_task_issue_async_cli",
     ),
+    # GitHub PR analysis (synchronous)
+    "agdt-gh-copilot-review-status": (
+        "agentic_devtools.cli.github.copilot_review_status",
+        "copilot_review_status_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

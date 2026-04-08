@@ -151,6 +151,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh issue create` (for this repo) | `agdt-create-agdt-feature-issue`, `agdt-create-agdt-bug-issue`, etc. |
 | `gh pr view ... --json` | `agdt-gh-pr-state` |
 | `gh pr checks` + `gh api check-suites` | `agdt-gh-pr-checks-status` |
+| `gh api .../reviews` + GraphQL suppressed pagination | `agdt-gh-copilot-review-status` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -502,6 +503,19 @@ agdt-gh-pr-checks-status --pr 1115 --repo ayaiayorg/agentic-devtools --head-sha 
 # Using state (set via agdt-set)
 agdt-gh-pr-checks-status
 ```
+
+### GitHub PR Analysis (Synchronous)
+
+| Command | Purpose | Required State / CLI Args |
+|---------|---------|---------------------------|
+| `agdt-gh-copilot-review-status` | Analyze Copilot review status for a PR | `github.pull_request_number`, `github.head_ref_oid` OR `--pr`, `--head-sha`; optional `github.repo` / `--repo` (auto-detected from git remote if omitted) |
+
+**State Keys Written:**
+
+- `github.copilot_review_status` — status string (`clean`, `no-review`, `has-feedback`, `changes-requested`, `unknown-state`)
+- `github.copilot_review_id` — numeric review ID (or `null`)
+- `github.copilot_review_node_id` — GraphQL node ID (or `null`)
+- `github.copilot_review_url` — review URL (or `null`)
 
 ### Git Workflow Actions (Background Tasks)
 
