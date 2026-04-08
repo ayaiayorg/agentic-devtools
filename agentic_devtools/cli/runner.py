@@ -315,6 +315,11 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.copilot_review_status",
         "copilot_review_status_command",
     ),
+    # GitHub PR actions (synchronous)
+    "agdt-gh-rerun-checks": (
+        "agentic_devtools.cli.github.rerun_checks",
+        "rerun_checks_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

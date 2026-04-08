@@ -152,6 +152,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh pr view ... --json` | `agdt-gh-pr-state` |
 | `gh pr checks` + `gh api check-suites` | `agdt-gh-pr-checks-status` |
 | `gh api .../reviews` + GraphQL suppressed pagination | `agdt-gh-copilot-review-status` |
+| `gh api ... actions/runs/{id}/rerun` | `agdt-gh-rerun-checks` |
 
 #### Exceptions — Raw Commands Still Required
 
