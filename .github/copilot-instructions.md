@@ -155,6 +155,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh api ... actions/runs/{id}/rerun` | `agdt-gh-rerun-checks` |
 | `gh api graphql` (thread pagination + `resolveReviewThread` mutation) | `agdt-gh-resolve-review-threads` |
 | `gh pr review --approve` + manual verification | `agdt-gh-pr-approve` |
+| `gh api .../requested_reviewers -X POST` | `agdt-gh-request-copilot-review` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -226,6 +227,8 @@ agentic_devtools/
 │   ├── github/          # GitHub issue creation commands (package)
 │   │   ├── __init__.py  # Command exports
 │   │   ├── state_helpers.py  # issue.* namespace helpers
+│   │   ├── repo_resolution.py # Shared owner/repo resolution for agdt-gh-* commands
+│   │   ├── request_copilot_review.py # Request Copilot review with verification
 │   │   ├── issue_commands.py # Synchronous issue creation commands
 │   │   └── async_commands.py # Background/async command wrappers + CLI entry points
 │   ├── jira/            # Jira commands (package)
