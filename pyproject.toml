@@ -163,6 +163,7 @@ agdt-gh-pr-checks-status = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-copilot-review-status = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-rerun-checks = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-resolve-review-threads = "agentic_devtools.cli.runner:run_as_script"
+agdt-gh-pr-approve = "agentic_devtools.cli.runner:run_as_script"
 agdt-review = "agentic_devtools.cli.runner:run_as_script"
 agdt-mcp-server = "agentic_devtools.mcp.server:main"
 

@@ -324,6 +324,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.resolve_review_threads",
         "resolve_review_threads_command",
     ),
+    "agdt-gh-pr-approve": (
+        "agentic_devtools.cli.github.pr_approve",
+        "pr_approve_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),
