@@ -154,6 +154,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh api .../reviews` + GraphQL suppressed pagination | `agdt-gh-copilot-review-status` |
 | `gh api ... actions/runs/{id}/rerun` | `agdt-gh-rerun-checks` |
 | `gh api graphql` (thread pagination + `resolveReviewThread` mutation) | `agdt-gh-resolve-review-threads` |
+| `gh pr review --approve` + manual verification | `agdt-gh-pr-approve` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -162,7 +163,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | Raw command | Reason still needed |
 |-------------|---------------------|
 | `gh issue` / `gh pr` for repos other than agentic-devtools | No agdt support yet for general GitHub operations |
-| `gh pr review`, `gh pr comment` for external repos | No agdt support yet for general GitHub PR reviews |
+| `gh pr comment` for external repos | No agdt support yet for general GitHub PR comments |
 | Other `gh` operations not listed in the command mapping above | No agdt equivalent exists |
 
 ### GitHub PR Actions (Synchronous)
