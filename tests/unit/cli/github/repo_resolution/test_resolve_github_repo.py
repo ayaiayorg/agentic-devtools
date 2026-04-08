@@ -20,6 +20,28 @@ class TestResolveGithubRepo:
         result = repo_resolution.resolve_github_repo("  owner/repo  ")
         assert result == "owner/repo"
 
+    def test_cli_arg_strips_git_suffix(self):
+        """CLI argument with .git suffix is normalized."""
+        result = repo_resolution.resolve_github_repo("owner/repo.git")
+        assert result == "owner/repo"
+
+    def test_cli_arg_strips_git_suffix_with_whitespace(self):
+        """CLI argument with .git suffix and whitespace is normalized."""
+        result = repo_resolution.resolve_github_repo("  owner/repo.git  ")
+        assert result == "owner/repo"
+
+    def test_cli_arg_invalid_format_exits(self):
+        """Invalid --repo format causes exit with code 1."""
+        with pytest.raises(SystemExit) as exc_info:
+            repo_resolution.resolve_github_repo("not-a-valid-repo")
+        assert exc_info.value.code == 1
+
+    def test_cli_arg_invalid_format_with_slashes_exits(self):
+        """Too many slashes in --repo causes exit with code 1."""
+        with pytest.raises(SystemExit) as exc_info:
+            repo_resolution.resolve_github_repo("a/b/c")
+        assert exc_info.value.code == 1
+
     def test_empty_string_cli_arg_falls_through(self):
         """Empty string CLI arg is treated as not provided."""
         with patch.object(repo_resolution, "get_value", return_value="state/repo"):

@@ -53,7 +53,16 @@ def resolve_github_repo(cli_repo: str | None = None) -> str:
     Exits with code 1 if resolution fails.
     """
     if cli_repo and cli_repo.strip():
-        return cli_repo.strip()
+        normalized = cli_repo.strip()
+        match = re.fullmatch(r"([\w.-]+)/([\w.-]+?)(?:\.git)?", normalized)
+        if match:
+            return f"{match.group(1)}/{match.group(2)}"
+        print(
+            f"Error: invalid --repo value '{cli_repo}'. "
+            "Expected 'owner/repo' format.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     state_repo = get_value("github.repo")
     if state_repo and isinstance(state_repo, str) and state_repo.strip():
