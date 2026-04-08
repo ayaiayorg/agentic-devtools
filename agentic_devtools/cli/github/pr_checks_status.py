@@ -51,8 +51,7 @@ def _fetch_pr_checks(pr_number: int, repo: str) -> list[dict]:
             result = run_safe(cmd, capture_output=True, text=True, shell=False)
         except FileNotFoundError:
             print(
-                "Error: 'gh' CLI is not installed or not on PATH. "
-                "Install from https://cli.github.com/",
+                "Error: 'gh' CLI is not installed or not on PATH. Install from https://cli.github.com/",
                 file=sys.stderr,
             )
             sys.exit(1)

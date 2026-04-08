@@ -97,8 +97,7 @@ def _fetch_reviews_for_pr(pr_number: int, repo: str) -> list[dict[str, Any]]:
                         reviews.append(json.loads(line))
                     except json.JSONDecodeError as exc:
                         raise RuntimeError(
-                            f"Failed to parse review JSON from GitHub API for "
-                            f"PR #{pr_number} in {repo}: {exc}"
+                            f"Failed to parse review JSON from GitHub API for PR #{pr_number} in {repo}: {exc}"
                         ) from exc
             return reviews
 
@@ -240,8 +239,7 @@ def _count_suppressed_comments(review_node_id: str) -> int:
                     response_data = json.loads(result.stdout)
                 except json.JSONDecodeError as exc:
                     raise RuntimeError(
-                        f"Failed to parse GraphQL response for suppressed comments "
-                        f"of review {review_node_id}: {exc}"
+                        f"Failed to parse GraphQL response for suppressed comments of review {review_node_id}: {exc}"
                     ) from exc
                 break
 

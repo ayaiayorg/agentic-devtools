@@ -57,8 +57,7 @@ def _fetch_workflow_runs(repo: str, head_sha: str) -> list[dict]:
             result = run_safe(args, capture_output=True, text=True, shell=False)
         except FileNotFoundError:
             print(
-                "Error: 'gh' CLI is not installed or not on PATH. "
-                "Install from https://cli.github.com/",
+                "Error: 'gh' CLI is not installed or not on PATH. Install from https://cli.github.com/",
                 file=sys.stderr,
             )
             sys.exit(1)

@@ -320,6 +320,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.rerun_checks",
         "rerun_checks_command",
     ),
+    "agdt-gh-resolve-review-threads": (
+        "agentic_devtools.cli.github.resolve_review_threads",
+        "resolve_review_threads_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

@@ -167,9 +167,7 @@ class TestCountSuppressedComments:
     @patch(f"{MODULE}.run_safe")
     def test_invalid_json_raises_runtime_error(self, mock_run, mock_sleep):
         """Invalid JSON in GraphQL response raises RuntimeError."""
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="not valid json", stderr=""
-        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="not valid json", stderr="")
 
         with pytest.raises(RuntimeError, match="Failed to parse GraphQL response"):
             _count_suppressed_comments("PRR_abc123")
