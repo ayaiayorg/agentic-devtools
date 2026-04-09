@@ -237,10 +237,7 @@ def _verify_approval(
         elif not result.stdout.strip():
             last_error = "empty API response"
         elif parse_errors > 0 and not reviews:
-            last_error = (
-                f"all {parse_errors} NDJSON line(s) failed JSON parsing "
-                f"(last error: {last_parse_error})"
-            )
+            last_error = f"all {parse_errors} NDJSON line(s) failed JSON parsing (last error: {last_parse_error})"
         elif matching:
             last_error = (
                 f"{len(matching)} matching APPROVED review(s) found but "

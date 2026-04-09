@@ -46,3 +46,22 @@ class TestLoadRepliesFile:
         with pytest.raises(SystemExit) as exc_info:
             _load_replies_file(str(f))
         assert exc_info.value.code == 1
+
+    def test_unicode_decode_error(self, tmp_path):
+        """sys.exit(1) when file contains invalid UTF-8."""
+        f = tmp_path / "replies.json"
+        f.write_bytes(b"\xff\xfe invalid utf-8")
+        with pytest.raises(SystemExit) as exc_info:
+            _load_replies_file(str(f))
+        assert exc_info.value.code == 1
+
+    def test_os_error_on_directory(self, tmp_path, capsys):
+        """sys.exit(1) when path is a directory (OSError)."""
+        d = tmp_path / "a_directory"
+        d.mkdir()
+        with pytest.raises(SystemExit) as exc_info:
+            _load_replies_file(str(d))
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "Failed to read" in err
+        assert "not found" not in err

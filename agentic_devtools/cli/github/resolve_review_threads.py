@@ -475,8 +475,7 @@ def resolve_review_threads_command() -> None:
                 pr_number = int(state_val)
             except (TypeError, ValueError):
                 print(
-                    "Error: github.pull_request_number in state must be an integer. "
-                    "Pass --pr or fix the state key.",
+                    "Error: github.pull_request_number in state must be an integer. Pass --pr or fix the state key.",
                     file=sys.stderr,
                 )
                 sys.exit(1)

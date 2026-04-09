@@ -201,16 +201,14 @@ def _evaluate_iteration(
             "reason": (
                 "ci_failed"
                 if ci_status == "failed"
-                else "ci_cancelled" if ci_status == "cancelled" else "ci_not_rerunnable"
+                else "ci_cancelled"
+                if ci_status == "cancelled"
+                else "ci_not_rerunnable"
             ),
             "actionRequired": (
                 "investigate-ci-failure"
                 if ci_status == "failed"
-                else (
-                    "investigate-ci-cancellation"
-                    if ci_status == "cancelled"
-                    else "investigate-ci-status"
-                )
+                else ("investigate-ci-cancellation" if ci_status == "cancelled" else "investigate-ci-status")
             ),
         }
         return result, head_sha, last_rerun_time
