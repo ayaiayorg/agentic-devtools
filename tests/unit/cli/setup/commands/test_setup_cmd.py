@@ -8,6 +8,7 @@ import pytest
 
 from agentic_devtools.cli.setup import commands
 from agentic_devtools.cli.setup.dependency_checker import DependencyStatus
+from agentic_devtools.cli.setup.pr_workflow import PrWorkflowResult
 
 
 def _make_statuses(git_found: bool = True) -> list:
@@ -32,11 +33,22 @@ class TestSetupCmd:
 
     @pytest.fixture(autouse=True)
     def _isolate_gitignore(self):
-        """Prevent setup_cmd() from writing .agdt/.gitignore or injecting skills into the real repo."""
-        with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
-            with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
-                with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
-                    yield
+        """Prevent setup_cmd() from writing .agdt/.gitignore, injecting skills, or running the PR workflow."""
+
+        def _mock_pr_workflow(fn, _ver):
+            fn()
+            return PrWorkflowResult(
+                success=True,
+                branch_created=None,
+                pr_created=False,
+                message="Mocked — no PR workflow in tests.",
+            )
+
+        with patch("agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow", side_effect=_mock_pr_workflow):
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
+                with patch("agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False):
+                    with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
+                        yield
 
     def test_exits_zero_on_full_success(self, capsys):
         """Exits 0 when all installs succeed and required deps are found."""
