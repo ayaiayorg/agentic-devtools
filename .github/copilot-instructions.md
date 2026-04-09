@@ -157,6 +157,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh pr review --approve` + manual verification | `agdt-gh-pr-approve` |
 | `gh api .../requested_reviewers -X POST` | `agdt-gh-request-copilot-review` |
 | Manual Phase 2 PR polling loop | `agdt-gh-pr-poll-ready` |
+| `gh pr merge --squash --delete-branch` + manual verification | `agdt-gh-pr-merge` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -174,11 +175,16 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 |---------|---------|---------------------------|
 | `agdt-gh-pr-state` | Fetch structured GitHub PR state | `--pr` (int) and optionally `--repo` (owner/repo); falls back to `github.pull_request_number` and `github.repo` state keys or git remote auto-detection |
 | `agdt-gh-pr-poll-ready` | Poll PR until ready to merge or blocked | `--pr` or `github.pull_request_number`; optional `--repo`, `--poll-interval`, `--max-wait`, `--background`, `--rerun-stale-checks` |
+| `agdt-gh-pr-merge` | Merge a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--strategy` (squash/merge/rebase, default squash), `--no-delete-branch`; `--repo` falls back to `github.repo` state or git remote auto-detection |
 
 **State keys written by `agdt-gh-pr-state`:**
 `github.pull_request_number`, `github.repo`, `github.pr_state`,
 `github.head_ref_oid`, `github.head_ref_oid_short`, `github.mergeable`,
 `github.merge_state_status`, `github.is_draft`, `github.is_terminal`
+
+**State keys written by `agdt-gh-pr-merge`:**
+`github.pr_merged` (bool), `github.pr_merged_at` (ISO-8601 string or null),
+`github.pr_merge_strategy` (string: squash/merge/rebase)
 
 **Usage:**
 
