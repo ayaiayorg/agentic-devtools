@@ -709,7 +709,8 @@ class TestRequestChangesPatchFlow:
         # patch_comment was called with rendered content for the file thread
         mock_patch_comment.assert_called_once()
         pc_kwargs = mock_patch_comment.call_args[1]
-        assert pc_kwargs["new_content"] == "## File Summary"
+        assert pc_kwargs["new_content"].startswith("<!-- agdt-review:v1 type:file-summary")
+        assert "## File Summary" in pc_kwargs["new_content"]
         assert pc_kwargs["thread_id"] == 500
         assert pc_kwargs["comment_id"] == 600
 

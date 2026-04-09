@@ -28,6 +28,7 @@ from .helpers import (
     resolve_review_artifact_dir_name,
 )
 from .mark_reviewed import fetch_reviewer_context, mark_file_reviewed, set_batch_context
+from .marker import build_marker
 
 if TYPE_CHECKING:
     from .review_state import ReviewState
@@ -240,6 +241,7 @@ def trigger_in_progress_for_file(
             current_verdict.verdictType = None
 
     file_content = render_file_summary(file_entry, file_entry.suggestions, base_url, **attrs)
+    file_marker = build_marker("file-summary", file=normalized, pr=pull_request_id)
     patch_comment(
         requests_module=requests_module,
         headers=auth_headers,
@@ -248,7 +250,7 @@ def trigger_in_progress_for_file(
         pull_request_id=pull_request_id,
         thread_id=file_entry.threadId,
         comment_id=file_entry.commentId,
-        new_content=file_content,
+        new_content=f"{file_marker}\n{file_content}",
         dry_run=dry_run,
     )
 
@@ -793,6 +795,7 @@ def approve_file(*, skip_cascade: bool = False) -> None:  # pragma: no cover
         # PATCH file summary comment with regenerated markdown
         attrs = _get_attribution_params(review_state, config, file_path=file_path)
         file_content = render_file_summary(file_entry, [], base_url, **attrs)
+        file_marker = build_marker("file-summary", file=normalized, pr=pull_request_id)
         patch_comment(
             requests_module=requests,
             headers=headers,
@@ -801,7 +804,7 @@ def approve_file(*, skip_cascade: bool = False) -> None:  # pragma: no cover
             pull_request_id=pull_request_id,
             thread_id=file_entry.threadId,
             comment_id=file_entry.commentId,
-            new_content=file_content,
+            new_content=f"{file_marker}\n{file_content}",
             dry_run=dry_run,
         )
 
@@ -859,7 +862,8 @@ def approve_file(*, skip_cascade: bool = False) -> None:  # pragma: no cover
 
         # Step 2: Post approval comment
         set_value("path", file_path)
-        set_value("content", summary)
+        legacy_marker = build_marker("legacy-approval", file=_normalize_repo_path(file_path), pr=pull_request_id)
+        set_value("content", f"{legacy_marker}\n{summary}")
         set_value("is_pull_request_approval", "true")
         set_value("leave_thread_active", "false")
 
@@ -1115,8 +1119,12 @@ def request_changes(*, skip_cascade: bool = False) -> None:
 
                 # Build and POST line-anchored thread
                 thread_context = build_thread_context(normalized, line, end_line)
+                tagged_content = (
+                    f"{build_marker('suggestion', file=normalized, pr=pull_request_id, line=line, severity=severity)}"
+                    f"\n{content}"
+                )
                 thread_body = {
-                    "comments": [{"content": content, "commentType": "text"}],
+                    "comments": [{"content": tagged_content, "commentType": "text"}],
                     "status": "active",
                     "threadContext": thread_context,
                 }
@@ -1157,6 +1165,7 @@ def request_changes(*, skip_cascade: bool = False) -> None:
             # PATCH file summary comment with regenerated markdown
             attrs = _get_attribution_params(review_state, config, file_path=file_path)
             file_content = render_file_summary(file_entry, file_entry.suggestions, base_url, **attrs)
+            file_marker = build_marker("file-summary", file=normalized, pr=pull_request_id)
             patch_comment(
                 requests_module=requests,
                 headers=headers,
@@ -1165,7 +1174,7 @@ def request_changes(*, skip_cascade: bool = False) -> None:
                 pull_request_id=pull_request_id,
                 thread_id=file_entry.threadId,
                 comment_id=file_entry.commentId,
-                new_content=file_content,
+                new_content=f"{file_marker}\n{file_content}",
                 dry_run=dry_run,
             )
 
@@ -1218,8 +1227,9 @@ def request_changes(*, skip_cascade: bool = False) -> None:
 
         # Post file-level summary comment (no line anchor, but scoped to the file)
         normalized_path = _normalize_repo_path(file_path)
+        legacy_summary_marker = build_marker("legacy-summary", file=normalized_path, pr=pull_request_id)
         summary_body: dict = {
-            "comments": [{"content": summary, "commentType": "text"}],
+            "comments": [{"content": f"{legacy_summary_marker}\n{summary}", "commentType": "text"}],
             "status": "active",
         }
         if normalized_path:
@@ -1231,8 +1241,17 @@ def request_changes(*, skip_cascade: bool = False) -> None:
         # Post each suggestion as a separate line-anchored comment
         for s in suggestions_data:
             thread_context = build_thread_context(normalized_path, s["line"], s.get("end_line", s["line"]))
+            suggestion_line = s["line"]
+            suggestion_severity = s.get("severity", "medium")
+            legacy_sugg_marker = build_marker(
+                "legacy-suggestion",
+                file=normalized_path,
+                pr=pull_request_id,
+                line=suggestion_line,
+                severity=suggestion_severity,
+            )
             thread_body = {
-                "comments": [{"content": s["content"], "commentType": "text"}],
+                "comments": [{"content": f"{legacy_sugg_marker}\n{s['content']}", "commentType": "text"}],
                 "status": "active",
             }
             if thread_context:
@@ -1685,8 +1704,12 @@ def _process_file_parallel(
                     continue
 
                 thread_context = build_thread_context(normalized, line, end_line)
+                tagged_content = (
+                    f"{build_marker('suggestion', file=normalized, pr=pull_request_id, line=line, severity=severity)}"
+                    f"\n{content}"
+                )
                 thread_body = {
-                    "comments": [{"content": content, "commentType": "text"}],
+                    "comments": [{"content": tagged_content, "commentType": "text"}],
                     "status": "active",
                     "threadContext": thread_context,
                 }
@@ -1720,6 +1743,7 @@ def _process_file_parallel(
             file_content = render_file_summary(snapshot_file_entry, all_suggestions, base_url, **attrs)
 
         # PATCH file summary comment.
+        file_marker = build_marker("file-summary", file=normalized, pr=pull_request_id)
         patch_comment(
             requests_module=requests_module,
             headers=headers,
@@ -1728,7 +1752,7 @@ def _process_file_parallel(
             pull_request_id=pull_request_id,
             thread_id=file_thread_id,
             comment_id=file_comment_id,
-            new_content=file_content,
+            new_content=f"{file_marker}\n{file_content}",
             dry_run=False,
         )
 

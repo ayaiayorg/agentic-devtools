@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from .config import AzureDevOpsConfig
 from .helpers import patch_comment, patch_thread_status
+from .marker import build_marker
 from .review_state import ReviewState, ReviewStatus, compute_aggregate_status, normalize_file_path
 from .review_templates import render_overall_summary
 
@@ -102,11 +103,12 @@ def cascade_status_update(
     overall_content = render_overall_summary(
         state, base_url, model_name=model_name, commit_hash=commit_hash, commit_url=commit_url
     )
+    overall_marker = build_marker("overall-summary", pr=state.prId)
     ops.append(
         PatchOperation(
             thread_id=state.overallSummary.threadId,
             comment_id=state.overallSummary.commentId,
-            new_content=overall_content,
+            new_content=f"{overall_marker}\n{overall_content}",
             thread_status=_THREAD_STATUS_MAP.get(new_overall_status, "active"),
         )
     )
@@ -168,11 +170,12 @@ def cascade_overall_summary_update(
     overall_content = render_overall_summary(
         state, base_url, model_name=model_name, commit_hash=commit_hash, commit_url=commit_url
     )
+    overall_marker = build_marker("overall-summary", pr=state.prId)
     return [
         PatchOperation(
             thread_id=state.overallSummary.threadId,
             comment_id=state.overallSummary.commentId,
-            new_content=overall_content,
+            new_content=f"{overall_marker}\n{overall_content}",
             # Default to "active" for non-final statuses (unreviewed, in-progress)
             thread_status=_THREAD_STATUS_MAP.get(new_overall_status, "active"),
         )

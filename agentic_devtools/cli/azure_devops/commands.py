@@ -37,7 +37,13 @@ from .pull_request_details_commands import (
     _get_pull_request_iterations,
     get_change_tracking_id_for_file,
 )
-from .review_state import load_review_state, save_review_state
+from .review_state import (
+    OverallSummary,
+    ReviewState,
+    load_review_state,
+    save_review_state,
+    sync_review_state_from_threads,
+)
 from .review_templates import render_overall_summary
 
 
@@ -513,6 +519,8 @@ def get_pull_request_threads() -> None:
     Reads from state:
     - pull_request_id (required): Pull request ID
     - dry_run (optional): Preview without making API calls
+    - sync_review_state (optional): If true, reconcile local review-state.json
+      with marker-identified threads from Azure DevOps.
 
     Outputs thread information including:
     - Thread ID
@@ -528,6 +536,7 @@ def get_pull_request_threads() -> None:
 
     pull_request_id = get_pull_request_id(required=True)
     dry_run = is_dry_run()
+    sync_flag = parse_bool_from_state("sync_review_state")
     config = AzureDevOpsConfig.from_state()
 
     if dry_run:
@@ -555,6 +564,27 @@ def get_pull_request_threads() -> None:
         return
 
     print_threads(threads)
+
+    if sync_flag:
+        try:
+            review_state = load_review_state(pull_request_id)
+        except FileNotFoundError:
+            from datetime import datetime, timezone
+
+            review_state = ReviewState(
+                prId=pull_request_id,
+                repoId=repo_id,
+                repoName=config.repository,
+                project=config.project,
+                organization=config.organization,
+                latestIterationId=0,
+                scaffoldedUtc=datetime.now(timezone.utc).isoformat(),
+                overallSummary=OverallSummary(threadId=0, commentId=0),
+            )
+            print("No review-state.json found; bootstrapping from marker-identified threads.", file=sys.stderr)
+        sync_review_state_from_threads(pull_request_id, threads, review_state)
+        save_review_state(review_state)
+        print("Review state synced with marker-identified threads.")
 
 
 def approve_pull_request() -> None:

@@ -439,9 +439,12 @@ class TestProcessFileParallelSuggestionTransformation:
             requests_module=mock_req,
         )
 
-        # The POST body should contain the transformed content
+        # The POST body should contain the transformed content with marker
         posted_body = mock_req.post.call_args.kwargs["json"]
-        expected_content = "Use null-coalescing\n\n```suggestion\nx ?? y\n```"
+        expected_content = (
+            "<!-- agdt-review:v1 type:suggestion file:/src/app.ts pr:42 line:15 severity:high -->\n"
+            "Use null-coalescing\n\n```suggestion\nx ?? y\n```"
+        )
         assert posted_body["comments"][0]["content"] == expected_content
 
 
