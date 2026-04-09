@@ -954,3 +954,98 @@ def clear_suggestions_for_re_review(
         file_entry.suggestions = []
 
     return review_state
+
+
+def sync_review_state_from_threads(
+    pull_request_id: int,
+    threads: list[dict | None],
+    review_state: "ReviewState",
+) -> "ReviewState":
+    """Reconcile local review state with marker-identified threads from Azure DevOps.
+
+    Scans *threads* for agdt-review markers and adds any missing entries to
+    *review_state*.  File-summary entries are only added when their
+    normalised file path is not already tracked, and the overall summary is
+    only populated when ``review_state.overallSummary.threadId`` is unset
+    (``0``).  This function is therefore limited to filling gaps for state
+    recovery and does not overwrite populated entries.
+
+    Threads whose marker contains a ``pr`` value that does not match
+    *pull_request_id* are silently skipped to avoid cross-contamination
+    when threads from multiple PRs are present.  Deleted threads and
+    threads whose first comment is deleted are also skipped to avoid
+    creating pointers to nonexistent resources.
+
+    Args:
+        pull_request_id: Pull request ID used to filter markers.
+        threads: Raw thread dicts fetched from the Azure DevOps API.
+            May contain ``None`` entries, which are silently skipped.
+        review_state: The current ReviewState to reconcile into.
+
+    Returns:
+        The same *review_state* object, mutated in-place with any newly
+        discovered entries.
+    """
+    from .marker import MARKER_TYPES, parse_marker
+
+    for thread in threads:
+        if not thread:
+            continue
+        if thread.get("isDeleted"):
+            continue
+        comments = thread.get("comments")
+        if not comments:
+            continue
+        first_comment = comments[0]
+        if not isinstance(first_comment, dict):
+            continue
+        if first_comment.get("isDeleted"):
+            continue
+        content = first_comment.get("content", "") or ""
+        parsed = parse_marker(content)
+        if parsed is None:
+            continue
+
+        # Skip markers from unsupported versions.
+        marker_version = parsed.get("_version")
+        if marker_version != "1":
+            continue
+
+        # Skip threads whose marker pr value doesn't match pull_request_id.
+        marker_pr = parsed.get("pr")
+        if marker_pr is not None and str(marker_pr) != str(pull_request_id):
+            continue
+
+        thread_id = thread.get("id", 0)
+        comment_id = first_comment.get("id", 0)
+        marker_type = parsed.get("type")
+
+        # Skip unrecognised marker types.
+        if not marker_type or marker_type not in MARKER_TYPES:
+            continue
+
+        if marker_type == "file-summary":
+            file_path = parsed.get("file")
+            if not file_path:
+                continue
+            normalized = normalize_file_path(file_path)
+            if normalized in review_state.files:
+                continue  # Already tracked
+            # Derive folder and file name from the path
+            parts = normalized.lstrip("/").split("/")
+            folder = parts[0] if len(parts) > 1 else "root"
+            file_name = parts[-1]
+            review_state.files[normalized] = FileEntry(
+                threadId=thread_id,
+                commentId=comment_id,
+                folder=folder,
+                fileName=file_name,
+                status=ReviewStatus.UNREVIEWED.value,
+            )
+
+        elif marker_type == "overall-summary":
+            if review_state.overallSummary.threadId == 0:
+                review_state.overallSummary.threadId = thread_id
+                review_state.overallSummary.commentId = comment_id
+
+    return review_state

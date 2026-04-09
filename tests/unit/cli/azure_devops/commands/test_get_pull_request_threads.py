@@ -87,3 +87,114 @@ class TestGetPullRequestThreadsActualCall:
 
         captured = capsys.readouterr()
         assert "No comment threads" in captured.out
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_sync_flag_bootstraps_when_no_review_state(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys
+    ):
+        """Test that sync_review_state=true bootstraps a minimal ReviewState when review-state.json is missing."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {
+                    "id": 100,
+                    "status": "active",
+                    "comments": [
+                        {
+                            "id": 1,
+                            "author": {"displayName": "agdt"},
+                            "content": "<!-- agdt-review:v1 type:file-summary file:/src/a.ts pr:12345 -->\nSummary",
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_req_module.get.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("sync_review_state", "true")
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.load_review_state",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.sync_review_state_from_threads",
+            ) as mock_sync,
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.save_review_state",
+            ) as mock_save,
+        ):
+            azure_devops.get_pull_request_threads()
+
+        # Verify sync was called with a bootstrapped ReviewState
+        mock_sync.assert_called_once()
+        bootstrapped_state = mock_sync.call_args[0][2]
+        assert bootstrapped_state.prId == 12345
+        assert bootstrapped_state.repoId == "repo-guid-123"
+        assert bootstrapped_state.overallSummary.threadId == 0
+
+        # Verify state was saved
+        mock_save.assert_called_once_with(bootstrapped_state)
+
+        captured = capsys.readouterr()
+        assert "bootstrapping from marker-identified threads" in captured.err
+        assert "Review state synced with marker-identified threads." in captured.out
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_sync_flag_success_path(self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before, capsys):
+        """Test that sync_review_state=true succeeds when review-state.json exists."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "value": [
+                {
+                    "id": 100,
+                    "status": "active",
+                    "comments": [
+                        {
+                            "id": 1,
+                            "author": {"displayName": "agdt"},
+                            "content": "<!-- agdt-review:v1 type:file-summary file:/src/a.ts pr:12345 -->\nSummary",
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_req_module.get.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("sync_review_state", "true")
+
+        mock_review_state = MagicMock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.load_review_state",
+                return_value=mock_review_state,
+            ) as mock_load,
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.sync_review_state_from_threads",
+            ) as mock_sync,
+            patch(
+                "agentic_devtools.cli.azure_devops.commands.save_review_state",
+            ) as mock_save,
+        ):
+            azure_devops.get_pull_request_threads()
+
+        mock_load.assert_called_once_with(12345)
+        mock_sync.assert_called_once()
+        mock_save.assert_called_once_with(mock_review_state)
+
+        captured = capsys.readouterr()
+        assert "Review state synced with marker-identified threads." in captured.out

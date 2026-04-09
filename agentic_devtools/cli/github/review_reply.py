@@ -546,8 +546,7 @@ Examples:
         review_id = int(review_id)
     except (TypeError, ValueError):
         print(
-            f"Error: Review ID must be an integer, got {review_id!r}. "
-            "Fix with: agdt-set github.review_id 123",
+            f"Error: Review ID must be an integer, got {review_id!r}. Fix with: agdt-set github.review_id 123",
             file=sys.stderr,
         )
         sys.exit(1)

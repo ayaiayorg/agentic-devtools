@@ -23,6 +23,7 @@ from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
 from .helpers import patch_thread_status
+from .marker import build_marker
 from .review_attribution import build_commit_file_url, build_commit_pr_url
 from .review_state import (
     FileEntry,
@@ -107,6 +108,7 @@ def _post_thread(
     threads_url: str,
     content: str,
     file_path: str | None = None,
+    marker: str | None = None,
 ) -> tuple[int, int]:
     """Post a PR thread and return (thread_id, comment_id).
 
@@ -116,10 +118,14 @@ def _post_thread(
         threads_url: URL to POST threads to.
         content: Thread initial comment content.
         file_path: Optional file path for file-anchored threads (no line context).
+        marker: Optional HTML comment marker to prepend to content.
 
     Returns:
         Tuple of (thread_id, comment_id).
     """
+    if marker is not None:
+        content = f"{marker}\n{content}"
+
     thread_body: dict[str, Any] = {
         "comments": [
             {
@@ -344,6 +350,7 @@ def _format_activity_log_entry(
         Formatted markdown string.
     """
     return (
+        f"{build_marker('activity-log-entry')}\n"
         f"### Review Session — {status_emoji} {status_text}\n"
         f"\n"
         f"*Logged at:* {timestamp}\n"
@@ -1147,7 +1154,14 @@ def _fresh_scaffold(
         )
 
         print(f"Creating file summary thread for {normalized}...")
-        thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=normalized)
+        thread_id, comment_id = _post_thread(
+            requests_module,
+            headers,
+            threads_url,
+            content,
+            file_path=normalized,
+            marker=build_marker("file-summary", file=normalized, pr=pull_request_id),
+        )
         file_entry = FileEntry(
             threadId=thread_id,
             commentId=comment_id,
@@ -1173,12 +1187,24 @@ def _fresh_scaffold(
         temp_state, base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_pr
     )
     print("Creating overall PR summary thread...")
-    overall_thread_id, overall_comment_id = _post_thread(requests_module, headers, threads_url, overall_content)
+    overall_thread_id, overall_comment_id = _post_thread(
+        requests_module,
+        headers,
+        threads_url,
+        overall_content,
+        marker=build_marker("overall-summary", pr=pull_request_id),
+    )
 
     # Step 4: Create activity log thread
     activity_log_content = "## Review Activity Log\n\n*This thread tracks all review sessions for this PR.*\n"
     print("Creating Review Activity Log thread...")
-    activity_log_thread_id, _ = _post_thread(requests_module, headers, threads_url, activity_log_content)
+    activity_log_thread_id, _ = _post_thread(
+        requests_module,
+        headers,
+        threads_url,
+        activity_log_content,
+        marker=build_marker("activity-log", pr=pull_request_id),
+    )
 
     # Build final state and persist
     review_state = _build_state(
@@ -1445,7 +1471,14 @@ def _incremental_rescaffold(
             temp_entry, [], base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_file
         )
         print(f"Scaffolding new file thread for {file_path}...")
-        thread_id, comment_id = _post_thread(requests_module, headers, threads_url, content, file_path=file_path)
+        thread_id, comment_id = _post_thread(
+            requests_module,
+            headers,
+            threads_url,
+            content,
+            file_path=file_path,
+            marker=build_marker("file-summary", file=file_path, pr=pull_request_id),
+        )
         new_file_entry = FileEntry(
             threadId=thread_id,
             commentId=comment_id,

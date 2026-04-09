@@ -114,6 +114,16 @@ from .helpers import (
 # Mark reviewed export
 from .mark_reviewed import mark_file_reviewed, mark_file_reviewed_cli
 
+# Marker exports
+from .marker import (
+    MARKER_TYPES,
+    build_marker,
+    classify_agdt_threads,
+    filter_agdt_threads,
+    has_agdt_marker,
+    parse_marker,
+)
+
 # Pipeline command exports
 from .pipeline_commands import (
     create_pipeline,
@@ -178,6 +188,7 @@ from .review_state import (
     normalize_file_path,
     read_modify_write_review_state,
     save_review_state,
+    sync_review_state_from_threads,
     update_file_status,
 )
 
@@ -306,6 +317,13 @@ __all__ = [
     # Mark reviewed
     "mark_file_reviewed",
     "mark_file_reviewed_cli",
+    # Marker
+    "MARKER_TYPES",
+    "build_marker",
+    "parse_marker",
+    "has_agdt_marker",
+    "filter_agdt_threads",
+    "classify_agdt_threads",
     # PR summary commands
     "generate_overarching_pr_comments",
     "generate_overarching_pr_comments_cli",
@@ -338,6 +356,7 @@ __all__ = [
     "add_suggestion_to_file",
     "clear_suggestions_for_re_review",
     "compute_aggregate_status",
+    "sync_review_state_from_threads",
     "COMPLETE_STATUSES",
     # Review attribution
     "SHORT_HASH_LENGTH",

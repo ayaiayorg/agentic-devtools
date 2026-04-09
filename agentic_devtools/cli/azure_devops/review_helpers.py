@@ -403,3 +403,19 @@ def build_full_file_content_section(
     lang = get_language_from_extension(file_path)
     fence = _select_markdown_fence(content)
     return [*header, f"{fence}{lang}", content, fence]
+
+
+def get_agdt_threads(threads: list[dict | None]) -> list[dict]:
+    """Return only threads whose first comment contains an agdt-review marker.
+
+    Convenience wrapper around :func:`~agentic_devtools.cli.azure_devops.marker.filter_agdt_threads`.
+
+    Args:
+        threads: List of Azure DevOps thread dicts.
+
+    Returns:
+        Filtered list of threads with an agdt-review marker.
+    """
+    from .marker import filter_agdt_threads
+
+    return filter_agdt_threads(threads)
