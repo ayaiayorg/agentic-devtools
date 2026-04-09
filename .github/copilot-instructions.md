@@ -158,6 +158,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh api .../requested_reviewers -X POST` | `agdt-gh-request-copilot-review` |
 | Manual Phase 2 PR polling loop | `agdt-gh-pr-poll-ready` |
 | `gh pr merge --squash --delete-branch` + manual verification | `agdt-gh-pr-merge` |
+| `gh api` loop for PR review comment replies | `agdt-gh-reply-to-review-comments` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -249,13 +250,14 @@ agentic_devtools/
 │   │   ├── core.py      # State helpers, git execution, temp files
 │   │   ├── operations.py # Individual git operations
 │   │   └── commands.py  # CLI entry points
-│   ├── github/          # GitHub issue creation commands (package)
+│   ├── github/          # GitHub CLI commands (package)
 │   │   ├── __init__.py  # Command exports
 │   │   ├── state_helpers.py  # issue.* namespace helpers
 │   │   ├── repo_resolution.py # Shared owner/repo resolution for agdt-gh-* commands
 │   │   ├── request_copilot_review.py # Request Copilot review with verification
 │   │   ├── issue_commands.py # Synchronous issue creation commands
-│   │   └── async_commands.py # Background/async command wrappers + CLI entry points
+│   │   ├── async_commands.py # Background/async command wrappers + CLI entry points
+│   │   └── review_reply.py   # Batch reply to PR review comments with verification
 │   ├── jira/            # Jira commands (package)
 │   │   ├── __init__.py  # Command exports
 │   │   ├── config.py    # Jira configuration and auth
