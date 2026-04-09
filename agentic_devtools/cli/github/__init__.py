@@ -42,6 +42,10 @@ from .resolve_review_threads import (
     resolve_review_threads,
     resolve_review_threads_command,
 )
+from .review_reply import (
+    reply_to_review_comments,
+    reply_to_review_comments_command,
+)
 from .state_helpers import (
     GITHUB_ISSUE_STATE_NAMESPACE,
     get_issue_value,
@@ -82,6 +86,8 @@ __all__ = [
     "pr_merge_command",
     "pr_poll_ready_command",
     "pr_state_command",
+    "reply_to_review_comments",
+    "reply_to_review_comments_command",
     "request_copilot_review",
     "request_copilot_review_command",
     "rerun_checks_command",
