@@ -337,6 +337,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.pr_poll_ready",
         "pr_poll_ready_command",
     ),
+    "agdt-gh-pr-merge": (
+        "agentic_devtools.cli.github.pr_merge",
+        "pr_merge_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

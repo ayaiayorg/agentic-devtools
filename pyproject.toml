@@ -166,6 +166,7 @@ agdt-gh-resolve-review-threads = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-pr-approve = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-request-copilot-review = "agentic_devtools.cli.runner:run_as_script"
 agdt-gh-pr-poll-ready = "agentic_devtools.cli.runner:run_as_script"
+agdt-gh-pr-merge = "agentic_devtools.cli.runner:run_as_script"
 agdt-review = "agentic_devtools.cli.runner:run_as_script"
 agdt-mcp-server = "agentic_devtools.mcp.server:main"
 
