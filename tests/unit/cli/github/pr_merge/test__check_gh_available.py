@@ -30,6 +30,5 @@ class TestCheckGhAvailable:
                 _check_gh_available()
         captured = capsys.readouterr()
         assert captured.err.strip() == (
-            "Error: 'gh' CLI is not installed or not on PATH. "
-            "Install from https://cli.github.com/"
+            "Error: 'gh' CLI is not installed or not on PATH. Install from https://cli.github.com/"
         )

@@ -11,6 +11,7 @@ Provides the ``agdt-gh-reply-to-review-comments`` CLI command that:
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -25,6 +26,16 @@ from .repo_resolution import resolve_github_repo
 
 _MAX_RETRIES = 2
 _RETRY_DELAY = 3.0
+
+
+def _check_gh_available() -> None:
+    """Verify ``gh`` CLI is installed, or exit with a helpful error."""
+    if shutil.which("gh") is None:
+        print(
+            "Error: 'gh' CLI is not installed or not on PATH. Install from https://cli.github.com/",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _load_replies_file(file_path: str) -> list[dict]:
@@ -49,6 +60,18 @@ def _load_replies_file(file_path: str) -> list[dict]:
         text = Path(file_path).read_text(encoding="utf-8")
     except FileNotFoundError:
         print(f"Error: Replies file not found: {file_path}", file=sys.stderr)
+        sys.exit(1)
+    except UnicodeDecodeError:
+        print(
+            f"Error: Replies file is not valid UTF-8 text: {file_path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except OSError as exc:
+        print(
+            f"Error: Failed to read replies file '{file_path}': {exc}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
@@ -84,28 +107,47 @@ def _validate_reply_entries(entries: list[dict]) -> None:
     """
     seen_ids: set[int] = set()
     for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            print(
+                f"Error: Reply entry at index {i} must be a JSON object, got {type(entry).__name__}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         if "commentId" not in entry:
             print(
                 f"Error: Reply entry at index {i} is missing required field 'commentId'",
                 file=sys.stderr,
             )
             sys.exit(1)
-        if not isinstance(entry["commentId"], int):
+        comment_id = entry["commentId"]
+        if isinstance(comment_id, bool) or not isinstance(comment_id, int):
             print(
-                f"Error: Reply entry at index {i}: 'commentId' must be an integer",
+                f"Error: Reply entry at index {i}: 'commentId' must be an integer (boolean values are not allowed)",
                 file=sys.stderr,
             )
             sys.exit(1)
-        if entry["commentId"] in seen_ids:
+        if comment_id in seen_ids:
             print(
-                f"Error: Reply entry at index {i}: duplicate commentId {entry['commentId']}",
+                f"Error: Reply entry at index {i}: duplicate commentId {comment_id}",
                 file=sys.stderr,
             )
             sys.exit(1)
-        seen_ids.add(entry["commentId"])
+        seen_ids.add(comment_id)
         if "body" not in entry:
             print(
                 f"Error: Reply entry at index {i} is missing required field 'body'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not isinstance(entry["body"], str):
+            print(
+                f"Error: Reply entry at index {i}: 'body' must be a string, got {type(entry['body']).__name__}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not entry["body"].strip():
+            print(
+                f"Error: Reply entry at index {i}: 'body' must not be empty or whitespace-only",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -113,7 +155,6 @@ def _validate_reply_entries(entries: list[dict]) -> None:
 
 def _post_single_reply(
     repo: str,
-    pr_number: int,
     comment_id: int,
     body: str,
 ) -> dict | None:
@@ -126,7 +167,7 @@ def _post_single_reply(
             "gh",
             "api",
             f"repos/{repo}/pulls/comments/{comment_id}/replies",
-            "-f",
+            "--raw-field",
             f"body={body}",
         ],
         capture_output=True,
@@ -216,8 +257,8 @@ def _retry_failed_replies(
     pr_number: int,
     review_id: int,
     failed_entries: list[dict],
-    max_retries: int = 2,
-    retry_delay: float = 3.0,
+    max_retries: int = _MAX_RETRIES,
+    retry_delay: float = _RETRY_DELAY,
 ) -> tuple[list[dict], list[dict]]:
     """Retry posting and verifying failed replies.
 
@@ -266,7 +307,7 @@ def _retry_failed_replies(
                 f"Retry {attempt + 1}/{max_retries} for comment {cid} (re-post)...",
                 file=sys.stderr,
             )
-            resp = _post_single_reply(repo, pr_number, cid, body)
+            resp = _post_single_reply(repo, cid, body)
             if resp is None:
                 retry_batch.append(entry)
             else:
@@ -299,10 +340,14 @@ def _retry_failed_replies(
                     }
                 )
             else:
-                # Remove internal key before next cycle; mark as post failed
-                # so next retry will re-post
+                # Preserve "verification failed" when post succeeded but
+                # verification hasn't confirmed yet, so the next cycle only
+                # re-verifies instead of creating a duplicate reply.  Escalate
+                # to "post failed" only when the entry was already verify-only
+                # (no _response) and verification still failed.
+                posted_this_cycle = "_response" in entry
                 clean = {k: v for k, v in entry.items() if k != "_response"}
-                clean["error"] = "post failed"
+                clean["error"] = "verification failed" if posted_this_cycle else "post failed"
                 still_remaining.append(clean)
 
         remaining = still_remaining
@@ -337,7 +382,7 @@ def reply_to_review_comments(
     for entry in entries:
         cid = entry["commentId"]
         body = entry["body"]
-        resp = _post_single_reply(repo, pr_number, cid, body)
+        resp = _post_single_reply(repo, cid, body)
         if resp is None:
             details.append(
                 {
@@ -388,11 +433,15 @@ def reply_to_review_comments(
     if failed_for_retry:
         retry_succeeded, still_failed = _retry_failed_replies(repo, pr_number, review_id, failed_for_retry)
 
-        # Merge retry successes back into details
+        # Merge retry successes back into details, preserving existing
+        # replyId when the retry result has None (re-verify-only path)
         retry_map = {d["commentId"]: d for d in retry_succeeded}
         for detail in details:
             if detail["commentId"] in retry_map:
+                existing_reply_id = detail.get("replyId")
                 detail.update(retry_map[detail["commentId"]])
+                if detail.get("replyId") is None and existing_reply_id is not None:
+                    detail["replyId"] = existing_reply_id
 
     # --- Build result ---
     successful = sum(1 for d in details if d["status"] == "replied" and d["verified"])
@@ -458,36 +507,61 @@ Examples:
     args = parser.parse_args()
 
     # Resolve PR number
-    pr_number = args.pr or get_value("github.pull_request_number")
+    pr_number = args.pr if args.pr is not None else get_value("github.pull_request_number")
     if pr_number is None:
         print(
             "Error: PR number required. Provide --pr or set github.pull_request_number in state.",
             file=sys.stderr,
         )
         sys.exit(1)
-    pr_number = int(pr_number)
+    try:
+        pr_number = int(pr_number)
+    except (TypeError, ValueError):
+        print(
+            f"Error: PR number must be an integer, got {pr_number!r}. "
+            "Fix with: agdt-set github.pull_request_number 123",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Resolve repo
     repo = resolve_github_repo(args.repo)
 
-    # Resolve review ID
-    review_id = args.review_id or get_value("github.review_id")
+    # Resolve review ID (also accept github.copilot_review_id for interoperability
+    # with agdt-gh-copilot-review-status and agdt-gh-resolve-review-threads)
+    if args.review_id is not None:
+        review_id = args.review_id
+    else:
+        review_id = get_value("github.review_id")
+        if review_id is None:
+            review_id = get_value("github.copilot_review_id")
     if review_id is None:
         print(
-            "Error: Review ID required. Provide --review-id or set github.review_id in state.",
+            "Error: Review ID required. Provide --review-id or set github.review_id"
+            " (or github.copilot_review_id) in state.",
             file=sys.stderr,
         )
         sys.exit(1)
-    review_id = int(review_id)
+    try:
+        review_id = int(review_id)
+    except (TypeError, ValueError):
+        print(
+            f"Error: Review ID must be an integer, got {review_id!r}. "
+            "Fix with: agdt-set github.review_id 123",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Resolve replies file
-    replies_file = args.replies_file or get_value("github.replies_file")
+    replies_file = args.replies_file if args.replies_file is not None else get_value("github.replies_file")
     if replies_file is None:
         print(
             "Error: Replies file required. Provide --replies-file or set github.replies_file in state.",
             file=sys.stderr,
         )
         sys.exit(1)
+
+    _check_gh_available()
 
     result = reply_to_review_comments(pr_number, repo, review_id, str(replies_file))
     print(json.dumps(result, indent=2))

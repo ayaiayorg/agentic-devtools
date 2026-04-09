@@ -14,9 +14,7 @@ class TestReplyToReviewComments:
     @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
     @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
     @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
-    def test_full_success_flow(
-        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
-    ):
+    def test_full_success_flow(self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set):
         """All replies posted and verified successfully."""
         mock_load.return_value = [
             {"commentId": 1, "body": "done"},
@@ -41,9 +39,7 @@ class TestReplyToReviewComments:
     @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
     @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
     @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
-    def test_state_keys_written(
-        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
-    ):
+    def test_state_keys_written(self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set):
         """State keys are written correctly."""
         mock_load.return_value = [{"commentId": 1, "body": "ok"}]
         mock_post.return_value = {"id": 101}
@@ -63,9 +59,7 @@ class TestReplyToReviewComments:
     @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
     @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
     @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
-    def test_empty_replies_file(
-        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
-    ):
+    def test_empty_replies_file(self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set):
         """Empty replies file returns zeros and verified=True."""
         mock_load.return_value = []
 
@@ -83,9 +77,7 @@ class TestReplyToReviewComments:
     @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
     @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
     @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
-    def test_partial_failure(
-        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
-    ):
+    def test_partial_failure(self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set):
         """Partial failure: one reply fails, one succeeds."""
         mock_load.return_value = [
             {"commentId": 1, "body": "ok"},
@@ -113,9 +105,7 @@ class TestReplyToReviewComments:
     @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
     @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
     @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
-    def test_result_structure(
-        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
-    ):
+    def test_result_structure(self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set):
         """Result dict has all required keys."""
         mock_load.return_value = [{"commentId": 1, "body": "ok"}]
         mock_post.return_value = {"id": 101}
@@ -163,3 +153,29 @@ class TestReplyToReviewComments:
         assert result["details"][0]["verified"] is True
         assert result["successful"] == 1
         assert result["failed"] == 0
+
+    @patch("agentic_devtools.cli.github.review_reply.set_value")
+    @patch("agentic_devtools.cli.github.review_reply._retry_failed_replies")
+    @patch("agentic_devtools.cli.github.review_reply._verify_replies")
+    @patch("agentic_devtools.cli.github.review_reply._post_single_reply")
+    @patch("agentic_devtools.cli.github.review_reply._validate_reply_entries")
+    @patch("agentic_devtools.cli.github.review_reply._load_replies_file")
+    def test_retry_preserves_reply_id_for_verify_only(
+        self, mock_load, mock_validate, mock_post, mock_verify, mock_retry, mock_set
+    ):
+        """Retry re-verify-only path preserves original replyId when retry returns None."""
+        mock_load.return_value = [{"commentId": 1, "body": "ok"}]
+        mock_post.return_value = {"id": 101}
+        # Verification says unverified → triggers retry
+        mock_verify.return_value = {1: False}
+        # Retry succeeds but returns replyId=None (re-verify-only path)
+        mock_retry.return_value = (
+            [{"commentId": 1, "status": "replied", "replyId": None, "verified": True}],
+            [],
+        )
+
+        result = reply_to_review_comments(10, "owner/repo", 999, "replies.json")
+
+        # The original replyId (101) should be preserved, not overwritten with None
+        assert result["details"][0]["replyId"] == 101
+        assert result["details"][0]["verified"] is True
