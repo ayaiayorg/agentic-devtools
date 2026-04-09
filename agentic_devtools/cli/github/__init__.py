@@ -28,6 +28,7 @@ from .issue_commands import (
 )
 from .pr_approve import approve_pr, pr_approve_command
 from .pr_checks_status import get_pr_checks_status, pr_checks_status_command
+from .pr_poll_ready import poll_pr_ready, pr_poll_ready_command
 from .pr_state import get_pr_state, pr_state_command
 from .repo_resolution import resolve_github_repo
 from .request_copilot_review import (
@@ -73,8 +74,10 @@ __all__ = [
     "get_issue_value",
     "get_pr_checks_status",
     "get_pr_state",
+    "poll_pr_ready",
     "pr_approve_command",
     "pr_checks_status_command",
+    "pr_poll_ready_command",
     "pr_state_command",
     "request_copilot_review",
     "request_copilot_review_command",
