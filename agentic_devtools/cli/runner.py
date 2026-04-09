@@ -332,6 +332,11 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.request_copilot_review",
         "request_copilot_review_command",
     ),
+    # GitHub PR polling
+    "agdt-gh-pr-poll-ready": (
+        "agentic_devtools.cli.github.pr_poll_ready",
+        "pr_poll_ready_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),

@@ -156,6 +156,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh api graphql` (thread pagination + `resolveReviewThread` mutation) | `agdt-gh-resolve-review-threads` |
 | `gh pr review --approve` + manual verification | `agdt-gh-pr-approve` |
 | `gh api .../requested_reviewers -X POST` | `agdt-gh-request-copilot-review` |
+| Manual Phase 2 PR polling loop | `agdt-gh-pr-poll-ready` |
 
 #### Exceptions — Raw Commands Still Required
 
@@ -172,6 +173,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | Command | Purpose | Required State / CLI Args |
 |---------|---------|---------------------------|
 | `agdt-gh-pr-state` | Fetch structured GitHub PR state | `--pr` (int) and optionally `--repo` (owner/repo); falls back to `github.pull_request_number` and `github.repo` state keys or git remote auto-detection |
+| `agdt-gh-pr-poll-ready` | Poll PR until ready to merge or blocked | `--pr` or `github.pull_request_number`; optional `--repo`, `--poll-interval`, `--max-wait`, `--background`, `--rerun-stale-checks` |
 
 **State keys written by `agdt-gh-pr-state`:**
 `github.pull_request_number`, `github.repo`, `github.pr_state`,
@@ -188,6 +190,23 @@ agdt-gh-pr-state --pr 1115 --repo ayaiayorg/agentic-devtools
 agdt-set github.pull_request_number 1115
 agdt-gh-pr-state
 ```
+
+**`agdt-gh-pr-poll-ready` replaces the entire Phase 2 polling loop of the pr-merge-manager prompt.** It calls sibling Python functions directly in-process each iteration:
+
+```bash
+# Foreground (blocks until ready or blocked)
+agdt-gh-pr-poll-ready --pr 1115 --repo owner/repo --poll-interval 60 --max-wait 600
+
+# Background task mode
+agdt-gh-pr-poll-ready --pr 1115 --background
+
+# Disable stale check re-runs
+agdt-gh-pr-poll-ready --pr 1115 --no-rerun-stale-checks
+```
+
+**Output:** Structured JSON to stdout with `ready`, `reason`, `actionRequired` fields.
+
+**State keys written by `agdt-gh-pr-poll-ready`:** `github.pr_poll_ready_result`, `github.pr_poll_ready_action`.
 
 ## 2. Package Structure
 
