@@ -176,16 +176,33 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 |---------|---------|---------------------------|
 | `agdt-gh-pr-state` | Fetch structured GitHub PR state | `--pr` (int) and optionally `--repo` (owner/repo); falls back to `github.pull_request_number` and `github.repo` state keys or git remote auto-detection |
 | `agdt-gh-pr-poll-ready` | Poll PR until ready to merge or blocked | `--pr` or `github.pull_request_number`; optional `--repo`, `--poll-interval`, `--max-wait`, `--background`, `--rerun-stale-checks` |
+| `agdt-gh-pr-approve` | Approve a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--body` (approval comment) |
 | `agdt-gh-pr-merge` | Merge a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--strategy` (squash/merge/rebase, default squash), `--no-delete-branch`; `--repo` falls back to `github.repo` state or git remote auto-detection |
+| `agdt-gh-rerun-checks` | Re-run stale/failed GitHub Actions workflows | `--pr` (int) or `github.pull_request_number`; optional `--repo`, `--head-sha`, `--filter` (workflow name substring), `--include-cancelled` |
+| `agdt-gh-request-copilot-review` | Request Copilot review with verification | `--pr` (int) or `github.pull_request_number`; optional `--repo` |
+| `agdt-gh-reply-to-review-comments` | Post batch replies to PR review comments with verification | `--pr` (int) or `github.pull_request_number`; `--review-id` (int) or `github.copilot_review_id`; `--replies-file` (path to JSON); optional `--repo` |
 
 **State keys written by `agdt-gh-pr-state`:**
 `github.pull_request_number`, `github.repo`, `github.pr_state`,
 `github.head_ref_oid`, `github.head_ref_oid_short`, `github.mergeable`,
 `github.merge_state_status`, `github.is_draft`, `github.is_terminal`
 
+**State keys written by `agdt-gh-pr-approve`:**
+`github.pr_approval_verified` (bool), `github.pr_approval_review_id` (int or null)
+
 **State keys written by `agdt-gh-pr-merge`:**
 `github.pr_merged` (bool), `github.pr_merged_at` (ISO-8601 string or null),
 `github.pr_merge_strategy` (string: squash/merge/rebase)
+
+**State keys written by `agdt-gh-rerun-checks`:**
+`github.rerun_checks_count` (int), `github.rerun_checks_failed_to_rerun` (int)
+
+**State keys written by `agdt-gh-request-copilot-review`:**
+`github.copilot_review_requested` (bool), `github.copilot_review_request_verified` (bool)
+
+**State keys written by `agdt-gh-reply-to-review-comments`:**
+`github.review_replies_total` (int), `github.review_replies_successful` (int),
+`github.review_replies_failed` (int), `github.review_replies_verified` (bool)
 
 **Usage:**
 

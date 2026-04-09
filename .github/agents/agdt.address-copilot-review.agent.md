@@ -15,8 +15,10 @@ The expected input is a GitHub PR review comment URL of the form:
 ## Purpose
 
 Automate the full end-to-end workflow for addressing Copilot PR review comments:
-parse the review URL, fetch comments, triage, make code changes, reply, resolve
-threads, and re-request Copilot review.
+parse the review URL, fetch comments, triage, make code changes, post replies with
+`agdt-gh-reply-to-review-comments`, resolve threads with
+`agdt-gh-resolve-review-threads`, and re-request Copilot review with
+`agdt-gh-request-copilot-review`.
 
 ## Instructions
 
