@@ -55,6 +55,7 @@ htmlcov/
 .agdt-temp/
 .agdt/
 *.log
+state-out.txt
 
 # Spec-Driven Development artifacts
 specs/*/research.md

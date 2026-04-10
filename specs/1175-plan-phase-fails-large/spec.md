@@ -4,6 +4,8 @@
 
 Proposed
 
+**Source Issue**: #1175
+
 ## Summary
 
 The planning phase must remain reliable when the source issue, related comments, linked artifacts,

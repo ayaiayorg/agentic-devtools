@@ -14,6 +14,11 @@ on:
         required: false
         default: ''
         type: string
+      spec_dir:
+        description: 'Override spec directory path (e.g. specs/<spec-folder>). When provided, skips grep-based discovery and uses this path directly (must contain spec.md and tasks.md).'
+        required: false
+        default: ''
+        type: string
 
 # Prevent concurrent runs on the same issue
 concurrency:
@@ -78,17 +83,84 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           SPECS_DIR: ${{ env.SPEC_BASE_PATH }}
+          SPEC_DIR_OVERRIDE: ${{ inputs.spec_dir }}
         run: |
+          set -euo pipefail
+
+          # --- Manual override path ---
+          if [[ -n "$SPEC_DIR_OVERRIDE" ]]; then
+            echo "Validating provided spec_dir override"
+
+            # Reject newline characters (could corrupt $GITHUB_OUTPUT)
+            if [[ "$SPEC_DIR_OVERRIDE" == *$'\n'* || "$SPEC_DIR_OVERRIDE" == *$'\r'* ]]; then
+              echo "Error: spec_dir override contains newline characters"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Reject quote characters (keep paths simple and portable)
+            if [[ "$SPEC_DIR_OVERRIDE" == *'"'* || "$SPEC_DIR_OVERRIDE" == *"'"* ]]; then
+              echo "Error: spec_dir override contains unsupported quote characters"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Normalize and enforce path is under the specs/ base directory
+            if ! NORMALIZED_SPEC_DIR="$(python3 - <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          base = os.environ["SPECS_DIR"]
+          candidate = os.environ["SPEC_DIR_OVERRIDE"]
+
+          repo_root = pathlib.Path.cwd().resolve()
+          base_path = pathlib.Path(base).resolve()
+          candidate_path = pathlib.Path(candidate).resolve()
+
+          try:
+              candidate_path.relative_to(base_path)
+              normalized_relative_path = candidate_path.relative_to(repo_root)
+          except ValueError:
+              sys.exit(1)
+
+          print(normalized_relative_path.as_posix())
+          PY
+            )"; then
+              echo "Error: spec_dir override must resolve under '$SPECS_DIR'"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [[ ! -f "$NORMALIZED_SPEC_DIR/spec.md" ]]; then
+              echo "Error: spec_dir override '$NORMALIZED_SPEC_DIR' does not contain spec.md"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ ! -f "$NORMALIZED_SPEC_DIR/tasks.md" ]]; then
+              echo "Error: spec_dir override '$NORMALIZED_SPEC_DIR' does not contain tasks.md"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Found spec directory (override): $NORMALIZED_SPEC_DIR"
+            echo "spec_dir=$NORMALIZED_SPEC_DIR" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ ! -d "$SPECS_DIR" ]]; then
             echo "No specs directory found"
             echo "found=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Reuse the same grep pattern as check-idempotency.sh.
-          # Scan ALL matching spec.md files (not just the first) so a legacy/spec-only
-          # match can't hide a full-pipeline match in another directory.
-          SEARCH_PATTERN="Source Issue.*#${ISSUE_NUMBER}([^0-9]|$)"
+          # Broader pattern than check-idempotency.sh (which only greps spec.md
+          # for "Source Issue"). Scan ALL planning-artifact files (spec.md, plan.md,
+          # tasks.md) so an issue reference in any supported format is sufficient
+          # to locate the directory (for example: "Source Issue: #123" or
+          # "**Issue**: #123"). The matched directory must still contain both
+          # spec.md and tasks.md.
+          SEARCH_PATTERN="(Source Issue|\\*\\*Issue\\*\\*|Issue)[[:space:]]*:?[[:space:]]*#${ISSUE_NUMBER}([^0-9]|$)"
           SPEC_DIR=""
           ANY_MATCH_FOUND=false
 
@@ -96,11 +168,11 @@ jobs:
             [[ -z "$spec_match" ]] && continue
             ANY_MATCH_FOUND=true
             dir=$(dirname "$spec_match")
-            if [[ -f "$dir/tasks.md" ]]; then
+            if [[ -f "$dir/spec.md" && -f "$dir/tasks.md" ]]; then
               SPEC_DIR="$dir"
               break
             fi
-          done < <(grep -Erl --include='spec.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
+          done < <(grep -Erl --include='spec.md' --include='plan.md' --include='tasks.md' "$SEARCH_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
 
           # If no suitable spec directory found yet, also check for issue URL pattern
           if [[ -z "$SPEC_DIR" && -n "${GITHUB_REPOSITORY:-}" ]]; then
@@ -109,11 +181,11 @@ jobs:
               [[ -z "$spec_match" ]] && continue
               ANY_MATCH_FOUND=true
               dir=$(dirname "$spec_match")
-              if [[ -f "$dir/tasks.md" ]]; then
+              if [[ -f "$dir/spec.md" && -f "$dir/tasks.md" ]]; then
                 SPEC_DIR="$dir"
                 break
               fi
-            done < <(grep -Erl --include='spec.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
+            done < <(grep -Erl --include='spec.md' --include='plan.md' --include='tasks.md' "$URL_PATTERN" "$SPECS_DIR" 2>/dev/null || true)
           fi
 
           if [[ -n "$SPEC_DIR" ]]; then
@@ -122,7 +194,7 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             if [[ "$ANY_MATCH_FOUND" == true ]]; then
-              echo "Error: Found spec.md files for issue #$ISSUE_NUMBER in $SPECS_DIR/, but none contain tasks.md — required for implementation agent"
+              echo "Error: Found planning artifact files for issue #$ISSUE_NUMBER in $SPECS_DIR/, but none contain both spec.md and tasks.md — required for implementation agent"
             else
               echo "Error: No planning artifacts found for issue #$ISSUE_NUMBER in $SPECS_DIR/"
             fi
@@ -313,8 +385,8 @@ jobs:
         with:
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
-            const specDir = '${{ steps.discover.outputs.spec_dir }}';
-            const model = '${{ env.COPILOT_MODEL }}';
+            const specDir = ${{ toJSON(steps.discover.outputs.spec_dir) }};
+            const model = ${{ toJSON(env.COPILOT_MODEL) }};
 
             // Assign copilot to the issue with agent_assignment
             // The custom_agent field references the speckit.implement agent definition
@@ -386,8 +458,8 @@ jobs:
         with:
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
-            const specDir = '${{ steps.discover.outputs.spec_dir }}';
-            const model = '${{ env.COPILOT_MODEL }}';
+            const specDir = ${{ toJSON(steps.discover.outputs.spec_dir) }};
+            const model = ${{ toJSON(env.COPILOT_MODEL) }};
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
