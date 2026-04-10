@@ -29,7 +29,8 @@ Key decisions for this implementation:
 2. **`$SPEC_DIR`-scoped glob** — pass `"$SPEC_DIR/**/*.md"` to markdownlint-cli2 so no files outside the spec directory are touched
 3. **Footer strip-before-LLM, re-append-after** — prevents model-attribution footers from being corrupted by LLM edits
 4. **Configurable max iterations** — `MARKDOWNLINT_MAX_ITERATIONS` env var (default: 5) with stall detection
-5. **Fail fast on exhaustion/stall** — validation loop exits non-zero with clear diagnostics when the maximum iteration count is reached or no progress is being made, blocking commit/PR creation until markdownlint issues are resolved
+5. **Fail fast on exhaustion/stall** — validation loop exits non-zero with clear diagnostics when the maximum iteration count
+   is reached or no progress is being made, blocking commit/PR creation until markdownlint issues are resolved
 
 ## 3. Design Overview
 
@@ -60,7 +61,7 @@ Key decisions for this implementation:
 │  │       - Re-append footer             │    │
 │  │    7. Log iteration summary          │    │
 │  │  end for                             │    │
-│  │  Warn if max iterations exhausted    │    │
+│  │  Fail if max iterations exhausted    │    │
 │  └──────────────────────────────────────┘    │
 │                                              │
 │  Output GITHUB_OUTPUT variables              │

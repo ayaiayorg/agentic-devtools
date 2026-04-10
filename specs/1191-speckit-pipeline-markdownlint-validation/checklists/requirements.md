@@ -4,14 +4,15 @@
 
 - [ ] Verify the implementation covers all 4 user stories described by the spec.
 - [ ] Verify the implementation satisfies all 14 functional requirements described by the spec.
-- [ ] Verify the implementation addresses all 8 documented edge cases.
+- [ ] Verify the implementation addresses all 9 documented edge cases.
 - [ ] Verify the implementation meets all 5 success criteria defined by the spec.
 - [ ] Verify the implementation respects all 5 clarifications and does not contradict any clarified behavior.
 
 ## Validation rules and measurable constraints
 
 - [ ] Verify all markdownlint validation and remediation work is scoped to `$SPEC_DIR` and does not affect files outside that directory.
-- [ ] Verify the implementation is consistent with the spec's **≥90% first-push pass-rate** success criterion and does not introduce contradictory enforcement or reporting requirements that the spec does not define.
+- [ ] Verify the implementation is consistent with the spec's **≥90% first-push pass-rate** success criterion and does not introduce
+  contradictory enforcement or reporting requirements that the spec does not define.
 - [ ] Verify the workflow enforces or reports the required execution-time bounds of **≤120 seconds** for the fast path and **≤600 seconds** for the full path.
 - [ ] Verify prompt, request, or processing payloads stay within the documented **<8K tokens** limit.
 - [ ] Verify footer handling is implemented correctly, including preserving, normalizing, or updating markdown footers as required by the spec.

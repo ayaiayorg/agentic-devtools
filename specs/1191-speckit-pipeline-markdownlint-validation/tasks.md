@@ -18,9 +18,15 @@
 
 ## Task Group 2: Foundational — Core Loop Infrastructure
 
-- [ ] T003 Implement `parse_markdownlint_output` helper function in `generate-spec-from-issue.sh` that parses markdownlint-cli2 stdout/stderr in `filename:line:col rule/alias description` format into structured violation records containing `filename`, `line`, `col`, `rule`, and `description` — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T003 Implement `parse_markdownlint_output` helper function in `generate-spec-from-issue.sh` that parses
+  markdownlint-cli2 stdout/stderr in `filename:line:col rule/alias description` format into structured violation
+  records containing `filename`, `line`, `col`, `rule`, and `description`
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T001
-- [ ] T004 Implement `compute_violation_fingerprint` helper function that produces a deterministic hash/string from sorted normalized violations for stall detection, using stable identity fields (`filename`, `line`, `col`, `rule`); keep `description` available from T003 for iteration logging and LLM prompting context — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T004 Implement `compute_violation_fingerprint` helper function that produces a deterministic hash/string
+  from sorted normalized violations for stall detection, using stable identity fields (`filename`, `line`,
+  `col`, `rule`); keep `description` available from T003 for iteration logging and LLM prompting context
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T003
 - [ ] T005 Implement `check_npx_available` guard function that checks `command -v npx` and returns 1 with a warning to stderr if unavailable — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T001
@@ -98,7 +104,9 @@
   - Depends on: T027
 - [ ] T029 Verify no regressions: existing spec artifacts (spec.md, plan.md, tasks.md, analysis-report.md, checklists/) are unchanged when validation loop finds zero violations
   - Depends on: T027
-- [ ] T030 [US3] Implement empty-spec-directory guard: before running markdownlint, check that `$SPEC_DIR` contains at least one `*.md` file; if none exist, log success and return 0 immediately (per EC9) — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T030 [US3] Implement empty-spec-directory guard: before running markdownlint, check that `$SPEC_DIR` contains
+  at least one `*.md` file; if none exist, log success and return 0 immediately (per EC9)
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T007
 
 ---
