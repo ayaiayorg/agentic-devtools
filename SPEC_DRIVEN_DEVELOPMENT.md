@@ -52,18 +52,18 @@ Key principles for agentic-devtools:
 Use the helper script:
 
 ```bash
-# Create feature branch and directory
-.specify/scripts/bash/create-new-feature.sh "add-webhook-support"
+# Create feature branch and directory (pass the GitHub issue number)
+.specify/scripts/bash/create-new-feature.sh --issue 42 "add-webhook-support"
 
 # This creates:
-# - Branch: 002-add-webhook-support
-# - Directory: specs/002-add-webhook-support/
-# - File: specs/002-add-webhook-support/spec.md (from template)
+# - Branch: 42-add-webhook-support
+# - Directory: specs/42-add-webhook-support/
+# - File: specs/42-add-webhook-support/spec.md (from template)
 ```text
 
 ### 3. Fill Out the Specification
 
-Edit `specs/NNN-feature-name/spec.md`:
+Edit `specs/ISSUE-feature-name/spec.md`:
 
 1. **User Stories** - Prioritized scenarios (P1, P2, P3)
 
@@ -93,7 +93,7 @@ Technology stack:
 - State-based parameter passing
 ```text
 
-This creates `specs/NNN-feature-name/plan.md` with:
+This creates `specs/ISSUE-feature-name/plan.md` with:
 
 - Technical context
 - Architecture decisions
@@ -109,7 +109,7 @@ Use `/speckit.tasks` to generate task list:
 /speckit.tasks
 ```text
 
-This creates `specs/NNN-feature-name/tasks.md` with:
+This creates `specs/ISSUE-feature-name/tasks.md` with:
 
 - Tasks organized by user story
 - Parallel execution markers [P]
