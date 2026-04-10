@@ -20,8 +20,8 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 ### For Manual Use
 
 ```bash
-# Create new feature
-.specify/scripts/bash/create-new-feature.sh "feature-name"
+# Create new feature (pass the GitHub issue number)
+.specify/scripts/bash/create-new-feature.sh --issue 1175 "feature-name"
 
 # Check prerequisites
 .specify/scripts/bash/check-prerequisites.sh
@@ -48,7 +48,7 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
     └── powershell/             # Windows
 
 specs/
-└── NNN-feature-name/           # Feature directory
+└── ISSUE-feature-name/           # Feature directory (ISSUE = GitHub issue number)
     ├── spec.md                 # Specification (mandatory)
     ├── plan.md                 # Implementation plan
     ├── tasks.md                # Task breakdown
@@ -76,9 +76,9 @@ Or via AI:
 ### 2. Create Feature Spec
 
 ```bash
-# Manual
-.specify/scripts/bash/create-new-feature.sh "webhook-support"
-# Creates branch 002-webhook-support and specs/002-webhook-support/
+# Manual (pass the GitHub issue number)
+.specify/scripts/bash/create-new-feature.sh --issue 42 "webhook-support"
+# Creates branch 42-webhook-support and specs/42-webhook-support/
 
 # Or via AI
 /speckit.specify Add webhook support for Jira events
@@ -86,7 +86,7 @@ Or via AI:
 
 ### 3. Fill Specification
 
-Edit `specs/NNN-feature-name/spec.md`:
+Edit `specs/ISSUE-feature-name/spec.md`:
 
 - **User Stories** (P1, P2, P3)
 - **Acceptance Criteria** (Given/When/Then)
@@ -121,7 +121,7 @@ Executes tasks following the plan.
 
 ## File Naming Conventions
 
-- Features: `NNN-feature-name` (001, 002, 003...)
+- Features: `ISSUE-feature-name` (e.g., `1175-plan-phase-fails-large`)
 - Requirements: `FR-001`, `NFR-001` (Functional/Non-functional)
 - Priorities: `P1`, `P2`, `P3` (High to Low)
 - Parallel Tasks: `[P]` marker in task list

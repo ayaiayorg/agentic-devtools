@@ -4,6 +4,7 @@
 param(
     [switch]$Json,
     [string]$ShortName,
+    [int]$Issue = 0,
     [int]$Number = 0,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -13,23 +14,24 @@ $ErrorActionPreference = 'Stop'
 
 # Show help if requested
 if ($Help) {
-    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] [-Number N] <feature description>"
+    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] [-Issue N] <feature description>"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Json               Output in JSON format"
     Write-Host "  -ShortName <name>   Provide a custom short name (2-4 words) for the branch"
-    Write-Host "  -Number N           Specify branch number manually (overrides auto-detection)"
+    Write-Host "  -Issue N            GitHub issue number to use as directory/branch prefix"
+    Write-Host "  -Number N           Deprecated alias for -Issue"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  ./create-new-feature.ps1 'Add user authentication system' -ShortName 'user-auth'"
-    Write-Host "  ./create-new-feature.ps1 'Implement OAuth2 integration for API'"
+    Write-Host "  ./create-new-feature.ps1 -Issue 1175 'Plan phase fails for large specs' -ShortName 'plan-phase-fails-large'"
+    Write-Host "  ./create-new-feature.ps1 -Issue 42 'Add user authentication system'"
     exit 0
 }
 
 # Check if feature description provided
 if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
-    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] <feature description>"
+    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] [-Issue N] <feature description>"
     exit 1
 }
 
@@ -206,18 +208,26 @@ if ($ShortName) {
     $branchSuffix = Get-BranchName -Description $featureDesc
 }
 
-# Determine branch number
-if ($Number -eq 0) {
+# Determine feature number: -Issue takes priority, then -Number (deprecated), then auto-detect
+$effectiveNumber = 0
+if ($Issue -ne 0) {
+    $effectiveNumber = $Issue
+} elseif ($Number -ne 0) {
+    $effectiveNumber = $Number
+}
+
+if ($effectiveNumber -eq 0) {
     if ($hasGit) {
-        # Check existing branches on remotes
-        $Number = Get-NextBranchNumber -SpecsDir $specsDir
+        # Legacy fallback: auto-detect next sequential number
+        $effectiveNumber = Get-NextBranchNumber -SpecsDir $specsDir
     } else {
         # Fall back to local directory check
-        $Number = (Get-HighestNumberFromSpecs -SpecsDir $specsDir) + 1
+        $effectiveNumber = (Get-HighestNumberFromSpecs -SpecsDir $specsDir) + 1
     }
 }
 
-$featureNum = ('{0:000}' -f $Number)
+# Use issue number as-is (no zero-padding) for the directory/branch prefix
+$featureNum = "$effectiveNumber"
 $branchName = "$featureNum-$branchSuffix"
 
 # GitHub enforces a 244-byte limit on branch names
@@ -225,8 +235,9 @@ $branchName = "$featureNum-$branchSuffix"
 $maxBranchLength = 244
 if ($branchName.Length -gt $maxBranchLength) {
     # Calculate how much we need to trim from suffix
-    # Account for: feature number (3) + hyphen (1) = 4 chars
-    $maxSuffixLength = $maxBranchLength - 4
+    # Account for: feature number (variable length) + hyphen (1)
+    $prefixLength = $featureNum.Length + 1
+    $maxSuffixLength = $maxBranchLength - $prefixLength
     
     # Truncate suffix
     $truncatedSuffix = $branchSuffix.Substring(0, [Math]::Min($branchSuffix.Length, $maxSuffixLength))

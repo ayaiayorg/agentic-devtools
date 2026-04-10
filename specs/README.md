@@ -45,10 +45,10 @@ Use the helper script to create a new feature:
 
 ```bash
 # Bash/Linux/macOS
-.specify/scripts/bash/create-new-feature.sh "your-feature-name"
+.specify/scripts/bash/create-new-feature.sh --issue 42 "your-feature-name"
 
 # PowerShell/Windows
-.specify/scripts/powershell/create-new-feature.ps1 "your-feature-name"
+.specify/scripts/powershell/create-new-feature.ps1 -Issue 42 "your-feature-name"
 ```
 
 This will:

@@ -4,7 +4,7 @@ set -e
 
 JSON_MODE=false
 SHORT_NAME=""
-BRANCH_NUMBER=""
+ISSUE_NUMBER=""
 ARGS=()
 i=1
 while [ $i -le $# ]; do
@@ -27,31 +27,32 @@ while [ $i -le $# ]; do
             fi
             SHORT_NAME="$next_arg"
             ;;
-        --number)
+        --issue|--number)
             if [ $((i + 1)) -gt $# ]; then
-                echo 'Error: --number requires a value' >&2
+                echo "Error: $arg requires a value" >&2
                 exit 1
             fi
             i=$((i + 1))
             next_arg="${!i}"
             if [[ "$next_arg" == --* ]]; then
-                echo 'Error: --number requires a value' >&2
+                echo "Error: $arg requires a value" >&2
                 exit 1
             fi
-            BRANCH_NUMBER="$next_arg"
+            ISSUE_NUMBER="$next_arg"
             ;;
         --help|-h) 
-            echo "Usage: $0 [--json] [--short-name <name>] [--number N] <feature_description>"
+            echo "Usage: $0 [--json] [--short-name <name>] [--issue N] <feature_description>"
             echo ""
             echo "Options:"
             echo "  --json              Output in JSON format"
             echo "  --short-name <name> Provide a custom short name (2-4 words) for the branch"
-            echo "  --number N          Specify branch number manually (overrides auto-detection)"
+            echo "  --issue N           GitHub issue number to use as directory/branch prefix"
+            echo "  --number N          Deprecated alias for --issue"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0 'Add user authentication system' --short-name 'user-auth'"
-            echo "  $0 'Implement OAuth2 integration for API' --number 5"
+            echo "  $0 --issue 1175 'Plan phase fails for large specs' --short-name 'plan-phase-fails-large'"
+            echo "  $0 --issue 42 'Add user authentication system'"
             exit 0
             ;;
         *) 
@@ -63,7 +64,7 @@ done
 
 FEATURE_DESCRIPTION="${ARGS[*]}"
 if [ -z "$FEATURE_DESCRIPTION" ]; then
-    echo "Usage: $0 [--json] [--short-name <name>] [--number N] <feature_description>" >&2
+    echo "Usage: $0 [--json] [--short-name <name>] [--issue N] <feature_description>" >&2
     exit 1
 fi
 
@@ -234,20 +235,20 @@ else
     BRANCH_SUFFIX=$(generate_branch_name "$FEATURE_DESCRIPTION")
 fi
 
-# Determine branch number
-if [ -z "$BRANCH_NUMBER" ]; then
+# Determine feature number (issue number or auto-detected sequential number)
+if [ -z "$ISSUE_NUMBER" ]; then
     if [ "$HAS_GIT" = true ]; then
-        # Check existing branches on remotes
-        BRANCH_NUMBER=$(check_existing_branches "$SPECS_DIR")
+        # Legacy fallback: auto-detect next sequential number
+        ISSUE_NUMBER=$(check_existing_branches "$SPECS_DIR")
     else
         # Fall back to local directory check
         HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
-        BRANCH_NUMBER=$((HIGHEST + 1))
+        ISSUE_NUMBER=$((HIGHEST + 1))
     fi
 fi
 
-# Force base-10 interpretation to prevent octal conversion (e.g., 010 → 8 in octal, but should be 10 in decimal)
-FEATURE_NUM=$(printf "%03d" "$((10#$BRANCH_NUMBER))")
+# Use issue number as-is (no zero-padding) for the directory/branch prefix
+FEATURE_NUM="$((10#$ISSUE_NUMBER))"
 BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 
 # GitHub enforces a 244-byte limit on branch names
@@ -255,8 +256,9 @@ BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 MAX_BRANCH_LENGTH=244
 if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
     # Calculate how much we need to trim from suffix
-    # Account for: feature number (3) + hyphen (1) = 4 chars
-    MAX_SUFFIX_LENGTH=$((MAX_BRANCH_LENGTH - 4))
+    # Account for: feature number (variable length) + hyphen (1)
+    PREFIX_LENGTH=$(( ${#FEATURE_NUM} + 1 ))
+    MAX_SUFFIX_LENGTH=$((MAX_BRANCH_LENGTH - PREFIX_LENGTH))
     
     # Truncate suffix at word boundary if possible
     TRUNCATED_SUFFIX=$(echo "$BRANCH_SUFFIX" | cut -c1-$MAX_SUFFIX_LENGTH)
