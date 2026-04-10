@@ -157,10 +157,10 @@ jobs:
           # Broader pattern than check-idempotency.sh (which only greps spec.md
           # for "Source Issue"). Scan ALL planning-artifact files (spec.md, plan.md,
           # tasks.md) so an issue reference in any supported format is sufficient
-          # to locate the directory (for example: "Source Issue: #123" or
-          # "**Issue**: #123"). The matched directory must still contain both
-          # spec.md and tasks.md.
-          SEARCH_PATTERN="(Source Issue|\\*\\*Issue\\*\\*|Issue)[[:space:]]*:?[[:space:]]*#${ISSUE_NUMBER}([^0-9]|$)"
+          # to locate the directory (for example: "Source Issue: #123",
+          # "**Source Issue**: #123", or "**Issue**: #123"). The matched
+          # directory must still contain both spec.md and tasks.md.
+          SEARCH_PATTERN="(\\*\\*Source Issue\\*\\*|Source Issue|\\*\\*Issue\\*\\*|Issue)[[:space:]]*:?[[:space:]]*#${ISSUE_NUMBER}([^0-9]|$)"
           SPEC_DIR=""
           ANY_MATCH_FOUND=false
 

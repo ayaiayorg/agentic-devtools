@@ -9,11 +9,11 @@ Guide](../SPEC_DRIVEN_DEVELOPMENT.md) (Developer-only).
 
 ## Directory Structure
 
-Each feature has its own numbered directory:
+Each feature has its own directory named by issue number:
 
 ```text
 specs/
-├── 001-example-feature/
+├── 1175-plan-phase-fails-large/
 │   ├── spec.md              # Feature specification (mandatory)
 │   ├── plan.md              # Implementation plan (created by /speckit.plan)
 │   ├── tasks.md             # Task breakdown (created by /speckit.tasks)
@@ -21,18 +21,23 @@ specs/
 │   ├── data-model.md        # Data models (auto-generated)
 │   ├── quickstart.md        # Quick start guide (auto-generated)
 │   └── contracts/           # API contracts (auto-generated)
-├── 002-another-feature/
+├── 1200-another-feature/
 │   └── spec.md
 └── README.md                # This file
 ```
 
 ## Feature Numbering
 
-Features are numbered sequentially (001, 002, 003, etc.) to:
+Feature directories are named using the GitHub issue number followed by a
+short description (e.g., `1175-plan-phase-fails-large`). This convention:
 
-- Maintain chronological order
-- Enable easy reference in commits and PRs
-- Track feature evolution over time
+- Links each spec directly to the originating issue
+- Enables automated discovery by the SpecKit implementation trigger
+- Avoids collisions when multiple specs are created in parallel
+
+> **Note:** Older directories may use a sequential 3-digit prefix
+> (e.g., `001-example-feature`). New specs should use the issue-number
+> convention.
 
 ## Creating a New Feature
 
@@ -48,8 +53,8 @@ Use the helper script to create a new feature:
 
 This will:
 
-1. Create a new feature branch: `NNN-your-feature-name`
-2. Create the specs directory: `specs/NNN-your-feature-name/`
+1. Create a new feature branch: `ISSUE-your-feature-name`
+2. Create the specs directory: `specs/ISSUE-your-feature-name/`
 3. Initialize with spec template
 4. Update agent context
 
