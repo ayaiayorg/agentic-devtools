@@ -67,8 +67,10 @@ function Get-HighestNumberFromSpecs {
     $highest = 0
     if (Test-Path $SpecsDir) {
         Get-ChildItem -Path $SpecsDir -Directory | ForEach-Object {
-            if ($_.Name -match '^(\d+)') {
-                $num = [int]$matches[1]
+            # Only match legacy 3-digit prefixed directories (e.g., 001-feature)
+            # to avoid picking up issue-number dirs (e.g., 1175-feature)
+            if ($_.Name -match '^\d{3}-') {
+                $num = [int]($_.Name -replace '^(\d{3}).*', '$1')
                 if ($num -gt $highest) { $highest = $num }
             }
         }
@@ -87,9 +89,9 @@ function Get-HighestNumberFromBranches {
                 # Clean branch name: remove leading markers and remote prefixes
                 $cleanBranch = $branch.Trim() -replace '^\*?\s+', '' -replace '^remotes/[^/]+/', ''
                 
-                # Extract feature number if branch matches pattern ###-*
-                if ($cleanBranch -match '^(\d+)-') {
-                    $num = [int]$matches[1]
+                # Extract feature number if branch matches legacy pattern ###-*
+                if ($cleanBranch -match '^\d{3}-') {
+                    $num = [int]($cleanBranch -replace '^(\d{3}).*', '$1')
                     if ($num -gt $highest) { $highest = $num }
                 }
             }
@@ -211,8 +213,16 @@ if ($ShortName) {
 # Determine feature number: -Issue takes priority, then -Number (deprecated), then auto-detect
 $effectiveNumber = 0
 if ($Issue -ne 0) {
+    if ($Issue -lt 1) {
+        Write-Error "Error: -Issue requires a positive integer (got $Issue)"
+        exit 1
+    }
     $effectiveNumber = $Issue
 } elseif ($Number -ne 0) {
+    if ($Number -lt 1) {
+        Write-Error "Error: -Number requires a positive integer (got $Number)"
+        exit 1
+    }
     $effectiveNumber = $Number
 }
 

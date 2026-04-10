@@ -38,6 +38,10 @@ while [ $i -le $# ]; do
                 echo "Error: $arg requires a value" >&2
                 exit 1
             fi
+            if [[ ! "$next_arg" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Error: $arg requires a positive integer (got '$next_arg')" >&2
+                exit 1
+            fi
             ISSUE_NUMBER="$next_arg"
             ;;
         --help|-h) 
@@ -81,7 +85,7 @@ find_repo_root() {
     return 1
 }
 
-# Function to get highest number from specs directory
+# Function to get highest number from specs directory (legacy 3-digit prefixes only)
 get_highest_from_specs() {
     local specs_dir="$1"
     local highest=0
@@ -90,10 +94,14 @@ get_highest_from_specs() {
         for dir in "$specs_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
-            number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
-            number=$((10#$number))
-            if [ "$number" -gt "$highest" ]; then
-                highest=$number
+            # Only match legacy 3-digit prefixed directories (e.g., 001-feature)
+            # to avoid picking up issue-number dirs (e.g., 1175-feature)
+            if echo "$dirname" | grep -q '^[0-9]\{3\}-'; then
+                number=$(echo "$dirname" | grep -o '^[0-9]\{3\}')
+                number=$((10#$number))
+                if [ "$number" -gt "$highest" ]; then
+                    highest=$number
+                fi
             fi
         done
     fi
