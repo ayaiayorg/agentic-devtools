@@ -19,7 +19,8 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient, SubprocessConfig
+from copilot.session import PermissionHandler
 
 
 async def main() -> int:
