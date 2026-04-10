@@ -85,12 +85,13 @@ class TestMainFunction:
 
     @pytest.fixture(autouse=True)
     def _mock_copilot_sdk(self):
-        """Provide a fake ``copilot`` top-level package so the script can be imported."""
+        """Provide fake ``copilot`` and ``copilot.session`` packages so the script can be imported."""
         fake_copilot = MagicMock()
+        fake_copilot_session = MagicMock()
         # PermissionHandler.approve_all needs to be a callable sentinel
-        fake_copilot.PermissionHandler.approve_all = MagicMock(name="approve_all")
-        with patch.dict(sys.modules, {"copilot": fake_copilot}):
-            yield fake_copilot
+        fake_copilot_session.PermissionHandler.approve_all = MagicMock(name="approve_all")
+        with patch.dict(sys.modules, {"copilot": fake_copilot, "copilot.session": fake_copilot_session}):
+            yield fake_copilot, fake_copilot_session
 
     def test_empty_stdin_returns_1(self, _mock_copilot_sdk):
         module, spec = _load_module()
@@ -122,6 +123,8 @@ class TestMainFunction:
         Events are delivered from the ``send()`` side-effect (not during
         ``on()`` registration) to mirror the real Copilot SDK ordering.
         """
+        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+
         mock_session = AsyncMock()
         mock_session.disconnect = AsyncMock()
 
@@ -153,7 +156,7 @@ class TestMainFunction:
         mock_session.on = fake_on
         mock_session.send = fake_send
 
-        _mock_copilot_sdk.CopilotClient.return_value = mock_client_instance
+        fake_copilot.CopilotClient.return_value = mock_client_instance
         return mock_session, mock_client_instance
 
     def test_create_session_called_with_keyword_args(self, _mock_copilot_sdk):
@@ -188,7 +191,8 @@ class TestMainFunction:
         assert "model" in call_kwargs.kwargs
         assert call_kwargs.kwargs["model"] == "test-model"
         assert "on_permission_request" in call_kwargs.kwargs
-        assert call_kwargs.kwargs["on_permission_request"] is _mock_copilot_sdk.PermissionHandler.approve_all
+        _fake_copilot, fake_copilot_session = _mock_copilot_sdk
+        assert call_kwargs.kwargs["on_permission_request"] is fake_copilot_session.PermissionHandler.approve_all
         assert call_kwargs.kwargs["infinite_sessions"] == {"enabled": False}
 
     def test_successful_response_returns_0(self, _mock_copilot_sdk):
