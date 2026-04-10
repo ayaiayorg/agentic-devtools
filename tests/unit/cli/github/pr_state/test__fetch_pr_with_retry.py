@@ -174,3 +174,19 @@ class TestFetchPrWithRetry:
 
         assert data["state"] == "OPEN"
         assert data["locked"] is None
+
+    def test_locked_field_fallback_unknown_json_field_format(self):
+        """Falls back on 'Unknown JSON field: "locked"' error from gh CLI."""
+        locked_fail = MagicMock()
+        locked_fail.returncode = 1
+        locked_fail.stderr = 'Unknown JSON field: "locked"'
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stdout = '{"state": "OPEN", "headRefOid": "abc1234"}'
+
+        with patch.object(pr_state_module, "run_safe", side_effect=[locked_fail, ok_result]):
+            data = pr_state_module._fetch_pr_with_retry(42, "owner/repo", retry_delay=0)
+
+        assert data["state"] == "OPEN"
+        assert data["locked"] is None

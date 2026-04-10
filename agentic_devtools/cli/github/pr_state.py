@@ -93,7 +93,11 @@ def _fetch_pr_with_retry(
             if (
                 "locked" in fields
                 and "locked" in stderr_lower
-                and ("unknown field" in stderr_lower or "invalid field" in stderr_lower)
+                and (
+                    "unknown field" in stderr_lower
+                    or "invalid field" in stderr_lower
+                    or "unknown json field" in stderr_lower
+                )
             ):
                 fields = list(_GH_PR_JSON_FIELDS_NO_LOCKED)
                 continue
