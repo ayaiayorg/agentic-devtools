@@ -98,6 +98,41 @@
 
 ---
 
+## Phase 5b: NFR Validation & Edge Case Testing
+
+### NFR Tests
+
+- [ ] T050 Write tests for NFR-002 (latency): benchmark `scan_identity_logs()` and `list_identity_directories()` complete
+      in < 2s for ≤ 20 identity directories — use `time.monotonic()` upper-bound assertion in
+      `tests/unit/cli/analysis/identity_scanner/test_scan_identity_logs_performance.py`
+- [ ] T051 Write tests for NFR-004 (error clarity): assert every error raised by `resolve_analysis_context()` includes
+      the specific parameter or path that caused the failure — cover mutual exclusion (`--issue-key` + `--pr-id`),
+      empty `--issue-key`, invalid `--pr-id` type, and missing bootstrap worktree key in
+      `tests/unit/cli/analysis/context_resolver/test_resolve_analysis_context_errors.py`
+- [ ] T052 Write tests for NFR-005 (determinism): given identical filesystem fixtures, assert two consecutive calls to
+      `scan_identity_logs()` produce byte-identical JSON output (stable ordering of identities, log entries, and
+      evidence fields) in `tests/unit/cli/analysis/identity_scanner/test_scan_identity_logs_determinism.py`
+
+### Edge Case Tests
+
+- [ ] T053 Write tests asserting exact error messages from the edge-case table (EC1–EC7) in
+      `tests/unit/cli/analysis/context_resolver/test_resolve_analysis_context_edge_cases.py`:
+      - EC1: mutual exclusion error string matches `"--issue-key and --pr-id are mutually exclusive. Provide one or neither."`
+      - EC2: empty `--issue-key` raises usage error
+      - EC3: no `.agdt/workflows/` directory proceeds with code-only evidence and notes in findings
+      - EC4: no identity directories found proceeds with code-only evidence
+      - EC5: inaccessible external worktree path logs warning, continues
+      - EC6: `--static-only` with external worktrees sets `external_context: null`
+      - EC7: identity directory with no matching logs is skipped silently
+- [ ] T054 Run `agdt-test-pattern tests/unit/cli/analysis/context_resolver/test_resolve_analysis_context_edge_cases.py -v`
+      to confirm all edge case tests pass
+- [ ] T055 Run `agdt-test-pattern tests/unit/cli/analysis/identity_scanner/test_scan_identity_logs_performance.py -v`
+      to confirm performance test passes
+- [ ] T056 Run `agdt-test-pattern tests/unit/cli/analysis/identity_scanner/test_scan_identity_logs_determinism.py -v`
+      to confirm determinism test passes
+
+---
+
 ## Phase 6: US4 — Extend SKILL.md JSON Schema
 
 - [ ] T029 Add `external_context` property to root `properties` object in
@@ -166,6 +201,9 @@ T017, T018, T019 ─► T020, T021, T022 ─► T023
 
 T011 + T006 ─► T024, T025 (US3 tests)  [parallel with US1/US2 impl]
 T024, T025 ─► T026, T027 ─► T028
+
+T016 + T023 + T028 ─► T050, T051, T052, T053 (NFR + edge case tests)  [parallel]
+T053 ─► T054; T050 ─► T055; T052 ─► T056
 
 T028 ─► T029, T030, T031 ─► T032 (US4 schema)
 T032 ─► T033, T034, T035, T036, T037, T038 (prompt updates)
