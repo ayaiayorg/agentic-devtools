@@ -101,10 +101,29 @@
 - [ ] T027 Verify `check-idempotency.sh` continues to work correctly with issue-numbered directories (no changes needed to that script, but verify no regressions)
 - [ ] T028 Verify the existing `specs/1176-use-issue-number-speckit/` directory is correctly ignored by autoincrement in all three scripts (real-world validation with actual repo contents)
 
+### Workflow idempotency
+
+- [ ] T029 [P] Update `speckit-issue-trigger.yml` "Commit Planning Artifacts" step to handle existing
+  remote branches: detect whether `origin/$BRANCH_NAME` already exists, and if so check out and reset
+  the existing branch instead of `git checkout -b` (which fails when the branch exists)
+- [ ] T030 [P] Update `speckit-issue-trigger.yml` "Push Branch" step to use `git push --force-with-lease`
+  (or equivalent) so reruns can update the remote branch instead of failing with a non-fast-forward error
+- [ ] T031 [P] Add test case to `test-autoincrement-filter.sh` for workflow rerun idempotency:
+  simulate an existing remote branch for the same issue and verify the workflow handles it gracefully
+
+### `.specify` helper compatibility
+
+- [ ] T032 [P] Update `check_feature_branch` in `.specify/scripts/bash/common.sh` to accept both
+  legacy 3-digit prefixes (`^[0-9]{3}-`) and longer numeric issue-number prefixes (`^[0-9]+-`)
+  so issue-number branches like `1176-...` are not rejected
+- [ ] T033 [P] Update `find_feature_dir_by_prefix` in `.specify/scripts/bash/common.sh` to extract
+  and match numeric prefixes of any length (not just exactly 3 digits) so issue-numbered spec
+  directories are discoverable from issue-number branches
+
 ### Cleanup
 
-- [ ] T029 Ensure `test-autoincrement-filter.sh` is executable (`chmod +x`) and has a shebang line
-- [ ] T030 Final review: confirm no `grep -o '^[0-9]\+'` patterns remain in any of the three modified scripts
+- [ ] T034 Ensure `test-autoincrement-filter.sh` is executable (`chmod +x`) and has a shebang line
+- [ ] T035 Final review: confirm no `grep -o '^[0-9]\+'` patterns remain in any of the three modified scripts
 
 ---
 
@@ -125,10 +144,12 @@ T001 ─→ T002 ─→ T003, T004 (parallel)
                                      T021 ─→ T022
                                              │
                               T023, T024, T025 (parallel)
+                              T029, T030, T031 (parallel — workflow idempotency)
+                              T032, T033 (parallel — .specify helper compat)
                                              │
                                      T026 ─→ T027 ─→ T028
                                              │
-                                     T029 ─→ T030
+                                     T034 ─→ T035
 ```
 
 ---

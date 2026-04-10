@@ -294,7 +294,13 @@ Update `specs/README.md` and `SPEC_DRIVEN_DEVELOPMENT.md` to document:
 ### Internal Dependencies
 
 - `check-idempotency.sh` — already handles "spec exists, skip" logic; no changes needed
-- `speckit-issue-trigger.yml` — no changes needed (calls `generate-spec-from-issue.sh`)
+- `speckit-issue-trigger.yml` — **needs changes for rerun idempotency**: with deterministic
+  issue-number branch naming, the workflow's `git checkout -b "$BRANCH_NAME"` +
+  `git push -u origin "$BRANCH_NAME"` will fail on reruns when a remote branch/PR for that
+  issue already exists (non-fast-forward push / branch already exists). The workflow must be
+  updated to handle existing branches idempotently — e.g., detect an existing remote branch
+  and either check it out and reset, or force-push with lease — so issue-triggered reruns
+  do not break
 - `sanitize-branch-name.sh` — no changes needed (produces SHORT_NAME)
 
 ### External Dependencies
@@ -307,5 +313,7 @@ Update `specs/README.md` and `SPEC_DRIVEN_DEVELOPMENT.md` to document:
   work identically.
 - Existing directories with non-3-digit prefixes (none currently exist in the repo) would
   now be ignored by autoincrement — this is the desired behavior.
-- The `common.sh` functions (`get_current_branch`, `find_feature_dir_by_prefix`) already
-  filter to `^[0-9]{3}-`, so no changes needed there.
+- Shared `.specify` helpers in `common.sh` that currently assume a `^[0-9]{3}-` prefix
+  (for example `check_feature_branch` and `find_feature_dir_by_prefix`) must be updated
+  to accept both legacy 3-digit prefixes and longer numeric issue-number prefixes such as
+  `1176-*`, so issue-number branches/directories remain usable with `.specify` tooling.

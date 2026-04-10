@@ -185,6 +185,24 @@ rather than creating a second directory for the same issue.
 
 This preserves a stable artifact location keyed by issue number.
 
+### FR-013 Workflow rerun idempotency
+
+The `speckit-issue-trigger.yml` workflow **must** handle reruns for the same issue idempotently. When a remote
+branch and/or PR already exists for the issue, the workflow must not fail due to:
+
+- `git checkout -b` on an already existing branch, or
+- `git push -u origin` being rejected as a non-fast-forward push.
+
+The workflow must detect existing remote branches and update them (e.g., checkout and reset, or force-push
+with lease) rather than attempting to create them afresh.
+
+### FR-014 `.specify` helper compatibility with issue-number branches
+
+Shared `.specify` helpers in `common.sh` that enforce branch-name conventions — specifically
+`check_feature_branch` and `find_feature_dir_by_prefix` — **must** accept both legacy 3-digit prefixed
+branches (`^[0-9]{3}-`) and longer numeric issue-number branches (e.g., `1176-...`), so that issue-number
+branches remain usable with `.specify` tooling.
+
 ## User Stories
 
 ### US1 — Generate a spec from a GitHub issue
@@ -357,6 +375,9 @@ by `create-new-feature.ps1` helper functions.
 3. Legacy autoincrement behavior remains owned by the create-new-feature scripts and helpers.
 4. Bash and PowerShell legacy flows must remain behaviorally aligned with respect to filtering autoincrement
    candidates to exact three-digit prefixes.
+5. `speckit-issue-trigger.yml` must be updated for rerun idempotency (FR-013) as part of this feature.
+6. `common.sh` branch validation and prefix-matching helpers must be updated for issue-number branch
+   compatibility (FR-014) as part of this feature.
 
 ## Acceptance Criteria
 
@@ -372,6 +393,11 @@ The implementation is complete only when all of the following are true:
    except that issue-numbered directories with exact three-digit prefixes (`100`-`999`) may be counted by
    legacy matching and therefore may cause a skipped number.
 8. Downstream generated artifacts remain under the resolved issue-numbered directory.
+9. Rerunning the `speckit-issue-trigger.yml` workflow for an issue that already has a remote branch/PR
+   does not fail; the workflow updates the existing branch idempotently.
+10. `check_feature_branch` in `common.sh` accepts issue-number branches (e.g., `1176-...`) without error.
+11. `find_feature_dir_by_prefix` in `common.sh` correctly resolves issue-numbered spec directories from
+    issue-number branches.
 
 ## Verification Guidance
 
@@ -382,7 +408,9 @@ Verification should include:
 - tests for changed-title reruns,
 - tests for Bash three-digit filtering,
 - tests for PowerShell three-digit filtering,
-- tests confirming mixed directory populations do not affect legacy numbering.
+- tests confirming mixed directory populations do not affect legacy numbering,
+- tests for workflow rerun idempotency (existing branch/PR scenario),
+- tests for `check_feature_branch` and `find_feature_dir_by_prefix` accepting issue-number branches.
 
 ## Resolved Clarifications Incorporated Into This Spec
 
