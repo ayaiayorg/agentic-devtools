@@ -2,7 +2,7 @@
 
 ## 1. Summary
 
-The speckit pipeline shall validate markdown files within the current spec directory using
+The SpecKit pipeline shall validate markdown files within the current spec directory using
 markdownlint, attempt deterministic auto-fixes first, and only invoke LLM-assisted remediation
 when lint errors remain that cannot be resolved mechanically. The workflow must be scoped to
 `$SPEC_DIR` only, must reuse the repository's existing markdownlint configuration where present,
@@ -148,7 +148,7 @@ NFR-005. The solution should reuse existing repository tooling and configuration
 introducing parallel markdownlint infrastructure unless required for compatibility.
 
 NFR-006. The implementation should remain simple to operate and maintain, preferably centered in
-the existing speckit pipeline flow rather than creating fragmented multi-tool behavior.
+the existing SpecKit pipeline flow rather than creating fragmented multi-tool behavior.
 
 ## 8. Edge Cases
 
@@ -218,14 +218,18 @@ unnecessary file rewrites or LLM usage.
 ## 10. Success Metrics
 
 1. At least 90% of spec markdown validation runs should pass on the first push after generation
-   or remediation.
+   or remediation, measured over the most recent 30 pipeline runs that exercised this workflow
+   using pipeline run history and final job status.
 2. The markdownlint validation/remediation overhead should be no more than 120 seconds in the
-   common successful path.
+   common successful path, measured from pipeline step start to step completion in run logs.
 3. The pipeline should avoid unnecessary LLM calls whenever deterministic fixes fully resolve
-   violations.
+   violations, verified by iteration logs showing no LLM remediation phase when auto-fix and
+   re-lint succeed.
 4. Iteration logging should be sufficient for a maintainer to reconstruct what happened during
-   the run.
-5. No markdown file outside `$SPEC_DIR` should be modified by the process.
+   the run, verified by reviewing a failed run and confirming each iteration shows the phase
+   performed, target file(s), and resulting lint status.
+5. No markdown file outside `$SPEC_DIR` should be modified by the process, verified by the
+   touched-file summary emitted for each remediation iteration.
 
 ## 11. Risks and Mitigations
 
@@ -246,7 +250,7 @@ unnecessary file rewrites or LLM usage.
 
 This specification is complete when:
 
-1. the speckit pipeline behavior for markdownlint validation and remediation is fully described
+1. the SpecKit pipeline behavior for markdownlint validation and remediation is fully described
    in this file;
 2. reviewers can validate user stories, FRs, NFRs, edge cases, and acceptance criteria without
    following an external link;

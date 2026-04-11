@@ -96,7 +96,7 @@
 
 ## Task Group 8: Polish & Cross-Cutting
 
-- [ ] T026 [P] Update `specs/1191-speckit-pipeline-markdownlint-validation/quickstart.md` to reflect final function name, env var, and any deviations from plan
+- [ ] T026 [P] Create or update `specs/1191-speckit-pipeline-markdownlint-validation/quickstart.md` to document final usage, function name, env var, and any deviations from plan
   - Depends on: T024
 - [ ] T027 [P] Run full pipeline end-to-end (`generate-spec-from-issue.sh`) with a real issue to validate Phase 7 integrates cleanly with Phases 1–6
   - Depends on: T022
