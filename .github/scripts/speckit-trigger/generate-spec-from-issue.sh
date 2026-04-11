@@ -45,20 +45,33 @@ SPEC_BASE_PATH="${SPEC_BASE_PATH:-specs}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+# ---------------------------------------------------------------------------
+# Validate ISSUE_NUMBER is a positive integer (FR-011)
+# ---------------------------------------------------------------------------
+if [[ ! "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: ISSUE_NUMBER must be a positive integer (got '$ISSUE_NUMBER')" >&2
+    exit 1
+fi
+
 echo "=== SpecKit: Generating Full Planning Artifact Suite ==="
 echo "Issue: #$ISSUE_NUMBER - $ISSUE_TITLE"
 echo "Model: $COPILOT_MODEL"
 
-# Function to get the next feature number
+# Function to get the next feature number (legacy autoincrement, kept for
+# potential fallback use).  Only counts directories/branches that match the
+# legacy 3-digit prefix pattern ^[0-9]{3}- so that issue-numbered directories
+# (e.g. 42-foo, 1176-bar) do not inflate the autoincrement counter (FR-007).
 get_next_feature_number() {
     local highest=0
 
-    # Check existing specs directories
+    # Check existing specs directories — only legacy 3-digit prefixed dirs
     if [[ -d "$REPO_ROOT/$SPEC_BASE_PATH" ]]; then
         for dir in "$REPO_ROOT/$SPEC_BASE_PATH"/*; do
             [[ -d "$dir" ]] || continue
             dirname=$(basename "$dir")
-            number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
+            # Only match legacy 3-digit prefixed directories (FR-007)
+            echo "$dirname" | grep -q '^[0-9]\{3\}-' || continue
+            number=$(echo "$dirname" | grep -o '^[0-9]\{3\}')
             number=$((10#$number))
             if [[ $number -gt $highest ]]; then
                 highest=$number
@@ -66,7 +79,7 @@ get_next_feature_number() {
         done
     fi
 
-    # Check branches
+    # Check branches — already correctly filters ^[0-9]{3}-
     branches=$(git branch -a 2>/dev/null || echo "")
     if [[ -n "$branches" ]]; then
         while IFS= read -r branch; do
@@ -84,12 +97,51 @@ get_next_feature_number() {
     echo $((highest + 1))
 }
 
-# Get next feature number
-FEATURE_NUM=$(get_next_feature_number)
-FEATURE_NUM_PADDED=$(printf "%03d" "$FEATURE_NUM")
-BRANCH_NAME="${FEATURE_NUM_PADDED}-${SHORT_NAME}"
-SPEC_DIR="$REPO_ROOT/$SPEC_BASE_PATH/$BRANCH_NAME"
-SPEC_FILE="$SPEC_BASE_PATH/$BRANCH_NAME/spec.md"
+# ---------------------------------------------------------------------------
+# Collision detection & directory reuse (FR-004, FR-012, FR-015)
+#
+# Use the GitHub issue number directly as the spec directory prefix instead
+# of autoincrementing.  If a directory for this issue already exists, reuse
+# it (even if the issue title — and therefore SHORT_NAME — has changed).
+# ---------------------------------------------------------------------------
+EXISTING_DIR=""
+for dir in "$REPO_ROOT/$SPEC_BASE_PATH"/${ISSUE_NUMBER}-*; do
+    if [[ -d "$dir" ]]; then
+        EXISTING_DIR="$dir"
+        break
+    fi
+done
+
+if [[ -n "$EXISTING_DIR" ]]; then
+    # FR-015: For 3-digit issue numbers (100-999), the prefix overlaps with
+    # the legacy ^[0-9]{3}- namespace.  Verify that the candidate directory
+    # actually belongs to this issue by checking for a Source Issue marker.
+    if [[ ${#ISSUE_NUMBER} -eq 3 ]]; then
+        SOURCE_ISSUE_FOUND=false
+        for artifact in "$EXISTING_DIR/checklists/requirements.md" "$EXISTING_DIR/spec.md"; do
+            if [[ -f "$artifact" ]] && grep -Eq "\*\*Source Issue\*\*.*#${ISSUE_NUMBER}([^0-9]|$)" "$artifact"; then
+                SOURCE_ISSUE_FOUND=true
+                break
+            fi
+        done
+        if [[ "$SOURCE_ISSUE_FOUND" != "true" ]]; then
+            echo "Error: Found existing directory '$(basename "$EXISTING_DIR")' but it does not contain a matching Source Issue marker for #$ISSUE_NUMBER." >&2
+            echo "This may be an unrelated legacy directory. Refusing to reuse." >&2
+            exit 1
+        fi
+    fi
+
+    # Reuse existing directory (FR-012: stable identity even if title changed)
+    EXISTING_DIRNAME=$(basename "$EXISTING_DIR")
+    BRANCH_NAME="$EXISTING_DIRNAME"
+    SPEC_DIR="$EXISTING_DIR"
+    echo "Reusing existing spec directory: $EXISTING_DIRNAME"
+else
+    # Create new directory with raw issue number prefix (FR-001)
+    BRANCH_NAME="${ISSUE_NUMBER}-${SHORT_NAME}"
+    SPEC_DIR="$REPO_ROOT/$SPEC_BASE_PATH/$BRANCH_NAME"
+fi
+SPEC_FILE="$SPEC_BASE_PATH/$(basename "$SPEC_DIR")/spec.md"
 
 echo "Branch: $BRANCH_NAME"
 echo "Spec Directory: $SPEC_DIR"
@@ -753,7 +805,7 @@ fi
 SPEC_DIR_REL="${SPEC_DIR_REL#/}"
 echo "branch_name=$BRANCH_NAME" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_file=$SPEC_FILE" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-echo "feature_num=$FEATURE_NUM_PADDED" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "feature_num=$ISSUE_NUMBER" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_dir=$SPEC_DIR_REL" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
 echo ""

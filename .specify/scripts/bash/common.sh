@@ -72,9 +72,11 @@ check_feature_branch() {
         return 0
     fi
 
-    if [[ ! "$branch" =~ ^[0-9]{3}- ]]; then
+    # Accept both legacy 3-digit prefixes (001-feature) and issue-number
+    # prefixes of any length (42-feature, 1176-feature) — FR-014
+    if [[ ! "$branch" =~ ^[0-9]+- ]]; then
         echo "ERROR: Not on a feature branch. Current branch: $branch" >&2
-        echo "Feature branches should be named like: 001-feature-name" >&2
+        echo "Feature branches should be named like: 001-feature-name or 42-feature-name" >&2
         return 1
     fi
 
@@ -85,13 +87,14 @@ get_feature_dir() { echo "$1/specs/$2"; }
 
 # Find feature directory by numeric prefix instead of exact branch match
 # This allows multiple branches to work on the same spec (e.g., 004-fix-bug, 004-add-feature)
+# Supports both legacy 3-digit prefixes and issue-number prefixes of any length (FR-014)
 find_feature_dir_by_prefix() {
     local repo_root="$1"
     local branch_name="$2"
     local specs_dir="$repo_root/specs"
 
-    # Extract numeric prefix from branch (e.g., "004" from "004-whatever")
-    if [[ ! "$branch_name" =~ ^([0-9]{3})- ]]; then
+    # Extract numeric prefix from branch (e.g., "004" from "004-whatever" or "1176" from "1176-feature")
+    if [[ ! "$branch_name" =~ ^([0-9]+)- ]]; then
         # If branch doesn't have numeric prefix, fall back to exact match
         echo "$specs_dir/$branch_name"
         return

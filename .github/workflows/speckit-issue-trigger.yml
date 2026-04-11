@@ -274,8 +274,14 @@ jobs:
 
           BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
 
-          # Create and checkout new branch
-          git checkout -b "$BRANCH_NAME"
+          # Handle existing remote branches for idempotent reruns (FR-013)
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "Branch '$BRANCH_NAME' already exists on remote — checking out and resetting"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" "origin/$BRANCH_NAME"
+          else
+            git checkout -b "$BRANCH_NAME"
+          fi
 
           # Add all generated artifacts in the spec directory
           SPEC_DIR="${{ steps.generate.outputs.spec_dir }}"
@@ -302,7 +308,7 @@ jobs:
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
         run: |
           BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
-          git push -u origin "$BRANCH_NAME"
+          git push --force-with-lease -u origin "$BRANCH_NAME"
 
       - name: Create Pull Request
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_PR != 'false'
