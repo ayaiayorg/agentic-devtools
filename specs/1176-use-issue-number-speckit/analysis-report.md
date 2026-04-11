@@ -55,9 +55,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Requirements** | 27 (15 FR + 3 US + 6 SC + 3 N/A) |
+| **Total Requirements** | 24 (15 FR + 3 US + 6 SC) |
 | **Total Tasks** | 38 (T001–T035 + T010a, T010b, T011a) |
-| **Fully Covered Requirements** | 25 (93%) |
+| **Fully Covered Requirements** | 22 (92%) |
 | **N/A Requirements** | 2 (FR-005, FR-006 — no change needed) |
 | **Partially Covered** | 0 |
 | **Ambiguity Count** | 0 (F04, F05 resolved) |

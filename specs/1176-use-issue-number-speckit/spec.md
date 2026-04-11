@@ -51,10 +51,11 @@ legacy "create new feature" flow that still uses three-digit autoincrement prefi
   numbers (100–999)** produce prefixes like `157-` that *do* match `^[0-9]{3}-`, creating an overlap
   with the legacy namespace. This overlap is an accepted trade-off documented in edge case #8 and FR-009,
   but issue-driven reuse of an existing `NNN-*` directory in that range is permitted **only** when that
-  directory's `spec.md` header unambiguously identifies the same Source Issue (via the `**Source Issue**: #N`
-  convention). If a matching `NNN-*` directory already exists but does not reference the same Source Issue,
-  or no Source Issue header can be found, the implementation **must not** reuse it and **must fail fast**
-  with a clear error rather than writing new artifacts into an ambiguous legacy directory.
+  directory's `checklists/requirements.md` and/or `spec.md` unambiguously identifies the same Source
+  Issue via a `**Source Issue**: #N` marker. If a matching `NNN-*` directory already exists but does not
+  identify the same Source Issue in either artifact, or neither artifact can be found/verified, the
+  implementation **must not** reuse it and **must fail fast** rather than writing new artifacts into an
+  ambiguous legacy directory.
 - **Slug**: The sanitized, lowercase, hyphenated title-derived suffix appended after the numeric identifier.
 
 ## Key Entities
@@ -212,10 +213,21 @@ branches remain usable with `.specify` tooling.
 
 When the collision detection scan (FR-004) finds a candidate directory whose prefix matches a 3-digit issue
 number (100–999) — which overlaps the legacy `^[0-9]{3}-` namespace — the implementation **must** verify that
-the candidate directory's `spec.md` header contains a `**Source Issue**: #N` reference matching the current
-issue number before reusing it. If the candidate directory exists but does not contain a matching Source Issue
-header (or has no `spec.md`), the script **must fail fast** with a clear error message indicating the ambiguity,
-rather than silently reusing or overwriting an unrelated legacy directory.
+the candidate directory contains a `**Source Issue**: #N` marker matching the current issue number before
+reusing it.
+
+**Deterministic marker**: For issue-driven generation, `generate-spec-from-issue.sh` (or any equivalent
+generator) **must** ensure that at least one deterministically generated artifact contains an exact
+`**Source Issue**: #<ISSUE_NUMBER>` line. The `checklists/requirements.md` template already includes this
+marker via the checklist prompt template. If `spec.md` also contains the marker (possibly with a trailing
+URL like `#1176 (https://...)`), it is accepted as an additional verification source but is not required
+to be the sole source because its content is LLM-dependent.
+
+**Verification order**: The reuse guard **must** check `checklists/requirements.md` first (deterministic),
+then fall back to `spec.md` (tolerant regex matching `**Source Issue**: #N` followed by a word boundary —
+either whitespace, end-of-line, or punctuation such as a space before a URL). If neither artifact contains
+a matching Source Issue marker, the script **must fail fast** with a clear error message indicating the
+ambiguity rather than silently reusing or overwriting an unrelated legacy directory.
 
 ## User Stories
 
@@ -384,10 +396,10 @@ by `create-new-feature.ps1` helper functions.
 
 9. **3-digit issue number collides with existing legacy directory**
    - If `ISSUE_NUMBER=117` and directory `117-legacy-feature` already exists as a legacy autoincrement
-     directory (i.e., its `spec.md` does not contain `**Source Issue**: #117`), the collision detection
-     must **not** reuse it. The script must fail fast with an error indicating ambiguity between the
-     issue-numbered directory and the legacy directory. This prevents accidentally overwriting unrelated
-     legacy specs.
+     directory (i.e., neither `checklists/requirements.md` nor `spec.md` contains `**Source Issue**: #117`),
+     the collision detection must **not** reuse it. The script must fail fast with an error indicating
+     ambiguity between the issue-numbered directory and the legacy directory. This prevents accidentally
+     overwriting unrelated legacy specs.
 
 ## Implementation Constraints
 
@@ -420,8 +432,8 @@ The implementation is complete only when all of the following are true:
 11. `find_feature_dir_by_prefix` in `common.sh` correctly resolves issue-numbered spec directories from
     issue-number branches.
 12. For 3-digit issue numbers (100–999) where a matching `NNN-*` directory already exists, the collision
-    detection verifies the directory's Source Issue header before reuse; if the header is missing or
-    references a different issue, the script fails fast.
+    detection verifies the directory's Source Issue marker (in `checklists/requirements.md` or `spec.md`)
+    before reuse; if neither artifact contains a matching marker, the script fails fast.
 
 ## Verification Guidance
 

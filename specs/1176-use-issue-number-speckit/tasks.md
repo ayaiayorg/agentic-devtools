@@ -57,17 +57,18 @@
 - [ ] T009 [US2] Add test case for re-run with changed title: existing `42-old-name` is reused even when SHORT_NAME differs (FR-012)
 - [ ] T010 [US2] Add test case for no collision: ISSUE_NUMBER=42 with no existing `42-*` dir creates new `42-short-name`
 - [ ] T010a [US2] Add edge-case test for 3-digit issue-number overlap with legacy namespace:
-  existing `117-legacy-feature` directory (no `**Source Issue**: #117` in spec.md) + `ISSUE_NUMBER=117`;
+  existing `117-legacy-feature` directory (no matching `**Source Issue**: #117` in `checklists/requirements.md` or `spec.md`) + `ISSUE_NUMBER=117`;
   verify the script fails fast rather than reusing the unrelated legacy directory (FR-015)
 - [ ] T010b [US2] Add edge-case test for 3-digit issue-number safe reuse:
-  existing `117-some-issue` directory (with `**Source Issue**: #117` in spec.md) + `ISSUE_NUMBER=117`;
+  existing `117-some-issue` directory (with matching `**Source Issue**: #117` in `checklists/requirements.md`) + `ISSUE_NUMBER=117`;
   verify the script correctly reuses the directory (FR-015)
 - [ ] T011 [US2] Implement collision detection in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` —
   add glob scan for `${ISSUE_NUMBER}-*` (raw, unpadded) after `BRANCH_NAME` is computed,
   before the `SPEC_DIR` assignment
 - [ ] T011a [US2] Implement Source Issue verification guard for 3-digit issue numbers (FR-015):
-  when a candidate directory is found and `ISSUE_NUMBER` has exactly 3 digits, check that the
-  candidate's `spec.md` contains `**Source Issue**: #N` matching the current issue; fail fast if not
+  when a candidate directory is found and `ISSUE_NUMBER` has exactly 3 digits, check
+  `checklists/requirements.md` first (deterministic), then fall back to `spec.md` (tolerant regex);
+  fail fast if neither artifact contains `**Source Issue**: #N` matching the current issue
 - [ ] T012 [US2] Add directory reuse logic: when `EXISTING_DIR` is found, set `SPEC_DIR` and `BRANCH_NAME`
   from existing dir; otherwise create new `${ISSUE_NUMBER}-${SHORT_NAME}` directory (raw, unpadded issue number)
 - [ ] T013 [US2] Ensure `SPEC_FILE` output variable also reflects the reused directory path (verify `SPEC_FILE` is derived from `SPEC_DIR`)

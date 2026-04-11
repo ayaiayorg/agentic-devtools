@@ -117,7 +117,7 @@ Key decisions:
 
 ### Phase 1: Validation & Collision Detection in `generate-spec-from-issue.sh`
 
-**Deliverables**: FR-011, FR-004, FR-012
+**Deliverables**: FR-011, FR-004, FR-012, FR-015
 
 #### 1a. ISSUE_NUMBER validation (FR-011)
 
@@ -154,15 +154,23 @@ fi
 
 if [[ -n "$EXISTING_DIR" ]]; then
     # FR-015: For 3-digit issue numbers (100–999), verify the candidate directory
-    # belongs to this issue by checking its spec.md Source Issue header. This prevents
-    # accidentally reusing an unrelated legacy NNN-* directory.
+    # belongs to this issue by checking a deterministically generated artifact first,
+    # then falling back to spec.md with a tolerant Source Issue match. This prevents
+    # accidentally reusing an unrelated legacy NNN-* directory while avoiding false
+    # negatives when spec.md includes a URL or extra whitespace.
     if [[ ${#ISSUE_NUMBER} -eq 3 ]]; then
+        REQUIREMENTS_FILE_PATH="$EXISTING_DIR/checklists/requirements.md"
         SPEC_FILE_PATH="$EXISTING_DIR/spec.md"
-        if [[ -f "$SPEC_FILE_PATH" ]] && grep -q "^\*\*Source Issue\*\*: #${ISSUE_NUMBER}$" "$SPEC_FILE_PATH"; then
-            echo "Verified Source Issue match for 3-digit issue number"
+        SOURCE_ISSUE_PATTERN="^[[:space:]]*\*\*Source Issue\*\*:[[:space:]]*#${ISSUE_NUMBER}([[:space:]]|$)"
+
+        if [[ -f "$REQUIREMENTS_FILE_PATH" ]] && grep -Eq "$SOURCE_ISSUE_PATTERN" "$REQUIREMENTS_FILE_PATH"; then
+            echo "Verified Source Issue match for 3-digit issue number via checklists/requirements.md"
+        elif [[ -f "$SPEC_FILE_PATH" ]] && grep -Eq "$SOURCE_ISSUE_PATTERN" "$SPEC_FILE_PATH"; then
+            echo "Verified Source Issue match for 3-digit issue number via spec.md"
         else
             echo "Error: Existing directory '$(basename "$EXISTING_DIR")' matches issue number prefix" >&2
-            echo "but does not contain a spec.md with '**Source Issue**: #${ISSUE_NUMBER}'." >&2
+            echo "but neither checklists/requirements.md nor spec.md contains a matching" >&2
+            echo "'**Source Issue**: #${ISSUE_NUMBER}' header." >&2
             echo "This may be a legacy autoincrement directory. Refusing to reuse." >&2
             exit 1
         fi
@@ -179,9 +187,11 @@ fi
 
 This means if the issue title changed between runs, the existing directory is
 reused (FR-012). For 3-digit issue numbers (100–999), the reuse path additionally
-verifies that the candidate directory's `spec.md` contains a matching `**Source Issue**: #N`
-header (FR-015), preventing accidental reuse of unrelated legacy directories in the
-overlapping namespace. The `check-idempotency.sh` script handles the "already fully
+verifies that the candidate directory contains a matching `**Source Issue**: #N`
+header (FR-015) by checking `checklists/requirements.md` first (deterministically
+generated), then falling back to `spec.md` with a tolerant regex that accepts
+trailing URL text and whitespace. This prevents accidental reuse of unrelated
+legacy directories in the overlapping namespace. The `check-idempotency.sh` script handles the "already fully
 processed" case upstream; this collision check handles the "directory exists but
 re-run is allowed" case.
 
