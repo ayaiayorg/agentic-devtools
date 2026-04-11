@@ -218,10 +218,11 @@ reusing it.
 
 **Deterministic marker**: For issue-driven generation, `generate-spec-from-issue.sh` (or any equivalent
 generator) **must** ensure that at least one deterministically generated artifact contains an exact
-`**Source Issue**: #<ISSUE_NUMBER>` line. The `checklists/requirements.md` template already includes this
-marker via the checklist prompt template. If `spec.md` also contains the marker (possibly with a trailing
-URL like `#1176 (https://...)`), it is accepted as an additional verification source but is not required
-to be the sole source because its content is LLM-dependent.
+`**Source Issue**: #<ISSUE_NUMBER>` line. Specifically, the generator **must** write that exact line into
+`checklists/requirements.md` so it is always available as the deterministic primary verification source.
+If `spec.md` also contains the marker (possibly with a trailing URL like `#1176 (https://...)`), it is
+accepted as an additional verification source but is not required to be the sole source because its
+content is LLM-dependent.
 
 **Verification order**: The reuse guard **must** check `checklists/requirements.md` first (deterministic),
 then fall back to `spec.md` (tolerant regex matching `**Source Issue**: #N` followed by a word boundary —

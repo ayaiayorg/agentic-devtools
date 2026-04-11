@@ -1,6 +1,9 @@
 # Requirements Checklist
 
-This checklist applies to `specs/1176-use-issue-number-speckit/`.
+**Purpose**: Validate requirement quality and completeness for `specs/1176-use-issue-number-speckit/`.
+**Created**: 2026-04-11
+**Feature**: [spec.md](../spec.md)
+**Source Issue**: #1176
 
 **17 checks** across 3 categories — derived from the spec's FR-001–FR-015, US1–US3, SC-001–SC-006, and edge case resolutions.
 
