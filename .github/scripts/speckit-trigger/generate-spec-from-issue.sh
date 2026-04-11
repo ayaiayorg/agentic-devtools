@@ -399,18 +399,13 @@ run_plan_phase() {
         fi
     fi
 
-    local budget_output
-    local budget_exit_code=0
-    budget_output=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>&1 1>&3) 3>&1 || budget_exit_code=$?
-
-    # budget_output now holds stdout (budget-compliant content)
-    # The stderr diagnostics were captured in the subshell; re-emit them
-    # We need to separate stdout and stderr properly
-    local budget_stderr=""
+    local budget_stderr_file="/tmp/budget_stderr_$$.txt"
     local budget_content=""
-    budget_content=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>/tmp/budget_stderr_$$.txt) || budget_exit_code=$?
-    budget_stderr=$(cat /tmp/budget_stderr_$$.txt 2>/dev/null || echo "")
-    rm -f /tmp/budget_stderr_$$.txt
+    local budget_exit_code=0
+    budget_content=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>"$budget_stderr_file") || budget_exit_code=$?
+    local budget_stderr=""
+    budget_stderr=$(cat "$budget_stderr_file" 2>/dev/null || echo "")
+    rm -f "$budget_stderr_file"
 
     if [[ $budget_exit_code -ne 0 ]]; then
         echo "Error: Context budget enforcement failed for plan phase." >&2
