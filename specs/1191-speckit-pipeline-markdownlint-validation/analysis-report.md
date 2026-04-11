@@ -64,12 +64,20 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Identifiable Requirements** | 26 (4 US + 6 FR topics + 6 NFR + 5 SC + 5 named EC) |
+| **Total Identifiable Requirements** | 26 grouped traceability topics (4 US + 6 FR topic groups + 6 NFR + 5 SC + 5 named EC coverage groups) |
 | **Total Tasks** | 31 |
-| **Coverage %** | 100% (26/26 with traceable task; 6 resolved structural issues, 0 gaps) |
+| **Coverage %** | 100% of grouped traceability topics (26/26 with traceable task coverage; 6 resolved structural issues, 0 gaps) |
 | **Ambiguity Count** | 0 (F06, F15 resolved) |
 | **Duplication Count** | 2 (F12, F13) |
 | **Critical Issues Count** | 0 (F01–F11, F15 resolved) |
+
+**Counting methodology**: The 26 total is a **grouped traceability metric**, not a
+count of every numbered item in the specification. User stories are counted
+individually (4); FRs are grouped into 6 implementation/validation topic groups;
+NFRs are counted individually (6); success criteria are counted individually (5);
+edge cases are grouped into 5 named coverage buckets (including one bucket for
+"9 edge cases EC1–EC9"). This is why the metric does not equal the sum of all
+individually numbered FR/EC/AC items in the spec.
 
 **Overall Assessment**: The plan and tasks are well-structured with clear dependency chains and good user-story traceability.
 The previously blocking structural issues (F01–F11, F15) have been resolved.
