@@ -26,6 +26,7 @@ class TestEnforceBudgetCli:
         with (
             patch("sys.argv", ["enforce_budget.py", "--description", "hello world", "--budget", "1000"]),
             patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())),
+            patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
         ):
             result = module.main()
         assert result == 0
@@ -37,6 +38,7 @@ class TestEnforceBudgetCli:
         with (
             patch("sys.argv", ["enforce_budget.py", "--description", large_desc, "--budget", "100"]),
             patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())) as mock_stdout,
+            patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
         ):
             result = module.main()
         assert result == 0
@@ -61,6 +63,7 @@ class TestEnforceBudgetCli:
             patch("sys.argv", ["enforce_budget.py", "--budget", "1000"]),
             patch("sys.stdin", MagicMock(read=MagicMock(return_value="stdin content"))),
             patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())),
+            patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
         ):
             result = module.main()
         assert result == 0

@@ -35,17 +35,15 @@ def main() -> int:
             ContextBudgetError,
             enforce_context_budget,
         )
-    except ImportError:
+    except ImportError as exc:
         print(
-            "Warning: agentic_devtools package not available. Budget enforcement skipped (passthrough mode).",
+            "Error: agentic_devtools.context_budget is unavailable, so budget enforcement "
+            "cannot run. Install the agentic_devtools package in this environment and rerun "
+            "the SpecKit trigger. Refusing to pass through unbudgeted content.",
             file=sys.stderr,
         )
-        # Passthrough: read from stdin or use provided content
-        if args.description is not None:
-            sys.stdout.write(args.description)
-        else:
-            sys.stdout.write(sys.stdin.read())
-        return 0
+        print(f"Import error detail: {exc}", file=sys.stderr)
+        return 2
 
     budget = args.budget if args.budget is not None else DEFAULT_CONTEXT_BUDGET
 

@@ -53,9 +53,13 @@ _IMAGE_JIRA_RE = re.compile(r"![\w./-]+!")
 _BASE64_DATA_URI_RE = re.compile(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+")
 _HEADING_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
-_BOLD_UNDERSCORE_RE = re.compile(r"__(.+?)__")
+# Underscore-based bold/italic is intentionally NOT stripped because the
+# patterns collide with snake_case identifiers (foo_bar) and dunder names
+# (__init__, __main__) that commonly appear in technical specifications.
+# Asterisk-based emphasis (**bold**, *italic*) handles the vast majority of
+# real-world Markdown emphasis; leaving underscore emphasis intact is the
+# safest choice for this reduction pipeline.
 _ITALIC_RE = re.compile(r"\*(.+?)\*")
-_ITALIC_UNDERSCORE_RE = re.compile(r"_(.+?)_")
 _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _HR_RE = re.compile(r"^---+\s*$", re.MULTILINE)
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
@@ -129,9 +133,7 @@ def strip_markdown_formatting(text: str) -> str:
     # Now strip markdown formatting from the non-code parts
     result = _HEADING_RE.sub("", result)
     result = _BOLD_RE.sub(r"\1", result)
-    result = _BOLD_UNDERSCORE_RE.sub(r"\1", result)
     result = _ITALIC_RE.sub(r"\1", result)
-    result = _ITALIC_UNDERSCORE_RE.sub(r"\1", result)
     result = _LINK_RE.sub(r"\1", result)
     result = _HR_RE.sub("", result)
 
@@ -283,7 +285,9 @@ def enforce_context_budget(
         )
 
     # --- Stage 3: Truncated ---
-    # Truncate the combined reduced content, then split back
+    # Truncate the combined reduced description/comments content and return it
+    # in `description`, clearing `comments` because the truncated payload is not
+    # split back into separate fields at this stage.
     combined = reduced_desc + "\n" + reduced_comments if reduced_comments else reduced_desc
     truncated = hard_truncate(combined, budget)
     truncated_chars = len(truncated)
