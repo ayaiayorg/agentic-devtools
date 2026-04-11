@@ -80,9 +80,9 @@ Key decisions for this implementation:
 | Footer preservation | Strip before LLM, re-append after |
 | Graceful failure | Loop exits with diagnostics and non-zero return code; pipeline stops |
 
-## 4. Implementation Phases
+## 4. Implementation Stages
 
-### Phase 1: Core Validation Loop Function
+### Stage 1: Core Validation Loop Function
 
 **Deliverable**: `run_markdownlint_validation` function in `generate-spec-from-issue.sh`
 
@@ -95,7 +95,7 @@ Key decisions for this implementation:
    - If violations remain and not stalled → proceed to LLM remediation
 3. Per-iteration logging to stderr with iteration number, violation count, file list
 
-### Phase 2: LLM Remediation Prompt
+### Stage 2: LLM Remediation Prompt
 
 **Deliverable**: LLM prompt construction and file correction logic
 
@@ -108,16 +108,16 @@ Key decisions for this implementation:
 3. Re-append model footer via `append_model_footer`
 4. Handle LLM failure gracefully (log warning, continue to next file)
 
-### Phase 3: Orchestration Integration
+### Stage 3: Orchestration Integration
 
-**Deliverable**: Wire Phase 7 into the main pipeline orchestration
+**Deliverable**: Wire Pipeline Phase 7 into the main pipeline orchestration
 
-1. Add Phase 7 call after Phase 6 (Analyze) and before `GITHUB_OUTPUT`
+1. Add Pipeline Phase 7 call after Phase 6 (Analyze) and before `GITHUB_OUTPUT`
 2. Check `npx` availability; fail with actionable error and non-zero exit if not found (per EC5)
 3. Update phase numbering in echo statements (existing are 1-6, new is 7)
 4. Ensure the function returns non-zero on exhaustion (fail with diagnostics per FR-013)
 
-### Phase 4: Testing & Validation
+### Stage 4: Testing & Validation
 
 **Deliverable**: Manual and automated validation
 
