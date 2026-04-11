@@ -10,7 +10,7 @@
 - [ ] CHK001 Each of the 5 user stories articulates user value — not just "add parameter X" but why the user needs it
       (e.g., why `--issue-key` vs `--pr-id` matters for the analyst's workflow)
 - [ ] CHK002 All 5 user stories follow "As a [role], I want [goal], so that [benefit]" format and reference concrete
-      agdt-analyze-workflow capabilities (multi-identity scanning, static-only mode, external_context output, etc.)
+      agdt.analyze-workflow capabilities (multi-identity scanning, static-only mode, external_context output, etc.)
 - [ ] CHK003 Each of the 16 functional requirements has an explicit priority (must/should/could) — especially the
       mutual exclusion rule for `--issue-key` + `--pr-id` and the resolution precedence table
 - [ ] CHK004 Functional requirements describe *what* the system does (e.g., "scan all identity directories") without
