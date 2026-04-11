@@ -23,28 +23,33 @@
 ### Acceptance Criteria
 
 **US1 — Parameterized invocation:**
+
 - `--issue-key PROJECT-123` resolves `worktree_key = "PROJECT-123"`
 - `--pr-id 42` resolves `worktree_key = "PR42"`
 - Omitting both falls back to the current bootstrap worktree key
 - Providing both `--issue-key` and `--pr-id` raises a mutual exclusion error
 
 **US2 — Multi-identity log scanning:**
+
 - All directories under `.agdt/workflows/` are scanned (except `_unscoped`)
 - Each log entry is prefixed with `[identity: {name}]` for attribution
 - Empty identity directories are skipped gracefully
 
 **US3 — External worktree context:**
+
 - `git worktree list --porcelain` discovers external worktrees
 - Log evidence is collected read-only — no writes to external paths
 - `--static-only` flag disables external worktree scanning
 - Inaccessible worktrees produce a warning, not an error
 
 **US4 — `external_context` output field:**
+
 - Field is present in JSON output as `null` when no external context (static-only or no external worktrees)
 - Field contains `worktrees_scanned`, `log_evidence`, `identities_scanned` when populated
 - Schema uses `oneOf [ExternalContext, null]` (not in `required` array)
 
 **US5 — Backward compatibility:**
+
 - Existing analysis JSON without `external_context` still validates
 - `create-issues-from-analysis` agent ignores unknown top-level fields
 - No changes to `COMMAND_MAP` or existing CLI entry points

@@ -27,7 +27,8 @@
 
 ## 2. Coverage Summary Table
 
-> **Note:** The spec artifact now contains the full specification with FR-001–FR-016 and NFR-001–NFR-005 enumerated. Coverage is assessed against the **5 User Stories**, **16 FRs**, **5 NFRs**, and **7 edge cases**.
+> **Note:** The spec artifact now contains the full specification with FR-001–FR-016 and NFR-001–NFR-005 enumerated.
+> Coverage is assessed against the **5 User Stories**, **16 FRs**, **5 NFRs**, and **7 edge cases**.
 
 | Requirement Key | Has Task? | Task IDs | Notes |
 |----------------|-----------|----------|-------|
