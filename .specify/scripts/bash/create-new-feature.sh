@@ -5,6 +5,7 @@ set -e
 JSON_MODE=false
 SHORT_NAME=""
 ISSUE_NUMBER=""
+EXPLICIT_ISSUE=""
 ARGS=()
 i=1
 while [ $i -le $# ]; do
@@ -43,6 +44,7 @@ while [ $i -le $# ]; do
                 exit 1
             fi
             ISSUE_NUMBER="$next_arg"
+            EXPLICIT_ISSUE=true
             ;;
         --help|-h) 
             echo "Usage: $0 [--json] [--short-name <name>] [--issue N] <feature_description>"
@@ -255,8 +257,15 @@ if [ -z "$ISSUE_NUMBER" ]; then
     fi
 fi
 
-# Use issue number as-is (no zero-padding) for the directory/branch prefix
-FEATURE_NUM="$((10#$ISSUE_NUMBER))"
+# When --issue was explicitly provided, use the number as-is (no zero-padding).
+# When the number was auto-detected from legacy 3-digit dirs/branches, preserve
+# the 3-digit zero-padded format so the new branch/dir will be picked up by
+# subsequent legacy detection runs.
+if [ -n "$EXPLICIT_ISSUE" ]; then
+    FEATURE_NUM="$((10#$ISSUE_NUMBER))"
+else
+    FEATURE_NUM=$(printf "%03d" "$((10#$ISSUE_NUMBER))")
+fi
 BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 
 # GitHub enforces a 244-byte limit on branch names

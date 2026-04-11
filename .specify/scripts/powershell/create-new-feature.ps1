@@ -212,18 +212,21 @@ if ($ShortName) {
 
 # Determine feature number: -Issue takes priority, then -Number (deprecated), then auto-detect
 $effectiveNumber = 0
+$explicitIssue = $false
 if ($Issue -ne 0) {
     if ($Issue -lt 1) {
         Write-Error "Error: -Issue requires a positive integer (got $Issue)"
         exit 1
     }
     $effectiveNumber = $Issue
+    $explicitIssue = $true
 } elseif ($Number -ne 0) {
     if ($Number -lt 1) {
         Write-Error "Error: -Number requires a positive integer (got $Number)"
         exit 1
     }
     $effectiveNumber = $Number
+    $explicitIssue = $true
 }
 
 if ($effectiveNumber -eq 0) {
@@ -236,8 +239,15 @@ if ($effectiveNumber -eq 0) {
     }
 }
 
-# Use issue number as-is (no zero-padding) for the directory/branch prefix
-$featureNum = "$effectiveNumber"
+# When -Issue was explicitly provided, use the number as-is (no zero-padding).
+# When the number was auto-detected from legacy 3-digit dirs/branches, preserve
+# the 3-digit zero-padded format so the new branch/dir will be picked up by
+# subsequent legacy detection runs.
+if ($explicitIssue) {
+    $featureNum = "$effectiveNumber"
+} else {
+    $featureNum = "{0:D3}" -f $effectiveNumber
+}
 $branchName = "$featureNum-$branchSuffix"
 
 # GitHub enforces a 244-byte limit on branch names
