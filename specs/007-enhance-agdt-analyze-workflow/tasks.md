@@ -64,7 +64,9 @@
       across multiple identities, workflow name filter applied, no logs found, empty identity dirs,
       identity dir name attribution (verify `LogEvidence.identity` is set to the directory name, not
       the `.identity-owner` email — email is only used by `list_identity_directories`)
-- [ ] T018 [P] Write failing tests in `tests/unit/cli/analysis/identity_scanner/test_list_identity_directories.py`: multiple identities listed, empty workflows dir, missing `.identity-owner` returns `None`, `_unscoped` directory excluded from results
+- [ ] T018 [P] Write failing tests in `tests/unit/cli/analysis/identity_scanner/test_list_identity_directories.py`:
+      multiple identities listed, empty workflows dir, missing `.identity-owner` returns `None`,
+      `_unscoped` directory excluded from results
 - [ ] T019 [P] Write failing tests in `tests/unit/cli/analysis/identity_scanner/test_format_evidence_prefix.py`: standard format `[identity: {name}]`, special characters in identity name
 
 ### Implementation (GREEN)
@@ -72,7 +74,10 @@
 - [ ] T020 Implement `scan_identity_logs(git_root, worktree_key, workflow_name) -> list[LogEvidence]` in
       `agentic_devtools/cli/analysis/identity_scanner.py` — iterate identity dirs, match worktree_key, optional
       workflow name filter, read-only
-- [ ] T021 Implement `list_identity_directories(git_root) -> list[IdentityDir]` in `agentic_devtools/cli/analysis/identity_scanner.py` — list dirs under `.agdt/workflows/` excluding `_unscoped` (consistent with `scan_identity_logs`), read `.identity-owner` files for owner email attribution
+- [ ] T021 Implement `list_identity_directories(git_root) -> list[IdentityDir]` in
+      `agentic_devtools/cli/analysis/identity_scanner.py` — list dirs under `.agdt/workflows/`
+      excluding `_unscoped` (consistent with `scan_identity_logs`), read `.identity-owner` files
+      for owner email attribution
 - [ ] T022 Implement `format_evidence_prefix(identity) -> str` in `agentic_devtools/cli/analysis/identity_scanner.py`
 - [ ] T023 Run `agdt-test-pattern tests/unit/cli/analysis/identity_scanner/ -v` to confirm all tests pass (GREEN)
 
