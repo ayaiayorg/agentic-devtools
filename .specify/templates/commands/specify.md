@@ -6,12 +6,10 @@ handoffs:
   - label: Build Technical Plan
 
     agent: speckit.plan
-    agent: speckit.plan
     prompt: Create a plan for the spec. I am building with...
 
   - label: Clarify Spec Requirements
 
-    agent: speckit.clarify
     agent: speckit.clarify
     prompt: Clarify specification requirements
     send: true
@@ -26,7 +24,7 @@ scripts:
 
 ```text
 $ARGUMENTS
-```text
+```
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -46,12 +44,10 @@ Given that feature description, do this:
    - Use action-noun format when possible (e.g., "add-user-auth",
 
      "fix-payment-bug")
-     "fix-payment-bug")
 
    - Preserve technical terms and acronyms (OAuth2, API, JWT, etc.)
    - Keep it concise but descriptive enough to understand the feature at a
 
-     glance
      glance
 
    - Examples:
@@ -119,7 +115,6 @@ Given that feature description, do this:
        - Prioritize clarifications by impact: scope > security/privacy > user
 
          experience > technical details
-         experience > technical details
     4. Fill User Scenarios & Testing section
        If no clear user flow: ERROR "Cannot determine user scenarios"
     5. Generate Functional Requirements
@@ -182,7 +177,7 @@ Given that feature description, do this:
       
       - Items marked incomplete require spec updates before `/speckit.clarify` or
         `/speckit.plan`
-      ```text
+      ```
 
    b. **Run Validation Check**: Review the spec against each checklist item:
 
@@ -196,7 +191,6 @@ Given that feature description, do this:
       - **If items fail (excluding [NEEDS CLARIFICATION])**:
 
         1. List the failing items and specific issues
-        1. List the failing items and specific issues
         1. Update the spec to address each issue
         1. Re-run validation until all items pass (max 3 iterations)
         1. If still failing after 3 iterations, document remaining issues in
@@ -204,7 +198,6 @@ Given that feature description, do this:
 
       - **If [NEEDS CLARIFICATION] markers remain**:
 
-        1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
         1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
         1. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most
            critical (by scope/security/UX impact) and make informed guesses for
@@ -230,7 +223,7 @@ Given that feature description, do this:
            | Custom | Provide your own answer | [How to provide] |
            
            **Your choice**: _[Wait for user response]_
-           ```text
+           ```
 
         1. **CRITICAL - Table Formatting**: Ensure markdown tables are properly
            formatted:
@@ -240,7 +233,6 @@ Given that feature description, do this:
            - Header separator must have at least 3 dashes: `|--------|`
            - Test that the table renders correctly in markdown preview
 
-        1. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
         1. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
         1. Present all questions together before waiting for responses
         1. Wait for user to respond with their choices for all questions (e.g.,
@@ -268,7 +260,6 @@ spec file before writing.
 - DO NOT create any checklists that are embedded in the spec. That will be a
 
   separate command.
-  separate command.
 
 ### Section Requirements
 
@@ -292,7 +283,6 @@ When creating this spec from a user prompt:
 - Lack any reasonable default
 
 1. **Prioritize clarifications**: scope > security/privacy > user experience >
-1. **Prioritize clarifications**: scope > security/privacy > user experience >
    technical details
 1. **Think like a tester**: Every vague requirement should fail the "testable
    and unambiguous" checklist item
@@ -302,7 +292,6 @@ When creating this spec from a user prompt:
 - Feature scope and boundaries (include/exclude specific use cases)
 - User types and permissions (if multiple conflicting interpretations
 
-     possible)
      possible)
 
 - Security/compliance requirements (when legally/financially significant)
@@ -338,7 +327,6 @@ Success criteria must be:
 
 - "API response time is under 200ms" (too technical, use "Users see results
 
-  instantly")
   instantly")
 
 - "Database can handle 1000 TPS" (implementation detail, use user-facing
