@@ -180,6 +180,7 @@ Validation rules:
 
 - `ISSUE_NUMBER` is required for issue-driven generation.
 - `ISSUE_NUMBER` must contain only decimal digits.
+- `ISSUE_NUMBER` must not contain leading zeros for multi-digit values (that is, it must match `^[1-9][0-9]*$`).
 - `ISSUE_NUMBER` must represent a positive integer greater than zero.
 - If validation fails, the script must stop with a clear error and must not create or modify directories.
 
