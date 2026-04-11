@@ -231,3 +231,26 @@ class TestEnforceContextBudgetMetadata:
         assert not result.description.startswith("\n"), (
             "Stage 3 combined should not start with a leading newline"
         )
+
+    def test_whitespace_only_reduced_parts_treated_as_empty(self):
+        """Reduced parts that become whitespace-only are treated as empty.
+
+        Regression: if reduction leaves only whitespace/newlines (e.g. from
+        image removal producing ``\\n\\n``), the separator predicate should
+        treat that as empty rather than truthy, avoiding wasted budget chars
+        and leading blank lines.
+        """
+        # Craft input that reduces to whitespace-only for desc, real content for comments
+        desc = "![a](http://x.com/a.png)\n\n![b](http://x.com/b.png)"  # reduces to whitespace
+        comm = "substantive comment text here"
+        result = enforce_context_budget(desc, comm, budget=5000)
+        # After normalization, reduced_desc should be empty (stripped whitespace-only)
+        # so the separator should NOT be counted
+        assert not result.description.startswith("\n"), (
+            "Whitespace-only reduced desc should not cause leading newline"
+        )
+        # Description field should be empty or the comment text (no blank-line prefix)
+        if result.description:
+            assert result.description.strip(), (
+                "Description should not be whitespace-only"
+            )
