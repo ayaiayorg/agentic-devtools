@@ -191,18 +191,18 @@ Given that feature description, do this:
       - **If items fail (excluding [NEEDS CLARIFICATION])**:
 
         1. List the failing items and specific issues
-        1. Update the spec to address each issue
-        1. Re-run validation until all items pass (max 3 iterations)
-        1. If still failing after 3 iterations, document remaining issues in
+        2. Update the spec to address each issue
+        3. Re-run validation until all items pass (max 3 iterations)
+        4. If still failing after 3 iterations, document remaining issues in
            checklist notes and warn user
 
       - **If [NEEDS CLARIFICATION] markers remain**:
 
         1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
-        1. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most
+        2. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most
            critical (by scope/security/UX impact) and make informed guesses for
            the rest
-        1. For each clarification needed (max 3), present options to user in
+        3. For each clarification needed (max 3), present options to user in
            this format:
 
            ```markdown
@@ -225,7 +225,7 @@ Given that feature description, do this:
            **Your choice**: _[Wait for user response]_
            ```
 
-        1. **CRITICAL - Table Formatting**: Ensure markdown tables are properly
+        4. **CRITICAL - Table Formatting**: Ensure markdown tables are properly
            formatted:
 
            - Use consistent spacing with pipes aligned
@@ -233,13 +233,13 @@ Given that feature description, do this:
            - Header separator must have at least 3 dashes: `|--------|`
            - Test that the table renders correctly in markdown preview
 
-        1. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
-        1. Present all questions together before waiting for responses
-        1. Wait for user to respond with their choices for all questions (e.g.,
+        5. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
+        6. Present all questions together before waiting for responses
+        7. Wait for user to respond with their choices for all questions (e.g.,
            "Q1: A, Q2: Custom - [details], Q3: B")
-        1. Update the spec by replacing each [NEEDS CLARIFICATION] marker with
+        8. Update the spec by replacing each [NEEDS CLARIFICATION] marker with
            the user's selected or provided answer
-        1. Re-run validation after all clarifications are resolved
+        9. Re-run validation after all clarifications are resolved
 
    d. **Update Checklist**: After each validation iteration, update the
    checklist file with current pass/fail status
@@ -278,23 +278,23 @@ When creating this spec from a user prompt:
 3. **Limit clarifications**: Maximum 3 [NEEDS CLARIFICATION] markers - use only
    for critical decisions that:
 
-- Significantly impact feature scope or user experience
-- Have multiple reasonable interpretations with different implications
-- Lack any reasonable default
+   - Significantly impact feature scope or user experience
+   - Have multiple reasonable interpretations with different implications
+   - Lack any reasonable default
 
-1. **Prioritize clarifications**: scope > security/privacy > user experience >
+4. **Prioritize clarifications**: scope > security/privacy > user experience >
    technical details
-1. **Think like a tester**: Every vague requirement should fail the "testable
+5. **Think like a tester**: Every vague requirement should fail the "testable
    and unambiguous" checklist item
-1. **Common areas needing clarification** (only if no reasonable default
+6. **Common areas needing clarification** (only if no reasonable default
    exists):
 
-- Feature scope and boundaries (include/exclude specific use cases)
-- User types and permissions (if multiple conflicting interpretations
+   - Feature scope and boundaries (include/exclude specific use cases)
+   - User types and permissions (if multiple conflicting interpretations
 
      possible)
 
-- Security/compliance requirements (when legally/financially significant)
+   - Security/compliance requirements (when legally/financially significant)
 
 **Examples of reasonable defaults** (don't ask about these):
 
