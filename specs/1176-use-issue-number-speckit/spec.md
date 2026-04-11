@@ -49,7 +49,12 @@ legacy "create new feature" flow that still uses three-digit autoincrement prefi
   issue numbers with fewer than 3 digits (1–99) or more than 3 digits (1000+), the unpadded prefix is
   naturally excluded from the legacy `^[0-9]{3}-` autoincrement pattern. However, **three-digit issue
   numbers (100–999)** produce prefixes like `157-` that *do* match `^[0-9]{3}-`, creating an overlap
-  with the legacy namespace. This overlap is an accepted trade-off documented in edge case #8 and FR-009.
+  with the legacy namespace. This overlap is an accepted trade-off documented in edge case #8 and FR-009,
+  but issue-driven reuse of an existing `NNN-*` directory in that range is permitted **only** when that
+  directory's `spec.md` header unambiguously identifies the same Source Issue (via the `**Source Issue**: #N`
+  convention). If a matching `NNN-*` directory already exists but does not reference the same Source Issue,
+  or no Source Issue header can be found, the implementation **must not** reuse it and **must fail fast**
+  with a clear error rather than writing new artifacts into an ambiguous legacy directory.
 - **Slug**: The sanitized, lowercase, hyphenated title-derived suffix appended after the numeric identifier.
 
 ## Key Entities
@@ -202,6 +207,15 @@ Shared `.specify` helpers in `common.sh` that enforce branch-name conventions �
 `check_feature_branch` and `find_feature_dir_by_prefix` — **must** accept both legacy 3-digit prefixed
 branches (`^[0-9]{3}-`) and longer numeric issue-number branches (e.g., `1176-...`), so that issue-number
 branches remain usable with `.specify` tooling.
+
+### FR-015 Safe reuse guard for 3-digit issue-number overlap
+
+When the collision detection scan (FR-004) finds a candidate directory whose prefix matches a 3-digit issue
+number (100–999) — which overlaps the legacy `^[0-9]{3}-` namespace — the implementation **must** verify that
+the candidate directory's `spec.md` header contains a `**Source Issue**: #N` reference matching the current
+issue number before reusing it. If the candidate directory exists but does not contain a matching Source Issue
+header (or has no `spec.md`), the script **must fail fast** with a clear error message indicating the ambiguity,
+rather than silently reusing or overwriting an unrelated legacy directory.
 
 ## User Stories
 
@@ -368,6 +382,13 @@ by `create-new-feature.ps1` helper functions.
      single sequence number; and (c) avoiding the overlap entirely would require a more complex naming
      scheme that adds unnecessary friction for a marginal edge case.
 
+9. **3-digit issue number collides with existing legacy directory**
+   - If `ISSUE_NUMBER=117` and directory `117-legacy-feature` already exists as a legacy autoincrement
+     directory (i.e., its `spec.md` does not contain `**Source Issue**: #117`), the collision detection
+     must **not** reuse it. The script must fail fast with an error indicating ambiguity between the
+     issue-numbered directory and the legacy directory. This prevents accidentally overwriting unrelated
+     legacy specs.
+
 ## Implementation Constraints
 
 1. `generate-spec-from-issue.sh` is the only script required to perform issue-number validation at script entry.
@@ -398,6 +419,9 @@ The implementation is complete only when all of the following are true:
 10. `check_feature_branch` in `common.sh` accepts issue-number branches (e.g., `1176-...`) without error.
 11. `find_feature_dir_by_prefix` in `common.sh` correctly resolves issue-numbered spec directories from
     issue-number branches.
+12. For 3-digit issue numbers (100–999) where a matching `NNN-*` directory already exists, the collision
+    detection verifies the directory's Source Issue header before reuse; if the header is missing or
+    references a different issue, the script fails fast.
 
 ## Verification Guidance
 
