@@ -110,16 +110,14 @@ class TestEnforceContextBudgetSummaryOnly:
         assert result.stage is ReductionStage.TRUNCATED
         assert result.final_chars <= 50
 
-    def test_input_only_images_whitespace_falls_to_truncated_or_summary(self):
-        """Content that is mostly images/whitespace after reduction."""
-        desc = "![img](url) " * 50 + "abc"  # after stripping, very small
-        comm = "![img2](url2) " * 50
+    def test_input_only_images_whitespace_falls_to_reduced(self):
+        """Content that reduces deterministically should assert the exact stage."""
+        desc = "<img src='url'/> " * 3 + "abc"
+        comm = "<img src='url2'/> " * 5
         result = enforce_context_budget(desc, comm, budget=20)
-        assert result.stage in (
-            ReductionStage.TRUNCATED,
-            ReductionStage.SUMMARY_ONLY,
-            ReductionStage.REDUCED,
-        )
+        assert result.description == "   abc"
+        assert result.comments == ""
+        assert result.stage is ReductionStage.REDUCED
 
     def test_summary_only_via_mocked_validation(self):
         """Directly exercise the summary-only return path.
