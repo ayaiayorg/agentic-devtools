@@ -26,7 +26,7 @@
 #                              calling the LLM.
 #
 # Outputs:
-#   GITHUB_OUTPUT: branch_name, spec_file, feature_num, spec_dir
+#   GITHUB_OUTPUT: branch_name, spec_file, issue_number, spec_dir
 
 set -euo pipefail
 
@@ -821,7 +821,7 @@ fi
 SPEC_DIR_REL="${SPEC_DIR_REL#/}"
 echo "branch_name=$BRANCH_NAME" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_file=$SPEC_FILE" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-echo "feature_num=$ISSUE_NUMBER" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "issue_number=$ISSUE_NUMBER" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_dir=$SPEC_DIR_REL" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
 echo ""
