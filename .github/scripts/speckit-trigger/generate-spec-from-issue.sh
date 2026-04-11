@@ -391,8 +391,8 @@ run_plan_phase() {
     local budget_args=()
     local budget_value="${AGDT_PLAN_CONTEXT_BUDGET:-}"
     if [[ -n "$budget_value" ]]; then
-        # Validate that the value is a positive integer
-        if [[ "$budget_value" =~ ^[0-9]+$ ]] && [[ "$budget_value" -gt 0 ]]; then
+        # Validate that the value is a positive integer (strip leading zeros to avoid octal)
+        if [[ "$budget_value" =~ ^[0-9]+$ ]] && (( 10#$budget_value > 0 )); then
             budget_args+=(--budget "$budget_value")
         else
             echo "Warning: AGDT_PLAN_CONTEXT_BUDGET='$budget_value' is not a valid positive integer. Using default." >&2

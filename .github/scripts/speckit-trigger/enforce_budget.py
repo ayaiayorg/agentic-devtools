@@ -36,7 +36,10 @@ def main() -> int:
             enforce_context_budget,
         )
     except ImportError:
-        print("Error: agentic_devtools package not available. Budget enforcement skipped.", file=sys.stderr)
+        print(
+            "Warning: agentic_devtools package not available. Budget enforcement skipped (passthrough mode).",
+            file=sys.stderr,
+        )
         # Passthrough: read from stdin or use provided content
         if args.description is not None:
             sys.stdout.write(args.description)
