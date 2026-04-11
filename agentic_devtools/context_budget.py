@@ -290,8 +290,8 @@ def enforce_context_budget(
         )
 
     # --- Stage 2: Reduced ---
-    reduced_desc = collapse_whitespace(remove_image_references(strip_markdown_formatting(description)))
-    reduced_comments = collapse_whitespace(remove_image_references(strip_markdown_formatting(comments)))
+    reduced_desc = collapse_whitespace(remove_image_references(strip_markdown_formatting(description))).strip()
+    reduced_comments = collapse_whitespace(remove_image_references(strip_markdown_formatting(comments))).strip()
     reduced_separator = 1 if reduced_desc and reduced_comments else 0
     reduced_chars = len(reduced_desc) + len(reduced_comments) + reduced_separator
 
