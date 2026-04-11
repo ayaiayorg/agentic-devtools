@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Enhance agdt-analyze-workflow
+# Specification Quality Checklist: Enhance agdt.analyze-workflow
 
 **Purpose**: Validate specification completeness before proceeding to planning
 **Created**: 2026-04-10
