@@ -93,7 +93,7 @@
 - [ ] T024 [P] Update `SPEC_DRIVEN_DEVELOPMENT.md` — document the CI pipeline directory naming convention
   for issue-driven directories (`<ISSUE_NUMBER>-<slug>` using the raw unpadded issue number)
   and ISSUE_NUMBER validation rules
-- [ ] T025 [P] Add inline comments in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` referencing FR-011, FR-004, FR-008, FR-012 at each modification site
+- [ ] T025 [P] Add inline comments in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` referencing FR-011, FR-004, FR-007, FR-012 at each modification site
 
 ### Integration testing
 
