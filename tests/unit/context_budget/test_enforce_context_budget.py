@@ -59,6 +59,19 @@ class TestEnforceContextBudgetReduced:
         assert r1.comments == r2.comments
         assert r1.stage == r2.stage
 
+    def test_reduction_to_empty_falls_through_to_later_stage(self):
+        """Content that reduces to nothing (only HTML images) should not
+        return REDUCED with empty content — it should fall through to
+        truncation or raise ContextBudgetError."""
+        # Content is entirely HTML img tags — reduction strips everything.
+        # Budget must be less than original (52 chars) to skip passthrough,
+        # but reduced content is empty (0 chars, within budget). Without the
+        # validate_content_shape guard, Stage 2 would return empty content.
+        desc = '<img src="a.png"> <img src="b.png">'
+        comm = '<img src="c.png">'
+        with pytest.raises(ContextBudgetError, match="Cannot reduce"):
+            enforce_context_budget(desc, comm, budget=40)
+
 
 class TestEnforceContextBudgetTruncated:
     """Truncated path: reduction alone is not enough."""

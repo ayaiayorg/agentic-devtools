@@ -283,7 +283,11 @@ def enforce_context_budget(
     reduced_comments = collapse_whitespace(remove_image_references(strip_markdown_formatting(comments)))
     reduced_chars = len(reduced_desc) + len(reduced_comments)
 
-    if reduced_chars <= budget:
+    # Validate that reduction didn't strip content down to nothing meaningful
+    # (e.g. input that was only image references or markup). If invalid, fall
+    # through to truncation/summary stages which apply their own validation.
+    reduced_combined = reduced_desc + reduced_comments
+    if reduced_chars <= budget and validate_content_shape(reduced_combined):
         return BudgetResult(
             description=reduced_desc,
             comments=reduced_comments,
