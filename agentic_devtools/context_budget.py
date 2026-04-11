@@ -290,9 +290,19 @@ def enforce_context_budget(
         )
 
     # --- Stage 2: Reduced ---
-    reduced_desc = collapse_whitespace(remove_image_references(strip_markdown_formatting(description))).strip()
-    reduced_comments = collapse_whitespace(remove_image_references(strip_markdown_formatting(comments))).strip()
-    reduced_separator = 1 if reduced_desc and reduced_comments else 0
+    # Strip only leading/trailing newlines so that meaningful leading indentation
+    # (e.g. indented code blocks) is preserved.  Use a separate `strip()` check
+    # for the separator predicate so whitespace-only remnants are treated as empty
+    # without mutating the actual content.
+    reduced_desc = collapse_whitespace(
+        remove_image_references(strip_markdown_formatting(description))
+    ).strip("\n")
+    reduced_comments = collapse_whitespace(
+        remove_image_references(strip_markdown_formatting(comments))
+    ).strip("\n")
+    reduced_desc_has_content = reduced_desc.strip() != ""
+    reduced_comments_has_content = reduced_comments.strip() != ""
+    reduced_separator = 1 if reduced_desc_has_content and reduced_comments_has_content else 0
     reduced_chars = len(reduced_desc) + len(reduced_comments) + reduced_separator
 
     # Validate that reduction didn't strip content down to nothing meaningful
@@ -315,7 +325,7 @@ def enforce_context_budget(
     # split back into separate fields at this stage.
     combined = (
         reduced_desc + "\n" + reduced_comments
-        if reduced_desc and reduced_comments
+        if reduced_desc_has_content and reduced_comments_has_content
         else reduced_desc + reduced_comments
     )
     truncated = hard_truncate(combined, budget)
