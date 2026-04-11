@@ -29,12 +29,14 @@
 | FR-004 | ✅ Yes | T008, T010, T011, T012, T014 | Collision detection and new-directory creation covered. |
 | FR-005 | ✅ N/A | — | Explicitly *"kept unchanged"* per spec. No task needed. |
 | FR-006 | ✅ N/A | — | Backward compatibility preserved by design. No task needed. |
-| FR-007 | ✅ Yes | T017, T018 | Covered. T018 is verification-only (no change needed). |
-| FR-008 | ✅ Yes | T003, T004, T015, T016, T017, T019, T020, T021, T022 | Well-covered across all three scripts. |
+| FR-007 | ✅ Yes | T003, T004, T015, T016, T017, T018, T021, T022 | Bash autoincrement filtering across `generate-spec-from-issue.sh` and `create-new-feature.sh`. |
+| FR-008 | ✅ Yes | T019, T020 | PowerShell autoincrement filtering in `create-new-feature.ps1`. |
 | FR-009 | ✅ Yes | T003, T016, T021 | Covered: autoincrement ignores issue-numbered dirs. |
 | FR-010 | ✅ Yes | T013 | SPEC_FILE derived from SPEC_DIR ensures consistency. |
 | FR-011 | ✅ Yes | T005, T006, T007 | Fully covered with TDD cycle. |
 | FR-012 | ✅ Yes | T009, T012 | Covered. |
+| FR-013 | ✅ Yes | T029, T030, T031 | Workflow rerun idempotency: branch detection, force-push, test. |
+| FR-014 | ✅ Yes | T032, T033 | `.specify` helper compatibility: `check_feature_branch` and `find_feature_dir_by_prefix` updates. |
 | US1 | ✅ Yes | T005, T006, T007, T010 | Maps to FR-011 and FR-001. |
 | US2 | ✅ Yes | T008–T014 | Collision/reuse and new-directory creation covered. |
 | US3 | ✅ Yes | T003, T004, T015–T022 | Well-covered. |
@@ -51,9 +53,9 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Requirements** | 21 (12 FR + 3 US + 6 SC) |
-| **Total Tasks** | 30 (T001–T030) |
-| **Fully Covered Requirements** | 19 (90%) |
+| **Total Requirements** | 25 (14 FR + 3 US + 6 SC + 2 N/A) |
+| **Total Tasks** | 35 (T001–T035) |
+| **Fully Covered Requirements** | 23 (92%) |
 | **N/A Requirements** | 2 (FR-005, FR-006 — no change needed) |
 | **Partially Covered** | 0 |
 | **Ambiguity Count** | 0 (F04, F05 resolved) |

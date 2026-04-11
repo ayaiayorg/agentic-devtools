@@ -94,22 +94,22 @@ Key decisions:
 │  2. Scan for existing dir with issue-number prefix   FR-004  │
 │     → If found: reuse directory path                 FR-012  │
 │     → If not found: create <ISSUE_NUMBER>-<slug>     FR-004  │
-│  3. Autoincrement filter: ^[0-9]{3}- only            FR-008  │
+│  3. Autoincrement filter: ^[0-9]{3}- only            FR-007  │
 │  4. Proceed with spec generation pipeline                    │
 └──────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
 │ create-new-feature.sh (local dev)                            │
 │                                                              │
-│  get_highest_from_specs: filter ^[0-9]{3}- only      FR-008  │
+│  get_highest_from_specs: filter ^[0-9]{3}- only      FR-007  │
 │  get_highest_from_branches: already correct           ✓      │
 └──────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
 │ create-new-feature.ps1 (local dev, Windows)                  │
 │                                                              │
-│  Get-HighestNumberFromSpecs: filter ^\d{3}- only     SC-006  │
-│  Get-HighestNumberFromBranches: filter ^\d{3}- only  SC-006  │
+│  Get-HighestNumberFromSpecs: filter ^\d{3}- only     FR-008  │
+│  Get-HighestNumberFromBranches: filter ^\d{3}- only  FR-008  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,7 +168,7 @@ reused (FR-012). The `check-idempotency.sh` script handles the "already fully
 processed" case upstream; this collision check handles the "directory exists but
 re-run is allowed" case.
 
-#### 1c. Autoincrement filter in `get_next_feature_number` (FR-008)
+#### 1c. Autoincrement filter in `get_next_feature_number` (FR-007)
 
 In `generate-spec-from-issue.sh`, change the spec directory scan regex from:
 
@@ -189,7 +189,7 @@ The branch scan already correctly filters to `^[0-9]{3}-`.
 
 ### Phase 2: Autoincrement Filter in `create-new-feature.sh`
 
-**Deliverables**: FR-007, FR-008
+**Deliverables**: FR-007
 
 #### 2a. Fix `get_highest_from_specs`
 

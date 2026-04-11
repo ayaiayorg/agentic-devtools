@@ -2,7 +2,7 @@
 
 This checklist applies to `specs/1176-use-issue-number-speckit/`.
 
-**14 checks** across 3 categories — derived from the spec's FR-001–FR-012, US1–US3, SC-001–SC-006, and edge case resolutions.
+**16 checks** across 3 categories — derived from the spec's FR-001–FR-014, US1–US3, SC-001–SC-006, and edge case resolutions.
 
 ## Content Quality
 
@@ -19,6 +19,8 @@ This checklist applies to `specs/1176-use-issue-number-speckit/`.
 - [ ] Success criteria SC-001–SC-006 are measurable and objectively verifiable.
 - [ ] Scope boundaries are explicit, including that FR-004 is limited to `generate-spec-from-issue.sh` only.
 - [ ] External dependencies, assumptions, and integrations are documented wherever they affect delivery or validation.
+- [ ] FR-013 (workflow rerun idempotency) is covered with testable scenarios for existing branch/PR handling.
+- [ ] FR-014 (`.specify` helper compatibility) is covered with testable scenarios for issue-number branch validation and directory lookup.
 
 ## Feature Readiness
 
