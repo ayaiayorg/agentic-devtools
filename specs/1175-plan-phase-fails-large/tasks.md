@@ -54,7 +54,8 @@
 - [ ] T011 Write tests for `enforce_context_budget()` passthrough path in
   `tests/unit/context_budget/test_enforce_context_budget.py` — below budget returns the original string objects unchanged (object identity via `is`),
   exactly-at-budget returns passthrough, stage is `PASSTHROUGH`, `original_chars == final_chars`
-- [ ] T012 Implement `enforce_context_budget()` skeleton in `agentic_devtools/context_budget.py` — measure combined `len(description) + len(comments)`, return `BudgetResult` with `PASSTHROUGH` when ≤ budget
+- [ ] T012 Implement `enforce_context_budget()` skeleton in `agentic_devtools/context_budget.py` — measure combined
+  `len(description) + len(comments)`, return `BudgetResult` with `PASSTHROUGH` when ≤ budget
 - [ ] T013 Run passthrough tests — verify GREEN
 - [ ] T014 Write integration test for `run_plan_phase()` in `generate-spec-from-issue.sh` — small issue content passes through budget enforcement unchanged to `call_llm()`
 - [ ] T015 Add `enforce_context_budget` invocation in `run_plan_phase()` in
