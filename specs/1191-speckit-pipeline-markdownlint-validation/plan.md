@@ -8,13 +8,15 @@
 - **Linter**: `markdownlint-cli2` (invoked via `npx`)
 - **Auto-fix**: `markdownlint-cli2 --fix` built-in flag
 - **LLM remediation**: Copilot SDK via existing `copilot_generate.py` wrapper + `call_llm` bash function
+  (which internally uses `call_with_retry` for retry/backoff)
 - **Config**: Root `.markdownlint-cli2.jsonc` (existing, shared across repo)
 
 **Key dependencies:**
 
 - `generate-spec-from-issue.sh` — the main orchestration script; new validation loop inserts after Phase 6 (Analyze)
 - `copilot_generate.py` — existing Copilot SDK wrapper used for LLM calls
-- `call_llm` / `call_with_retry` — existing bash helpers in `generate-spec-from-issue.sh`
+- `call_llm` — existing bash helper in `generate-spec-from-issue.sh` that performs one LLM invocation
+  with built-in retry logic via `call_with_retry` (callers should use `call_llm` directly)
 - `strip_model_footer` / `append_model_footer` — existing footer management functions
 
 **Architecture decision**: Single new function (`run_markdownlint_validation`) added to `generate-spec-from-issue.sh`,
@@ -25,7 +27,7 @@ No new files needed for the core loop.
 
 Key decisions for this implementation:
 
-1. **Auto-fix first, LLM second** — `markdownlint-cli2 --fix` resolves ~80% of violations (whitespace, heading style, list markers) with zero LLM cost
+1. **Auto-fix first, LLM second** — `markdownlint-cli2 --fix` resolves many common violations (whitespace, heading style, list markers) with zero LLM cost
 2. **`$SPEC_DIR`-scoped glob** — pass `"$SPEC_DIR/**/*.md"` to markdownlint-cli2 so no files outside the spec directory are touched
 3. **Footer strip-before-LLM, re-append-after** — prevents model-attribution footers from being corrupted by LLM edits
 4. **Configurable max iterations** — `MARKDOWNLINT_MAX_ITERATIONS` env var (default: 5) with stall detection
@@ -151,7 +153,7 @@ Key decisions for this implementation:
 ### Internal
 
 - `generate-spec-from-issue.sh` — host script for the new function
-- `call_llm` — existing LLM invocation helper (includes retry logic)
+- `call_llm` — existing LLM invocation helper (includes retry logic via `call_with_retry` internally)
 - `strip_model_footer` / `append_model_footer` — existing footer management
 - `.markdownlint-cli2.jsonc` — root config (auto-discovered by markdownlint-cli2)
 
