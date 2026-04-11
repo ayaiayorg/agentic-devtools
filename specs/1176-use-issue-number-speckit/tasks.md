@@ -15,6 +15,17 @@
 
 - **[P]** — Parallelizable: this task has no dependency on the preceding task and can be executed concurrently with other `[P]` tasks in the same phase.
 
+### Plan ↔ Tasks Phase Crosswalk
+
+| Tasks Phase | Plan Phase(s) | Description |
+|-------------|---------------|-------------|
+| Phase 1: Setup | — (prerequisite) | Read and understand baseline code |
+| Phase 2: Foundational | Phase 4 (Testing) | Autoincrement filter test infrastructure |
+| Phase 3: US1 | Phase 1a | ISSUE_NUMBER validation |
+| Phase 4: US2 | Phase 1b | Collision detection & directory reuse |
+| Phase 5: US3 | Phase 1c, 2, 3 | Autoincrement filter fixes (all scripts) |
+| Phase 6: Polish | Phase 4, 5 | Documentation, integration testing, workflow idempotency, helper compat |
+
 ---
 
 ## Phase 1: Setup
@@ -45,13 +56,22 @@
 - [ ] T008 [US2] Add test cases in `test-autoincrement-filter.sh` for collision detection: existing `42-old-name` dir is reused when ISSUE_NUMBER=42, no new dir created
 - [ ] T009 [US2] Add test case for re-run with changed title: existing `42-old-name` is reused even when SHORT_NAME differs (FR-012)
 - [ ] T010 [US2] Add test case for no collision: ISSUE_NUMBER=42 with no existing `42-*` dir creates new `42-short-name`
+- [ ] T010a [US2] Add edge-case test for 3-digit issue-number overlap with legacy namespace:
+  existing `117-legacy-feature` directory (no `**Source Issue**: #117` in spec.md) + `ISSUE_NUMBER=117`;
+  verify the script fails fast rather than reusing the unrelated legacy directory (FR-015)
+- [ ] T010b [US2] Add edge-case test for 3-digit issue-number safe reuse:
+  existing `117-some-issue` directory (with `**Source Issue**: #117` in spec.md) + `ISSUE_NUMBER=117`;
+  verify the script correctly reuses the directory (FR-015)
 - [ ] T011 [US2] Implement collision detection in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` —
   add glob scan for `${ISSUE_NUMBER}-*` (raw, unpadded) after `BRANCH_NAME` is computed,
   before the `SPEC_DIR` assignment
+- [ ] T011a [US2] Implement Source Issue verification guard for 3-digit issue numbers (FR-015):
+  when a candidate directory is found and `ISSUE_NUMBER` has exactly 3 digits, check that the
+  candidate's `spec.md` contains `**Source Issue**: #N` matching the current issue; fail fast if not
 - [ ] T012 [US2] Add directory reuse logic: when `EXISTING_DIR` is found, set `SPEC_DIR` and `BRANCH_NAME`
   from existing dir; otherwise create new `${ISSUE_NUMBER}-${SHORT_NAME}` directory (raw, unpadded issue number)
 - [ ] T013 [US2] Ensure `SPEC_FILE` output variable also reflects the reused directory path (verify `SPEC_FILE` is derived from `SPEC_DIR`)
-- [ ] T014 [US2] Run collision detection test cases from T008–T010 to confirm all pass
+- [ ] T014 [US2] Run collision detection test cases from T008–T010b to confirm all pass
 
 ---
 

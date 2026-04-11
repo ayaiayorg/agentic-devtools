@@ -2,7 +2,7 @@
 
 This checklist applies to `specs/1176-use-issue-number-speckit/`.
 
-**16 checks** across 3 categories — derived from the spec's FR-001–FR-014, US1–US3, SC-001–SC-006, and edge case resolutions.
+**17 checks** across 3 categories — derived from the spec's FR-001–FR-015, US1–US3, SC-001–SC-006, and edge case resolutions.
 
 ## Content Quality
 
@@ -21,6 +21,7 @@ This checklist applies to `specs/1176-use-issue-number-speckit/`.
 - [ ] External dependencies, assumptions, and integrations are documented wherever they affect delivery or validation.
 - [ ] FR-013 (workflow rerun idempotency) is covered with testable scenarios for existing branch/PR handling.
 - [ ] FR-014 (`.specify` helper compatibility) is covered with testable scenarios for issue-number branch validation and directory lookup.
+- [ ] FR-015 (safe reuse guard for 3-digit overlap) is covered with testable scenarios for both matching and non-matching Source Issue headers.
 
 ## Feature Readiness
 

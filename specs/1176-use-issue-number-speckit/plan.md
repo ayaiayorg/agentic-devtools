@@ -134,7 +134,7 @@ fi
 
 This rejects `0`, negative numbers, non-numeric strings, and empty values.
 
-#### 1b. Collision detection and directory reuse (FR-004, FR-012)
+#### 1b. Collision detection and directory reuse (FR-004, FR-012, FR-015)
 
 In `generate-spec-from-issue.sh`, immediately after `BRANCH_NAME` is computed
 and before the script creates or assigns the new spec directory, add a scan for
@@ -153,6 +153,20 @@ if [[ -d "$REPO_ROOT/$SPEC_BASE_PATH" ]]; then
 fi
 
 if [[ -n "$EXISTING_DIR" ]]; then
+    # FR-015: For 3-digit issue numbers (100–999), verify the candidate directory
+    # belongs to this issue by checking its spec.md Source Issue header. This prevents
+    # accidentally reusing an unrelated legacy NNN-* directory.
+    if [[ ${#ISSUE_NUMBER} -eq 3 ]]; then
+        SPEC_FILE_PATH="$EXISTING_DIR/spec.md"
+        if [[ -f "$SPEC_FILE_PATH" ]] && grep -q "^\*\*Source Issue\*\*: #${ISSUE_NUMBER}$" "$SPEC_FILE_PATH"; then
+            echo "Verified Source Issue match for 3-digit issue number"
+        else
+            echo "Error: Existing directory '$(basename "$EXISTING_DIR")' matches issue number prefix" >&2
+            echo "but does not contain a spec.md with '**Source Issue**: #${ISSUE_NUMBER}'." >&2
+            echo "This may be a legacy autoincrement directory. Refusing to reuse." >&2
+            exit 1
+        fi
+    fi
     echo "Reusing existing spec directory: $(basename "$EXISTING_DIR")"
     SPEC_DIR="$EXISTING_DIR"
     BRANCH_NAME="$(basename "$EXISTING_DIR")"
@@ -164,7 +178,10 @@ fi
 ```
 
 This means if the issue title changed between runs, the existing directory is
-reused (FR-012). The `check-idempotency.sh` script handles the "already fully
+reused (FR-012). For 3-digit issue numbers (100–999), the reuse path additionally
+verifies that the candidate directory's `spec.md` contains a matching `**Source Issue**: #N`
+header (FR-015), preventing accidental reuse of unrelated legacy directories in the
+overlapping namespace. The `check-idempotency.sh` script handles the "already fully
 processed" case upstream; this collision check handles the "directory exists but
 re-run is allowed" case.
 
