@@ -104,13 +104,29 @@ get_next_feature_number() {
 # of autoincrementing.  If a directory for this issue already exists, reuse
 # it (even if the issue title — and therefore SHORT_NAME — has changed).
 # ---------------------------------------------------------------------------
-EXISTING_DIR=""
+EXISTING_DIRS=()
+
+shopt -s nullglob
 for dir in "$REPO_ROOT/$SPEC_BASE_PATH"/${ISSUE_NUMBER}-*; do
     if [[ -d "$dir" ]]; then
-        EXISTING_DIR="$dir"
-        break
+        EXISTING_DIRS+=("$dir")
     fi
 done
+shopt -u nullglob
+
+if (( ${#EXISTING_DIRS[@]} > 1 )); then
+    echo "Error: Found multiple existing spec directories for issue #$ISSUE_NUMBER:" >&2
+    for dir in "${EXISTING_DIRS[@]}"; do
+        echo "  - $(basename "$dir")" >&2
+    done
+    echo "Refusing to choose one directory non-deterministically. Remove or rename the extra directories and retry." >&2
+    exit 1
+fi
+
+EXISTING_DIR=""
+if (( ${#EXISTING_DIRS[@]} == 1 )); then
+    EXISTING_DIR="${EXISTING_DIRS[0]}"
+fi
 
 if [[ -n "$EXISTING_DIR" ]]; then
     # FR-015: For 3-digit issue numbers (100-999), the prefix overlaps with

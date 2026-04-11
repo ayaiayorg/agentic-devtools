@@ -274,11 +274,13 @@ jobs:
 
           BRANCH_NAME="${{ steps.generate.outputs.branch_name }}"
 
-          # Handle existing remote branches for idempotent reruns (FR-013)
+          # Fetch the remote branch so the remote-tracking ref is current, but do not
+          # check out origin/$BRANCH_NAME after artifacts have been generated because
+          # untracked generated files can cause checkout to fail on reruns (FR-013).
           if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "Branch '$BRANCH_NAME' already exists on remote — checking out and resetting"
+            echo "Branch '$BRANCH_NAME' already exists on remote — fetching and resetting local branch from current HEAD"
             git fetch origin "$BRANCH_NAME"
-            git checkout -B "$BRANCH_NAME" "origin/$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME"
           else
             git checkout -b "$BRANCH_NAME"
           fi
