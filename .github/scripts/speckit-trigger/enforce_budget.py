@@ -65,6 +65,13 @@ def main() -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    # Assemble output: description + optional separator + comments.
+    # The separator is accounted for in enforce_context_budget()'s budget math,
+    # so final_chars already includes it when both fields are non-empty.
+    output = result.description
+    if result.comments:
+        output = f"{result.description}\n{result.comments}"
+
     # Emit diagnostic metadata to stderr as JSON
     metadata = {
         "stage": result.stage.value,
@@ -82,10 +89,7 @@ def main() -> int:
         )
 
     # Write the budget-compliant content to stdout
-    sys.stdout.write(result.description)
-    if result.comments:
-        sys.stdout.write("\n")
-        sys.stdout.write(result.comments)
+    sys.stdout.write(output)
 
     return 0
 

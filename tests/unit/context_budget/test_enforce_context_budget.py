@@ -23,10 +23,12 @@ class TestEnforceContextBudgetPassthrough:
     def test_exactly_at_budget_returns_passthrough(self):
         desc = "a" * 50
         comm = "b" * 50
-        result = enforce_context_budget(desc, comm, budget=100)
+        # Budget accounts for the separator \n between desc and comments:
+        # 50 + 50 + 1 = 101
+        result = enforce_context_budget(desc, comm, budget=101)
         assert result.stage is ReductionStage.PASSTHROUGH
-        assert result.original_chars == 100
-        assert result.final_chars == 100
+        assert result.original_chars == 101
+        assert result.final_chars == 101
 
     def test_passthrough_identity(self):
         """Below budget → objects are the exact same Python objects (identity)."""
@@ -173,9 +175,44 @@ class TestEnforceContextBudgetMetadata:
     """BudgetResult metadata accuracy."""
 
     def test_original_chars_correct(self):
+        # "hello" + "\n" + "world" = 11 chars (separator included)
         result = enforce_context_budget("hello", "world", budget=1000)
-        assert result.original_chars == 10
+        assert result.original_chars == 11
 
     def test_budget_recorded(self):
         result = enforce_context_budget("test", "", budget=500)
         assert result.budget == 500
+
+    def test_no_separator_when_comments_empty(self):
+        """Separator is NOT added when comments is empty."""
+        result = enforce_context_budget("hello", "", budget=1000)
+        assert result.original_chars == 5  # just len("hello"), no separator
+
+    def test_separator_included_in_near_budget_passthrough(self):
+        """Passthrough accounts for separator so CLI output stays in budget.
+
+        Regression test: description(5) + comments(5) + separator(1) = 11 chars.
+        Budget of 10 should NOT passthrough because emitted output is 11.
+        """
+        result = enforce_context_budget("hello", "world", budget=10)
+        # 5 + 5 + 1 = 11 > 10 → NOT passthrough
+        assert result.stage is not ReductionStage.PASSTHROUGH
+        assert result.final_chars <= 10
+
+    def test_separator_included_in_near_budget_reduced(self):
+        """Reduced stage accounts for separator in its budget check.
+
+        Content with markdown that reduces to exactly at budget must still
+        include the separator newline in the budget math.
+        """
+        # "## xx" (5 chars) → stripped to "xx" (2 chars)
+        # comments "yy" (2 chars) → stays "yy" (2 chars)
+        # With separator: 2 + 2 + 1 = 5 chars
+        desc = "## xx"
+        comm = "yy"
+        # Original: 5 + 2 + 1 = 8 chars (over budget of 6)
+        # Reduced: 2 + 2 + 1 = 5 chars (within budget of 6)
+        result = enforce_context_budget(desc, comm, budget=6)
+        assert result.stage is ReductionStage.REDUCED
+        assert result.final_chars == 5
+        assert result.final_chars <= 6

@@ -90,3 +90,37 @@ class TestEnforceBudgetCli:
         ):
             result = module.main()
         assert result == 1
+
+    def test_description_plus_comments_respects_budget(self):
+        """Separator newline between desc+comments stays within budget.
+
+        Regression: the CLI joins description and comments with '\\n'.
+        Budget math must account for this separator so total stdout ≤ budget.
+        """
+        module = _load_module()
+        budget = 50
+        # desc(30) + comments(25) + separator(1) = 56 > budget(50)
+        desc = "## " + "x" * 27
+        comm = "y" * 25
+        captured_output: list[str] = []
+
+        def _capture_write(text: str) -> None:
+            captured_output.append(text)
+
+        mock_stdout = MagicMock()
+        mock_stdout.write = MagicMock(side_effect=_capture_write)
+
+        with (
+            patch(
+                "sys.argv",
+                ["enforce_budget.py", "--description", desc, "--comments", comm, "--budget", str(budget)],
+            ),
+            patch("sys.stdout", mock_stdout),
+            patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
+        ):
+            result = module.main()
+        assert result == 0
+        output_text = "".join(captured_output)
+        assert len(output_text) <= budget, (
+            f"CLI output ({len(output_text)} chars) exceeds budget ({budget})"
+        )

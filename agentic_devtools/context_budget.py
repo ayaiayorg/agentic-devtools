@@ -270,7 +270,11 @@ def enforce_context_budget(
             "Cannot produce any content with a zero or negative budget."
         )
 
-    original_chars = len(description) + len(comments)
+    # Account for the separator newline the CLI inserts between description
+    # and comments when both are non-empty.  This keeps ``final_chars``
+    # accurate relative to what actually appears on stdout.
+    separator = 1 if description and comments else 0
+    original_chars = len(description) + len(comments) + separator
 
     # --- Stage 1: Passthrough ---
     if original_chars <= budget:
@@ -286,7 +290,8 @@ def enforce_context_budget(
     # --- Stage 2: Reduced ---
     reduced_desc = collapse_whitespace(remove_image_references(strip_markdown_formatting(description)))
     reduced_comments = collapse_whitespace(remove_image_references(strip_markdown_formatting(comments)))
-    reduced_chars = len(reduced_desc) + len(reduced_comments)
+    reduced_separator = 1 if reduced_desc and reduced_comments else 0
+    reduced_chars = len(reduced_desc) + len(reduced_comments) + reduced_separator
 
     # Validate that reduction didn't strip content down to nothing meaningful
     # (e.g. input that was only image references or markup). If invalid, fall
