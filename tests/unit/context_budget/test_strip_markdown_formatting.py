@@ -65,6 +65,13 @@ class TestStripMarkdownFormatting:
         result = strip_markdown_formatting(text)
         assert "code here" in result
 
+    def test_preserves_indented_fenced_code_blocks(self):
+        """CommonMark allows up to 3 leading spaces before fenced code blocks."""
+        text = "text\n   ```python\n   def bar():\n       pass\n   ```\nmore"
+        result = strip_markdown_formatting(text)
+        assert "def bar():" in result
+        assert "pass" in result
+
     def test_preserves_indented_code_blocks(self):
         text = "text\n    indented code\n    more code\nnormal"
         result = strip_markdown_formatting(text)

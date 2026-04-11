@@ -45,11 +45,20 @@ class BudgetResult:
 # ---------------------------------------------------------------------------
 
 # Pre-compiled patterns for performance
-_FENCED_CODE_BLOCK_RE = re.compile(r"^(`{3,}|~{3,}).*?\n(.*?)\n\1", re.MULTILINE | re.DOTALL)
+# CommonMark allows up to 3 leading spaces before a fenced code block.
+# The closing fence must use the same indentation and fence character.
+_FENCED_CODE_BLOCK_RE = re.compile(
+    r"^(?P<indent>[ ]{0,3})(?P<fence>`{3,}|~{3,})[^\n]*\n"
+    r"(.*?)\n"
+    r"(?P=indent)(?P=fence)[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
 _INLINE_CODE_RE = re.compile(r"`([^`]+)`")
 _IMAGE_MD_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _IMAGE_HTML_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
-_IMAGE_JIRA_RE = re.compile(r"![\w./-]+!")
+# Jira image syntax requires a file-extension dot to avoid false positives
+# on non-image text like !important! or !warning!.
+_IMAGE_JIRA_RE = re.compile(r"![\w/-]*\.[\w./-]+!")
 _BASE64_DATA_URI_RE = re.compile(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+")
 _HEADING_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")

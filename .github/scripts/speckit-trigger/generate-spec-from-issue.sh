@@ -399,7 +399,11 @@ run_plan_phase() {
         fi
     fi
 
-    local budget_stderr_file="/tmp/budget_stderr_$$.txt"
+    local budget_stderr_file
+    budget_stderr_file=$(mktemp /tmp/budget_stderr.XXXXXX) || {
+        echo "Error: Failed to create temp file for budget stderr capture." >&2
+        return 1
+    }
     local budget_content=""
     local budget_exit_code=0
     budget_content=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>"$budget_stderr_file") || budget_exit_code=$?
