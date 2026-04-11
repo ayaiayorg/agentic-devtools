@@ -10,15 +10,15 @@
 |----|----------|----------|-------------|---------|----------------|
 | F01 | **D. Constitution** | **~~CRITICAL~~** RESOLVED | `spec.md` | spec.md now contains full specification body with individually-identifiable, numbered FR/NFR/EC sections and acceptance criteria. | No action needed — finding resolved. |
 | F02 | **D. Constitution** | **~~CRITICAL~~** RESOLVED | `checklists/requirements.md` | Checklist file now contains actual checklist items mapping to spec requirements across 3 categories. | No action needed — finding resolved. |
-| F03 | **E. Coverage** | **HIGH** | spec (SC-1), tasks.md | Success criterion "≥90% first-push pass rate" has no corresponding task for measurement or validation. No task defines how this metric is collected, baselined, or verified. | Add a task to define measurement methodology (e.g., track lint-clean rate across N pipeline runs) and a verification step. |
-| F04 | **F. Inconsistency** | **HIGH** | plan.md §4, tasks.md | Overloaded "Phase" terminology: plan.md uses "Phase 1–4" for implementation phases while tasks.md uses "Phase 1–8" with different boundaries. Both also reference "Phase 7" as the pipeline step. Three incompatible phase-numbering schemes in one feature. | Disambiguate: use "Pipeline Phase 7" for the runtime step, "Implementation Stage 1–4" in plan.md, and "Task Group 1–8" in tasks.md. |
-| F05 | **C. Underspecification** | **HIGH** | spec (NFR), tasks T011 | NFR "<8K token prompts" lacks specification of how tokens are counted. No task defines a token-counting or estimation mechanism. In bash, there is no native tokenizer — the plan and tasks hand-wave this constraint. | Specify the token estimation method (e.g., `wc -c` / 4 heuristic, or explicit truncation at N chars). Add a task for implementation + validation. |
+| F03 | **E. Coverage** | **~~HIGH~~** RESOLVED | spec (SC-1), tasks.md | T028 now defines a measurement task for the ≥90% first-push pass rate metric, recording sample size, pass/fail counts, and computed rate from pipeline run history. | No action needed — finding resolved. |
+| F04 | **F. Inconsistency** | **~~HIGH~~** RESOLVED | plan.md §4, tasks.md | Terminology has been disambiguated: `plan.md` now uses "Implementation Stages" and `tasks.md` uses "Task Group", avoiding overload with the runtime "Pipeline Phase 7" step. | No action needed — finding resolved. |
+| F05 | **C. Underspecification** | **~~HIGH~~** RESOLVED | spec (NFR), tasks T011 | Token estimation is now specified in `spec.md` NFR-004 using a character-count heuristic (`ceil(chars / 4)`), with a 32,000-character max per file to stay under the 8K token target. | No action needed — finding resolved. |
 | F06 | **B. Ambiguity** | **MEDIUM** | plan.md §2.1 | "~80% of violations" is an unverifiable claim used to justify the auto-fix-first strategy. No source data or benchmark is cited. | Either cite a measurement (e.g., from research.md on a sample corpus) or remove the percentage and state "most auto-fixable rules" qualitatively. |
-| F07 | **F. Inconsistency** | **MEDIUM** | plan.md §4.1, tasks T003 | plan.md specifies violation format as `filename:line:col rule/alias description` (includes column). T003 describes output as `filename:line:rule` tuples — drops column and description fields. | Align T003 to match the full output format from plan.md, or explicitly document which fields are discarded and why. |
+| F07 | **F. Inconsistency** | **~~MEDIUM~~** RESOLVED | plan.md §4.1, tasks T003 | T003 now preserves the full violation shape described in `plan.md`, including `filename`, `line`, `col`, `rule`, and `description` fields. | No action needed — finding resolved. |
 | F08 | **F. Inconsistency** | **MEDIUM** | plan.md §6, tasks.md | plan.md lists `call_with_retry` as an internal dependency. No task references it; all tasks use `call_llm`. Whether retry logic is expected (via `call_with_retry` wrapping `call_llm`, or built into `call_llm` itself) is unclear. | Clarify the call chain in plan.md. If `call_llm` already includes retry logic, remove `call_with_retry` from the dependency list. If retry is separate, add a task to wire it in. |
-| F09 | **E. Coverage** | **~~MEDIUM~~** RESOLVED | spec (EC), tasks.md | Spec now contains all 8 edge cases (EC1–EC8) with explicit descriptions and traceable task coverage. | No action needed — finding resolved. |
+| F09 | **E. Coverage** | **~~MEDIUM~~** RESOLVED | spec (EC), tasks.md | Spec now contains all 9 edge cases (EC1–EC9) with explicit descriptions and traceable task coverage. | No action needed — finding resolved. |
 | F10 | **C. Underspecification** | **MEDIUM** | tasks T006, T010 | Both test tasks say "manual test script or inline validation" without defining where test artifacts live, how they're triggered in CI, or whether they persist. Testing strategy is vague. | Specify test artifact location (e.g., a `test_markdownlint_validation.sh` script) and whether these are one-off manual checks or repeatable CI steps. |
-| F11 | **C. Underspecification** | **~~MEDIUM~~** RESOLVED | spec, plan, tasks | EC9 now addresses the empty `$SPEC_DIR` scenario, and T030 implements the guard. | No action needed — finding resolved. |
+| F11 | **C. Underspecification** | **~~MEDIUM~~** RESOLVED | spec, plan, tasks | EC9 now addresses the empty `$SPEC_DIR` scenario, and T031 implements the guard. | No action needed — finding resolved. |
 | F12 | **A. Duplication** | **LOW** | plan.md §3 table, spec (NFR summary) | Plan's "Key Design Constraints" table is a near-verbatim repeat of the spec's NFR metrics (≤120s, ≤600s, <8K, $SPEC_DIR scope, graceful failure). | Acceptable cross-referencing, but plan should cite spec NFRs by ID rather than duplicating prose. |
 | F13 | **A. Duplication** | **LOW** | plan.md §2 | Plan §2 “Research Summary” restates key decisions that could be summarized more concisely. | Plan §2 should use a one-liner per decision rather than restating full rationale. |
 | F14 | **F. Inconsistency** | **LOW** | plan.md §4 Phase 3.3, tasks T023 | Plan says "Update phase numbering in echo statements (existing are 1-6, new is 7)." T023 says "from `Phase N/6` to `Phase N/7`." Both assume exactly 6 pre-existing phases; if any phases were added in parallel work, the hardcoded counts would be wrong. | Reference the actual current phase count dynamically, or verify the assumption as a prerequisite in T023. |
@@ -43,10 +43,10 @@
 | NFR: ≤120s common case | ✅ | T028 | Timing verification task |
 | NFR: ≤600s worst case | ✅ | T028 | Timing verification task |
 | NFR: `$SPEC_DIR`-only scope | ✅ | T025 | Scoping verification task |
-| NFR: <8K token prompts | ⚠️ | T011 | Token counting mechanism unspecified (F05) |
+| NFR: <8K token prompts | ✅ | T011 | Token counting specified via NFR-004 (F05 resolved) |
 | NFR: Reuse existing infra | ✅ | — | Implicit; all tasks use existing helpers |
 | NFR: Single-file architecture | ✅ | — | Implicit; all code goes in `generate-spec-from-issue.sh` |
-| SC: ≥90% first-push pass rate | ❌ | — | **No task** (F03) |
+| SC: ≥90% first-push pass rate | ✅ | T028 | Measurement task added (F03 resolved) |
 | SC: ≤120s overhead | ✅ | T028 | Covered by timing task |
 | SC: Zero unnecessary LLM calls | ✅ | T009 | Auto-fix-only path verification |
 | SC: Per-iteration logging | ✅ | T019, T020, T021 | Full coverage |
@@ -55,8 +55,8 @@
 | EC: LLM introducing new violations | ✅ | T014 | Stall detection covers this |
 | EC: Stall detection | ✅ | T014 | Fingerprint comparison |
 | EC: npx unavailability | ✅ | T005, T017 | Guard + integration test |
-| EC: 9 edge cases (EC1–EC9) | ✅ | T005, T009, T014, T017, T030 | All 9 edge cases enumerated and covered |
-| EC: Empty `$SPEC_DIR` | ✅ | T030 | EC9 + T030 added — finding F11 resolved |
+| EC: 9 edge cases (EC1–EC9) | ✅ | T005, T009, T014, T017, T031 | All 9 edge cases enumerated and covered |
+| EC: Empty `$SPEC_DIR` | ✅ | T031 | EC9 + T031 added — finding F11 resolved |
 
 ---
 
@@ -65,16 +65,15 @@
 | Metric | Value |
 |--------|-------|
 | **Total Identifiable Requirements** | 26 (4 US + 6 FR topics + 6 NFR + 5 SC + 5 named EC) |
-| **Total Tasks** | 30 |
-| **Coverage %** | 96% (25/26 with traceable task; 3 resolved structural issues, 0 gaps) |
+| **Total Tasks** | 31 |
+| **Coverage %** | 100% (26/26 with traceable task; 6 resolved structural issues, 0 gaps) |
 | **Ambiguity Count** | 2 (F06, F15) |
 | **Duplication Count** | 2 (F12, F13) |
-| **Critical Issues Count** | 0 (F01, F02, F11 resolved — spec, checklist, and edge cases now contain full content) |
+| **Critical Issues Count** | 0 (F01, F02, F03, F04, F05, F07, F09, F11 resolved) |
 
 **Overall Assessment**: The plan and tasks are well-structured with clear dependency chains and good user-story traceability.
-The previously blocking structural issues (F01, F02, F11) have been resolved — spec.md and checklists/requirements.md
-now contain full content, and EC9 + T030 address the empty spec directory scenario.
-The remaining findings are tractable refinements.
+The previously blocking structural issues (F01, F02, F03, F04, F05, F07, F09, F11) have been resolved.
+The remaining findings (F06, F08, F10, F12–F15) are tractable refinements.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
