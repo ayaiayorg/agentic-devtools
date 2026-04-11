@@ -216,3 +216,18 @@ class TestEnforceContextBudgetMetadata:
         assert result.stage is ReductionStage.REDUCED
         assert result.final_chars == 5
         assert result.final_chars <= 6
+
+    def test_stage3_combined_no_leading_newline_when_desc_empty(self):
+        """Stage 3 combined text does not start with a newline when desc reduces to empty.
+
+        Regression: when reduced_desc is empty and reduced_comments is non-empty,
+        the combined text should NOT have a leading newline character.
+        """
+        # Description is only images (reduces to empty), comments are real text.
+        desc = "![img](http://example.com/pic.png) " * 100  # reduces to empty
+        comm = "real content " * 100  # stays non-empty, over budget
+        result = enforce_context_budget(desc, comm, budget=50)
+        # Stage 3 or 4 should be reached; description should not start with \n
+        assert not result.description.startswith("\n"), (
+            "Stage 3 combined should not start with a leading newline"
+        )

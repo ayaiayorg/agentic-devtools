@@ -210,7 +210,9 @@ def collapse_whitespace(text: str) -> str:
 def hard_truncate(text: str, limit: int) -> str:
     """Truncate *text* to at most *limit* characters at a word boundary.
 
-    Appends ``[…truncated]`` as a marker when truncation occurs.
+    Appends the truncation marker (``\\n[…truncated]``) when truncation
+    occurs.  The marker includes a leading newline so it always starts on
+    its own line in the output.
     """
     if not text or len(text) <= limit:
         return text
@@ -311,7 +313,11 @@ def enforce_context_budget(
     # Truncate the combined reduced description/comments content and return it
     # in `description`, clearing `comments` because the truncated payload is not
     # split back into separate fields at this stage.
-    combined = reduced_desc + "\n" + reduced_comments if reduced_comments else reduced_desc
+    combined = (
+        reduced_desc + "\n" + reduced_comments
+        if reduced_desc and reduced_comments
+        else reduced_desc + reduced_comments
+    )
     truncated = hard_truncate(combined, budget)
     truncated_chars = len(truncated)
 
