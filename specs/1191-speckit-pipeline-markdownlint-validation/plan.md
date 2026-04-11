@@ -4,8 +4,8 @@
 
 **Technology stack:**
 
-- **Shell**: Bash (POSIX-compatible, `set -euo pipefail`)
-- **Linter**: `markdownlint-cli2` v0.22+ (already available via `npx` in CI runners)
+- **Shell**: Bash (uses `set -euo pipefail`)
+- **Linter**: `markdownlint-cli2` (invoked via `npx`)
 - **Auto-fix**: `markdownlint-cli2 --fix` built-in flag
 - **LLM remediation**: Copilot SDK via existing `copilot_generate.py` wrapper + `call_llm` bash function
 - **Config**: Root `.markdownlint-cli2.jsonc` (existing, shared across repo)
@@ -145,7 +145,7 @@ Key decisions for this implementation:
 
 ### External
 
-- `npx` + `markdownlint-cli2` (already in CI environment, v0.22+)
+- `npx` + `markdownlint-cli2` (already in CI environment)
 - Copilot SDK via `copilot_generate.py` (already configured with `COPILOT_GITHUB_TOKEN`)
 
 ### Internal

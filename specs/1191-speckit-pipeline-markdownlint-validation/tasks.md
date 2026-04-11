@@ -14,7 +14,9 @@
 - [ ] T001 Read and understand `generate-spec-from-issue.sh` orchestration structure (lines 655–719),
   existing helpers (`call_llm`, `call_with_retry`, `strip_model_footer`, `append_model_footer`),
   and `.markdownlint-cli2.jsonc` config
-- [ ] T002 Add `MARKDOWNLINT_MAX_ITERATIONS` env var handling near the top of `generate-spec-from-issue.sh` (alongside existing env vars, ~line 36–39) with default value `5` — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T002 Add `MARKDOWNLINT_MAX_ITERATIONS` env var handling near the top of
+  `generate-spec-from-issue.sh` (alongside existing env vars, ~line 36–39) with default value `5`
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
 
 ## Task Group 2: Foundational — Core Loop Infrastructure
 
@@ -28,7 +30,9 @@
   `col`, `rule`); keep `description` available from T003 for iteration logging and LLM prompting context
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T003
-- [ ] T005 Implement `check_npx_available` guard function that checks `command -v npx` and returns 1 with a warning to stderr if unavailable — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T005 Implement `check_npx_available` guard function that checks `command -v npx` and
+  returns 1 with a warning to stderr if unavailable
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T001
 
 ## Task Group 3: US1 — Auto-Fix Resolution (P1)
@@ -37,26 +41,40 @@
   (trailing spaces, inconsistent list markers), run `markdownlint-cli2 --fix`,
   assert clean output — manual test script or inline validation in `generate-spec-from-issue.sh`
   - Depends on: T001
-- [ ] T007 [US1] Implement auto-fix pass inside `run_markdownlint_validation`: run `npx markdownlint-cli2 --fix "$SPEC_DIR/**/*.md"` as the first action each iteration — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T007 [US1] Implement auto-fix pass inside `run_markdownlint_validation`:
+  run `npx markdownlint-cli2 --fix "$SPEC_DIR/**/*.md"` as the first action each iteration
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T002, T005
-- [ ] T008 [US1] Implement check-only pass after auto-fix: run `npx markdownlint-cli2 "$SPEC_DIR/**/*.md"` capturing output; if exit code 0, break loop (all clean) — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T008 [US1] Implement check-only pass after auto-fix:
+  run `npx markdownlint-cli2 "$SPEC_DIR/**/*.md"` capturing output;
+  if exit code 0, break loop (all clean)
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T007, T003
 - [ ] T009 [US1] Verify auto-fix-only path: when all violations are auto-fixable, loop exits after iteration 1 with zero LLM calls — integration validation
   - Depends on: T008
 
 ## Task Group 4: US2 — LLM Semantic Remediation (P1)
 
-- [ ] T010 [US2] Write test: create temp spec dir with a semantic violation that `--fix` cannot resolve (e.g., heading hierarchy skip `# H1` → `### H3`), verify it persists after auto-fix — manual test
+- [ ] T010 [US2] Write test: create temp spec dir with a semantic violation
+  that `--fix` cannot resolve (e.g., heading hierarchy skip `# H1` → `### H3`),
+  verify it persists after auto-fix — manual test
   - Depends on: T008
-- [ ] T011 [US2] Implement per-file LLM prompt construction: strip footer via `strip_model_footer`, build prompt with full file content + violation list, enforce <8K token budget — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T011 [US2] Implement per-file LLM prompt construction: strip footer via
+  `strip_model_footer`, build prompt with full file content + violation list,
+  enforce <8K token budget
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T003, T004
 - [ ] T012 [US2] Implement LLM remediation loop body: for each file with remaining violations,
   call `call_llm` with the per-file prompt, write corrected content back,
   re-append footer via `append_model_footer` — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T011
-- [ ] T013 [US2] Implement LLM failure handling: if `call_llm` returns non-zero for a file, log warning to stderr and continue to next file (do not abort loop) — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T013 [US2] Implement LLM failure handling: if `call_llm` returns non-zero for a file,
+  log warning to stderr and continue to next file (do not abort loop)
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T012
-- [ ] T014 [US2] Implement stall detection: compare `compute_violation_fingerprint` of current iteration with previous; if identical, break loop with warning — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T014 [US2] Implement stall detection: compare `compute_violation_fingerprint`
+  of current iteration with previous; if identical, break loop with warning
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T004, T012
 - [ ] T015 [US2] Verify LLM remediation path: semantic violation is resolved after LLM pass, footer is preserved, file content is correct — integration validation
   - Depends on: T012, T014
@@ -67,16 +85,27 @@
   log remaining violation count and exit function with non-zero return code
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T014
-- [ ] T017 [US3] Implement npx unavailability guard at top of `run_markdownlint_validation`: call `check_npx_available`, if false log actionable error and return non-zero immediately — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T017 [US3] Implement npx unavailability guard at top of
+  `run_markdownlint_validation`: call `check_npx_available`, if false log actionable
+  error and return non-zero immediately
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T005, T007
-- [ ] T018 [US3] Verify exhaustion failure: set `MARKDOWNLINT_MAX_ITERATIONS=1` with an unfixable violation, confirm function returns non-zero and pipeline stops with diagnostics — integration validation
+- [ ] T018 [US3] Verify exhaustion failure: set `MARKDOWNLINT_MAX_ITERATIONS=1`
+  with an unfixable violation, confirm function returns non-zero and pipeline
+  stops with diagnostics — integration validation
   - Depends on: T016
 
 ## Task Group 6: US4 — Iteration Logging (P3)
 
-- [ ] T019 [US4] [P] Implement per-iteration logging to stderr: iteration number (`[Phase 7] Iteration N/MAX`), violation count, list of affected files — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T019 [US4] [P] Implement per-iteration logging to stderr:
+  iteration number (`[Phase 7] Iteration N/MAX`), violation count,
+  list of affected files
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T008
-- [ ] T020 [US4] [P] Implement summary logging at loop exit: total iterations run, final violation count (0 if clean), whether stall was detected, whether max iterations were reached — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T020 [US4] [P] Implement summary logging at loop exit: total iterations run,
+  final violation count (0 if clean), whether stall was detected,
+  whether max iterations were reached
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T016
 - [ ] T021 [US4] Verify logging output: run validation with known violations, confirm stderr contains iteration-by-iteration summaries with correct counts — integration validation
   - Depends on: T019, T020
@@ -87,7 +116,9 @@
   after Phase 6 (Analyze, ~line 691) and before `GITHUB_OUTPUT` writes (~line 703)
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T016, T017, T019, T020
-- [ ] T023 Update phase numbering in echo statements from `Phase N/6` to `Phase N/7` for all existing phases, and add `Phase 7/7: Markdownlint Validation` echo — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
+- [ ] T023 Update phase numbering in echo statements from `Phase N/6` to
+  `Phase N/7` for all existing phases, and add `Phase 7/7: Markdownlint Validation` echo
+  — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T022
 - [ ] T024 Update script header comment to document the new Phase 7 and `MARKDOWNLINT_MAX_ITERATIONS` env var — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T023
@@ -100,12 +131,21 @@
   - Depends on: T024
 - [ ] T027 [P] Run full pipeline end-to-end (`generate-spec-from-issue.sh`) with a real issue to validate Phase 7 integrates cleanly with Phases 1–6
   - Depends on: T022
-- [ ] T028 [P] Verify timing: common-case run (auto-fix only) completes in ≤120s; worst-case run (max iterations with LLM) completes in ≤600s
+- [ ] T028 [P] Measure and document the "first-push pass rate" success metric
+  using pipeline/workflow logs from representative first-push executions;
+  record sample size, pass/fail counts, computed rate, and whether the ≥90% target
+  is met or remains aspirational
   - Depends on: T027
-- [ ] T029 Verify no regressions: existing spec artifacts (spec.md, plan.md, tasks.md, analysis-report.md, checklists/) are unchanged when validation loop finds zero violations
+- [ ] T029 [P] Verify timing: common-case run (auto-fix only) completes in ≤120s;
+  worst-case run (max iterations with LLM) completes in ≤600s
   - Depends on: T027
-- [ ] T030 [US3] Implement empty-spec-directory guard: before running markdownlint, check that `$SPEC_DIR` contains
-  at least one `*.md` file; if none exist, log success and return 0 immediately (per EC9)
+- [ ] T030 Verify no regressions: existing spec artifacts (spec.md, plan.md,
+  tasks.md, analysis-report.md, checklists/) are unchanged when validation loop
+  finds zero violations
+  - Depends on: T027
+- [ ] T031 [US3] Implement empty-spec-directory guard: before running markdownlint,
+  check that `$SPEC_DIR` contains at least one `*.md` file; if none exist,
+  log success and return 0 immediately (per EC9)
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T007
 
