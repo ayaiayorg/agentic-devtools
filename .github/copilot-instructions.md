@@ -1130,6 +1130,7 @@ When creating a new worktree, `.agdt/workflows/` doesn't exist initially (it's g
 | `REQUESTS_CA_BUNDLE` | Standard requests library CA bundle path (fallback) |
 | `AGENTIC_DEVTOOLS_STATE_DIR` | Override default state directory (`.agdt/workflows/_unscoped`) |
 | `AGDT_DRY_RUN` | Set to "1" for dry-run mode globally |
+| `AGDT_PLAN_CONTEXT_BUDGET` | Plan-phase context budget in characters (default: `32000`). If set, oversized spec content is reduced deterministically before calling the LLM |
 
 ### SSL Certificate Handling
 
