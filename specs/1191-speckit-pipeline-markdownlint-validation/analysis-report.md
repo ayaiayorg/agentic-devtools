@@ -21,7 +21,7 @@
 | F11 | **C. Underspecification** | **~~MEDIUM~~** RESOLVED | spec, plan, tasks | EC9 now addresses the empty `$SPEC_DIR` scenario, and T031 implements the guard. | No action needed — finding resolved. |
 | F12 | **A. Duplication** | **LOW** | plan.md §3 table, spec (NFR summary) | Plan's "Key Design Constraints" table is a near-verbatim repeat of the spec's NFR metrics (≤120s, ≤600s, <8K, $SPEC_DIR scope, graceful failure). | Acceptable cross-referencing, but plan should cite spec NFRs by ID rather than duplicating prose. |
 | F13 | **A. Duplication** | **LOW** | plan.md §2 | Plan §2 “Research Summary” restates key decisions that could be summarized more concisely. | Plan §2 should use a one-liner per decision rather than restating full rationale. |
-| F14 | **F. Inconsistency** | **LOW** | plan.md §4 Phase 3.3, tasks T023 | Plan says "Update phase numbering in echo statements (existing are 1-6, new is 7)." T023 says "from `Phase N/6` to `Phase N/7`." Both assume exactly 6 pre-existing phases; if any phases were added in parallel work, the hardcoded counts would be wrong. | Reference the actual current phase count dynamically, or verify the assumption as a prerequisite in T023. |
+| F14 | **F. Inconsistency** | **LOW** | plan.md §4 Stage 3.3, tasks T023 | Plan says "Update phase numbering in echo statements (existing are 1-6, new is 7)." T023 says "from `Phase N/6` to `Phase N/7`." Both assume exactly 6 pre-existing phases; if any phases were added in parallel work, the hardcoded counts would be wrong. | Reference the actual current phase count dynamically, or verify the assumption as a prerequisite in T023. |
 | F15 | **B. Ambiguity** | **~~LOW~~** RESOLVED | tasks T001 | T001 now specifies a concrete deliverable: document integration assumptions (insertion points, helpers to reuse, config constraints) as inline comments or PR description note. | No action needed — finding resolved. |
 
 ---
@@ -40,14 +40,14 @@
 | FR: Footer handling | ✅ | T011, T012 | Strip + re-append |
 | FR: Configurable max iterations | ✅ | T002 | Env var with default |
 | FR: Stall detection | ✅ | T004, T014 | Fingerprint + comparison |
-| NFR: ≤120s common case | ✅ | T028 | Timing verification task |
-| NFR: ≤600s worst case | ✅ | T028 | Timing verification task |
+| NFR: ≤120s common case | ✅ | T029 | Timing verification task |
+| NFR: ≤600s worst case | ✅ | T029 | Timing verification task |
 | NFR: `$SPEC_DIR`-only scope | ✅ | T025 | Scoping verification task |
 | NFR: <8K token prompts | ✅ | T011 | Token counting specified via NFR-004 (F05 resolved) |
 | NFR: Reuse existing infra | ✅ | — | Implicit; all tasks use existing helpers |
 | NFR: Single-file architecture | ✅ | — | Implicit; all code goes in `generate-spec-from-issue.sh` |
 | SC: ≥90% first-push pass rate | ✅ | T028 | Measurement task added (F03 resolved) |
-| SC: ≤120s overhead | ✅ | T028 | Covered by timing task |
+| SC: ≤120s overhead | ✅ | T029 | Covered by timing task |
 | SC: Zero unnecessary LLM calls | ✅ | T009 | Auto-fix-only path verification |
 | SC: Per-iteration logging | ✅ | T019, T020, T021 | Full coverage |
 | SC: No file leakage | ✅ | T025 | Scoping verification |
