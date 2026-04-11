@@ -42,4 +42,4 @@ class TestCollapseWhitespace:
     def test_tabs_in_trailing_whitespace(self):
         text = "line1\t\nline2"
         result = collapse_whitespace(text)
-        assert "\t" not in result.split("\n")[0].rstrip("line1")
+        assert result == "line1\nline2"

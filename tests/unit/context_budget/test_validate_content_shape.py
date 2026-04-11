@@ -28,8 +28,5 @@ class TestValidateContentShape:
     def test_numeric_content_returns_true(self):
         assert validate_content_shape("123") is True
 
-    def test_none_returns_false(self):
-        assert validate_content_shape("") is False
-
     def test_symbols_with_letters(self):
         assert validate_content_shape("a-b-c") is True

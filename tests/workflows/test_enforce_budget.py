@@ -23,9 +23,11 @@ class TestEnforceBudgetCli:
     def test_passthrough_small_input(self):
         """Small input passes through unchanged."""
         module = _load_module()
-        with patch("sys.argv", ["enforce_budget.py", "--description", "hello world", "--budget", "1000"]):
-            with patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())):
-                result = module.main()
+        with (
+            patch("sys.argv", ["enforce_budget.py", "--description", "hello world", "--budget", "1000"]),
+            patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())),
+        ):
+            result = module.main()
         assert result == 0
 
     def test_budget_enforcement_reduces_large_input(self):
