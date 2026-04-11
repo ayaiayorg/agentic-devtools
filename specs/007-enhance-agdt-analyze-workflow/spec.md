@@ -1,4 +1,4 @@
-# Specification: Enhance agdt-analyze-workflow (#1179)
+# Specification: Enhance agdt.analyze-workflow (#1179)
 
 **5 clarification questions auto-resolved:**
 
