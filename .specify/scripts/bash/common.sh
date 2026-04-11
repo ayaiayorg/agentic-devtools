@@ -120,10 +120,10 @@ find_feature_dir_by_prefix() {
         # Exactly one match - perfect!
         echo "$specs_dir/${matches[0]}"
     else
-        # Multiple matches - this shouldn't happen with proper naming convention
+        # Multiple matches — fail hard so callers don't silently mkdir a new dir
         echo "ERROR: Multiple spec directories found with prefix '$prefix': ${matches[*]}" >&2
         echo "Please ensure only one spec directory exists per numeric prefix." >&2
-        echo "$specs_dir/$branch_name"  # Return something to avoid breaking the script
+        return 1
     fi
 }
 
@@ -136,8 +136,11 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    # Use prefix-based lookup to support multiple branches per spec
-    local feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch")
+    # Use prefix-based lookup to support multiple branches per spec.
+    # Split declaration from assignment so a non-zero exit code from
+    # find_feature_dir_by_prefix (e.g., ambiguous prefix) propagates.
+    local feature_dir
+    feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch")
 
     cat <<EOF
 REPO_ROOT='$repo_root'
