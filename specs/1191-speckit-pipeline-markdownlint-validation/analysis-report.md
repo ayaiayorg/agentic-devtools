@@ -13,16 +13,16 @@
 | F03 | **E. Coverage** | **~~HIGH~~** RESOLVED | spec (SC-1), tasks.md | T028 now defines a measurement task for the ≥90% first-push pass rate metric, recording sample size, pass/fail counts, and computed rate from pipeline run history. | No action needed — finding resolved. |
 | F04 | **F. Inconsistency** | **~~HIGH~~** RESOLVED | plan.md §4, tasks.md | Terminology has been disambiguated: `plan.md` now uses "Implementation Stages" and `tasks.md` uses "Task Group", avoiding overload with the runtime "Pipeline Phase 7" step. | No action needed — finding resolved. |
 | F05 | **C. Underspecification** | **~~HIGH~~** RESOLVED | spec (NFR), tasks T011 | Token estimation is now specified in `spec.md` NFR-004 using a character-count heuristic (`ceil(chars / 4)`), with a 32,000-character max per file to stay under the 8K token target. | No action needed — finding resolved. |
-| F06 | **B. Ambiguity** | **MEDIUM** | plan.md §2.1 | "~80% of violations" is an unverifiable claim used to justify the auto-fix-first strategy. No source data or benchmark is cited. | Either cite a measurement (e.g., from research.md on a sample corpus) or remove the percentage and state "most auto-fixable rules" qualitatively. |
+| F06 | **B. Ambiguity** | **~~MEDIUM~~** RESOLVED | plan.md §2.1 | The "~80%" claim has been replaced with qualitative wording ("many common violations"), removing the unverifiable percentage. | No action needed — finding resolved. |
 | F07 | **F. Inconsistency** | **~~MEDIUM~~** RESOLVED | plan.md §4.1, tasks T003 | T003 now preserves the full violation shape described in `plan.md`, including `filename`, `line`, `col`, `rule`, and `description` fields. | No action needed — finding resolved. |
-| F08 | **F. Inconsistency** | **MEDIUM** | plan.md §6, tasks.md | plan.md lists `call_with_retry` as an internal dependency. No task references it; all tasks use `call_llm`. Whether retry logic is expected (via `call_with_retry` wrapping `call_llm`, or built into `call_llm` itself) is unclear. | Clarify the call chain in plan.md. If `call_llm` already includes retry logic, remove `call_with_retry` from the dependency list. If retry is separate, add a task to wire it in. |
+| F08 | **F. Inconsistency** | **~~MEDIUM~~** RESOLVED | plan.md §6, tasks.md | plan.md now clarifies that `call_llm` includes retry logic via `call_with_retry` internally, and callers should use `call_llm` directly. The dependency listing is consistent with task usage. | No action needed — finding resolved. |
 | F09 | **E. Coverage** | **~~MEDIUM~~** RESOLVED | spec (EC), tasks.md | Spec now contains all 9 edge cases (EC1–EC9) with explicit descriptions and traceable task coverage. | No action needed — finding resolved. |
-| F10 | **C. Underspecification** | **MEDIUM** | tasks T006, T010 | Both test tasks say "manual test script or inline validation" without defining where test artifacts live, how they're triggered in CI, or whether they persist. Testing strategy is vague. | Specify test artifact location (e.g., a `test_markdownlint_validation.sh` script) and whether these are one-off manual checks or repeatable CI steps. |
+| F10 | **C. Underspecification** | **~~MEDIUM~~** RESOLVED | tasks T006, T010 | T006 and T010 now specify a concrete test script location (`.github/scripts/speckit-trigger/test_markdownlint_validation.sh`) with clear acceptance criteria and execution context. | No action needed — finding resolved. |
 | F11 | **C. Underspecification** | **~~MEDIUM~~** RESOLVED | spec, plan, tasks | EC9 now addresses the empty `$SPEC_DIR` scenario, and T031 implements the guard. | No action needed — finding resolved. |
 | F12 | **A. Duplication** | **LOW** | plan.md §3 table, spec (NFR summary) | Plan's "Key Design Constraints" table is a near-verbatim repeat of the spec's NFR metrics (≤120s, ≤600s, <8K, $SPEC_DIR scope, graceful failure). | Acceptable cross-referencing, but plan should cite spec NFRs by ID rather than duplicating prose. |
 | F13 | **A. Duplication** | **LOW** | plan.md §2 | Plan §2 “Research Summary” restates key decisions that could be summarized more concisely. | Plan §2 should use a one-liner per decision rather than restating full rationale. |
 | F14 | **F. Inconsistency** | **LOW** | plan.md §4 Phase 3.3, tasks T023 | Plan says "Update phase numbering in echo statements (existing are 1-6, new is 7)." T023 says "from `Phase N/6` to `Phase N/7`." Both assume exactly 6 pre-existing phases; if any phases were added in parallel work, the hardcoded counts would be wrong. | Reference the actual current phase count dynamically, or verify the assumption as a prerequisite in T023. |
-| F15 | **B. Ambiguity** | **LOW** | tasks T001 | "Read and understand" is a non-verifiable task with no deliverable or acceptance criterion. | Reframe as "Document key integration points in the script for Phase 7 insertion" or merge into T002 as a prerequisite note. |
+| F15 | **B. Ambiguity** | **~~LOW~~** RESOLVED | tasks T001 | T001 now specifies a concrete deliverable: document integration assumptions (insertion points, helpers to reuse, config constraints) as inline comments or PR description note. | No action needed — finding resolved. |
 
 ---
 
@@ -67,13 +67,13 @@
 | **Total Identifiable Requirements** | 26 (4 US + 6 FR topics + 6 NFR + 5 SC + 5 named EC) |
 | **Total Tasks** | 31 |
 | **Coverage %** | 100% (26/26 with traceable task; 6 resolved structural issues, 0 gaps) |
-| **Ambiguity Count** | 2 (F06, F15) |
+| **Ambiguity Count** | 0 (F06, F15 resolved) |
 | **Duplication Count** | 2 (F12, F13) |
-| **Critical Issues Count** | 0 (F01, F02, F03, F04, F05, F07, F09, F11 resolved) |
+| **Critical Issues Count** | 0 (F01–F11, F15 resolved) |
 
 **Overall Assessment**: The plan and tasks are well-structured with clear dependency chains and good user-story traceability.
-The previously blocking structural issues (F01, F02, F03, F04, F05, F07, F09, F11) have been resolved.
-The remaining findings (F06, F08, F10, F12–F15) are tractable refinements.
+The previously blocking structural issues (F01–F11, F15) have been resolved.
+The remaining findings (F12–F14) are low-severity duplication and minor inconsistencies.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*

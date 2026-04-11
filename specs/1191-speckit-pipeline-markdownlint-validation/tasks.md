@@ -11,9 +11,11 @@
 
 ## Task Group 1: Setup
 
-- [ ] T001 Read and understand `generate-spec-from-issue.sh` orchestration structure (lines 655–719),
-  existing helpers (`call_llm`, `call_with_retry`, `strip_model_footer`, `append_model_footer`),
-  and `.markdownlint-cli2.jsonc` config
+- [ ] T001 Document integration assumptions: identify `generate-spec-from-issue.sh`
+  orchestration insertion points (lines 655–719), list the existing helpers to be reused
+  (`call_llm`, `strip_model_footer`, `append_model_footer`), and record any
+  `.markdownlint-cli2.jsonc` constraints the loop must preserve — output as inline
+  comments in the implementation PR or a short note in the PR description
 - [ ] T002 Add `MARKDOWNLINT_MAX_ITERATIONS` env var handling near the top of
   `generate-spec-from-issue.sh` (alongside existing env vars, ~line 36–39) with default value `5`
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
@@ -37,9 +39,11 @@
 
 ## Task Group 3: US1 — Auto-Fix Resolution (P1)
 
-- [ ] T006 [US1] Write test: create temp spec dir with known auto-fixable violations
-  (trailing spaces, inconsistent list markers), run `markdownlint-cli2 --fix`,
-  assert clean output — manual test script or inline validation in `generate-spec-from-issue.sh`
+- [ ] T006 [US1] Write auto-fix validation test in
+  `.github/scripts/speckit-trigger/test_markdownlint_validation.sh`:
+  create a temp spec dir with known auto-fixable violations (trailing spaces,
+  inconsistent list markers), run `markdownlint-cli2 --fix`, assert exit code 0
+  on re-lint — executed manually during development and optionally in CI
   - Depends on: T001
 - [ ] T007 [US1] Implement auto-fix pass inside `run_markdownlint_validation`:
   run `npx markdownlint-cli2 --fix "$SPEC_DIR/**/*.md"` as the first action each iteration
@@ -55,9 +59,11 @@
 
 ## Task Group 4: US2 — LLM Semantic Remediation (P1)
 
-- [ ] T010 [US2] Write test: create temp spec dir with a semantic violation
-  that `--fix` cannot resolve (e.g., heading hierarchy skip `# H1` → `### H3`),
-  verify it persists after auto-fix — manual test
+- [ ] T010 [US2] Write LLM-required validation test in
+  `.github/scripts/speckit-trigger/test_markdownlint_validation.sh`:
+  create a temp spec dir with a semantic violation that `--fix` cannot resolve
+  (e.g., heading hierarchy skip `# H1` → `### H3`), verify it persists after
+  auto-fix — executed manually during development
   - Depends on: T008
 - [ ] T011 [US2] Implement per-file LLM prompt construction: strip footer via
   `strip_model_footer`, build prompt with full file content + violation list,
