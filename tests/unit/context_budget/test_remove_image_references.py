@@ -49,3 +49,8 @@ class TestRemoveImageReferences:
     def test_preserves_non_image_content(self):
         text = "# Title\nSome text\n- bullet point\n\nMore content"
         assert remove_image_references(text) == text
+
+    def test_preserves_exclamation_words(self):
+        """Non-image text like !important! must not be matched as Jira images."""
+        text = "This is !important! and !warning! content."
+        assert remove_image_references(text) == text
