@@ -161,7 +161,7 @@ if [[ -n "$EXISTING_DIR" ]]; then
     if [[ ${#ISSUE_NUMBER} -eq 3 ]]; then
         REQUIREMENTS_FILE_PATH="$EXISTING_DIR/checklists/requirements.md"
         SPEC_FILE_PATH="$EXISTING_DIR/spec.md"
-        SOURCE_ISSUE_PATTERN="^[[:space:]]*\*\*Source Issue\*\*:[[:space:]]*#${ISSUE_NUMBER}([[:space:]]|$)"
+        SOURCE_ISSUE_PATTERN="^[[:space:]]*\*\*Source Issue\*\*:[[:space:]]*#${ISSUE_NUMBER}([[:space:]),.]|$)"
 
         if [[ -f "$REQUIREMENTS_FILE_PATH" ]] && grep -Eq "$SOURCE_ISSUE_PATTERN" "$REQUIREMENTS_FILE_PATH"; then
             echo "Verified Source Issue match for 3-digit issue number via checklists/requirements.md"
@@ -183,7 +183,19 @@ else
     BRANCH_NAME="${ISSUE_NUMBER}-${SHORT_NAME}"
     SPEC_DIR="$REPO_ROOT/$SPEC_BASE_PATH/$BRANCH_NAME"
 fi
+
+# Re-derive all downstream paths from SPEC_DIR (single source of truth)
+SPEC_FILE="$SPEC_DIR/spec.md"
 ```
+
+**Important**: Once the `if/else` block above resolves `SPEC_DIR` (whether by reuse
+or creation), `SPEC_DIR` becomes the **single source of truth** for all downstream
+paths and workflow outputs. Every derived variable — `SPEC_FILE`, `BRANCH_NAME`,
+artifact directory paths, and any GitHub Actions output values — **must** be
+re-derived from `SPEC_DIR` (or its `basename`) after this point. No downstream code
+may rely on the precomputed `${ISSUE_NUMBER}-${SHORT_NAME}` value because on a
+reuse path the actual directory basename may differ from the freshly computed slug
+(e.g., the issue title may have changed between runs, per FR-012).
 
 This means if the issue title changed between runs, the existing directory is
 reused (FR-012). For 3-digit issue numbers (100–999), the reuse path additionally
