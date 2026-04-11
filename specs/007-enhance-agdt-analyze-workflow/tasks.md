@@ -92,7 +92,8 @@
 
 - [ ] T026 Implement `collect_external_context(git_root, worktree_key, static_only) -> ExternalContext | None` in
       `agentic_devtools/cli/analysis/external_context.py` — discover worktrees via
-      `git worktree list --porcelain`, read-only log collection, 500-line excerpt truncation, ISO-8601 timestamps
+      `git worktree list --porcelain`, read-only log collection, excerpt truncation (keep last 500 lines via tail,
+      prepend `[…truncated {N} lines…]` header when truncation occurs), ISO-8601 timestamps
 - [ ] T027 Implement `build_external_context_field(external_ctx) -> dict | None` in `agentic_devtools/cli/analysis/external_context.py` — serialize `ExternalContext` to JSON-compatible dict
 - [ ] T028 Run `agdt-test-pattern tests/unit/cli/analysis/external_context/ -v` to confirm all tests pass (GREEN)
 

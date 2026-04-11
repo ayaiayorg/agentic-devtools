@@ -14,13 +14,13 @@
 | F08 | A. Duplication | **MEDIUM** | T011 / T049 | Both verify imports with identical `python -c "from agentic_devtools.cli.analysis import …; print('OK')"`. T049 tests three functions; T011 tests three dataclasses — different symbols but same verification mechanism at two points. | Merge into a single final verification task (T049) that covers both dataclasses and functions. Remove T011 or reduce it to "no import errors" gate only. |
 | F09 | A. Duplication | **MEDIUM** | T010 / T044 | T010: "Wire up `__init__.py` with all public exports." T044: "Update `__init__.py` exports to match all implemented public symbols." T044 is a re-do of T010 after implementation. | Rename T044 to "Verify `__init__.py` exports match implemented symbols" to clarify it's a review/audit step, not a re-implementation. |
 | F10 | A. Duplication | **MEDIUM** | Plan §Phase 5 (Tasks 5.1–5.3) vs Plan §Phases 1.1–1.3 | Plan lists test files twice: once inside each Task description (e.g., Task 1.1 "Test files: test_resolve_analysis_context.py…") and again in Phase 5 ("Task 5.1: Test context_resolver.py functions — same files"). Tasks.md Phases 3–5 are the canonical location. | Remove Phase 5 from plan.md or convert it to "Run full suite" only (as T047 does). The per-module test descriptions in Phases 1.1–1.3 are sufficient. |
-| F11 | C. Underspecification | **MEDIUM** | Plan §1.3 | `ExternalLogEvidence.excerpt` is "Max 500 lines" — no specification of **which** 500 lines (first? last? most recent?), nor what happens at the boundary (truncation marker?). T026 says "500-line excerpt truncation" without strategy. **Note:** `data-model.md` reference removed (not committed). | Specify: "last 500 lines (tail), with a `[…truncated {N} lines…]` header when truncation occurs." |
+| F11 | ~~C. Underspecification~~ | ~~**MEDIUM**~~ **RESOLVED** | ~~Plan §1.3~~ Tasks T026 | ~~`ExternalLogEvidence.excerpt` is "Max 500 lines" — no specification of which 500 lines or truncation marker.~~ **Resolved**: T026 now specifies "keep last 500 lines via tail, prepend `[…truncated {N} lines…]` header when truncation occurs." | No further action needed. |
 | F12 | F. Inconsistency | **MEDIUM** → **N/A** | ~~data-model.md §4 vs §6~~ | ~~`LogEvidence.modified_time` is `float` (epoch seconds). `ExternalLogEvidence.timestamp` is `str` (ISO-8601). Same semantic concept represented differently.~~ **Not applicable**: `data-model.md` is not part of the committed artifacts for this PR. | Deferred — re-assess when `data-model.md` is committed. |
 | F13 | E. Coverage Gaps | **MEDIUM** | Dependency graph | The graph over-serializes independent work: T028 → T029 blocks SKILL.md schema edits on Python implementation completion. T032 → T033 blocks prompt updates on schema examples. Schema (JSON editing) and prompt (Markdown editing) are independent of Python code. | Allow Phases 6–7 to start in parallel with Phases 3–5 (only T036/T037 depend on schema completion, not all of T033–T038). |
 | F14 | C. Underspecification | **MEDIUM** | Plan §1.1, T014 | `resolve_analysis_context` fallback case ("Neither → read current worktree_key from bootstrap") — no specification of behavior when bootstrap file doesn't exist or has no `worktree_key`. | Add edge case: "If bootstrap is absent or has no worktree_key, raise `RuntimeError` with message directing user to provide `--issue-key` or `--pr-id`." |
 | F15 | B. Ambiguity | **LOW** | Plan §5 Risk Assessment | "Agent prompt too long for context window" listed as Medium likelihood — no measurable criteria. Phase 0 adds "~40 lines." No threshold defined for "too long." | Quantify: "Prompt must stay under 500 lines / 15k tokens to fit Copilot Chat context window." |
 | F16 | ~~F. Inconsistency~~ | ~~**LOW**~~ **RESOLVED** | ~~Plan §1 ("352-line structured prompt") vs codebase~~ | ~~Minor off-by-one in line count.~~ **Resolved**: Plan §1 tech stack table no longer references an exact line count (removed to avoid staleness). | No further action needed. |
-| F17 | B. Ambiguity | **LOW** | T017 | "`.identity-owner` attribution" — unclear what this test validates. Does it check that `LogEvidence.identity` is populated from the `.identity-owner` file, or that the file's content (email) is included? | Clarify: the test should verify that `scan_identity_logs` sets `LogEvidence.identity` to the **directory name**, not the email from `.identity-owner`. The email is only used by `list_identity_directories`. |
+| F17 | ~~B. Ambiguity~~ | ~~**LOW**~~ **RESOLVED** | T017 | ~~"`.identity-owner` attribution" — unclear what this test validates.~~ **Resolved**: T017 now reads "identity dir name attribution (verify `LogEvidence.identity` is set to the directory name, not the `.identity-owner` email — email is only used by `list_identity_directories`)." | No further action needed. |
 | F18 | C. Underspecification | **LOW** | Plan §1.3 | `collect_external_context` calls `git worktree list --porcelain` — no specification of behavior when git is unavailable or the command fails (non-zero exit). | Add: "If `git worktree list` fails, log warning and return `None` (treat as no external worktrees)." |
 
 ---
@@ -56,13 +56,13 @@
 | **NFR Coverage** | 80% (4/5 NFRs fully covered; 1 partial — read-only safety) |
 | **Edge Case Coverage** | 100% (7/7 explicitly tested in T053) |
 | **Overall Traceable Coverage** | ~90% of requirements have adequate task coverage |
-| **Ambiguity Count** | 2 (F15, F17) |
+| **Ambiguity Count** | 1 (F15) |
 | **Duplication Count** | 4 (F07, F08, F09, F10) |
 | **Critical Issues Count** | 0 (F01 resolved) |
 | **High Issues Count** | 0 (F02, F04, F05 resolved; F03 N/A) |
-| **Medium Issues Count** | 5 (F07–F11, F13–F14; F06 resolved, F12 N/A) |
-| **Low Issues Count** | 3 (F15, F17, F18; F16 resolved) |
-| **Total Findings** | 18 (7 resolved/N/A, 11 active) |
+| **Medium Issues Count** | 5 (F07–F10, F13–F14; F06, F11 resolved, F12 N/A) |
+| **Low Issues Count** | 2 (F15, F18; F16, F17 resolved) |
+| **Total Findings** | 18 (10 resolved/N/A, 8 active) |
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
