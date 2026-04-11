@@ -60,7 +60,10 @@ echo "Model: $COPILOT_MODEL"
 # Function to get the next feature number (legacy autoincrement, kept for
 # potential fallback use).  Only counts directories/branches that match the
 # legacy 3-digit prefix pattern ^[0-9]{3}- so that issue-numbered directories
-# (e.g. 42-foo, 1176-bar) do not inflate the autoincrement counter (FR-007).
+# with non-3-digit prefixes (e.g. 42-foo, 1176-bar) do not inflate the
+# autoincrement counter (FR-007).  Note: 3-digit issue numbers (100–999) will
+# still match the legacy pattern and be counted — this is an accepted overlap
+# since the autoincrement function is only used as a fallback.
 get_next_feature_number() {
     local highest=0
 
