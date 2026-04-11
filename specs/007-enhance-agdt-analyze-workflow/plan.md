@@ -1,4 +1,4 @@
-# Implementation Plan: Enhance agdt-analyze-workflow
+# Implementation Plan: Enhance agdt.analyze-workflow
 
 **Feature:** #1179 — Enhance the `agdt.analyze-workflow` agent with parameterized
 invocation, multi-identity log scanning, external worktree context, and a new
@@ -16,10 +16,10 @@ invocation, multi-identity log scanning, external worktree context, and a new
 |-------|-----------|-------|
 | Language | Python 3.10+ | Matches `requires-python = ">=3.10"` in `pyproject.toml` |
 | CLI Framework | argparse | All workflow commands use argparse via `commands.py` |
-| Entry Points | `pyproject.toml` `[project.scripts]` → `cli.runner:run_as_script` | Standard agdt pattern |
+| Entry Points | `pyproject.toml` `[project.scripts]` → `agentic_devtools.cli.runner:run_as_script` | Standard agdt pattern |
 | State | JSON files in `.agdt/workflows/{identity}/{worktree_key}/` | Via `state.py` |
 | Agent | `.github/agents/agdt.analyze-workflow.agent.md` | Copilot Chat agent |
-| Prompt | `.github/prompts/agdt.analyze-workflow.prompt.md` | 352-line structured prompt |
+| Prompt | `.github/prompts/agdt.analyze-workflow.prompt.md` | 351-line structured prompt |
 | Skill | `_bundled_skills/workflow-analysis/SKILL.md` | Bug taxonomy + JSON schema |
 | Tests | pytest, 1:1:1 structure under `tests/unit/` | 100% coverage requirement |
 

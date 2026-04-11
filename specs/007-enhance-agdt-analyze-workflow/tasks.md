@@ -1,4 +1,4 @@
-# Tasks: Enhance agdt-analyze-workflow (#1179)
+# Tasks: Enhance agdt.analyze-workflow (#1179)
 
 ## User Story Index
 
