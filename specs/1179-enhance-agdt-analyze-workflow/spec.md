@@ -60,22 +60,22 @@
 
 | # | Priority | Requirement |
 |---|----------|-------------|
-| FR-001 | **Must** | Accept `--issue-key <K>` parameter to scope analysis to issue worktree |
-| FR-002 | **Must** | Accept `--pr-id <N>` parameter to scope analysis to PR worktree |
-| FR-003 | **Must** | Accept `--static-only` flag to disable external worktree scanning |
-| FR-004 | **Must** | `--issue-key` and `--pr-id` are mutually exclusive; providing both is an error |
-| FR-005 | **Must** | When neither `--issue-key` nor `--pr-id` is provided, use current bootstrap worktree key |
-| FR-006 | **Must** | Resolution precedence matches `state.py`'s `_sync_bootstrap_for_context_key()` chain |
-| FR-007 | **Must** | Scan all identity directories under `.agdt/workflows/` (excluding `_unscoped`) |
-| FR-008 | **Must** | Attribute each log entry with `[identity: {name}]` prefix |
-| FR-009 | **Should** | Discover external worktrees via `git worktree list --porcelain` |
-| FR-010 | **Should** | Collect log evidence from external worktrees in read-only mode |
-| FR-011 | **Must** | Return `None` when `--static-only` or no external worktrees found |
-| FR-012 | **Must** | Serialize `None` as `"external_context": null` in JSON output (field always present) |
-| FR-013 | **Must** | Write analysis output to the caller's state directory only |
-| FR-014 | **Should** | New Python helpers go in `agentic_devtools/cli/analysis/` package |
-| FR-015 | **Should** | Extend SKILL.md JSON schema with optional `external_context` field |
-| FR-016 | **Must** | `external_context` must not appear in the schema's `required` array |
+| FR-001 | MUST | Accept `--issue-key <K>` parameter to scope analysis to issue worktree |
+| FR-002 | MUST | Accept `--pr-id <N>` parameter to scope analysis to PR worktree |
+| FR-003 | MUST | Accept `--static-only` flag to disable external worktree scanning |
+| FR-004 | MUST | `--issue-key` and `--pr-id` are mutually exclusive; providing both is an error |
+| FR-005 | MUST | When neither `--issue-key` nor `--pr-id` is provided, use current bootstrap worktree key |
+| FR-006 | MUST | Resolution precedence matches `state.py`'s `_sync_bootstrap_for_context_key()` chain |
+| FR-007 | MUST | Scan all identity directories under `.agdt/workflows/` (excluding `_unscoped`) |
+| FR-008 | MUST | Attribute each log entry with `[identity: {name}]` prefix |
+| FR-009 | SHOULD | Discover external worktrees via `git worktree list --porcelain` |
+| FR-010 | SHOULD | Collect log evidence from external worktrees in read-only mode |
+| FR-011 | MUST | Return `None` when `--static-only` or no external worktrees found |
+| FR-012 | MUST | Serialize `None` as `"external_context": null` in JSON output (field always present) |
+| FR-013 | MUST | Write analysis output to the caller's state directory only |
+| FR-014 | SHOULD | New Python helpers go in `agentic_devtools/cli/analysis/` package |
+| FR-015 | SHOULD | Extend SKILL.md JSON schema with optional `external_context` field |
+| FR-016 | MUST | `external_context` must not appear in the schema's `required` array |
 
 ---
 
