@@ -11,7 +11,7 @@ Usage:
 Exit Codes:
     0 - Success (budget-compliant content written to stdout)
     1 - Permanent failure (budget cannot be met)
-    2 - Invalid arguments
+    2 - Setup/usage error (invalid arguments or missing agentic_devtools package)
 """
 
 from __future__ import annotations

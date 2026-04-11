@@ -32,18 +32,31 @@ class TestEnforceBudgetCli:
         assert result == 0
 
     def test_budget_enforcement_reduces_large_input(self):
-        """Large input is reduced to fit budget."""
+        """Large input is reduced to fit budget and output is within budget."""
         module = _load_module()
         large_desc = "## Heading\n**bold** " * 500
+        budget = 100
+        captured_output: list[str] = []
+
+        def _capture_write(text: str) -> None:
+            captured_output.append(text)
+
+        mock_stdout = MagicMock()
+        mock_stdout.write = MagicMock(side_effect=_capture_write)
+
         with (
-            patch("sys.argv", ["enforce_budget.py", "--description", large_desc, "--budget", "100"]),
-            patch("sys.stdout", new_callable=lambda: MagicMock(write=MagicMock())) as mock_stdout,
+            patch("sys.argv", ["enforce_budget.py", "--description", large_desc, "--budget", str(budget)]),
+            patch("sys.stdout", mock_stdout),
             patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
         ):
             result = module.main()
         assert result == 0
-        # Verify something was written to stdout
+        # Verify output was written and is within budget
         assert mock_stdout.write.called
+        output_text = "".join(captured_output)
+        assert len(output_text) > 0, "Expected non-empty output"
+        assert len(output_text) <= budget, f"Output ({len(output_text)} chars) exceeds budget ({budget})"
+        assert output_text != large_desc, "Expected output to differ from oversized input"
 
     def test_invalid_budget_uses_default(self):
         """Negative budget falls back to default."""

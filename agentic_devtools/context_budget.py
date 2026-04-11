@@ -47,6 +47,11 @@ class BudgetResult:
 # Pre-compiled patterns for performance
 # CommonMark allows up to 3 leading spaces before a fenced code block.
 # The closing fence must use the same indentation and fence character.
+# NOTE: CommonMark allows the closing fence to be *longer* than the opening
+# fence, but this regex requires an exact-length match via backreference.
+# In practice, virtually all Markdown uses matching-length fences (e.g.
+# ``` ... ```), so this covers real-world usage without the complexity
+# of a variable-length closing fence pattern.
 _FENCED_CODE_BLOCK_RE = re.compile(
     r"^(?P<indent>[ ]{0,3})(?P<fence>`{3,}|~{3,})[^\n]*\n"
     r"(.*?)\n"
