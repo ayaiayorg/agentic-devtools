@@ -59,7 +59,7 @@ Use the helper script:
 # - Branch: 42-add-webhook-support
 # - Directory: specs/42-add-webhook-support/
 # - File: specs/42-add-webhook-support/spec.md (from template)
-```text
+```
 
 ### 3. Fill Out the Specification
 
@@ -91,7 +91,7 @@ Technology stack:
 - Click for CLI
 - Background task execution
 - State-based parameter passing
-```text
+```
 
 This creates `specs/ISSUE-feature-name/plan.md` with:
 
@@ -107,7 +107,7 @@ Use `/speckit.tasks` to generate task list:
 
 ```text
 /speckit.tasks
-```text
+```
 
 This creates `specs/ISSUE-feature-name/tasks.md` with:
 
