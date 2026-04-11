@@ -20,6 +20,10 @@
 #   COPILOT_TIMEOUT - Seconds to wait for a Copilot SDK response (default: 600).
 #                     Plan, Tasks, and Analyze phases override this to 900.
 #   SPEC_BASE_PATH  - Base path for specs (default: specs)
+#   AGDT_PLAN_CONTEXT_BUDGET - Context budget in characters for the plan phase
+#                              (default: 32000).  If the spec content exceeds this
+#                              limit, deterministic reduction is applied before
+#                              calling the LLM.
 #
 # Outputs:
 #   GITHUB_OUTPUT: branch_name, spec_file, feature_num, spec_dir
@@ -371,10 +375,58 @@ $spec_content"
 #
 # Generates plan.md and optional artifacts (research.md, data-model.md,
 # contracts/*, quickstart.md) using artifact delimiters.
+#
+# Context budget enforcement: before calling the LLM, the spec content is
+# passed through the Python budget module to ensure it fits within the
+# configured context budget (default: 32,000 chars, override via
+# AGDT_PLAN_CONTEXT_BUDGET).  If the content is too large, deterministic
+# reduction stages are applied (strip markdown → remove images → collapse
+# whitespace → hard truncate → summary-only).
 # ---------------------------------------------------------------------------
 run_plan_phase() {
     local spec_content
     spec_content=$(strip_model_footer "$(cat "$SPEC_DIR/spec.md")")
+
+    # --- Context budget enforcement ---
+    local budget_args=()
+    local budget_value="${AGDT_PLAN_CONTEXT_BUDGET:-}"
+    if [[ -n "$budget_value" ]]; then
+        # Validate that the value is a positive integer
+        if [[ "$budget_value" =~ ^[0-9]+$ ]] && [[ "$budget_value" -gt 0 ]]; then
+            budget_args+=(--budget "$budget_value")
+        else
+            echo "Warning: AGDT_PLAN_CONTEXT_BUDGET='$budget_value' is not a valid positive integer. Using default." >&2
+        fi
+    fi
+
+    local budget_output
+    local budget_exit_code=0
+    budget_output=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>&1 1>&3) 3>&1 || budget_exit_code=$?
+
+    # budget_output now holds stdout (budget-compliant content)
+    # The stderr diagnostics were captured in the subshell; re-emit them
+    # We need to separate stdout and stderr properly
+    local budget_stderr=""
+    local budget_content=""
+    budget_content=$(printf '%s' "$spec_content" | python "$SCRIPT_DIR/enforce_budget.py" "${budget_args[@]}" 2>/tmp/budget_stderr_$$.txt) || budget_exit_code=$?
+    budget_stderr=$(cat /tmp/budget_stderr_$$.txt 2>/dev/null || echo "")
+    rm -f /tmp/budget_stderr_$$.txt
+
+    if [[ $budget_exit_code -ne 0 ]]; then
+        echo "Error: Context budget enforcement failed for plan phase." >&2
+        if [[ -n "$budget_stderr" ]]; then
+            echo "$budget_stderr" >&2
+        fi
+        return 1
+    fi
+
+    # Emit budget diagnostics
+    if [[ -n "$budget_stderr" ]]; then
+        echo "$budget_stderr" >&2
+    fi
+
+    # Use budget-compliant content for the prompt
+    spec_content="$budget_content"
 
     local prompt
     prompt="You are a technical implementation planner. Based on the following feature specification, produce a comprehensive implementation plan.
