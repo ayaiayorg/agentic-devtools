@@ -226,10 +226,11 @@ accepted as an additional verification source but is not required to be the sole
 content is LLM-dependent.
 
 **Verification order**: The reuse guard **must** check `checklists/requirements.md` first (deterministic),
-then fall back to `spec.md` (tolerant regex matching `**Source Issue**: #N` followed by a word boundary —
-either whitespace, end-of-line, or punctuation such as a space before a URL). If neither artifact contains
-a matching Source Issue marker, the script **must fail fast** with a clear error message indicating the
-ambiguity rather than silently reusing or overwriting an unrelated legacy directory.
+then fall back to `spec.md` (tolerant regex matching `**Source Issue**: #N` only when the next character is
+end-of-line, whitespace, or one of the explicit punctuation characters `)`, `,`, or `.`; this allows forms
+such as `#1176 (https://...)` while rejecting longer numeric prefixes such as `#11761`). If neither artifact
+contains a matching Source Issue marker, the script **must fail fast** with a clear error message indicating
+the ambiguity rather than silently reusing or overwriting an unrelated legacy directory.
 
 ## User Stories
 
