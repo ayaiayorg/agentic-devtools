@@ -251,7 +251,7 @@ names using `grep -q '^[0-9]\{3\}-'`, so no change is needed there.
 
 ### Phase 3: PowerShell Parity in `create-new-feature.ps1`
 
-**Deliverables**: SC-006
+**Deliverables**: FR-008 (verified by SC-006)
 
 #### 3a. Fix `Get-HighestNumberFromSpecs`
 
