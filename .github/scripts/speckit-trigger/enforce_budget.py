@@ -67,10 +67,13 @@ def main() -> int:
 
     # Assemble output: description + optional separator + comments.
     # The separator is accounted for in enforce_context_budget()'s budget math,
-    # so final_chars already includes it when both fields are non-empty.
-    output = result.description
-    if result.comments:
+    # so final_chars already includes it only when both fields are non-empty.
+    if result.description and result.comments:
         output = f"{result.description}\n{result.comments}"
+    elif result.comments:
+        output = result.comments
+    else:
+        output = result.description
 
     # Emit diagnostic metadata to stderr as JSON
     metadata = {

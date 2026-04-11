@@ -124,3 +124,33 @@ class TestEnforceBudgetCli:
         assert len(output_text) <= budget, (
             f"CLI output ({len(output_text)} chars) exceeds budget ({budget})"
         )
+
+    def test_comments_only_no_leading_newline(self):
+        """Comments-only invocation (empty description) produces no leading newline.
+
+        Regression: ensure the CLI does not prepend '\\n' when description is empty.
+        """
+        module = _load_module()
+        budget = 1000
+        comm = "some comments"
+        captured_output: list[str] = []
+
+        def _capture_write(text: str) -> None:
+            captured_output.append(text)
+
+        mock_stdout = MagicMock()
+        mock_stdout.write = MagicMock(side_effect=_capture_write)
+
+        with (
+            patch(
+                "sys.argv",
+                ["enforce_budget.py", "--description", "", "--comments", comm, "--budget", str(budget)],
+            ),
+            patch("sys.stdout", mock_stdout),
+            patch("sys.stderr", new_callable=lambda: MagicMock(write=MagicMock())),
+        ):
+            result = module.main()
+        assert result == 0
+        output_text = "".join(captured_output)
+        assert not output_text.startswith("\n"), "Comments-only output should not start with a newline"
+        assert output_text == comm
