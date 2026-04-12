@@ -343,6 +343,7 @@ worktrees:
     "identities_scanned": ["alice"]
   }
 }
+```
 
 ---
 

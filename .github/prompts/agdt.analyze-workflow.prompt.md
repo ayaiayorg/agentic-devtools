@@ -29,19 +29,43 @@ Print the error and **stop**.
 
 ### 0.3 Resolve Analysis Context
 
-Run the Python helper to resolve the analysis target:
+Run the Python helper to resolve the analysis target. Use the variant that
+matches the parameters parsed in §0.1:
+
+**When `--issue-key` was provided:**
 
 ```bash
 python -c "
 from agentic_devtools.cli.analysis import resolve_analysis_context
 import json
-ctx = resolve_analysis_context(issue_key='<K>' if issue_key else None, pr_id=<N> if pr_id else None)
+ctx = resolve_analysis_context(issue_key='PROJECT-123')
 print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
 "
 ```
 
-Replace `<K>` and `<N>` with the actual parameter values, or omit the parameters
-entirely when neither `--issue-key` nor `--pr-id` was provided.
+**When `--pr-id` was provided:**
+
+```bash
+python -c "
+from agentic_devtools.cli.analysis import resolve_analysis_context
+import json
+ctx = resolve_analysis_context(pr_id=42)
+print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
+"
+```
+
+**When neither was provided (bootstrap fallback):**
+
+```bash
+python -c "
+from agentic_devtools.cli.analysis import resolve_analysis_context
+import json
+ctx = resolve_analysis_context()
+print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
+"
+```
+
+Replace `'PROJECT-123'` and `42` with the actual parameter values from §0.1.
 
 Store the resulting `worktree_key` and `git_root` for use in subsequent phases.
 
@@ -51,6 +75,7 @@ Run the Python helper to discover all identity directories and their logs:
 
 ```bash
 python -c "
+from pathlib import Path
 from agentic_devtools.cli.analysis import list_identity_directories, scan_identity_logs
 import json
 identities = list_identity_directories(Path('<git_root>'))
