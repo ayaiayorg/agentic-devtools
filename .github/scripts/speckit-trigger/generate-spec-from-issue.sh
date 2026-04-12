@@ -543,12 +543,15 @@ $stripped_content"
         return 0
     fi
 
-    if [[ "$stall_detected" == "true" ]]; then
-        echo "[Phase 7]   Result: ✗ FAILED — stall detected with $final_violation_count remaining violation(s)" >&2
-    elif [[ $total_iterations -ge $max_iter ]]; then
-        echo "[Phase 7]   Result: ✗ FAILED — max iterations ($max_iter) exhausted with $final_violation_count remaining violation(s)" >&2
-    elif [[ $last_lint_exit -ne 0 && $final_violation_count -eq 0 ]]; then
+    # Check unparseable output before exhaustion: when lint fails but no
+    # violations were parsed, this is the most specific diagnosis regardless
+    # of whether we also hit the iteration limit.
+    if [[ $last_lint_exit -ne 0 && $final_violation_count -eq 0 ]]; then
         echo "[Phase 7]   Result: ✗ FAILED — markdownlint exited $last_lint_exit but violations could not be parsed" >&2
+    elif [[ "$stall_detected" == "true" ]]; then
+        echo "[Phase 7]   Result: ✗ FAILED — stall detected with $final_violation_count remaining violation(s)" >&2
+    elif [[ $total_iterations -ge $max_iter && $final_violation_count -gt 0 ]]; then
+        echo "[Phase 7]   Result: ✗ FAILED — max iterations ($max_iter) exhausted with $final_violation_count remaining violation(s)" >&2
     fi
 
     # Print remaining violations for actionable output (capped at 50 lines to
