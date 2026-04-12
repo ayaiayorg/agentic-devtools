@@ -329,8 +329,14 @@ parse_markdownlint_output() {
         # Pattern without col: filename:line rule description
         elif [[ "$line" =~ ^(.+):([0-9]+)[[:space:]]+([A-Z]+[0-9]+/[^[:space:]]+)[[:space:]]+(.+)$ ]]; then
             printf '%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "0" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
+        else
+            # Explicit no-op: prevents unmatched lines from leaving a non-zero
+            # exit status on the if-elif chain, which with set -euo pipefail
+            # would propagate through the pipeline and abort the caller.
+            :
         fi
     done
+    return 0
 }
 
 # ---------------------------------------------------------------------------
