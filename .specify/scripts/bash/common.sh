@@ -136,11 +136,13 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    # Use prefix-based lookup to support multiple branches per spec.
-    # Split declaration from assignment so a non-zero exit code from
-    # find_feature_dir_by_prefix (e.g., ambiguous prefix) propagates.
+    # Explicitly check the assignment so a non-zero exit code from
+    # find_feature_dir_by_prefix (e.g., ambiguous prefix) is returned
+    # before the heredoc below can overwrite it.
     local feature_dir
-    feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch")
+    if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
+        return 1
+    fi
 
     cat <<EOF
 REPO_ROOT='$repo_root'
