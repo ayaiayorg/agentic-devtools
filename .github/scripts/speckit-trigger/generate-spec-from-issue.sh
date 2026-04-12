@@ -46,6 +46,9 @@ ISSUE_URL="${ISSUE_URL:-}"
 COPILOT_MODEL="${COPILOT_MODEL:-claude-opus-4.6}"
 SPEC_BASE_PATH="${SPEC_BASE_PATH:-specs}"
 MARKDOWNLINT_MAX_ITERATIONS="${MARKDOWNLINT_MAX_ITERATIONS:-5}"
+# Maximum prompt size in characters for per-file LLM remediation (NFR-004).
+# Estimated token count = ceil(char_count / 4); 32000 chars ≈ 8000 tokens.
+MARKDOWNLINT_PROMPT_MAX_CHARS=32000
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -394,7 +397,7 @@ run_markdownlint_validation() {
 
         # Step 1: Auto-fix pass
         echo "[Phase 7]   Running markdownlint-cli2 --fix..." >&2
-        npx markdownlint-cli2 --no-globs --fix "$spec_dir"/**/*.md 2>/dev/null || true
+        npx markdownlint-cli2 --no-globs --fix "$spec_dir"/**/*.md 2>&1 || true
 
         # Step 2: Check-only pass — capture output
         local lint_output=""
@@ -483,10 +486,10 @@ $file_violations
 ## File content to fix
 $stripped_content"
 
-            # Check prompt size (NFR-004: <8K tokens ≈ 32000 chars)
+            # Check prompt size (NFR-004: <8K tokens ≈ MARKDOWNLINT_PROMPT_MAX_CHARS chars)
             local prompt_len=${#llm_prompt}
-            if [[ $prompt_len -gt 32000 ]]; then
-                echo "[Phase 7]     Warning: Prompt for $target_file exceeds 32000 chars ($prompt_len). Skipping LLM remediation for this file." >&2
+            if [[ $prompt_len -gt $MARKDOWNLINT_PROMPT_MAX_CHARS ]]; then
+                echo "[Phase 7]     Warning: Prompt for $target_file exceeds $MARKDOWNLINT_PROMPT_MAX_CHARS chars ($prompt_len). Skipping LLM remediation for this file." >&2
                 continue
             fi
 
@@ -527,7 +530,8 @@ $stripped_content"
         echo "[Phase 7]   Result: ✗ FAILED — max iterations ($max_iter) exhausted with $final_violation_count remaining violation(s)" >&2
     fi
 
-    # Print remaining violations for actionable output
+    # Print remaining violations for actionable output (capped at 50 lines to
+    # keep CI logs readable; full output is available via markdownlint re-run)
     echo "[Phase 7]   Remaining violations:" >&2
     npx markdownlint-cli2 --no-globs "$spec_dir"/**/*.md 2>&1 | head -50 >&2 || true
 
