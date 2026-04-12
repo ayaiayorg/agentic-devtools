@@ -37,37 +37,37 @@ Key decisions for this implementation:
 ## 3. Design Overview
 
 ```text
-┌──────────────────────────────────────────────┐
-│  generate-spec-from-issue.sh                 │
-│                                              │
-│  Phase 1: Specify   ─► spec.md               │
-│  Phase 2: Clarify   ─► spec.md (updated)     │
-│  Phase 3: Checklist ─► checklists/req.md     │
-│  Phase 4: Plan      ─► plan.md + extras      │
-│  Phase 5: Tasks     ─► tasks.md              │
-│  Phase 6: Analyze   ─► analysis-report.md    │
-│                                              │
-│  ┌──────────────────────────────────────┐    │
-│  │ Phase 7: Markdownlint Validation     │    │
-│  │                                      │    │
-│  │  for i in 1..MAX_ITERATIONS:         │    │
-│  │    1. Run markdownlint-cli2 --fix    │    │
-│  │    2. If clean → break (done)        │    │
-│  │    3. Parse remaining violations     │    │
-│  │    4. If same as last → stall break  │    │
-│  │    5. Build LLM prompt (<8K tokens)  │    │
-│  │    6. For each file with violations: │    │
-│  │       - Strip footer                 │    │
-│  │       - Send file + violations       │    │
-│  │       - Write corrected content      │    │
-│  │       - Re-append footer             │    │
-│  │    7. Log iteration summary          │    │
-│  │  end for                             │    │
-│  │  Fail if max iterations exhausted    │    │
-│  └──────────────────────────────────────┘    │
-│                                              │
-│  Output GITHUB_OUTPUT variables              │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  generate-spec-from-issue.sh                         │
+│                                                      │
+│  Phase 1: Specify   ─► spec.md                       │
+│  Phase 2: Clarify   ─► spec.md (updated)             │
+│  Phase 3: Checklist ─► checklists/requirements.md    │
+│  Phase 4: Plan      ─► plan.md + extras              │
+│  Phase 5: Tasks     ─► tasks.md                      │
+│  Phase 6: Analyze   ─► analysis-report.md            │
+│                                                      │
+│  ┌──────────────────────────────────────┐            │
+│  │ Phase 7: Markdownlint Validation     │            │
+│  │                                      │            │
+│  │  for i in 1..MAX_ITERATIONS:         │            │
+│  │    1. Run markdownlint-cli2 --fix    │            │
+│  │    2. If clean → break (done)        │            │
+│  │    3. Parse remaining violations     │            │
+│  │    4. If same as last → stall break  │            │
+│  │    5. Build LLM prompt (<8K tokens)  │            │
+│  │    6. For each file with violations: │            │
+│  │       - Strip footer                 │            │
+│  │       - Send file + violations       │            │
+│  │       - Write corrected content      │            │
+│  │       - Re-append footer             │            │
+│  │    7. Log iteration summary          │            │
+│  │  end for                             │            │
+│  │  Fail if max iterations exhausted    │            │
+│  └──────────────────────────────────────┘            │
+│                                                      │
+│  Output GITHUB_OUTPUT variables                      │
+└──────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Constraints
