@@ -12,10 +12,13 @@
 ## Task Group 1: Setup
 
 - [ ] T001 Document integration assumptions: identify `generate-spec-from-issue.sh`
-  orchestration insertion points (lines 655–719), list the existing helpers to be reused
-  (`call_llm`, `strip_model_footer`, `append_model_footer`), and record any
-  `.markdownlint-cli2.jsonc` constraints the loop must preserve — output as inline
-  comments in the implementation PR or a short note in the PR description
+  orchestration insertion points around the
+  `# ========================== Orchestration ====================================`
+  marker (including the Phase 6 markdown generation/validation flow), list the
+  existing helpers to be reused (`call_llm`, `strip_model_footer`,
+  `append_model_footer`), and record any `.markdownlint-cli2.jsonc` constraints
+  the loop must preserve — output as inline comments in the implementation PR
+  or a short note in the PR description
 - [ ] T002 Add `MARKDOWNLINT_MAX_ITERATIONS` env var handling near the top of
   `generate-spec-from-issue.sh` (alongside existing env vars, ~line 36–39) with default value `5`
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
@@ -120,7 +123,7 @@
 ## Task Group 7: Orchestration Integration
 
 - [ ] T022 Wire `run_markdownlint_validation` call into orchestration section of `generate-spec-from-issue.sh` as Phase 7,
-  after Phase 6 (Analyze, ~line 691) and before `GITHUB_OUTPUT` writes (~line 703)
+  after the `Phase 6/6: Analyze` block and before the `# Output results` section
   — `.github/scripts/speckit-trigger/generate-spec-from-issue.sh`
   - Depends on: T016, T017, T019, T020
 - [ ] T023 Update phase numbering in echo statements from `Phase N/6` to
