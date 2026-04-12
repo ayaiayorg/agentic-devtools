@@ -46,6 +46,12 @@ ISSUE_URL="${ISSUE_URL:-}"
 COPILOT_MODEL="${COPILOT_MODEL:-claude-opus-4.6}"
 SPEC_BASE_PATH="${SPEC_BASE_PATH:-specs}"
 MARKDOWNLINT_MAX_ITERATIONS="${MARKDOWNLINT_MAX_ITERATIONS:-5}"
+# Validate as a positive base-10 integer; fall back to default on bad input
+# (e.g., non-numeric strings or octal-looking values like "08").
+if ! [[ "$MARKDOWNLINT_MAX_ITERATIONS" =~ ^[0-9]+$ ]] || (( 10#$MARKDOWNLINT_MAX_ITERATIONS <= 0 )); then
+    echo "Warning: MARKDOWNLINT_MAX_ITERATIONS='$MARKDOWNLINT_MAX_ITERATIONS' is not a valid positive integer. Using default (5)." >&2
+    MARKDOWNLINT_MAX_ITERATIONS=5
+fi
 # Maximum prompt size in characters for per-file LLM remediation (NFR-004).
 # Estimated token count = ceil(char_count / 4); 32000 chars ≈ 8000 tokens.
 MARKDOWNLINT_PROMPT_MAX_CHARS=32000

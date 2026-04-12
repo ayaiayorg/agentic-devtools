@@ -388,6 +388,55 @@ assert_eq "outside file unchanged" "$OUTSIDE_BEFORE" "$OUTSIDE_AFTER"
 rm -rf "$TMPDIR_SCOPE"
 
 # ---------------------------------------------------------------------------
+# Test: MARKDOWNLINT_MAX_ITERATIONS validation (T026)
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: MARKDOWNLINT_MAX_ITERATIONS validation ==="
+
+# Self-contained helper that mirrors the validation block in generate-spec-from-issue.sh
+_test_validate_iterations() {
+    local MARKDOWNLINT_MAX_ITERATIONS="$1"
+    if ! [[ "$MARKDOWNLINT_MAX_ITERATIONS" =~ ^[0-9]+$ ]] || (( 10#$MARKDOWNLINT_MAX_ITERATIONS <= 0 )); then
+        echo "WARNING"
+        MARKDOWNLINT_MAX_ITERATIONS=5
+    fi
+    echo "$MARKDOWNLINT_MAX_ITERATIONS"
+}
+
+# Non-numeric value should fall back to default 5
+result=$(_test_validate_iterations "abc")
+TESTS_RUN=$((TESTS_RUN + 1))
+if echo "$result" | grep -q "WARNING" && echo "$result" | grep -q "^5$"; then
+    echo "  ✓ non-numeric value falls back to 5"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ non-numeric value falls back to 5 (got: $result)"
+    FAIL=$((FAIL + 1))
+fi
+
+# Zero should fall back to default
+result=$(_test_validate_iterations "0")
+TESTS_RUN=$((TESTS_RUN + 1))
+if echo "$result" | grep -q "WARNING" && echo "$result" | grep -q "^5$"; then
+    echo "  ✓ zero falls back to 5"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ zero falls back to 5 (got: $result)"
+    FAIL=$((FAIL + 1))
+fi
+
+# Valid positive integer should pass through unchanged
+result=$(_test_validate_iterations "3")
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ "$result" == "3" ]]; then
+    echo "  ✓ valid value passes through"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ valid value passes through (got: $result)"
+    FAIL=$((FAIL + 1))
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
