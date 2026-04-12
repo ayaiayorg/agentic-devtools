@@ -11,7 +11,7 @@
       (e.g., why `--issue-key` vs `--pr-id` matters for the analyst's workflow)
 - [ ] CHK002 All 5 user stories follow "As a [role], I want [goal], so that [benefit]" format and reference concrete
       agdt.analyze-workflow capabilities (multi-identity scanning, static-only mode, external_context output, etc.)
-- [ ] CHK003 Each of the 16 functional requirements has an explicit priority (must/should/could) — especially the
+- [ ] CHK003 Each of the 16 functional requirements has an explicit priority (MUST/SHOULD/MAY) — especially the
       mutual exclusion rule for `--issue-key` + `--pr-id` and the resolution precedence table
 - [ ] CHK004 Functional requirements describe *what* the system does (e.g., "scan all identity directories") without
       prescribing *how* it is implemented (no function signatures, class names, or data structure choices in requirements)
@@ -20,9 +20,10 @@
 
 - [ ] CHK005 Each user story has at least one testable acceptance criterion — verify the multi-identity log scanning
       story specifies the `[identity: {name}]` prefix format as an observable outcome
-- [ ] CHK006 All 7 edge cases are documented with exact error messages — confirm coverage of: missing state keys,
-      invalid `--issue-key`/`--pr-id` combination, no log files found, empty identity directories, inaccessible
-      external worktrees, nonexistent repo path, and the static-only mode boundary
+- [ ] CHK006 All 7 edge cases are documented with exact error messages — confirm coverage of: EC1 both
+      `--issue-key` and `--pr-id` provided (mutual exclusion), EC2 `--issue-key` with empty value, EC3 no
+      `.agdt/workflows/` directory, EC4 no identity directories found, EC5 inaccessible external worktree path,
+      EC6 `--static-only` with external worktrees present, EC7 identity directory with no matching logs
 - [ ] CHK007 Acceptance scenarios use Given/When/Then or equivalent structured format — especially for the
       `--issue-key` + `--pr-id` mutual exclusion error path and the read-only safety guarantee for external worktrees
 - [ ] CHK008 All 5 NFRs have measurable thresholds — verify backward compatibility defines what "compatible" means
