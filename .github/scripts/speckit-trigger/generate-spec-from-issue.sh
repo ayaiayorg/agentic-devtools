@@ -369,12 +369,12 @@ run_markdownlint_validation() {
     fi
 
     # Guard: check for markdown files (EC9 — empty spec directory)
+    # Use find instead of bash glob to reliably discover nested .md files
+    # without requiring shopt -s globstar (which is not enabled by default).
     local md_files=()
-    shopt -s nullglob
-    for f in "$spec_dir"/*.md "$spec_dir"/**/*.md; do
+    while IFS= read -r -d '' f; do
         md_files+=("$f")
-    done
-    shopt -u nullglob
+    done < <(find "$spec_dir" -name '*.md' -type f -print0)
 
     if [[ ${#md_files[@]} -eq 0 ]]; then
         echo "[Phase 7] No markdown files found in $spec_dir — skipping validation." >&2
@@ -386,6 +386,7 @@ run_markdownlint_validation() {
     local iteration=0
     local total_iterations=0
     local final_violation_count=0
+    local last_lint_exit=1
     local stall_detected=false
 
     echo "[Phase 7] Starting markdownlint validation (max $max_iter iterations, ${#md_files[@]} markdown files)" >&2
@@ -397,12 +398,13 @@ run_markdownlint_validation() {
 
         # Step 1: Auto-fix pass
         echo "[Phase 7]   Running markdownlint-cli2 --fix..." >&2
-        npx markdownlint-cli2 --no-globs --fix "$spec_dir"/**/*.md 2>&1 || true
+        npx markdownlint-cli2 --no-globs --fix "${md_files[@]}" 2>&1 || true
 
         # Step 2: Check-only pass — capture output
         local lint_output=""
         local lint_exit=0
-        lint_output=$(npx markdownlint-cli2 --no-globs "$spec_dir"/**/*.md 2>&1) || lint_exit=$?
+        lint_output=$(npx markdownlint-cli2 --no-globs "${md_files[@]}" 2>&1) || lint_exit=$?
+        last_lint_exit=$lint_exit
 
         if [[ $lint_exit -eq 0 ]]; then
             echo "[Phase 7]   ✓ All files lint-clean after auto-fix." >&2
@@ -419,6 +421,15 @@ run_markdownlint_validation() {
             violation_count=$(echo "$parsed" | wc -l)
         fi
         final_violation_count=$violation_count
+
+        # Guard: lint failed but parser found no violations — treat as failure
+        # with diagnostics so unexpected output formats don't silently pass.
+        if [[ $violation_count -eq 0 ]]; then
+            echo "[Phase 7]   ⚠ markdownlint exited $lint_exit but no violations could be parsed." >&2
+            echo "[Phase 7]   Raw output:" >&2
+            echo "$lint_output" | head -20 >&2
+            break
+        fi
 
         # Collect affected files
         local affected_files=""
@@ -514,12 +525,14 @@ $stripped_content"
     echo "[Phase 7] === Validation Summary ===" >&2
     echo "[Phase 7]   Iterations run: $total_iterations/$max_iter" >&2
     echo "[Phase 7]   Final violations: $final_violation_count" >&2
+    echo "[Phase 7]   Last lint exit code: $last_lint_exit" >&2
     if [[ "$stall_detected" == "true" ]]; then
         echo "[Phase 7]   Stall detected: yes" >&2
     fi
 
-    # Return status
-    if [[ $final_violation_count -eq 0 ]]; then
+    # Return status — gate on actual lint exit code, not just parsed count.
+    # This prevents silent success when lint fails but output can't be parsed.
+    if [[ $last_lint_exit -eq 0 && $final_violation_count -eq 0 ]]; then
         echo "[Phase 7]   Result: ✓ SUCCESS — all files lint-clean" >&2
         return 0
     fi
@@ -528,12 +541,14 @@ $stripped_content"
         echo "[Phase 7]   Result: ✗ FAILED — stall detected with $final_violation_count remaining violation(s)" >&2
     elif [[ $total_iterations -ge $max_iter ]]; then
         echo "[Phase 7]   Result: ✗ FAILED — max iterations ($max_iter) exhausted with $final_violation_count remaining violation(s)" >&2
+    elif [[ $last_lint_exit -ne 0 && $final_violation_count -eq 0 ]]; then
+        echo "[Phase 7]   Result: ✗ FAILED — markdownlint exited $last_lint_exit but violations could not be parsed" >&2
     fi
 
     # Print remaining violations for actionable output (capped at 50 lines to
     # keep CI logs readable; full output is available via markdownlint re-run)
     echo "[Phase 7]   Remaining violations:" >&2
-    npx markdownlint-cli2 --no-globs "$spec_dir"/**/*.md 2>&1 | head -50 >&2 || true
+    npx markdownlint-cli2 --no-globs "${md_files[@]}" 2>&1 | head -50 >&2 || true
 
     return 1
 }

@@ -193,7 +193,7 @@ EOF
 
 # Verify violations exist before auto-fix
 lint_before_exit=0
-npx markdownlint-cli2 --no-globs "$TMPDIR_TEST"/**/*.md 2>/dev/null || lint_before_exit=$?
+npx markdownlint-cli2 --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_before_exit=$?
 
 TESTS_RUN=$((TESTS_RUN + 1))
 if [[ $lint_before_exit -ne 0 ]]; then
@@ -205,11 +205,11 @@ else
 fi
 
 # Run auto-fix
-npx markdownlint-cli2 --no-globs --fix "$TMPDIR_TEST"/**/*.md 2>/dev/null || true
+npx markdownlint-cli2 --no-globs --fix "$TMPDIR_TEST/test.md" 2>/dev/null || true
 
 # Verify violations resolved
 lint_after_exit=0
-npx markdownlint-cli2 --no-globs "$TMPDIR_TEST"/**/*.md 2>/dev/null || lint_after_exit=$?
+npx markdownlint-cli2 --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_after_exit=$?
 assert_eq "post-auto-fix: no violations" "0" "$lint_after_exit"
 
 # ---------------------------------------------------------------------------
@@ -296,6 +296,61 @@ fi
 assert_contains "reports failure" "FAILED" "$output"
 
 rm -rf "$TMPDIR_EXHAUST"
+
+# ---------------------------------------------------------------------------
+# Test: Lint fails but violations unparseable (Comment 2 regression test)
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Lint exit non-zero with unparseable output ==="
+
+TMPDIR_UNPARSE=$(mktemp -d /tmp/mdlint-test-unparse.XXXXXX)
+
+# Create a valid file so the function proceeds past the empty-dir guard
+cat > "$TMPDIR_UNPARSE/spec.md" << 'EOF'
+# Valid Spec
+
+Content here.
+EOF
+
+# Override parse_markdownlint_output to always return empty (simulates
+# an unexpected output format that the parser can't handle)
+_orig_parse=$(declare -f parse_markdownlint_output)
+parse_markdownlint_output() { echo ""; }
+
+# Override npx to simulate lint failure with unparseable output:
+# first call (--fix) succeeds, second call (check-only) fails
+_npx_call_count=0
+npx() {
+    _npx_call_count=$((_npx_call_count + 1))
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    echo "some unexpected markdownlint output format"
+    return 1
+}
+
+call_llm() { return 1; }
+MARKDOWNLINT_MAX_ITERATIONS=2
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_UNPARSE" 2>&1) || exit_code=$?
+
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ $exit_code -ne 0 ]]; then
+    echo "  ✓ unparseable lint failure returns non-zero"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ unparseable lint failure should return non-zero (got 0)"
+    FAIL=$((FAIL + 1))
+fi
+
+assert_contains "reports unparseable failure" "FAILED" "$output"
+
+# Restore originals
+eval "$_orig_parse"
+unset -f npx
+unset _npx_call_count
+
+rm -rf "$TMPDIR_UNPARSE"
 
 # ---------------------------------------------------------------------------
 # Test: $SPEC_DIR scoping (T025 — files outside spec dir are not modified)
