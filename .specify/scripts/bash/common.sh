@@ -136,12 +136,15 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    # Explicitly check the assignment so a non-zero exit code from
-    # find_feature_dir_by_prefix (e.g., ambiguous prefix) is returned
-    # before the heredoc below can overwrite it.
+    # This helper is consumed by callers using `eval $(get_feature_paths)`.
+    # A non-zero exit status inside command substitution is not reliably
+    # fatal under `set -e`, so emit a failing command for eval to execute
+    # when path resolution fails. The underlying error text is already
+    # written to stderr by find_feature_dir_by_prefix.
     local feature_dir
     if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
-        return 1
+        echo "false"
+        return 0
     fi
 
     cat <<EOF
