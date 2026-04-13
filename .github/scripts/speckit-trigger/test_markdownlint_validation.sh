@@ -437,6 +437,307 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test: strip_llm_preamble
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: strip_llm_preamble ==="
+
+# T-preamble-1: No preamble (heading first line) — no-op
+input_clean="# My Heading
+
+Some content here."
+result=$(strip_llm_preamble "$input_clean" "# My Heading" 2>/dev/null)
+assert_eq "no preamble returns as-is" "$input_clean" "$result"
+
+# T-preamble-2: Conversational preamble before heading
+input_preamble="All 13 MD013 violations fixed — here is the corrected file:
+
+# My Heading
+
+Some content here."
+expected_stripped="# My Heading
+
+Some content here."
+result=$(strip_llm_preamble "$input_preamble" "# My Heading" 2>/dev/null)
+assert_eq "strips preamble before heading" "$expected_stripped" "$result"
+
+# T-preamble-3: Preamble with original file starting with heading (strategy 1)
+input_preamble3="Sure, here is the fixed file:
+# Requirements Checklist
+
+- Item 1
+- Item 2"
+expected3="# Requirements Checklist
+
+- Item 1
+- Item 2"
+result=$(strip_llm_preamble "$input_preamble3" "# Requirements Checklist" 2>/dev/null)
+assert_eq "strips conversational prefix" "$expected3" "$result"
+
+# T-preamble-4: Preamble with list-start (strategy 2, no heading in original)
+input_list="Good, I have fixed the violations:
+- Item 1
+- Item 2"
+expected_list="- Item 1
+- Item 2"
+result=$(strip_llm_preamble "$input_list" "- Item 1" 2>/dev/null)
+assert_eq "strips preamble before list" "$expected_list" "$result"
+
+# T-preamble-5: Empty input returns empty
+result=$(strip_llm_preamble "" "" 2>/dev/null)
+assert_eq "empty input returns empty" "" "$result"
+
+# T-preamble-6: Blockquote start is valid markdown
+input_bq="> This is a quote"
+result=$(strip_llm_preamble "$input_bq" "> Original" 2>/dev/null)
+assert_eq "blockquote is valid md start" "$input_bq" "$result"
+
+# T-preamble-7: Code fence start is valid markdown
+input_fence="\`\`\`python
+print('hello')
+\`\`\`"
+result=$(strip_llm_preamble "$input_fence" "\`\`\`python" 2>/dev/null)
+assert_eq "code fence is valid md start" "$input_fence" "$result"
+
+# T-preamble-8: Multi-line preamble stripped
+input_multi="I have reviewed the file.
+All violations have been resolved.
+Here is the corrected version:
+
+# Document Title
+
+Content."
+expected_multi="# Document Title
+
+Content."
+result=$(strip_llm_preamble "$input_multi" "# Document Title" 2>/dev/null)
+assert_eq "multi-line preamble stripped" "$expected_multi" "$result"
+
+# T-preamble-9: Warns about preamble on stderr
+warn_output=$(strip_llm_preamble "Certainly! Here is the fix:
+# Heading" "# Heading" 2>&1 >/dev/null)
+assert_contains "logs preamble warning" "preamble detected" "$warn_output"
+
+# T-preamble-10: Leading blank line should not bypass preamble stripping
+input_blank_lead="
+All violations fixed!
+# My Heading
+
+Content."
+expected_blank_lead="# My Heading
+
+Content."
+result=$(strip_llm_preamble "$input_blank_lead" "# My Heading" 2>/dev/null)
+assert_eq "blank first line does not bypass stripping" "$expected_blank_lead" "$result"
+
+# T-preamble-10b: Leading blank lines alone should be trimmed before valid markdown
+input_blank_only="
+# Heading
+
+Content."
+expected_blank_only="# Heading
+
+Content."
+result=$(strip_llm_preamble "$input_blank_only" "# Heading" 2>/dev/null)
+assert_eq "blank lines before valid markdown are trimmed" "$expected_blank_only" "$result"
+
+# T-preamble-11: h3+ headings are recognised as valid markdown start
+input_h3="### Sub Heading
+
+Content."
+result=$(strip_llm_preamble "$input_h3" "### Sub Heading" 2>/dev/null)
+assert_eq "h3 heading is valid md start" "$input_h3" "$result"
+
+# T-preamble-12: HTML comment start is valid markdown (no preamble — no-op)
+input_comment="<!-- markdownlint-disable MD013 -->
+# My Heading
+
+Content."
+result=$(strip_llm_preamble "$input_comment" "<!-- markdownlint-disable MD013 -->" 2>/dev/null)
+assert_eq "HTML comment is valid md start" "$input_comment" "$result"
+
+# T-preamble-13: Preamble before HTML comment is stripped
+input_comment_preamble="Sure, here is the corrected file:
+<!-- markdownlint-disable MD013 -->
+# My Heading
+
+Content."
+expected_comment_preamble="<!-- markdownlint-disable MD013 -->
+# My Heading
+
+Content."
+result=$(strip_llm_preamble "$input_comment_preamble" "<!-- markdownlint-disable MD013 -->" 2>/dev/null)
+assert_eq "strips preamble before HTML comment" "$expected_comment_preamble" "$result"
+
+# T-preamble-14: + list marker is valid markdown start (no-op)
+input_plus_list="+ Item one
++ Item two"
+result=$(strip_llm_preamble "$input_plus_list" "+ Item one" 2>/dev/null)
+assert_eq "plus list marker is valid md start" "$input_plus_list" "$result"
+
+# T-preamble-15: Ordered list with space is valid markdown start (no-op)
+input_ordered="1. First item
+2. Second item"
+result=$(strip_llm_preamble "$input_ordered" "1. First item" 2>/dev/null)
+assert_eq "ordered list is valid md start" "$input_ordered" "$result"
+
+# T-preamble-16: Dot without trailing space is NOT valid markdown (e.g. version strings)
+input_version="2024.04 release notes
+# Heading
+
+Content."
+expected_version="# Heading
+
+Content."
+result=$(strip_llm_preamble "$input_version" "# Heading" 2>/dev/null)
+assert_eq "version-like line is not valid md start" "$expected_version" "$result"
+
+# ---------------------------------------------------------------------------
+# Test: Violation-count stall detection
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Violation-count stall detection ==="
+
+TMPDIR_COUNTSTALL=$(mktemp -d /tmp/mdlint-test-countstall.XXXXXX)
+
+# Create a file with a violation that auto-fix can't resolve
+python3 -c "
+print('# Heading')
+print()
+words = 'the quick brown fox jumps over the lazy dog and keeps running through the vast open fields '
+line = ''
+while len(line) < 220:
+    line += words
+print(line.strip())
+" > "$TMPDIR_COUNTSTALL/spec.md"
+
+# Stub npx/markdownlint so this test doesn't depend on the real linter.
+# First call per iteration is --fix (no-op); second is check-only which
+# returns a synthetic violation whose line number shifts each call (so
+# fingerprints change) but the violation count stays at 1.
+_countstall_npx_file=$(mktemp /tmp/mdlint-countstall-npx.XXXXXX)
+echo "0" > "$_countstall_npx_file"
+npx() {
+    local n
+    n=$(cat "$_countstall_npx_file")
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    n=$((n + 1))
+    echo "$n" > "$_countstall_npx_file"
+    # Emit a synthetic violation at a shifting line number
+    local vline=$((10 + n))
+    echo "$TMPDIR_COUNTSTALL/spec.md:${vline}:1 MD013/line-length Line length [Expected: 200; Actual: 250]"
+    return 1
+}
+
+# Override call_llm to return content with violations at *different* line
+# numbers each time (so fingerprints change) but the same violation count.
+# This simulates the LLM introducing new violations while fixing others.
+# We use a file-based counter since call_llm runs in a subshell.
+_countstall_file=$(mktemp /tmp/mdlint-countstall-counter.XXXXXX)
+echo "0" > "$_countstall_file"
+call_llm() {
+    local n
+    n=$(cat "$_countstall_file")
+    n=$((n + 1))
+    echo "$n" > "$_countstall_file"
+    python3 -c "
+print('# Heading')
+print()
+# Add varying short paragraphs so the long line ends up on different lines
+for i in range($n + 1):
+    print('Short paragraph ' + str(i) + '.')
+    print()
+words = 'different long text that exceeds the line length limit by a lot because we keep adding more words '
+line = ''
+while len(line) < 220:
+    line += words
+print(line.strip())
+"
+}
+
+MARKDOWNLINT_MAX_ITERATIONS=5
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_COUNTSTALL" 2>&1) || exit_code=$?
+
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ $exit_code -ne 0 ]]; then
+    echo "  ✓ count-stall returns non-zero"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ count-stall should return non-zero (got 0)"
+    FAIL=$((FAIL + 1))
+fi
+
+assert_contains "reports stall in output" "Stall detected" "$output"
+
+# Should not exhaust all 5 iterations — stall should trigger earlier
+assert_contains "exits before max iterations" "violation count has not decreased" "$output"
+
+unset -f npx
+rm -rf "$TMPDIR_COUNTSTALL"
+rm -f "$_countstall_file"
+rm -f "$_countstall_npx_file"
+
+# ---------------------------------------------------------------------------
+# Test: Whitespace-only LLM output should not overwrite file
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Whitespace-only LLM output guard ==="
+
+TMPDIR_WSGUARD=$(mktemp -d /tmp/mdlint-test-wsguard.XXXXXX)
+
+# Create a markdown file with a violation
+printf '# Heading\n\n%s\n' "$(printf '%0.sX' {1..250})" > "$TMPDIR_WSGUARD/spec.md"
+original_content=$(cat "$TMPDIR_WSGUARD/spec.md")
+
+# Stub npx: first call (--fix) is no-op, second (check-only) reports a violation,
+# subsequent calls report clean so the loop terminates.
+_wsguard_npx_file=$(mktemp /tmp/mdlint-wsguard-npx.XXXXXX)
+echo "0" > "$_wsguard_npx_file"
+npx() {
+    local n
+    n=$(cat "$_wsguard_npx_file")
+    n=$((n + 1))
+    echo "$n" > "$_wsguard_npx_file"
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    if [[ $n -le 2 ]]; then
+        echo "$TMPDIR_WSGUARD/spec.md:3:1 MD013/line-length Line length [Expected: 200; Actual: 250]"
+        return 1
+    fi
+    return 0
+}
+
+# Override call_llm to return whitespace-only content
+call_llm() {
+    printf '\n   \n\n'
+}
+
+MARKDOWNLINT_MAX_ITERATIONS=3
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_WSGUARD" 2>&1) || exit_code=$?
+
+assert_contains "logs whitespace-only warning" "blank or whitespace-only" "$output"
+
+# Verify original file content was preserved (not overwritten with whitespace)
+current_content=$(cat "$TMPDIR_WSGUARD/spec.md")
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ "$current_content" == "$original_content" ]]; then
+    echo "  ✓ file not overwritten with whitespace-only content"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ file was overwritten despite whitespace-only LLM output"
+    FAIL=$((FAIL + 1))
+fi
+
+unset -f npx
+rm -rf "$TMPDIR_WSGUARD"
+rm -f "$_wsguard_npx_file"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
