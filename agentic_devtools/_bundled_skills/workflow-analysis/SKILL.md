@@ -120,10 +120,66 @@ The following JSON Schema defines the structure of analysis output produced by
         "items": { "type": "integer" }
       },
       "description": "Maps finding ID (as string key) to array of downstream finding IDs it causes."
+    },
+    "external_context": {
+      "oneOf": [
+        { "$ref": "#/$defs/ExternalContext" },
+        { "type": "null" }
+      ],
+      "description": "Context from external worktrees (null when --static-only or no external worktrees with .agdt/workflows/ directories are found)."
     }
   },
   "additionalProperties": false,
   "$defs": {
+    "ExternalContext": {
+      "type": "object",
+      "required": ["worktrees_scanned", "log_evidence", "identities_scanned"],
+      "properties": {
+        "worktrees_scanned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths of external worktrees that were scanned for log evidence."
+        },
+        "log_evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExternalLogEvidence" },
+          "description": "Log evidence collected from external worktrees."
+        },
+        "identities_scanned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Identity directory names that were scanned."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExternalLogEvidence": {
+      "type": "object",
+      "required": ["worktree_path", "identity", "log_file", "excerpt", "timestamp"],
+      "properties": {
+        "worktree_path": {
+          "type": "string",
+          "description": "Path to the external worktree."
+        },
+        "identity": {
+          "type": "string",
+          "description": "Identity directory name where the log was found."
+        },
+        "log_file": {
+          "type": "string",
+          "description": "Absolute path to the log file."
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "Last lines of the log file (truncated to 500 lines)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "File modification time as ISO-8601 string."
+        }
+      },
+      "additionalProperties": false
+    },
     "Finding": {
       "type": "object",
       "required": [
@@ -255,7 +311,8 @@ analysis (`agdt_run_id` race condition). This is a **historical analysis excerpt
   "priority_order": [1],
   "cascade_graph": {
     "1": []
-  }
+  },
+  "external_context": null
 }
 ```
 
@@ -265,6 +322,28 @@ analysis (`agdt_run_id` race condition). This is a **historical analysis excerpt
 - `cascade_impact` = 0 (no downstream cascades in this excerpt)
 - `fixability_bonus` = +1 (fix is ~15 lines of code)
 - **`priority_score` = 10 + 0 + 1 = 11**
+
+**`external_context` field:** Set to `null` when `--static-only` is passed or no
+external worktrees with `.agdt/workflows/` directories are found. When populated, it contains evidence from external
+worktrees:
+
+```json
+{
+  "external_context": {
+    "worktrees_scanned": ["/home/user/repos/my-project-PROJ-1234"],
+    "log_evidence": [
+      {
+        "worktree_path": "/home/user/repos/my-project-PROJ-1234",
+        "identity": "alice",
+        "log_file": "/home/user/repos/my-project-PROJ-1234/.agdt/workflows/alice/PROJ-1234/background-tasks/logs/task_20260407.log",
+        "excerpt": "2026-04-07T12:05:00Z INFO: Workflow step completed",
+        "timestamp": "2026-04-07T12:05:00+00:00"
+      }
+    ],
+    "identities_scanned": ["alice"]
+  }
+}
+```
 
 ---
 

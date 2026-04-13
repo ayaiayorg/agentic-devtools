@@ -6,6 +6,98 @@ optimization opportunities by following a structured methodology.
 
 ---
 
+## Phase 0: Parameter Parsing & Context Resolution
+
+### 0.1 Parse Extended Arguments
+
+Extract from `$ARGUMENTS`:
+
+- `{workflow_name}` — required kebab-case workflow identifier (e.g.
+  `pull-request-review`, `work-on-jira-issue`)
+- `--issue-key {K}` — optional issue key for worktree scoping (e.g.
+  `--issue-key PROJECT-123`)
+- `--pr-id {N}` — optional PR ID for worktree scoping (e.g. `--pr-id 42`)
+- `--static-only` — optional flag to disable external worktree log scanning
+
+### 0.2 Mutual Exclusion Check
+
+If both `--issue-key` and `--pr-id` are present:
+
+> ERROR: --issue-key and --pr-id are mutually exclusive. Provide one or neither.
+
+Print the error and **stop**.
+
+### 0.3 Resolve Analysis Context
+
+Run the Python helper to resolve the analysis target. Use the variant that
+matches the parameters parsed in §0.1:
+
+**When `--issue-key` was provided:**
+
+```bash
+python -c "
+import sys
+from agentic_devtools.cli.analysis import resolve_analysis_context
+import json
+ctx = resolve_analysis_context(issue_key=sys.argv[1])
+print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
+" "PROJECT-123"
+```
+
+**When `--pr-id` was provided:**
+
+```bash
+python -c "
+import sys
+from agentic_devtools.cli.analysis import resolve_analysis_context
+import json
+ctx = resolve_analysis_context(pr_id=sys.argv[1])
+print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
+" "42"
+```
+
+**When neither was provided (bootstrap fallback):**
+
+```bash
+python -c "
+from agentic_devtools.cli.analysis import resolve_analysis_context
+import json
+ctx = resolve_analysis_context()
+print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
+"
+```
+
+Replace `"PROJECT-123"` and `"42"` with the actual parameter values from §0.1.
+
+Store the resulting `worktree_key` and `git_root` for use in subsequent phases.
+
+### 0.4 Scan Identity Directories
+
+Run the Python helper to discover all identity directories and their logs:
+
+```bash
+python -c "
+import sys
+from pathlib import Path
+from agentic_devtools.cli.analysis import list_identity_directories, scan_identity_logs
+import json
+git_root = Path(sys.argv[1])
+worktree_key = sys.argv[2]
+workflow_name = sys.argv[3]
+identities = list_identity_directories(git_root)
+logs = scan_identity_logs(git_root, worktree_key, workflow_name)
+print(json.dumps({
+  'identities': [{'name': d.name, 'owner_email': d.owner_email} for d in identities],
+  'logs': [{'identity': l.identity, 'path': str(l.path), 'modified_time': l.modified_time} for l in logs]
+}))
+" "<git_root>" "<worktree_key>" "<workflow_name>"
+```
+
+If no identity directories are found, proceed with code-only analysis and note
+this in the findings.
+
+---
+
 ## Phase 1: Parse Input & Load Skill
 
 ### 1.1 Extract Workflow Name
@@ -155,12 +247,42 @@ resolution described later in this prompt (for example,
 `AGENTIC_DEVTOOLS_STATE_DIR` / `get_state_dir()` semantics) rather than
 assuming `.agdt/workflows/`, which is only the default location.
 
-Search for log files under the resolved `state_dir` that match the workflow
-name, including background-task log locations beneath that directory. Read any
-available logs to find actual error messages, timestamps, and state snapshots
-that confirm or refute the hypothesized failure modes from Step 5.
+**Multi-identity scanning:** If Phase 0 resolved identity directories and logs,
+use the `scan_identity_logs()` results from Phase 0.4 instead of searching a
+single directory. Each log excerpt should be attributed with the identity prefix
+using `format_evidence_prefix()`:
 
-If no log files exist, note in each finding's `evidence` field:
+```bash
+python -c "
+import sys
+from agentic_devtools.cli.analysis import format_evidence_prefix
+prefix = format_evidence_prefix(sys.argv[1])
+print(prefix)
+" "<identity_name>"
+```
+
+This produces `[identity: <identity_name>]` — prepend this to each log excerpt
+in the evidence field so the reader knows which agent produced the log.
+
+**External worktree context:** When `--static-only` was NOT set in Phase 0,
+also collect external worktree evidence:
+
+```bash
+python -c "
+import sys
+from agentic_devtools.cli.analysis import collect_external_context, build_external_context_field
+from pathlib import Path
+import json
+ctx = collect_external_context(Path(sys.argv[1]), sys.argv[2], static_only=False)
+result = build_external_context_field(ctx)
+print(json.dumps(result))
+" "<git_root>" "<worktree_key>"
+```
+
+Merge any external log evidence into the findings' `evidence` fields, attributed
+with both the identity prefix and the worktree path.
+
+If no log files exist (from any source), note in each finding's `evidence` field:
 
 > No log evidence available — this finding is based on code analysis only.
 
@@ -263,9 +385,18 @@ fields:
   "priority_order": [1],
   "cascade_graph": {
     "1": [2, 3]
-  }
+  },
+  "external_context": null
 }
 ```
+
+**`external_context` field rules:**
+
+- When `--static-only` was set or no external worktrees were found: set to `null`
+- When external worktree evidence was collected: populate with the dict returned
+  by `build_external_context_field()` (contains `worktrees_scanned`,
+  `log_evidence`, and `identities_scanned`)
+- The field must always be present in the output (set to `null`, never omitted)
 
 ### 3.3 Write Markdown Report
 
@@ -312,6 +443,10 @@ Before finalizing, verify the output:
 5. Every key in `cascade_graph` matches a finding `id`, and every referenced
    downstream ID exists in `findings`.
 6. The `cascade_graph` is a DAG (no circular references).
+7. If `external_context` is present and not `null`, validate it contains
+   `worktrees_scanned`, `log_evidence`, and `identities_scanned` fields. If
+   `external_context` is `null`, that is valid (static-only or no external
+   worktrees).
 
 If any validation check fails, fix the output and re-write both files.
 
@@ -349,3 +484,8 @@ If any validation check fails, fix the output and re-write both files.
 | Output directory missing | Create it. |
 | Circular cascade detected | Break the weakest edge and note in executive summary. |
 | Zero findings | Write valid empty output files and report success. |
+| Both `--issue-key` and `--pr-id` provided | Print mutual exclusion error and **stop**. |
+| `--issue-key` or `--pr-id` value missing | Print usage error and **stop**. |
+| No identity directories found | Proceed with code-only evidence. Note in findings. |
+| External worktree inaccessible | Log warning, continue with available evidence. |
+| `--static-only` with external worktrees present | Respect flag — skip external scanning, set `external_context: null`. |
