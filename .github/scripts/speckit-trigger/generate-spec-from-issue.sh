@@ -363,6 +363,142 @@ compute_violation_fingerprint() {
 }
 
 # ---------------------------------------------------------------------------
+# _is_valid_md_start <line>
+#
+# Returns 0 (true) if the given line looks like a valid markdown construct
+# that could legitimately begin a file: heading, blockquote, list item,
+# table row, link/image, fenced code, ordered list, setext underline, or
+# HTML comment.  Used by strip_llm_preamble to distinguish real content
+# from conversational preamble.
+#
+# Defined at top level (not inside strip_llm_preamble) because bash
+# function definitions are always global — nesting would pollute the
+# caller's namespace just the same.
+# ---------------------------------------------------------------------------
+_is_valid_md_start() {
+    local line="$1"
+    [[ -z "$line" ]] && return 1
+    [[ "$line" =~ ^#{1,6}[[:space:]]+ ]] && return 0
+    [[ "$line" =~ ^\> ]] && return 0
+    [[ "$line" =~ ^-[[:space:]]+ ]] && return 0
+    [[ "$line" =~ ^\*[[:space:]]+ ]] && return 0
+    [[ "$line" =~ ^\+[[:space:]]+ ]] && return 0
+    [[ "$line" =~ ^\| ]] && return 0
+    [[ "$line" =~ ^\[ ]] && return 0
+    [[ "$line" =~ ^! ]] && return 0
+    [[ "$line" =~ ^\`\`\` ]] && return 0
+    [[ "$line" =~ ^[0-9]+\.[[:space:]]+ ]] && return 0
+    [[ "$line" =~ ^---+ ]] && return 0
+    [[ "$line" =~ ^===+ ]] && return 0
+    [[ "$line" == "<!--"* ]] && return 0
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# strip_llm_preamble <llm_output> <original_first_line>
+#
+# Safety net that removes conversational preamble text that LLMs sometimes
+# prepend to their output (e.g. "All 13 violations fixed — here's the
+# corrected file:").  If the first line of the LLM output does not look
+# like valid markdown, the function searches for the first heading line
+# (# ...) when the original file started with a heading, or strips lines
+# until a recognised markdown construct is found.
+#
+# Prints the cleaned content to stdout.  If no preamble is detected, the
+# output is identical to the input (no-op).
+# ---------------------------------------------------------------------------
+strip_llm_preamble() {
+    local llm_output="$1"
+    local original_first_line="${2:-}"
+    local _fl line
+
+    [[ -z "$llm_output" ]] && return 0
+
+    # Skip leading blank lines to find the first non-empty line.
+    # A blank first line should not be treated as a valid markdown start.
+    local first_line=""
+    local skipped_blanks=false
+    while IFS= read -r _fl; do
+        if [[ -n "$_fl" ]]; then
+            first_line="$_fl"
+            break
+        else
+            skipped_blanks=true
+        fi
+    done <<< "$llm_output"
+
+    # If the entire output is blank lines, return as-is
+    [[ -z "$first_line" ]] && { printf '%s' "$llm_output"; return 0; }
+
+    # If the first non-empty line is valid markdown...
+    if _is_valid_md_start "$first_line"; then
+        if [[ "$skipped_blanks" == true ]]; then
+            # Leading blank lines before valid markdown — trim them to avoid
+            # MD041 violations (the file must start with content, not blanks).
+            local trimmed=""
+            local found=false
+            while IFS= read -r line; do
+                if [[ "$found" == true ]]; then
+                    trimmed+="$line"$'\n'
+                elif [[ -n "$line" ]]; then
+                    found=true
+                    trimmed+="$line"$'\n'
+                fi
+            done <<< "$llm_output"
+            [[ -n "$trimmed" ]] && trimmed="${trimmed%$'\n'}"
+            printf '%s' "$trimmed"
+        else
+            # No leading blanks — return as-is
+            printf '%s' "$llm_output"
+        fi
+        return 0
+    fi
+
+    # Preamble detected — log a warning
+    echo "[Phase 7]     ⚠ LLM preamble detected: \"$(printf '%.60s' "$first_line")...\" — stripping." >&2
+
+    # Strategy 1: If the original file started with a heading, find the first
+    # heading line in the LLM output and strip everything before it.
+    if [[ "$original_first_line" =~ ^#{1,6}[[:space:]]+ ]]; then
+        local found_heading=false
+        local result=""
+        while IFS= read -r line; do
+            if [[ "$found_heading" == true ]]; then
+                result+="$line"$'\n'
+            elif [[ "$line" =~ ^#{1,6}[[:space:]]+ ]]; then
+                found_heading=true
+                result+="$line"$'\n'
+            fi
+        done <<< "$llm_output"
+        if [[ "$found_heading" == true && -n "$result" ]]; then
+            # Remove trailing newline added by the loop
+            printf '%s' "${result%$'\n'}"
+            return 0
+        fi
+    fi
+
+    # Strategy 2: Find the first line that looks like valid markdown
+    local found_md=false
+    local result=""
+    while IFS= read -r line; do
+        if [[ "$found_md" == true ]]; then
+            result+="$line"$'\n'
+        elif _is_valid_md_start "$line"; then
+            found_md=true
+            result+="$line"$'\n'
+        fi
+    done <<< "$llm_output"
+    if [[ "$found_md" == true && -n "$result" ]]; then
+        printf '%s' "${result%$'\n'}"
+        return 0
+    fi
+
+    # Strategy 3: No valid markdown found — keep the LLM output unchanged
+    echo "[Phase 7]     ⚠ Could not find valid markdown start in LLM output. Keeping LLM output unchanged." >&2
+    printf '%s' "$llm_output"
+}
+
+# ---------------------------------------------------------------------------
 # run_markdownlint_validation <spec_dir>
 #
 # Runs the markdownlint validation/remediation loop for markdown files in
@@ -395,6 +531,8 @@ run_markdownlint_validation() {
 
     local max_iter="$MARKDOWNLINT_MAX_ITERATIONS"
     local prev_fingerprint=""
+    local prev_violation_count=0
+    local count_stall_streak=0
     local iteration=0
     local total_iterations=0
     local final_violation_count=0
@@ -469,7 +607,23 @@ run_markdownlint_validation() {
             stall_detected=true
             break
         fi
+
+        # Secondary stall detection: if violation count has not decreased for
+        # 2 consecutive iterations, the LLM is likely introducing new violations
+        # at the same rate it fixes others (e.g. preamble causing MD041).
+        if [[ $prev_violation_count -gt 0 && $violation_count -ge $prev_violation_count ]]; then
+            count_stall_streak=$((count_stall_streak + 1))
+        else
+            count_stall_streak=0
+        fi
+        if [[ $count_stall_streak -ge 2 ]]; then
+            echo "[Phase 7]   ⚠ Stall detected — violation count has not decreased for $count_stall_streak consecutive iterations ($violation_count >= $prev_violation_count)." >&2
+            stall_detected=true
+            break
+        fi
+
         prev_fingerprint="$current_fingerprint"
+        prev_violation_count=$violation_count
 
         # Step 5-6: LLM remediation for each file with violations
         echo "[Phase 7]   Running LLM remediation for $affected_count file(s)..." >&2
@@ -491,23 +645,38 @@ run_markdownlint_validation() {
             local stripped_content=""
             stripped_content=$(strip_model_footer "$file_content")
 
+            # Capture the original first line for preamble detection
+            local original_first_line=""
+            original_first_line=$(printf '%s' "$stripped_content" | head -n 1)
+
             # Build per-file LLM prompt (enforce <8K tokens ≈ 32000 chars)
+            # Conditionally include MD041 guidance only when that rule is violated
+            local md041_rule=""
+            if echo "$file_violations" | grep -q "MD041"; then
+                md041_rule="
+- For MD041 (first-line-heading): ensure the file starts with a top-level heading (# Heading)"
+            fi
+
             local llm_prompt="You are a markdown lint fixer. Fix the following markdownlint violations in the markdown file below.
 
 ## Violations to fix
 $file_violations
 
 ## Rules
+- Your response MUST begin immediately with markdown content — no conversational preamble. Preserve the original first line unless a violation (e.g., MD041) requires changing it
 - Output ONLY the corrected markdown content, nothing else
 - Do NOT add commentary, explanations, or code fences around the output
+- Do NOT start your response with phrases like \"Here is\", \"All violations fixed\", \"I have\", \"Sure\", \"Certainly\", \"Good\", \"Updated\", or any other conversational text
 - Do NOT change the meaning or structure of the content beyond what is needed to fix the violations
-- Preserve all headings, lists, tables, and code blocks
-- For MD041 (first-line-heading): ensure the file starts with a top-level heading (# Heading)
+- Preserve all headings, lists, tables, and code blocks$md041_rule
 - For MD013 (line-length): break long lines at natural points (after punctuation, between clauses) to stay under 200 characters
 - For MD040 (fenced-code-language): add an appropriate language identifier to fenced code blocks
 
 ## File content to fix
-$stripped_content"
+$stripped_content
+
+## CRITICAL
+Your response must begin with the actual markdown content. The very first character of your response should be part of the file content (e.g., \`#\` for a heading, \`---\` for front matter, \`>\` for a blockquote). Any preamble or explanation will corrupt the file."
 
             # Check prompt size (NFR-004: <8K tokens ≈ MARKDOWNLINT_PROMPT_MAX_CHARS chars)
             local prompt_len=${#llm_prompt}
@@ -520,9 +689,15 @@ $stripped_content"
             local corrected=""
             if corrected=$(call_llm "$llm_prompt"); then
                 if [[ -n "$corrected" ]]; then
-                    printf '%s\n' "$corrected" > "$target_file"
-                    append_model_footer "$target_file"
-                    echo "[Phase 7]     ✓ LLM remediation applied to $(basename "$target_file")" >&2
+                    # Strip any conversational preamble the LLM may have prepended
+                    corrected=$(strip_llm_preamble "$corrected" "$original_first_line")
+                    if [[ "$corrected" =~ [^[:space:]] ]]; then
+                        printf '%s\n' "$corrected" > "$target_file"
+                        append_model_footer "$target_file"
+                        echo "[Phase 7]     ✓ LLM remediation applied to $(basename "$target_file")" >&2
+                    else
+                        echo "[Phase 7]     Warning: LLM returned blank or whitespace-only content for $(basename "$target_file") after preamble stripping. Skipping." >&2
+                    fi
                 else
                     echo "[Phase 7]     Warning: LLM returned empty content for $(basename "$target_file"). Skipping." >&2
                 fi
