@@ -126,7 +126,7 @@ assert_eq "empty input returns empty" "" "$output"
 input="file1.md:1:1 error MD041/first-line-heading First line should be a heading
 file2.md:50:81 error MD013/line-length Line length 205 > 200"
 output=$(parse_markdownlint_output "$input")
-count=$(echo "$output" | wc -l)
+count=$(printf '%s\n' "$output" | awk 'END{print NR}')
 assert_eq "parses multiple violations" "2" "$count"
 
 # T3b: Legacy format without error keyword

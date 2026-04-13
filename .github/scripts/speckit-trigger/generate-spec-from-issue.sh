@@ -430,7 +430,7 @@ run_markdownlint_validation() {
 
         local violation_count=0
         if [[ -n "$parsed" ]]; then
-            violation_count=$(echo "$parsed" | wc -l)
+            violation_count=$(printf '%s\n' "$parsed" | awk 'END{print NR}')
         fi
         final_violation_count=$violation_count
 
@@ -450,7 +450,7 @@ run_markdownlint_validation() {
         fi
         local affected_count=0
         if [[ -n "$affected_files" ]]; then
-            affected_count=$(echo "$affected_files" | wc -l)
+            affected_count=$(printf '%s\n' "$affected_files" | awk 'END{print NR}')
         fi
 
         echo "[Phase 7]   $violation_count violation(s) remaining in $affected_count file(s)" >&2
