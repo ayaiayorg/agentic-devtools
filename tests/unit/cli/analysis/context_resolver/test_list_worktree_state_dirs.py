@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agentic_devtools.cli.analysis.context_resolver import (
     WorktreeStateDir,
     list_worktree_state_dirs,
@@ -64,3 +66,8 @@ class TestListWorktreeStateDirs:
         """No .agdt/workflows/ → empty list."""
         result = list_worktree_state_dirs(tmp_path, "PROJ-1")
         assert result == []
+
+    def test_unsafe_worktree_key_raises(self, tmp_path):
+        """Worktree key with path traversal is rejected."""
+        with pytest.raises(ValueError, match="not a safe directory segment"):
+            list_worktree_state_dirs(tmp_path, "../escape")

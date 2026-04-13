@@ -126,14 +126,14 @@ The following JSON Schema defines the structure of analysis output produced by
         { "$ref": "#/$defs/ExternalContext" },
         { "type": "null" }
       ],
-      "description": "Context from external worktrees (null when --static-only or no external worktrees)."
+      "description": "Context from external worktrees (null when --static-only or no external worktrees with .agdt/workflows/ directories are found)."
     }
   },
   "additionalProperties": false,
   "$defs": {
     "ExternalContext": {
       "type": "object",
-      "required": ["worktrees_scanned", "log_evidence"],
+      "required": ["worktrees_scanned", "log_evidence", "identities_scanned"],
       "properties": {
         "worktrees_scanned": {
           "type": "array",
@@ -324,7 +324,7 @@ analysis (`agdt_run_id` race condition). This is a **historical analysis excerpt
 - **`priority_score` = 10 + 0 + 1 = 11**
 
 **`external_context` field:** Set to `null` when `--static-only` is passed or no
-external worktrees are found. When populated, it contains evidence from external
+external worktrees with `.agdt/workflows/` directories are found. When populated, it contains evidence from external
 worktrees:
 
 ```json

@@ -36,22 +36,24 @@ matches the parameters parsed in §0.1:
 
 ```bash
 python -c "
+import sys
 from agentic_devtools.cli.analysis import resolve_analysis_context
 import json
-ctx = resolve_analysis_context(issue_key='PROJECT-123')
+ctx = resolve_analysis_context(issue_key=sys.argv[1])
 print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
-"
+" "PROJECT-123"
 ```
 
 **When `--pr-id` was provided:**
 
 ```bash
 python -c "
+import sys
 from agentic_devtools.cli.analysis import resolve_analysis_context
 import json
-ctx = resolve_analysis_context(pr_id=42)
+ctx = resolve_analysis_context(pr_id=sys.argv[1])
 print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_root': str(ctx.git_root), 'caller_state_dir': str(ctx.caller_state_dir)}))
-"
+" "42"
 ```
 
 **When neither was provided (bootstrap fallback):**
@@ -65,7 +67,7 @@ print(json.dumps({'worktree_key': ctx.worktree_key, 'source': ctx.source, 'git_r
 "
 ```
 
-Replace `'PROJECT-123'` and `42` with the actual parameter values from §0.1.
+Replace `"PROJECT-123"` and `"42"` with the actual parameter values from §0.1.
 
 Store the resulting `worktree_key` and `git_root` for use in subsequent phases.
 
@@ -75,16 +77,20 @@ Run the Python helper to discover all identity directories and their logs:
 
 ```bash
 python -c "
+import sys
 from pathlib import Path
 from agentic_devtools.cli.analysis import list_identity_directories, scan_identity_logs
 import json
-identities = list_identity_directories(Path('<git_root>'))
-logs = scan_identity_logs(Path('<git_root>'), '<worktree_key>', '<workflow_name>')
+git_root = Path(sys.argv[1])
+worktree_key = sys.argv[2]
+workflow_name = sys.argv[3]
+identities = list_identity_directories(git_root)
+logs = scan_identity_logs(git_root, worktree_key, workflow_name)
 print(json.dumps({
   'identities': [{'name': d.name, 'owner_email': d.owner_email} for d in identities],
   'logs': [{'identity': l.identity, 'path': str(l.path), 'modified_time': l.modified_time} for l in logs]
 }))
-"
+" "<git_root>" "<worktree_key>" "<workflow_name>"
 ```
 
 If no identity directories are found, proceed with code-only analysis and note
@@ -248,10 +254,11 @@ using `format_evidence_prefix()`:
 
 ```bash
 python -c "
+import sys
 from agentic_devtools.cli.analysis import format_evidence_prefix
-prefix = format_evidence_prefix('<identity_name>')
+prefix = format_evidence_prefix(sys.argv[1])
 print(prefix)
-"
+" "<identity_name>"
 ```
 
 This produces `[identity: <identity_name>]` — prepend this to each log excerpt
@@ -262,13 +269,14 @@ also collect external worktree evidence:
 
 ```bash
 python -c "
+import sys
 from agentic_devtools.cli.analysis import collect_external_context, build_external_context_field
 from pathlib import Path
 import json
-ctx = collect_external_context(Path('<git_root>'), '<worktree_key>', static_only=False)
+ctx = collect_external_context(Path(sys.argv[1]), sys.argv[2], static_only=False)
 result = build_external_context_field(ctx)
 print(json.dumps(result))
-"
+" "<git_root>" "<worktree_key>"
 ```
 
 Merge any external log evidence into the findings' `evidence` fields, attributed
@@ -436,8 +444,9 @@ Before finalizing, verify the output:
    downstream ID exists in `findings`.
 6. The `cascade_graph` is a DAG (no circular references).
 7. If `external_context` is present and not `null`, validate it contains
-   `worktrees_scanned` and `log_evidence` fields. If `external_context` is
-   `null`, that is valid (static-only or no external worktrees).
+   `worktrees_scanned`, `log_evidence`, and `identities_scanned` fields. If
+   `external_context` is `null`, that is valid (static-only or no external
+   worktrees).
 
 If any validation check fails, fix the output and re-write both files.
 

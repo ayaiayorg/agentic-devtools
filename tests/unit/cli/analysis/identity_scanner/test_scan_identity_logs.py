@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agentic_devtools.cli.analysis.identity_scanner import (
     LogEvidence,
     scan_identity_logs,
@@ -93,3 +95,8 @@ class TestScanIdentityLogs:
 
         result = scan_identity_logs(tmp_path, "PROJ-1")
         assert [r.identity for r in result] == ["alice", "bob", "charlie"]
+
+    def test_unsafe_worktree_key_raises(self, tmp_path):
+        """Worktree key with path traversal is rejected."""
+        with pytest.raises(ValueError, match="not a safe directory segment"):
+            scan_identity_logs(tmp_path, "../escape")

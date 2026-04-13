@@ -75,8 +75,17 @@ def _discover_worktrees(git_root: Path) -> list[str]:
     for line in result.stdout.splitlines():
         if line.startswith("worktree "):
             wt_path = line[len("worktree ") :].strip()
-            if wt_path and str(Path(wt_path).resolve()) != main_path:
-                worktrees.append(wt_path)
+            if not wt_path:
+                continue
+            # Normalize relative paths against git_root (not CWD) to ensure
+            # correct main-worktree filtering regardless of process CWD.
+            wt = Path(wt_path)
+            if not wt.is_absolute():
+                wt = (git_root / wt).resolve()
+            else:
+                wt = wt.resolve()
+            if str(wt) != main_path:
+                worktrees.append(str(wt))
 
     return sorted(worktrees)
 
@@ -84,18 +93,27 @@ def _discover_worktrees(git_root: Path) -> list[str]:
 def _read_log_excerpt(log_path: Path) -> str:
     """Read the last ``_MAX_LOG_LINES`` lines of a log file.
 
-    Prepends a truncation header when the file has more lines.
+    Uses a streaming bounded deque so memory stays proportional to
+    the excerpt size, not the full file size. Prepends a truncation
+    header when the file has more lines than the limit.
     """
+    import collections
+
+    total_lines = 0
+    tail: collections.deque[str] = collections.deque(maxlen=_MAX_LOG_LINES)
     try:
-        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        with log_path.open(encoding="utf-8", errors="replace") as f:
+            for line in f:
+                total_lines += 1
+                tail.append(line)
     except (OSError, UnicodeDecodeError):
         return ""
 
-    total = len(lines)
-    if total > _MAX_LOG_LINES:
-        truncated_count = total - _MAX_LOG_LINES
-        kept = lines[-_MAX_LOG_LINES:]
-        return f"[…truncated {truncated_count} lines…]\n" + "\n".join(kept)
+    lines = [line.rstrip("\r\n") for line in tail]
+
+    if total_lines > _MAX_LOG_LINES:
+        truncated_count = total_lines - _MAX_LOG_LINES
+        return f"[…truncated {truncated_count} lines…]\n" + "\n".join(lines)
 
     return "\n".join(lines)
 
@@ -114,9 +132,13 @@ def collect_external_context(
         static_only: If ``True``, skip external worktree scanning and return ``None``.
 
     Returns:
-        An ``ExternalContext`` when external worktrees with matching logs are
-        found, or ``None`` when ``static_only`` is set or no external
-        worktrees exist.
+        An ``ExternalContext`` when external worktrees with ``.agdt/workflows/``
+        directories are found (even if no matching log evidence exists), or
+        ``None`` when ``static_only`` is set or no external worktrees have
+        workflow directories.
+
+    Raises:
+        ValueError: If ``worktree_key`` is not a safe directory segment.
     """
     if static_only:
         return None
@@ -127,9 +149,15 @@ def collect_external_context(
 
     from agentic_devtools.state import is_safe_dir_segment
 
+    # Validate worktree_key before using it in path construction
+    # to prevent path traversal.
+    if not is_safe_dir_segment(worktree_key):
+        msg = f"worktree_key {worktree_key!r} is not a safe directory segment."
+        raise ValueError(msg)
+
     all_evidence: list[ExternalLogEvidence] = []
     identities_seen: set[str] = set()
-    worktrees_with_evidence: list[str] = []
+    worktrees_scanned: list[str] = []
 
     for wt_path_str in external_paths:
         wt_path = Path(wt_path_str)
@@ -137,12 +165,15 @@ def collect_external_context(
         if not workflows_dir.is_dir():
             continue
 
+        # Track worktree as scanned as soon as it has a workflows dir,
+        # regardless of whether matching log evidence is found.
+        worktrees_scanned.append(wt_path_str)
+
         try:
             identity_dirs = sorted(workflows_dir.iterdir())
         except (PermissionError, OSError):
             continue
 
-        found_evidence = False
         for identity_dir in identity_dirs:
             if not identity_dir.is_dir():
                 continue
@@ -150,6 +181,10 @@ def collect_external_context(
                 continue
             if not is_safe_dir_segment(identity_dir.name):
                 continue
+
+            # Track identity as soon as it's eligible for scanning,
+            # regardless of whether log evidence is found.
+            identities_seen.add(identity_dir.name)
 
             logs_dir = identity_dir / worktree_key / "background-tasks" / "logs"
             if not logs_dir.is_dir():
@@ -183,17 +218,12 @@ def collect_external_context(
                         timestamp=timestamp,
                     )
                 )
-                identities_seen.add(identity_dir.name)
-                found_evidence = True
 
-        if found_evidence:
-            worktrees_with_evidence.append(wt_path_str)
-
-    if not all_evidence:
+    if not worktrees_scanned:
         return None
 
     return ExternalContext(
-        worktrees_scanned=sorted(worktrees_with_evidence),
+        worktrees_scanned=sorted(worktrees_scanned),
         log_evidence=all_evidence,
         identities_scanned=sorted(identities_seen),
     )

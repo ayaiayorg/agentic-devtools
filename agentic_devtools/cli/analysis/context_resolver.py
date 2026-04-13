@@ -81,9 +81,23 @@ def resolve_analysis_context(
         worktree_key = stripped
         source = "issue_key"
     elif pr_id is not None:
+        if not isinstance(pr_id, int) or isinstance(pr_id, bool):
+            msg = f"--pr-id must be an integer, got {type(pr_id).__name__}: {pr_id!r}"
+            raise ValueError(msg)
+        if pr_id <= 0:
+            msg = f"--pr-id must be a positive integer, got {pr_id}"
+            raise ValueError(msg)
         worktree_key = f"PR{pr_id}"
         source = "pr_id"
     else:
+        # Check git repo first to give an accurate error message when
+        # run outside a repo (bootstrap returns {} in that case, which
+        # would otherwise trigger the misleading "No --issue-key or
+        # --pr-id..." message).
+        git_root = _get_git_repo_root()
+        if git_root is None:
+            msg = "Not in a git repository. Cannot resolve analysis context."
+            raise ValueError(msg)
         bootstrap = get_bootstrap_state()
         worktree_key = bootstrap.get("worktree_key", "")
         if not worktree_key:
@@ -94,10 +108,18 @@ def resolve_analysis_context(
             raise ValueError(msg)
         source = "bootstrap"
 
-    git_root = _get_git_repo_root()
-    if git_root is None:
-        msg = "Not in a git repository. Cannot resolve analysis context."
+    # Validate the resolved worktree_key is safe for directory construction
+    # to prevent path traversal (e.g. keys containing "../" or "/").
+    if not is_safe_dir_segment(worktree_key):
+        msg = f"Resolved worktree key {worktree_key!r} is not a safe directory segment."
         raise ValueError(msg)
+
+    # For non-bootstrap branches, git_root hasn't been resolved yet.
+    if issue_key is not None or pr_id is not None:
+        git_root = _get_git_repo_root()
+        if git_root is None:
+            msg = "Not in a git repository. Cannot resolve analysis context."
+            raise ValueError(msg)
 
     caller_state_dir = get_state_dir()
 
@@ -126,6 +148,12 @@ def list_worktree_state_dirs(
         A sorted list of ``WorktreeStateDir`` instances (sorted by identity name
         for determinism).
     """
+    # Validate worktree_key before using it in path construction
+    # to prevent path traversal.
+    if not is_safe_dir_segment(worktree_key):
+        msg = f"worktree_key {worktree_key!r} is not a safe directory segment."
+        raise ValueError(msg)
+
     workflows_dir = git_root / ".agdt" / "workflows"
     if not workflows_dir.is_dir():
         return []
@@ -134,7 +162,7 @@ def list_worktree_state_dirs(
 
     try:
         entries = sorted(workflows_dir.iterdir())
-    except PermissionError:
+    except (PermissionError, OSError):
         return []
 
     for identity_dir in entries:

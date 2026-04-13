@@ -117,3 +117,24 @@ class TestResolveAnalysisContextErrors:
         ):
             with pytest.raises(ValueError, match="Not in a git repository"):
                 resolve_analysis_context(issue_key="KEY-1")
+
+    def test_unsafe_issue_key_with_path_traversal_raises(self):
+        """Issue key containing '../' is rejected as unsafe."""
+        with pytest.raises(ValueError, match="not a safe directory segment"):
+            resolve_analysis_context(issue_key="../escape")
+
+    def test_unsafe_issue_key_with_slash_raises(self):
+        """Issue key containing '/' is rejected as unsafe."""
+        with pytest.raises(ValueError, match="not a safe directory segment"):
+            resolve_analysis_context(issue_key="foo/bar")
+
+    def test_unsafe_bootstrap_key_raises(self):
+        """Bootstrap worktree_key with path traversal is rejected."""
+        with (
+            patch(
+                "agentic_devtools.cli.analysis.context_resolver.get_bootstrap_state",
+                return_value={"worktree_key": "../escape"},
+            ),
+            pytest.raises(ValueError, match="not a safe directory segment"),
+        ):
+            resolve_analysis_context()

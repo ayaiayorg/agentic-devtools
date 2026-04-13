@@ -65,7 +65,7 @@ def list_identity_directories(git_root: Path) -> list[IdentityDir]:
 
     try:
         entries = sorted(workflows_dir.iterdir())
-    except PermissionError:
+    except (PermissionError, OSError):
         return []
 
     for identity_dir in entries:
@@ -118,6 +118,12 @@ def scan_identity_logs(
         A sorted list of ``LogEvidence`` instances (sorted by identity then
         path for determinism).
     """
+    # Validate worktree_key before using it in path construction
+    # to prevent path traversal.
+    if not is_safe_dir_segment(worktree_key):
+        msg = f"worktree_key {worktree_key!r} is not a safe directory segment."
+        raise ValueError(msg)
+
     workflows_dir = git_root / ".agdt" / "workflows"
     if not workflows_dir.is_dir():
         return []
@@ -126,7 +132,7 @@ def scan_identity_logs(
 
     try:
         identity_dirs = sorted(workflows_dir.iterdir())
-    except PermissionError:
+    except (PermissionError, OSError):
         return []
 
     for identity_dir in identity_dirs:
@@ -143,7 +149,7 @@ def scan_identity_logs(
 
         try:
             log_files = sorted(logs_dir.iterdir())
-        except PermissionError:
+        except (PermissionError, OSError):
             continue
 
         for log_file in log_files:
