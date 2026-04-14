@@ -790,39 +790,33 @@ Line 3"
 
 ## GitHub Actions: SpecKit Issue Trigger
 
-The repository includes a GitHub Action that automatically triggers the SpecKit
-specification process when a `speckit` label is added to an issue.
+The repository includes GitHub Actions that automatically trigger the SpecKit
+specification process when a `speckit` label is added to an issue. The pipeline
+creates a separate PR per phase, enabling incremental review.
 
 ### Visual Documentation
 
-For a comprehensive visual representation of the complete workflow, see the
+For an overview of the original SpecKit workflow design, see the
 [SpecKit Workflow Sequence
 Diagram](specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md).
-The diagram shows:
 
-- All 8 workflow phases from initiation to completion
-- Interactions between actors (User, GitHub, SpecKit Action, AI Provider,
-
-  Repository)
-  Repository)
-
-- Decision points and error handling
-- Integration with the Spec-Driven Development (SDD) pattern
+> **Note**: The diagram documents the initial monolithic pipeline design. The
+> current per-phase PR progression described below supersedes parts of that flow.
 
 ### How It Works
 
 1. Create a GitHub issue describing your feature
-2. Add the `speckit` label to the issue (optionally assign it to Copilot or a
-   team member)
-3. The action posts an acknowledgment comment within 30 seconds
-4. A feature specification is generated from the issue title and body
-5. A new branch and pull request are created with the specification
-6. Status comments are posted to the issue throughout the process
+2. Add the `speckit` label to the issue
+3. **Phase 1 (Specify)**: The action generates `spec.md` and creates a PR labeled `speckit:phase-1`
+4. Review and merge the Phase 1 PR
+5. **Phase 2 (Clarify)**: Automatically triggered — clarifies spec and generates checklist in a new PR
+6. **Phase 3 (Plan)**: Automatically triggered — generates `plan.md` and supporting artifacts
+7. **Phase 4 (Tasks)**: Automatically triggered — generates `tasks.md`
+8. **Phase 5 (Analyze)**: Automatically triggered — generates `analysis-report.md`
+9. After Phase 5 merges, `speckit:completed` and `speckit:needs-implementation` labels are applied
 
-The `speckit` trigger label is automatically removed once processing starts,
-and
-replaced with status labels (`speckit:processing`, `speckit:completed`, or
-`speckit:failed`).
+Each phase creates its own focused PR for independent review. Reviewers can edit
+artifacts before merging, steering subsequent phases.
 
 ### Configuration
 
@@ -835,6 +829,7 @@ Configure the action using repository variables:
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Post status comments to the issue |
 | `SPECKIT_CREATE_BRANCH` | `true` | Create a feature branch |
 | `SPECKIT_CREATE_PR` | `true` | Create a pull request |
+| `SPECKIT_AUTO_MERGE_PHASES` | _(empty)_ | Comma-separated phase names to auto-merge (e.g., `analyze`) |
 
 ### Required Secrets
 
@@ -846,8 +841,8 @@ Configure the action using repository variables:
 
 1. Create a GitHub issue with a descriptive title and body
 2. Add the `speckit` label (or your configured trigger label)
-3. Wait for the workflow to generate the specification
-4. Review the generated spec in the pull request
+3. Review each phase PR as it is created
+4. Merge each phase PR to trigger the next phase
 
 ### Manual Trigger
 
@@ -861,13 +856,12 @@ gh workflow run speckit-issue-trigger.yml -f issue_number=123
 
 The workflow uses labels to manage state:
 
-- `speckit` - **Trigger label**: Add this to an issue to start specification
-
-  generation
-  generation
-
+- `speckit` - **Trigger label**: Add this to an issue to start specification generation
 - `speckit:processing` - Specification generation in progress
-- `speckit:completed` - Specification created successfully
+- `speckit:phase-N` - Applied to each phase's PR (N = 1–5)
+- `speckit:phase-N-complete` - Applied to the issue when phase N's PR is merged
+- `speckit:completed` - All phases completed successfully
+- `speckit:needs-implementation` - Ready for implementation (applied after Phase 5)
 - `speckit:failed` - Generation failed (check workflow logs)
 
 ## GitHub Actions: Security Scanning on Main Merge

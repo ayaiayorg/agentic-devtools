@@ -6,7 +6,17 @@
 # tasks → analyze → markdownlint validation.  Each phase invokes the Copilot
 # SDK via copilot_generate.py.
 #
-# Usage: generate-spec-from-issue.sh
+# When --phase <N> is provided, runs only the specified phase (1-5) and its
+# markdownlint validation.  Phase mapping:
+#   1 → specify (spec.md)
+#   2 → clarify + checklist (spec.md, checklists/requirements.md)
+#   3 → plan (plan.md + optional artifacts)
+#   4 → tasks (tasks.md)
+#   5 → analyze (analysis-report.md)
+#
+# When --phase is omitted, runs all phases sequentially (backward compatible).
+#
+# Usage: generate-spec-from-issue.sh [--phase <1-5>]
 #
 # Environment Variables (required):
 #   ISSUE_NUMBER  - The GitHub issue number
@@ -33,6 +43,31 @@
 #   GITHUB_OUTPUT: branch_name, spec_file, issue_number, spec_dir
 
 set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Argument parsing: optional --phase <1-5>
+# ---------------------------------------------------------------------------
+PHASE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --phase)
+            PHASE="${2:-}"
+            if [[ -z "$PHASE" ]]; then
+                echo "Error: --phase requires a value (1-5)" >&2
+                exit 1
+            fi
+            if [[ ! "$PHASE" =~ ^[1-5]$ ]]; then
+                echo "Error: --phase must be 1-5 (got '$PHASE')" >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        *)
+            echo "Error: Unknown argument '$1'" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Validate required environment variables
 : "${ISSUE_NUMBER:?ISSUE_NUMBER is required}"
@@ -1247,46 +1282,163 @@ $tasks_content"
 
 # ========================== Orchestration ====================================
 
-echo ""
-echo "=== Phase 1/7: Specify ==="
-SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
-if [[ -z "$SPEC_CONTENT" ]]; then
-    echo "Error: Specify phase returned empty content" >&2
-    exit 1
+# ---------------------------------------------------------------------------
+# run_single_phase <phase_number>
+#
+# Runs only the specified phase (1-5) and its markdownlint validation.
+# ---------------------------------------------------------------------------
+run_single_phase() {
+    local phase="$1"
+
+    # Precondition checks: verify prerequisite artifacts exist for phases 2-5
+    case "$phase" in
+        2)
+            if [[ ! -f "$SPEC_DIR/spec.md" ]]; then
+                echo "Error: $SPEC_DIR/spec.md not found. Phase 1 (specify) must be run first." >&2
+                exit 1
+            fi
+            ;;
+        3)
+            if [[ ! -f "$SPEC_DIR/spec.md" ]]; then
+                echo "Error: $SPEC_DIR/spec.md not found. Phase 1 (specify) must be run first." >&2
+                exit 1
+            fi
+            if [[ ! -f "$SPEC_DIR/checklists/requirements.md" ]]; then
+                echo "Error: $SPEC_DIR/checklists/requirements.md not found. Phase 2 (clarify) must be run first." >&2
+                exit 1
+            fi
+            ;;
+        4)
+            if [[ ! -f "$SPEC_DIR/plan.md" ]]; then
+                echo "Error: $SPEC_DIR/plan.md not found. Phase 3 (plan) must be run first." >&2
+                exit 1
+            fi
+            ;;
+        5)
+            if [[ ! -f "$SPEC_DIR/tasks.md" ]]; then
+                echo "Error: $SPEC_DIR/tasks.md not found. Phase 4 (tasks) must be run first." >&2
+                exit 1
+            fi
+            ;;
+    esac
+
+    case "$phase" in
+        1)
+            echo ""
+            echo "=== Phase 1: Specify ==="
+            SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
+            if [[ -z "$SPEC_CONTENT" ]]; then
+                echo "Error: Specify phase returned empty content" >&2
+                exit 1
+            fi
+            printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
+            append_model_footer "$SPEC_DIR/spec.md"
+            echo "✓ Phase 1 complete: spec.md"
+
+            echo ""
+            echo "=== Markdownlint Validation ==="
+            run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
+            echo "✓ Markdownlint validation complete"
+            ;;
+        2)
+            echo ""
+            echo "=== Phase 2: Clarify + Checklist ==="
+            run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+            echo "✓ Clarify complete: spec.md updated"
+            run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
+            echo "✓ Checklist complete: checklists/requirements.md"
+
+            echo ""
+            echo "=== Markdownlint Validation ==="
+            run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
+            echo "✓ Markdownlint validation complete"
+            ;;
+        3)
+            echo ""
+            echo "=== Phase 3: Plan ==="
+            COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
+            echo "✓ Phase 3 complete: plan.md (+ optional artifacts)"
+
+            echo ""
+            echo "=== Markdownlint Validation ==="
+            run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
+            echo "✓ Markdownlint validation complete"
+            ;;
+        4)
+            echo ""
+            echo "=== Phase 4: Tasks ==="
+            COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
+            echo "✓ Phase 4 complete: tasks.md"
+
+            echo ""
+            echo "=== Markdownlint Validation ==="
+            run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
+            echo "✓ Markdownlint validation complete"
+            ;;
+        5)
+            echo ""
+            echo "=== Phase 5: Analyze ==="
+            COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
+            echo "✓ Phase 5 complete: analysis-report.md"
+
+            echo ""
+            echo "=== Markdownlint Validation ==="
+            run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
+            echo "✓ Markdownlint validation complete"
+            ;;
+        *)
+            echo "Error: Unknown phase '$phase'" >&2
+            exit 1
+            ;;
+    esac
+}
+
+if [[ -n "$PHASE" ]]; then
+    echo "=== SpecKit: Running Phase $PHASE Only ==="
+    run_single_phase "$PHASE"
+else
+    # Run all phases sequentially (backward compatible)
+    echo ""
+    echo "=== Phase 1/7: Specify ==="
+    SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
+    if [[ -z "$SPEC_CONTENT" ]]; then
+        echo "Error: Specify phase returned empty content" >&2
+        exit 1
+    fi
+    printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
+    append_model_footer "$SPEC_DIR/spec.md"
+    echo "✓ Phase 1 complete: spec.md"
+
+    echo ""
+    echo "=== Phase 2/7: Clarify ==="
+    run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+    echo "✓ Phase 2 complete: spec.md updated with clarifications"
+
+    echo ""
+    echo "=== Phase 3/7: Checklist ==="
+    run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
+    echo "✓ Phase 3 complete: checklists/requirements.md"
+
+    echo ""
+    echo "=== Phase 4/7: Plan ==="
+    COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
+    echo "✓ Phase 4 complete: plan.md (+ optional artifacts)"
+
+    echo ""
+    echo "=== Phase 5/7: Tasks ==="
+    COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
+    echo "✓ Phase 5 complete: tasks.md"
+
+    echo ""
+    echo "=== Phase 6/7: Analyze ==="
+    COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
+    echo "✓ Phase 6 complete: analysis-report.md"
+
+    echo ""
+    echo "=== Phase 7/7: Markdownlint Validation ==="
+    run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed — lint violations remain after remediation" >&2; exit 1; }
+    echo "✓ Phase 7 complete: all markdown files lint-clean"
 fi
-printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
-append_model_footer "$SPEC_DIR/spec.md"
-echo "✓ Phase 1 complete: spec.md"
-
-echo ""
-echo "=== Phase 2/7: Clarify ==="
-run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
-echo "✓ Phase 2 complete: spec.md updated with clarifications"
-
-echo ""
-echo "=== Phase 3/7: Checklist ==="
-run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
-echo "✓ Phase 3 complete: checklists/requirements.md"
-
-echo ""
-echo "=== Phase 4/7: Plan ==="
-COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
-echo "✓ Phase 4 complete: plan.md (+ optional artifacts)"
-
-echo ""
-echo "=== Phase 5/7: Tasks ==="
-COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
-echo "✓ Phase 5 complete: tasks.md"
-
-echo ""
-echo "=== Phase 6/7: Analyze ==="
-COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
-echo "✓ Phase 6 complete: analysis-report.md"
-
-echo ""
-echo "=== Phase 7/7: Markdownlint Validation ==="
-run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed — lint violations remain after remediation" >&2; exit 1; }
-echo "✓ Phase 7 complete: all markdown files lint-clean"
 
 # Output results (spec_dir as repo-relative path for portability)
 # Derive from SPEC_DIR by stripping REPO_ROOT prefix, so it stays correct
@@ -1304,7 +1456,11 @@ echo "issue_number=$ISSUE_NUMBER" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "spec_dir=$SPEC_DIR_REL" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
 echo ""
-echo "=== Full Planning Artifact Suite Complete ==="
+if [[ -n "$PHASE" ]]; then
+    echo "=== Phase $PHASE Complete ==="
+else
+    echo "=== Full Planning Artifact Suite Complete ==="
+fi
 echo "Branch: $BRANCH_NAME"
 echo "Spec File: $SPEC_FILE"
 echo "Spec Directory: $SPEC_DIR"

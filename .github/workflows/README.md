@@ -30,15 +30,35 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 ### speckit-issue-trigger.yml
 
-**SpecKit Issue to Specification Automation**
+**SpecKit Issue to Specification Automation (Phase 1 — Specify)**
 
 - Runs on:
   - Issues labeled event (when `speckit` or configured label is added)
   - Manual workflow dispatch
-- Purpose: Automatically generates feature specifications from GitHub issues following the Spec-Driven Development (SDD) pattern
-- Outputs: Creates specification branch, files, and pull request
+- Purpose: Generates the initial feature specification (`spec.md`) from a GitHub issue — Phase 1 of the SpecKit per-phase pipeline
+- Outputs: Creates Phase 1 branch (`speckit/<issue>/phase-1-specify`), spec file, and pull request labeled `speckit:phase-1`
 - Scripts: Uses helper scripts in `.github/scripts/speckit-trigger/`
-- **Sequence Diagram**: See [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md) for complete visual documentation of the workflow
+- **Sequence Diagram**: See
+  [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md)
+  for the original workflow design
+  (note: the diagram predates the per-phase PR progression and may not reflect the current split pipeline)
+
+### speckit-phase-progression.yml
+
+**SpecKit Phase Progression (Phases 2–5)**
+
+- Runs on:
+  - Pull request closed (merged) events with `speckit:phase-N` labels
+  - Manual `workflow_dispatch` with inputs:
+    - `issue_number` (required): The GitHub issue number to progress
+    - `phase` (required): The phase to generate (2–5)
+- Purpose: Automatically progresses the SpecKit pipeline when a phase PR is merged.
+  Generates the next phase's artifacts and creates a new PR.
+  The `workflow_dispatch` trigger allows operators to recover or retry phases
+  when the merge trigger fails or a PR is missing the `speckit:phase-N` label.
+- Phase flow: specify → clarify → plan → tasks → analyze
+- Supports auto-merge for trusted phases via `SPECKIT_AUTO_MERGE_PHASES` repository variable
+- Scripts: Uses helper scripts in `.github/scripts/speckit-trigger/`
 
 ### workflow-tests.yml
 

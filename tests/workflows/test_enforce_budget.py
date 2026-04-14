@@ -121,9 +121,7 @@ class TestEnforceBudgetCli:
             result = module.main()
         assert result == 0
         output_text = "".join(captured_output)
-        assert len(output_text) <= budget, (
-            f"CLI output ({len(output_text)} chars) exceeds budget ({budget})"
-        )
+        assert len(output_text) <= budget, f"CLI output ({len(output_text)} chars) exceeds budget ({budget})"
 
     def test_comments_only_no_leading_newline(self):
         """Comments-only invocation (empty description) produces no leading newline.

@@ -1,0 +1,798 @@
+name: SpecKit Phase Progression
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'The GitHub issue number to progress'
+        required: true
+        type: number
+      phase:
+        description: 'The phase to generate (2-5)'
+        required: true
+        type: choice
+        options:
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+
+# Serialize all phase progressions globally to prevent race conditions.
+# Using a single group (not per-PR) because the issue number is not available
+# until the extract step runs, and auto-merged phase PRs for the same issue
+# would otherwise overlap (each has a different PR number).
+concurrency:
+  group: speckit-progression
+  cancel-in-progress: false
+
+env:
+  SPEC_BASE_PATH: specs
+  COPILOT_MODEL: ${{ vars.SPECKIT_COPILOT_MODEL || 'claude-opus-4.6' }}
+
+jobs:
+  progress-phase:
+    name: Progress to Next Phase
+    runs-on: ubuntu-latest
+    # Only run if: (a) PR was merged into main with a speckit:phase-N label, or (b) manually dispatched
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'main' &&
+        (
+          contains(github.event.pull_request.labels.*.name, 'speckit:phase-1') ||
+          contains(github.event.pull_request.labels.*.name, 'speckit:phase-2') ||
+          contains(github.event.pull_request.labels.*.name, 'speckit:phase-3') ||
+          contains(github.event.pull_request.labels.*.name, 'speckit:phase-4') ||
+          contains(github.event.pull_request.labels.*.name, 'speckit:phase-5')
+        )
+      )
+
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+
+    timeout-minutes: 30
+
+    steps:
+      - name: Extract Phase and Issue Info
+        id: extract
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Handle workflow_dispatch: phase and issue_number come from inputs
+            if (context.eventName === 'workflow_dispatch') {
+              const nextPhase = parseInt('${{ github.event.inputs.phase }}', 10);
+              const issueNumber = parseInt('${{ github.event.inputs.issue_number }}', 10);
+              const completedPhase = nextPhase - 1;
+
+              const phaseNames = { 1: 'specify', 2: 'clarify', 3: 'plan', 4: 'tasks', 5: 'analyze' };
+              const nextPhaseName = phaseNames[nextPhase] || 'unknown';
+
+              core.setOutput('completed_phase', completedPhase.toString());
+              core.setOutput('next_phase', nextPhase.toString());
+              core.setOutput('next_phase_name', nextPhaseName);
+              core.setOutput('issue_number', issueNumber.toString());
+              core.setOutput('merged_pr_url', '');
+
+              core.info(`[workflow_dispatch] Next Phase: ${nextPhase} (${nextPhaseName}), Issue: ${issueNumber}`);
+              return;
+            }
+
+            // Handle pull_request.closed event
+            const pr = context.payload.pull_request;
+            const labels = pr.labels.map(l => l.name);
+
+            // Extract phase number from speckit:phase-N label
+            let completedPhase = 0;
+            for (const label of labels) {
+              const match = label.match(/^speckit:phase-(\d+)$/);
+              if (match) {
+                completedPhase = parseInt(match[1], 10);
+                break;
+              }
+            }
+
+            if (completedPhase === 0) {
+              core.setFailed('Could not extract phase number from PR labels');
+              return;
+            }
+
+            const nextPhase = completedPhase + 1;
+
+            // Validate branch pattern: only progress speckit-generated branches
+            const headRef = pr.head.ref || '';
+            const speckitBranchPattern = /^speckit\/\d+\/phase-\d+-/;
+            if (!speckitBranchPattern.test(headRef)) {
+              core.warning(`Branch '${headRef}' does not match expected speckit/<issue>/phase-<N>-* pattern. ` +
+                `This PR may have been accidentally labeled. Skipping phase progression.`);
+              core.setOutput('next_phase', '0');
+              core.setOutput('issue_number', '0');
+              core.setOutput('completed_phase', '0');
+              core.setOutput('next_phase_name', '');
+              core.setOutput('merged_pr_url', '');
+              return;
+            }
+
+            // Extract issue number from branch name (immutable), fall back to PR body
+            const branchMatch = headRef.match(/^speckit\/(\d+)\//);
+            let issueNumber;
+            if (branchMatch) {
+              issueNumber = parseInt(branchMatch[1], 10);
+              core.info(`Extracted issue number from branch name: ${issueNumber}`);
+            } else {
+              const body = pr.body || '';
+              const issueMatch = body.match(/Relates to #(\d+)/);
+              if (!issueMatch) {
+                core.setFailed('Could not extract issue number from branch name or PR body');
+                return;
+              }
+              issueNumber = parseInt(issueMatch[1], 10);
+              core.info(`Extracted issue number from PR body: ${issueNumber}`);
+            }
+
+            // Phase name mapping
+            const phaseNames = { 1: 'specify', 2: 'clarify', 3: 'plan', 4: 'tasks', 5: 'analyze' };
+            const nextPhaseName = phaseNames[nextPhase] || 'unknown';
+
+            core.setOutput('completed_phase', completedPhase.toString());
+            core.setOutput('next_phase', nextPhase.toString());
+            core.setOutput('next_phase_name', nextPhaseName);
+            core.setOutput('issue_number', issueNumber.toString());
+            core.setOutput('merged_pr_url', pr.html_url);
+
+            core.info(`Completed Phase: ${completedPhase}`);
+            core.info(`Next Phase: ${nextPhase} (${nextPhaseName})`);
+            core.info(`Issue Number: ${issueNumber}`);
+
+      - name: Add Phase Complete Label to Issue
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '0' && github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+            const completedPhase = ${{ steps.extract.outputs.completed_phase }};
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [`speckit:phase-${completedPhase}-complete`]
+              });
+              core.info(`Added speckit:phase-${completedPhase}-complete label to issue #${issueNumber}`);
+            } catch (e) {
+              core.warning(`Could not add phase label: ${e.message}`);
+            }
+
+      - name: Add Processing Label
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '0' && steps.extract.outputs.next_phase != '6'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:processing']
+              });
+              core.info(`Added speckit:processing label to issue #${issueNumber}`);
+            } catch (e) {
+              core.warning(`Could not add speckit:processing label: ${e.message}`);
+            }
+
+      # If Phase 5 just merged, this is the final phase — apply completion labels and exit
+      - name: Apply Final Labels (Phase 5 Complete)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase == '6'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+
+            // Remove processing label if still present
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+            } catch (e) {
+              // Label may not exist — that's fine
+            }
+
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
+            // Add final completion labels
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:completed', 'speckit:needs-implementation']
+              });
+              core.info(`Applied speckit:completed and speckit:needs-implementation to issue #${issueNumber}`);
+            } catch (e) {
+              core.setFailed(`Could not add completion labels: ${e.message}`);
+            }
+
+            // Post completion comment (respects SPECKIT_COMMENT_ON_ISSUE)
+            const commentOnIssue = '${{ vars.SPECKIT_COMMENT_ON_ISSUE }}' !== 'false';
+            if (commentOnIssue) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: [
+                    '## ✅ SpecKit: All Phases Complete',
+                    '',
+                    'All 5 phases of the SpecKit pipeline have been completed and merged.',
+                    '',
+                    '| Phase | Status |',
+                    '| --- | --- |',
+                    '| 1. Specify | ✅ Merged |',
+                    '| 2. Clarify | ✅ Merged |',
+                    '| 3. Plan | ✅ Merged |',
+                    '| 4. Tasks | ✅ Merged |',
+                    '| 5. Analyze | ✅ Merged |',
+                    '',
+                    'The `speckit:needs-implementation` label has been applied. The implementation trigger workflow will start automatically.',
+                    '',
+                    '---',
+                    `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+                  ].join('\n')
+                });
+              } catch (e) {
+                core.warning(`Could not post completion comment: ${e.message}`);
+              }
+            }
+
+      # For phases 2-5, proceed with generating next phase artifacts
+      - name: Checkout Repository (Post-Merge Main)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Issue Details
+        id: issue
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+
+            core.setOutput('number', issue.number);
+            core.setOutput('title', issue.title);
+            core.setOutput('body', issue.body || '');
+            core.setOutput('url', issue.html_url);
+            core.setOutput('labels', JSON.stringify(issue.labels.map(l => l.name)));
+
+      - name: Sanitize Branch Name
+        id: sanitize
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0'
+        run: |
+          chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
+          .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
+
+      - name: Check Phase Idempotency
+        id: idempotency
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0'
+        run: |
+          chmod +x .github/scripts/speckit-trigger/check-idempotency.sh
+          .github/scripts/speckit-trigger/check-idempotency.sh \
+            "${{ steps.extract.outputs.issue_number }}" \
+            --phase "${{ steps.extract.outputs.next_phase }}"
+
+      - name: Handle Skipped Phase (Already Complete)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+            const nextPhase = ${{ steps.extract.outputs.next_phase }};
+            const nextPhaseName = '${{ steps.extract.outputs.next_phase_name }}';
+
+            // Apply the phase-complete label so downstream progression can continue
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [`speckit:phase-${nextPhase}-complete`]
+              });
+              core.info(`Added speckit:phase-${nextPhase}-complete label to issue #${issueNumber}`);
+            } catch (e) {
+              core.warning(`Could not add phase label: ${e.message}`);
+            }
+
+            // Post informational comment (respects SPECKIT_COMMENT_ON_ISSUE)
+            const commentOnIssue = '${{ vars.SPECKIT_COMMENT_ON_ISSUE }}' !== 'false';
+            if (commentOnIssue) {
+              const skipLines = [
+                `## ⏭️ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Skipped`,
+                '',
+                `Phase ${nextPhase} artifacts were detected as already complete. Skipping generation.`,
+                '',
+                `The \`speckit:phase-${nextPhase}-complete\` label has been applied.`,
+              ];
+
+              if (nextPhase < 5) {
+                skipLines.push(
+                  `Phase ${nextPhase + 1} will be triggered automatically via workflow dispatch.`
+                );
+              }
+
+              skipLines.push(
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              );
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: skipLines.join('\n')
+              });
+            }
+
+            // If there is a next phase (skipped phase is not phase 5), dispatch
+            // the progression workflow so the pipeline does not stall.
+            if (nextPhase < 5) {
+              const followingPhase = nextPhase + 1;
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'speckit-phase-progression.yml',
+                  ref: 'main',
+                  inputs: {
+                    issue_number: issueNumber.toString(),
+                    phase: followingPhase.toString()
+                  }
+                });
+                core.info(`Dispatched phase ${followingPhase} for issue #${issueNumber}`);
+              } catch (e) {
+                core.warning(`Could not dispatch phase ${followingPhase}: ${e.message}. Manual dispatch may be needed.`);
+              }
+            } else {
+              // Phase 5 was skipped — apply final completion labels directly
+              // (the "Apply Final Labels" step only runs when next_phase == '6',
+              // which doesn't happen when Phase 5 is skipped via idempotency).
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: 'speckit:processing'
+                });
+              } catch (e) {
+                // Label may not exist — that's fine
+              }
+
+              // Remove speckit:failed if present (from a previous failed attempt)
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: 'speckit:failed'
+                });
+              } catch (e) {
+                // Expected when label is not present — ignore
+              }
+
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: ['speckit:completed', 'speckit:needs-implementation']
+                });
+                core.info(`Applied speckit:completed and speckit:needs-implementation to issue #${issueNumber}`);
+              } catch (e) {
+                core.setFailed(`Could not add completion labels: ${e.message}`);
+              }
+
+              if (commentOnIssue) {
+                try {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: [
+                      '## ✅ SpecKit: All Phases Complete',
+                      '',
+                      'All 5 phases of the SpecKit pipeline have been completed (Phase 5 was already present — skipped generation).',
+                      '',
+                      '| Phase | Status |',
+                      '| --- | --- |',
+                      '| 1. Specify | ✅ Merged |',
+                      '| 2. Clarify | ✅ Merged |',
+                      '| 3. Plan | ✅ Merged |',
+                      '| 4. Tasks | ✅ Merged |',
+                      '| 5. Analyze | ✅ Skipped (already complete) |',
+                      '',
+                      'The `speckit:needs-implementation` label has been applied. The implementation trigger workflow will start automatically.',
+                      '',
+                      '---',
+                      `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+                    ].join('\n')
+                  });
+                } catch (e) {
+                  core.warning(`Could not post completion comment: ${e.message}`);
+                }
+              }
+            }
+
+      - name: Validate Copilot Token
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not configured."
+            exit 1
+          fi
+          echo "✓ COPILOT_GITHUB_TOKEN is configured"
+
+      - name: Set up Python
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install github-copilot-sdk
+          python -m pip install . --no-deps
+
+      - name: Generate Phase Artifacts
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        id: generate
+        env:
+          ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          ISSUE_URL: ${{ steps.issue.outputs.url }}
+          SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
+          COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
+          .github/scripts/speckit-trigger/generate-spec-from-issue.sh \
+            --phase "${{ steps.extract.outputs.next_phase }}"
+
+      - name: Commit Phase Artifacts
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          NEXT_PHASE="${{ steps.extract.outputs.next_phase }}"
+          NEXT_PHASE_NAME="${{ steps.extract.outputs.next_phase_name }}"
+          ISSUE_NUMBER="${{ steps.extract.outputs.issue_number }}"
+          BRANCH_NAME="speckit/${ISSUE_NUMBER}/phase-${NEXT_PHASE}-${NEXT_PHASE_NAME}"
+
+          # Create or reset the phase branch from current main
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "Branch '$BRANCH_NAME' already exists on remote — fetching and resetting"
+            git fetch origin "refs/heads/$BRANCH_NAME:refs/remotes/origin/$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME"
+          else
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+          # Add generated artifacts — use the generate step's output to ensure
+          # we commit exactly what was generated (not what discover found).
+          SPEC_DIR="${{ steps.generate.outputs.spec_dir }}"
+          git add "$SPEC_DIR"
+
+          git commit -m "spec($NEXT_PHASE_NAME): Phase $NEXT_PHASE artifacts for issue #$ISSUE_NUMBER
+
+          Phase $NEXT_PHASE ($NEXT_PHASE_NAME) artifacts generated by the SpecKit pipeline.
+
+          Relates to #$ISSUE_NUMBER"
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Push Branch
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
+        run: |
+          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
+          git push --force-with-lease -u origin "$BRANCH_NAME"
+
+      - name: Create Pull Request
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false'
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
+        run: |
+          chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
+          .github/scripts/speckit-trigger/create-spec-pr.sh \
+            "${{ steps.commit.outputs.branch_name }}" \
+            "${{ steps.commit.outputs.spec_dir }}" \
+            "${{ steps.extract.outputs.issue_number }}" \
+            "${{ steps.issue.outputs.title }}" \
+            "$ISSUE_LABELS" \
+            --phase-number "${{ steps.extract.outputs.next_phase }}" \
+            --phase-name "${{ steps.extract.outputs.next_phase_name }}"
+
+      - name: Auto-Merge (if configured)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPECKIT_AUTO_MERGE_PHASES: ${{ vars.SPECKIT_AUTO_MERGE_PHASES }}
+        run: |
+          NEXT_PHASE_NAME="${{ steps.extract.outputs.next_phase_name }}"
+          PR_NUMBER="${{ steps.create-pr.outputs.pr_number }}"
+          AUTO_MERGE_PHASES="${SPECKIT_AUTO_MERGE_PHASES:-}"
+
+          if [[ -z "$AUTO_MERGE_PHASES" ]]; then
+            echo "No auto-merge phases configured — PR requires manual review"
+            exit 0
+          fi
+
+          # Check if current phase name is in the auto-merge list
+          IFS=',' read -ra PHASES <<< "$AUTO_MERGE_PHASES"
+          AUTO_MERGE=false
+          for phase in "${PHASES[@]}"; do
+            # Trim whitespace
+            phase="$(echo "$phase" | xargs)"
+            if [[ "$phase" == "$NEXT_PHASE_NAME" ]]; then
+              AUTO_MERGE=true
+              break
+            fi
+          done
+
+          if [[ "$AUTO_MERGE" == "true" ]]; then
+            echo "Auto-merging Phase ${{ steps.extract.outputs.next_phase }} ($NEXT_PHASE_NAME) PR #$PR_NUMBER..."
+            gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || {
+              echo "Warning: Auto-merge could not be scheduled for PR #$PR_NUMBER — manual merge required" >&2
+            }
+          else
+            echo "Phase '$NEXT_PHASE_NAME' is not in auto-merge list ($AUTO_MERGE_PHASES) — PR requires manual review"
+          fi
+
+      - name: Post Phase Progress Comment
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+            const nextPhase = ${{ steps.extract.outputs.next_phase }};
+            const nextPhaseName = '${{ steps.extract.outputs.next_phase_name }}';
+            const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
+            const branchName = '${{ steps.commit.outputs.branch_name }}';
+            const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
+
+            let title, intro;
+            if (prUrl) {
+              title = `## 🔄 SpecKit: Phase ${nextPhase} (${nextPhaseName}) PR Created`;
+              intro = `Phase ${nextPhase} artifacts have been generated and a PR is ready for review.`;
+            } else if (branchPushed) {
+              title = `## ⚠️ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Artifacts Pushed`;
+              intro = `Phase ${nextPhase} artifacts have been pushed to the branch, but a PR could not be created. Manual intervention may be needed.`;
+            } else {
+              title = `## ⚠️ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Artifacts Generated`;
+              intro = `Phase ${nextPhase} artifacts have been generated locally but were not pushed (branch creation is disabled via \`SPECKIT_CREATE_BRANCH=false\`). Re-run with \`SPECKIT_CREATE_BRANCH\` enabled or push the artifacts manually.`;
+            }
+
+            const lines = [
+              title,
+              '',
+              intro,
+              '',
+              `**Phase**: ${nextPhase}/5 — ${nextPhaseName}`,
+            ];
+
+            if (prUrl) {
+              lines.push(`**Pull Request**: ${prUrl}`);
+            }
+
+            if (nextPhase < 5) {
+              const nextNames = { 2: 'clarify', 3: 'plan', 4: 'tasks', 5: 'analyze' };
+              const followingPhase = nextPhase + 1;
+              const followingName = nextNames[followingPhase] || 'unknown';
+              if (prUrl) {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  '1. Review the generated artifacts in the pull request',
+                  '2. Edit artifacts directly if changes are needed',
+                  `3. Merge the PR → **Phase ${followingPhase} (${followingName})** will be triggered automatically`
+                );
+              } else if (branchPushed) {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  `1. Review the generated artifacts on the branch \`${branchName}\``,
+                  `2. Manually create a pull request for the branch and add the \`speckit:phase-${nextPhase}\` label before merging (required for automatic progression)`,
+                  `3. Merge the PR → **Phase ${followingPhase} (${followingName})** will be triggered automatically`,
+                  '',
+                  `> **Alternative:** If you merge without the label, re-trigger manually via the [workflow_dispatch](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) trigger with issue number and phase ${followingPhase}.`
+                );
+              } else {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  `1. Artifacts were generated locally but not pushed (\`SPECKIT_CREATE_BRANCH=false\`)`,
+                  `2. Re-run the workflow with \`SPECKIT_CREATE_BRANCH\` enabled, or push the \`${branchName}\` branch and create a PR manually`,
+                  `3. Ensure the PR has the \`speckit:phase-${nextPhase}\` label before merging (required for automatic progression)`,
+                  '',
+                  `> **Alternative:** Re-trigger manually via the [workflow_dispatch](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) trigger with issue number and phase ${followingPhase}.`
+                );
+              }
+            } else {
+              if (prUrl) {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  '1. Review the analysis report in the pull request',
+                  '2. Merge the PR → `speckit:completed` and `speckit:needs-implementation` labels will be applied'
+                );
+              } else if (branchPushed) {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  `1. Review the analysis report on the branch \`${branchName}\``,
+                  `2. Manually create a pull request and add the \`speckit:phase-${nextPhase}\` label before merging`,
+                  '3. Merge the PR → `speckit:completed` and `speckit:needs-implementation` labels will be applied',
+                  '',
+                  `> **Alternative:** If you merge without the label, re-trigger manually via the [workflow_dispatch](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) trigger with the issue number and phase 5.`
+                );
+              } else {
+                lines.push(
+                  '',
+                  '### Next Steps',
+                  '',
+                  `1. Artifacts were generated locally but not pushed (\`SPECKIT_CREATE_BRANCH=false\`)`,
+                  `2. Re-run the workflow with \`SPECKIT_CREATE_BRANCH\` enabled, or push the \`${branchName}\` branch and create a PR manually`,
+                  `3. Ensure the PR has the \`speckit:phase-${nextPhase}\` label before merging`,
+                  '4. Merge the PR → `speckit:completed` and `speckit:needs-implementation` labels will be applied',
+                  '',
+                  `> **Alternative:** Re-trigger manually via the [workflow_dispatch](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) trigger with the issue number and phase 5.`
+                );
+              }
+            }
+
+            lines.push(
+              '',
+              '---',
+              `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+            );
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: lines.join('\n')
+            });
+
+      - name: Remove Processing Label (Success)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '0' && steps.extract.outputs.next_phase != '6'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number }};
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+              core.info(`Removed speckit:processing label from issue #${issueNumber}`);
+            } catch (e) {
+              // Label may not exist — that's fine
+            }
+
+            // Remove speckit:failed if present (from a previous failed attempt)
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:failed'
+              });
+            } catch (e) {
+              // Expected when label is not present — ignore
+            }
+
+      - name: Handle Failure (Comment + Label)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue_number || 0 }};
+            if (!issueNumber) return;
+
+            const nextPhase = ${{ steps.extract.outputs.next_phase || 0 }};
+            const nextPhaseName = '${{ steps.extract.outputs.next_phase_name || 'unknown' }}';
+
+            // Post failure comment (respects SPECKIT_COMMENT_ON_ISSUE)
+            const commentOnIssue = '${{ vars.SPECKIT_COMMENT_ON_ISSUE }}' !== 'false';
+            if (commentOnIssue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: [
+                  `## ❌ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Failed`,
+                  '',
+                  `An error occurred while generating Phase ${nextPhase} artifacts.`,
+                  '',
+                  `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                  '',
+                  '### Troubleshooting',
+                  '',
+                  '1. Check the workflow logs for detailed error messages',
+                  '2. Verify that the COPILOT_GITHUB_TOKEN secret is configured',
+                  `3. You can re-trigger this phase manually via the **workflow_dispatch** trigger on the [SpecKit Phase Progression workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) — provide the issue number and phase to retry`,
+                  '',
+                  '---',
+                  `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+                ].join('\n')
+              });
+            }
+
+            // Add failed label (always, regardless of comment setting)
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['speckit:failed']
+              });
+            } catch (e) {
+              console.log('Could not add speckit:failed label:', e.message);
+            }
+
+            // Remove processing label on failure
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing'
+              });
+            } catch (e) {
+              // Label may not exist — that's fine
+            }

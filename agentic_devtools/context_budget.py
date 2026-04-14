@@ -294,12 +294,10 @@ def enforce_context_budget(
     # (e.g. indented code blocks) is preserved.  Use a separate `strip()` check
     # for the separator predicate so whitespace-only remnants are treated as empty
     # without mutating the actual content.
-    reduced_desc = collapse_whitespace(
-        remove_image_references(strip_markdown_formatting(description))
-    ).strip("\n")
-    reduced_comments = collapse_whitespace(
-        remove_image_references(strip_markdown_formatting(comments))
-    ).strip("\n")
+    reduced_desc = strip_markdown_formatting(description)
+    reduced_desc = collapse_whitespace(remove_image_references(reduced_desc)).strip("\n")
+    reduced_comments = strip_markdown_formatting(comments)
+    reduced_comments = collapse_whitespace(remove_image_references(reduced_comments)).strip("\n")
     reduced_desc_has_content = reduced_desc.strip() != ""
     reduced_comments_has_content = reduced_comments.strip() != ""
     reduced_separator = 1 if reduced_desc_has_content and reduced_comments_has_content else 0
