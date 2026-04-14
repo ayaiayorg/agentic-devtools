@@ -408,10 +408,18 @@ Specification-Driven Development (SDD) process when a label is applied to a GitH
 1. Create a GitHub issue describing the feature you want to build
 2. Apply the `speckit` label (or your configured `SPECKIT_TRIGGER_LABEL`) to the issue
 3. The `speckit-issue-trigger` workflow fires automatically:
-   - Posts a "Started" comment within ~30 seconds
-   - Generates a `spec.md` via the Copilot SDK (model set by `SPECKIT_COPILOT_MODEL`)
-   - Creates a feature branch (`NNN-feature-name`) and commits the spec
-   - Opens a Pull Request and posts a "Completed" comment with links
+   - Posts a "Phase 1 Started" comment within ~30 seconds
+   - Generates `spec.md` via the Copilot SDK (model set by `SPECKIT_COPILOT_MODEL`)
+   - Creates a branch (`speckit/<issue>/phase-1-specify`) and commits the spec
+   - Opens a Pull Request labeled `speckit:phase-1`
+4. Review and merge the Phase 1 PR → Phase 2 (clarify) is triggered automatically
+5. Each subsequent phase creates its own PR for independent review:
+   - **Phase 1**: specify → `spec.md`
+   - **Phase 2**: clarify + checklist → updated `spec.md`, `checklists/requirements.md`
+   - **Phase 3**: plan → `plan.md` (+ optional `research.md`, `data-model.md`, etc.)
+   - **Phase 4**: tasks → `tasks.md`
+   - **Phase 5**: analyze → `analysis-report.md`
+6. After Phase 5 merges, `speckit:completed` and `speckit:needs-implementation` labels are applied
 
 ### Manual Trigger
 
@@ -432,6 +440,7 @@ gh workflow run speckit-issue-trigger.yml \
 | `SPECKIT_COMMENT_ON_ISSUE` | `true` | Set to `false` to suppress issue comments |
 | `SPECKIT_CREATE_BRANCH` | `true` | Set to `false` to skip branch creation |
 | `SPECKIT_CREATE_PR` | `true` | Set to `false` to skip PR creation |
+| `SPECKIT_AUTO_MERGE_PHASES` | _(empty)_ | Comma-separated phase names to auto-merge (e.g., `analyze`) |
 
 ### Required Secrets
 
@@ -445,7 +454,10 @@ gh workflow run speckit-issue-trigger.yml \
 | ----- | ------- |
 | `speckit` | Add to trigger specification generation |
 | `speckit:processing` | Applied automatically during generation |
-| `speckit:completed` | Applied when spec is successfully created |
+| `speckit:phase-N` | Applied to each phase PR (N = 1–5) |
+| `speckit:phase-N-complete` | Applied to issue when phase N's PR merges |
+| `speckit:completed` | Applied when all 5 phases are complete |
+| `speckit:needs-implementation` | Applied after Phase 5 merge to trigger implementation |
 | `speckit:failed` | Applied if generation fails |
 
 ### Testing the Workflow

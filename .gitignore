@@ -57,6 +57,9 @@ htmlcov/
 *.log
 state-out.txt
 
+# Workflow artifacts (ad-hoc, not source files)
+replies.json
+
 # Spec-Driven Development artifacts
 specs/*/research.md
 specs/*/data-model.md

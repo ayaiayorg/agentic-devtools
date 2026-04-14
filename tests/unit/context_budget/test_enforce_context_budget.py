@@ -226,9 +226,7 @@ class TestEnforceContextBudgetMetadata:
         comm = "real content " * 100  # stays non-empty, over budget
         result = enforce_context_budget(desc, comm, budget=50)
         # Stage 3 or 4 should be reached; description should not start with \n
-        assert not result.description.startswith("\n"), (
-            "Stage 3 combined should not start with a leading newline"
-        )
+        assert not result.description.startswith("\n"), "Stage 3 combined should not start with a leading newline"
 
     def test_whitespace_only_reduced_parts_treated_as_empty(self):
         """Reduced parts that become whitespace-only are treated as empty.
@@ -244,11 +242,7 @@ class TestEnforceContextBudgetMetadata:
         result = enforce_context_budget(desc, comm, budget=5000)
         # After normalization, reduced_desc should be empty (stripped whitespace-only)
         # so the separator should NOT be counted
-        assert not result.description.startswith("\n"), (
-            "Whitespace-only reduced desc should not cause leading newline"
-        )
+        assert not result.description.startswith("\n"), "Whitespace-only reduced desc should not cause leading newline"
         # Description field should be empty or the comment text (no blank-line prefix)
         if result.description:
-            assert result.description.strip(), (
-                "Description should not be whitespace-only"
-            )
+            assert result.description.strip(), "Description should not be whitespace-only"
