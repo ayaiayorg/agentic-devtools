@@ -449,12 +449,12 @@ strip_llm_preamble() {
 
     [[ -z "$llm_output" ]] && return 0
 
-    # Skip leading blank lines to find the first non-empty line.
+    # Skip leading blank/whitespace-only lines to find the first non-empty line.
     # A blank first line should not be treated as a valid markdown start.
     local first_line=""
     local skipped_blanks=false
     while IFS= read -r _fl; do
-        if [[ -n "$_fl" ]]; then
+        if [[ "$_fl" =~ [^[:space:]] ]]; then
             first_line="$_fl"
             break
         else
@@ -475,7 +475,7 @@ strip_llm_preamble() {
             while IFS= read -r line; do
                 if [[ "$found" == true ]]; then
                     trimmed+="$line"$'\n'
-                elif [[ -n "$line" ]]; then
+                elif [[ "$line" =~ [^[:space:]] ]]; then
                     found=true
                     trimmed+="$line"$'\n'
                 fi
@@ -490,7 +490,7 @@ strip_llm_preamble() {
     fi
 
     # Preamble detected — log a warning
-    echo "[Phase 7]     ⚠ LLM preamble detected: \"$(printf '%.60s' "$first_line")...\" — stripping." >&2
+    echo "[Sanitize]    ⚠ LLM preamble detected: \"$(printf '%.60s' "$first_line")...\" — stripping." >&2
 
     # Strategy 1: If the original file started with a heading, find the first
     # heading line in the LLM output and strip everything before it.
@@ -529,7 +529,7 @@ strip_llm_preamble() {
     fi
 
     # Strategy 3: No valid markdown found — keep the LLM output unchanged
-    echo "[Phase 7]     ⚠ Could not find valid markdown start in LLM output. Keeping LLM output unchanged." >&2
+    echo "[Sanitize]    ⚠ Could not find valid markdown start in LLM output. Keeping LLM output unchanged." >&2
     printf '%s' "$llm_output"
 }
 
@@ -537,9 +537,10 @@ strip_llm_preamble() {
 # ensure_heading_start <content> <default_heading>
 #
 # Ensures that <content> starts with a markdown heading (# ... through
-# ###### ...).  If the first non-empty line is already a heading, the
-# content is returned unchanged.  Otherwise, <default_heading> is prepended
-# with a blank line separator.
+# ###### ...).  If the first non-empty line is already a heading, any
+# leading blank lines are stripped so the output truly starts with the
+# heading.  Otherwise, <default_heading> is prepended with a blank line
+# separator.
 #
 # Prints the (possibly modified) content to stdout.
 # ---------------------------------------------------------------------------
@@ -549,19 +550,31 @@ ensure_heading_start() {
     [[ -z "$content" ]] && { printf '%s' "$default_heading"; return 0; }
     local first_line=""
     while IFS= read -r _fl; do
-        if [[ -n "$_fl" ]]; then first_line="$_fl"; break; fi
+        if [[ "$_fl" =~ [^[:space:]] ]]; then first_line="$_fl"; break; fi
     done <<< "$content"
     if [[ "$first_line" =~ ^#{1,6}[[:space:]]+ ]]; then
-        printf '%s' "$content"
+        # Strip leading blank/whitespace-only lines so the output truly starts with the heading
+        local trimmed_h=""
+        local found_h=false
+        while IFS= read -r line; do
+            if [[ "$found_h" == true ]]; then
+                trimmed_h+="$line"$'\n'
+            elif [[ "$line" =~ [^[:space:]] ]]; then
+                found_h=true
+                trimmed_h+="$line"$'\n'
+            fi
+        done <<< "$content"
+        [[ -n "$trimmed_h" ]] && trimmed_h="${trimmed_h%$'\n'}"
+        printf '%s' "$trimmed_h"
     else
         echo "[Sanitize] ⚠ No heading found — prepending default: \"$default_heading\"" >&2
-        # Strip leading blank lines before prepending heading
+        # Strip leading blank/whitespace-only lines before prepending heading
         local trimmed=""
         local found=false
         while IFS= read -r line; do
             if [[ "$found" == true ]]; then
                 trimmed+="$line"$'\n'
-            elif [[ -n "$line" ]]; then
+            elif [[ "$line" =~ [^[:space:]] ]]; then
                 found=true
                 trimmed+="$line"$'\n'
             fi
@@ -593,13 +606,22 @@ quick_markdown_sanity_check() {
 
         content=$(cat "$file")
 
-        # (b) Leading blank lines — remove them
+        # Treat whitespace-only files as empty. Command substitution strips
+        # trailing newlines, so blank files with only whitespace/newlines can
+        # appear empty here despite being non-zero bytes on disk.
+        if [[ ! "$content" =~ [^[:space:]] ]]; then
+            echo "[Sanitize] ⚠ Empty/blank file: $file — truncating and skipping" >&2
+            : > "$file"
+            continue
+        fi
+
+        # (b) Leading blank/whitespace-only lines — remove them
         local trimmed=""
         local found=false
         while IFS= read -r line; do
             if [[ "$found" == true ]]; then
                 trimmed+="$line"$'\n'
-            elif [[ -n "$line" ]]; then
+            elif [[ "$line" =~ [^[:space:]] ]]; then
                 found=true
                 trimmed+="$line"$'\n'
             fi
@@ -611,10 +633,10 @@ quick_markdown_sanity_check() {
             content="$trimmed"
         fi
 
-        # Find first non-empty line
+        # Find first non-blank line (treating whitespace-only as blank)
         first_line=""
         while IFS= read -r _fl; do
-            if [[ -n "$_fl" ]]; then first_line="$_fl"; break; fi
+            if [[ "$_fl" =~ [^[:space:]] ]]; then first_line="$_fl"; break; fi
         done <<< "$content"
 
         # (c) Starts with code fence — skip (no deterministic fix)
@@ -994,6 +1016,10 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
+    if [[ -z "${result//[[:space:]]/}" ]]; then
+        echo "Error: Clarify phase returned blank content after preamble stripping" >&2
+        return 1
+    fi
     result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
     printf '%s\n' "$result" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
@@ -1066,9 +1092,31 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
+    if [[ -z "${result//[[:space:]]/}" ]]; then
+        echo "Error: Checklist phase returned blank content after preamble stripping" >&2
+        return 1
+    fi
     result=$(ensure_heading_start "$result" "# Specification Quality Checklist")
     printf '%s\n' "$result" > "$SPEC_DIR/checklists/requirements.md"
     append_model_footer "$SPEC_DIR/checklists/requirements.md"
+}
+
+# ---------------------------------------------------------------------------
+# _derive_plan_artifact_heading <filename>
+#
+# Maps a plan-phase artifact filename to an appropriate default heading.
+# Prints the heading to stdout.
+# ---------------------------------------------------------------------------
+_derive_plan_artifact_heading() {
+    local file="$1"
+    case "$file" in
+        plan.md)        echo "# Implementation Plan" ;;
+        research.md)    echo "# Technical Research" ;;
+        data-model.md)  echo "# Data Model" ;;
+        quickstart.md)  echo "# Quick Start Guide" ;;
+        contracts/*.md) echo "# API Contract: $(basename "$file" .md)" ;;
+        *)              echo "# $(basename "$file" .md)" ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -1195,23 +1243,19 @@ Do NOT include any conversational preamble before the heading in any artifact."
         if [[ "$line" =~ ^===ARTIFACT:(.+)===$ ]]; then
             # Write previous artifact if any
             if [[ -n "$current_file" && -n "$current_content" ]]; then
-                # Derive default heading from artifact filename
                 local _plan_heading
-                case "$current_file" in
-                    plan.md)        _plan_heading="# Implementation Plan" ;;
-                    research.md)    _plan_heading="# Technical Research" ;;
-                    data-model.md)  _plan_heading="# Data Model" ;;
-                    quickstart.md)  _plan_heading="# Quick Start Guide" ;;
-                    contracts/*.md) _plan_heading="# API Contract: $(basename "$current_file" .md)" ;;
-                    *)              _plan_heading="# $(basename "$current_file" .md)" ;;
-                esac
+                _plan_heading=$(_derive_plan_artifact_heading "$current_file")
                 current_content=$(strip_llm_preamble "$current_content" "# ")
-                current_content=$(ensure_heading_start "$current_content" "$_plan_heading")
-                # Ensure parent directory exists (for contracts/ subdirectory)
-                mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
-                printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
-                append_model_footer "$SPEC_DIR/$current_file"
-                echo "  → Wrote $current_file"
+                if [[ -z "${current_content//[[:space:]]/}" ]]; then
+                    echo "[Sanitize] ⚠ Plan artifact '$current_file' is blank after preamble stripping — skipping" >&2
+                else
+                    current_content=$(ensure_heading_start "$current_content" "$_plan_heading")
+                    # Ensure parent directory exists (for contracts/ subdirectory)
+                    mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
+                    printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
+                    append_model_footer "$SPEC_DIR/$current_file"
+                    echo "  → Wrote $current_file"
+                fi
             fi
             # Trim leading/trailing whitespace from captured filename
             current_file="${BASH_REMATCH[1]}"
@@ -1248,22 +1292,18 @@ $line"
 
     # Write the last artifact
     if [[ -n "$current_file" && -n "$current_content" ]]; then
-        # Derive default heading from artifact filename
         local _plan_heading_last
-        case "$current_file" in
-            plan.md)        _plan_heading_last="# Implementation Plan" ;;
-            research.md)    _plan_heading_last="# Technical Research" ;;
-            data-model.md)  _plan_heading_last="# Data Model" ;;
-            quickstart.md)  _plan_heading_last="# Quick Start Guide" ;;
-            contracts/*.md) _plan_heading_last="# API Contract: $(basename "$current_file" .md)" ;;
-            *)              _plan_heading_last="# $(basename "$current_file" .md)" ;;
-        esac
+        _plan_heading_last=$(_derive_plan_artifact_heading "$current_file")
         current_content=$(strip_llm_preamble "$current_content" "# ")
-        current_content=$(ensure_heading_start "$current_content" "$_plan_heading_last")
-        mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
-        printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
-        append_model_footer "$SPEC_DIR/$current_file"
-        echo "  → Wrote $current_file"
+        if [[ -z "${current_content//[[:space:]]/}" ]]; then
+            echo "[Sanitize] ⚠ Plan artifact '$current_file' is blank after preamble stripping — skipping" >&2
+        else
+            current_content=$(ensure_heading_start "$current_content" "$_plan_heading_last")
+            mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
+            printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
+            append_model_footer "$SPEC_DIR/$current_file"
+            echo "  → Wrote $current_file"
+        fi
     fi
 
     # Verify plan.md was produced and is non-empty (required artifact)
@@ -1366,6 +1406,10 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
+    if [[ -z "${result//[[:space:]]/}" ]]; then
+        echo "Error: Tasks phase returned blank content after sanitization" >&2
+        return 1
+    fi
     result=$(ensure_heading_start "$result" "# Task List")
     printf '%s\n' "$result" > "$SPEC_DIR/tasks.md"
     append_model_footer "$SPEC_DIR/tasks.md"
@@ -1445,6 +1489,10 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
+    if [[ -z "${result//[[:space:]]/}" ]]; then
+        echo "Error: Analyze phase returned blank content after preamble removal" >&2
+        return 1
+    fi
     result=$(ensure_heading_start "$result" "# Analysis Report")
     printf '%s\n' "$result" > "$SPEC_DIR/analysis-report.md"
     append_model_footer "$SPEC_DIR/analysis-report.md"
@@ -1502,6 +1550,10 @@ run_single_phase() {
                 exit 1
             fi
             SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
+            if [[ -z "${SPEC_CONTENT//[[:space:]]/}" ]]; then
+                echo "Error: Specify phase returned only whitespace content after preamble stripping" >&2
+                exit 1
+            fi
             SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
             printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
             append_model_footer "$SPEC_DIR/spec.md"
@@ -1583,6 +1635,10 @@ else
         exit 1
     fi
     SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
+    if [[ -z "${SPEC_CONTENT//[[:space:]]/}" ]]; then
+        echo "Error: Specify phase returned only whitespace after stripping preamble" >&2
+        exit 1
+    fi
     SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
     printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
