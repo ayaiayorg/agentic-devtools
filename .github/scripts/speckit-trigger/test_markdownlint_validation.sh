@@ -79,6 +79,7 @@ assert_exit_code() {
 # We need these vars to be set for the helper functions.
 COPILOT_MODEL="${COPILOT_MODEL:-test-model}"
 MARKDOWNLINT_PROMPT_MAX_CHARS=32000
+MARKDOWNLINT_CLI2_VERSION="0.17.2"
 
 # Footer management functions (duplicated here to avoid sourcing the full script)
 _strip_footer_from_text() {
@@ -193,7 +194,7 @@ EOF
 
 # Verify violations exist before auto-fix
 lint_before_exit=0
-npx markdownlint-cli2 --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_before_exit=$?
+npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_before_exit=$?
 
 TESTS_RUN=$((TESTS_RUN + 1))
 if [[ $lint_before_exit -ne 0 ]]; then
@@ -205,11 +206,11 @@ else
 fi
 
 # Run auto-fix
-npx markdownlint-cli2 --no-globs --fix "$TMPDIR_TEST/test.md" 2>/dev/null || true
+npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs --fix "$TMPDIR_TEST/test.md" 2>/dev/null || true
 
 # Verify violations resolved
 lint_after_exit=0
-npx markdownlint-cli2 --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_after_exit=$?
+npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "$TMPDIR_TEST/test.md" 2>/dev/null || lint_after_exit=$?
 assert_eq "post-auto-fix: no violations" "0" "$lint_after_exit"
 
 # ---------------------------------------------------------------------------
@@ -1115,6 +1116,236 @@ eval "$_orig_parse_rawfail"
 unset -f npx
 unset -f call_llm
 rm -rf "$TMPDIR_RAWFAIL"
+
+# ---------------------------------------------------------------------------
+# Test: log_file_header
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: log_file_header ==="
+
+TMPDIR_LOG=$(mktemp -d /tmp/mdlint-test-log.XXXXXX)
+
+# T-log-1: 3-line file logs first 3 lines
+cat > "$TMPDIR_LOG/spec.md" << 'EOF'
+# My Spec
+ 
+## Summary
+Content here.
+EOF
+log_output=$(log_file_header "Phase 1" "$TMPDIR_LOG/spec.md" 2>&1)
+assert_contains "logs phase label" "Phase 1" "$log_output"
+assert_contains "logs filename" "spec.md" "$log_output"
+assert_contains "logs first line heading" "# My Spec" "$log_output"
+
+# T-log-2: Empty file logs "(empty)"
+touch "$TMPDIR_LOG/empty.md"
+log_output=$(log_file_header "Phase 2" "$TMPDIR_LOG/empty.md" 2>&1)
+assert_contains "empty file logs (empty)" "(empty)" "$log_output"
+
+# T-log-3: Nonexistent file logs "(empty)" (not -s check fails for missing file)
+log_output=$(log_file_header "Phase 3" "$TMPDIR_LOG/nonexistent.md" 2>&1)
+assert_contains "nonexistent file logs (empty)" "(empty)" "$log_output"
+
+rm -rf "$TMPDIR_LOG"
+
+# ---------------------------------------------------------------------------
+# Test: MD041-preamble integration test
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: MD041-preamble integration ==="
+
+TMPDIR_MD041=$(mktemp -d /tmp/mdlint-test-md041.XXXXXX)
+
+# Create a file without a heading (triggers MD041)
+cat > "$TMPDIR_MD041/spec.md" << 'EOF'
+no heading here
+
+Some content.
+EOF
+
+# Stub npx with a file-based call counter:
+# - --fix calls: no-op
+# - check-only call 1: returns MD041 violation + exit 1
+# - check-only call 2: returns clean (exit 0)
+_md041_npx_file=$(mktemp /tmp/mdlint-md041-npx.XXXXXX)
+echo "0" > "$_md041_npx_file"
+npx() {
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    local n
+    n=$(cat "$_md041_npx_file")
+    n=$((n + 1))
+    echo "$n" > "$_md041_npx_file"
+    if [[ $n -le 1 ]]; then
+        echo "$TMPDIR_MD041/spec.md:1:1 error MD041/first-line-heading First line in file should be a top-level heading"
+        return 1
+    fi
+    return 0
+}
+
+# Stub call_llm to return content WITH preamble (simulates LLM adding preamble)
+call_llm() {
+    printf 'Sure, here is the fix:\n# Heading\n\nSome content.'
+}
+
+MARKDOWNLINT_MAX_ITERATIONS=3
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_MD041" 2>&1) || exit_code=$?
+
+assert_eq "MD041 preamble integration exits 0" "0" "$exit_code"
+assert_contains "detects preamble" "preamble detected" "$output"
+assert_contains "reports success" "SUCCESS" "$output"
+
+unset -f npx
+unset -f call_llm
+rm -f "$_md041_npx_file"
+rm -rf "$TMPDIR_MD041"
+
+# ---------------------------------------------------------------------------
+# Test: GITHUB_OUTPUT exports
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: GITHUB_OUTPUT exports ==="
+
+TMPDIR_GHOUT=$(mktemp -d /tmp/mdlint-test-ghout.XXXXXX)
+GITHUB_OUTPUT_FILE=$(mktemp /tmp/mdlint-ghout.XXXXXX)
+
+# Create a clean file
+cat > "$TMPDIR_GHOUT/spec.md" << 'EOF'
+# Clean Spec
+
+Content here.
+EOF
+
+# Point GITHUB_OUTPUT to our temp file
+GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE"
+
+exit_code=0
+run_markdownlint_validation "$TMPDIR_GHOUT" 2>/dev/null || exit_code=$?
+
+gh_output=$(cat "$GITHUB_OUTPUT_FILE")
+assert_contains "exports markdownlint_status=success" "markdownlint_status=success" "$gh_output"
+assert_contains "exports markdownlint_iterations" "markdownlint_iterations=" "$gh_output"
+assert_contains "exports markdownlint_violations=0" "markdownlint_violations=0" "$gh_output"
+
+# Clean up
+unset GITHUB_OUTPUT
+rm -f "$GITHUB_OUTPUT_FILE"
+rm -rf "$TMPDIR_GHOUT"
+
+# Test GITHUB_OUTPUT on failure
+TMPDIR_GHOUT_FAIL=$(mktemp -d /tmp/mdlint-test-ghout-fail.XXXXXX)
+GITHUB_OUTPUT_FILE_FAIL=$(mktemp /tmp/mdlint-ghout-fail.XXXXXX)
+
+# Create a file with unfixable violations
+python3 -c "
+print('# Heading')
+print()
+words = 'the quick brown fox jumps over the lazy dog and keeps running through the vast open fields '
+line = ''
+while len(line) < 220:
+    line += words
+print(line.strip())
+" > "$TMPDIR_GHOUT_FAIL/spec.md"
+
+call_llm() { return 1; }
+GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE_FAIL"
+MARKDOWNLINT_MAX_ITERATIONS=2
+exit_code=0
+run_markdownlint_validation "$TMPDIR_GHOUT_FAIL" 2>/dev/null || exit_code=$?
+
+gh_output_fail=$(cat "$GITHUB_OUTPUT_FILE_FAIL")
+assert_contains "failure exports markdownlint_status" "markdownlint_status=" "$gh_output_fail"
+assert_contains "failure exports markdownlint_iterations" "markdownlint_iterations=" "$gh_output_fail"
+assert_contains "failure exports markdownlint_violations" "markdownlint_violations=" "$gh_output_fail"
+
+# Status should not be "success"
+TESTS_RUN=$((TESTS_RUN + 1))
+if ! echo "$gh_output_fail" | grep -q "markdownlint_status=success"; then
+    echo "  ✓ failure status is not success"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ failure status should not be success"
+    FAIL=$((FAIL + 1))
+fi
+
+unset GITHUB_OUTPUT
+unset -f call_llm
+rm -f "$GITHUB_OUTPUT_FILE_FAIL"
+rm -rf "$TMPDIR_GHOUT_FAIL"
+
+# ---------------------------------------------------------------------------
+# Test: Debug log persistence
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Debug log persistence ==="
+
+TMPDIR_DEBUG=$(mktemp -d /tmp/mdlint-test-debug.XXXXXX)
+
+# Create a clean file
+cat > "$TMPDIR_DEBUG/spec.md" << 'EOF'
+# Debug Test
+
+Content here.
+EOF
+
+exit_code=0
+run_markdownlint_validation "$TMPDIR_DEBUG" 2>/dev/null || exit_code=$?
+
+# Verify debug log was created
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ -f "$TMPDIR_DEBUG/.markdownlint-debug.log" ]]; then
+    echo "  ✓ debug log file created"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ debug log file should be created"
+    FAIL=$((FAIL + 1))
+fi
+
+# Verify it contains iteration header
+if [[ -f "$TMPDIR_DEBUG/.markdownlint-debug.log" ]]; then
+    debug_content=$(cat "$TMPDIR_DEBUG/.markdownlint-debug.log")
+    assert_contains "debug log has iteration header" "Iteration 1" "$debug_content"
+fi
+
+rm -rf "$TMPDIR_DEBUG"
+
+# ---------------------------------------------------------------------------
+# Test: Smoke test fixtures
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Smoke test fixtures ==="
+
+FIXTURES_DIR="$SCRIPT_DIR/fixtures"
+if [[ -d "$FIXTURES_DIR" ]]; then
+    TMPDIR_SMOKE=$(mktemp -d /tmp/mdlint-test-smoke.XXXXXX)
+
+    # Copy fixtures to temp dir
+    cp "$FIXTURES_DIR"/*.md "$TMPDIR_SMOKE/"
+
+    # Override call_llm to fail (we only test the parser/loop doesn't crash)
+    call_llm() { return 1; }
+
+    MARKDOWNLINT_MAX_ITERATIONS=1
+    exit_code=0
+    run_markdownlint_validation "$TMPDIR_SMOKE" 2>/dev/null || exit_code=$?
+
+    # Assert no bash-level crash (exit code 0 or 1, not 128+)
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if [[ $exit_code -le 1 ]]; then
+        echo "  ✓ smoke test completes without crash (exit $exit_code)"
+        PASS=$((PASS + 1))
+    else
+        echo "  ✗ smoke test should not crash (got exit $exit_code)"
+        FAIL=$((FAIL + 1))
+    fi
+
+    unset -f call_llm
+    rm -rf "$TMPDIR_SMOKE"
+else
+    echo "  ⚠ Fixtures directory not found at $FIXTURES_DIR — skipping smoke test"
+fi
 
 # ---------------------------------------------------------------------------
 # Summary

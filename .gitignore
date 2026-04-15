@@ -61,6 +61,8 @@ poll*.txt
 
 # Workflow artifacts (ad-hoc, not source files)
 replies.json
+poll-result.json
+copilot-status.json
 
 # Spec-Driven Development artifacts
 specs/*/research.md
@@ -68,3 +70,4 @@ specs/*/data-model.md
 specs/*/quickstart.md
 specs/*/contracts/
 .specify/memory/agent-file.md
+.markdownlint-debug.log

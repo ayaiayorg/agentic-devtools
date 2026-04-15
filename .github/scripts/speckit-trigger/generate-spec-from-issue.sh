@@ -90,6 +90,9 @@ fi
 # Maximum prompt size in characters for per-file LLM remediation (NFR-004).
 # Estimated token count = ceil(char_count / 4); 32000 chars ≈ 8000 tokens.
 MARKDOWNLINT_PROMPT_MAX_CHARS=32000
+# Pin markdownlint-cli2 version to prevent output format changes from breaking
+# the parser.  Update this AND .github/workflows/copilot-setup-steps.yml together.
+MARKDOWNLINT_CLI2_VERSION="0.17.2"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -219,6 +222,27 @@ mkdir -p "$SPEC_DIR"
 mkdir -p "$SPEC_DIR/checklists"
 mkdir -p "$SPEC_DIR/contracts"
 
+# Copy spec-directory markdownlint config override (stricter than root —
+# enforces MD041 without the front_matter_title exemption since specs
+# never use front matter).
+# Compute the correct relative path to repo-root .markdownlint.json based on
+# the actual depth of SPEC_DIR, so this works for any SPEC_BASE_PATH depth.
+# NOTE: The root .markdownlint-cli2.jsonc has a "config" section, which
+# disables per-directory .markdownlint.json discovery.  Phase 7 lint calls
+# therefore run with cwd=$spec_dir so markdownlint-cli2 does NOT find the
+# root .markdownlint-cli2.jsonc, falling back to markdownlint's own
+# per-file directory-based config resolution that honours this override.
+_mdlint_template="$SCRIPT_DIR/templates/spec-markdownlint.json"
+if [[ -f "$_mdlint_template" ]]; then
+    _spec_rel="${SPEC_DIR#"$REPO_ROOT/"}"
+    _depth=$(echo "$_spec_rel" | tr '/' '\n' | wc -l)
+    _extends_prefix=""
+    for (( _i=0; _i<_depth; _i++ )); do _extends_prefix="../$_extends_prefix"; done
+    _extends_path="${_extends_prefix}.markdownlint.json"
+    sed "s|\"extends\": \"../../.markdownlint.json\"|\"extends\": \"${_extends_path}\"|" \
+        "$_mdlint_template" > "$SPEC_DIR/.markdownlint.json"
+fi
+
 # ---------------------------------------------------------------------------
 # Retry helper — exponential backoff for transient API errors
 # Usage: call_with_retry <max_attempts> <initial_delay_seconds> <command...>
@@ -322,6 +346,26 @@ _strip_footer_from_text() {
 }
 
 # ========================== Markdownlint Validation ==========================
+
+# ---------------------------------------------------------------------------
+# log_file_header <phase_label> <filepath>
+#
+# Logs the first 3 lines of a generated file to stderr for quick preamble
+# detection.  If the file is empty, logs "(empty)" instead.
+# ---------------------------------------------------------------------------
+log_file_header() {
+    local phase_label="$1"
+    local filepath="$2"
+    local filename
+    filename=$(basename "$filepath")
+    if [[ ! -s "$filepath" ]]; then
+        echo "[$phase_label] First lines of $filename: (empty)" >&2
+        return 0
+    fi
+    local first_lines
+    first_lines=$(head -n 3 "$filepath" | awk 'BEGIN { sep = "" } { printf "%s%s", sep, $0; sep = " | " }')
+    echo "[$phase_label] First lines of $filename: $first_lines" >&2
+}
 
 # ---------------------------------------------------------------------------
 # check_npx_available
@@ -743,6 +787,9 @@ run_markdownlint_validation() {
 
     if [[ ${#md_files[@]} -eq 0 ]]; then
         echo "[Phase 7] No markdown files found in $spec_dir — skipping validation." >&2
+        echo "markdownlint_status=success" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "markdownlint_iterations=0" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "markdownlint_violations=0" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         return 0
     fi
 
@@ -763,15 +810,22 @@ run_markdownlint_validation() {
         echo "" >&2
         echo "[Phase 7] Iteration $iteration/$max_iter" >&2
 
-        # Step 1: Auto-fix pass
+        # Step 1: Auto-fix pass (run from spec_dir so per-spec .markdownlint.json is discovered)
         echo "[Phase 7]   Running markdownlint-cli2 --fix..." >&2
-        npx markdownlint-cli2 --no-globs --fix "${md_files[@]}" 2>&1 || true
+        (cd "$spec_dir" && npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs --fix "${md_files[@]}") 2>&1 || true
 
-        # Step 2: Check-only pass — capture output
+        # Step 2: Check-only pass — capture output (run from spec_dir)
         local lint_output=""
         local lint_exit=0
-        lint_output=$(npx markdownlint-cli2 --no-globs "${md_files[@]}" 2>&1) || lint_exit=$?
+        lint_output=$(cd "$spec_dir" && npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "${md_files[@]}" 2>&1) || lint_exit=$?
         last_lint_exit=$lint_exit
+
+        # Persist raw lint output for CI debugging (append per iteration)
+        {
+            echo "--- Iteration $iteration ($(date -u +%Y-%m-%dT%H:%M:%SZ)) ---"
+            echo "$lint_output"
+            echo ""
+        } >> "$spec_dir/.markdownlint-debug.log" || true
 
         if [[ $lint_exit -eq 0 ]]; then
             echo "[Phase 7]   ✓ All files lint-clean after auto-fix." >&2
@@ -1047,8 +1101,13 @@ Your response must begin with the actual markdown content. The very first charac
 
     # Return status — gate on actual lint exit code, not just parsed count.
     # This prevents silent success when lint fails but output can't be parsed.
+    local markdownlint_status=""
     if [[ $last_lint_exit -eq 0 && $final_violation_count -eq 0 ]]; then
         echo "[Phase 7]   Result: ✓ SUCCESS — all files lint-clean" >&2
+        markdownlint_status="success"
+        echo "markdownlint_status=$markdownlint_status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "markdownlint_iterations=$total_iterations" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "markdownlint_violations=$final_violation_count" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         return 0
     fi
 
@@ -1057,16 +1116,25 @@ Your response must begin with the actual markdown content. The very first charac
     # of whether we also hit the iteration limit.
     if [[ $last_lint_exit -ne 0 && $final_violation_count -eq 0 ]]; then
         echo "[Phase 7]   Result: ✗ FAILED — markdownlint exited $last_lint_exit but violations could not be parsed" >&2
+        markdownlint_status="failed-unparseable"
     elif [[ "$stall_detected" == "true" ]]; then
         echo "[Phase 7]   Result: ✗ FAILED — stall detected with $final_violation_count remaining violation(s)" >&2
+        markdownlint_status="failed-stall"
     elif [[ $total_iterations -ge $max_iter && $final_violation_count -gt 0 ]]; then
         echo "[Phase 7]   Result: ✗ FAILED — max iterations ($max_iter) exhausted with $final_violation_count remaining violation(s)" >&2
+        markdownlint_status="failed-exhausted"
+    else
+        markdownlint_status="failed"
     fi
+
+    echo "markdownlint_status=$markdownlint_status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+    echo "markdownlint_iterations=$total_iterations" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+    echo "markdownlint_violations=$final_violation_count" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
     # Print remaining violations for actionable output (capped at 50 lines to
     # keep CI logs readable; full output is available via markdownlint re-run)
     echo "[Phase 7]   Remaining violations:" >&2
-    npx markdownlint-cli2 --no-globs "${md_files[@]}" 2>&1 | head -50 >&2 || true
+    (cd "$spec_dir" && npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "${md_files[@]}" 2>&1) | head -50 >&2 || true
 
     return 1
 }
@@ -1729,6 +1797,7 @@ run_single_phase() {
             SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
             printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
             append_model_footer "$SPEC_DIR/spec.md"
+            log_file_header "Phase 1" "$SPEC_DIR/spec.md"
             echo "✓ Phase 1 complete: spec.md"
 
             echo ""
@@ -1741,8 +1810,10 @@ run_single_phase() {
             echo ""
             echo "=== Phase 2: Clarify + Checklist ==="
             run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+            log_file_header "Phase 2" "$SPEC_DIR/spec.md"
             echo "✓ Clarify complete: spec.md updated"
             run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
+            log_file_header "Phase 2" "$SPEC_DIR/checklists/requirements.md"
             echo "✓ Checklist complete: checklists/requirements.md"
 
             echo ""
@@ -1755,6 +1826,7 @@ run_single_phase() {
             echo ""
             echo "=== Phase 3: Plan ==="
             COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
+            log_file_header "Phase 3" "$SPEC_DIR/plan.md"
             echo "✓ Phase 3 complete: plan.md (+ optional artifacts)"
 
             echo ""
@@ -1767,6 +1839,7 @@ run_single_phase() {
             echo ""
             echo "=== Phase 4: Tasks ==="
             COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
+            log_file_header "Phase 4" "$SPEC_DIR/tasks.md"
             echo "✓ Phase 4 complete: tasks.md"
 
             echo ""
@@ -1779,6 +1852,7 @@ run_single_phase() {
             echo ""
             echo "=== Phase 5: Analyze ==="
             COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
+            log_file_header "Phase 5" "$SPEC_DIR/analysis-report.md"
             echo "✓ Phase 5 complete: analysis-report.md"
 
             echo ""
@@ -1814,31 +1888,37 @@ else
     SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
     printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
+    log_file_header "Phase 1" "$SPEC_DIR/spec.md"
     echo "✓ Phase 1 complete: spec.md"
 
     echo ""
     echo "=== Phase 2/7: Clarify ==="
     run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+    log_file_header "Phase 2" "$SPEC_DIR/spec.md"
     echo "✓ Phase 2 complete: spec.md updated with clarifications"
 
     echo ""
     echo "=== Phase 3/7: Checklist ==="
     run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
+    log_file_header "Phase 3" "$SPEC_DIR/checklists/requirements.md"
     echo "✓ Phase 3 complete: checklists/requirements.md"
 
     echo ""
     echo "=== Phase 4/7: Plan ==="
     COPILOT_TIMEOUT=900 run_plan_phase || { echo "Error: Plan phase failed after retries" >&2; exit 1; }
+    log_file_header "Phase 4" "$SPEC_DIR/plan.md"
     echo "✓ Phase 4 complete: plan.md (+ optional artifacts)"
 
     echo ""
     echo "=== Phase 5/7: Tasks ==="
     COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
+    log_file_header "Phase 5" "$SPEC_DIR/tasks.md"
     echo "✓ Phase 5 complete: tasks.md"
 
     echo ""
     echo "=== Phase 6/7: Analyze ==="
     COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
+    log_file_header "Phase 6" "$SPEC_DIR/analysis-report.md"
     echo "✓ Phase 6 complete: analysis-report.md"
 
     echo ""
