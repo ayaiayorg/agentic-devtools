@@ -1,225 +1,184 @@
-# Feature Specification: Require Language Specifier on Fenced Code Blocks in SpecKit Prompts
+# Spec: SpecKit prompts: Require language specifier on fenced code blocks
 
-**Feature Branch**: `speckit/1194/phase-1-specify`
-**Created**: 2026-04-15
-**Status**: Draft
-**Input**: GitHub Issue #1194 — SpecKit generation prompts do not instruct the LLM to specify a language on fenced code blocks,
-causing MD040 violations in generated artifacts
-**Source Issue**: #1194 (<https://github.com/ayaiayorg/agentic-devtools/issues/1194>)
+## Summary
 
-## User Scenarios & Testing *(mandatory)*
+SpecKit prompt templates must consistently instruct the model to include a language specifier on
+every fenced code block it produces. The instruction must be defined once in a dedicated shared
+markdown file and then loaded into all in-scope templates and runtime-generated prompts using a
+consistent, minimal inclusion mechanism.
 
-### User Story 1 — Generated spec.md passes markdownlint without remediation (Priority: P1)
+## Problem
 
-As a developer running `speckit.specify`, I want the generated `spec.md` to have language identifiers on all fenced code blocks
-so that the output passes `markdownlint` (MD040) on the first attempt without requiring the reactive LLM remediation loop in the pipeline.
+Today, fenced code block language guidance is either absent, inconsistently applied, or embedded
+only in limited prompt sources such as the constitution. Because the constitution is not loaded
+by all relevant templates, generated outputs can omit language identifiers on fenced code blocks,
+reducing readability and downstream tooling compatibility.
 
-**Why this priority**: The `specify` command is the most frequently executed SpecKit step and produces the most fenced code blocks
-(shell examples, JSON snippets, plain-text diagrams). Eliminating MD040 violations here provides the highest impact —
-fewer remediation iterations, faster pipeline runs, and lower LLM token costs.
+## Scope
 
-**Independent Test**: Run `speckit.specify` with a feature description that naturally produces code examples
-(e.g., "Add a CLI command that accepts JSON input and outputs TOML").
-Verify every fenced code block in the generated `spec.md` has a language identifier.
-Run `npx markdownlint-cli2 specs/<dir>/spec.md` and confirm zero MD040 violations.
+This spec covers:
 
-**Acceptance Scenarios**:
+- command templates (all files matching `.specify/templates/commands/*.md`),
+- agent files (all files matching `.github/agents/speckit.*.agent.md`),
+- the pipeline/runtime prompt assembly path,
+- the dedicated shared markdown rules file used to inject the guidance.
 
-1. **Given** a SpecKit `specify` command prompt that includes the code-block formatting instruction,
-**When** the LLM generates a `spec.md` containing fenced code blocks,
-**Then** every fenced code block includes a language identifier (e.g., `bash`, `python`, `json`, `text`).
-2. **Given** a generated `spec.md`, **When** `markdownlint-cli2` is run against it,
-**Then** zero MD040 (fenced-code-language) violations are reported.
-3. **Given** a feature description that involves no code examples,
-**When** `speckit.specify` generates output with no fenced code blocks,
-**Then** the output is unaffected by the new instruction (no false positives or empty code blocks injected).
+This spec does not require broader markdown-style enforcement beyond fenced code block language tagging.
 
----
+## Clarified decisions
 
-### User Story 2 — Generated plan.md and tasks.md pass MD040 (Priority: P1)
+1. **Shared location** → New repo file `.specify/memory/markdown-rules.md`; in prompt text and template instructions, reference it as virtual path `/memory/markdown-rules.md`.
+2. **Path mapping** → `/memory/markdown-rules.md` maps to `.specify/memory/markdown-rules.md` for command templates, runtime-generated prompts, and agent files.
+3. **Inclusion mechanism** → Explicit one-line load instruction in each template's context step using `/memory/markdown-rules.md`.
+4. **Pipeline script** → `cat` `.specify/memory/markdown-rules.md` at runtime and inject its contents into prompt strings.
+5. **Agent files** → Same one-line load instruction as command templates, using virtual path `/memory/markdown-rules.md`; agent runtimes must provide the same `/memory/*` mapping for these references.
+6. **NFR-001 scope** → 500-char limit applies to shared file content; reference line length ≤ 100 chars (counted separately).
 
-As a developer running `speckit.plan` or `speckit.tasks`, I want generated `plan.md` and `tasks.md` files to include
-language identifiers on all fenced code blocks so that the full SpecKit pipeline produces lint-clean artifacts end-to-end.
+## User stories
 
-**Why this priority**: The `plan` and `tasks` commands are the next most common artifact generators after `specify`,
-and `plan.md` was the specific file that triggered the MD040 violation in PR #1178.
-These commands must receive the same instruction to close the gap that motivated issue #1194.
+### User Story 1 - Consistent markdown output guidance
 
-**Independent Test**: Run `speckit.plan` and `speckit.tasks` for a feature that involves shell commands and code snippets.
-Verify every fenced code block in `plan.md` and `tasks.md` has a language identifier.
-Run `markdownlint-cli2` and confirm zero MD040 violations.
+As a template author, I want markdown output rules for fenced code blocks to live in one shared file so that all relevant prompts stay consistent and easy to maintain.
 
-**Acceptance Scenarios**:
+**Acceptance criteria**
 
-1. **Given** a `speckit.plan` prompt with the code-block instruction,
-**When** the LLM generates `plan.md` containing code examples,
-**Then** every fenced code block has a language identifier.
-2. **Given** a `speckit.tasks` prompt with the code-block instruction,
-**When** the LLM generates `tasks.md` containing fenced code blocks,
-**Then** every fenced code block has a language identifier.
+- A dedicated shared file exists at `.specify/memory/markdown-rules.md`.
+- The shared file contains the normative rule requiring language specifiers on fenced code blocks.
+- Templates do not duplicate the full rule text inline when the shared file can be referenced instead.
 
----
+### User Story 2 - Reliable prompt behavior across templates
 
-### User Story 3 — All remaining SpecKit generation prompts enforce code-block language (Priority: P2)
+As a user of SpecKit prompts, I want every in-scope prompt template to load the same markdown rule so that generated code fences consistently include language identifiers.
 
-As a developer using any SpecKit command that generates or modifies markdown artifacts
-(`clarify`, `checklist`, `implement`, `analyze`, `constitution`),
-I want the code-block formatting instruction to be present so that all SpecKit-generated markdown is MD040-compliant.
+**Acceptance criteria**
 
-**Why this priority**: While these commands generate fewer code blocks than `specify`/`plan`/`tasks`,
-consistency across the full SpecKit suite prevents edge-case violations and establishes a uniform quality standard.
-This also eliminates the risk of MD040 violations migrating to less-tested commands.
+- Every in-scope command template includes the one-line load instruction using `/memory/markdown-rules.md` in the appropriate context/setup section.
+- Every in-scope agent file includes the same style of one-line load instruction using `/memory/markdown-rules.md`.
+- In the assembled prompt text, either the injected markdown rule text or an explicit load instruction referencing `/memory/markdown-rules.md` appears before the generation instructions begin.
 
-**Independent Test**: For each of the remaining SpecKit commands (`clarify`, `checklist`, `implement`, `analyze`, `constitution`),
-run the command with input that would produce code blocks.
-Verify language identifiers are present on all generated fenced code blocks.
+### User Story 3 - Runtime parity for generated prompts
 
-**Acceptance Scenarios**:
+As a maintainer of the pipeline script, I want runtime-generated prompts to inject the same shared markdown rule content so that CLI/pipeline execution matches static template behavior.
 
-1. **Given** any SpecKit command prompt that includes the code-block instruction,
-**When** the LLM generates markdown output with fenced code blocks,
-**Then** every code block has a language identifier.
-2. **Given** the `speckit.implement` command,
-**When** the LLM creates or modifies files that contain fenced code blocks,
-**Then** language identifiers are preserved or added.
+**Acceptance criteria**
 
----
+- The pipeline script reads `.specify/memory/markdown-rules.md` using `cat`.
+- The script injects the file contents into the prompt string used at runtime.
+- If the shared file is missing, the script degrades gracefully and does not crash unexpectedly.
 
-### User Story 4 — Shared instruction block avoids duplication (Priority: P2)
+### User Story 4 - Actionable Phase 3 implementation scope
 
-As a maintainer of the SpecKit prompt system, I want the code-block language instruction to be defined once in a shared location
-and referenced by all SpecKit prompts so that future updates to the formatting rule only require a single change.
+As an implementer planning Phase 3, I want this spec to explicitly cover command templates, agent files, and the pipeline script so that no prompt source is missed.
 
-**Why this priority**: There are 9 SpecKit command templates. Duplicating the instruction in each one creates a maintenance burden
-and risks drift. A shared instruction block aligns with the DRY principle and the existing constitution/template architecture.
+**Acceptance criteria**
 
-**Independent Test**: Verify that the code-block instruction text exists in exactly one shared location
-(not copy-pasted across 9 files). Confirm each SpecKit command template references or includes this shared block.
-Modify the shared instruction and verify the change propagates to all commands.
+- The scope explicitly includes command templates, agent files, and pipeline/runtime assembly.
+- The requirements identify both the shared-file location and the inclusion/injection mechanisms.
+- Success criteria verify template coverage and pipeline behavior.
 
-**Acceptance Scenarios**:
+## Functional requirements
 
-1. **Given** a shared markdown formatting instruction block,
-**When** a SpecKit command template is loaded,
-**Then** the code-block language rule is included in the prompt sent to the LLM.
-2. **Given** a change to the shared instruction (e.g., adding a new language mapping),
-**When** any SpecKit command is subsequently run,
-**Then** the updated instruction is used without modifying individual command templates.
+### FR-001 - Pipeline injection mechanism (Must)
 
----
+The pipeline/runtime prompt assembly path must read the contents of `.specify/memory/markdown-rules.md` using `cat` (per decision #4)
+and inject those contents into the generated prompt string used for model execution.
 
-### User Story 5 — `taskstoissues` command preserves code-block language in GitHub Issues (Priority: P3)
+### FR-002 - Shared markdown rules file (Must)
 
-As a developer converting tasks to GitHub Issues via `speckit.taskstoissues`,
-I want any code blocks included in issue bodies to retain their language identifiers
-so that the issues render correctly on GitHub.
+The markdown rule requiring language specifiers on fenced code blocks must be stored in a dedicated shared file at `.specify/memory/markdown-rules.md`.
 
-**Why this priority**: `taskstoissues` transforms existing markdown rather than generating new content.
-The risk of MD040 violations is lower since the source tasks.md should already be compliant (from User Story 2),
-but the instruction serves as a safety net for any code blocks the LLM adds during issue creation.
+### FR-003 - Normative rule content (Must)
 
-**Independent Test**: Run `speckit.taskstoissues` on a `tasks.md` that contains code blocks with language identifiers.
-Verify the resulting GitHub Issues preserve the language identifiers in their body markdown.
+The shared markdown rules file must instruct the model to include an explicit language specifier on every fenced code block it emits.
+When a specific language can be identified from context, the model must use that language label; otherwise, it must use an explicit fallback label such as `text`.
+Bare fenced code blocks without a language specifier are not permitted.
 
-**Acceptance Scenarios**:
+### FR-004 - Template usage model (Must)
 
-1. **Given** a `tasks.md` with properly labeled code blocks,
-**When** `speckit.taskstoissues` creates GitHub Issues,
-**Then** the code blocks in each issue body retain their language identifiers.
+In-scope templates must reference the shared markdown rules through a one-line load instruction using `/memory/markdown-rules.md` rather than duplicating the full markdown rule content inline.
 
----
+### FR-005 - Source of truth (Must)
 
-### Edge Cases
+`.specify/memory/markdown-rules.md` is the authoritative source of truth for this markdown rule; the constitution is not the primary storage location for this requirement.
 
-- What happens when the LLM generates a code block where no obvious language applies
-(e.g., pseudo-code, free-form diagrams, or plain output)?
-The instruction MUST specify a fallback language (`text`) for these cases.
-- What happens when a code block contains mixed content (e.g., shell commands interleaved with output)?
-The instruction MUST provide guidance to use the primary language (`bash` for shell sessions)
-rather than omitting the identifier.
-- What happens when the SpecKit prompt template itself contains example code blocks in its instructional text?
-These template code blocks MUST also have language identifiers to remain self-consistent with the rule.
-- How does this interact with the existing pipeline remediation loop in `generate-spec-from-issue.sh`?
-The remediation loop remains as a safety net but SHOULD be triggered less frequently for MD040 after this change.
+### FR-006 - Agent file coverage (Must)
 
-## Requirements *(mandatory)*
+Agent files that participate in prompt construction must include the same one-line load instruction pattern using `/memory/markdown-rules.md` as command templates.
 
-### Functional Requirements
+### FR-007 - Graceful degradation (Should)
 
-- **FR-001**: All SpecKit command templates (`.specify/templates/commands/*.md`) MUST include an instruction
-directing the LLM to specify a language identifier on every fenced code block it generates.
-This requirement also applies to the hard-coded phase prompts in the GitHub Action pipeline script
-(`.github/scripts/speckit-trigger/generate-spec-from-issue.sh` — e.g., `run_specify_phase`, `run_tasks_phase`)
-and any inline fenced-code examples within those prompt strings.
+If `.specify/memory/markdown-rules.md` is unavailable at runtime, the affected template or
+pipeline path must log a clear warning to stderr, continue without terminating the workflow,
+and skip injecting markdown rules from that file.
 
-- **FR-002**: The instruction MUST enumerate common language identifiers and their use cases:
-`bash` for shell commands, `python` for Python code, `json` for JSON, `toml` for TOML,
-`yaml` for YAML, `text` for plain text, diagrams, or ASCII art, and `markdown` for markdown examples.
+### FR-008 - Placement in all in-scope prompt sources (Must)
 
-- **FR-003**: The instruction MUST explicitly state that bare triple backticks (without a language) are never permitted.
+The one-line load instruction must be added in the context/setup section of every in-scope template
+and agent file so the markdown rule is presented before the model is asked to generate substantive
+output.
 
-- **FR-004**: The instruction MUST specify `text` as the fallback language for code blocks where no specific language applies.
+## Non-functional requirements
 
-- **FR-005**: The code-block instruction SHOULD be defined in a single shared location to avoid duplication
-across the 9 SpecKit command templates. [NEEDS CLARIFICATION: should the shared instruction be a new file
-(e.g., `.specify/memory/markdown-rules.md`) or appended to the existing constitution (`.specify/memory/constitution.md`)?]
+### NFR-001 - Size budget
 
-- **FR-006**: The corresponding VS Code Copilot agent files (`.github/agents/speckit.*.agent.md`) MUST receive the same
-instruction, either by direct inclusion or by reference to the shared block.
+The content of `.specify/memory/markdown-rules.md` must be limited to 500 characters maximum
+(including newlines/formatting). The one-line reference/load instruction added to any template
+or agent file must be ≤ 100 characters (counted separately). The combined overhead per prompt
+source must not exceed 600 characters.
 
-- **FR-007**: The `generate-spec-from-issue.sh` pipeline script MUST continue to include MD040 remediation as a fallback
-for any violations that slip through despite the proactive instruction.
+### NFR-002 - Maintainability
 
-### Non-Functional Requirements
+The solution should minimize duplication by keeping the rule text in one shared file and using a standard one-line inclusion pattern across prompt sources.
 
-- **NFR-001**: The added instruction text MUST NOT increase any individual prompt template by more than 500 characters
-to avoid materially impacting LLM context window usage.
+### NFR-003 - Clarity
 
-- **NFR-002**: The instruction MUST be clear, unambiguous, and positioned prominently enough in each prompt
-that LLMs consistently follow it (e.g., near the top of formatting rules, not buried at the end).
+The wording in the shared file and in the one-line load instruction must be unambiguous so maintainers can easily identify where the markdown requirement comes from and how it is applied.
 
-- **NFR-003**: The change MUST NOT break existing markdownlint configuration —
-no `.markdownlint.json` files should be modified.
+## Edge cases
 
-- **NFR-004**: The change MUST be backward-compatible —
-existing specs, plans, and tasks files generated before this change are unaffected.
+- **Missing shared file**: If `.specify/memory/markdown-rules.md` does not exist, the pipeline/template path must degrade gracefully rather than hard-failing unexpectedly.
+- **Constitution also contains related guidance**: The dedicated shared file remains the source of truth for this requirement even if similar wording exists elsewhere.
+- **Non-code fenced blocks**: If the model produces a fenced block that is not code or no language
+  can reasonably be inferred, the prompt guidance must require a fallback language identifier such as
+  `text` rather than an unlabeled fenced block; code examples should always use the most specific
+  determinable language identifier.
+- **Partial rollout risk**: Updating only some templates is insufficient; all in-scope prompt sources must be covered for the change to be considered complete.
 
-### Key Entities
+## Success criteria
 
-- **SpecKit Command Template**: A markdown file in `.specify/templates/commands/` that defines the system prompt
-and instructions for an LLM-driven SpecKit step.
-There are 9 templates: `specify`, `plan`, `tasks`, `taskstoissues`, `implement`, `analyze`, `clarify`, `constitution`, `checklist`.
+### SC-001
 
-- **VS Code Copilot Agent File**: A markdown file in `.github/agents/` that mirrors a command template
-for use in VS Code Copilot Chat. Each `speckit.*.agent.md` corresponds to a command template.
+A dedicated file exists at `.specify/memory/markdown-rules.md` and contains the markdown rule for fenced code block language specifiers.
 
-- **Shared Instruction Block**: A centralized definition of markdown formatting rules
-(including the code-block language rule) that is referenced by all SpecKit command templates.
-This may be a new file or an addition to the existing constitution.
+### SC-002
 
-- **Pipeline Remediation Loop**: The LLM-based post-processing step in `generate-spec-from-issue.sh`
-that reactively fixes markdownlint violations (including MD040) in generated artifacts.
-This remains as a safety net.
+All in-scope command templates include the one-line load instruction in the intended context/setup location using the `/memory/markdown-rules.md` virtual path.
 
-## Success Criteria *(mandatory)*
+### SC-003
 
-### Measurable Outcomes
+All in-scope agent files include the one-line load instruction in the intended context/setup location using the `/memory/markdown-rules.md` virtual path.
 
-- **SC-001**: 100% of SpecKit command templates (9 of 9) include or reference
-the code-block language instruction after implementation.
+### SC-004
 
-- **SC-002**: Running `speckit.specify` on 5 diverse feature descriptions produces zero MD040 violations
-in the generated `spec.md` files without the pipeline remediation loop intervening.
+The shared file content remains within the 500-character limit, and the combined file-plus-reference overhead remains within 600 characters per prompt source.
 
-- **SC-003**: For newly generated artifacts, the first `markdownlint-cli2` run (before any remediation loop iteration)
-reports zero MD040 (fenced-code-language) violations
-(i.e., MD040 violations are prevented at generation time, not fixed after the fact).
+### SC-005
 
-- **SC-004**: The code-block instruction is defined in exactly 1 shared location (not duplicated across templates),
-reducing future maintenance cost to a single edit for formatting rule changes.
+The document remains standalone and actionable by containing user stories, requirements, edge cases, and success criteria directly rather than referencing missing definitions elsewhere.
 
-- **SC-005**: All existing markdownlint checks (`npx markdownlint-cli2 "**/*.md"`) continue to pass
-after the prompt changes — no regressions introduced.
+### SC-006
 
----
-*Generated by Copilot SDK (claude-opus-4.6)*
+The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` and inject its content into the prompt string used for execution.
+
+### SC-007
+
+For generated `spec.md`, `plan.md`, and `tasks.md` artifacts produced by the in-scope prompt flow,
+`markdownlint-cli2` reports zero `MD040` (`fenced-code-language`) violations,
+ideally on the initial generation pass before any remediation loop runs.
+
+## Key entities
+
+- **Shared markdown rules file**: `.specify/memory/markdown-rules.md` (mapped virtually to `/memory/markdown-rules.md` in prompts), the canonical source of the fenced code block language requirement.
+- **One-line load instruction**: The standard short reference placed in each in-scope template or agent context/setup section to load the shared markdown rules.
+- **Pipeline script**: The runtime assembly path that reads the shared file with `cat` and injects its content into generated prompts.
+- **In-scope prompt sources**: Command templates and agent files that participate in model prompt construction.
