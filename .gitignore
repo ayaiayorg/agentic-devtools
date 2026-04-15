@@ -72,6 +72,7 @@ specs/*/contracts/
 .specify/memory/agent-file.md
 .markdownlint-debug.log
 msg.txt
+comments.json
 copilot-request.json
 copilot-request-retry.json
 replies.json
