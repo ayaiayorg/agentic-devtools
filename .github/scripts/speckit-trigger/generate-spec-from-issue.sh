@@ -534,6 +534,105 @@ strip_llm_preamble() {
 }
 
 # ---------------------------------------------------------------------------
+# ensure_heading_start <content> <default_heading>
+#
+# Ensures that <content> starts with a markdown heading (# ... through
+# ###### ...).  If the first non-empty line is already a heading, the
+# content is returned unchanged.  Otherwise, <default_heading> is prepended
+# with a blank line separator.
+#
+# Prints the (possibly modified) content to stdout.
+# ---------------------------------------------------------------------------
+ensure_heading_start() {
+    local content="$1"
+    local default_heading="${2:-# Document}"
+    [[ -z "$content" ]] && { printf '%s' "$default_heading"; return 0; }
+    local first_line=""
+    while IFS= read -r _fl; do
+        if [[ -n "$_fl" ]]; then first_line="$_fl"; break; fi
+    done <<< "$content"
+    if [[ "$first_line" =~ ^#{1,6}[[:space:]]+ ]]; then
+        printf '%s' "$content"
+    else
+        echo "[Sanitize] ⚠ No heading found — prepending default: \"$default_heading\"" >&2
+        # Strip leading blank lines before prepending heading
+        local trimmed=""
+        local found=false
+        while IFS= read -r line; do
+            if [[ "$found" == true ]]; then
+                trimmed+="$line"$'\n'
+            elif [[ -n "$line" ]]; then
+                found=true
+                trimmed+="$line"$'\n'
+            fi
+        done <<< "$content"
+        [[ -n "$trimmed" ]] && trimmed="${trimmed%$'\n'}"
+        printf '%s\n\n%s' "$default_heading" "$trimmed"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# quick_markdown_sanity_check <spec_dir>
+#
+# Best-effort pre-validation pass over all .md files in <spec_dir>.
+# Fixes deterministic issues (leading blank lines) and logs warnings for
+# problems that require manual attention.
+#
+# Always returns 0 — this is a best-effort check, not a gate.
+# ---------------------------------------------------------------------------
+quick_markdown_sanity_check() {
+    local spec_dir="$1"
+    local file content first_line
+
+    while IFS= read -r -d '' file; do
+        # (a) Empty file — skip
+        if [[ ! -s "$file" ]]; then
+            echo "[Sanitize] ⚠ Empty file: $file — skipping" >&2
+            continue
+        fi
+
+        content=$(cat "$file")
+
+        # (b) Leading blank lines — remove them
+        local trimmed=""
+        local found=false
+        while IFS= read -r line; do
+            if [[ "$found" == true ]]; then
+                trimmed+="$line"$'\n'
+            elif [[ -n "$line" ]]; then
+                found=true
+                trimmed+="$line"$'\n'
+            fi
+        done <<< "$content"
+        [[ -n "$trimmed" ]] && trimmed="${trimmed%$'\n'}"
+
+        if [[ "$trimmed" != "$content" ]]; then
+            printf '%s\n' "$trimmed" > "$file"
+            content="$trimmed"
+        fi
+
+        # Find first non-empty line
+        first_line=""
+        while IFS= read -r _fl; do
+            if [[ -n "$_fl" ]]; then first_line="$_fl"; break; fi
+        done <<< "$content"
+
+        # (c) Starts with code fence — skip (no deterministic fix)
+        if [[ "$first_line" =~ ^\`\`\` ]]; then
+            echo "[Sanitize] ⚠ File starts with code fence: $file — skipping" >&2
+            continue
+        fi
+
+        # (d) First non-empty line is not a heading — log warning
+        if [[ ! "$first_line" =~ ^#{1,6}[[:space:]]+ ]]; then
+            echo "[Sanitize] ⚠ File does not start with a heading: $file" >&2
+        fi
+    done < <(find "$spec_dir" -name '*.md' -type f -print0)
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # run_markdownlint_validation <spec_dir>
 #
 # Runs the markdownlint validation/remediation loop for markdown files in
@@ -818,7 +917,14 @@ $ISSUE_BODY
 ## Template Reference
 $spec_template
 
-Generate the specification now. Output ONLY the specification content, no commentary, no code fences. Start with the header and metadata section."
+Generate the specification now. Output ONLY the specification content, no commentary, no code fences. Start with the header and metadata section.
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+WRONG: \"Spec created at specs/...\"
+WRONG: \"Here is the updated specification...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Spec: Feature Name\"
+Do NOT include any conversational preamble before the heading."
 
     call_llm "$prompt"
 }
@@ -872,7 +978,14 @@ run_clarify_phase() {
 Output the COMPLETE updated specification content. Output ONLY the spec content, no commentary, no code fences.
 
 ## Current Specification
-$spec_content"
+$spec_content
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+WRONG: \"Spec created at specs/...\"
+WRONG: \"Here is the updated specification...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Spec: Feature Name\"
+Do NOT include any conversational preamble before the heading."
 
     local result
     result=$(call_llm "$prompt") || return 1
@@ -880,6 +993,8 @@ $spec_content"
         echo "Error: Clarify phase returned empty content" >&2
         return 1
     fi
+    result=$(strip_llm_preamble "$result" "# ")
+    result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
     printf '%s\n' "$result" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
 }
@@ -935,7 +1050,14 @@ Make each checklist item SPECIFIC to the actual content of this specification �
 Output ONLY the markdown checklist, no commentary, no code fences.
 
 ## Specification Content
-$spec_content"
+$spec_content
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+WRONG: \"Spec created at specs/...\"
+WRONG: \"Here is the updated specification...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Specification Quality Checklist: Feature Name\"
+Do NOT include any conversational preamble before the heading."
 
     local result
     result=$(call_llm "$prompt") || return 1
@@ -943,6 +1065,8 @@ $spec_content"
         echo "Error: Checklist phase returned empty content" >&2
         return 1
     fi
+    result=$(strip_llm_preamble "$result" "# ")
+    result=$(ensure_heading_start "$result" "# Specification Quality Checklist")
     printf '%s\n' "$result" > "$SPEC_DIR/checklists/requirements.md"
     append_model_footer "$SPEC_DIR/checklists/requirements.md"
 }
@@ -1052,7 +1176,13 @@ Start each artifact with its delimiter line. Example:
 Output ONLY the artifact content with delimiters. No commentary outside artifacts, no code fences around the entire output.
 
 ## Feature Specification
-$spec_content"
+$spec_content
+
+CRITICAL: Each artifact MUST begin with a markdown heading on the very first line after its delimiter.
+WRONG: \"Here is the plan...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Implementation Plan\"
+Do NOT include any conversational preamble before the heading in any artifact."
 
     local response
     response=$(call_llm "$prompt") || return 1
@@ -1065,6 +1195,18 @@ $spec_content"
         if [[ "$line" =~ ^===ARTIFACT:(.+)===$ ]]; then
             # Write previous artifact if any
             if [[ -n "$current_file" && -n "$current_content" ]]; then
+                # Derive default heading from artifact filename
+                local _plan_heading
+                case "$current_file" in
+                    plan.md)        _plan_heading="# Implementation Plan" ;;
+                    research.md)    _plan_heading="# Technical Research" ;;
+                    data-model.md)  _plan_heading="# Data Model" ;;
+                    quickstart.md)  _plan_heading="# Quick Start Guide" ;;
+                    contracts/*.md) _plan_heading="# API Contract: $(basename "$current_file" .md)" ;;
+                    *)              _plan_heading="# $(basename "$current_file" .md)" ;;
+                esac
+                current_content=$(strip_llm_preamble "$current_content" "# ")
+                current_content=$(ensure_heading_start "$current_content" "$_plan_heading")
                 # Ensure parent directory exists (for contracts/ subdirectory)
                 mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
                 printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
@@ -1106,6 +1248,18 @@ $line"
 
     # Write the last artifact
     if [[ -n "$current_file" && -n "$current_content" ]]; then
+        # Derive default heading from artifact filename
+        local _plan_heading_last
+        case "$current_file" in
+            plan.md)        _plan_heading_last="# Implementation Plan" ;;
+            research.md)    _plan_heading_last="# Technical Research" ;;
+            data-model.md)  _plan_heading_last="# Data Model" ;;
+            quickstart.md)  _plan_heading_last="# Quick Start Guide" ;;
+            contracts/*.md) _plan_heading_last="# API Contract: $(basename "$current_file" .md)" ;;
+            *)              _plan_heading_last="# $(basename "$current_file" .md)" ;;
+        esac
+        current_content=$(strip_llm_preamble "$current_content" "# ")
+        current_content=$(ensure_heading_start "$current_content" "$_plan_heading_last")
         mkdir -p "$SPEC_DIR/$(dirname "$current_file")"
         printf '%s\n' "$current_content" > "$SPEC_DIR/$current_file"
         append_model_footer "$SPEC_DIR/$current_file"
@@ -1197,7 +1351,13 @@ $spec_content
 
 ## Implementation Plan
 $plan_content
-$extra_context"
+$extra_context
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+WRONG: \"Here are the tasks...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Tasks: Feature Name\"
+Do NOT include any conversational preamble before the heading."
 
     local result
     result=$(call_llm "$prompt") || return 1
@@ -1205,6 +1365,8 @@ $extra_context"
         echo "Error: Tasks phase returned empty content" >&2
         return 1
     fi
+    result=$(strip_llm_preamble "$result" "# ")
+    result=$(ensure_heading_start "$result" "# Task List")
     printf '%s\n' "$result" > "$SPEC_DIR/tasks.md"
     append_model_footer "$SPEC_DIR/tasks.md"
 }
@@ -1268,7 +1430,13 @@ $spec_content
 $plan_content
 
 ## Task List
-$tasks_content"
+$tasks_content
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+WRONG: \"Here is the analysis...\"
+WRONG: \"Certainly! Here is...\"
+CORRECT: \"# Analysis Report\"
+Do NOT include any conversational preamble before the heading."
 
     local result
     result=$(call_llm "$prompt") || return 1
@@ -1276,6 +1444,8 @@ $tasks_content"
         echo "Error: Analyze phase returned empty content" >&2
         return 1
     fi
+    result=$(strip_llm_preamble "$result" "# ")
+    result=$(ensure_heading_start "$result" "# Analysis Report")
     printf '%s\n' "$result" > "$SPEC_DIR/analysis-report.md"
     append_model_footer "$SPEC_DIR/analysis-report.md"
 }
@@ -1331,12 +1501,15 @@ run_single_phase() {
                 echo "Error: Specify phase returned empty content" >&2
                 exit 1
             fi
+            SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
+            SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
             printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
             append_model_footer "$SPEC_DIR/spec.md"
             echo "✓ Phase 1 complete: spec.md"
 
             echo ""
             echo "=== Markdownlint Validation ==="
+            quick_markdown_sanity_check "$SPEC_DIR"
             run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
             echo "✓ Markdownlint validation complete"
             ;;
@@ -1350,6 +1523,7 @@ run_single_phase() {
 
             echo ""
             echo "=== Markdownlint Validation ==="
+            quick_markdown_sanity_check "$SPEC_DIR"
             run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
             echo "✓ Markdownlint validation complete"
             ;;
@@ -1361,6 +1535,7 @@ run_single_phase() {
 
             echo ""
             echo "=== Markdownlint Validation ==="
+            quick_markdown_sanity_check "$SPEC_DIR"
             run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
             echo "✓ Markdownlint validation complete"
             ;;
@@ -1372,6 +1547,7 @@ run_single_phase() {
 
             echo ""
             echo "=== Markdownlint Validation ==="
+            quick_markdown_sanity_check "$SPEC_DIR"
             run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
             echo "✓ Markdownlint validation complete"
             ;;
@@ -1383,6 +1559,7 @@ run_single_phase() {
 
             echo ""
             echo "=== Markdownlint Validation ==="
+            quick_markdown_sanity_check "$SPEC_DIR"
             run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed" >&2; exit 1; }
             echo "✓ Markdownlint validation complete"
             ;;
@@ -1405,6 +1582,8 @@ else
         echo "Error: Specify phase returned empty content" >&2
         exit 1
     fi
+    SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
+    SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
     printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
     echo "✓ Phase 1 complete: spec.md"
@@ -1436,6 +1615,7 @@ else
 
     echo ""
     echo "=== Phase 7/7: Markdownlint Validation ==="
+    quick_markdown_sanity_check "$SPEC_DIR"
     run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed — lint violations remain after remediation" >&2; exit 1; }
     echo "✓ Phase 7 complete: all markdown files lint-clean"
 fi

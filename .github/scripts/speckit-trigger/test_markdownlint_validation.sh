@@ -738,6 +738,135 @@ rm -rf "$TMPDIR_WSGUARD"
 rm -f "$_wsguard_npx_file"
 
 # ---------------------------------------------------------------------------
+# Test: ensure_heading_start
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: ensure_heading_start ==="
+
+# T-heading-1: Content already starting with a heading — returned unchanged
+input_h1="# My Document
+
+Some content."
+result=$(ensure_heading_start "$input_h1" "# Default Heading" 2>/dev/null)
+assert_eq "heading already present returns unchanged" "$input_h1" "$result"
+
+# T-heading-2: Content starting with plain text — default heading prepended
+input_plain="Some plain text without a heading.
+
+More content."
+expected_plain="# Default Heading
+
+Some plain text without a heading.
+
+More content."
+result=$(ensure_heading_start "$input_plain" "# Default Heading" 2>/dev/null)
+assert_eq "plain text gets heading prepended" "$expected_plain" "$result"
+
+# T-heading-3: Content starting with blank lines then a heading — blanks stripped, heading preserved
+input_blank_heading="
+
+# My Heading
+
+Content."
+result=$(ensure_heading_start "$input_blank_heading" "# Default Heading" 2>/dev/null)
+assert_eq "blank lines then heading preserves heading" "$input_blank_heading" "$result"
+
+# T-heading-4: Content starting with blank lines then plain text — default heading prepended
+input_blank_plain="
+
+Some text without heading."
+expected_blank_plain="# Default Heading
+
+Some text without heading."
+result=$(ensure_heading_start "$input_blank_plain" "# Default Heading" 2>/dev/null)
+assert_eq "blank lines then plain text gets heading" "$expected_blank_plain" "$result"
+
+# T-heading-5: Empty content — default heading returned
+result=$(ensure_heading_start "" "# Default Heading" 2>/dev/null)
+assert_eq "empty content returns default heading" "# Default Heading" "$result"
+
+# T-heading-6: Content starting with h2 — treated as valid heading
+input_h2="## Sub Heading
+
+Content."
+result=$(ensure_heading_start "$input_h2" "# Default Heading" 2>/dev/null)
+assert_eq "h2 heading is valid" "$input_h2" "$result"
+
+# T-heading-7: Warns when heading is prepended
+warn_output=$(ensure_heading_start "No heading here" "# Default Heading" 2>&1 >/dev/null)
+assert_contains "logs heading prepend warning" "No heading found" "$warn_output"
+
+# ---------------------------------------------------------------------------
+# Test: quick_markdown_sanity_check
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: quick_markdown_sanity_check ==="
+
+TMPDIR_SANITY=$(mktemp -d /tmp/mdlint-test-sanity.XXXXXX)
+
+# Create test fixtures
+# (a) File with leading blank lines
+printf '\n\n# Heading\n\nContent.\n' > "$TMPDIR_SANITY/leading-blanks.md"
+
+# (b) Empty file
+touch "$TMPDIR_SANITY/empty.md"
+
+# (c) File starting with code fence
+printf '```python\nprint("hello")\n```\n' > "$TMPDIR_SANITY/code-fence.md"
+
+# (d) File with no heading (plain text)
+printf 'Just some text.\n' > "$TMPDIR_SANITY/no-heading.md"
+
+# (e) Valid file (control)
+printf '# Valid Heading\n\nContent.\n' > "$TMPDIR_SANITY/valid.md"
+
+# Save originals for comparison
+code_fence_original=$(cat "$TMPDIR_SANITY/code-fence.md")
+
+# Run sanity check
+sanity_output=$(quick_markdown_sanity_check "$TMPDIR_SANITY" 2>&1)
+
+# Verify leading blanks are removed
+leading_blanks_content=$(cat "$TMPDIR_SANITY/leading-blanks.md")
+expected_leading_blanks="# Heading
+
+Content."
+assert_eq "leading blanks removed" "$expected_leading_blanks" "$leading_blanks_content"
+
+# Verify empty file is still empty (skipped)
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ! -s "$TMPDIR_SANITY/empty.md" ]]; then
+    echo "  ✓ empty file skipped (still empty)"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ empty file should still be empty"
+    FAIL=$((FAIL + 1))
+fi
+
+# Verify code fence file is unchanged
+code_fence_content=$(cat "$TMPDIR_SANITY/code-fence.md")
+assert_eq "code fence file unchanged" "$code_fence_original" "$code_fence_content"
+
+# Verify warnings were logged
+assert_contains "warns about empty file" "Empty file" "$sanity_output"
+assert_contains "warns about code fence" "code fence" "$sanity_output"
+assert_contains "warns about no heading" "does not start with a heading" "$sanity_output"
+
+# Verify valid file is unchanged
+valid_content=$(cat "$TMPDIR_SANITY/valid.md")
+expected_valid="# Valid Heading
+
+Content."
+assert_eq "valid file unchanged" "$expected_valid" "$valid_content"
+
+# Verify function always returns 0
+exit_code=0
+quick_markdown_sanity_check "$TMPDIR_SANITY" 2>/dev/null || exit_code=$?
+assert_eq "sanity check returns 0" "0" "$exit_code"
+
+rm -rf "$TMPDIR_SANITY"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
