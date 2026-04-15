@@ -768,8 +768,11 @@ input_blank_heading="
 # My Heading
 
 Content."
+expected_blank_heading="# My Heading
+
+Content."
 result=$(ensure_heading_start "$input_blank_heading" "# Default Heading" 2>/dev/null)
-assert_eq "blank lines then heading preserves heading" "$input_blank_heading" "$result"
+assert_eq "blank lines then heading strips blanks" "$expected_blank_heading" "$result"
 
 # T-heading-4: Content starting with blank lines then plain text — default heading prepended
 input_blank_plain="
@@ -793,7 +796,7 @@ result=$(ensure_heading_start "$input_h2" "# Default Heading" 2>/dev/null)
 assert_eq "h2 heading is valid" "$input_h2" "$result"
 
 # T-heading-7: Warns when heading is prepended
-warn_output=$(ensure_heading_start "No heading here" "# Default Heading" 2>&1 >/dev/null)
+warn_output=$({ ensure_heading_start "No heading here" "# Default Heading" >/dev/null; } 2>&1)
 assert_contains "logs heading prepend warning" "No heading found" "$warn_output"
 
 # ---------------------------------------------------------------------------
@@ -820,6 +823,9 @@ printf 'Just some text.\n' > "$TMPDIR_SANITY/no-heading.md"
 # (e) Valid file (control)
 printf '# Valid Heading\n\nContent.\n' > "$TMPDIR_SANITY/valid.md"
 
+# (f) Whitespace-only file (non-zero bytes but no real content)
+printf '   \n\t\n  \n' > "$TMPDIR_SANITY/whitespace-only.md"
+
 # Save originals for comparison
 code_fence_original=$(cat "$TMPDIR_SANITY/code-fence.md")
 
@@ -843,12 +849,23 @@ else
     FAIL=$((FAIL + 1))
 fi
 
+# Verify whitespace-only file is truncated to empty
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ! -s "$TMPDIR_SANITY/whitespace-only.md" ]]; then
+    echo "  ✓ whitespace-only file truncated to empty"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ whitespace-only file should be truncated to empty"
+    FAIL=$((FAIL + 1))
+fi
+
 # Verify code fence file is unchanged
 code_fence_content=$(cat "$TMPDIR_SANITY/code-fence.md")
 assert_eq "code fence file unchanged" "$code_fence_original" "$code_fence_content"
 
 # Verify warnings were logged
 assert_contains "warns about empty file" "Empty file" "$sanity_output"
+assert_contains "warns about whitespace-only file" "Empty/blank file" "$sanity_output"
 assert_contains "warns about code fence" "code fence" "$sanity_output"
 assert_contains "warns about no heading" "does not start with a heading" "$sanity_output"
 
