@@ -40,8 +40,8 @@ eliminates the need for LLM-assisted markdownlint remediation iterations in most
   treated as split points. This keeps the algorithm simple, predictable, and avoids breaking
   hyphenated terms, URLs with hyphens, or punctuation-adjacent tokens.
 - Q: What is the CLI entry point name for the standalone wrapping command? → A:
-  `speckit-wrap-lines` as a `[project.scripts]` entry point in `pyproject.toml`, since this is
-  a SpecKit pipeline utility rather than a general `agdt-*` devtools command.
+  `agdt-speckit-wrap-lines` as a `[project.scripts]` entry point in `pyproject.toml`, following
+  the `agdt-*` naming convention used by all CLI commands in this repo.
 
 ## 3. Scope
 
@@ -51,7 +51,7 @@ In scope:
 - Preservation of protected blocks (code fences, tables, YAML front matter, headings)
 - Integration into the SpecKit Phase 7 pipeline after generation and before markdownlint
 - Markdown-aware wrapping that respects list indentation, blockquote prefixes, and links
-- Standalone CLI command (`speckit-wrap-lines`) for ad-hoc wrapping outside the pipeline
+- Standalone CLI command (`agdt-speckit-wrap-lines`) for ad-hoc wrapping outside the pipeline
 - In-place file modification with `--dry-run` support for stdout-only preview
 
 Out of scope:
@@ -176,7 +176,7 @@ Acceptance criteria:
 
 ### US5. Standalone CLI for ad-hoc wrapping
 
-As a developer, I want a standalone CLI command (`speckit-wrap-lines`) to wrap markdown files
+As a developer, I want a standalone CLI command (`agdt-speckit-wrap-lines`) to wrap markdown files
 outside the pipeline, so that I can fix line length issues in existing files or test wrapping
 behavior independently.
 
@@ -184,7 +184,7 @@ Priority: P3
 
 Acceptance criteria:
 
-- The `speckit-wrap-lines` command accepts one or more file paths and wraps lines exceeding
+- The `agdt-speckit-wrap-lines` command accepts one or more file paths and wraps lines exceeding
   the configured limit.
 - The command supports a `--line-length` flag (default: 200).
 - The command reports the number of lines wrapped per file.
@@ -229,7 +229,7 @@ file.
 
 FR-013. The wrapping step shall not modify files that contain no lines exceeding the limit.
 
-FR-014. The standalone CLI command (`speckit-wrap-lines`) shall accept a `--line-length` flag
+FR-014. The standalone CLI command (`agdt-speckit-wrap-lines`) shall accept a `--line-length` flag
 with a default value of 200.
 
 FR-015. The standalone CLI command shall accept one or more file paths or a glob pattern as
@@ -252,7 +252,7 @@ content to stdout without modifying the source files.
 FR-021. The core wrapping logic shall reside in `agentic_devtools/markdown/line_wrapper.py`.
 
 FR-022. The CLI entry point shall reside in `agentic_devtools/cli/markdown/commands.py` and be
-registered as `speckit-wrap-lines` in `pyproject.toml` `[project.scripts]`.
+registered as `agdt-speckit-wrap-lines` in `pyproject.toml` `[project.scripts]`.
 
 ## 8. Non-Functional Requirements
 
