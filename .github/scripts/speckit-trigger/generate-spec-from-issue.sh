@@ -338,6 +338,45 @@ check_npx_available() {
 }
 
 # ---------------------------------------------------------------------------
+# _join_continuation_lines <raw_output>
+#
+# Pre-processes raw markdownlint output to join continuation lines back onto
+# the preceding violation line.  markdownlint-cli2 v0.22+ can wrap long
+# [Context: ...] descriptions onto separate lines.  A "violation start line"
+# is any line matching ^.+:[0-9]+ (file path followed by : and a line number).
+# Subsequent lines that do NOT match that pattern are appended to the previous
+# violation line separated by a single space.
+# ---------------------------------------------------------------------------
+_join_continuation_lines() {
+    local raw="$1"
+    [[ -z "$raw" ]] && return 0
+    echo "$raw" | awk '
+        /^.+:[0-9]+/ {
+            if (buf != "") print buf
+            buf = $0
+            next
+        }
+        { buf = buf " " $0 }
+        END { if (buf != "") print buf }
+    '
+}
+
+# ---------------------------------------------------------------------------
+# _count_raw_violations <raw_output>
+#
+# Fallback violation counter: counts lines matching ^.+:[0-9]+ in the raw
+# markdownlint output.  Used only for logging when parse_markdownlint_output
+# returns 0 violations despite a non-zero lint exit code.
+# ---------------------------------------------------------------------------
+_count_raw_violations() {
+    local raw="$1"
+    [[ -z "$raw" ]] && { echo "0"; return 0; }
+    local count
+    count=$(echo "$raw" | grep -cE '^.+:[0-9]+' || true)
+    echo "$count"
+}
+
+# ---------------------------------------------------------------------------
 # parse_markdownlint_output <raw_output>
 #
 # Parses markdownlint-cli2 stdout/stderr output into structured violation
@@ -354,20 +393,23 @@ parse_markdownlint_output() {
     # or: path/file.md:10:1 error MD013/line-length Expected: ...
     # or: path/file.md:10 MD013/line-length Expected: ...
     # markdownlint-cli2 v0.22+ inserts "error"/"warning" between location and rule
-    echo "$raw" | while IFS= read -r line; do
+    _join_continuation_lines "$raw" | while IFS= read -r line; do
         # Skip empty lines and summary/metadata lines
         [[ -z "$line" ]] && continue
         [[ "$line" =~ ^markdownlint-cli2 ]] && continue
         [[ "$line" =~ ^Finding: ]] && continue
         [[ "$line" =~ ^Linting: ]] && continue
         [[ "$line" =~ ^Summary: ]] && continue
-        # Pattern with col and optional severity: filename:line:col [error|warning] rule description
+        # Pattern with col and severity: filename:line:col [error|warning] rule description
         if [[ "$line" =~ ^(.+):([0-9]+):([0-9]+)[[:space:]]+(error|warning)[[:space:]]+([A-Z]+[0-9]+/[^[:space:]]+)[[:space:]]+(.+)$ ]]; then
             printf '%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
         # Pattern with col, no severity: filename:line:col rule description
         elif [[ "$line" =~ ^(.+):([0-9]+):([0-9]+)[[:space:]]+([A-Z]+[0-9]+/[^[:space:]]+)[[:space:]]+(.+)$ ]]; then
             printf '%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
-        # Pattern without col: filename:line rule description
+        # Pattern without col, with severity: filename:line [error|warning] rule description
+        elif [[ "$line" =~ ^(.+):([0-9]+)[[:space:]]+(error|warning)[[:space:]]+([A-Z]+[0-9]+/[^[:space:]]+)[[:space:]]+(.+)$ ]]; then
+            printf '%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "0" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+        # Pattern without col, no severity: filename:line rule description
         elif [[ "$line" =~ ^(.+):([0-9]+)[[:space:]]+([A-Z]+[0-9]+/[^[:space:]]+)[[:space:]]+(.+)$ ]]; then
             printf '%s\t%s\t%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "0" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
         else
@@ -728,13 +770,84 @@ run_markdownlint_validation() {
         fi
         final_violation_count=$violation_count
 
-        # Guard: lint failed but parser found no violations — treat as failure
-        # with diagnostics so unexpected output formats don't silently pass.
+        # Guard: lint failed but parser found no violations — attempt raw-output
+        # LLM remediation instead of breaking out of the loop immediately.
         if [[ $violation_count -eq 0 ]]; then
-            echo "[Phase 7]   ⚠ markdownlint exited $lint_exit but no violations could be parsed." >&2
+            local raw_count=0
+            raw_count=$(_count_raw_violations "$lint_output")
+            echo "[Phase 7]   ⚠ markdownlint exited $lint_exit but no violations could be parsed (raw count: ~$raw_count)." >&2
             echo "[Phase 7]   Raw output:" >&2
             echo "$lint_output" | head -20 >&2
-            break
+            echo "[Phase 7]   Attempting raw-output LLM remediation..." >&2
+
+            # Extract file paths from raw output; fall back to all md_files
+            local raw_affected_files=""
+            raw_affected_files=$(echo "$lint_output" | grep -oE '^[^:]+\.md' | sort -u)
+            if [[ -z "$raw_affected_files" ]]; then
+                raw_affected_files=$(printf '%s\n' "${md_files[@]}")
+            fi
+
+            local raw_remediation_applied=false
+            while IFS= read -r target_file; do
+                [[ -z "$target_file" ]] && continue
+                [[ ! -f "$target_file" ]] && continue
+
+                local file_content=""
+                file_content=$(cat "$target_file")
+                local stripped_content=""
+                stripped_content=$(strip_model_footer "$file_content")
+                local original_first_line=""
+                original_first_line=$(printf '%s' "$stripped_content" | head -n 1)
+
+                local raw_prompt="You are a markdown lint fixer. The markdownlint tool reported violations but the output could not be parsed structurally. Fix all violations indicated in the raw linter output below.
+
+## Raw markdownlint output
+$lint_output
+
+## Rules
+- Your response MUST begin immediately with markdown content — no conversational preamble
+- Output ONLY the corrected markdown content, nothing else
+- Do NOT add commentary, explanations, or code fences around the output
+- Do NOT change the meaning or structure of the content beyond what is needed to fix the violations
+- Preserve all headings, lists, tables, and code blocks
+
+## File content to fix ($target_file)
+$stripped_content
+
+## CRITICAL
+Your response must begin with the actual markdown content."
+
+                local prompt_len=${#raw_prompt}
+                if [[ $prompt_len -gt $MARKDOWNLINT_PROMPT_MAX_CHARS ]]; then
+                    echo "[Phase 7]     Warning: Raw prompt for $target_file exceeds $MARKDOWNLINT_PROMPT_MAX_CHARS chars ($prompt_len). Skipping." >&2
+                    continue
+                fi
+
+                local corrected=""
+                if corrected=$(call_llm "$raw_prompt"); then
+                    if [[ -n "$corrected" ]]; then
+                        corrected=$(strip_llm_preamble "$corrected" "$original_first_line")
+                        if [[ "$corrected" =~ [^[:space:]] ]]; then
+                            printf '%s\n' "$corrected" > "$target_file"
+                            append_model_footer "$target_file"
+                            echo "[Phase 7]     ✓ Raw LLM remediation applied to $(basename "$target_file")" >&2
+                            raw_remediation_applied=true
+                        else
+                            echo "[Phase 7]     Warning: Raw LLM returned blank content for $(basename "$target_file"). Skipping." >&2
+                        fi
+                    fi
+                else
+                    echo "[Phase 7]     Warning: Raw LLM call failed for $(basename "$target_file")." >&2
+                fi
+            done <<< "$raw_affected_files"
+
+            if [[ "$raw_remediation_applied" == "true" ]]; then
+                echo "[Phase 7]   Raw remediation applied — continuing loop." >&2
+                continue
+            else
+                echo "[Phase 7]   Raw remediation failed for all files — breaking." >&2
+                break
+            fi
         fi
 
         # Collect affected files
