@@ -41,5 +41,5 @@
   // GitHub issue templates use YAML front matter + ## headings (not # h1),
   // which conflicts with MD041. Exclude them from linting.
   // Agent files follow their own conventions and should not be linted.
-  "ignores": [".github/ISSUE_TEMPLATE/**", ".github/agents/**"]
+  "ignores": [".github/ISSUE_TEMPLATE/**", ".github/agents/**", ".github/scripts/speckit-trigger/fixtures/**"]
 }
