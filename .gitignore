@@ -59,6 +59,7 @@ state-out.txt
 poll-output.txt
 poll-output.json
 poll*.txt
+poll*.json
 _poll_output.txt
 
 # Workflow artifacts (ad-hoc, not source files)
