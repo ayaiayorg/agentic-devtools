@@ -884,6 +884,220 @@ assert_eq "sanity check returns 0" "0" "$exit_code"
 rm -rf "$TMPDIR_SANITY"
 
 # ---------------------------------------------------------------------------
+# Test: _join_continuation_lines
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: _join_continuation_lines ==="
+
+# T-join-1: Single-line violation passes through unchanged
+input_single="specs/test/spec.md:1:1 error MD041/first-line-heading First line should be a heading"
+result=$(_join_continuation_lines "$input_single")
+assert_eq "single-line passthrough" "$input_single" "$result"
+
+# T-join-2: Two-line violation (one continuation) joined into one line
+input_two=$'specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1\nFirst line in a file should be a top-level heading [Context: "Spec created at ..."]'
+result=$(_join_continuation_lines "$input_two")
+expected_two='specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1 First line in a file should be a top-level heading [Context: "Spec created at ..."]'
+assert_eq "two-line join" "$expected_two" "$result"
+count=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+assert_eq "two-line join produces 1 line" "1" "$count"
+
+# T-join-3: Three-line violation (two continuations) joined into one line
+input_three=$'specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1\nFirst line in a file should be\na top-level heading [Context: "Spec created at ..."]'
+result=$(_join_continuation_lines "$input_three")
+expected_three='specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1 First line in a file should be a top-level heading [Context: "Spec created at ..."]'
+assert_eq "three-line join" "$expected_three" "$result"
+count=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+assert_eq "three-line join produces 1 line" "1" "$count"
+
+# T-join-4: Multiple violations with mixed wrapping
+input_mixed=$'file1.md:1:1 error MD041/first-line-heading First line\nfile2.md:50:81 error MD013/line-length\nLine length 205 > 200\nfile3.md:10:1 error MD040/fenced-code-language Fenced code blocks should have a language'
+result=$(_join_continuation_lines "$input_mixed")
+count=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+assert_eq "mixed wrapping produces 3 lines" "3" "$count"
+assert_contains "first violation present" "file1.md:1:1" "$result"
+assert_contains "second violation joined" "Line length 205 > 200" "$result"
+assert_contains "third violation present" "file3.md:10:1" "$result"
+
+# T-join-5: Empty input returns nothing
+result=$(_join_continuation_lines "")
+assert_eq "empty input returns empty" "" "$result"
+
+# ---------------------------------------------------------------------------
+# Test: _count_raw_violations
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: _count_raw_violations ==="
+
+# T-count-1: Input with 2 violation-start lines
+input_count=$'specs/test/spec.md:1 error MD041/first-line-heading First line\nspecs/test/spec.md:50:81 error MD013/line-length Line length'
+result=$(_count_raw_violations "$input_count")
+assert_eq "counts 2 violations" "2" "$result"
+
+# T-count-2: Empty input
+result=$(_count_raw_violations "")
+assert_eq "empty input returns 0" "0" "$result"
+
+# T-count-3: Input with metadata-only lines (no filename:line pattern)
+input_meta=$'markdownlint-cli2 v0.22.0\nFinding: some files\nLinting: 1 file(s)\nSummary: 0 error(s)'
+result=$(_count_raw_violations "$input_meta")
+assert_eq "metadata-only returns 0" "0" "$result"
+
+# ---------------------------------------------------------------------------
+# Test: parse_markdownlint_output with three-segment rule names
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Three-segment rule names ==="
+
+output=$(parse_markdownlint_output "specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1 First line should be a heading")
+assert_contains "three-segment rule parsed" "MD041/first-line-heading/first-line-h1" "$output"
+
+# ---------------------------------------------------------------------------
+# Test: parse_markdownlint_output with wrapped [Context: ...] descriptions
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Wrapped Context descriptions ==="
+
+# Two-line input: violation start + continuation with [Context: ...]
+input_wrapped=$'specs/test/spec.md:1 error MD041/first-line-heading/first-line-h1\nFirst line in a file should be a top-level heading [Context: "Spec created at ..."]'
+output=$(parse_markdownlint_output "$input_wrapped")
+count=$(printf '%s\n' "$output" | awk 'NF' | wc -l | tr -d ' ')
+assert_eq "wrapped context returns 1 violation" "1" "$count"
+assert_contains "wrapped rule is correct" "MD041/first-line-heading/first-line-h1" "$output"
+assert_contains "wrapped description contains text" "First line in a file should be" "$output"
+
+# ---------------------------------------------------------------------------
+# Test: Mixed single-line and multi-line violations
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Mixed single-line and multi-line violations ==="
+
+input_mix=$'file1.md:1:1 error MD041/first-line-heading/first-line-h1 First line should be a heading
+file2.md:50:81 error MD013/line-length
+Line length 205 > 200 [Expected: 200; Actual: 205]
+file3.md:10:1 error MD040/fenced-code-language Fenced code blocks should have a language specified'
+output=$(parse_markdownlint_output "$input_mix")
+count=$(printf '%s\n' "$output" | awk 'NF' | wc -l | tr -d ' ')
+assert_eq "mixed violations returns 3" "3" "$count"
+assert_contains "first single-line violation" "MD041/first-line-heading/first-line-h1" "$output"
+assert_contains "second multi-line violation" "MD013/line-length" "$output"
+assert_contains "second violation description joined" "Line length 205 > 200" "$output"
+assert_contains "third single-line violation" "MD040/fenced-code-language" "$output"
+
+# ---------------------------------------------------------------------------
+# Test: Raw-remediation fallback path
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Raw-remediation fallback path ==="
+
+TMPDIR_RAWFALLBACK=$(mktemp -d /tmp/mdlint-test-rawfallback.XXXXXX)
+
+# Create a valid file so the function proceeds past the empty-dir guard
+cat > "$TMPDIR_RAWFALLBACK/spec.md" << 'EOF'
+# Valid Spec
+
+Content here.
+EOF
+
+# Override parse_markdownlint_output to always return empty (simulates
+# an output format that the parser can't handle)
+_orig_parse_raw=$(declare -f parse_markdownlint_output)
+parse_markdownlint_output() { echo ""; }
+
+# Override npx: --fix is no-op; check-only returns non-zero with synthetic
+# output on the first call pair, then returns 0 on the second check-only
+# (simulating that the LLM raw remediation fixed the issue).
+_rawfb_npx_file=$(mktemp /tmp/mdlint-rawfb-npx.XXXXXX)
+echo "0" > "$_rawfb_npx_file"
+npx() {
+    local n
+    n=$(cat "$_rawfb_npx_file")
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    n=$((n + 1))
+    echo "$n" > "$_rawfb_npx_file"
+    if [[ $n -le 1 ]]; then
+        echo "$TMPDIR_RAWFALLBACK/spec.md:1 error MD041/first-line-heading/first-line-h1"
+        echo "First line in a file should be a top-level heading"
+        return 1
+    fi
+    return 0
+}
+
+# Override call_llm to return corrected content
+call_llm() {
+    echo "# Valid Spec
+
+Content here."
+}
+
+MARKDOWNLINT_MAX_ITERATIONS=3
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_RAWFALLBACK" 2>&1) || exit_code=$?
+
+assert_eq "raw fallback returns success" "0" "$exit_code"
+assert_contains "logs raw remediation attempt" "Attempting raw-output LLM remediation" "$output"
+assert_contains "logs raw remediation applied" "Raw LLM remediation applied" "$output"
+assert_contains "reports success after raw remediation" "SUCCESS" "$output"
+
+# Restore originals
+eval "$_orig_parse_raw"
+unset -f npx
+unset -f call_llm
+rm -f "$_rawfb_npx_file"
+rm -rf "$TMPDIR_RAWFALLBACK"
+
+# ---------------------------------------------------------------------------
+# Test: Raw-remediation fallback — all LLM calls fail → break
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: Raw-remediation fallback (all fail) ==="
+
+TMPDIR_RAWFAIL=$(mktemp -d /tmp/mdlint-test-rawfail.XXXXXX)
+
+cat > "$TMPDIR_RAWFAIL/spec.md" << 'EOF'
+# Valid Spec
+
+Content here.
+EOF
+
+_orig_parse_rawfail=$(declare -f parse_markdownlint_output)
+parse_markdownlint_output() { echo ""; }
+
+npx() {
+    if [[ "$*" == *"--fix"* ]]; then
+        return 0
+    fi
+    echo "some unexpected markdownlint output format"
+    return 1
+}
+
+call_llm() { return 1; }
+
+MARKDOWNLINT_MAX_ITERATIONS=2
+exit_code=0
+output=$(run_markdownlint_validation "$TMPDIR_RAWFAIL" 2>&1) || exit_code=$?
+
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ $exit_code -ne 0 ]]; then
+    echo "  ✓ raw fallback all-fail returns non-zero"
+    PASS=$((PASS + 1))
+else
+    echo "  ✗ raw fallback all-fail should return non-zero (got 0)"
+    FAIL=$((FAIL + 1))
+fi
+
+assert_contains "logs raw remediation attempt on fail" "Attempting raw-output LLM remediation" "$output"
+assert_contains "logs raw remediation failed" "Raw remediation failed for all files" "$output"
+assert_contains "reports failure" "FAILED" "$output"
+
+eval "$_orig_parse_rawfail"
+unset -f npx
+unset -f call_llm
+rm -rf "$TMPDIR_RAWFAIL"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
