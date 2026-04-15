@@ -1,49 +1,58 @@
-# Requirements Checklist
+# Specification Quality Checklist: SpecKit pipeline — Enforce line length limits in generated markdown
 
-## Coverage and scope
+**Purpose**: Validate specification completeness before proceeding to planning
+**Created**: 2026-04-15
+**Feature**: [spec.md](../spec.md)
+**Source Issue**: #1193
 
-- [ ] Verify the implementation covers all 5 user stories described by the spec.
-- [ ] Verify the implementation satisfies all 17 functional requirements described by the spec.
-- [ ] Verify the implementation addresses all 7 documented edge cases.
-- [ ] Verify the implementation meets all 4 success metrics defined by the spec.
-- [ ] Verify the implementation respects all 5 assumptions and does not contradict any
-  clarified behavior.
+## Content Quality
 
-## Wrapping rules and protected blocks
+- [ ] CHK001 All five user stories (US1–US5) articulate user value with distinct personas (spec author, pipeline operator, developer)
+  rather than implementation mechanics
+- [ ] CHK002 Each user story follows "As a [role], I want [capability], so that [benefit]" format —
+  verify US1 through US5 each have all three clauses
+- [ ] CHK003 Priority assignments (P1 for US1/US2, P2 for US3/US4, P3 for US5) reflect correct ordering:
+  core wrapping before pipeline integration before standalone CLI
+- [ ] CHK004 Functional requirements FR-001 through FR-022 describe observable behavior without prescribing algorithms —
+  verify no pseudocode or implementation steps leak into FR definitions
+  (note: FR-021 and FR-022 specify file paths, which is acceptable as architectural constraint)
 
-- [ ] Verify lines exceeding 200 characters are wrapped at word boundaries.
-- [ ] Verify fenced code blocks (`` ``` `` and `~~~`) are never modified by the wrapper.
-- [ ] Verify table rows (pipe-delimited `| ... |` lines) are never wrapped.
-- [ ] Verify YAML front matter (between `---` delimiters at file start) is never wrapped.
-- [ ] Verify heading lines (starting with `#`) are never wrapped.
-- [ ] Verify inline links and reference-style link labels are not split across lines.
-- [ ] Verify inline code spans are not split across lines.
+## Requirement Completeness
 
-## Markdown-specific continuation rules
+- [ ] CHK005 US1 acceptance criteria are testable: "zero MD013 violations" is measurable,
+  and the exclusion set (EC1, EC2, FR-005, FR-006, FR-016, FR-017) is explicitly enumerated
+- [ ] CHK006 All nine edge cases (EC1–EC9) cover the boundary conditions identified in the spec:
+  long URLs, single long words, nested blockquotes, reference-style links, mixed list/blockquote,
+  adjacent protected blocks, HTML comments, hyphenated terms, and inline formatting spans
+- [ ] CHK007 US2 acceptance criteria enumerate each protected block type (code fences, tables, YAML front matter, headings)
+  with corresponding FRs (FR-003, FR-004, FR-005, FR-006) —
+  verify FR-016 (link definitions) and FR-017 (HTML comments) are also covered by a user story or explicitly noted as extensions
+- [ ] CHK008 Success metrics SM1–SM4 are all quantitatively measurable: zero violations, 90% reduction, <2 second overhead, 100% test coverage
+- [ ] CHK009 Scope boundaries explicitly exclude wrapping outside `$SPEC_DIR`, replacing markdownlint, modifying LLM prompts,
+  reformatting tables/code, and treating bold/italic as unsplittable —
+  verify no functional requirement contradicts these exclusions
+- [ ] CHK010 Assumptions section documents the 200-character limit source (`.markdownlint-cli2.jsonc`),
+  word-boundary definition (whitespace only), inline formatting splitting policy, and in-place modification default —
+  verify no undocumented dependencies on external configuration or services
 
-- [ ] Verify wrapped continuation lines in list items preserve the original list indentation.
-- [ ] Verify wrapped continuation lines in blockquotes preserve the blockquote prefix (`` > ``).
-- [ ] Verify nested blockquote prefixes (`` > > ``) are preserved on continuation lines.
-- [ ] Verify mixed blockquote + list scenarios preserve both prefix and indentation.
+## Feature Readiness
 
-## Pipeline integration
+- [ ] CHK011 Every functional requirement (FR-001 through FR-022) traces to at least one user story or edge case —
+  specifically verify FR-016 (link definitions), FR-017 (HTML comments), FR-018 (inline formatting),
+  FR-019 (in-place), and FR-020 (dry-run) have corresponding acceptance criteria in US2 or US5
+- [ ] CHK012 User scenarios cover all three usage contexts: automated pipeline execution (US3/US4),
+  interactive spec authoring (US1/US2), and standalone ad-hoc CLI usage (US5)
+- [ ] CHK013 Success metric SM2 ("at least 90% reduction") matches the identical threshold stated in US4 acceptance criteria —
+  verify consistency and that a baseline measurement method is implied
+- [ ] CHK014 Module locations specified in FR-021 (`agentic_devtools/markdown/line_wrapper.py`) and
+  FR-022 (`agentic_devtools/cli/markdown/commands.py`) are architectural constraints from clarifications,
+  not implementation details —
+  verify no other FRs prescribe internal data structures, control flow, or private function signatures
 
-- [ ] Verify the wrap step runs after LLM generation and before the first markdownlint pass.
-- [ ] Verify the wrap step logs file paths and wrapped line counts.
-- [ ] Verify files with no long lines are not modified.
-- [ ] Verify the wrapping step is idempotent (running twice produces identical output).
+## Notes
 
-## Edge cases
+- This checklist was generated from the specification content for issue #1193
+- Items marked incomplete require spec updates before proceeding to planning
 
-- [ ] Verify long URLs (exceeding 200 characters) are left as-is without splitting.
-- [ ] Verify single long words (no spaces) exceeding 200 characters are left as-is.
-- [ ] Verify reference-style link definitions are not wrapped.
-- [ ] Verify lines inside HTML comments are not wrapped.
-- [ ] Verify lines immediately after code fence closers are eligible for wrapping.
-
-## Non-functional requirements
-
-- [ ] Verify the wrapping step completes within 5 seconds for typical spec directories.
-- [ ] Verify no external dependencies beyond the Python standard library are introduced.
-- [ ] Verify no markdown files outside `$SPEC_DIR` are modified.
-- [ ] Verify 100% unit test coverage for the wrapping module.
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
