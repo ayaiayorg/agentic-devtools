@@ -343,28 +343,47 @@ check_npx_available() {
 # Pre-processes raw markdownlint output to join continuation lines back onto
 # the preceding violation line.  markdownlint-cli2 v0.22+ can wrap long
 # [Context: ...] descriptions onto separate lines.  A "violation start line"
-# is any line matching ^.+:[0-9]+ (file path followed by : and a line number).
+# is any line matching ^.+\.md:[0-9]+ (file path followed by : and a line number).
 # Subsequent lines that do NOT match that pattern are appended to the previous
-# violation line separated by a single space.
+# violation line separated by a single space, except for known markdownlint
+# metadata/footer lines and blank separators, which act as boundaries.
 # ---------------------------------------------------------------------------
 _join_continuation_lines() {
     local raw="$1"
     [[ -z "$raw" ]] && return 0
-    echo "$raw" | awk '
-        /^.+:[0-9]+/ {
-            if (buf != "") print buf
+    printf '%s\n' "$raw" | awk '
+        function flush_buf() {
+            if (buf != "") {
+                print buf
+                buf = ""
+            }
+        }
+        /^.+\.md:[0-9]+/ {
+            flush_buf()
             buf = $0
             next
         }
-        { buf = buf " " $0 }
-        END { if (buf != "") print buf }
+        /^[[:space:]]*$/ {
+            flush_buf()
+            next
+        }
+        /^markdownlint-cli2/ || /^Finding:/ || /^Linting:/ || /^Summary:/ {
+            flush_buf()
+            next
+        }
+        {
+            if (buf != "") buf = buf " " $0
+        }
+        END {
+            flush_buf()
+        }
     '
 }
 
 # ---------------------------------------------------------------------------
 # _count_raw_violations <raw_output>
 #
-# Fallback violation counter: counts lines matching ^.+:[0-9]+ in the raw
+# Fallback violation counter: counts lines matching ^.+\.md:[0-9]+ in the raw
 # markdownlint output.  Used only for logging when parse_markdownlint_output
 # returns 0 violations despite a non-zero lint exit code.
 # ---------------------------------------------------------------------------
@@ -372,7 +391,7 @@ _count_raw_violations() {
     local raw="$1"
     [[ -z "$raw" ]] && { echo "0"; return 0; }
     local count
-    count=$(echo "$raw" | grep -cE '^.+:[0-9]+' || true)
+    count=$(printf '%s\n' "$raw" | grep -cE '^.+\.md:[0-9]+' || true)
     echo "$count"
 }
 
@@ -777,12 +796,12 @@ run_markdownlint_validation() {
             raw_count=$(_count_raw_violations "$lint_output")
             echo "[Phase 7]   ⚠ markdownlint exited $lint_exit but no violations could be parsed (raw count: ~$raw_count)." >&2
             echo "[Phase 7]   Raw output:" >&2
-            echo "$lint_output" | head -20 >&2
+            printf '%s\n' "$lint_output" | head -20 >&2
             echo "[Phase 7]   Attempting raw-output LLM remediation..." >&2
 
             # Extract file paths from raw output; fall back to all md_files
             local raw_affected_files=""
-            raw_affected_files=$(echo "$lint_output" | grep -oE '^[^:]+\.md' | sort -u)
+            raw_affected_files=$(printf '%s\n' "$lint_output" | grep -oE '^[^:]+\.md' | sort -u || true)
             if [[ -z "$raw_affected_files" ]]; then
                 raw_affected_files=$(printf '%s\n' "${md_files[@]}")
             fi
@@ -799,10 +818,50 @@ run_markdownlint_validation() {
                 local original_first_line=""
                 original_first_line=$(printf '%s' "$stripped_content" | head -n 1)
 
+                # Filter lint output to only lines relevant to the current target_file
+                # to avoid inflating the prompt when multiple files are in the output.
+                local filtered_lint_output=""
+                filtered_lint_output=$(
+                    awk -v file="$target_file" '
+                        function is_target_start(line) {
+                            return index(line, file ":") == 1 || index(line, "./" file ":") == 1
+                        }
+
+                        function is_violation_start(line) {
+                            return line ~ /^.+\.md:[0-9]+/
+                        }
+
+                        function is_metadata_boundary(line) {
+                            return line ~ /^(markdownlint-cli2|markdownlint)([[:space:]:-]|$)/ ||
+                                line ~ /^Summary([[:space:]:-]|$)/ ||
+                                line ~ /^Lint(ing| results?)([[:space:]:-]|$)/ ||
+                                line ~ /^Finding:/
+                        }
+
+                        is_target_start($0) {
+                            capture = 1
+                            print
+                            next
+                        }
+
+                        capture && (is_violation_start($0) || is_metadata_boundary($0)) {
+                            capture = 0
+                        }
+
+                        capture {
+                            print
+                        }
+                    ' <<< "$lint_output"
+                )
+
+                if [[ -z "$filtered_lint_output" ]]; then
+                    filtered_lint_output="No file-specific markdownlint output could be extracted for $target_file from the combined markdownlint report. Fix only violations relevant to this file content."
+                fi
+
                 local raw_prompt="You are a markdown lint fixer. The markdownlint tool reported violations but the output could not be parsed structurally. Fix all violations indicated in the raw linter output below.
 
 ## Raw markdownlint output
-$lint_output
+$filtered_lint_output
 
 ## Rules
 - Your response MUST begin immediately with markdown content — no conversational preamble

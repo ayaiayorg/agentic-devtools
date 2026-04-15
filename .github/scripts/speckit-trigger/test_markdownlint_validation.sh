@@ -918,10 +918,29 @@ assert_eq "mixed wrapping produces 3 lines" "3" "$count"
 assert_contains "first violation present" "file1.md:1:1" "$result"
 assert_contains "second violation joined" "Line length 205 > 200" "$result"
 assert_contains "third violation present" "file3.md:10:1" "$result"
+# Verify rule and description are on the same line for the joined violation
+second_line=$(printf '%s\n' "$result" | grep "file2.md")
+assert_contains "second line has rule and desc together" "MD013/line-length" "$second_line"
+assert_contains "second line has joined description" "Line length 205 > 200" "$second_line"
 
 # T-join-5: Empty input returns nothing
 result=$(_join_continuation_lines "")
 assert_eq "empty input returns empty" "" "$result"
+
+# T-join-6: Metadata/footer lines are treated as boundaries, not appended
+input_meta=$'specs/test/spec.md:1 error MD041/first-line-heading First line\nmarkdownlint-cli2 v0.22.0\nFinding: 1 file(s)\nLinting: 1 file(s)\nSummary: 1 error(s)'
+result=$(_join_continuation_lines "$input_meta")
+count=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+assert_eq "metadata boundary produces 1 line" "1" "$count"
+# Verify that metadata lines are NOT appended to the violation
+first_line=$(printf '%s\n' "$result" | head -1)
+assert_eq "metadata not appended to violation" "specs/test/spec.md:1 error MD041/first-line-heading First line" "$first_line"
+
+# T-join-7: Blank lines act as boundaries between violations
+input_blanks=$'file1.md:1 error MD041/first-line-heading First line\n\nfile2.md:10 error MD013/line-length Line too long'
+result=$(_join_continuation_lines "$input_blanks")
+count=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+assert_eq "blank separator produces 2 lines" "2" "$count"
 
 # ---------------------------------------------------------------------------
 # Test: _count_raw_violations
