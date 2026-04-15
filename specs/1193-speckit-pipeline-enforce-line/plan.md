@@ -19,7 +19,7 @@ Detailed design decisions for this plan:
 - **Unsplittable token handling** → regex capture for `[text](url)`, `[text][ref]`, and `` `code` ``
 - **Pipeline integration point** → new `run_line_wrapping` shell function in `generate-spec-from-issue.sh` that calls
   `wrap_files` via `python -c`, invoked between `quick_markdown_sanity_check` and `run_markdownlint_validation`
-- **CLI entry point** → `speckit-wrap-lines` registered via `pyproject.toml` (not `agdt-*` namespace)
+- **CLI entry point** → `agdt-speckit-wrap-lines` registered via `pyproject.toml` (follows `agdt-*` namespace)
 
 ## 3. Design Overview
 
@@ -47,7 +47,8 @@ Detailed design decisions for this plan:
     │  CLI entry point    │    │  Pipeline integration   │
     │  cli/markdown/      │    │  generate-spec-from-    │
     │  commands.py        │    │  issue.sh               │
-    │  speckit-wrap-lines │    │  (calls Python wrapper) │
+    │  agdt-speckit-wrap- │    │  (calls Python wrapper) │
+    │  lines              │    │                         │
     └─────────────────────┘    └─────────────────────────┘
 ```
 
@@ -100,9 +101,9 @@ Detailed design decisions for this plan:
    - Reports per-file wrapped line counts to stderr
    - Exit code 0 on success
 4. Register in `pyproject.toml` `[project.scripts]`:
-   - `speckit-wrap-lines = "agentic_devtools.cli.runner:run_as_script"`
+   - `agdt-speckit-wrap-lines = "agentic_devtools.cli.runner:run_as_script"`
 5. Add to `COMMAND_MAP` in `runner.py`:
-   - `"speckit-wrap-lines": ("agentic_devtools.cli.markdown.commands", "speckit_wrap_lines")`
+   - `"agdt-speckit-wrap-lines": ("agentic_devtools.cli.markdown.commands", "speckit_wrap_lines")`
 6. Reinstall package (`pip install -e .`)
 
 **Tests**:
@@ -136,7 +137,7 @@ inside the harness-extracted Markdownlint Validation section, plus a new dedicat
 1. Run full test suite (`agdt-test`) — verify 100% coverage
 2. Run `bash scripts/run-pr-checks.sh` — verify all CI checks pass
 3. Run wrapping against existing spec files in `specs/` to validate real-world behavior
-4. Update `copilot-instructions.md` to document the new `speckit-wrap-lines` command
+4. Update `copilot-instructions.md` to document the new `agdt-speckit-wrap-lines` command
 
 ## 5. Risk Assessment
 
@@ -146,7 +147,7 @@ inside the harness-extracted Markdownlint Validation section, plus a new dedicat
 | Protected block detection misses edge cases (nested fences, indented fences) | Medium | Medium | Test with real-world spec files; conservative approach (leave unrecognized patterns unwrapped) |
 | Pipeline integration fails silently | Medium | Low | Best-effort pattern with logging; markdownlint remains as safety net |
 | Performance regression on large spec dirs | Low | Low | NFR-001 targets <5s; pure Python string ops are fast for 50KB |
-| CLI naming conflict (`speckit-wrap-lines` vs `agdt-*`) | Low | Low | Spec explicitly mandates `speckit-` prefix; documented clearly |
+| CLI naming conflict | Low | Low | Uses `agdt-speckit-wrap-lines` following repo `agdt-*` convention |
 
 ## 6. Dependencies
 
