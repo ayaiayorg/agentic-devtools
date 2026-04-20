@@ -71,3 +71,13 @@ specs/*/quickstart.md
 specs/*/contracts/
 .specify/memory/agent-file.md
 .markdownlint-debug.log
+msg.txt
+copilot-request.json
+copilot-request-retry.json
+replies.json
+msg.txt
+copilot-request*.json
+review_comments*.json
+raw_comments.json
+parsed_comments.json
+review_request.json

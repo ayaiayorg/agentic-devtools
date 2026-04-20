@@ -690,11 +690,56 @@ ensure_heading_start() {
 }
 
 # ---------------------------------------------------------------------------
+# wrap_long_lines_in_spec_dir <spec_dir> [max_line_length]
+#
+# Best-effort deterministic pass that wraps overlong prose / list items in
+# all .md files under <spec_dir> to <max_line_length> characters (default
+# 200, matching the MD013 config in .markdownlint-cli2.jsonc).  Fenced code
+# blocks, tables, indented code, YAML front matter, and headings are
+# preserved verbatim.
+#
+# This step reduces MD013 violations before the downstream markdownlint
+# validation loop kicks off LLM remediation — LLM output very commonly
+# produces single-line paragraphs and list items that exceed the 200-char
+# limit.  Always returns 0 — this is a best-effort pass, not a gate.
+# ---------------------------------------------------------------------------
+wrap_long_lines_in_spec_dir() {
+    local spec_dir="$1"
+    local max_line_length="${2:-200}"
+    local -a md_files=()
+    while IFS= read -r -d '' file; do
+        md_files+=("$file")
+    done < <(find "$spec_dir" -name '*.md' -type f -print0)
+
+    if [[ ${#md_files[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    local py_bin=""
+    if command -v python3 &>/dev/null; then
+        py_bin=python3
+    elif command -v python &>/dev/null && python -c 'import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)' &>/dev/null; then
+        py_bin=python
+    else
+        echo "[Wrap] ⚠ no Python 3 interpreter available — skipping line-wrap pre-validation pass" >&2
+        return 0
+    fi
+
+    if ! "$py_bin" "$SCRIPT_DIR/wrap_markdown_lines.py" \
+            --quiet \
+            --max-line-length "$max_line_length" \
+            "${md_files[@]}"; then
+        echo "[Wrap] ⚠ wrap_markdown_lines.py exited non-zero — continuing" >&2
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # quick_markdown_sanity_check <spec_dir>
 #
 # Best-effort pre-validation pass over all .md files in <spec_dir>.
-# Fixes deterministic issues (leading blank lines) and logs warnings for
-# problems that require manual attention.
+# Fixes deterministic issues (leading blank lines, long prose lines) and
+# logs warnings for problems that require manual attention.
 #
 # Always returns 0 — this is a best-effort check, not a gate.
 # ---------------------------------------------------------------------------
@@ -755,6 +800,12 @@ quick_markdown_sanity_check() {
             echo "[Sanitize] ⚠ File does not start with a heading: $file" >&2
         fi
     done < <(find "$spec_dir" -name '*.md' -type f -print0)
+
+    # Wrap overlong prose lines after leading-blank removal so that files
+    # with leading whitespace before YAML front matter (---) are handled
+    # correctly — the wrapper only detects front matter on the very first
+    # line.
+    wrap_long_lines_in_spec_dir "$spec_dir"
 
     return 0
 }

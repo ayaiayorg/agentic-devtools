@@ -30,6 +30,7 @@ jobs:
               - 'agentic_devtools/prompts/**'
               - 'agentic_devtools/state.py'
               - 'agentic_devtools/background_tasks.py'
+              - '.github/scripts/speckit-trigger/**'
               - 'pyproject.toml'
 
   workflow-tests:
