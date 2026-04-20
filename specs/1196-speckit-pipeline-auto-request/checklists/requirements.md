@@ -7,39 +7,57 @@
 
 ## Content Quality
 
-- [ ] CHK001 Spec states user value for auto-requesting Copilot review (e.g., faster feedback loops, reduced manual steps) — currently missing an explicit value proposition
-- [ ] CHK002 User stories exist for both trigger paths: `pull_request: opened` and `pull_request: labeled` — spec only lists events, no "As a … I want …" narratives
-- [ ] CHK003 FR-007 (dedicated workflow), FR-010 (comment updates), FR-008/NFR-003 (github-script), and NFR-004 (permissions) have explicit priority assignments (must/should/could)
-- [ ] CHK004 Decision #4 (`actions/github-script@v7` with `github.rest.pulls.requestReviewers()`) is stated as a requirement constraint,
-  not as an implementation directive — verify no API call signatures or YAML step snippets appear in requirement text
+- [ ] CHK001 Spec clearly states the user value for auto-requesting Copilot review
+  (faster feedback loops, fewer manual steps, more consistent review coverage)
+- [ ] CHK002 User stories and scenarios stay aligned with both trigger paths:
+  `pull_request: opened` and `pull_request: labeled`, including the intended
+  reason each path exists
+- [ ] CHK003 FR-007 (dedicated workflow), FR-010 (comment updates), FR-008/NFR-003
+  (github-script), and NFR-004 (permissions) have explicit priority assignments
+  or equivalent implementation-criticality wording
+- [ ] CHK004 Requirements describe behavior and constraints, while implementation
+  examples remain informative only — avoid making specific API call shapes or
+  YAML snippets the normative requirement text
 
 ## Requirement Completeness
 
-- [ ] CHK005 FR-007 (new `speckit-copilot-review-request.yml` workflow) has a testable acceptance criterion specifying
-  what "review requested successfully" means (e.g., API 201 response, reviewer appears in PR sidebar)
-- [ ] CHK006 Edge cases for implementation-PR scenarios are fully described — spec notes "2 new implementation-PR scenarios" were expanded but their content is not visible in the decisions table
-- [ ] CHK007 The "🤖 Copilot review requested" and "⚠️ failed" comment-update scenarios (Decision #2 / FR-010) include Given/When/Then or equivalent acceptance format
-- [ ] CHK008 SC-006 ("implementation PR reviewer coverage within 60 seconds") defines how the 60-second measurement is taken (wall-clock from PR open event to reviewer assignment API completion)
-- [ ] CHK009 Scope boundaries explicitly state that `create-spec-pr.sh` is excluded AND that `speckit-implement-trigger.yml` permissions remain untouched
-  (NFR-004) — both are mentioned but not consolidated in a single scope section
-- [ ] CHK010 Dependencies on `actions/github-script@v7` availability, repository `GITHUB_TOKEN` permissions (`pull-requests: write`), and Copilot reviewer availability are documented as assumptions
+- [ ] CHK005 FR-007 defines a testable success condition for "review requested successfully"
+  (for example: request API succeeds and Copilot appears in the PR reviewer list)
+- [ ] CHK006 Trigger interaction is explicit: if both `opened` and `labeled` events
+  occur for the same PR, the spec defines whether the workflow should skip,
+  deduplicate, or safely retry the reviewer request
+- [ ] CHK007 FR-010 specifies whether the workflow creates a new status comment,
+  updates an existing bot comment, or avoids duplicate comments across
+  repeated workflow runs
+- [ ] CHK008 SC-006 ("implementation PR reviewer coverage within 60 seconds")
+  defines the measurement window precisely, including start event, end
+  event, and whether retries or GitHub queue time count toward the limit
+- [ ] CHK009 Scope boundaries explicitly state what is out of scope, including
+  whether `create-spec-pr.sh` is excluded and whether `speckit-implement-trigger.yml`
+  permissions remain unchanged under NFR-004
+- [ ] CHK010 Dependencies and assumptions are documented for `actions/github-script@v7`,
+  required `GITHUB_TOKEN` permissions (`pull-requests: write`), and Copilot
+  reviewer availability in the target repository
+- [ ] CHK011 The spec identifies which actor/reviewer identity must be requested
+  (for example, Copilot as reviewer) and what the workflow should do if
+  that reviewer cannot be assigned in the repo
 
 ## Feature Readiness
 
-- [ ] CHK011 Every functional requirement (FR-007, FR-008, FR-010) has at least one acceptance criterion with a pass/fail condition — currently only referenced by label, full text not present in spec
-- [ ] CHK012 User scenarios cover the happy path (PR opened → review requested → comment updated),
-  the failure path (API error → `continue-on-error` → warning + "⚠️ failed" comment),
-  and the labeled-trigger path (label added to existing PR)
-- [ ] CHK013 Success criteria beyond SC-006 are defined with measurable outcomes —
-  e.g., percentage of implementation PRs that receive Copilot review automatically, zero manual reviewer-request steps required
-- [ ] CHK014 Decisions #3 (workflow YAML steps only) and #4 (`github.rest.pulls.requestReviewers()`) do not leak into requirement statements —
-  these should remain in the decisions table and not appear as spec requirements
+- [ ] CHK012 Every functional requirement (FR-007, FR-008, FR-010) has at least one acceptance criterion with an observable pass/fail result
+- [ ] CHK013 Scenarios cover the happy path (PR opened → review requested → success comment state),
+  the failure path (API or permission error → workflow continues safely → warning state recorded),
+  and the labeled-trigger path (label added to an existing PR)
+- [ ] CHK014 Retry and idempotency behavior is defined so repeated workflow executions do not spam reviewer requests or status comments
+- [ ] CHK015 Success criteria beyond SC-006 are measurable —
+  for example, percentage of eligible implementation PRs that receive automatic Copilot review and reduction of manual reviewer-request steps
+- [ ] CHK016 Failure handling is specific about observability: where warning details appear (workflow logs, PR comment, job summary, or all applicable locations) and what message content is required
 
 ## Notes
 
-- This checklist was generated from the specification content for issue #1196
+- This checklist was regenerated to align with the current specification content for issue #1196
 - Items marked incomplete require spec updates before proceeding to planning
-- The spec is currently in decisions-table format; most CHK items flag the absence of expanded requirement prose, user stories, and structured acceptance criteria that a full specification would contain
+- Checklist items focus on unresolved requirement clarity, acceptance criteria, scope, dependency assumptions, and idempotent workflow behavior
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*

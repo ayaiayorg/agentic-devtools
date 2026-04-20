@@ -5,13 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-SCRIPT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / ".github"
-    / "scripts"
-    / "speckit-trigger"
-    / "wrap_markdown_lines.py"
-)
+SCRIPT_PATH = Path(__file__).resolve().parents[2] / ".github" / "scripts" / "speckit-trigger" / "wrap_markdown_lines.py"
 
 
 def _load_module():
@@ -133,11 +127,7 @@ class TestWrapMarkdownText:
         # Front matter key/value line must appear unchanged.
         assert f"title: {long_val}" in wrapped
         # Body content should have been wrapped.
-        body_lines = [
-            line
-            for line in wrapped.splitlines()
-            if line and not line.startswith(("---", "title:"))
-        ]
+        body_lines = [line for line in wrapped.splitlines() if line and not line.startswith(("---", "title:"))]
         assert len(body_lines) > 1
 
     def test_blockquote_preserves_prefix(self):
@@ -205,10 +195,7 @@ class TestWrapMarkdownText:
         text = f"# Heading\n\n{long_line}\n\n---\n\nMore body.\n"
         wrapped = module.wrap_markdown_text(text, width=80)
         # The long line should have been wrapped.
-        assert any(
-            len(out_line) <= 80 and "Paragraph before rule" in out_line
-            for out_line in wrapped.splitlines()
-        )
+        assert any(len(out_line) <= 80 and "Paragraph before rule" in out_line for out_line in wrapped.splitlines())
 
     def test_wrap_markdown_lines_preserves_whitespace(self):
         """Tokenization should not collapse repeated spaces or strip trailing ones."""
@@ -216,8 +203,7 @@ class TestWrapMarkdownText:
         # "Intro" followed by double space: a markdown hard line break.
         # "code  here" with inner double space.
         long_line = (
-            "Intro  This is an overlong paragraph with `inline  code` that goes on "
-            "and on and eventually needs to wrap."
+            "Intro  This is an overlong paragraph with `inline  code` that goes on and on and eventually needs to wrap."
         )
         wrapped = module.wrap_markdown_text(long_line, width=100)
         # Should be wrapped but space after Intro etc. preserved.
@@ -235,9 +221,7 @@ class TestWrapMarkdownText:
         wrapped = module.wrap_markdown_text(line, width=60).splitlines()
         for out_line in wrapped:
             if len(out_line) > 60:
-                assert " " not in out_line.strip(), (
-                    f"line too long: {out_line!r}"
-                )
+                assert " " not in out_line.strip(), f"line too long: {out_line!r}"
 
     def test_blockquote_list_item_with_small_width(self):
         """Zero/negative derived width must not crash _wrap_list_item."""
