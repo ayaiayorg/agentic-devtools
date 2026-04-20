@@ -78,6 +78,7 @@ copilot-request-retry.json
 replies.json
 copilot-request*.json
 review_comments*.json
+out.json
 raw_comments.json
 parsed_comments.json
 review_request.json
