@@ -612,6 +612,12 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: dict[str, A
         "jira.issue_key",
         "jira.last_issue",
         "jira.comment",
+        "jira.user_request",
+        "jira.issue_summary",
+        "jira.issue_type",
+        "jira.issue_labels",
+        "jira.issue_description",
+        "jira.issue_comments",
         "pull_request_id",
         "branch_name",
         "source_branch",
@@ -699,12 +705,18 @@ def _render_step_prompt(workflow_name: str, step_name: str, context: dict[str, A
     else:
         variables["git_commit_usage"] = 'agdt-git-commit --commit-message "<your message>"'
 
+    # Workflows that suppress warn_on_missing to avoid noise
+    warn_on_missing = True
+    if workflow_name == "create-jira-issue" and step_name == "initiate":
+        warn_on_missing = False
+
     return load_and_render_prompt(
         workflow_name=workflow_name,
         step_name=step_name,
         variables=variables,
         save_to_temp=True,
         log_output=False,  # Don't double-log
+        warn_on_missing=warn_on_missing,
     )
 
 

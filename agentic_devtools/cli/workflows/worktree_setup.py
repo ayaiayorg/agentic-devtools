@@ -130,7 +130,7 @@ _WORKFLOW_PROMPT_FILENAMES: dict[str, str] = {
     "create-jira-issue": "temp-create-jira-issue-initiate-prompt.md",
     "create-jira-epic": "temp-create-jira-epic-initiate-prompt.md",
     "create-jira-subtask": "temp-create-jira-subtask-initiate-prompt.md",
-    "update-jira-issue": "temp-update-jira-issue-initiate-prompt.md",
+    "update-jira-issue": "temp-update-jira-issue-make-updates-prompt.md",
 }
 
 
@@ -2654,6 +2654,7 @@ def _start_copilot_session_for_update_jira_issue(
     worktree_path: str,
     interactive: bool = False,
     model: str | None = None,
+    step: str = "initiate",
 ) -> bool:
     """Start a Copilot session for the update-jira-issue workflow.
 
@@ -2664,15 +2665,23 @@ def _start_copilot_session_for_update_jira_issue(
         worktree_path: Absolute path to the worktree root.
         interactive: Whether to start the Copilot session interactively.
         model: Optional Copilot model ID to use.
+        step: Workflow step name used to construct the rendered prompt
+            filename.  Defaults to ``"initiate"`` for backward compatibility;
+            pass ``"make-updates"`` when the Jira pre-fetch succeeded and the
+            workflow skipped the ``initiate`` step.
 
     Returns:
         ``True`` when a Copilot session was started or the auto-start task
         confirmed running, ``False`` otherwise.
     """
+    if step not in ("initiate", "make-updates") or "/" in step or "\\" in step:
+        raise ValueError(f"Invalid workflow step: {step!r}")
+
     return _start_copilot_session_for_workflow(
         worktree_path=worktree_path,
         prompt_file_relative_path=_prompt_file_relative_path(
-            worktree_path, "temp-update-jira-issue-initiate-prompt.md"
+            worktree_path,
+            f"temp-update-jira-issue-{step}-prompt.md",
         ),
         start_prompt=COPILOT_SESSION_START_PROMPT_UPDATE_JIRA_ISSUE,
         workflow_name="update-jira-issue",
@@ -3101,7 +3110,20 @@ def setup_worktree_in_background_sync(
     """
     import uuid
 
-    from ...state import set_value
+    from ...state import get_workflow_state, set_value
+
+    def _resolve_prompt_filename(target_path: str) -> str | None:
+        filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
+        if workflow_name == "update-jira-issue":
+            with worktree_state_context(target_path):
+                raw_workflow_state = get_workflow_state()
+            wf_state = (
+                raw_workflow_state if isinstance(raw_workflow_state, dict) else {}
+            )
+            step = wf_state.get("step")
+            if step in ("initiate", "make-updates"):
+                return f"temp-update-jira-issue-{step}-prompt.md"
+        return filename
 
     # Pre-generate a run ID for auto-start injection.  This eliminates
     # the race condition where the background task spawned by the
@@ -3152,7 +3174,7 @@ def setup_worktree_in_background_sync(
         # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
         # this call provides the 15-second wait + terminal sendSequence +
         # background session fallback chain.
-        prompt_filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
+        prompt_filename = _resolve_prompt_filename(existing_path)
         if prompt_filename:
             _start_copilot_session_for_workflow(
                 worktree_path=existing_path,
@@ -3208,7 +3230,7 @@ def setup_worktree_in_background_sync(
         # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
         # this call provides the 15-second wait + terminal sendSequence +
         # background session fallback chain.
-        prompt_filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
+        prompt_filename = _resolve_prompt_filename(result.worktree_path)
         if prompt_filename:
             _start_copilot_session_for_workflow(
                 worktree_path=result.worktree_path,

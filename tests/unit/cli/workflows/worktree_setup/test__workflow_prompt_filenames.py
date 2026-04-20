@@ -68,5 +68,5 @@ class TestWorkflowPromptFilenames:
         assert _WORKFLOW_PROMPT_FILENAMES["create-jira-subtask"] == "temp-create-jira-subtask-initiate-prompt.md"
 
     def test_update_jira_issue_filename(self):
-        """update-jira-issue maps to the correct prompt filename."""
-        assert _WORKFLOW_PROMPT_FILENAMES["update-jira-issue"] == "temp-update-jira-issue-initiate-prompt.md"
+        """update-jira-issue maps to the make-updates prompt filename (happy path)."""
+        assert _WORKFLOW_PROMPT_FILENAMES["update-jira-issue"] == "temp-update-jira-issue-make-updates-prompt.md"
