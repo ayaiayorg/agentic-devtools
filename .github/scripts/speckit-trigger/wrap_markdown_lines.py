@@ -275,12 +275,7 @@ def wrap_markdown_text(text: str, width: int = DEFAULT_MAX_LINE_LENGTH) -> str:
                 indent_len = len(fence_match.group(1))
                 remainder = line[fence_match.end() :]
 
-                if (
-                    close_char == open_char
-                    and close_len >= open_len
-                    and indent_len <= 3
-                    and not remainder.strip()
-                ):
+                if close_char == open_char and close_len >= open_len and indent_len <= 3 and not remainder.strip():
                     in_fence = False
                     fence_marker = None
             continue

@@ -155,6 +155,7 @@ def _validate_reply_entries(entries: list[dict]) -> None:
 
 def _post_single_reply(
     repo: str,
+    pr_number: int,
     comment_id: int,
     body: str,
 ) -> dict | None:
@@ -166,7 +167,7 @@ def _post_single_reply(
         [
             "gh",
             "api",
-            f"repos/{repo}/pulls/comments/{comment_id}/replies",
+            f"repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
             "--raw-field",
             f"body={body}",
         ],
@@ -203,12 +204,16 @@ def _post_single_reply(
 def _verify_replies(
     repo: str,
     pr_number: int,
-    review_id: int,
     expected_comment_ids: list[int],
+    expected_reply_map: dict[int, int] | None = None,
 ) -> dict[int, bool]:
     """Batch-verify that replies exist for the given comment IDs.
 
-    Fetches all review comments and checks ``in_reply_to_id``.
+    Fetches all review comments and checks that our specific replies
+    exist.  When *expected_reply_map* is provided (mapping comment ID
+    to the reply ID we received from the API), verification requires
+    both a matching ``id`` **and** ``in_reply_to_id``.  Without the
+    map, falls back to checking ``in_reply_to_id`` presence only.
 
     Returns a dict mapping each expected comment ID to ``True``/``False``.
     """
@@ -220,7 +225,7 @@ def _verify_replies(
             "gh",
             "api",
             "--paginate",
-            f"repos/{repo}/pulls/{pr_number}/reviews/{review_id}/comments",
+            f"repos/{repo}/pulls/{pr_number}/comments",
             "--jq",
             ".[] | {id, in_reply_to_id}",
         ],
@@ -248,6 +253,20 @@ def _verify_replies(
             continue
 
     reply_to_ids = {c.get("in_reply_to_id") for c in comments if c.get("in_reply_to_id")}
+
+    if expected_reply_map:
+        # Build precise lookup: (id, in_reply_to_id) pairs
+        comment_pairs = {(c.get("id"), c.get("in_reply_to_id")) for c in comments}
+        result: dict[int, bool] = {}
+        for cid in expected_comment_ids:
+            reply_id = expected_reply_map.get(cid)
+            if reply_id is not None:
+                # Verify the specific reply we posted exists
+                result[cid] = (reply_id, cid) in comment_pairs
+            else:
+                # No known reply ID; fall back to presence check
+                result[cid] = cid in reply_to_ids
+        return result
 
     return {cid: (cid in reply_to_ids) for cid in expected_comment_ids}
 
@@ -307,7 +326,7 @@ def _retry_failed_replies(
                 f"Retry {attempt + 1}/{max_retries} for comment {cid} (re-post)...",
                 file=sys.stderr,
             )
-            resp = _post_single_reply(repo, cid, body)
+            resp = _post_single_reply(repo, pr_number, cid, body)
             if resp is None:
                 retry_batch.append(entry)
             else:
@@ -324,13 +343,26 @@ def _retry_failed_replies(
 
         # Verify all entries that may have a reply (posted or previously posted)
         ids_to_verify = [e["commentId"] for e in retry_batch]
-        verification = _verify_replies(repo, pr_number, review_id, ids_to_verify)
+        retry_reply_map = {}
+        for e in retry_batch:
+            cid = e["commentId"]
+            if "_response" in e and e["_response"].get("id") is not None:
+                retry_reply_map[cid] = e["_response"]["id"]
+            elif e.get("replyId") is not None:
+                retry_reply_map[cid] = e["replyId"]
+
+        verification = _verify_replies(
+            repo,
+            pr_number,
+            ids_to_verify,
+            expected_reply_map=retry_reply_map or None,
+        )
 
         still_remaining: list[dict] = []
         for entry in retry_batch:
             cid = entry["commentId"]
             if verification.get(cid, False):
-                reply_id = entry.get("_response", {}).get("id") if "_response" in entry else None
+                reply_id = entry.get("_response", {}).get("id") if "_response" in entry else entry.get("replyId")
                 succeeded.append(
                     {
                         "commentId": cid,
@@ -348,6 +380,8 @@ def _retry_failed_replies(
                 posted_this_cycle = "_response" in entry
                 clean = {k: v for k, v in entry.items() if k != "_response"}
                 clean["error"] = "verification failed" if posted_this_cycle else "post failed"
+                if posted_this_cycle and entry["_response"].get("id") is not None:
+                    clean["replyId"] = entry["_response"]["id"]
                 still_remaining.append(clean)
 
         remaining = still_remaining
@@ -382,7 +416,7 @@ def reply_to_review_comments(
     for entry in entries:
         cid = entry["commentId"]
         body = entry["body"]
-        resp = _post_single_reply(repo, cid, body)
+        resp = _post_single_reply(repo, pr_number, cid, body)
         if resp is None:
             details.append(
                 {
@@ -411,7 +445,10 @@ def reply_to_review_comments(
 
     # --- Batch verify ---
     posted_ids = [d["commentId"] for d in details if d["status"] == "replied"]
-    verification = _verify_replies(repo, pr_number, review_id, posted_ids)
+    reply_map = {
+        d["commentId"]: d["replyId"] for d in details if d["status"] == "replied" and d.get("replyId") is not None
+    }
+    verification = _verify_replies(repo, pr_number, posted_ids, expected_reply_map=reply_map or None)
 
     entry_by_id = {e["commentId"]: e for e in entries}
     for detail in details:
@@ -424,6 +461,7 @@ def reply_to_review_comments(
                         "commentId": detail["commentId"],
                         "body": entry.get("body", ""),
                         "error": "verification failed",
+                        "replyId": detail.get("replyId"),
                     }
                 )
 
