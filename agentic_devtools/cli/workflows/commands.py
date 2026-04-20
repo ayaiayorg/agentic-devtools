@@ -1254,6 +1254,7 @@ def initiate_create_jira_issue_workflow(
                     "jira.user_request",
                 ],
                 skip_bootstrap_init=True,
+                warn_on_missing=False,
             )
 
             # Start a Copilot CLI session after the workflow is initiated.
@@ -2094,6 +2095,17 @@ def initiate_update_jira_issue_workflow(
     # Pre-fetch Jira issue details for the prompt template
     issue_variables = _fetch_issue_for_prompt(resolved_issue_key)
 
+    # Persist pre-fetched issue fields to state under the ``jira.issue_*``
+    # namespace so that :func:`_render_step_prompt` can re-render the
+    # ``make-updates`` template (via ``@agdt.get-next-workflow-prompt``)
+    # without re-fetching from Jira.  Keys are stored as ``jira.issue_<field>``
+    # (dot replaces the first underscore only, matching the existing
+    # ``jira.*`` namespace convention).
+    for key, value in issue_variables.items():
+        # key is e.g. "jira_issue_summary" -> "jira.issue_summary"
+        state_key = key.replace("jira_", "jira.", 1)
+        set_value(state_key, value)
+
     # Determine step based on pre-fetch result: skip initiate when data is available
     step = "make-updates" if issue_variables else "initiate"
 
@@ -2111,7 +2123,9 @@ def initiate_update_jira_issue_workflow(
         from .worktree_setup import _start_copilot_session_for_update_jira_issue
 
         repo_root = get_git_repo_root() or os.getcwd()
-        _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive, model=model)
+        _start_copilot_session_for_update_jira_issue(
+            repo_root, interactive=interactive, model=model, step=step
+        )
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(

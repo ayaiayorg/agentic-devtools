@@ -52,7 +52,7 @@ class TestSetupWorktreeInBackgroundSync:
         """
         with patch(
             "agentic_devtools.cli.workflows.worktree_setup._prompt_file_relative_path",
-            return_value=".agdt/workflows/_test/_test/temp-prompt.md",
+            side_effect=lambda worktree_path, prompt_filename: f".agdt/workflows/_test/_test/{prompt_filename}",
         ):
             yield
 
@@ -1056,3 +1056,100 @@ class TestSetupWorktreeInBackgroundSync:
         assert "AI AGENT INSTRUCTIONS (MANUAL START REQUIRED)" in captured.out
         assert "Auto-start injection was not successful" in captured.out
         assert "auto-start task was injected" not in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.worktree_state_context")
+    @patch("agentic_devtools.state.get_workflow_state")
+    def test_copilot_session_started_for_update_jira_issue_initiate(
+        self,
+        mock_get_workflow_state,
+        mock_worktree_state_context,
+        mock_start_copilot,
+        mock_open_vscode,
+        mock_inject_auto_start,
+        mock_inject_git,
+        mock_check_exists,
+    ):
+        """Verify update-jira-issue uses initiate prompt when step is initiate."""
+        mock_check_exists.return_value = "/path/to/worktree"
+        mock_inject_auto_start.return_value = True
+
+        mock_get_workflow_state.return_value = {"name": "update-jira-issue", "step": "initiate"}
+
+        from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="update-jira-issue",
+        )
+
+        mock_start_copilot.assert_called_once()
+        assert "temp-update-jira-issue-initiate-prompt.md" in str(mock_start_copilot.call_args[1]["prompt_file_relative_path"])
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.worktree_state_context")
+    @patch("agentic_devtools.state.get_workflow_state")
+    def test_copilot_session_started_for_update_jira_issue_make_updates(
+        self,
+        mock_get_workflow_state,
+        mock_worktree_state_context,
+        mock_start_copilot,
+        mock_open_vscode,
+        mock_inject_auto_start,
+        mock_inject_git,
+        mock_check_exists,
+    ):
+        """Verify update-jira-issue uses make-updates prompt when step is make-updates."""
+        mock_check_exists.return_value = "/path/to/worktree"
+        mock_inject_auto_start.return_value = True
+
+        mock_get_workflow_state.return_value = {"name": "update-jira-issue", "step": "make-updates"}
+
+        from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="update-jira-issue",
+        )
+
+        mock_start_copilot.assert_called_once()
+        assert "temp-update-jira-issue-make-updates-prompt.md" in str(mock_start_copilot.call_args[1]["prompt_file_relative_path"])
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._maybe_inject_auto_start_before_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.worktree_state_context")
+    @patch("agentic_devtools.state.get_workflow_state")
+    def test_copilot_session_started_for_update_jira_issue_not_dict(
+        self,
+        mock_get_workflow_state,
+        mock_worktree_state_context,
+        mock_start_copilot,
+        mock_open_vscode,
+        mock_inject_auto_start,
+        mock_inject_git,
+        mock_check_exists,
+    ):
+        """Verify update-jira-issue falls back appropriately if state is not a dict."""
+        mock_check_exists.return_value = "/path/to/worktree"
+        mock_inject_auto_start.return_value = True
+
+        mock_get_workflow_state.return_value = None
+
+        from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+        setup_worktree_in_background_sync(
+            issue_key="PROJECT-1234",
+            workflow_name="update-jira-issue",
+        )
+
+        mock_start_copilot.assert_called_once()
+        assert "temp-update-jira-issue-make-updates-prompt.md" in str(mock_start_copilot.call_args[1].get("prompt_file_relative_path", ""))
+

@@ -150,6 +150,7 @@ def initiate_workflow(
     step_name: str = "initiate",
     context: dict[str, Any] | None = None,
     skip_bootstrap_init: bool = False,
+    warn_on_missing: bool = True,
 ) -> str:
     """
     Common workflow initiation logic.
@@ -171,6 +172,7 @@ def initiate_workflow(
         skip_bootstrap_init: Set to True when the caller has already called
             _ensure_bootstrap_identity() to avoid a redundant second call to
             set_bootstrap_state() (extra git subprocess + disk writes).
+        warn_on_missing: Set to False to suppress warnings when template variables are not found in variables dict.
 
     Returns:
         The generated prompt content
@@ -251,6 +253,7 @@ def initiate_workflow(
             variables=variables,
             save_to_temp=True,
             log_output=True,
+            warn_on_missing=warn_on_missing,
         )
         return content
     except TemplateValidationError as e:  # pragma: no cover
@@ -266,6 +269,7 @@ def advance_workflow_step(
     step_name: str,
     variables: dict[str, Any] | None = None,
     status: str = "in-progress",
+    warn_on_missing: bool = True,
 ) -> str:
     """
     Advance to a new step in an active workflow.
@@ -275,6 +279,7 @@ def advance_workflow_step(
         step_name: Name of the new step
         variables: Variables for the step template
         status: New workflow status
+        warn_on_missing: Set to False to suppress template variable miss warnings
 
     Returns:
         The generated prompt content
@@ -307,6 +312,7 @@ def advance_workflow_step(
             variables=variables or {},
             save_to_temp=True,
             log_output=True,
+            warn_on_missing=warn_on_missing,
         )
         return content
     except (TemplateValidationError, FileNotFoundError) as e:  # pragma: no cover

@@ -60,3 +60,30 @@ class TestLoadAndRenderPrompt:
 
         with pytest.raises(loader.TemplateValidationError):
             loader.load_and_render_prompt("test", "initiate", {"name": "Test"})
+
+    def test_warns_on_missing_template_variables(self, temp_prompts_dir, temp_output_dir, capsys):
+        """Missing template variables produce a warning on stderr."""
+        template_content = "Hello {{name}}, working on {{task}}"
+        workflow_dir = temp_prompts_dir / "test"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(template_content, encoding="utf-8")
+
+        # Provide only one of the two declared variables
+        loader.load_and_render_prompt("test", "initiate", {"name": "Alice"})
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        assert "task" in captured.err
+        assert "test/initiate" in captured.err
+
+    def test_no_warning_when_all_variables_provided(self, temp_prompts_dir, temp_output_dir, capsys):
+        """No warning is printed when all template variables are provided."""
+        template_content = "Hello {{name}}, working on {{task}}"
+        workflow_dir = temp_prompts_dir / "test"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text(template_content, encoding="utf-8")
+
+        loader.load_and_render_prompt("test", "initiate", {"name": "Alice", "task": "T1"})
+
+        captured = capsys.readouterr()
+        assert "WARNING" not in captured.err

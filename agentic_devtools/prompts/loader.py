@@ -340,6 +340,7 @@ def load_and_render_prompt(
     variables: dict[str, Any],
     save_to_temp: bool = True,
     log_output: bool = True,
+    warn_on_missing: bool = True,
 ) -> str:
     """
     Load template, substitute variables, optionally save and log.
@@ -356,6 +357,7 @@ def load_and_render_prompt(
         variables: Dictionary of variables to substitute
         save_to_temp: If True, save generated prompt to temp folder
         log_output: If True, log prompt to console with save notice
+        warn_on_missing: If True, emit warning when declared variables are missing
 
     Returns:
         The generated prompt content
@@ -366,6 +368,22 @@ def load_and_render_prompt(
     """
     # Load template
     template = load_prompt_template(workflow_name, step_name)
+
+    # Warn on missing template variables so silent blank renders are visible.
+    # Compares variables declared in the template (via ``{{var}}`` tokens) to
+    # the keys supplied in ``variables``.  Any variable referenced in the
+    # template but absent from the dict will render as an empty string due to
+    # :class:`SilentUndefined`; this warning surfaces the omission for easier
+    # debugging without changing the rendering behavior.
+    if warn_on_missing:
+        declared_vars = get_required_variables(template)
+        missing_vars = declared_vars - set(variables.keys())
+        for var in sorted(missing_vars):
+            print(
+                f"WARNING: Template variable '{var}' not provided for "
+                f"{workflow_name}/{step_name} prompt. It will render as empty.",
+                file=sys.stderr,
+            )
 
     # Substitute variables
     content = substitute_variables(template, variables)

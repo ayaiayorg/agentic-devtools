@@ -430,6 +430,139 @@ class TestPrefetchIntegration:
         captured = capsys.readouterr()
         assert "Initiate: Updating PROJECT-1234" in captured.out
 
+    def test_successful_prefetch_persists_issue_variables_to_state(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """Pre-fetched issue fields are persisted to state as jira.issue_* keys."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-make-updates-prompt.md").write_text("Updating {{jira_issue_key}}", encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        prefetch_data = {
+            "jira_issue_summary": "Test Summary",
+            "jira_issue_type": "Story",
+            "jira_issue_labels": "backend",
+            "jira_issue_description": "Test description",
+            "jira_issue_comments": "No comments",
+        }
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch(
+                "agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt",
+                return_value=prefetch_data,
+            ):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                ):
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        assert state.get_value("jira.issue_summary") == "Test Summary"
+        assert state.get_value("jira.issue_type") == "Story"
+        assert state.get_value("jira.issue_labels") == "backend"
+        assert state.get_value("jira.issue_description") == "Test description"
+        assert state.get_value("jira.issue_comments") == "No comments"
+
+    def test_successful_prefetch_passes_make_updates_step_to_copilot_session(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """Copilot session wrapper receives step='make-updates' on successful pre-fetch."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-make-updates-prompt.md").write_text("Updating {{jira_issue_key}}", encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        prefetch_data = {
+            "jira_issue_summary": "Test Summary",
+            "jira_issue_type": "Story",
+            "jira_issue_labels": "",
+            "jira_issue_description": "",
+            "jira_issue_comments": "",
+        }
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch(
+                "agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt",
+                return_value=prefetch_data,
+            ):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                ) as mock_session:
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        mock_session.assert_called_once()
+        assert mock_session.call_args.kwargs.get("step") == "make-updates"
+
+    def test_failed_prefetch_passes_initiate_step_to_copilot_session(
+        self,
+        temp_state_dir,
+        temp_prompts_dir,
+        temp_output_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+    ):
+        """Copilot session wrapper receives step='initiate' when pre-fetch fails."""
+        workflow_dir = temp_prompts_dir / "update-jira-issue"
+        workflow_dir.mkdir()
+        (workflow_dir / "default-initiate-prompt.md").write_text("Initiate {{jira_issue_key}}", encoding="utf-8")
+
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=True,
+                branch_valid=True,
+                folder_name="PROJECT-1234",
+                branch_name="feature/PROJECT-1234/impl",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch(
+                "agentic_devtools.cli.workflows.commands._fetch_issue_for_prompt",
+                return_value={},
+            ):
+                with patch(
+                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_update_jira_issue"
+                ) as mock_session:
+                    commands.initiate_update_jira_issue_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        mock_session.assert_called_once()
+        assert mock_session.call_args.kwargs.get("step") == "initiate"
+
 
 class TestStateDirShiftUpdateJiraIssue:
     """Tests for the state-dir shift guard in initiate_update_jira_issue_workflow."""

@@ -75,9 +75,12 @@ msg.txt
 copilot-request.json
 copilot-request-retry.json
 replies.json
-msg.txt
 copilot-request*.json
 review_comments*.json
 raw_comments.json
 parsed_comments.json
 review_request.json
+full_sha.txt
+short_sha.txt
+comments.json
+ci.json
