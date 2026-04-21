@@ -3117,9 +3117,7 @@ def setup_worktree_in_background_sync(
         if workflow_name == "update-jira-issue":
             with worktree_state_context(target_path):
                 raw_workflow_state = get_workflow_state()
-            wf_state = (
-                raw_workflow_state if isinstance(raw_workflow_state, dict) else {}
-            )
+            wf_state = raw_workflow_state if isinstance(raw_workflow_state, dict) else {}
             step = wf_state.get("step")
             if step in ("initiate", "make-updates"):
                 return f"temp-update-jira-issue-{step}-prompt.md"

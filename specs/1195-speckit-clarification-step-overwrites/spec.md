@@ -24,6 +24,28 @@ The CI/CD pipeline mode lacks equivalent safeguards.
 
 ---
 
+## Clarifications
+
+### Session 2026-04-21
+
+- Q: Should the automated tests for the no-content-loss invariant be Python unit tests (mocking the LLM), shell integration tests in `generate-spec-from-issue.sh`, or both?
+  → A: Both Python unit tests and shell integration tests are required. Updated NFR-005 inline to remove the `[NEEDS CLARIFICATION]` marker.
+
+- Q: What file-size threshold should trigger a warning about potential context-window truncation?
+  → A: 50 KB warning to stderr (non-blocking). Added as FR-012.
+
+- Q: What should happen when the backup write fails (e.g., disk full)?
+  → A: Abort immediately with OS-level error detail, leaving `spec.md` unchanged. Updated FR-002 inline; applicable to User Story 2 and Edge Cases.
+
+- Q: What mechanism should be used for atomically replacing `spec.md` after validation?
+  → A: `mv` (POSIX rename) from `spec.md.tmp`. Updated FR-006 inline; applicable to User Story 3 and Key Entities.
+
+- Q: Which section headings are always-mandatory in every valid `spec.md`?
+  → A: `## Problem Statement`, `## User Scenarios & Testing`, `## Requirements`, `## Success Criteria`.
+  Updated FR-006 inline, Structural Validation Report entity, and added new Always-Mandatory Sections entity.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Clarification Preserves Complete Specification (Priority: P1)
@@ -220,7 +242,8 @@ to avoid overwriting the previous backup.
 before generating any output.
 
 - **FR-002**: The CI/CD clarification step MUST create a backup of `spec.md`
-before writing any modifications to the file.
+before writing any modifications to the file. If the backup write fails (e.g., disk full),
+the clarification step MUST abort immediately with an OS-level error detail and leave `spec.md` unchanged.
 
 - **FR-003**: The CI/CD clarification step MUST preserve all existing sections of `spec.md` when writing
 clarification results. No section present in the input may be absent from the output.
@@ -232,9 +255,12 @@ requirement entries, user stories, acceptance scenarios, edge cases — not mere
 documenting each clarification question, the accepted answer, and which spec section was updated.
 
 - **FR-006**: The CI/CD clarification step MUST write clarification results to a staged output
-(for example, a temporary file or equivalent non-destructive buffer) and perform structural validation
-against that staged output before replacing `spec.md`, comparing presence of any always-mandatory
-sections, presence of all section headings found in the input, and requirement entry counts against
+(a temporary file `spec.md.tmp`) and perform structural validation
+against that staged output before replacing `spec.md` via atomic rename (`mv` / POSIX rename),
+comparing presence of the always-mandatory sections by normalized heading text (`## Problem Statement`,
+`## User Scenarios & Testing`, `## Requirements`, `## Success Criteria`), where validation MUST
+strip any trailing `*(mandatory)*` annotation from both expected and actual headings before matching,
+presence of all section headings found in the input, and requirement entry counts against
 the original. Requirement-entry retention MUST be computed as `(number of requirement entries present
 in the staged output ÷ number of requirement entries present in the original input) × 100`. The staged
 output MUST retain at least 95% of the original requirement entries for validation to pass. Any result
@@ -267,6 +293,10 @@ Backups MUST NOT be automatically deleted on success.
 when a clarification resolves the ambiguity,
 rather than only recording the answer in the `## Clarifications` section.
 
+- **FR-012**: When `spec.md` is greater than or equal to 50 KB (50,000 bytes), the clarification step MUST emit a warning to stderr
+(non-blocking) alerting the user to potential context-window truncation risk. Processing MUST continue
+normally after the warning.
+
 ### Non-Functional Requirements
 
 - **NFR-001**: The backup and validation overhead MUST add no more than 5 seconds to the clarification phase
@@ -282,8 +312,8 @@ so that recovery scripts and developers can locate backups programmatically.
 in interactive (agent) mode or automated (CI/CD) mode, as defined by a shared validation contract.
 
 - **NFR-005**: All changes to the clarification pipeline MUST be covered by automated tests that verify
-the no-content-loss invariant. [NEEDS CLARIFICATION: Should these be unit tests within the Python test suite,
-shell-script-level integration tests in the pipeline, or both?]
+the no-content-loss invariant. Both Python unit tests (within the pytest suite) and shell-script-level
+integration tests (in the pipeline) are required.
 
 ### Key Entities
 
@@ -305,8 +335,13 @@ Recorded in the `## Clarifications` section with a date-stamped subheading.
 Each entry links a question to its answer and the spec section that was modified.
 
 - **Structural Validation Report**: The result of comparing the post-clarification output against the
-pre-clarification baseline. Contains section presence checks, requirement counts,
-and pass/fail status for each check.
+pre-clarification baseline. Contains section presence checks (including the always-mandatory sections:
+`## Problem Statement`, `## User Scenarios & Testing`, `## Requirements`, `## Success Criteria`),
+requirement counts, and pass/fail status for each check.
+
+- **Always-Mandatory Sections**: The set of section headings that must be present in every valid `spec.md`
+after clarification: `## Problem Statement`, `## User Scenarios & Testing`, `## Requirements`,
+`## Success Criteria`. Absence of any of these triggers a hard validation failure.
 
 ---
 
@@ -337,12 +372,8 @@ as `spec.md`, with zero content loss incidents after deployment.
 
 ## Open Questions
 
-- [NEEDS CLARIFICATION: NFR-005] Should the automated tests for the no-content-loss invariant be Python unit tests
-(mocking the LLM), shell integration tests in `generate-spec-from-issue.sh`, or both?
-
-- [NEEDS CLARIFICATION] What is the acceptable maximum file size for `spec.md` before the clarification step
-should warn about potential context-window truncation risk?
-(Current LLM context limits and typical spec sizes need to be assessed.)
+All open questions have been resolved during Phase 2 clarification. See `## Clarifications` above.
 
 ---
+
 *Generated by Copilot SDK (claude-opus-4.6)*
