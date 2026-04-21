@@ -80,8 +80,9 @@ As an implementer planning Phase 3, I want this spec to explicitly cover command
 
 ### FR-001 - Pipeline injection mechanism (Must)
 
-The pipeline/runtime prompt assembly path must read the contents of `.specify/memory/markdown-rules.md` using `cat` (per decision #4)
-and inject those contents into the generated prompt string used for model execution.
+The pipeline/runtime prompt assembly path must read the contents of `.specify/memory/markdown-rules.md` using `cat` (bash) or the
+platform-equivalent command (`Get-Content` for PowerShell) per decision #4, and inject those contents into the generated prompt
+string used for model execution.
 
 ### FR-002 - Shared markdown rules file (Must)
 
@@ -168,7 +169,7 @@ The document remains standalone and actionable by containing user stories, requi
 
 ### SC-006
 
-The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` and inject its content into the prompt string used for execution.
+The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` (bash) or `Get-Content` (PowerShell) and inject its content into the prompt string used for execution.
 
 ### SC-007
 
