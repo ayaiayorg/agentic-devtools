@@ -14,7 +14,7 @@ scripts:
 
 ```text
 $ARGUMENTS
-```text
+```
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -23,12 +23,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 1. Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list.
    All paths must be absolute. For single quotes in args like "I'm Groot", use
    escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
-1. From the executed script, extract the path to **tasks**.
-1. Get the Git remote by running:
+   Load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
+2. From the executed script, extract the path to **tasks**.
+3. Get the Git remote by running:
 
 ```bash
 git config --get remote.origin.url
-```text
+```
 
 > [!CAUTION]
 > ONLY PROCEED TO NEXT STEPS IF THE REMOTE IS A GITHUB URL

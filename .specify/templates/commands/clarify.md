@@ -33,6 +33,7 @@ Execution steps:
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. Load the current spec file. Perform a structured ambiguity & coverage scan using this taxonomy. For each category, mark status: Clear / Partial / Missing. Produce an internal coverage map used for prioritization (do not output raw map unless no questions will be asked).
+   - Also load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
 
    Functional Scope & Behavior:
    - Core user goals & success criteria

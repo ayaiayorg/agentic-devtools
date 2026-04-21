@@ -96,6 +96,7 @@ Given that feature description, do this:
      Groot' (or double-quote if possible: "I'm Groot")
 
 3. Load `templates/spec-template.md` to understand required sections.
+   Also load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
 
 4. Follow this execution flow:
 

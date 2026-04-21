@@ -63,6 +63,11 @@ $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 
 $TEMPLATE_FILE = Join-Path $REPO_ROOT '.specify/templates/agent-file-template.md'
 
+# Shared markdown rules file injected into generated agent context (FR-001, FR-007)
+$MARKDOWN_RULES_FILE = Join-Path $REPO_ROOT '.specify/memory/markdown-rules.md'
+$MARKDOWN_RULES_BEGIN_MARKER = '<!-- MARKDOWN_RULES_BEGIN -->'
+$MARKDOWN_RULES_END_MARKER   = '<!-- MARKDOWN_RULES_END -->'
+
 # Parsed plan data placeholders
 $script:NEW_LANG = ''
 $script:NEW_FRAMEWORK = ''
@@ -337,6 +342,67 @@ function Update-ExistingAgentFile {
     return $true
 }
 
+function Invoke-MarkdownRulesInjection {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TargetFile
+    )
+    # Inject the shared markdown rules file contents into an agent context file.
+    # Reads $MARKDOWN_RULES_FILE via `Get-Content -Raw` (FR-001). If the shared
+    # file is missing, logs a warning to stderr and returns without modifying
+    # the target (graceful degradation, FR-007).
+    if (-not (Test-Path $TargetFile)) { return }
+    if (-not (Test-Path $MARKDOWN_RULES_FILE)) {
+        [Console]::Error.WriteLine("WARNING: Shared markdown rules file not found at $MARKDOWN_RULES_FILE; skipping injection.")
+        return
+    }
+    try {
+        $rulesContent = Get-Content -LiteralPath $MARKDOWN_RULES_FILE -Raw -Encoding utf8
+    } catch {
+        [Console]::Error.WriteLine("WARNING: Failed to read ${MARKDOWN_RULES_FILE}: $_; skipping injection.")
+        return
+    }
+    try {
+        $existing = Get-Content -LiteralPath $TargetFile -Raw -Encoding utf8
+    } catch {
+        [Console]::Error.WriteLine("WARNING: Failed to read ${TargetFile}: $_; skipping markdown rules injection.")
+        return
+    }
+    # Strip any existing block between the begin/end markers.
+    # Handle three cases:
+    # 1. Both markers present → remove the full block (normal case)
+    # 2. Orphaned BEGIN marker (no END) → remove only the BEGIN marker line and preserve following content
+    # 3. Orphaned END marker (no BEGIN) → remove the END marker line
+    $escapedBegin = [Regex]::Escape($MARKDOWN_RULES_BEGIN_MARKER)
+    $escapedEnd   = [Regex]::Escape($MARKDOWN_RULES_END_MARKER)
+    $hasBegin = $existing -match $escapedBegin
+    $hasEnd   = $existing -match $escapedEnd
+    if ($hasBegin -and $hasEnd) {
+        # Case 1: both markers — remove everything between them (inclusive)
+        $pattern = $escapedBegin + '.*?' + $escapedEnd
+        $stripped = [Regex]::Replace($existing, $pattern, '', [System.Text.RegularExpressions.RegexOptions]::Singleline).TrimEnd() + [Environment]::NewLine
+    } elseif ($hasBegin) {
+        # Case 2: orphaned BEGIN — remove only the marker line; preserve content
+        # after it to prevent data loss from unmatched markers
+        [Console]::Error.WriteLine("WARNING: Orphaned BEGIN marker without matching END marker in ${TargetFile}; removing marker line only to prevent data loss.")
+        $pattern = $escapedBegin + '\r?\n?'
+        $stripped = [Regex]::Replace($existing, $pattern, '').TrimEnd() + [Environment]::NewLine
+    } elseif ($hasEnd) {
+        # Case 3: orphaned END — remove just the END marker line
+        $pattern = '[\r\n]*' + $escapedEnd + '[\r\n]*'
+        $stripped = [Regex]::Replace($existing, $pattern, [Environment]::NewLine, [System.Text.RegularExpressions.RegexOptions]::Singleline).TrimEnd() + [Environment]::NewLine
+    } else {
+        # No markers at all — use content as-is
+        $stripped = $existing.TrimEnd() + [Environment]::NewLine
+    }
+    $rulesBlock = $MARKDOWN_RULES_BEGIN_MARKER + [Environment]::NewLine + $rulesContent.TrimEnd() + [Environment]::NewLine + $MARKDOWN_RULES_END_MARKER + [Environment]::NewLine
+    try {
+        Set-Content -LiteralPath $TargetFile -Value ($stripped + $rulesBlock) -Encoding utf8 -NoNewline
+    } catch {
+        [Console]::Error.WriteLine("WARNING: Failed to write markdown rules block to ${TargetFile}: $_.")
+    }
+}
+
 function Update-AgentFile {
     param(
         [Parameter(Mandatory=$true)]
@@ -353,10 +419,10 @@ function Update-AgentFile {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
 
     if (-not (Test-Path $TargetFile)) {
-        if (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date) { Write-Success "Created new $AgentName context file" } else { Write-Err 'Failed to create new agent file'; return $false }
+        if (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date) { Invoke-MarkdownRulesInjection -TargetFile $TargetFile; Write-Success "Created new $AgentName context file" } else { Write-Err 'Failed to create new agent file'; return $false }
     } else {
         try {
-            if (Update-ExistingAgentFile -TargetFile $TargetFile -Date $date) { Write-Success "Updated existing $AgentName context file" } else { Write-Err 'Failed to update agent file'; return $false }
+            if (Update-ExistingAgentFile -TargetFile $TargetFile -Date $date) { Invoke-MarkdownRulesInjection -TargetFile $TargetFile; Write-Success "Updated existing $AgentName context file" } else { Write-Err 'Failed to update agent file'; return $false }
         } catch {
             Write-Err "Cannot access or update existing file: $TargetFile. $_"
             return $false

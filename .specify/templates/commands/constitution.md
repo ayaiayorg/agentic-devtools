@@ -21,6 +21,7 @@ You are updating the project constitution at `/memory/constitution.md`. This fil
 Follow this execution flow:
 
 1. Load the existing constitution template at `/memory/constitution.md`.
+   Also load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
    - Identify every placeholder token of the form `[ALL_CAPS_IDENTIFIER]`.
    **IMPORTANT**: The user might require less or more principles than the ones used in the template. If a number is specified, respect that - follow the general template. You will update the doc accordingly.
 

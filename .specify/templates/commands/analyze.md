@@ -66,6 +66,7 @@ Load only the minimal necessary context from each artifact:
 **From constitution:**
 
 - Load `/memory/constitution.md` for principle validation
+- Load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
 
 ### 3. Build Semantic Models
 
