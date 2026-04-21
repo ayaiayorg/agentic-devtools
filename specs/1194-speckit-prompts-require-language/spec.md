@@ -169,7 +169,8 @@ The document remains standalone and actionable by containing user stories, requi
 
 ### SC-006
 
-The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` (bash) or `Get-Content -Raw` (PowerShell) and inject its content into the prompt string used for execution.
+The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` (bash) or `Get-Content -Raw` (PowerShell) and inject its content into the prompt string used for
+execution.
 
 ### SC-007
 
