@@ -1081,13 +1081,16 @@ class TestSetupWorktreeInBackgroundSync:
         mock_get_workflow_state.return_value = {"name": "update-jira-issue", "step": "initiate"}
 
         from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+
         setup_worktree_in_background_sync(
             issue_key="PROJECT-1234",
             workflow_name="update-jira-issue",
         )
 
         mock_start_copilot.assert_called_once()
-        assert "temp-update-jira-issue-initiate-prompt.md" in str(mock_start_copilot.call_args[1]["prompt_file_relative_path"])
+        assert "temp-update-jira-issue-initiate-prompt.md" in str(
+            mock_start_copilot.call_args[1]["prompt_file_relative_path"]
+        )
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
@@ -1113,13 +1116,16 @@ class TestSetupWorktreeInBackgroundSync:
         mock_get_workflow_state.return_value = {"name": "update-jira-issue", "step": "make-updates"}
 
         from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+
         setup_worktree_in_background_sync(
             issue_key="PROJECT-1234",
             workflow_name="update-jira-issue",
         )
 
         mock_start_copilot.assert_called_once()
-        assert "temp-update-jira-issue-make-updates-prompt.md" in str(mock_start_copilot.call_args[1]["prompt_file_relative_path"])
+        assert "temp-update-jira-issue-make-updates-prompt.md" in str(
+            mock_start_copilot.call_args[1]["prompt_file_relative_path"]
+        )
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")
     @patch("agentic_devtools.cli.workflows.worktree_setup.inject_git_path_settings")
@@ -1145,11 +1151,13 @@ class TestSetupWorktreeInBackgroundSync:
         mock_get_workflow_state.return_value = None
 
         from agentic_devtools.cli.workflows.worktree_setup import setup_worktree_in_background_sync
+
         setup_worktree_in_background_sync(
             issue_key="PROJECT-1234",
             workflow_name="update-jira-issue",
         )
 
         mock_start_copilot.assert_called_once()
-        assert "temp-update-jira-issue-make-updates-prompt.md" in str(mock_start_copilot.call_args[1].get("prompt_file_relative_path", ""))
-
+        assert "temp-update-jira-issue-make-updates-prompt.md" in str(
+            mock_start_copilot.call_args[1].get("prompt_file_relative_path", "")
+        )

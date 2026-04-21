@@ -73,5 +73,7 @@ class TestRenderStepPrompt:
             _render_step_prompt("create-jira-issue", "initiate", {})
 
         call_kwargs = mock_render.call_args
-        warn_on_missing = call_kwargs.kwargs.get("warn_on_missing") if call_kwargs.kwargs else call_kwargs[1].get("warn_on_missing")
+        warn_on_missing = (
+            call_kwargs.kwargs.get("warn_on_missing") if call_kwargs.kwargs else call_kwargs[1].get("warn_on_missing")
+        )
         assert warn_on_missing is False

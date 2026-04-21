@@ -2123,9 +2123,7 @@ def initiate_update_jira_issue_workflow(
         from .worktree_setup import _start_copilot_session_for_update_jira_issue
 
         repo_root = get_git_repo_root() or os.getcwd()
-        _start_copilot_session_for_update_jira_issue(
-            repo_root, interactive=interactive, model=model, step=step
-        )
+        _start_copilot_session_for_update_jira_issue(repo_root, interactive=interactive, model=model, step=step)
 
 
 def initiate_apply_pull_request_review_suggestions_workflow(
