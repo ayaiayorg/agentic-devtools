@@ -79,6 +79,11 @@ BOB_FILE="$REPO_ROOT/AGENTS.md"
 # Template file
 TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
 
+# Shared markdown rules file injected into generated agent context (FR-001, FR-007)
+MARKDOWN_RULES_FILE="$REPO_ROOT/.specify/memory/markdown-rules.md"
+MARKDOWN_RULES_BEGIN_MARKER="<!-- MARKDOWN_RULES_BEGIN -->"
+MARKDOWN_RULES_END_MARKER="<!-- MARKDOWN_RULES_END -->"
+
 # Global variables for parsed plan data
 NEW_LANG=""
 NEW_FRAMEWORK=""
@@ -504,6 +509,111 @@ update_existing_agent_file() {
 # Main Agent File Update Function
 #==============================================================================
 
+# Inject the shared markdown rules file contents into an agent context file.
+# Reads $MARKDOWN_RULES_FILE via `cat` (FR-001) and appends the content between
+# MARKDOWN_RULES_{BEGIN,END} markers, replacing any previous block. If the
+# shared file is missing, logs a warning to stderr and returns success without
+# modifying the target (graceful degradation, FR-007).
+inject_markdown_rules() {
+    local target_file="$1"
+
+    if [[ -z "$target_file" ]] || [[ ! -f "$target_file" ]]; then
+        return 0
+    fi
+
+    if [[ ! -f "$MARKDOWN_RULES_FILE" ]]; then
+        echo "WARNING: Shared markdown rules file not found at $MARKDOWN_RULES_FILE; skipping injection." >&2
+        return 0
+    fi
+
+    local rules_content
+    if ! rules_content=$(cat "$MARKDOWN_RULES_FILE" 2>/dev/null); then
+        echo "WARNING: Failed to read $MARKDOWN_RULES_FILE; skipping injection." >&2
+        return 0
+    fi
+
+    local temp_file
+    local target_dir
+    target_dir="$(dirname "$target_file")"
+    temp_file=$(mktemp "${target_dir}/.update-agent-context.XXXXXX") || {
+        echo "WARNING: Failed to create temp file for markdown rules injection; skipping." >&2
+        return 0
+    }
+
+    # Strip any existing managed block between BEGIN/END markers, then append
+    # a fresh block.  Handle unmatched markers without reordering content:
+    #   - Both markers present      → strip the full block (normal case)
+    #   - Orphaned BEGIN (no END)   → remove only the BEGIN marker line and
+    #                                 stream the rest unchanged
+    #   - Orphaned END (no BEGIN)   → remove the stray END marker line
+    #   - Neither marker            → copy content as-is
+    awk -v b="$MARKDOWN_RULES_BEGIN_MARKER" -v e="$MARKDOWN_RULES_END_MARKER" '
+        FNR == NR {
+            if (!matched_block) {
+                if ($0 == b && !scan_in_block) {
+                    scan_in_block = 1
+                } else if (scan_in_block && $0 == e) {
+                    matched_block = 1
+                }
+            }
+            next
+        }
+
+        matched_block {
+            if ($0 == b && !skip) {
+                skip = 1
+                next
+            }
+
+            if (skip) {
+                if ($0 == e) {
+                    skip = 0
+                }
+                next
+            }
+
+            if ($0 == e) {
+                next
+            }
+
+            print
+            next
+        }
+
+        $0 == b {
+            if (!warned_orphan_begin) {
+                print "WARNING: Orphaned BEGIN marker without matching END marker; removing only the BEGIN marker line to preserve content order." > "/dev/stderr"
+                warned_orphan_begin = 1
+            }
+            next
+        }
+
+        $0 == e {
+            next
+        }
+
+        { print }
+    ' "$target_file" "$target_file" > "$temp_file"
+
+    {
+        printf '%s\n' "$MARKDOWN_RULES_BEGIN_MARKER"
+        printf '%s\n' "$rules_content"
+        printf '%s\n' "$MARKDOWN_RULES_END_MARKER"
+    } >> "$temp_file"
+
+    # Preserve the original file's permissions since mktemp creates files
+    # with restrictive mode (typically 0600).
+    chmod --reference="$target_file" "$temp_file" 2>/dev/null || true
+
+    if ! mv "$temp_file" "$target_file"; then
+        rm -f "$temp_file"
+        echo "WARNING: Failed to update $target_file with markdown rules block." >&2
+        return 0
+    fi
+
+    return 0
+}
+
 update_agent_file() {
     local target_file="$1"
     local agent_name="$2"
@@ -540,6 +650,7 @@ update_agent_file() {
         
         if create_new_agent_file "$target_file" "$temp_file" "$project_name" "$current_date"; then
             if mv "$temp_file" "$target_file"; then
+                inject_markdown_rules "$target_file"
                 log_success "Created new $agent_name context file"
             else
                 log_error "Failed to move temporary file to $target_file"
@@ -564,6 +675,7 @@ update_agent_file() {
         fi
         
         if update_existing_agent_file "$target_file" "$current_date"; then
+            inject_markdown_rules "$target_file"
             log_success "Updated existing $agent_name context file"
         else
             log_error "Failed to update existing agent file"

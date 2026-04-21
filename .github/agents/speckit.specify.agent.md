@@ -63,6 +63,7 @@ Given that feature description, do this:
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
 
 3. Load `.specify/templates/spec-template.md` to understand required sections.
+   Also load `.specify/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
 
 4. Follow this execution flow:
 

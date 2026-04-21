@@ -1,18 +1,12 @@
 ---
 description: Generate an actionable, dependency-ordered tasks.md for the feature
 based on available design artifacts.
-handoffs: 
-
+handoffs:
   - label: Analyze For Consistency
-
-    agent: speckit.analyze
     agent: speckit.analyze
     prompt: Run a project analysis for consistency
     send: true
-
   - label: Implement Project
-
-    agent: speckit.implement
     agent: speckit.implement
     prompt: Start the implementation in phases
     send: true
@@ -27,7 +21,7 @@ scripts:
 
 ```text
 $ARGUMENTS
-```text
+```
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -39,28 +33,19 @@ You **MUST** consider the user input before proceeding (if not empty).
    possible: "I'm Groot").
 
 2. **Load design documents**: Read from FEATURE_DIR:
+   Load `/memory/markdown-rules.md` and apply it to all fenced code blocks in generated output.
 
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user
-
      stories with priorities)
-     stories with priorities)
-
    - **Optional**: data-model.md (entities), contracts/ (API endpoints),
-
      research.md (decisions), quickstart.md (test scenarios)
-     research.md (decisions), quickstart.md (test scenarios)
-
    - Note: Not all projects have all documents. Generate tasks based on what's
-
-     available.
      available.
 
 3. **Execute task generation workflow**:
 
    - Load plan.md and extract tech stack, libraries, project structure
    - Load spec.md and extract user stories with their priorities (P1, P2, P3,
-
-     etc.)
      etc.)
 
    - If data-model.md exists: Extract entities and map to user stories
@@ -70,8 +55,6 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Generate dependency graph showing user story completion order
    - Create parallel execution examples per user story
    - Validate task completeness (each user story has all needed tasks,
-
-     independently testable)
      independently testable)
 
 4. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill
@@ -82,15 +65,11 @@ You **MUST** consider the user input before proceeding (if not empty).
 - Phase 2: Foundational tasks (blocking prerequisites for all user stories)
 - Phase 3+: One phase per user story (in priority order from spec.md)
 - Each phase includes: story goal, independent test criteria, tests,
-
-     implementation tasks
-     implementation tasks
+  implementation tasks
 
 - Final Phase: Polish & cross-cutting concerns
 - All tasks must follow the strict checklist format (see Task Generation
-
-     Rules below)
-     Rules below)
+  Rules below)
 
 - Clear file paths for each task
 - Dependencies section showing story completion order
@@ -105,8 +84,6 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Independent test criteria for each story
    - Suggested MVP scope (typically just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format
-
-     (checkbox, ID, labels, file paths)
      (checkbox, ID, labels, file paths)
 
 Context for task generation: {ARGS}
@@ -127,7 +104,7 @@ Every task MUST strictly follow this format:
 
 ```text
 - [ ] [TaskID] [P?] [Story?] Description with file path
-```text
+```
 
 **Format Components**:
 
@@ -144,20 +121,15 @@ Every task MUST strictly follow this format:
    - Polish phase: NO story label
 
 5. **Description**: Clear action with exact file path
-6. **Description**: Clear action with exact file path
 
 **Examples**:
 
 - ✅ CORRECT: `- [ ] T001 Create project structure per implementation plan`
 - ✅ CORRECT: `- [ ] T005 [P] Implement authentication middleware in
-
-  src/middleware/auth.py`
   src/middleware/auth.py`
 
 - ✅ CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
 - ✅ CORRECT: `- [ ] T014 [US1] Implement UserService in
-
-  src/services/user_service.py`
   src/services/user_service.py`
 
 - ❌ WRONG: `- [ ] Create User model` (missing ID and Story label)
@@ -181,8 +153,6 @@ Every task MUST strictly follow this format:
 
    - Map each contract/endpoint → to the user story it serves
    - Each contract → contract test task [P] before implementation in that
-
-     story's phase
      story's phase
 
 3. **From Data Model**:
@@ -201,8 +171,6 @@ Every task MUST strictly follow this format:
 
 - **Phase 1**: Setup (project initialization)
 - **Phase 2**: Foundational (blocking prerequisites - MUST complete before user
-
-  stories)
   stories)
 
 - **Phase 3+**: User Stories in priority order (P1, P2, P3...)
