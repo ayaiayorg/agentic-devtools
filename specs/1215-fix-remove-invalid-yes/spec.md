@@ -1,9 +1,9 @@
 # Feature Specification: Remove Invalid --yes Flag and Change Default Merge Strategy to Rebase
 
-**Feature Branch**: `fix/1215-remove-yes-flag-rebase-default`  
-**Created**: 2026-04-15  
-**Status**: Draft  
-**Input**: GitHub Issue #1215  
+**Feature Branch**: `fix/1215-remove-yes-flag-rebase-default`
+**Created**: 2026-04-15
+**Status**: Clarified
+**Input**: GitHub Issue #1215
 **Source Issue**: #1215 (<https://github.com/ayaiayorg/agentic-devtools/issues/1215>)
 
 ## Summary
@@ -11,6 +11,28 @@
 The `agdt-gh-pr-merge` command passes `--yes` to `gh pr merge`, but this flag does not exist in any version of the GitHub CLI.
 This causes every merge attempt to fail with `unknown flag: --yes`. Additionally, the project convention favours rebase merges,
 so the default strategy should be changed from `squash` to `rebase`.
+
+> **Clarification:** No replacement flag is needed for `--yes`. The strategy flags alone (`--squash`, `--rebase`, `--merge`)
+> bypass interactive confirmation in `gh pr merge`. Backward compatibility is a non-issue because the command was broken
+> anyway due to `--yes` — there is no working behavior to preserve.
+
+## Clarifications
+
+### Session 2026-04-22
+
+- Q: Does removing `--yes` require a replacement flag to bypass interactive confirmation? → A: No. Strategy flags alone (`--squash`, `--rebase`, `--merge`) are sufficient to bypass interactive confirmation.
+- Q: Should the "squash-merge" phrase in copilot-instructions be updated? → A: No. It refers to the GitHub repo-level merge button setting, not the CLI default. Out of scope.
+- Q: Which test files need updating? → A: Update the three existing test areas:
+  (1) `tests/unit/cli/github/pr_merge/test__execute_merge.py` — change the
+  `assert "--yes" in cmd` assertion (line 22) to `assert "--yes" not in cmd`;
+  (2) `tests/unit/cli/github/pr_merge/test_merge_pr.py` — change
+  `test_default_strategy_is_squash` (line 153) so the expected default is
+  `"rebase"` instead of `"squash"`; and
+  (3) `tests/unit/cli/github/pr_merge/test_pr_merge_command.py` — update all
+  `merge_pr` call assertions that pass `"squash"` as the default strategy to
+  pass `"rebase"` instead.
+- Q: Is the `--no-delete-branch` flag affected by these changes? → A: No. It is orthogonal to the merge strategy and remains unchanged.
+- Q: Are there backward compatibility concerns with changing the default strategy? → A: No. The command was broken anyway due to `--yes`, so there is no working behavior to preserve.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -23,6 +45,8 @@ As an AI agent or developer, I want `agdt-gh-pr-merge` to execute `gh pr merge` 
 **Independent Test**: Can be fully tested by running `agdt-gh-pr-merge --pr <N> --repo <owner/repo>` against a mergeable PR
 and verifying the command does not emit `unknown flag: --yes`.
 In unit tests, verified by asserting `--yes` is absent from the command list passed to `run_safe`.
+
+> **Clarification:** No replacement flag is needed. Strategy flags alone bypass interactive confirmation.
 
 **Acceptance Scenarios**:
 
@@ -69,8 +93,13 @@ runtime behaviour.
 
 **Documentation Scope**: The following files reference the squash default and must be updated:
 
-- `.github/copilot-instructions.md` — command mapping table (`gh pr merge --squash`) and `agdt-gh-pr-merge` parameter documentation (`default squash`)
+- `.github/copilot-instructions.md` — command mapping table (`gh pr merge --squash`) and `agdt-gh-pr-merge` parameter
+  documentation (`default squash`). Note: VS Code may display this file under the internal alias
+  `custom-instructions/repo/.github/copilot-instructions.md`; both paths refer to the same file.
 - `.github/prompts/agdt.pr-merge-manager.prompt.md` — tooling priority table (`gh pr merge --squash`)
+
+> **Clarification:** The "squash-merge" phrase in copilot-instructions that refers to the GitHub repo-level merge button
+> setting is **out of scope** — it describes the repository configuration, not the CLI default.
 
 **Acceptance Scenarios**:
 
@@ -88,6 +117,7 @@ runtime behaviour.
 - What happens when an explicit `--strategy squash` is passed? → The explicit flag overrides the new default; squash merges must still work.
 - What happens when `--strategy merge` is passed? → Regular merge strategy must still work; only the *default* changes.
 - What happens if a downstream script or prompt hard-codes `"squash"` as the expected default strategy in an assertion? → Such tests must be updated to expect `"rebase"`.
+- What happens to the `--no-delete-branch` flag? → It is orthogonal to the merge strategy and remains unchanged.
 
 ## Requirements *(mandatory)*
 
@@ -106,7 +136,7 @@ runtime behaviour.
 
 - **NFR-001**: The fix MUST NOT change the public CLI interface beyond the default strategy value (all existing flags and options remain).
 - **NFR-002**: The fix MUST NOT introduce any new dependencies.
-- **NFR-003**: All existing tests MUST pass after the changes, with no reduction in coverage.
+- **NFR-003**: All existing tests MUST pass after the changes, with no reduction in coverage. Verified by `agdt-test` / `bash scripts/run-pr-checks.sh` achieving zero failures.
 
 ## Success Criteria *(mandatory)*
 
