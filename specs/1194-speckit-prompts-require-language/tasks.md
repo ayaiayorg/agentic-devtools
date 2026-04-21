@@ -96,7 +96,8 @@
   external definitions
 - [ ] T033 [US4] Verify SC-006 (bash): `.specify/scripts/bash/update-agent-context.sh` reads `.specify/memory/markdown-rules.md` via `cat` and injects contents into the runtime prompt string
   - Depends on: T025
-- [ ] T034 [US4] Verify SC-006 (PowerShell): `.specify/scripts/powershell/update-agent-context.ps1` reads `.specify/memory/markdown-rules.md` via `Get-Content -Raw` and injects contents into the runtime
+- [ ] T034 [US4] Verify SC-006 (PowerShell): `.specify/scripts/powershell/update-agent-context.ps1` reads `.specify/memory/markdown-rules.md` via `Get-Content -Raw` and injects contents into the
+  runtime
   prompt string
   - Depends on: T027
 - [ ] T035 [US4] Verify scope completeness: confirm command templates, agent files, and pipeline scripts are all explicitly addressed with no prompt source missed
