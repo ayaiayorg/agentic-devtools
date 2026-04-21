@@ -2,13 +2,17 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Audit all in-scope prompt sources and confirm file inventory: 9 command templates in `.specify/templates/commands/*.md`, 9 agent files in `.github/agents/speckit.*.agent.md`, 2 pipeline
-  prompt-assembly scripts (`.specify/scripts/bash/update-agent-context.sh` and `.specify/scripts/powershell/update-agent-context.ps1`)
+- [ ] T001 Audit all in-scope prompt sources and confirm file inventory: 9 command templates in
+  `.specify/templates/commands/*.md`, 9 agent files in `.github/agents/speckit.*.agent.md`,
+  2 pipeline prompt-assembly scripts (`.specify/scripts/bash/update-agent-context.sh` and
+  `.specify/scripts/powershell/update-agent-context.ps1`)
 
 ## Phase 2: Foundational
 
-- [ ] T002 Identify existing inclusion pattern for `/memory/constitution.md` in command templates and `.specify/memory/constitution.md` in agent files to establish the *wording and placement* pattern for the new
-  markdown-rules load instruction (note: agent files use the virtual path `/memory/markdown-rules.md`, not the filesystem path — only the phrasing and section placement are borrowed from the constitution reference)
+- [ ] T002 Identify existing inclusion pattern for `/memory/constitution.md` in command templates and
+  `.specify/memory/constitution.md` in agent files to establish the *wording and placement* pattern for the new
+  markdown-rules load instruction (note: agent files use the virtual path `/memory/markdown-rules.md`,
+  not the filesystem path — only the phrasing and section placement are borrowed from the constitution reference)
   - Depends on: T001
 
 ## Phase 3: User Story 1 — Consistent markdown output guidance (P1)
@@ -71,8 +75,9 @@
   - Depends on: T004
 - [ ] T025 [US3] Add graceful degradation to `.specify/scripts/bash/update-agent-context.sh` — if shared file is missing, log warning to stderr and continue without injecting (FR-007)
   - Depends on: T024
-- [ ] T026 [US3] Update `.specify/scripts/powershell/update-agent-context.ps1` to read `.specify/memory/markdown-rules.md` via `Get-Content` (the platform-equivalent of `cat`) and inject contents into the prompt
-  string during runtime assembly (FR-001)
+- [ ] T026 [US3] Update `.specify/scripts/powershell/update-agent-context.ps1` to read
+  `.specify/memory/markdown-rules.md` via `Get-Content -Raw` (the platform-equivalent of `cat`) and
+  inject contents into the prompt string during runtime assembly (FR-001)
   - Depends on: T004
 - [ ] T027 [US3] Add graceful degradation to `.specify/scripts/powershell/update-agent-context.ps1` — if shared file is missing, log warning to stderr and continue without injecting (FR-007)
   - Depends on: T026
@@ -91,7 +96,7 @@
   external definitions
 - [ ] T033 [US4] Verify SC-006 (bash): `.specify/scripts/bash/update-agent-context.sh` reads `.specify/memory/markdown-rules.md` via `cat` and injects contents into the runtime prompt string
   - Depends on: T025
-- [ ] T034 [US4] Verify SC-006 (PowerShell): `.specify/scripts/powershell/update-agent-context.ps1` reads `.specify/memory/markdown-rules.md` via `Get-Content` and injects contents into the runtime
+- [ ] T034 [US4] Verify SC-006 (PowerShell): `.specify/scripts/powershell/update-agent-context.ps1` reads `.specify/memory/markdown-rules.md` via `Get-Content -Raw` and injects contents into the runtime
   prompt string
   - Depends on: T027
 - [ ] T035 [US4] Verify scope completeness: confirm command templates, agent files, and pipeline scripts are all explicitly addressed with no prompt source missed

@@ -30,7 +30,7 @@ This spec does not require broader markdown-style enforcement beyond fenced code
 1. **Shared location** → New repo file `.specify/memory/markdown-rules.md`; in prompt text and template instructions, reference it as virtual path `/memory/markdown-rules.md`.
 2. **Path mapping** → `/memory/markdown-rules.md` maps to `.specify/memory/markdown-rules.md` for command templates, runtime-generated prompts, and agent files.
 3. **Inclusion mechanism** → Explicit one-line load instruction in each template's context step using `/memory/markdown-rules.md`.
-4. **Pipeline script** → `cat` `.specify/memory/markdown-rules.md` at runtime and inject its contents into prompt strings.
+4. **Pipeline script** → Read `.specify/memory/markdown-rules.md` at runtime using `cat` (bash) or `Get-Content -Raw` (PowerShell) and inject its contents into prompt strings.
 5. **Agent files** → Same one-line load instruction as command templates, using virtual path `/memory/markdown-rules.md`; agent runtimes must provide the same `/memory/*` mapping for these references.
 6. **NFR-001 scope** → 500-char limit applies to shared file content; reference line length ≤ 100 chars (counted separately).
 
@@ -62,7 +62,7 @@ As a maintainer of the pipeline script, I want runtime-generated prompts to inje
 
 **Acceptance criteria**
 
-- The pipeline script reads `.specify/memory/markdown-rules.md` using `cat`.
+- The pipeline script reads `.specify/memory/markdown-rules.md` using `cat` (bash) or `Get-Content -Raw` (PowerShell).
 - The script injects the file contents into the prompt string used at runtime.
 - If the shared file is missing, the script degrades gracefully and does not crash unexpectedly.
 
@@ -81,7 +81,7 @@ As an implementer planning Phase 3, I want this spec to explicitly cover command
 ### FR-001 - Pipeline injection mechanism (Must)
 
 The pipeline/runtime prompt assembly path must read the contents of `.specify/memory/markdown-rules.md` using `cat` (bash) or the
-platform-equivalent command (`Get-Content` for PowerShell) per decision #4, and inject those contents into the generated prompt
+platform-equivalent command (`Get-Content -Raw` for PowerShell) per decision #4, and inject those contents into the generated prompt
 string used for model execution.
 
 ### FR-002 - Shared markdown rules file (Must)
@@ -169,7 +169,7 @@ The document remains standalone and actionable by containing user stories, requi
 
 ### SC-006
 
-The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` (bash) or `Get-Content` (PowerShell) and inject its content into the prompt string used for execution.
+The pipeline/runtime path is verified to read the `.specify/memory/markdown-rules.md` file via `cat` (bash) or `Get-Content -Raw` (PowerShell) and inject its content into the prompt string used for execution.
 
 ### SC-007
 
@@ -181,5 +181,5 @@ ideally on the initial generation pass before any remediation loop runs.
 
 - **Shared markdown rules file**: `.specify/memory/markdown-rules.md` (mapped virtually to `/memory/markdown-rules.md` in prompts), the canonical source of the fenced code block language requirement.
 - **One-line load instruction**: The standard short reference placed in each in-scope template or agent context/setup section to load the shared markdown rules.
-- **Pipeline script**: The runtime assembly path that reads the shared file with `cat` and injects its content into generated prompts.
+- **Pipeline script**: The runtime assembly path that reads the shared file with `cat` (bash) or `Get-Content -Raw` (PowerShell) and injects its content into generated prompts.
 - **In-scope prompt sources**: Command templates and agent files that participate in model prompt construction.
