@@ -39,7 +39,8 @@
   `github.rest.pulls.requestReviewers()` with `continue-on-error: true` and `core.warning()` on failure,
   gated on `steps.idempotency.outputs.already_requested != 'true'`
   - Depends on: T010
-- [ ] T012 [US2] Add `github-script` step in `.github/workflows/speckit-copilot-review-request.yml` to extract linked issue number from PR title or body using regex `#(\d+)` and set output `issue_number`
+- [ ] T012 [US2] Add `github-script` step in `.github/workflows/speckit-copilot-review-request.yml` to extract linked issue number from PR title or body using regex `#(\d+)` and set output
+  `issue_number`
   - Depends on: T011
 
 ---
@@ -80,11 +81,13 @@
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T019 Validate YAML syntax for all new and modified workflow files (`.github/workflows/speckit-copilot-review-request.yml`, `.github/workflows/speckit-issue-trigger.yml`, `.github/workflows/speckit-phase-progression.yml`)
+- [ ] T019 Validate YAML syntax for all new and modified workflow files (`.github/workflows/speckit-copilot-review-request.yml`, `.github/workflows/speckit-issue-trigger.yml`,
+  `.github/workflows/speckit-phase-progression.yml`)
   - Depends on: T015, T016, T018
 - [ ] T020 Verify `.github/scripts/speckit-trigger/create-spec-pr.sh` has zero modifications — confirm no reviewer-request logic was added to the shell script (AC-007)
   - Depends on: T019
-- [ ] T021 Verify permissions in `.github/workflows/speckit-copilot-review-request.yml` are self-contained and no permission changes were made to `.github/workflows/speckit-implement-trigger.yml` (AC-008)
+- [ ] T021 Verify permissions in `.github/workflows/speckit-copilot-review-request.yml` are self-contained and no permission changes were made to `.github/workflows/speckit-implement-trigger.yml`
+  (AC-008)
   - Depends on: T019
 - [ ] T022 Verify idempotency — confirm that a `labeled` event firing after a successful `opened` event produces no duplicate comments, no API errors, and no misleading status output
   - Depends on: T019
