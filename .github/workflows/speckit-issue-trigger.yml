@@ -336,6 +336,72 @@ jobs:
             --phase-number 1 \
             --phase-name specify
 
+      - name: Request Copilot Review
+        id: request-copilot-review
+        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != ''
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.create-pr.outputs.pr_number }}', 10);
+            const reviewerLogin = 'copilot-pull-request-reviewer';
+            const reviewerBotLogin = `${reviewerLogin}[bot]`;
+            try {
+              const { data: requestedReviewers } = await github.rest.pulls.listRequestedReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              const alreadyRequested = (requestedReviewers.users || []).some(
+                (user) => user.login === reviewerBotLogin
+              );
+
+              if (alreadyRequested) {
+                core.info(`Copilot review was already requested on PR #${prNumber}`);
+                core.setOutput('copilot_review_requested', 'true');
+                return;
+              }
+
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                reviewers: [reviewerLogin],
+              });
+              core.info(`Requested Copilot review on PR #${prNumber}`);
+              core.setOutput('copilot_review_requested', 'true');
+            } catch (e) {
+              const message = String(e && e.message ? e.message : e);
+              const responseMessage = e.response?.data?.message || '';
+              const responseErrors = Array.isArray(e.response?.data?.errors)
+                ? e.response.data.errors
+                    .map((error) =>
+                      typeof error === 'string' ? error : JSON.stringify(error)
+                    )
+                    .join(' ')
+                : '';
+              const combinedMessage = `${message} ${responseMessage} ${responseErrors}`.toLowerCase();
+              const isAlreadyRequested422 =
+                e.status === 422 &&
+                (
+                  combinedMessage.includes('already requested') ||
+                  combinedMessage.includes('already a reviewer')
+                );
+
+              if (isAlreadyRequested422) {
+                core.info(
+                  `Copilot review was already requested on PR #${prNumber}; treating 422 response as success.`
+                );
+                core.setOutput('copilot_review_requested', 'true');
+              } else {
+                core.warning(
+                  `Failed to request Copilot review on PR #${prNumber}: ${message}`
+                );
+                core.setOutput('copilot_review_requested', 'false');
+              }
+            }
+
       - name: Post Completed Comment
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
@@ -345,6 +411,7 @@ jobs:
             const branchName = '${{ steps.commit.outputs.branch_name }}';
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
             const specDir = '${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}';
+            const copilotReviewRequested = '${{ steps.request-copilot-review.outputs.copilot_review_requested }}';
 
             const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
 
@@ -367,6 +434,11 @@ jobs:
 
             if (prUrl) {
               lines.push('', `**Pull Request**: ${prUrl}`);
+              if (copilotReviewRequested === 'true') {
+                lines.push('🤖 Copilot review requested');
+              } else if (copilotReviewRequested === 'false') {
+                lines.push('⚠️ Copilot review request failed');
+              }
             }
 
             lines.push(
