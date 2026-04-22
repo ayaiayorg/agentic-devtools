@@ -58,6 +58,7 @@ htmlcov/
 state-out.txt
 poll-output.txt
 poll*.txt
+_poll_output.txt
 
 # Workflow artifacts (ad-hoc, not source files)
 replies.json
