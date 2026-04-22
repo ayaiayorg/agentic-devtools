@@ -1,6 +1,6 @@
 # Feature Specification: Remove Invalid --yes Flag and Change Default Merge Strategy to Rebase
 
-**Feature Branch**: `fix/1215-remove-yes-flag-rebase-default`
+**Feature Branch**: `fix/1215/remove-yes-flag-rebase-default`
 **Created**: 2026-04-15
 **Status**: Clarified
 **Input**: GitHub Issue #1215
@@ -20,7 +20,8 @@ so the default strategy should be changed from `squash` to `rebase`.
 
 ### Session 2026-04-22
 
-- Q: Does removing `--yes` require a replacement flag to bypass interactive confirmation? → A: No. Strategy flags alone (`--squash`, `--rebase`, `--merge`) are sufficient to bypass interactive confirmation.
+- Q: Does removing `--yes` require a replacement flag to bypass interactive confirmation? → A: No. Strategy flags alone (`--squash`, `--rebase`, `--merge`) are sufficient to bypass interactive
+  confirmation.
 - Q: Should the "squash-merge" phrase in copilot-instructions be updated? → A: No. It refers to the GitHub repo-level merge button setting, not the CLI default. Out of scope.
 - Q: Which test files need updating? → A: Update the three existing test areas:
   (1) `tests/unit/cli/github/pr_merge/test__execute_merge.py` — change the
