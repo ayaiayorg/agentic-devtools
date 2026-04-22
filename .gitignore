@@ -57,6 +57,7 @@ htmlcov/
 *.log
 state-out.txt
 poll-output.txt
+poll-output.json
 poll*.txt
 _poll_output.txt
 

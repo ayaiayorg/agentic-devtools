@@ -1,6 +1,6 @@
 # Feature Specification: Use PAT for Copilot Review Request in SpecKit Workflows
 
-**Feature Branch**: `1258-copilot-review-pat`
+**Feature Branch**: `speckit/1258/phase-1-specify`
 **Created**: 2026-04-22
 **Status**: Draft
 **Input**: GitHub Issue #1258 — SpecKit workflows fail to request Copilot review because `actions/github-script@v7` defaults to `GITHUB_TOKEN`, which lacks permission to add
@@ -9,9 +9,9 @@
 
 ## Problem Statement
 
-Three SpecKit GitHub Actions workflows contain a "Request Copilot Review" step that calls the GitHub REST API to add `copilot-pull-request-reviewer` as a reviewer on newly created pull requests. These
-steps use `actions/github-script@v7` without an explicit `github-token` input, meaning they authenticate with the workflow-level `GITHUB_TOKEN`. This machine token is not recognized as a repository
-collaborator with Copilot access, so the API responds with:
+Three SpecKit GitHub Actions workflows contain a "Request Copilot Review" step that calls the GitHub REST API to add `copilot-pull-request-reviewer` as a reviewer on pull requests, including newly
+opened PRs and existing PRs when labeled. These steps use `actions/github-script@v7` without an explicit `github-token` input, meaning they authenticate with the workflow-level `GITHUB_TOKEN`. This
+machine token is not recognized as a repository collaborator with Copilot access, so the API responds with:
 
 > Reviews may only be requested from collaborators. One or more of the users or teams you specified is not a collaborator of the ayaiayorg/agentic-devtools repository.
 
@@ -22,13 +22,31 @@ The steps are marked `continue-on-error: true`, so the workflow does not fail ou
 | Workflow File | Step Name | Lines |
 |---|---|---|
 | `speckit-phase-progression.yml` | Request Copilot Review | 553–617 |
-| `speckit-issue-trigger.yml` | Request Copilot Review | 339–405 |
-| `speckit-copilot-review-request.yml` | Request Copilot Review | 98–144 |
+| `speckit-issue-trigger.yml` | Request Copilot Review | 339–404 |
+| `speckit-copilot-review-request.yml` | Request Copilot Review | 98–145 |
 
 ### Existing PAT Infrastructure
 
-The repository already has a `COPILOT_GITHUB_TOKEN` secret, validated and used in both `speckit-phase-progression.yml` (line 457) and `speckit-issue-trigger.yml` (line 235) for Copilot-powered
+The repository already has a `COPILOT_GITHUB_TOKEN` secret, validated and used in both `speckit-phase-progression.yml` (line 489) and `speckit-issue-trigger.yml` (line 235) for Copilot-powered
 artifact generation. This secret is a candidate for reuse.
+
+### Minimum Required PAT Permissions
+
+The PAT used for requesting Copilot review must have the following minimum permissions:
+
+- **Fine-grained PAT**: `Pull requests: Write` permission on the target repository (required to call the
+  [Request reviewers](https://docs.github.com/en/rest/pulls/review-requests#request-reviewers-for-a-pull-request) API endpoint). The token owner must also be a
+  repository collaborator with Copilot access enabled.
+- **Classic PAT**: `repo` scope (grants full repository access, including pull request reviewer management).
+
+Fine-grained tokens are preferred for least-privilege compliance. The existing `COPILOT_GITHUB_TOKEN` secret is a candidate for reuse,
+but its current permissions must be verified (or updated) to include `Pull requests: Write` (fine-grained) or `repo` (classic)
+before it can be used for reviewer requests — the Copilot-powered artifact generation it currently supports does not necessarily
+require the fine-grained `Pull requests: Write` permission. Because this PAT is expected to be reused, the implementation must also update the existing
+`Validate Copilot Token` step and any maintainer-facing error message/documentation in `speckit-issue-trigger.yml` so they no longer
+instruct maintainers to provide a token with only `Copilot Requests: Read`; they must instead describe the real minimum permissions
+needed for reviewer requests (`Pull requests: Write` for fine-grained tokens or `repo` for classic tokens, plus any additional
+Copilot-related read access still required for artifact-generation use cases).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -199,8 +217,8 @@ so that the rest of the workflow (PR creation, labeling, issue commenting) is no
 - **SC-001**: After the fix, 100% of SpecKit-generated PRs (across all three workflow triggers) have `copilot-pull-request-reviewer` listed as a requested reviewer or an existing Copilot review,
   verified by inspecting the next 5 workflow runs after deployment.
 
-- **SC-002**: The "Request Copilot Review" step in all three workflows completes with `copilot_review_requested == 'true'` (not a warning/fallback) when the PAT is correctly configured, verified in
-  the GitHub Actions step logs.
+- **SC-002**: In all three workflows, the Copilot review request path succeeds when the PAT is correctly configured: either idempotency reports Copilot was already requested/reviewed, or the
+  "Request Copilot Review" step executes and logs `copilot_review_requested == 'true'`, verified in the GitHub Actions step logs.
 
 - **SC-003**: Zero regressions in other workflow steps — PR creation, branch pushing, artifact generation, auto-merge, and issue commenting all continue to function identically, verified by a full
   end-to-end SpecKit workflow run.
