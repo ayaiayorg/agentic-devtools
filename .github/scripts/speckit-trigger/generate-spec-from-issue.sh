@@ -97,6 +97,10 @@ MARKDOWNLINT_CLI2_VERSION="0.17.2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+# Source the CRITICAL analysis gate library (FR-009)
+# shellcheck source=check-analysis-gate.sh
+source "$SCRIPT_DIR/check-analysis-gate.sh"
+
 # ---------------------------------------------------------------------------
 # Validate ISSUE_NUMBER is a positive integer (FR-011)
 # ---------------------------------------------------------------------------
@@ -1737,6 +1741,16 @@ run_analyze_phase() {
 - **MEDIUM**: Terminology drift; missing non-functional task coverage; underspecified edge case
 - **LOW**: Style/wording improvements; minor redundancy not affecting execution order
 
+## RESOLVED Finding Format Contract
+When a finding from a previous analysis has been addressed, change its Severity cell to:
+\`~~ORIGINAL_SEVERITY~~ → RESOLVED\`
+
+This format is machine-parsed by the CRITICAL analysis gate. Examples:
+- CORRECT: \`| F-01 | ... | ~~CRITICAL~~ → RESOLVED | ... |\`
+- CORRECT: \`| F-02 | ... | ~~HIGH~~ → RESOLVED | ... |\`
+- INCORRECT: \`| F-01 | ... | ~~CRITICAL~~ | ... |\` (missing RESOLVED marker — gate treats as unresolved)
+- INCORRECT: \`| F-01 | ... | RESOLVED | ... |\` (missing strikethrough — gate cannot detect original severity)
+
 ## Report Format
 Produce a compact Markdown analysis report with:
 
@@ -1831,6 +1845,15 @@ run_single_phase() {
             ;;
     esac
 
+    # Emit default gate outputs for non-analyze phases so downstream
+    # workflow if: conditions evaluate correctly (FR-012, T026)
+    case "$phase" in
+        1|2|3|4)
+            echo "gate_result=pass" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            echo "critical_count=0" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            ;;
+    esac
+
     case "$phase" in
         1)
             echo ""
@@ -1906,6 +1929,30 @@ run_single_phase() {
             log_file_header "Phase 5" "$SPEC_DIR/analysis-report.md"
             echo "✓ Phase 5 complete: analysis-report.md"
 
+            # ── CRITICAL analysis gate (FR-009, phased path) ──────────
+            echo ""
+            echo "=== CRITICAL Analysis Gate ==="
+            report_path="$SPEC_DIR/analysis-report.md"
+            gate_mode="${SPECKIT_CRITICAL_GATE_MODE:-block}"
+            gate_rc=0
+            check_analysis_gate "$report_path" "$gate_mode" true || gate_rc=$?
+
+            if [[ "$gate_rc" -eq 10 ]]; then
+                # Unresolved CRITICALs detected
+                if [[ "$gate_mode" == "draft" ]]; then
+                    echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+                else
+                    echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+                    exit 1
+                fi
+            elif [[ "$gate_rc" -eq 20 ]]; then
+                echo "Error: CRITICAL analysis gate failed — report missing or malformed" >&2
+                exit 1
+            elif [[ "$gate_rc" -ne 0 ]]; then
+                echo "Error: CRITICAL analysis gate failed — unexpected return code: $gate_rc" >&2
+                exit 1
+            fi
+
             echo ""
             echo "=== Markdownlint Validation ==="
             quick_markdown_sanity_check "$SPEC_DIR"
@@ -1971,6 +2018,30 @@ else
     COPILOT_TIMEOUT=900 run_analyze_phase || { echo "Error: Analyze phase failed after retries" >&2; exit 1; }
     log_file_header "Phase 6" "$SPEC_DIR/analysis-report.md"
     echo "✓ Phase 6 complete: analysis-report.md"
+
+    # ── CRITICAL analysis gate (FR-009, monolithic path) ──────────
+    echo ""
+    echo "=== CRITICAL Analysis Gate ==="
+    report_path="$SPEC_DIR/analysis-report.md"
+    gate_mode="${SPECKIT_CRITICAL_GATE_MODE:-block}"
+    gate_rc=0
+    check_analysis_gate "$report_path" "$gate_mode" true || gate_rc=$?
+
+    if [[ "$gate_rc" -eq 10 ]]; then
+        # Unresolved CRITICALs detected
+        if [[ "$gate_mode" == "draft" ]]; then
+            echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+        else
+            echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+            exit 1
+        fi
+    elif [[ "$gate_rc" -eq 20 ]]; then
+        echo "Error: CRITICAL analysis gate failed — report missing or malformed" >&2
+        exit 1
+    elif [[ "$gate_rc" -ne 0 ]]; then
+        echo "Error: CRITICAL analysis gate failed — unexpected return code: $gate_rc" >&2
+        exit 1
+    fi
 
     echo ""
     echo "=== Phase 7/7: Markdownlint Validation ==="

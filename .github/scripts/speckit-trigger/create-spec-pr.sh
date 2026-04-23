@@ -41,6 +41,8 @@ BASE_BRANCH="${BASE_BRANCH:-main}"
 # Parse optional named arguments (after positional args)
 PHASE_NUMBER=""
 PHASE_NAME=""
+CREATE_DRAFT=""
+CRITICAL_FINDINGS_JSON=""
 shift 4  # consume required positional args
 # Only consume labels_json if the next arg exists and is not a named flag
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -66,6 +68,18 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             PHASE_NAME="$2"
+            shift 2
+            ;;
+        --draft)
+            CREATE_DRAFT="true"
+            shift
+            ;;
+        --critical-findings-json)
+            if [[ $# -lt 2 || "$2" == --* ]]; then
+                echo "Error: --critical-findings-json requires a value" >&2
+                exit 1
+            fi
+            CRITICAL_FINDINGS_JSON="$2"
             shift 2
             ;;
         *)
@@ -279,19 +293,63 @@ EOF
 )
 fi
 
+# Prepend CRITICAL findings warning to PR body when creating a draft with findings
+if [[ "$CREATE_DRAFT" == "true" ]] && [[ -n "$CRITICAL_FINDINGS_JSON" ]] && [[ "$CRITICAL_FINDINGS_JSON" != "[]" ]]; then
+    # Build findings table from JSON
+    FINDINGS_WARNING="## ⚠️ CRITICAL Findings
+
+> **This PR was created as a draft** because the analysis phase detected unresolved CRITICAL findings.
+> Address these findings before marking the PR as ready for review.
+
+| ID | Summary | Recommendation |
+|---|---|---|
+"
+    # Parse JSON array using jq (available on ubuntu-latest)
+    while IFS= read -r line; do
+        FINDINGS_WARNING="${FINDINGS_WARNING}${line}
+"
+    done < <(echo "$CRITICAL_FINDINGS_JSON" | jq -r '
+        def mdcell:
+            tostring
+            | gsub("\r\n|\n|\r"; " ")
+            | gsub("\\|"; "\\\\|");
+        .[] | "| \(.id | mdcell) | \(.summary | mdcell) | \(.recommendation | mdcell) |"
+    ' 2>/dev/null || echo "| — | _Could not parse findings_ | — |")
+
+    FINDINGS_WARNING="${FINDINGS_WARNING}
+---
+
+"
+    PR_BODY="${FINDINGS_WARNING}${PR_BODY}"
+fi
+
+# Build gh pr create command arguments
+GH_CREATE_ARGS=(
+    --title "$PR_TITLE"
+    --body "$PR_BODY"
+    --base "$BASE_BRANCH"
+    --head "$BRANCH_NAME"
+)
+
+if [[ "$CREATE_DRAFT" == "true" ]]; then
+    GH_CREATE_ARGS+=(--draft)
+    echo "Creating DRAFT pull request (CRITICAL findings detected)..."
+else
+    echo "Creating pull request..."
+fi
+
 # Create the PR
-echo "Creating pull request..."
-PR_URL=$(gh pr create \
-    --title "$PR_TITLE" \
-    --body "$PR_BODY" \
-    --base "$BASE_BRANCH" \
-    --head "$BRANCH_NAME" \
-    2>&1) || {
+PR_URL=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>&1) || {
     echo "Warning: Failed to create PR" >&2
     echo "Error: $PR_URL" >&2
     echo "pr_url=" >> "${GITHUB_OUTPUT:-/dev/stdout}"
     exit 0
 }
+
+# Output draft status
+if [[ "$CREATE_DRAFT" == "true" ]]; then
+    echo "is_draft=true" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+fi
 
 echo "✓ Pull request created: $PR_URL"
 

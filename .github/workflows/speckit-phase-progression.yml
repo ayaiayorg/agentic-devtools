@@ -487,13 +487,14 @@ jobs:
           SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
           COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_CRITICAL_GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
         run: |
           chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
           .github/scripts/speckit-trigger/generate-spec-from-issue.sh \
             --phase "${{ steps.extract.outputs.next_phase }}"
 
       - name: Commit Phase Artifacts
-        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && steps.generate.outcome == 'success' && (steps.generate.outputs.gate_result == 'pass' || vars.SPECKIT_CRITICAL_GATE_MODE == 'draft')
         id: commit
         run: |
           git config user.name "github-actions[bot]"
@@ -528,27 +529,63 @@ jobs:
           echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Push Branch
-        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false'
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && steps.commit.outcome == 'success' && (steps.generate.outputs.gate_result == 'pass' || vars.SPECKIT_CRITICAL_GATE_MODE == 'draft')
         run: |
           BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
           git push --force-with-lease -u origin "$BRANCH_NAME"
 
       - name: Create Pull Request
-        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false'
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false' && steps.commit.outcome == 'success' && (steps.generate.outputs.gate_result == 'pass' || vars.SPECKIT_CRITICAL_GATE_MODE == 'draft')
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
+          GATE_RESULT: ${{ steps.generate.outputs.gate_result }}
+          GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
+          CRITICAL_FINDINGS: ${{ steps.generate.outputs.critical_findings }}
         run: |
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
-          .github/scripts/speckit-trigger/create-spec-pr.sh \
-            "${{ steps.commit.outputs.branch_name }}" \
-            "${{ steps.commit.outputs.spec_dir }}" \
-            "${{ steps.extract.outputs.issue_number }}" \
-            "${{ steps.issue.outputs.title }}" \
-            "$ISSUE_LABELS" \
-            --phase-number "${{ steps.extract.outputs.next_phase }}" \
-            --phase-name "${{ steps.extract.outputs.next_phase_name }}"
+
+          # Build draft mode arguments when gate failed in draft mode
+          DRAFT_ARGS=""
+          if [[ "${GATE_RESULT:-}" == "fail" && "${GATE_MODE:-}" == "draft" ]]; then
+            DRAFT_ARGS="--draft"
+            if [[ -n "${CRITICAL_FINDINGS:-}" && "${CRITICAL_FINDINGS:-}" != "[]" ]]; then
+              DRAFT_ARGS="$DRAFT_ARGS --critical-findings-json"
+            fi
+          fi
+
+          if [[ -n "$DRAFT_ARGS" && "$DRAFT_ARGS" == *"--critical-findings-json"* ]]; then
+            .github/scripts/speckit-trigger/create-spec-pr.sh \
+              "${{ steps.commit.outputs.branch_name }}" \
+              "${{ steps.commit.outputs.spec_dir }}" \
+              "${{ steps.extract.outputs.issue_number }}" \
+              "${{ steps.issue.outputs.title }}" \
+              "$ISSUE_LABELS" \
+              --phase-number "${{ steps.extract.outputs.next_phase }}" \
+              --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
+              --draft \
+              --critical-findings-json "$CRITICAL_FINDINGS"
+          elif [[ -n "$DRAFT_ARGS" ]]; then
+            .github/scripts/speckit-trigger/create-spec-pr.sh \
+              "${{ steps.commit.outputs.branch_name }}" \
+              "${{ steps.commit.outputs.spec_dir }}" \
+              "${{ steps.extract.outputs.issue_number }}" \
+              "${{ steps.issue.outputs.title }}" \
+              "$ISSUE_LABELS" \
+              --phase-number "${{ steps.extract.outputs.next_phase }}" \
+              --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
+              --draft
+          else
+            .github/scripts/speckit-trigger/create-spec-pr.sh \
+              "${{ steps.commit.outputs.branch_name }}" \
+              "${{ steps.commit.outputs.spec_dir }}" \
+              "${{ steps.extract.outputs.issue_number }}" \
+              "${{ steps.issue.outputs.title }}" \
+              "$ISSUE_LABELS" \
+              --phase-number "${{ steps.extract.outputs.next_phase }}" \
+              --phase-name "${{ steps.extract.outputs.next_phase_name }}"
+          fi
 
       - name: Request Copilot Review
         id: request-copilot-review
@@ -617,7 +654,7 @@ jobs:
             }
 
       - name: Auto-Merge (if configured)
-        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != ''
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != '' && steps.generate.outputs.gate_result != 'fail'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPECKIT_AUTO_MERGE_PHASES: ${{ vars.SPECKIT_AUTO_MERGE_PHASES }}
@@ -811,13 +848,75 @@ jobs:
       - name: Handle Failure (Comment + Label)
         if: failure()
         uses: actions/github-script@v7
+        env:
+          NEXT_PHASE_NAME: ${{ steps.extract.outputs.next_phase_name || 'unknown' }}
+          GATE_RESULT: ${{ steps.generate.outputs.gate_result || '' }}
+          CRITICAL_FINDINGS: ${{ steps.generate.outputs.critical_findings || '[]' }}
         with:
           script: |
             const issueNumber = ${{ steps.extract.outputs.issue_number || 0 }};
             if (!issueNumber) return;
 
             const nextPhase = ${{ steps.extract.outputs.next_phase || 0 }};
-            const nextPhaseName = '${{ steps.extract.outputs.next_phase_name || 'unknown' }}';
+            const nextPhaseName = process.env.NEXT_PHASE_NAME;
+            const gateResult = process.env.GATE_RESULT;
+            const criticalFindings = process.env.CRITICAL_FINDINGS;
+
+            // Build comment body — include CRITICAL findings if gate failed
+            let body;
+            if (gateResult === 'fail' && criticalFindings !== '[]') {
+              // Parse findings for display
+              let findingsTable = '';
+              try {
+                const findings = JSON.parse(criticalFindings);
+                if (findings.length > 0) {
+                  findingsTable = '| ID | Summary | Recommendation |\n|---|---|---|\n';
+                  const escapeCell = (s) => String(s).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
+                  for (const f of findings) {
+                    findingsTable += `| ${escapeCell(f.id)} | ${escapeCell(f.summary)} | ${escapeCell(f.recommendation)} |\n`;
+                  }
+                }
+              } catch (e) {
+                findingsTable = `_Could not parse findings: ${criticalFindings}_`;
+              }
+
+              body = [
+                `## ❌ SpecKit: CRITICAL Gate Failed`,
+                '',
+                `**Phase ${nextPhase}** analysis detected unresolved CRITICAL findings that block PR creation.`,
+                '',
+                '### CRITICAL Findings',
+                '',
+                findingsTable,
+                '',
+                '### What to Do',
+                '',
+                '1. Review the CRITICAL findings above and address them in the specification artifacts',
+                `2. Re-trigger the pipeline by removing the \`speckit:failed\` label and re-adding the \`speckit\` label, or use the **workflow_dispatch** trigger on the [SpecKit Phase Progression workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml)`,
+                '',
+                `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit CRITICAL Analysis Gate](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n');
+            } else {
+              body = [
+                `## ❌ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Failed`,
+                '',
+                `An error occurred while generating Phase ${nextPhase} artifacts.`,
+                '',
+                `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '### Troubleshooting',
+                '',
+                '1. Check the workflow logs for detailed error messages',
+                '2. Verify that the COPILOT_GITHUB_TOKEN secret is configured',
+                `3. You can re-trigger this phase manually via the **workflow_dispatch** trigger on the [SpecKit Phase Progression workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) — provide the issue number and phase to retry`,
+                '',
+                '---',
+                `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
+              ].join('\n');
+            }
 
             // Post failure comment (respects SPECKIT_COMMENT_ON_ISSUE)
             const commentOnIssue = '${{ vars.SPECKIT_COMMENT_ON_ISSUE }}' !== 'false';
@@ -826,22 +925,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                body: [
-                  `## ❌ SpecKit: Phase ${nextPhase} (${nextPhaseName}) Failed`,
-                  '',
-                  `An error occurred while generating Phase ${nextPhase} artifacts.`,
-                  '',
-                  `**Workflow Run**: [View logs](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
-                  '',
-                  '### Troubleshooting',
-                  '',
-                  '1. Check the workflow logs for detailed error messages',
-                  '2. Verify that the COPILOT_GITHUB_TOKEN secret is configured',
-                  `3. You can re-trigger this phase manually via the **workflow_dispatch** trigger on the [SpecKit Phase Progression workflow](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/speckit-phase-progression.yml) — provide the issue number and phase to retry`,
-                  '',
-                  '---',
-                  `_This comment was posted by the [SpecKit GitHub Action](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})._`
-                ].join('\n')
+                body: body
               });
             }
 
