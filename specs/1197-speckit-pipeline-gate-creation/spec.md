@@ -202,9 +202,9 @@ are set as step outputs.
 3. **Given** the monolithic pipeline path runs and the gate completes,
 **When** the gate emits the structured result,
 **Then** the result is prefixed with `GATE_RESULT_JSON:` followed by machine-parseable JSON
-containing at minimum: `status` (`pass` or `fail`), `reason` (one of the enumerated reason codes below),
-`criticalCount` (integer count of unresolved CRITICAL findings),
-and `reportPath` (path used for the gate input when available).
+containing at minimum: `gate_result` (`pass` or `fail`), `reason` (one of the enumerated reason codes below),
+`critical_count` (integer count of unresolved CRITICAL findings),
+and `report_path` (path used for the gate input when available).
 
 The allowed `reason` codes are:
 
@@ -288,14 +288,15 @@ the gate mode setting does not bypass the missing/empty report check.
 
 - **FR-011**: The gate MUST produce GitHub Actions step outputs (`critical_count`,
 `critical_findings`, `gate_result`) for programmatic consumption
-by downstream workflow steps. The `gate_result` output uses the same `pass`/`fail`
-vocabulary as the monolithic JSON `status` field.
+by downstream workflow steps.
 In the monolithic path, the gate result MUST be emitted in a machine-parseable structured
 form prefixed with `GATE_RESULT_JSON:` so downstream tooling can reliably parse it.
-Minimum JSON fields: `status` (`pass` or `fail`), `reason` (one of the enumerated reason codes:
+Minimum JSON fields: `gate_result` (`pass` or `fail`), `reason` (one of the enumerated reason codes:
 `no_critical_findings`, `critical_findings_detected`, `report_missing`, `report_parse_error`),
-`criticalCount` (integer count of unresolved CRITICAL findings),
-and `reportPath` (path used for the gate input when available).
+`critical_count` (integer count of unresolved CRITICAL findings),
+and `report_path` (path used for the gate input when available).
+The JSON fields use the same snake_case names as the GitHub Actions step outputs
+and the caller-visible shell variables, ensuring a single consistent vocabulary.
 
 - **FR-012**: The gate MUST only run after Phase 5 (analyze) in the phased workflow.
 It MUST NOT affect Phases 1–4, which do not produce analysis reports.
