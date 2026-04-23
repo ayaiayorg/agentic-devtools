@@ -19,7 +19,7 @@ from ...state import get_value, set_value
 from ..subprocess_utils import run_safe
 from .repo_resolution import resolve_github_repo
 
-_DEFAULT_STRATEGY = "squash"
+_DEFAULT_STRATEGY = "rebase"
 _VALID_STRATEGIES = ("squash", "merge", "rebase")
 
 
@@ -70,7 +70,7 @@ def _execute_merge(
         ``(True, "")`` on exit code 0,
         ``(False, stderr_content)`` on non-zero exit.
     """
-    cmd = ["gh", "pr", "merge", str(pr_number), "--repo", repo, f"--{strategy}", "--yes"]
+    cmd = ["gh", "pr", "merge", str(pr_number), "--repo", repo, f"--{strategy}"]
     if delete_branch:
         cmd.append("--delete-branch")
 
@@ -117,7 +117,7 @@ def _verify_merge(pr_number: int, repo: str) -> dict:
 def merge_pr(
     pr_number: int,
     repo: str,
-    strategy: str = "squash",
+    strategy: str = _DEFAULT_STRATEGY,
     delete_branch: bool = True,
 ) -> dict:
     """Merge a GitHub PR with verification and retry.
@@ -283,7 +283,7 @@ def pr_merge_command() -> None:
         type=str,
         default=_DEFAULT_STRATEGY,
         choices=list(_VALID_STRATEGIES),
-        help="Merge strategy (default: squash)",
+        help="Merge strategy (default: rebase)",
     )
     parser.add_argument(
         "--no-delete-branch",

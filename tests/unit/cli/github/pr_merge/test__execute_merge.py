@@ -19,7 +19,7 @@ class TestExecuteMerge:
         assert err == ""
         cmd = mock_run.call_args[0][0]
         assert "--squash" in cmd
-        assert "--yes" in cmd
+        assert "--yes" not in cmd
 
     def test_success_merge_strategy(self):
         """Successful merge strategy includes --merge."""

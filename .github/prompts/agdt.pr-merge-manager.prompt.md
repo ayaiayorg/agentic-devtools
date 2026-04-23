@@ -18,7 +18,7 @@ Copilot review feedback, and merges the PR once all gates are green.
 | Check CI status | `agdt-gh-pr-checks-status` | `gh pr checks` + `gh api .../check-suites` |
 | Re-run stale checks | `agdt-gh-rerun-checks` | `gh api .../actions/runs/{id}/rerun` |
 | Approve PR | `agdt-gh-pr-approve` | `gh pr review --approve` + verification |
-| Merge PR | `agdt-gh-pr-merge` | `gh pr merge --squash` + verification |
+| Merge PR | `agdt-gh-pr-merge` | `gh pr merge --rebase` + verification |
 | Run tests | `agdt-test` + `agdt-task-wait` | _Do not run `pytest` directly._ |
 | Commit & push | `agdt-git-save-work` | `git commit` + `git push` |
 | Force push | `agdt-git-force-push` | `git push --force-with-lease` |
