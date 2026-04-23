@@ -7,7 +7,8 @@
 
 ## Content Quality
 
-- [ ] CHK001 Each referenced user story (User Story 2 backup-write-failure, User Story 3 atomic-replace) is written in "As a … I want … so that …" format and focuses on user/developer value, not implementation
+- [ ] CHK001 Each referenced user story (User Story 2 backup-write-failure, User Story 3 atomic-replace) is written in "As a … I want … so that …" format and focuses on user/developer value, not
+  implementation
   mechanics
 - [ ] CHK002 All functional requirements (FR-002, FR-006, FR-012) and non-functional requirement NFR-005 include an explicit priority assignment (for example, `Priority: P1/P2/P3` or equivalent
   implementation-criticality wording)
