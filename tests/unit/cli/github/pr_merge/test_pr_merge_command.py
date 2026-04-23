@@ -22,7 +22,7 @@ class TestPrMergeCommand:
         ):
             pr_merge.pr_merge_command()
 
-        mock_merge.assert_called_once_with(42, "o/r", "squash", True)
+        mock_merge.assert_called_once_with(42, "o/r", "rebase", True)
         captured = capsys.readouterr()
         output = json.loads(captured.out)
         assert output["prNumber"] == 42
@@ -39,7 +39,7 @@ class TestPrMergeCommand:
         ):
             pr_merge.pr_merge_command()
 
-        mock_merge.assert_called_once_with(99, "o/r", "squash", True)
+        mock_merge.assert_called_once_with(99, "o/r", "rebase", True)
 
     def test_strategy_arg_forwarded(self, capsys):
         """--strategy argument is forwarded to merge_pr."""
@@ -65,7 +65,7 @@ class TestPrMergeCommand:
         ):
             pr_merge.pr_merge_command()
 
-        mock_merge.assert_called_once_with(42, "o/r", "squash", False)
+        mock_merge.assert_called_once_with(42, "o/r", "rebase", False)
 
     def test_json_output_printed(self, capsys):
         """JSON output printed to stdout."""
@@ -118,7 +118,7 @@ class TestPrMergeCommand:
         ):
             pr_merge.pr_merge_command()
 
-        mock_merge.assert_called_once_with(42, "o/r", "squash", True)
+        mock_merge.assert_called_once_with(42, "o/r", "rebase", True)
 
     def test_exits_when_state_pr_not_convertible(self, capsys):
         """Exit code 1 when state value is not convertible to int."""

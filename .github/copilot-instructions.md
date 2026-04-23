@@ -157,7 +157,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `gh pr review --approve` + manual verification | `agdt-gh-pr-approve` |
 | `gh api .../requested_reviewers -X POST` | `agdt-gh-request-copilot-review` |
 | Manual Phase 2 PR polling loop | `agdt-gh-pr-poll-ready` |
-| `gh pr merge --squash --delete-branch` + manual verification | `agdt-gh-pr-merge` |
+| `gh pr merge --rebase --delete-branch` + manual verification | `agdt-gh-pr-merge` |
 | `gh api` loop for PR review comment replies | `agdt-gh-reply-to-review-comments` |
 
 #### Exceptions — Raw Commands Still Required
@@ -177,7 +177,7 @@ Using raw commands (e.g., `git`, raw REST API calls, `pytest`) bypasses:
 | `agdt-gh-pr-state` | Fetch structured GitHub PR state | `--pr` (int) and optionally `--repo` (owner/repo); falls back to `github.pull_request_number` and `github.repo` state keys or git remote auto-detection |
 | `agdt-gh-pr-poll-ready` | Poll PR until ready to merge or blocked | `--pr` or `github.pull_request_number`; optional `--repo`, `--poll-interval`, `--max-wait`, `--background`, `--rerun-stale-checks` |
 | `agdt-gh-pr-approve` | Approve a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--body` (approval comment) |
-| `agdt-gh-pr-merge` | Merge a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--strategy` (squash/merge/rebase, default squash), `--no-delete-branch`; `--repo` falls back to `github.repo` state or git remote auto-detection |
+| `agdt-gh-pr-merge` | Merge a GitHub PR with verification and retry | `--pr` (int) or `github.pull_request_number`; optional `--repo` (owner/repo), `--strategy` (squash/merge/rebase, default rebase), `--no-delete-branch`; `--repo` falls back to `github.repo` state or git remote auto-detection |
 | `agdt-gh-rerun-checks` | Re-run stale/failed GitHub Actions workflows | `--pr` (int) or `github.pull_request_number`; optional `--repo`, `--head-sha`, `--filter` (workflow name substring), `--include-cancelled` |
 | `agdt-gh-request-copilot-review` | Request Copilot review with verification | `--pr` (int) or `github.pull_request_number`; optional `--repo` |
 | `agdt-gh-reply-to-review-comments` | Post batch replies to PR review comments with verification | `--pr` (int) or `github.pull_request_number`; `--review-id` (int) or `github.copilot_review_id`; `--replies-file` (path to JSON); optional `--repo` |

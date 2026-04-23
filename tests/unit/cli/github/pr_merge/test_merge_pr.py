@@ -31,7 +31,7 @@ class TestMergePr:
         calls = [c.args for c in mock_set.call_args_list]
         assert ("github.pr_merged", True) in calls
         assert ("github.pr_merged_at", "2026-04-07T09:05:55Z") in calls
-        assert ("github.pr_merge_strategy", "squash") in calls
+        assert ("github.pr_merge_strategy", "rebase") in calls
 
     def test_merge_submission_failure(self):
         """Merge command fails — error classified and returned."""
@@ -148,10 +148,10 @@ class TestMergePr:
         calls = [c.args for c in mock_set.call_args_list]
         assert ("github.pr_merged", False) in calls
         assert ("github.pr_merged_at", None) in calls
-        assert ("github.pr_merge_strategy", "squash") in calls
+        assert ("github.pr_merge_strategy", "rebase") in calls
 
-    def test_default_strategy_is_squash(self):
-        """Default strategy is squash."""
+    def test_default_strategy_is_rebase(self):
+        """Default strategy is rebase."""
         with (
             patch.object(pr_merge, "_check_gh_available"),
             patch.object(pr_merge, "_execute_merge", return_value=(True, "")) as mock_exec,
@@ -164,7 +164,7 @@ class TestMergePr:
         ):
             pr_merge.merge_pr(42, "o/r")
 
-        assert mock_exec.call_args[0][2] == "squash"
+        assert mock_exec.call_args[0][2] == "rebase"
 
     def test_custom_strategy_passed_through(self):
         """Custom strategy is forwarded to _execute_merge."""
