@@ -118,7 +118,8 @@ run_clarify_phase():
 6. **`validate_structural_integrity <original_file> <candidate_file> [--type spec|checklist]`** — Compare:
    - Mandatory sections present (for `--type spec`): `## Problem Statement`, `## User Scenarios & Testing`, `## Requirements`, `## Success Criteria`
    - All original section headings preserved
-   - Requirement entry retention for `--type spec` must satisfy `retained_count >= ceil(0.95 * original_count)`; checklist item retention for `--type checklist` remains `retained_count = original_count`
+   - Requirement entry retention for `--type spec` must satisfy `retained_count >= ceil(0.95 * original_count)`; checklist item retention for `--type checklist` must satisfy `retained_count >=
+     original_count` so all original checklist items are preserved even if additional items are added
    - Skip the retention check only when `original_count` is zero
    - Print specific failure reasons to stderr (NFR-002)
    - Return 0 on pass, 1 on fail
