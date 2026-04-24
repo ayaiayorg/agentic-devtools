@@ -47,6 +47,16 @@ jobs:
       issues: write
 
     steps:
+      - name: Validate Copilot Token
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not configured. Add a fine-grained PAT with 'Pull requests: Write' permission, or a classic PAT with 'repo' scope. The token owner must be a repository collaborator with Copilot access."
+            exit 1
+          fi
+          echo "✓ COPILOT_GITHUB_TOKEN is configured"
+
       # Idempotency guard: avoid re-requesting the reviewer when Copilot is
       # already a requested reviewer or has already reviewed this PR. This
       # makes repeated `labeled` events safe.
@@ -55,6 +65,7 @@ jobs:
         continue-on-error: true
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.pull_request.number;
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
@@ -101,6 +112,7 @@ jobs:
         continue-on-error: true
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.pull_request.number;
             try {
