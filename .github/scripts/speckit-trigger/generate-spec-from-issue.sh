@@ -1194,6 +1194,257 @@ Your response must begin with the actual markdown content. The very first charac
     return 1
 }
 
+# ========================== Content Preservation =============================
+#
+# Shared validation contract for both CI and interactive modes.
+# These functions implement the three-layer protection model:
+#   Layer 1: PREVENTION  — Improved LLM prompt (see run_clarify_phase / run_checklist_phase)
+#   Layer 2: DETECTION   — Structural validation (validate_structural_integrity)
+#   Layer 3: RECOVERY    — Backup + restore (create_backup / restore_from_backup)
+#
+# Constants used by validate_structural_integrity:
+#   MANDATORY_SECTIONS          — Always required in every valid spec.md
+#   REQUIREMENT_RETENTION_THRESHOLD — Minimum % of FR/NFR entries to retain (spec)
+#   CHECKLIST_RETENTION_THRESHOLD   — Minimum % of checklist items to retain
+#
+# See also: .github/agents/speckit.clarify.agent.md (interactive mode)
+# ============================================================================
+
+# Always-mandatory sections in spec.md (FR-006)
+MANDATORY_SECTIONS=(
+    "## Problem Statement"
+    "## User Scenarios & Testing"
+    "## Requirements"
+    "## Success Criteria"
+)
+
+# Retention thresholds (percentage, integer)
+REQUIREMENT_RETENTION_THRESHOLD=95
+CHECKLIST_RETENTION_THRESHOLD=100
+
+# ---------------------------------------------------------------------------
+# create_backup <filepath>
+#
+# Creates a backup of <filepath> with collision-avoidance naming:
+#   <filepath>.bak, <filepath>.bak.1, <filepath>.bak.2, ...
+# Aborts with OS-level error detail on write failure (FR-002).
+# Prints the backup path on stdout.
+# ---------------------------------------------------------------------------
+create_backup() {
+    local filepath="$1"
+    local backup_path="${filepath}.bak"
+    local counter=1
+
+    while [[ -e "$backup_path" ]]; do
+        backup_path="${filepath}.bak.${counter}"
+        counter=$((counter + 1))
+    done
+
+    if ! cp "$filepath" "$backup_path" 2>&1; then
+        echo "Error: Failed to create backup at '$backup_path': $(cp "$filepath" "$backup_path" 2>&1 || true)" >&2
+        return 1
+    fi
+
+    printf '%s' "$backup_path"
+}
+
+# ---------------------------------------------------------------------------
+# restore_from_backup <filepath> <backup_path>
+#
+# Restores the original file from a backup (FR-007).
+# ---------------------------------------------------------------------------
+restore_from_backup() {
+    local filepath="$1"
+    local backup_path="$2"
+
+    if [[ ! -f "$backup_path" ]]; then
+        echo "Error: Backup file '$backup_path' does not exist" >&2
+        return 1
+    fi
+
+    cp "$backup_path" "$filepath"
+}
+
+# ---------------------------------------------------------------------------
+# count_requirement_entries <filepath>
+#
+# Counts lines matching the FR-### or NFR-### requirement entry pattern.
+# Returns count on stdout.
+# ---------------------------------------------------------------------------
+count_requirement_entries() {
+    local filepath="$1"
+    local count
+    count=$(grep -cE '^\s*-\s+\*\*(FR|NFR)-[0-9]+\*\*' "$filepath" 2>/dev/null) || true
+    echo "${count:-0}"
+}
+
+# ---------------------------------------------------------------------------
+# count_checklist_items <filepath>
+#
+# Counts Markdown task list items: - [ ], - [x], - [X]
+# Returns count on stdout.
+# ---------------------------------------------------------------------------
+count_checklist_items() {
+    local filepath="$1"
+    local count
+    count=$(grep -cE '^- \[([xX]| )\] ' "$filepath" 2>/dev/null) || true
+    echo "${count:-0}"
+}
+
+# ---------------------------------------------------------------------------
+# extract_section_headings <filepath>
+#
+# Extracts ## headings, strips trailing *(mandatory)* annotations and trims
+# whitespace.  Returns one heading per line on stdout.
+# ---------------------------------------------------------------------------
+extract_section_headings() {
+    local filepath="$1"
+    grep -E '^## ' "$filepath" 2>/dev/null | sed -E 's/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$//' | sed 's/[[:space:]]*$//'
+}
+
+# ---------------------------------------------------------------------------
+# validate_structural_integrity <original_file> <candidate_file> [--type spec|checklist]
+#
+# Compares a candidate output against the original file to ensure structural
+# integrity is preserved.
+#
+# For --type spec (default):
+#   - All mandatory sections must be present
+#   - All original section headings must be preserved
+#   - Requirement entry count must be >= ceil(0.95 * original_count)
+#
+# For --type checklist:
+#   - All original section headings must be preserved
+#   - Checklist item count must be >= original_count
+#
+# Skips retention check when original count is 0.
+# Prints specific failure reasons to stderr (NFR-002).
+# Returns 0 on pass, 1 on fail.
+# ---------------------------------------------------------------------------
+validate_structural_integrity() {
+    local original_file="$1"
+    local candidate_file="$2"
+    local file_type="spec"
+
+    # Parse optional --type argument
+    shift 2
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --type) file_type="${2:-spec}"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    local failed=0
+
+    # --- Mandatory sections check (spec only) ---
+    if [[ "$file_type" == "spec" ]]; then
+        for section in "${MANDATORY_SECTIONS[@]}"; do
+            local normalized_section
+            normalized_section=$(echo "$section" | sed -E 's/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$//' | sed 's/[[:space:]]*$//')
+            if ! grep -qF "$normalized_section" "$candidate_file" 2>/dev/null; then
+                echo "Validation FAILED: mandatory section missing: '$normalized_section'" >&2
+                failed=1
+            fi
+        done
+    fi
+
+    # --- All original section headings preserved ---
+    local original_headings candidate_headings
+    original_headings=$(extract_section_headings "$original_file")
+    candidate_headings=$(extract_section_headings "$candidate_file")
+
+    while IFS= read -r heading; do
+        [[ -z "$heading" ]] && continue
+        if ! echo "$candidate_headings" | grep -qF "$heading"; then
+            echo "Validation FAILED: original section heading missing: '$heading'" >&2
+            failed=1
+        fi
+    done <<< "$original_headings"
+
+    # --- Retention check ---
+    if [[ "$file_type" == "spec" ]]; then
+        local original_count candidate_count threshold
+        original_count=$(count_requirement_entries "$original_file")
+        candidate_count=$(count_requirement_entries "$candidate_file")
+
+        if [[ "$original_count" -gt 0 ]]; then
+            # ceil(0.95 * N) = (95 * N + 99) / 100  (integer arithmetic)
+            threshold=$(( (REQUIREMENT_RETENTION_THRESHOLD * original_count + 99) / 100 ))
+            if [[ "$candidate_count" -lt "$threshold" ]]; then
+                echo "Validation FAILED: requirement count dropped from $original_count to $candidate_count (threshold: $threshold, ${REQUIREMENT_RETENTION_THRESHOLD}%)" >&2
+                failed=1
+            fi
+        fi
+    elif [[ "$file_type" == "checklist" ]]; then
+        local original_count candidate_count
+        original_count=$(count_checklist_items "$original_file")
+        candidate_count=$(count_checklist_items "$candidate_file")
+
+        if [[ "$original_count" -gt 0 ]]; then
+            if [[ "$candidate_count" -lt "$original_count" ]]; then
+                echo "Validation FAILED: checklist item count dropped from $original_count to $candidate_count (100% retention required)" >&2
+                failed=1
+            fi
+        fi
+    fi
+
+    return "$failed"
+}
+
+# ---------------------------------------------------------------------------
+# safe_write_with_validation <original_file> <candidate_content> [--type spec|checklist]
+#
+# Orchestrates the full safe-write flow:
+#   1. Create backup of original (FR-002)
+#   2. Write candidate to <original_file>.tmp
+#   3. Run validate_structural_integrity
+#   4. On pass: mv .tmp original (atomic POSIX rename)
+#   5. On fail: remove .tmp, leave original unchanged, report errors (FR-007)
+#
+# Returns 0 on success, 1 on validation failure.
+# ---------------------------------------------------------------------------
+safe_write_with_validation() {
+    local original_file="$1"
+    local candidate_content="$2"
+    shift 2
+    local extra_args=("$@")
+
+    local tmp_file="${original_file}.tmp"
+
+    # Step 1: Create backup
+    local backup_path
+    backup_path=$(create_backup "$original_file") || {
+        echo "Error: Backup creation failed for '$original_file'. Aborting write." >&2
+        return 1
+    }
+    echo "Backup created: $backup_path" >&2
+
+    # Step 2: Write candidate to .tmp
+    printf '%s\n' "$candidate_content" > "$tmp_file" || {
+        echo "Error: Failed to write candidate to '$tmp_file'" >&2
+        return 1
+    }
+
+    # Step 3: Validate
+    if validate_structural_integrity "$original_file" "$tmp_file" "${extra_args[@]}"; then
+        # Step 4: Atomic replace
+        mv "$tmp_file" "$original_file" || {
+            echo "Error: Atomic replace failed. Restoring from backup." >&2
+            restore_from_backup "$original_file" "$backup_path"
+            return 1
+        }
+        echo "Validation passed. File updated: $original_file" >&2
+        return 0
+    else
+        # Step 5: Validation failed — leave original unchanged
+        rm -f "$tmp_file"
+        echo "Validation FAILED. Original file preserved: $original_file" >&2
+        echo "Backup available at: $backup_path" >&2
+        return 1
+    fi
+}
+
 # ========================== Phase Functions ==================================
 
 # ---------------------------------------------------------------------------
@@ -1253,8 +1504,32 @@ Do NOT include any conversational preamble before the heading."
 # clarification pass, and overwrites spec.md with the updated content.
 # ---------------------------------------------------------------------------
 run_clarify_phase() {
+    local spec_file="$SPEC_DIR/spec.md"
+
+    # --- Pre-flight checks (FR-009) ---
+    if [[ ! -f "$spec_file" ]]; then
+        echo "Error: spec.md does not exist at '$spec_file'. Run the specify phase first." >&2
+        return 1
+    fi
+    if [[ ! -s "$spec_file" ]]; then
+        echo "Error: spec.md is empty (0 bytes) at '$spec_file'. Run the specify phase first." >&2
+        return 1
+    fi
+
+    # --- File size warning (FR-012) ---
+    local file_size
+    file_size=$(wc -c < "$spec_file")
+    if [[ "$file_size" -ge 50000 ]]; then
+        echo "Warning: spec.md is ${file_size} bytes (≥50KB). Potential context-window truncation risk." >&2
+    fi
+
     local spec_content
-    spec_content=$(strip_model_footer "$(cat "$SPEC_DIR/spec.md")")
+    spec_content=$(strip_model_footer "$(cat "$spec_file")")
+
+    # --- Collect baseline metrics for LLM cross-reference ---
+    local section_headings requirement_count
+    section_headings=$(extract_section_headings "$spec_file")
+    requirement_count=$(count_requirement_entries "$spec_file")
 
     local today
     today=$(date +%Y-%m-%d)
@@ -1262,6 +1537,21 @@ run_clarify_phase() {
     local prompt
     prompt="You are an autonomous specification clarifier. Below is a feature specification. Your task is to:
 
+CRITICAL PRESERVATION RULES:
+- You MUST output the COMPLETE specification with ALL sections intact
+- Do NOT summarize, truncate, or omit any section
+- Every section heading from the input MUST appear in your output
+- Every FR-### and NFR-### entry MUST be preserved unless explicitly merged
+- Replace [NEEDS CLARIFICATION] markers in-place with resolved answers
+- Append a ## Clarifications section (or add to existing) with session Q&A
+
+CROSS-REFERENCE CHECKLIST (verify before finalizing your output):
+The original specification contains the following section headings — ALL must appear in your output:
+$section_headings
+The original specification contains $requirement_count requirement entries (FR-### / NFR-###).
+Your output must retain at least 95% of these entries.
+
+INSTRUCTIONS:
 1. Perform a structured ambiguity scan across these categories:
    - Functional Scope & Behavior
    - Domain & Data Model
@@ -1316,8 +1606,32 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
-    printf '%s\n' "$result" > "$SPEC_DIR/spec.md"
-    append_model_footer "$SPEC_DIR/spec.md"
+
+    # --- Safe write with validation (FR-006, FR-007) ---
+    if ! safe_write_with_validation "$spec_file" "$result" --type spec; then
+        echo "Error: Clarify phase output failed structural validation. Original spec.md preserved." >&2
+        return 1
+    fi
+
+    # --- Post-write: append model footer only after successful validation ---
+    append_model_footer "$spec_file"
+
+    # --- Post-write: ensure ## Clarifications section exists (FR-005) ---
+    if ! grep -q '^## Clarifications' "$spec_file"; then
+        echo "Warning: LLM output missing ## Clarifications section. Appending minimal entry." >&2
+        # Insert before the model footer
+        local content
+        content=$(strip_model_footer "$(cat "$spec_file")")
+        printf '%s\n\n## Clarifications\n\n### Session %s\n\n- Autonomous clarification pass completed. See inline updates for details.\n' "$content" "$today" > "$spec_file"
+        append_model_footer "$spec_file"
+    fi
+
+    # --- Post-write: warn about remaining [NEEDS CLARIFICATION] markers ---
+    local remaining_markers
+    remaining_markers=$(grep -c '\[NEEDS CLARIFICATION\]' "$spec_file" 2>/dev/null || echo "0")
+    if [[ "$remaining_markers" -gt 0 ]]; then
+        echo "Warning: $remaining_markers [NEEDS CLARIFICATION] marker(s) remain in spec.md after clarification." >&2
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -1330,9 +1644,44 @@ run_checklist_phase() {
     local spec_content
     spec_content=$(strip_model_footer "$(cat "$SPEC_DIR/spec.md")")
 
+    local checklist_file="$SPEC_DIR/checklists/requirements.md"
+    local existing_checklist=false
+
+    # --- Conditional pre-flight: only apply backup/validation if file exists ---
+    if [[ -f "$checklist_file" ]] && [[ -s "$checklist_file" ]]; then
+        existing_checklist=true
+    fi
+
+    local checklist_preservation_rules=""
+    if [[ "$existing_checklist" == "true" ]]; then
+        local existing_content
+        existing_content=$(strip_model_footer "$(cat "$checklist_file")")
+        local existing_item_count
+        existing_item_count=$(count_checklist_items "$checklist_file")
+        local existing_headings
+        existing_headings=$(extract_section_headings "$checklist_file")
+
+        checklist_preservation_rules="
+CRITICAL PRESERVATION RULES:
+- An existing checklist already exists with $existing_item_count checklist items
+- You MUST preserve ALL existing checklist items (- [ ] and - [x] and - [X] items)
+- You MUST preserve ALL existing section headings
+- You MAY add new checklist items, but you MUST NOT remove or omit any existing ones
+- Every section heading from the existing checklist MUST appear in your output
+
+EXISTING CHECKLIST CROSS-REFERENCE:
+Section headings to preserve:
+$existing_headings
+Existing checklist item count: $existing_item_count (ALL must be retained)
+
+EXISTING CHECKLIST CONTENT:
+$existing_content
+"
+    fi
+
     local prompt
     prompt="Generate a specification quality checklist for the following feature specification.
-
+$checklist_preservation_rules
 The checklist must follow this structure:
 
 # Specification Quality Checklist: [Feature Name from the spec]
@@ -1392,8 +1741,19 @@ Do NOT include any conversational preamble before the heading."
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Specification Quality Checklist")
-    printf '%s\n' "$result" > "$SPEC_DIR/checklists/requirements.md"
-    append_model_footer "$SPEC_DIR/checklists/requirements.md"
+
+    if [[ "$existing_checklist" == "true" ]]; then
+        # --- Safe write with validation for existing checklist ---
+        if ! safe_write_with_validation "$checklist_file" "$result" --type checklist; then
+            echo "Error: Checklist phase output failed structural validation. Original checklist preserved." >&2
+            return 1
+        fi
+    else
+        # --- First-time creation: no baseline to compare, write directly ---
+        printf '%s\n' "$result" > "$checklist_file"
+    fi
+
+    append_model_footer "$checklist_file"
 }
 
 # ---------------------------------------------------------------------------
