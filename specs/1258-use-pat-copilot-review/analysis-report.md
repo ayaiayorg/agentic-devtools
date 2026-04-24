@@ -1,8 +1,10 @@
 # Cross-Artifact Consistency & Quality Analysis
 
 **Feature**: Use PAT for Copilot Review Request in SpecKit Workflows (#1258)
-**Artifacts Analyzed**: Feature Specification (spec.md), Implementation Plan (plan.md), Task List (tasks.md)
+**Artifacts Analyzed**: Feature Specification (spec.md), Requirements Checklist (checklists/requirements.md), Implementation Plan (plan.md), Task List (tasks.md)
 **Date**: 2026-04-23
+
+Checklist review was included in this analysis and did not surface additional inconsistencies beyond the requirement/task traceability and wording issues documented below.
 
 ---
 
@@ -11,7 +13,7 @@
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
 | F-01 | F. Inconsistency | HIGH | Spec FR-007 vs Plan Phase 3 | FR-007 uses **SHOULD** ("SHOULD add a token validation step") but the plan makes a firm decision to **require** it ("Fail the job when the PAT is missing") and T015 implements it as mandatory. The spec and plan contradict on whether this validation step is optional or required. | Update FR-007 from SHOULD to MUST and remove the `[NEEDS CLARIFICATION]` tag, reflecting the plan's decision. |
-| F-02 | B. Ambiguity | MEDIUM | Spec FR-007, Spec §Clarifications Needed (items 1 & 2) | Three `[NEEDS CLARIFICATION]` markers remain in the spec: one inline in FR-007 and two in the Clarifications Needed section. The plan has made firm decisions on all three (reuse `COPILOT_GITHUB_TOKEN`; fail fast on missing PAT; differentiated error messages). Stale clarification markers undermine the spec as a source of truth. | Resolve all three markers: replace with the decisions documented in the plan. Move the Clarifications section to a "Resolved Decisions" section or remove it. |
+| F-02 | B. Ambiguity | MEDIUM | Spec FR-007, Spec §Clarifications Needed (items 1 & 2) | Three `[NEEDS CLARIFICATION]` markers remain in the spec: one inline in FR-007 (fail fast vs degrade gracefully) and two in the Clarifications Needed section (secret reuse and validation step for copilot-review-request.yml). The plan has made firm decisions on all three: reuse `COPILOT_GITHUB_TOKEN` and fail fast on missing PAT, and add a validation step to the copilot-review-request workflow. The plan also specifies differentiated error-message handling, but that is a separate design decision rather than one of the marked clarifications. Stale clarification markers undermine the spec as a source of truth. | Resolve all three markers: replace them with the decisions documented in the plan. Move the Clarifications section to a "Resolved Decisions" section or remove it, and mention differentiated error-message handling separately if it should remain documented. |
 | F-03 | E. Coverage Gap | MEDIUM | FR-008, Tasks (all phases) | FR-008 ("PAT MUST belong to a collaborator with Copilot access") has no task to verify or document the operational prerequisite. If the PAT lacks the right permissions, the fix silently fails identically to the current defect. | Add a task (e.g., T005.1) to verify `COPILOT_GITHUB_TOKEN` PAT permissions before merging, or document a manual pre-merge checklist item in Phase 8. |
 | F-04 | E. Coverage Gap | MEDIUM | SC-001 through SC-004, Tasks Phase 8 | Success criteria define four measurable post-deployment outcomes (100% of PRs get Copilot reviewer, zero regressions, warning message disappears) but no task covers triggering a verification workflow run after merge. Tasks end at T027 (commit). | Add a Phase 9 "Verification" task: trigger at least one workflow run per trigger type (workflow_dispatch, label application, PR open) and confirm SC-001/SC-002/SC-004. |
 | F-05 | F. Inconsistency | MEDIUM | Spec §Affected Workflows table | Spec states `speckit-phase-progression.yml` "Request Copilot Review" step is at **lines 553–617**. Actual step starts at **line 590**; line 553 is inside the `create-spec-pr.sh` call. The other two workflow line ranges (339–404, 98–145) are accurate. | Update the table entry to lines 590–650 (approximate end of error-handling block). |
