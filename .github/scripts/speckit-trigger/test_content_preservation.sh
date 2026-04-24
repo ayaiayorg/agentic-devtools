@@ -39,7 +39,7 @@ assert_eq() {
 assert_contains() {
     local test_name="$1" needle="$2" haystack="$3"
     TESTS_RUN=$((TESTS_RUN + 1))
-    if echo "$haystack" | grep -qF "$needle"; then
+    if printf '%s\n' "$haystack" | grep -qF -- "$needle"; then
         echo "  ✓ $test_name"
         PASS=$((PASS + 1))
     else
@@ -120,7 +120,12 @@ append_model_footer() {
 
 _extracted_cp_functions=$(sed -n '/^# ========================== Content Preservation/,/^# ========================== Phase Functions/p' "$SCRIPT_DIR/generate-spec-from-issue.sh" | head -n -1)
 
-# Source the extracted function definitions
+if [[ -z "$_extracted_cp_functions" ]]; then
+    echo "FATAL: Failed to extract Content Preservation functions from generate-spec-from-issue.sh" >&2
+    exit 1
+fi
+
+# Source the extracted function definitions (test-only pattern for isolation)
 # shellcheck disable=SC1090
 source /dev/stdin <<< "$_extracted_cp_functions"
 
@@ -129,7 +134,7 @@ source /dev/stdin <<< "$_extracted_cp_functions"
 # ---------------------------------------------------------------------------
 TEST_TMPDIR=""
 setup_tmpdir() {
-    TEST_TMPDIR=$(mktemp -d)
+    TEST_TMPDIR=$(mktemp -d /tmp/test_content_preservation.XXXXXX)
 }
 teardown_tmpdir() {
     [[ -n "$TEST_TMPDIR" ]] && rm -rf "$TEST_TMPDIR"
@@ -390,7 +395,7 @@ echo "=== Test: safe_write_with_validation ==="
 
 setup_tmpdir
 
-# T24: Successful write replaces original with backup retained
+# T24: Successful write replaces original with backup removed
 cp "$FIXTURE_SPEC" "$TEST_TMPDIR/spec.md"
 original_content=$(cat "$TEST_TMPDIR/spec.md")
 # Create a valid candidate (same content + a small addition)
@@ -401,7 +406,7 @@ candidate_content="${original_content}
 This was added by the clarification step.
 "
 assert_exit_code "successful write passes" 0 safe_write_with_validation "$TEST_TMPDIR/spec.md" "$candidate_content" --type spec
-assert_file_exists "backup retained after success" "$TEST_TMPDIR/spec.md.bak"
+assert_file_not_exists "backup removed after success" "$TEST_TMPDIR/spec.md.bak"
 assert_file_not_exists "tmp cleaned up after success" "$TEST_TMPDIR/spec.md.tmp"
 assert_contains "new content present" "Additional Notes" "$(cat "$TEST_TMPDIR/spec.md")"
 
