@@ -85,6 +85,9 @@ out.json
 raw_comments.json
 parsed_comments.json
 review_request.json
+review-request.txt
+pr-state.txt
+pr-state-iter*.txt
 full_sha.txt
 short_sha.txt
 comments.json
