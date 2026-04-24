@@ -457,7 +457,7 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
-            echo "::error::COPILOT_GITHUB_TOKEN secret is not configured."
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not configured. Add a fine-grained PAT with 'Pull requests: Write' and 'Copilot Requests: Read' permissions, or a classic PAT with 'repo' scope. The token owner must be a repository collaborator with Copilot access."
             exit 1
           fi
           echo "✓ COPILOT_GITHUB_TOKEN is configured"
@@ -593,6 +593,7 @@ jobs:
         continue-on-error: true
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const prNumber = parseInt('${{ steps.create-pr.outputs.pr_number }}', 10);
             const reviewerLogin = 'copilot-pull-request-reviewer';
