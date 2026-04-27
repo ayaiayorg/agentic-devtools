@@ -82,10 +82,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T009 [P] [US3] Ensure the term "semantic anchor" is used consistently throughout `.github/agents/speckit.tasks.agent.md` — remove or replace any occurrences of "content-based anchor", "structural
-  reference", or other legacy location-reference terms
-- [ ] T010 [P] [US3] Ensure the term "semantic anchor" is used consistently throughout `.specify/templates/tasks-template.md` — remove or replace any occurrences of "content-based anchor", "structural
-  reference", or other legacy location-reference terms
+- [ ] T009 [P] [US3] Ensure the term "semantic anchor" is used consistently throughout `.github/agents/speckit.tasks.agent.md` — remove or replace any occurrences of "content-based anchor",
+  "structural reference", or other legacy location-reference terms
+- [ ] T010 [P] [US3] Ensure the term "semantic anchor" is used consistently throughout `.specify/templates/tasks-template.md` — remove or replace any occurrences of "content-based anchor",
+  "structural reference", or other legacy location-reference terms
 
 **Checkpoint**: Unified terminology confirmed across both in-scope files
 
