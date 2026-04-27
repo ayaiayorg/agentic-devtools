@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from agentic_devtools.cli.analysis.identity_scanner import (
@@ -96,7 +98,104 @@ class TestScanIdentityLogs:
         result = scan_identity_logs(tmp_path, "PROJ-1")
         assert [r.identity for r in result] == ["alice", "bob", "charlie"]
 
+    def test_permission_error_on_log_iterdir_skipped(self, tmp_path):
+        """PermissionError when listing log files in a logs dir is handled gracefully."""
+        wf = tmp_path / ".agdt" / "workflows"
+        logs = wf / "alice" / "PROJ-1" / "background-tasks" / "logs"
+        logs.mkdir(parents=True)
+        (logs / "task.log").write_text("data", encoding="utf-8")
+
+        real_iterdir = type(logs).iterdir
+
+        def iterdir_side_effect(self_path):
+            if self_path == logs:
+                raise PermissionError("access denied")
+            return real_iterdir(self_path)
+
+        with patch.object(type(logs), "iterdir", iterdir_side_effect):
+            result = scan_identity_logs(tmp_path, "PROJ-1")
+
+        assert result == []
+
     def test_unsafe_worktree_key_raises(self, tmp_path):
         """Worktree key with path traversal is rejected."""
         with pytest.raises(ValueError, match="not a safe directory segment"):
             scan_identity_logs(tmp_path, "../escape")
+
+    def test_permission_error_on_identity_iterdir_returns_empty(self, tmp_path):
+        """PermissionError when iterating identity dirs → empty list."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "alice" / "PROJ-1" / "background-tasks" / "logs").mkdir(parents=True)
+
+        with patch.object(type(wf), "iterdir", side_effect=PermissionError("denied")):
+            result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert result == []
+
+    def test_non_dir_identity_entry_skipped(self, tmp_path):
+        """Regular files inside workflows/ are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "some_file.txt").write_text("not a dir", encoding="utf-8")
+        logs = wf / "alice" / "PROJ-1" / "background-tasks" / "logs"
+        logs.mkdir(parents=True)
+        (logs / "task.log").write_text("data", encoding="utf-8")
+
+        result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert len(result) == 1
+        assert result[0].identity == "alice"
+
+    def test_unsafe_identity_dir_name_skipped(self, tmp_path):
+        """Identity dirs with unsafe names are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        (wf / "alice" / "PROJ-1" / "background-tasks" / "logs").mkdir(parents=True)
+        (wf / "alice" / "PROJ-1" / "background-tasks" / "logs" / "task.log").write_text("data", encoding="utf-8")
+        # Name with a space is rejected by is_safe_dir_segment
+        bad_logs = wf / "bad name" / "PROJ-1" / "background-tasks" / "logs"
+        bad_logs.mkdir(parents=True)
+        (bad_logs / "task.log").write_text("data", encoding="utf-8")
+
+        result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert len(result) == 1
+        assert result[0].identity == "alice"
+
+    def test_permission_error_on_log_iterdir_continues(self, tmp_path):
+        """PermissionError when iterating log files → identity skipped gracefully."""
+        wf = tmp_path / ".agdt" / "workflows"
+        logs = wf / "alice" / "PROJ-1" / "background-tasks" / "logs"
+        logs.mkdir(parents=True)
+        (logs / "task.log").write_text("data", encoding="utf-8")
+
+        original_iterdir = type(logs).iterdir
+
+        def selective_iterdir(path_self):
+            if path_self == logs:
+                raise PermissionError("denied")
+            return original_iterdir(path_self)
+
+        with patch.object(type(logs), "iterdir", autospec=True, side_effect=selective_iterdir):
+            result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert result == []
+
+    def test_non_file_log_entry_skipped(self, tmp_path):
+        """Directories inside logs/ are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        logs = wf / "alice" / "PROJ-1" / "background-tasks" / "logs"
+        logs.mkdir(parents=True)
+        (logs / "subdir").mkdir()
+        (logs / "task.log").write_text("data", encoding="utf-8")
+
+        result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert len(result) == 1
+        assert "task.log" in result[0].path.name
+
+    def test_os_error_on_getmtime_skips_log(self, tmp_path):
+        """OSError on os.path.getmtime → that log file is skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        logs = wf / "alice" / "PROJ-1" / "background-tasks" / "logs"
+        logs.mkdir(parents=True)
+        (logs / "task.log").write_text("data", encoding="utf-8")
+
+        with patch("os.path.getmtime", side_effect=OSError("cannot stat")):
+            result = scan_identity_logs(tmp_path, "PROJ-1")
+        assert result == []

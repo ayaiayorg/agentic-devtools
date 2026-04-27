@@ -18,6 +18,7 @@ from .commands import (
     speckit_tasks,
     speckit_taskstoissues,
 )
+from .validate_frs import validate_frs_command as speckit_validate_frs
 
 __all__ = [
     "speckit_analyze",
@@ -29,4 +30,5 @@ __all__ = [
     "speckit_specify",
     "speckit_tasks",
     "speckit_taskstoissues",
+    "speckit_validate_frs",
 ]

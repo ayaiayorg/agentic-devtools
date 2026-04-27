@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from agentic_devtools.cli.analysis.identity_scanner import (
     IdentityDir,
     list_identity_directories,
@@ -60,3 +62,46 @@ class TestListIdentityDirectories:
         """No .agdt/workflows/ → empty list."""
         result = list_identity_directories(tmp_path)
         assert result == []
+
+    def test_permission_error_on_iterdir_returns_empty(self, tmp_path):
+        """PermissionError when iterating workflows dir → empty list."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "alice").mkdir()
+
+        with patch.object(type(wf), "iterdir", side_effect=PermissionError("denied")):
+            result = list_identity_directories(tmp_path)
+        assert result == []
+
+    def test_non_dir_entry_skipped(self, tmp_path):
+        """Regular files in workflows/ are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "some_file.txt").write_text("not a dir", encoding="utf-8")
+        (wf / "alice").mkdir()
+
+        result = list_identity_directories(tmp_path)
+        assert len(result) == 1
+        assert result[0].name == "alice"
+
+    def test_unsafe_dir_name_skipped(self, tmp_path):
+        """Identity dirs with unsafe names are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        (wf / "alice").mkdir(parents=True)
+        # Name with a space is rejected by is_safe_dir_segment
+        (wf / "bad name").mkdir(parents=True)
+
+        result = list_identity_directories(tmp_path)
+        assert len(result) == 1
+        assert result[0].name == "alice"
+
+    def test_os_error_reading_owner_file_returns_none_email(self, tmp_path):
+        """OSError reading .identity-owner → owner_email is None."""
+        wf = tmp_path / ".agdt" / "workflows"
+        (wf / "alice").mkdir(parents=True)
+        owner_file = wf / "alice" / ".identity-owner"
+        owner_file.write_text("alice@example.com", encoding="utf-8")
+
+        with patch("pathlib.Path.read_text", side_effect=OSError("cannot read")):
+            result = list_identity_directories(tmp_path)
+        assert result[0].owner_email is None
