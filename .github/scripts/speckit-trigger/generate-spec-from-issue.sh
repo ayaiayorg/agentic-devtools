@@ -16,7 +16,7 @@
 #
 # When --phase is omitted, runs all phases sequentially (backward compatible).
 #
-# Usage: generate-spec-from-issue.sh [--phase <1-5>]
+# Usage: generate-spec-from-issue.sh [--phase <1-5>] [--max-retries <N>]
 #
 # Environment Variables (required):
 #   ISSUE_NUMBER  - The GitHub issue number
@@ -48,6 +48,7 @@ set -euo pipefail
 # Argument parsing: optional --phase <1-5>
 # ---------------------------------------------------------------------------
 PHASE=""
+MAX_RETRIES=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --phase)
@@ -58,6 +59,18 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ ! "$PHASE" =~ ^[1-5]$ ]]; then
                 echo "Error: --phase must be 1-5 (got '$PHASE')" >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        --max-retries)
+            MAX_RETRIES="${2:-}"
+            if [[ -z "$MAX_RETRIES" ]]; then
+                echo "Error: --max-retries requires a value" >&2
+                exit 1
+            fi
+            if [[ ! "$MAX_RETRIES" =~ ^[0-9]+$ ]]; then
+                echo "Error: --max-retries must be a non-negative integer (got '$MAX_RETRIES')" >&2
                 exit 1
             fi
             shift 2
@@ -2150,6 +2163,19 @@ WRONG: \"Certainly! Here is...\"
 CORRECT: \"# Tasks: Feature Name\"
 Do NOT include any conversational preamble before the heading."
 
+    # Append FR retry feedback if set by run_fr_validation_with_retry
+    if [[ -n "${SPECKIT_FR_RETRY_FEEDBACK:-}" ]]; then
+        prompt="$prompt
+
+## IMPORTANT: FR Coverage Feedback (Retry)
+
+$SPECKIT_FR_RETRY_FEEDBACK
+
+You MUST ensure that every FR identifier listed above appears at least once in the task descriptions."
+        # Clear feedback after use so it doesn't persist across retries
+        unset SPECKIT_FR_RETRY_FEEDBACK
+    fi
+
     local result
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
@@ -2167,6 +2193,139 @@ Do NOT include any conversational preamble before the heading."
 }
 
 # ---------------------------------------------------------------------------
+# Resolve FR validation retry budget (single source of truth)
+# Precedence: --max-retries CLI arg > SPECKIT_VALIDATE_MAX_RETRIES env > default 2
+# ---------------------------------------------------------------------------
+if [[ -n "$MAX_RETRIES" ]]; then
+    FR_VALIDATION_MAX_RETRIES="$MAX_RETRIES"
+elif [[ -n "${SPECKIT_VALIDATE_MAX_RETRIES:-}" ]]; then
+    if [[ "$SPECKIT_VALIDATE_MAX_RETRIES" =~ ^[0-9]+$ ]]; then
+        FR_VALIDATION_MAX_RETRIES="$SPECKIT_VALIDATE_MAX_RETRIES"
+    else
+        echo "Warning: ignoring invalid SPECKIT_VALIDATE_MAX_RETRIES='$SPECKIT_VALIDATE_MAX_RETRIES'; using default 2" >&2
+        FR_VALIDATION_MAX_RETRIES=2
+    fi
+else
+    FR_VALIDATION_MAX_RETRIES=2
+fi
+
+# ---------------------------------------------------------------------------
+# run_fr_validation
+#
+# Calls the Python FR coverage validator and captures JSON output to
+# $SPEC_DIR/fr-coverage.json.  Stderr is captured to a temp file and
+# cleaned up on exit.  Returns the validator exit code:
+#   0 = all FRs covered (or no FRs found — warning)
+#   1 = uncovered FRs detected
+#   2 = operational error
+# ---------------------------------------------------------------------------
+run_fr_validation() {
+    echo ""
+    echo "=== FR Coverage Validation ==="
+    local fr_rc=0
+    local fr_stderr_log
+    fr_stderr_log=$(mktemp)
+    agdt-speckit-validate-frs \
+        --spec-file "$SPEC_DIR/spec.md" \
+        --tasks-file "$SPEC_DIR/tasks.md" \
+        --json \
+        --max-retries "$FR_VALIDATION_MAX_RETRIES" \
+        > "$SPEC_DIR/fr-coverage.json" \
+        2> "$fr_stderr_log" || fr_rc=$?
+
+    if [[ "$fr_rc" -eq 0 ]]; then
+        echo "✓ FR coverage validation passed"
+        rm -f "$fr_stderr_log"
+    elif [[ "$fr_rc" -eq 1 ]]; then
+        echo "✗ FR coverage validation failed — uncovered FRs detected" >&2
+        cat "$SPEC_DIR/fr-coverage.json" >&2
+        rm -f "$fr_stderr_log"
+    elif [[ "$fr_rc" -eq 2 ]]; then
+        echo "Error: FR coverage validation encountered an operational error" >&2
+        if [[ -s "$fr_stderr_log" ]]; then
+            echo "Validator stderr:" >&2
+            cat "$fr_stderr_log" >&2
+        fi
+        rm -f "$fr_stderr_log"
+    else
+        echo "Error: FR coverage validator returned unexpected exit code: $fr_rc" >&2
+        if [[ -s "$fr_stderr_log" ]]; then
+            echo "Validator stderr:" >&2
+            cat "$fr_stderr_log" >&2
+        fi
+        rm -f "$fr_stderr_log"
+    fi
+    return "$fr_rc"
+}
+
+# ---------------------------------------------------------------------------
+# run_fr_validation_with_retry
+#
+# Runs FR validation against the current tasks.md and retries only when
+# uncovered FRs are reported.
+# The initial run_tasks_phase happens before this function is called; on each
+# retry after a validation failure, this function extracts uncovered FRs from
+# JSON and re-invokes run_tasks_phase with an augmented prompt listing the
+# missing FRs, then validates again.
+# Uses FR_VALIDATION_MAX_RETRIES as the retry budget.
+# ---------------------------------------------------------------------------
+run_fr_validation_with_retry() {
+    local attempt=0
+    local fr_rc=0
+
+    while true; do
+        fr_rc=0
+        run_fr_validation || fr_rc=$?
+
+        if [[ "$fr_rc" -eq 0 ]]; then
+            return 0
+        elif [[ "$fr_rc" -ne 1 ]]; then
+            echo "Error: FR validation encountered an operational error (exit code: $fr_rc)" >&2
+            return 2
+        fi
+
+        # fr_rc == 1: uncovered FRs
+        attempt=$((attempt + 1))
+        if [[ "$attempt" -gt "$FR_VALIDATION_MAX_RETRIES" ]]; then
+            echo "Error: FR coverage validation failed after $FR_VALIDATION_MAX_RETRIES retry attempt(s)" >&2
+            echo "Uncovered FRs remain:" >&2
+            if [[ -f "$SPEC_DIR/fr-coverage.json" ]]; then
+                python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+for fr in data.get('uncovered', []):
+    print(f'  - {fr}', file=sys.stderr)
+" "$SPEC_DIR/fr-coverage.json" 1>&2 || true
+            fi
+            return 1
+        fi
+
+        echo ""
+        echo "=== FR Coverage Retry ($attempt/$FR_VALIDATION_MAX_RETRIES) ==="
+
+        # Extract uncovered FRs for the retry prompt
+        local uncovered_list=""
+        if [[ -f "$SPEC_DIR/fr-coverage.json" ]]; then
+            uncovered_list=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(', '.join(data.get('uncovered', [])))
+" "$SPEC_DIR/fr-coverage.json" 2>/dev/null || echo "")
+        fi
+
+        echo "Re-running tasks phase with feedback about uncovered FRs: $uncovered_list"
+
+        # Set retry context for the tasks phase
+        export SPECKIT_FR_RETRY_FEEDBACK="The following functional requirements from spec.md are NOT covered by any task in tasks.md: $uncovered_list. Please regenerate tasks.md ensuring every FR has at least one corresponding task."
+
+        COPILOT_TIMEOUT=900 run_tasks_phase || {
+            echo "Error: Tasks phase failed during FR coverage retry" >&2
+            return 1
+        }
+    done
+}
+
+# ---------------------------------------------------------------------------
 # run_analyze_phase
 #
 # Cross-artifact consistency analysis producing analysis-report.md.
@@ -2176,6 +2335,23 @@ run_analyze_phase() {
     spec_content=$(strip_model_footer "$(cat "$SPEC_DIR/spec.md")")
     plan_content=$(strip_model_footer "$(cat "$SPEC_DIR/plan.md")")
     tasks_content=$(strip_model_footer "$(cat "$SPEC_DIR/tasks.md")")
+
+    # Inject FR coverage data if available (produced by run_fr_validation)
+    local fr_coverage_context=""
+    if [[ -f "$SPEC_DIR/fr-coverage.json" ]]; then
+        fr_coverage_context="
+
+## FR Coverage Data (Deterministic — Pre-Validated)
+
+The following FR coverage data was produced by the deterministic FR validator
+(\`agdt-speckit-validate-frs\`). Report this data as-is in the Coverage Summary
+section. Do not re-evaluate FR coverage — use these results directly.
+
+\`\`\`json
+$(cat "$SPEC_DIR/fr-coverage.json")
+\`\`\`
+"
+    fi
 
     local prompt
     prompt="You are a specification quality analyst. Perform a cross-artifact consistency and quality analysis across the following specification, plan, and task list.
@@ -2236,7 +2412,7 @@ $plan_content
 
 ## Task List
 $tasks_content
-
+$fr_coverage_context
 CRITICAL: Your output MUST begin with a markdown heading on the very first line.
 WRONG: \"Here is the analysis...\"
 WRONG: \"Certainly! Here is...\"
@@ -2372,6 +2548,14 @@ run_single_phase() {
             log_file_header "Phase 4" "$SPEC_DIR/tasks.md"
             echo "✓ Phase 4 complete: tasks.md"
 
+            # FR coverage validation gate with retry loop
+            fr_validation_rc=0
+            run_fr_validation_with_retry || fr_validation_rc=$?
+            if [[ "$fr_validation_rc" -ne 0 ]]; then
+                echo "Error: FR coverage validation failed — tasks PR blocked" >&2
+                exit "$fr_validation_rc"
+            fi
+
             echo ""
             echo "=== Markdownlint Validation ==="
             quick_markdown_sanity_check "$SPEC_DIR"
@@ -2468,6 +2652,14 @@ else
     COPILOT_TIMEOUT=900 run_tasks_phase || { echo "Error: Tasks phase failed after retries" >&2; exit 1; }
     log_file_header "Phase 5" "$SPEC_DIR/tasks.md"
     echo "✓ Phase 5 complete: tasks.md"
+
+    # FR coverage validation gate with retry loop (between tasks and analyze)
+    fr_validation_rc=0
+    run_fr_validation_with_retry || fr_validation_rc=$?
+    if [[ "$fr_validation_rc" -ne 0 ]]; then
+        echo "Error: FR coverage validation failed — tasks PR blocked" >&2
+        exit "$fr_validation_rc"
+    fi
 
     echo ""
     echo "=== Phase 6/7: Analyze ==="

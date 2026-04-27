@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from agentic_devtools.cli.analysis.context_resolver import (
@@ -71,3 +73,35 @@ class TestListWorktreeStateDirs:
         """Worktree key with path traversal is rejected."""
         with pytest.raises(ValueError, match="not a safe directory segment"):
             list_worktree_state_dirs(tmp_path, "../escape")
+
+    def test_permission_error_on_iterdir_returns_empty(self, tmp_path):
+        """PermissionError when iterating workflows dir → empty list."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "alice" / "PROJ-1").mkdir(parents=True)
+
+        with patch.object(type(wf), "iterdir", side_effect=PermissionError("denied")):
+            result = list_worktree_state_dirs(tmp_path, "PROJ-1")
+        assert result == []
+
+    def test_non_dir_entry_in_workflows_skipped(self, tmp_path):
+        """Regular files inside .agdt/workflows/ are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "some_file.txt").write_text("not a dir", encoding="utf-8")
+        (wf / "alice" / "PROJ-1").mkdir(parents=True)
+
+        result = list_worktree_state_dirs(tmp_path, "PROJ-1")
+        assert len(result) == 1
+        assert result[0].identity == "alice"
+
+    def test_unsafe_identity_dir_name_skipped(self, tmp_path):
+        """Identity dirs with unsafe names (path traversal) are skipped."""
+        wf = tmp_path / ".agdt" / "workflows"
+        (wf / "alice" / "PROJ-1").mkdir(parents=True)
+        # Name with a space is rejected by is_safe_dir_segment
+        (wf / "bad name" / "PROJ-1").mkdir(parents=True)
+
+        result = list_worktree_state_dirs(tmp_path, "PROJ-1")
+        assert len(result) == 1
+        assert result[0].identity == "alice"

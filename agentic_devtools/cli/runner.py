@@ -356,6 +356,10 @@ COMMAND_MAP = {
     "agdt-speckit-analyze": ("agentic_devtools.cli.speckit", "speckit_analyze"),
     "agdt-speckit-constitution": ("agentic_devtools.cli.speckit", "speckit_constitution"),
     "agdt-speckit-taskstoissues": ("agentic_devtools.cli.speckit", "speckit_taskstoissues"),
+    "agdt-speckit-validate-frs": (
+        "agentic_devtools.cli.speckit",
+        "speckit_validate_frs",
+    ),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Setup

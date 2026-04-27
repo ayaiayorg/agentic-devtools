@@ -60,6 +60,14 @@ Load only the minimal necessary context from each artifact:
 - Parallel markers [P]
 - Referenced file paths
 
+**From fr-coverage.json (if present in FEATURE_DIR):**
+
+- Load `FEATURE_DIR/fr-coverage.json` if it exists
+- This file contains deterministic FR coverage data produced by `agdt-speckit-validate-frs`
+- The data is pre-validated and should be reported as-is in the Coverage Summary section
+- Do **not** re-evaluate FR coverage — use these results directly
+- Include the `covered` and `uncovered` FR lists in the Coverage Gaps detection pass
+
 **From constitution:**
 
 - Load `.specify/memory/constitution.md` for principle validation
@@ -104,6 +112,9 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Requirements with zero associated tasks
 - Tasks with no mapped requirement/story
 - Non-functional requirements not reflected in tasks (e.g., performance, security)
+- **FR coverage data**: If `fr-coverage.json` was loaded, use its deterministic
+  `covered`/`uncovered` lists as the authoritative source for FR-to-task coverage.
+  Report any `uncovered` FRs as coverage gap findings (severity depends on context).
 
 #### F. Inconsistency
 
