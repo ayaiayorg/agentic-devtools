@@ -128,6 +128,24 @@ Every task MUST strictly follow this format:
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
 
+### Location References
+
+Tasks MUST use **semantic anchors** — not hardcoded line numbers — when describing where to edit a file.
+
+**Acceptable anchors for code files**: function/method/class names, constants, decorators, import blocks, test names, comment markers.
+
+**Acceptable anchors for non-code files**: headings, YAML/JSON key paths, table sections, bullet groups, recognizable text blocks.
+
+**Insertion points**: Use "before/after/inside/under" a named landmark (e.g., "after the imports block", "inside the `MyClass` definition").
+
+**Cross-task references**: When a later task depends on something introduced earlier, reference it explicitly
+(e.g., "the helper introduced in T005", "the `build_anchor` function created in the previous step").
+
+**Disambiguation**: When an anchor is ambiguous, include surrounding context (e.g., "the `validate` method in `RequestHandler`", not just "the `validate` method").
+
+- ❌ `(line 73)`, `(~lines 42-57)` — bare line numbers are brittle and break when earlier tasks modify the file
+- ✅ `in the _execute_merge() function`, `under the ## Dependencies heading`
+
 ### Phase Structure
 
 - **Phase 1**: Setup (project initialization)
