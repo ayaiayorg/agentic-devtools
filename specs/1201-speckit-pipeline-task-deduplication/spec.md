@@ -19,9 +19,9 @@ This spec expands the original summary into the repository's standard Phase 1 fo
   users better signal-to-noise ratio and avoids alert fatigue. The source issue's blanket `CRITICAL` proposal was a simplification; graduated severity is the more defensible design for a
   detection-only phase.
 - Q: What qualitative criteria define "match strongly" for each comparison dimension (description similarity, file path overlap, code section overlap), given that numeric thresholds are deferred to
-  Phase 3 (plan)? → A: Define qualitative criteria now, defer numeric thresholds to Phase 3 (plan). **Description similarity**: tasks express substantially the same intent or outcome (not merely sharing
-  keywords). **File path overlap**: tasks target a majority of the same files or directories. **Code section overlap**: tasks name the same function, class, method, or module-level section.
-  Each dimension is evaluated independently; a strong match on any single dimension is sufficient to contribute to a finding.
+  Phase 3 (plan)? → A: Define qualitative criteria now, defer numeric thresholds to Phase 3 (plan). **Description similarity**: tasks express substantially the same intent or outcome
+  (not merely sharing keywords). **File path overlap**: tasks target a majority of the same files or directories. **Code section overlap**: tasks name the same function, class, method,
+  or module-level section. Each dimension is evaluated independently; a strong match on any single dimension is sufficient to contribute to a finding.
 - Q: Should the similarity threshold be fixed at implementation time or configurable from the start? → A: Start with fixed thresholds baked into the implementation. Configurability adds complexity
   without proven need. If real-world usage reveals that the fixed thresholds produce too many false positives or false negatives, configurability can be added in a future phase as a
   backward-compatible enhancement.
