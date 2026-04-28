@@ -109,8 +109,8 @@ parallel
   T012, T013)
   T012, T013)
 
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
+- [ ] T015 [US1] Implement [endpoint/feature] in the [route handler/controller] in src/[location]/[file].py
+- [ ] T016 [US1] Add validation and error handling in the [Service] class in src/services/[service].py
 - [ ] T017 [US1] Add logging for user story 1 operations
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and
@@ -140,7 +140,7 @@ testable independently
 
 - [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
 - [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T022 [US2] Implement [endpoint/feature] in the [route handler/controller] in src/[location]/[file].py
 - [ ] T023 [US2] Integrate with User Story 1 components (if needed)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work
@@ -170,7 +170,7 @@ independently
 
 - [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
 - [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T028 [US3] Implement [endpoint/feature] in the [route handler/controller] in src/[location]/[file].py
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -306,3 +306,23 @@ With multiple developers:
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break
   independence
+
+### Location References
+
+Describe edit locations using **semantic anchors**, not line numbers. Semantic
+anchors remain stable when earlier tasks insert or remove lines.
+
+**Before → After examples**:
+
+- ❌ `Add error handling after line 30 in src/services/auth.py`
+  ✅ ``Add error handling in the `authenticate` function in src/services/auth.py``
+- ❌ `Insert a new section at line 57 in docs/configuration.md`
+  ✅ `Insert a new section under the ## Environment Variables heading in docs/configuration.md`
+- ❌ `Update lines 12-18 in src/models/user.py`
+  ✅ ``Update the `validate_email` method (introduced in T005) in src/models/user.py``
+
+**Edge cases**: If a file has no recognizable landmarks (e.g., auto-generated
+content), describe the location by surrounding content or file-level placement
+(e.g., "at the end of the file", "below the first import block"). When an
+anchor is ambiguous, include enough context to disambiguate (e.g., "the
+`validate` method in `RequestHandler`", not just "the `validate` method").
