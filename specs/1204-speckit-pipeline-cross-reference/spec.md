@@ -22,8 +22,8 @@ This detection pass integrates as **Pass G** in the existing A–F framework of 
 - Q: Which phrases or patterns should count as sufficiently explicit markers that a missing symbol is intentionally new rather than an invalid reference (FR-006)? → A: The following case-insensitive
   verb phrases preceding or surrounding a symbol reference constitute new-symbol intent markers:
   "create", "add", "introduce", "implement", "define", "scaffold", "generate", "write", "build",
-  "set up", "register", "wire up". These must appear in the same plan step or sentence as the symbol reference. Noun phrases such as "new file", "new class", "new function", "new module", "new command"
-  adjacent to a symbol also qualify. The marker list MUST be defined as a named constant with a default value, making it straightforward to update in a single location.
+  "set up", "register", "wire up". These must appear in the same plan step or sentence as the symbol reference. Noun phrases such as "new file", "new class", "new function", "new module",
+  "new command" adjacent to a symbol also qualify. The marker list MUST be defined as a named constant with a default value, making it straightforward to update in a single location.
 - Q: Is `rapidfuzz` acceptable as a third-party dependency if `difflib.SequenceMatcher` does not provide adequate suggestion quality, or must the implementation remain standard-library-only (NFR-003)?
   → A: The initial implementation MUST use `difflib.SequenceMatcher` from the standard library. If measurable evidence from the PR #1177 validation baseline demonstrates that `difflib` produces
   materially worse suggestion quality (e.g., fails to surface the correct candidate in the top 3 for ≥ 30% of known misspelled references), then `rapidfuzz` MAY be introduced as an optional dependency
