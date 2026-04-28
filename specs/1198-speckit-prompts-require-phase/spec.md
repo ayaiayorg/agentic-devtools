@@ -6,6 +6,34 @@
 **Input**: User description: "Require phase mapping table when plan and tasks use different numbering"
 **Source Issue**: #1198 (<https://github.com/ayaiayorg/agentic-devtools/issues/1198>)
 
+## Clarifications
+
+### Session 2026-04-28
+
+- Q: The tasks template (`tasks-template.md`) does not currently have a "User Story Mapping" section — where exactly should the Phase Mapping table placeholder be placed in the template? → A: The
+  Phase Mapping table placeholder should be placed immediately after the "Path Conventions" section (and its closing HTML comment block) and before the "Phase 1: Setup" heading. If a User Story
+  Mapping section is added in the future, the Phase Mapping table follows it. The FR-003 placement rule ("after any User Story Mapping section") remains correct as a forward-compatible instruction for
+  generated `tasks.md` files, while the template placement is anchored to the existing structure.
+
+- Q: FR-005 requires the template to always include a Phase Mapping placeholder, but FR-001 says the table is only required "when the task phases use different numbering." Should the template
+  placeholder be unconditional (always present in template with a conditional-inclusion comment) or conditional? → A: The template placeholder is unconditional — it is always present in
+  `tasks-template.md` as a structural example with an HTML comment explaining when the LLM should populate vs. omit it. The generation prompt (FR-001) instructs the LLM to populate the table when
+  phases differ and to either omit it or include a single-line "phases are aligned" note when they match.
+
+- Q: Since this feature targets LLM prompt guidance (not programmatic validation), how should the `speckit.analyze` agent determine whether phases "differ" between plan.md and tasks.md — by phase
+  count alone, by heading text comparison, or by semantic assessment? → A: The analyze agent uses LLM-based semantic assessment (consistent with all other analyze checks). It compares phase headings
+  and counts between `plan.md` and `tasks.md`. Phases are considered "different" when either (a) the phase count differs, or (b) the phase headings indicate different organizational schemes (e.g.,
+  domain-driven vs. story-driven). This is an LLM judgment call, not a programmatic string comparison, matching the existing analyze agent design.
+
+- Q: The spec references the agent file as `speckit.tasks.agent.md` and the command template as `.specify/templates/commands/tasks.md` — should the Phase Mapping instruction also be added to the CLI
+  command template at `.specify/templates/commands/tasks.md` (step 4, "Generate tasks.md") in addition to the agent file, since both are used depending on invocation path? → A: Yes, both files must be
+  updated. FR-009 already requires this ("present in both the GitHub agent file and the CLI command template"). The agent file (`.github/agents/speckit.tasks.agent.md`) is used by VS Code Copilot Chat
+  `/speckit.tasks`, while the CLI command template (`.specify/templates/commands/tasks.md`) is used by the CLI invocation. Both must contain the Phase Mapping instruction for consistency.
+
+- Q: For the edge case where `plan.md` has no explicit phase headings, should the Phase Mapping table reference plan section headings verbatim (e.g., "§ Design Overview") or should it use a normalized
+  label format? → A: The Phase Mapping table should reference plan section headings verbatim as they appear in `plan.md` (e.g., "Design Overview", "Integration Layer"). No normalization prefix like
+  "§" is required. This preserves traceability — the reader can search for the exact heading in `plan.md`. The edge case section has been updated to reflect this.
+
 ## Problem Statement
 
 All three recent SpecKit PRs (#1009, #1177, #1178) exhibited phase numbering mismatches between `plan.md` and `tasks.md`.
@@ -26,9 +54,14 @@ so it is always present rather than discovered post-hoc by `/speckit.analyze`.
 
 - Updating the `speckit.tasks` generation prompts to mandate a Phase Mapping table
   in `tasks.md` when phase numbering differs from `plan.md`
+  - Both the GitHub agent file (`.github/agents/speckit.tasks.agent.md`) and
+    the CLI command template (`.specify/templates/commands/tasks.md`) must be updated
 - Updating the `speckit.analyze` detection rules to explicitly flag missing phase mapping
-  as a finding
-- Updating the `tasks-template.md` to include a Phase Mapping table placeholder
+  as a finding (using LLM-based semantic assessment of phase headings and counts,
+  consistent with the existing analyze agent design)
+- Updating the `tasks-template.md` (`.specify/templates/tasks-template.md`) to include
+  a Phase Mapping table placeholder positioned after the "Path Conventions" section
+  and before the "Phase 1: Setup" heading
 
 **Out of scope:**
 
@@ -112,13 +145,15 @@ of a Phase Mapping section with the correct table format and guidance comments.
 1. **Given** the current `tasks-template.md` without a Phase Mapping section,
    **When** this feature is implemented,
    **Then** `tasks-template.md` contains a "Phase Mapping: Plan → Tasks" section positioned
-   after the format/organization preamble and before "Phase 1: Setup", with a table showing
-   the expected column headers (`Tasks Phase`, `Plan Phase(s)`, `Description`) and example rows.
+   after the "Path Conventions" section (and its closing HTML comment block) and before
+   "Phase 1: Setup", with a table showing the expected column headers
+   (`Tasks Phase`, `Plan Phase(s)`, `Description`) and example rows.
 
 2. **Given** the updated `tasks-template.md`,
    **When** a developer reads the template,
    **Then** the section includes an HTML comment explaining when the table is required
-   (always when phase numbering differs) and the expected format.
+   (always when phase numbering or organizational scheme differs) and when it may be
+   omitted (only when phases are 1:1 aligned in both count and semantics).
 
 ---
 
@@ -132,6 +167,12 @@ so that the mismatch is caught systematically rather than relying on ad-hoc revi
 **Why this priority**: This is a defense-in-depth measure. Even with the prompt update (US1),
 LLMs may occasionally omit the table. The analyze pass provides a safety net.
 It has the same priority as US2 because both reinforce the core behavior.
+
+**Detection heuristic**: The analyze agent uses LLM-based semantic assessment (consistent
+with all other analyze checks). Phases are considered "different" when either (a) the phase
+count differs between `plan.md` and `tasks.md`, or (b) the phase headings indicate different
+organizational schemes (e.g., domain-driven vs. story-driven). This is an LLM judgment call,
+not a programmatic string comparison.
 
 **Independent Test**: Can be tested by running `/speckit.analyze` against a `tasks.md`
 that has different phase numbering from its `plan.md` but lacks a Phase Mapping table,
@@ -175,7 +216,8 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
 
 **Acceptance Scenarios**:
 
-1. **Given** the current `speckit.tasks.agent.md` agent file,
+1. **Given** the current `speckit.tasks.agent.md` agent file
+   (`.github/agents/speckit.tasks.agent.md`),
    **When** this feature is implemented,
    **Then** the "Phase Structure" section includes a rule stating:
    "If the task list uses different phase numbering than the plan, include a Phase Mapping table
@@ -197,8 +239,10 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
 
 - **What happens when `plan.md` has no explicit phase headings?**
   The Phase Mapping table should still be generated if the tasks file has multiple phases.
-  The "Plan Phase(s)" column should reference the relevant plan sections by name or heading
-  (e.g., "§3 Design Overview" or "Integration section") rather than numbered phases.
+  The "Plan Phase(s)" column should reference the relevant plan section headings verbatim
+  as they appear in `plan.md` (e.g., "Design Overview", "Integration Layer") rather than
+  numbered phases. This preserves traceability — the reader can search for the exact
+  heading in `plan.md`.
 
 - **What happens when the plan uses sub-phases (e.g., Phase 1a, 1b, 1c)?**
   The mapping table should reference sub-phases at the granularity used in the plan
@@ -220,22 +264,29 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
 
 - **FR-001**: The `speckit.tasks` generation prompts MUST instruct the LLM to include
   a "Phase Mapping: Plan → Tasks" table in `tasks.md` when the task phases use different
-  numbering or organization than the plan phases.
+  numbering or organization than the plan phases. Phases are considered "different" when
+  either the phase count differs or the phase headings indicate different organizational
+  schemes (e.g., domain-driven vs. story-driven).
 
 - **FR-002**: The Phase Mapping table MUST use three columns:
   `Tasks Phase`, `Plan Phase(s)`, and `Description`.
 
 - **FR-003**: The Phase Mapping table MUST be placed in `tasks.md` after any
   User Story Mapping section and before the first phase heading (Phase 1: Setup).
+  In the template (`tasks-template.md`), the placeholder is positioned after the
+  "Path Conventions" section and before "Phase 1: Setup".
 
 - **FR-004**: Each row in the Phase Mapping table MUST map exactly one task phase
-  to one or more plan phases, using the plan's own phase numbering or heading names.
+  to one or more plan phases, using the plan's own phase numbering or heading names
+  verbatim as they appear in `plan.md`.
 
-- **FR-005**: The `tasks-template.md` MUST include a Phase Mapping section
-  with placeholder rows demonstrating the expected format.
+- **FR-005**: The `tasks-template.md` MUST include an unconditional Phase Mapping
+  section with placeholder rows demonstrating the expected format and an HTML comment
+  explaining when the LLM should populate the table vs. omit it in generated output.
 
 - **FR-006**: The `speckit.analyze` detection rules MUST include a check for missing
-  Phase Mapping tables when `plan.md` and `tasks.md` phase structures differ.
+  Phase Mapping tables when `plan.md` and `tasks.md` phase structures differ,
+  using LLM-based semantic assessment of phase headings and counts.
 
 - **FR-007**: The `speckit.analyze` agent MUST classify a missing Phase Mapping table
   as severity "HIGH" under category "F. Inconsistency".
@@ -245,7 +296,7 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
   flagging stale references as severity "MEDIUM".
 
 - **FR-009**: The Phase Mapping instruction MUST be present in both the GitHub agent file
-  (`speckit.tasks.agent.md`) and the CLI command template
+  (`.github/agents/speckit.tasks.agent.md`) and the CLI command template
   (`.specify/templates/commands/tasks.md`) to ensure consistency across invocation paths.
 
 - **FR-010**: The `speckit.tasks` prompts MUST include at least one concrete example
@@ -268,6 +319,8 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
 - **Phase Mapping Table**: A markdown table in `tasks.md` that cross-references task phases
   to plan phases. Contains columns for task phase identifier, corresponding plan phase(s),
   and a brief description. Serves as the traceability bridge between the two artifacts.
+  The template includes an unconditional placeholder; the generated output populates or omits
+  it based on whether phases differ.
 
 - **Task Phase**: A numbered section in `tasks.md` organizing tasks by execution stage
   (Setup → Foundational → User Stories → Polish).
@@ -276,6 +329,8 @@ and `.specify/templates/commands/tasks.md` for the presence of Phase Mapping ins
 - **Plan Phase**: A numbered section in `plan.md` organizing implementation work
   by domain concern (e.g., Core Module, Integration, Testing).
   Numbering is determined by the feature's technical architecture.
+  When `plan.md` uses section headings instead of numbered phases, those headings
+  are referenced verbatim in the Phase Mapping table.
 
 ---
 
