@@ -32,7 +32,8 @@
 
 Pass G has **three integration surfaces**:
 
-1. **CI pipeline analyze prompt** — Update `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` (`run_analyze_phase`) so the pipeline-owned analyze prompt executes Pass G during CI spec generation.
+1. **CI pipeline analyze prompt** — Update `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` (`run_analyze_phase`) so the pipeline-owned analyze prompt executes Pass G during CI spec
+   generation.
 2. **Local agent prompt extension** — Add matching Pass G instructions to `.github/agents/speckit.analyze.agent.md` so the local `agdt-speckit-analyze` flow stays behaviorally aligned with CI.
 3. **Python library modules** — Provide deterministic Python utilities (symbol extraction, fuzzy matching, reference extraction) that can be invoked by the agent via CLI or imported directly for
    testing and future automation.
