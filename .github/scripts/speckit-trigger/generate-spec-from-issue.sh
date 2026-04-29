@@ -1538,6 +1538,40 @@ safe_write_with_validation() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# capture_missing_mandatory_sections <original_file> <candidate_content>
+#
+# Compares the candidate content against the MANDATORY_SECTIONS array and
+# returns (prints to stdout) a comma-separated list of missing section names.
+# Used by run_clarify_phase() to build retry feedback for the LLM.
+# ---------------------------------------------------------------------------
+capture_missing_mandatory_sections() {
+    local original_file="$1"
+    local candidate_content="$2"
+    local tmp_check
+    tmp_check=$(mktemp "${original_file}.missing_check.XXXXXX") || {
+        echo "Error: capture_missing_mandatory_sections: failed to create temp file near ${original_file}" >&2
+        return 1
+    }
+    if ! printf '%s\n' "$candidate_content" > "$tmp_check"; then
+        echo "Error: capture_missing_mandatory_sections: failed to write candidate content to $tmp_check" >&2
+        rm -f "$tmp_check"
+        return 1
+    fi
+    local candidate_headings
+    candidate_headings=$(extract_section_headings "$tmp_check")
+    local missing=""
+    for section in "${MANDATORY_SECTIONS[@]}"; do
+        local normalized
+        normalized=$(echo "$section" | sed -E 's/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$//' | sed 's/[[:space:]]*$//')
+        if ! echo "$candidate_headings" | grep -qxF "$normalized"; then
+            missing="${missing}${missing:+, }${normalized}"
+        fi
+    done
+    rm -f "$tmp_check"
+    printf '%s' "$missing"
+}
+
 # ========================== Phase Functions ==================================
 
 # ---------------------------------------------------------------------------
@@ -1687,24 +1721,121 @@ WRONG: \"Certainly! Here is...\"
 CORRECT: \"# Spec: Feature Name\"
 Do NOT include any conversational preamble before the heading."
 
+    # --- LLM call with validation retry loop ---
+    local clarify_attempt=0
+    local clarify_max_retries="$FR_VALIDATION_MAX_RETRIES"
+    local clarify_retry_feedback=""
     local result
-    result=$(call_llm "$prompt") || return 1
-    if [[ -z "$result" ]]; then
-        echo "Error: Clarify phase returned empty content" >&2
-        return 1
-    fi
-    result=$(strip_llm_preamble "$result" "# ")
-    if [[ -z "${result//[[:space:]]/}" ]]; then
-        echo "Error: Clarify phase returned blank content after preamble stripping" >&2
-        return 1
-    fi
-    result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
 
-    # --- Safe write with validation (FR-006, FR-007) ---
-    if ! safe_write_with_validation "$spec_file" "$result" --type spec; then
-        echo "Error: Clarify phase output failed structural validation. Original spec.md preserved." >&2
+    while true; do
+        # Build prompt (with retry feedback if set)
+        local full_prompt="$prompt"
+        if [[ -n "$clarify_retry_feedback" ]]; then
+            full_prompt="RETRY CONTEXT — PREVIOUS ATTEMPT FAILED VALIDATION:
+${clarify_retry_feedback}
+You MUST fix ALL of the above issues in your output this time.
+
+${prompt}"
+        fi
+
+        result=$(call_llm "$full_prompt") || return 1
+        if [[ -z "$result" ]]; then
+            echo "Error: Clarify phase returned empty content" >&2
+            return 1
+        fi
+        result=$(strip_llm_preamble "$result" "# ")
+        if [[ -z "${result//[[:space:]]/}" ]]; then
+            echo "Error: Clarify phase returned blank content after preamble stripping" >&2
+            return 1
+        fi
+        result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
+
+        # --- Diagnostic logging before validation ---
+        local _diag_tmp
+        if ! _diag_tmp=$(mktemp "${spec_file}.diag.XXXXXX.tmp"); then
+            echo "Error: Clarify phase failed to create a diagnostic temp file for validation logging" >&2
+            return 1
+        fi
+        if ! printf '%s\n' "$result" > "$_diag_tmp"; then
+            rm -f "$_diag_tmp"
+            echo "Error: Clarify phase failed to write diagnostic content to temporary file '$_diag_tmp'" >&2
+            return 1
+        fi
+        echo "[Clarify] Candidate section headings:" >&2
+        extract_section_headings "$_diag_tmp" >&2 || true
+        log_file_header "Clarify" "$_diag_tmp" || true
+        rm -f "$_diag_tmp"
+
+        # --- Distinguish structural validation failures from write failures ---
+        local _missing_sections
+        if ! _missing_sections=$(capture_missing_mandatory_sections "$spec_file" "$result"); then
+            echo "Error: Clarify phase mandatory-section validation failed unexpectedly. Original spec.md preserved." >&2
+            return 1
+        fi
+        if [[ -n "$_missing_sections" ]]; then
+            clarify_retry_feedback="The following mandatory sections are MISSING from your previous output: ${_missing_sections}
+You MUST include ALL of the above missing sections in your output this time."
+            clarify_attempt=$((clarify_attempt + 1))
+
+            if [[ "$clarify_attempt" -gt "$clarify_max_retries" ]]; then
+                echo "Error: Clarify phase output failed structural validation after $clarify_max_retries retry(ies). Original spec.md preserved." >&2
+                echo "Missing mandatory sections: $_missing_sections" >&2
+                return 1
+            fi
+
+            echo "[Clarify] Validation retry $clarify_attempt/$clarify_max_retries — missing sections: $_missing_sections" >&2
+            continue
+        fi
+
+        # The mandatory-section check above is narrower than the full validation
+        # performed by safe_write_with_validation. Pre-validate with
+        # validate_structural_integrity before calling safe_write_with_validation
+        # to avoid accumulating stale .bak* backup files from failed attempts.
+        local _preval_tmp _preval_err validation_failure_reasons
+        _preval_tmp=$(mktemp "${spec_file}.preval.XXXXXX") || {
+            echo "Error: Clarify phase failed to create temp file for pre-validation" >&2
+            return 1
+        }
+        _preval_err=$(mktemp "${spec_file}.preval.err.XXXXXX") || {
+            rm -f "$_preval_tmp"
+            echo "Error: Clarify phase failed to create temp file for validation diagnostics" >&2
+            return 1
+        }
+        if ! printf '%s\n' "$result" > "$_preval_tmp"; then
+            rm -f "$_preval_tmp" "$_preval_err"
+            echo "Error: Clarify phase failed to write candidate for pre-validation" >&2
+            return 1
+        fi
+
+        if ! validate_structural_integrity "$spec_file" "$_preval_tmp" --type spec 2>"$_preval_err"; then
+            validation_failure_reasons="$(sed '/^[[:space:]]*$/d' "$_preval_err" || true)"
+            if [[ -z "$validation_failure_reasons" ]]; then
+                validation_failure_reasons="Structural integrity validation failed without detailed diagnostics."
+            fi
+            clarify_retry_feedback=$'The previous Clarify response failed structural validation. Fix these issues and regenerate the complete response:\n'"$validation_failure_reasons"
+            rm -f "$_preval_tmp" "$_preval_err"
+            # Full structural validation failed — retry without creating backups
+            clarify_attempt=$((clarify_attempt + 1))
+            if [[ "$clarify_attempt" -gt "$clarify_max_retries" ]]; then
+                echo "Error: Clarify phase output could not pass structural validation after $clarify_max_retries retry(ies). Original spec.md preserved. Validation failure reasons: $validation_failure_reasons" >&2
+                return 1
+            fi
+            echo "[Clarify] Validation/write retry $clarify_attempt/$clarify_max_retries — candidate failed full structural validation; requesting a regenerated response. Reasons: $validation_failure_reasons" >&2
+            continue
+        fi
+        rm -f "$_preval_tmp" "$_preval_err"
+        clarify_retry_feedback=""
+
+        # Pre-validation passed; safe_write_with_validation will re-validate and
+        # perform the atomic write with backup. Since validation already passed,
+        # any failure here is an operational/persistence issue — bail immediately.
+        if safe_write_with_validation "$spec_file" "$result" --type spec; then
+            break  # Success — exit retry loop
+        fi
+
+        echo "Error: Failed to persist validated Clarify phase output to $spec_file. Original spec.md preserved." >&2
         return 1
-    fi
+    done
 
     # --- Post-write: append model footer only after successful validation ---
     append_model_footer "$spec_file"

@@ -434,6 +434,93 @@ chmod 755 "$TEST_TMPDIR/readonly2"
 teardown_tmpdir
 
 # ---------------------------------------------------------------------------
+# Test: capture_missing_mandatory_sections
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Test: capture_missing_mandatory_sections ==="
+
+setup_tmpdir
+
+# All mandatory sections present → empty output
+cp "$FIXTURE_SPEC" "$TEST_TMPDIR/spec_all.md"
+all_present_candidate="# Spec: Test
+
+## Problem Statement
+
+Some text.
+
+## User Scenarios & Testing
+
+Some text.
+
+## Requirements
+
+**FR-001** Something.
+
+## Success Criteria
+
+Some criteria.
+
+## Edge Cases
+
+Some edge cases.
+"
+missing=$(capture_missing_mandatory_sections "$TEST_TMPDIR/spec_all.md" "$all_present_candidate")
+assert_eq "all sections present → empty" "" "$missing"
+
+# Missing 1 mandatory section (Problem Statement)
+one_missing_candidate="# Spec: Test
+
+## User Scenarios & Testing
+
+Some text.
+
+## Requirements
+
+**FR-001** Something.
+
+## Success Criteria
+
+Some criteria.
+"
+missing=$(capture_missing_mandatory_sections "$TEST_TMPDIR/spec_all.md" "$one_missing_candidate")
+assert_eq "missing 1 section" "## Problem Statement" "$missing"
+
+# Missing 2 mandatory sections (Problem Statement, Success Criteria)
+two_missing_candidate="# Spec: Test
+
+## User Scenarios & Testing
+
+Some text.
+
+## Requirements
+
+**FR-001** Something.
+"
+missing=$(capture_missing_mandatory_sections "$TEST_TMPDIR/spec_all.md" "$two_missing_candidate")
+assert_contains "missing 2 sections includes Problem Statement" "## Problem Statement" "$missing"
+assert_contains "missing 2 sections includes Success Criteria" "## Success Criteria" "$missing"
+
+# Missing all 4 mandatory sections
+no_mandatory_candidate="# Spec: Test
+
+## Overview
+
+Just an overview.
+"
+missing=$(capture_missing_mandatory_sections "$TEST_TMPDIR/spec_all.md" "$no_mandatory_candidate")
+assert_contains "missing all includes Problem Statement" "## Problem Statement" "$missing"
+assert_contains "missing all includes User Scenarios" "## User Scenarios & Testing" "$missing"
+assert_contains "missing all includes Requirements" "## Requirements" "$missing"
+assert_contains "missing all includes Success Criteria" "## Success Criteria" "$missing"
+
+# Temp file is cleaned up (mktemp creates random suffixes, so glob-check)
+leftover_tmp=$(find "$TEST_TMPDIR" -name "spec_all.md.missing_check.*" 2>/dev/null || true)
+assert_eq "missing_check tmp cleaned up" "" "$leftover_tmp"
+
+teardown_tmpdir
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
