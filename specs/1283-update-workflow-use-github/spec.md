@@ -1,10 +1,35 @@
 # Feature Specification: GitHub App Token for Copilot Review Requests
 
-**Feature Branch**: `speckit/1283/phase-1-specify`  
+**Feature Branch**: `speckit/1283/phase-2-clarify`  
 **Created**: 2026-04-27  
 **Status**: Draft  
 **Input**: GitHub issue #1283 — migrate Copilot review request authentication from PAT to GitHub App installation token  
 **Source Issue**: #1283 (<https://github.com/ayaiayorg/agentic-devtools/issues/1283>)
+
+## Clarifications
+
+### Session 2026-04-30
+
+- Q: Does the GitHub App installation token identity differ from the PAT user identity for `listRequestedReviewers`/`listReviews` API calls, and can the App token request reviewers? → A: GitHub App
+  installation tokens authenticate as the App installation (not a user). The `actions/create-github-app-token` action produces a token that can call
+  `POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers`,
+  `GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers`, and
+  `GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews` provided the App has `pull_requests: write` permission (this is the API/manifest permission key; the corresponding GitHub App UI label
+  is `Pull requests: Read & Write`).
+  The idempotency check (listing reviewers and listing reviews) works identically — the token can read the reviewer list and review statuses regardless of which
+  identity originally requested the review. No behavioral change is expected.
+- Q: Should `actions/create-github-app-token` be pinned to a specific major version (e.g., `v1`) or a full SHA for supply-chain security? → A: Pin to the latest major version tag
+  (`actions/create-github-app-token@v1`) for automatic patch/minor updates. This aligns with the existing pinning strategy used across other actions in the repository (e.g., `actions/checkout@v4`,
+  `actions/github-script@v7`).
+- Q: What minimum GitHub App permissions must be documented for `agentic-devtools-copilot-reviewer`? → A: The App requires **Repository permissions**: `Pull requests: Read & Write` (to request
+  reviewers and read reviewer lists) and `Contents: Read` (required by the Copilot SDK for file access). These permissions should be documented alongside the secret descriptions in README.md and
+  CONTRIBUTING.md.
+- Q: What should the step output variable name be for the generated token to ensure consistent referencing across all three workflows? → A: Use a consistent output step id of `app-token` with the
+  output accessed as `steps.app-token.outputs.token`. All three workflows MUST use this same step id for maintainability and grep-ability.
+- Q: During the transition period, if a contributor re-runs a workflow on an older commit that still references `secrets.COPILOT_GITHUB_TOKEN` after the secret is deleted, what is the expected
+  behavior? → A: The workflow will resolve `secrets.COPILOT_GITHUB_TOKEN` to an empty string (standard GitHub behavior for deleted secrets). The validation step on that older commit will fail with the
+  old error message referencing the PAT. This is acceptable — contributors should re-run workflows from the updated `main` branch. No code change is needed to handle this case; NFR-002 is inherently
+  satisfied.
 
 ## Problem Statement
 
@@ -91,7 +116,7 @@ the "Required Secrets" table.
 **Acceptance Scenarios**:
 
 1. **Given** the migration is complete, **When** a contributor reads the "Required Secrets" section in `README.md`, **Then** they see `COPILOT_APP_ID` and `COPILOT_APP_PRIVATE_KEY` listed with
-   descriptions referencing the GitHub App, and `COPILOT_GITHUB_TOKEN` is absent.
+   descriptions referencing the GitHub App and its required permissions (`Pull requests: Read & Write`, `Contents: Read`), and `COPILOT_GITHUB_TOKEN` is absent.
 2. **Given** the migration is complete, **When** a contributor reads the "Required Secrets" section in `CONTRIBUTING.md`, **Then** the same App-based secrets are documented consistently with
    `README.md`.
 
@@ -122,15 +147,17 @@ As a repository administrator, I want the `COPILOT_GITHUB_TOKEN` Actions secret 
   even if it is still present in the repository.
 - **What happens when the workflow runs on a fork PR?** Secrets are not available on fork PRs. The existing behavior (validation step fails, Copilot review is skipped) must be preserved — but the
   error message must reference the App credentials, not the PAT.
+- **What happens if `actions/create-github-app-token` produces a token but the App lacks required permissions?** The subsequent API call (e.g., requesting a reviewer) will fail with a 403. The
+  workflow must not swallow this error — the step must fail and the error annotation must suggest checking App permissions (`Pull requests: Read & Write`, `Contents: Read`).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: Each of the three workflows (`speckit-phase-progression.yml`, `speckit-issue-trigger.yml`, `speckit-copilot-review-request.yml`) MUST generate a GitHub App installation token using
-  `actions/create-github-app-token` with `COPILOT_APP_ID` and `COPILOT_APP_PRIVATE_KEY` secrets.
+  `actions/create-github-app-token@v1` with `COPILOT_APP_ID` and `COPILOT_APP_PRIVATE_KEY` secrets.
 - **FR-002**: The generated installation token MUST be used as the `github-token` input for all `actions/github-script` steps that interact with the Copilot review API (idempotency check, review
-  request).
+  request). The App installation token authenticates as the App, which has `Pull requests: Read & Write` permission — sufficient for both reading reviewer lists and requesting reviewers.
 - **FR-003**: The generated installation token MUST be passed as the `COPILOT_GITHUB_TOKEN` environment variable to the `Generate Phase Artifacts` and `Generate Specification` steps (for Copilot SDK
   compatibility) in `speckit-phase-progression.yml` and `speckit-issue-trigger.yml`.
 - **FR-004**: The "Validate Copilot Token" step in each workflow MUST be replaced with validation that the `actions/create-github-app-token` step produced a non-empty token, or removed entirely if the
@@ -138,36 +165,43 @@ As a repository administrator, I want the `COPILOT_GITHUB_TOKEN` Actions secret 
 - **FR-005**: All references to `secrets.COPILOT_GITHUB_TOKEN` MUST be removed from all three workflow files.
 - **FR-006**: Diagnostic/troubleshooting messages in workflow error annotations and issue comments MUST reference `COPILOT_APP_ID` and `COPILOT_APP_PRIVATE_KEY` instead of `COPILOT_GITHUB_TOKEN`.
 - **FR-007**: `README.md` "Required Secrets" table MUST list `COPILOT_APP_ID` (App ID of the `agentic-devtools-copilot-reviewer` GitHub App) and `COPILOT_APP_PRIVATE_KEY` (PEM private key for the
-  GitHub App) instead of `COPILOT_GITHUB_TOKEN`.
+  GitHub App) instead of `COPILOT_GITHUB_TOKEN`. The table MUST also note the required App permissions: `Pull requests: Read & Write` and `Contents: Read`.
 - **FR-008**: `CONTRIBUTING.md` "Required Secrets" table MUST be updated identically to FR-007.
-- **FR-009**: The `actions/create-github-app-token` step MUST be placed early in each job (before any step that requires the token) and its output MUST be consumed by all subsequent steps that need
-  authentication.
-- **FR-010**: Existing idempotency guards (skip review request if Copilot is already a reviewer) MUST continue to function identically with the new token. [NEEDS CLARIFICATION: Does the GitHub App
-  identity differ from the PAT user identity for the purposes of the `listRequestedReviewers` / `listReviews` API calls? Verify that the App-generated token can read reviewer lists and request
-  reviewers.]
+- **FR-009**: The `actions/create-github-app-token` step MUST be placed early in each job (before any step that requires the token), use a step id of `app-token`, and its output
+  (`steps.app-token.outputs.token`) MUST be consumed by all subsequent steps that need authentication.
+- **FR-010**: Existing idempotency guards (skip review request if Copilot is already a reviewer) MUST continue to function identically with the new token. The App installation token can read reviewer
+  lists and request reviewers via the same API endpoints as a PAT — no behavioral change is expected because the `listRequestedReviewers` API returns all requested reviewers regardless of which
+  identity made the request.
 
 ### Non-Functional Requirements
 
 - **NFR-001**: Token generation MUST add no more than 10 seconds of wall-clock time to any workflow run. The `actions/create-github-app-token` action typically completes in 2–4 seconds.
 - **NFR-002**: Workflow YAML changes MUST be backward-compatible during a transition period — specifically, a workflow re-run on an older commit that still references `COPILOT_GITHUB_TOKEN` must not
-  crash in a way that is confusing. This is inherently satisfied because secret references resolve to empty strings when the secret is deleted, and the validation step will produce a clear error.
-- **NFR-003**: Error messages MUST be actionable — they must name the exact secret(s) to configure and link to the GitHub App settings or installation page where possible.
+  crash in a way that is confusing. This is inherently satisfied because secret references resolve to empty strings when the secret is deleted, and the validation step will produce a clear error
+  referencing the old PAT name on that older commit.
+- **NFR-003**: Error messages MUST be actionable — they must name the exact secret(s) to configure (`COPILOT_APP_ID`, `COPILOT_APP_PRIVATE_KEY`) and reference the GitHub App installation settings page
+  (`https://github.com/organizations/ayaiayorg/settings/installations`) where possible.
 
 ### Key Entities
 
 - **GitHub App (`agentic-devtools-copilot-reviewer`)**: The installed App that provides the authentication identity. Key attributes: App ID, private key, installation ID (auto-resolved by the action).
-- **Installation Token**: A short-lived (1-hour) token generated per workflow run via `actions/create-github-app-token`. Scoped to the repository's App installation.
+  Required permissions: `Pull requests: Read & Write`, `Contents: Read`.
+- **Installation Token**: A short-lived (1-hour) token generated per workflow run via `actions/create-github-app-token@v1`. Scoped to the repository's App installation. Referenced via
+  `steps.app-token.outputs.token`.
 - **Copilot Reviewer Bot (`copilot-pull-request-reviewer[bot]`)**: The bot account that performs code reviews. Unchanged by this migration — only the token used to *request* its review changes.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Zero references to `COPILOT_GITHUB_TOKEN` exist in any `.github/workflows/*.yml` file after the migration.
+- **SC-001**: Zero references to `secrets.COPILOT_GITHUB_TOKEN` exist in any `.github/workflows/*.yml` file after the migration. (The env-var *name* `COPILOT_GITHUB_TOKEN` may still appear in
+  `env:` blocks where FR-003 requires it for Copilot SDK compatibility — only the *secret reference* must be removed.)
 - **SC-002**: Zero references to `COPILOT_GITHUB_TOKEN` exist in `README.md` or `CONTRIBUTING.md` after the migration.
 - **SC-003**: All three workflows successfully request a Copilot review on a test PR using the App token, verified by the `copilot-pull-request-reviewer[bot]` appearing as a requested reviewer.
 - **SC-004**: The `COPILOT_GITHUB_TOKEN` secret can be deleted from the repository without causing any workflow failure.
-- **SC-005**: Workflow run duration does not increase by more than 15 seconds compared to the PAT-based baseline (accounting for the token generation step).
+- **SC-005**: Workflow run duration does not increase by more than 15 seconds compared to the PAT-based baseline (accounting for the token generation step plus CI measurement variance).
+  Note: NFR-001 sets the strict upper bound for the token generation step itself (≤10 s); this criterion provides a broader 15 s budget for total observable workflow duration including normal CI
+  timing jitter.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
