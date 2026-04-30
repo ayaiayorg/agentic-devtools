@@ -360,6 +360,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.speckit",
         "speckit_validate_frs",
     ),
+    "agdt-speckit-cross-ref": (
+        "agentic_devtools.cli.speckit",
+        "speckit_cross_ref",
+    ),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Setup
