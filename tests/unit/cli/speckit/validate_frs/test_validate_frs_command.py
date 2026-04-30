@@ -285,9 +285,7 @@ class TestValidateFrsCommandFileReadErrors:
             patch("builtins.open", side_effect=OSError("disk error")),
             pytest.raises(SystemExit) as exc_info,
         ):
-            validate_frs_command(
-                ["--spec-file", str(spec), "--tasks-file", str(tasks)]
-            )
+            validate_frs_command(["--spec-file", str(spec), "--tasks-file", str(tasks)])
         assert exc_info.value.code == 2
         assert "disk error" in capsys.readouterr().err
 
@@ -311,9 +309,7 @@ class TestValidateFrsCommandFileReadErrors:
             patch("builtins.open", side_effect=open_side_effect),
             pytest.raises(SystemExit) as exc_info,
         ):
-            validate_frs_command(
-                ["--spec-file", str(spec), "--tasks-file", str(tasks)]
-            )
+            validate_frs_command(["--spec-file", str(spec), "--tasks-file", str(tasks)])
         assert exc_info.value.code == 2
         assert "tasks disk error" in capsys.readouterr().err
 

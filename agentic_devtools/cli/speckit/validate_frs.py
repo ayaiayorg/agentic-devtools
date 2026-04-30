@@ -217,8 +217,7 @@ def validate_frs_command(argv: list[str] | None = None) -> None:
             raise SystemExit(2) from exc
     else:
         print(
-            f"Warning: spec file '{spec_path}' not found or is not a file; "
-            "treating as empty spec content",
+            f"Warning: spec file '{spec_path}' not found or is not a file; treating as empty spec content",
             file=sys.stderr,
         )
 
