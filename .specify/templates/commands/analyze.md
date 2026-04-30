@@ -81,6 +81,8 @@ Create internal representations (do not include raw artifacts in output):
 
 Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
 
+**Scope distinction**: Category A detects duplicate *requirements* (in spec.md). Category G detects duplicate *tasks* (in tasks.md). These are complementary passes operating on different artifact types.
+
 #### A. Duplication Detection
 
 - Identify near-duplicate requirements
@@ -115,12 +117,83 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Task ordering contradictions (e.g., integration tasks before foundational setup tasks without dependency note)
 - Conflicting requirements (e.g., one requires Next.js while other specifies Vue)
 
+#### G. Task Deduplication
+
+Detect duplicate, overlapping, or conflicting tasks in `tasks.md`. This pass operates on *tasks* (not requirements — that is Category A's scope).
+
+**Comparison Dimensions** — Evaluate each pair/cluster of tasks across three independent dimensions:
+
+1. **Description similarity** — Do the tasks express substantially the same intent or outcome? A strong match means the tasks would produce the same deliverable if implemented independently; mere keyword overlap is insufficient.
+2. **File path overlap** — Do the tasks target a majority (≥50%) of the same files or directories? A strong match means most of the modified files are shared.
+3. **Code section overlap** — Do the tasks name the same function, class, method, or module-level section? A strong match means both tasks explicitly reference the same code symbol or section heading.
+
+Each dimension is evaluated independently. A finding MAY be supported by one or more dimensions.
+
+**Classification Rules** — Classify each finding as one of:
+
+| Overlap Type | Definition | Severity |
+|--------------|-----------|----------|
+| `duplicate` | Tasks are materially redundant — same work, same scope | CRITICAL |
+| `conflicting` | Tasks prescribe contradictory or incompatible outcomes for the same scope | CRITICAL |
+| `overlapping` (≥2 dimensions match strongly) | Tasks share meaningful scope across multiple dimensions but are not fully redundant | CRITICAL |
+| `overlapping` (exactly 1 dimension matches strongly) | Tasks share scope in a single dimension only | HIGH |
+
+**Severity Decision Tree**:
+
+1. Is the cluster a duplicate (same work, same scope)? → CRITICAL
+2. Is the cluster conflicting (contradictory outcomes)? → CRITICAL
+3. Is the cluster overlapping with ≥2 dimensions matching strongly? → CRITICAL
+4. Is the cluster overlapping with exactly 1 dimension? → HIGH
+
+**Grouping Rules** — Use transitive closure to identify overlap clusters:
+
+- If task A overlaps task B, and task B overlaps task C, all three form one cluster
+- Emit one finding per cluster (not pairwise)
+- The grouped finding severity is the highest severity present in the cluster
+
+**Structured Output Contract** — Each Category G finding MUST include:
+
+- `overlap_type`: one of `duplicate`, `overlapping`, `conflicting`
+- `severity`: one of `CRITICAL`, `HIGH`
+- `task_ids`: array of implicated task identifiers
+- `dimensions`: array of which dimensions triggered (from: `description`, `file_path`, `code_section`)
+- `rationale`: concise explanation (max 500 characters)
+
+**Edge Case Handling**:
+
+- Similar descriptions but different file scopes → at most `overlapping` / `HIGH` (single dimension)
+- Same file but clearly different code sections → favor `overlapping` or no finding over `duplicate`
+- Mixed-relationship clusters (3+ tasks) → use highest severity present; represent the dominant issue
+- Broad-vs-narrow scope (one task nests within another) → treat as `overlapping` unless materially redundant
+- Missing dimensions (task lacks file paths or code section info) → evaluate only available dimensions; do not infer missing data
+- Contradictory verbs (one task adds, another removes same thing) → classify as `conflicting`
+- Single-dimension-only evidence → maximum severity is `HIGH`
+
+**Read-Only Constraint**: Category G MUST NOT modify, delete, merge, or rewrite tasks. It reports findings only. Any future deduplication action belongs in `speckit.tasks` (opt-in, not part of analysis).
+
+**Required Structured JSON Block**: After the findings table, emit a `### Category G Structured Findings` section containing a JSON array of finding objects. This section is **required** when Category G findings exist (ensures the Structured Output Contract fields are always machine-parseable):
+
+```json
+[
+  {
+    "id": "F-01",
+    "overlap_type": "duplicate",
+    "severity": "CRITICAL",
+    "task_ids": ["T001", "T002"],
+    "dimensions": ["description", "file_path"],
+    "rationale": "Tasks T001 and T002 both implement user authentication with identical file targets and matching descriptions."
+  }
+]
+```
+
+> **Output format**: The JSON array in the report MUST be emitted as **raw JSON without Markdown code fences**. The fenced block above is illustrative only (showing the schema). In actual output, emit the JSON directly so downstream parsers can extract it without stripping fence markers.
+
 ### 5. Severity Assignment
 
 Use this heuristic to prioritize findings:
 
-- **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality
-- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion
+- **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality; task deduplication finding — duplicate tasks, conflicting tasks, or multi-dimension overlap (≥2 dimensions)
+- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion; task deduplication finding — single-dimension overlap
 - **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
 - **LOW**: Style/wording improvements, minor redundancy not affecting execution order
 
@@ -132,9 +205,9 @@ Output a Markdown report (no file writes) with the following structure:
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
+| F-01 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
 
-(Add one row per finding; generate stable IDs prefixed by category initial.)
+(Add one row per finding; generate sequential IDs in `F-NN` format — where F = Finding — shared across all categories.)
 
 **Coverage Summary Table:**
 
@@ -151,8 +224,11 @@ Output a Markdown report (no file writes) with the following structure:
 - Total Tasks
 - Coverage % (requirements with >=1 task)
 - Ambiguity Count
-- Duplication Count
+- Requirement Duplication Count (Category A)
 - Critical Issues Count
+- Task Deduplication Finding Count
+- Task Deduplication by Type (duplicate / overlapping / conflicting)
+- Multi-Task Group Count (findings involving >2 tasks)
 
 ### 7. Provide Next Actions
 

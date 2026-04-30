@@ -2487,7 +2487,7 @@ $(cat "$SPEC_DIR/fr-coverage.json")
     local prompt
     prompt="You are a specification quality analyst. Perform a cross-artifact consistency and quality analysis across the following specification, plan, and task list.
 
-## Detection Passes (run all six, max 50 findings total)
+## Detection Passes (run all seven, max 50 findings total)
 
 | Pass | Focus |
 |------|-------|
@@ -2497,10 +2497,32 @@ $(cat "$SPEC_DIR/fr-coverage.json")
 | **D. Constitution Alignment** | Missing mandated sections or quality gates |
 | **E. Coverage Gaps** | Requirements with zero tasks; tasks with no requirement mapping; non-functional requirements absent from tasks |
 | **F. Inconsistency** | Terminology drift; entities in plan but absent in spec; task ordering contradictions; conflicting requirements |
+| **G. Task Deduplication** | Duplicate, overlapping, or conflicting tasks in tasks.md (distinct from Category A which detects duplicate *requirements*) |
+
+### Category G: Task Deduplication Details
+
+Compare tasks across three dimensions:
+1. **Description similarity** — substantially same intent/outcome (not just keyword overlap)
+2. **File path overlap** — majority (≥50%) of same files/directories targeted
+3. **Code section overlap** — same function/class/method/section referenced
+
+Classification and severity:
+- \`duplicate\` (same work, same scope) → CRITICAL
+- \`conflicting\` (contradictory outcomes) → CRITICAL
+- \`overlapping\` ≥2 dimensions match strongly → CRITICAL
+- \`overlapping\` exactly 1 dimension matches → HIGH
+
+Grouping: Use transitive closure — if A overlaps B and B overlaps C, emit one finding for {A,B,C}. Highest severity wins.
+
+Each finding must include: overlap_type, severity, task_ids (array of task ID strings, e.g. [\"T001\",\"T002\"]), dimensions (array of triggered dimension names from allowed values: \`description\`, \`file_path\`, \`code_section\`), rationale (≤500 chars).
+
+Edge cases: Similar descriptions but different files → max HIGH; same file different sections → overlapping or no finding; broad-vs-narrow nesting → overlapping unless materially redundant; single-dimension evidence → max HIGH; contradictory verbs → conflicting.
+
+Category G is READ-ONLY — do not merge/rewrite tasks. When Category G findings exist, emit a \`### Category G Structured Findings\` section after the findings table containing a valid JSON array of finding objects as raw JSON without Markdown code fences (schema: \`{id: string, overlap_type: \"duplicate\"|\"overlapping\"|\"conflicting\", severity: \"CRITICAL\"|\"HIGH\", task_ids: string[], dimensions: (\"description\"|\"file_path\"|\"code_section\")[], rationale: string}\`). The JSON array MUST be emitted directly — not wrapped in \`\`\`json fences — so downstream parsers can extract it without stripping fence markers.
 
 ## Severity Levels
-- **CRITICAL**: Missing core artifact or zero-coverage requirement blocking baseline functionality
-- **HIGH**: Duplicate/conflicting requirement; ambiguous security/performance; untestable acceptance criterion
+- **CRITICAL**: Missing core artifact or zero-coverage requirement blocking baseline functionality; task deduplication — duplicate tasks, conflicting tasks, or multi-dimension overlap (≥2 dimensions)
+- **HIGH**: Duplicate/conflicting requirement; ambiguous security/performance; untestable acceptance criterion; task deduplication — single-dimension overlap
 - **MEDIUM**: Terminology drift; missing non-functional task coverage; underspecified edge case
 - **LOW**: Style/wording improvements; minor redundancy not affecting execution order
 
@@ -2530,8 +2552,11 @@ Produce a compact Markdown analysis report with:
 - Total Tasks
 - Coverage %
 - Ambiguity Count
-- Duplication Count
+- Requirement Duplication Count (Category A)
 - Critical Issues Count
+- Task Deduplication Finding Count
+- Task Deduplication by Type (duplicate / overlapping / conflicting)
+- Multi-Task Group Count (findings involving >2 tasks)
 
 Output ONLY the analysis report in markdown format. No commentary, no code fences around the entire output.
 
