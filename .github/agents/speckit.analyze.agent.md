@@ -124,6 +124,8 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Data entities referenced in plan but absent in spec (or vice versa)
 - Task ordering contradictions (e.g., integration tasks before foundational setup tasks without dependency note)
 - Conflicting requirements (e.g., one requires Next.js while other specifies Vue)
+- Missing Phase Mapping table: when plan and tasks phase structures differ (in numbering, count, or organizational scheme, e.g., domain-driven vs. story-driven) but `tasks.md` lacks a "Phase Mapping: Plan → Tasks" table — severity HIGH
+- Stale Phase Mapping references: when the Phase Mapping table in `tasks.md` references plan phases not present in `plan.md` — severity MEDIUM
 
 #### G. Task Deduplication
 
