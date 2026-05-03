@@ -21,7 +21,7 @@
 - [ ] CHK008 Success criteria SC-001 through SC-005 are quantifiable (zero references, reviewer bot visible, ≤15 second duration increase) with clear pass/fail determination
 - [ ] CHK009 Scope boundaries are defined: three specific workflow files are in scope; the Copilot reviewer bot behavior itself is explicitly out of scope ("unchanged by this migration")
 - [ ] CHK010 Dependencies on `actions/create-github-app-token@v1` version pinning strategy, required App permissions (`Pull requests: Read & Write`, `Contents: Read`), and step id convention
-  (`app-token`) are explicitly documented in Clarifications and FR-009
+  (`app_token`) are explicitly documented in Clarifications and FR-009
 
 ## Feature Readiness
 
