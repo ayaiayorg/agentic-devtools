@@ -24,8 +24,8 @@
 - Q: What minimum GitHub App permissions must be documented for `agentic-devtools-copilot-reviewer`? → A: The App requires **Repository permissions**: `Pull requests: Read & Write` (to request
   reviewers and read reviewer lists) and `Contents: Read` (required by the Copilot SDK for file access). These permissions should be documented alongside the secret descriptions in README.md and
   CONTRIBUTING.md.
-- Q: What should the step output variable name be for the generated token to ensure consistent referencing across all three workflows? → A: Use a consistent output step id of `app-token` with the
-  output accessed as `steps.app-token.outputs.token`. All three workflows MUST use this same step id for maintainability and grep-ability.
+- Q: What should the step output variable name be for the generated token to ensure consistent referencing across all three workflows? → A: Use a consistent output step id of `app_token` with the
+  output accessed as `steps.app_token.outputs.token`. All three workflows MUST use this same step id for maintainability and grep-ability.
 - Q: During the transition period, if a contributor re-runs a workflow on an older commit that still references `secrets.COPILOT_GITHUB_TOKEN` after the secret is deleted, what is the expected
   behavior? → A: The workflow will resolve `secrets.COPILOT_GITHUB_TOKEN` to an empty string (standard GitHub behavior for deleted secrets). The validation step on that older commit will fail with the
   old error message referencing the PAT. This is acceptable — contributors should re-run workflows from the updated `main` branch. No code change is needed to handle this case; NFR-002 is inherently
@@ -167,8 +167,8 @@ As a repository administrator, I want the `COPILOT_GITHUB_TOKEN` Actions secret 
 - **FR-007**: `README.md` "Required Secrets" table MUST list `COPILOT_APP_ID` (App ID of the `agentic-devtools-copilot-reviewer` GitHub App) and `COPILOT_APP_PRIVATE_KEY` (PEM private key for the
   GitHub App) instead of `COPILOT_GITHUB_TOKEN`. The table MUST also note the required App permissions: `Pull requests: Read & Write` and `Contents: Read`.
 - **FR-008**: `CONTRIBUTING.md` "Required Secrets" table MUST be updated identically to FR-007.
-- **FR-009**: The `actions/create-github-app-token` step MUST be placed early in each job (before any step that requires the token), use a step id of `app-token`, and its output
-  (`steps.app-token.outputs.token`) MUST be consumed by all subsequent steps that need authentication.
+- **FR-009**: The `actions/create-github-app-token` step MUST be placed early in each job (before any step that requires the token), use a step id of `app_token`, and its output
+  (`steps.app_token.outputs.token`) MUST be consumed by all subsequent steps that need authentication.
 - **FR-010**: Existing idempotency guards (skip review request if Copilot is already a reviewer) MUST continue to function identically with the new token. The App installation token can read reviewer
   lists and request reviewers via the same API endpoints as a PAT — no behavioral change is expected because the `listRequestedReviewers` API returns all requested reviewers regardless of which
   identity made the request.
@@ -187,7 +187,7 @@ As a repository administrator, I want the `COPILOT_GITHUB_TOKEN` Actions secret 
 - **GitHub App (`agentic-devtools-copilot-reviewer`)**: The installed App that provides the authentication identity. Key attributes: App ID, private key, installation ID (auto-resolved by the action).
   Required permissions: `Pull requests: Read & Write`, `Contents: Read`.
 - **Installation Token**: A short-lived (1-hour) token generated per workflow run via `actions/create-github-app-token@v1`. Scoped to the repository's App installation. Referenced via
-  `steps.app-token.outputs.token`.
+  `steps.app_token.outputs.token`.
 - **Copilot Reviewer Bot (`copilot-pull-request-reviewer[bot]`)**: The bot account that performs code reviews. Unchanged by this migration — only the token used to *request* its review changes.
 
 ## Success Criteria *(mandatory)*

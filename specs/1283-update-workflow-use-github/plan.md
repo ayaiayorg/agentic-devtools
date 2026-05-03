@@ -22,14 +22,14 @@ Key decisions on action pinning, token step placement, and env-var naming compat
 ## Design Overview
 
 Each workflow gains a single new step (`actions/create-github-app-token@v1`) early in the job that generates an installation token. All downstream steps that previously consumed
-`secrets.COPILOT_GITHUB_TOKEN` now consume `steps.app-token.outputs.token`. The `COPILOT_GITHUB_TOKEN` **env-var name** is preserved in `env:` blocks for Copilot SDK compatibility (FR-003), but the
+`secrets.COPILOT_GITHUB_TOKEN` now consume `steps.app_token.outputs.token`. The `COPILOT_GITHUB_TOKEN` **env-var name** is preserved in `env:` blocks for Copilot SDK compatibility (FR-003), but the
 **secret reference** is eliminated. The "Validate Copilot Token" bash step is replaced with a lighter validation that checks the App token output is non-empty.
 
 ```text
 Before:  secrets.COPILOT_GITHUB_TOKEN → env / github-token
 After:   secrets.COPILOT_APP_ID + secrets.COPILOT_APP_PRIVATE_KEY
-           → actions/create-github-app-token@v1 (step id: app-token)
-           → steps.app-token.outputs.token → env / github-token
+           → actions/create-github-app-token@v1 (step id: app_token)
+           → steps.app_token.outputs.token → env / github-token
 ```
 
 ## Implementation Phases
@@ -42,16 +42,16 @@ After:   secrets.COPILOT_APP_ID + secrets.COPILOT_APP_PRIVATE_KEY
 
 | Anchor | Current | Change |
 |--------|---------|--------|
-| Step `name: "Validate Copilot Token"` | Bash step checking `secrets.COPILOT_GITHUB_TOKEN` | Replace with `actions/create-github-app-token@v1` step (id: `app-token`) using `secrets.COPILOT_APP_ID` / `secrets.COPILOT_APP_PRIVATE_KEY` |
-| — | — | Add validation step: check `steps.app-token.outputs.token` is non-empty, error message references `COPILOT_APP_ID` / `COPILOT_APP_PRIVATE_KEY` |
-| Step `id: idempotency` → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app-token.outputs.token }}` |
-| Step `id: request-copilot-review` → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app-token.outputs.token }}` |
+| Step `name: "Validate Copilot Token"` | Bash step checking `secrets.COPILOT_GITHUB_TOKEN` | Replace with `actions/create-github-app-token@v1` step (id: `app_token`) using `secrets.COPILOT_APP_ID` / `secrets.COPILOT_APP_PRIVATE_KEY` |
+| — | — | Add validation step: check `steps.app_token.outputs.token` is non-empty, error message references `COPILOT_APP_ID` / `COPILOT_APP_PRIVATE_KEY` |
+| Step `id: idempotency` → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app_token.outputs.token }}` |
+| Step `id: request-copilot-review` → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app_token.outputs.token }}` |
 
 **Detailed step insertion** (replacing the existing `"Validate Copilot Token"` step):
 
 ```yaml
 - name: Generate GitHub App Token
-  id: app-token
+  id: app_token
   uses: actions/create-github-app-token@v1
   with:
     app-id: ${{ secrets.COPILOT_APP_ID }}
@@ -65,7 +65,7 @@ After:   secrets.COPILOT_APP_ID + secrets.COPILOT_APP_PRIVATE_KEY
     fi
     echo "✓ GitHub App installation token generated"
   env:
-    APP_TOKEN: ${{ steps.app-token.outputs.token }}
+    APP_TOKEN: ${{ steps.app_token.outputs.token }}
 ```
 
 #### 1.2 `speckit-issue-trigger.yml`
@@ -73,11 +73,11 @@ After:   secrets.COPILOT_APP_ID + secrets.COPILOT_APP_PRIVATE_KEY
 | Anchor | Current | Change |
 |--------|---------|--------|
 | Step `name: "Validate Copilot Token"` | Bash step checking `secrets.COPILOT_GITHUB_TOKEN` | Replace with App token generation + validation (same pattern as 1.1) |
-| Step `name: "Generate Specification"` (id: `generate`) → env `COPILOT_GITHUB_TOKEN` | `COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `COPILOT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}` — preserves env-var name for SDK compat (FR-003) |
-| Step `name: "Request Copilot Review"` (id: `request-copilot-review`) → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app-token.outputs.token }}` |
+| Step `name: "Generate Specification"` (id: `generate`) → env `COPILOT_GITHUB_TOKEN` | `COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `COPILOT_GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}` — preserves env-var name for SDK compat (FR-003) |
+| Step `name: "Request Copilot Review"` (id: `request-copilot-review`) → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app_token.outputs.token }}` |
 | Step `name: "Post Failed Comment"` → troubleshooting body text | References `COPILOT_GITHUB_TOKEN` | Update to reference `COPILOT_APP_ID` / `COPILOT_APP_PRIVATE_KEY` (FR-006) |
 
-**Conditional gates**: The `app-token` step must inherit the same `if:` condition as the current "Validate Copilot Token" step:
+**Conditional gates**: The `app_token` step must inherit the same `if:` condition as the current "Validate Copilot Token" step:
 
 ```text
 steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
@@ -88,8 +88,8 @@ steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.output
 | Anchor | Current | Change |
 |--------|---------|--------|
 | Step `name: "Validate Copilot Token"` | Bash step checking `secrets.COPILOT_GITHUB_TOKEN` | Replace with App token generation + validation (same pattern) |
-| Step `name: "Generate Phase Artifacts"` (id: `generate`) → env `COPILOT_GITHUB_TOKEN` | `COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `COPILOT_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}` — preserves env-var name for SDK compat (FR-003) |
-| Step `name: "Request Copilot Review"` (id: `request-copilot-review`) → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app-token.outputs.token }}` |
+| Step `name: "Generate Phase Artifacts"` (id: `generate`) → env `COPILOT_GITHUB_TOKEN` | `COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `COPILOT_GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}` — preserves env-var name for SDK compat (FR-003) |
+| Step `name: "Request Copilot Review"` (id: `request-copilot-review`) → `github-token` input | `github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}` | `github-token: ${{ steps.app_token.outputs.token }}` |
 | Step `name: "Handle Failure (Comment + Label)"` → troubleshooting body text | References `COPILOT_GITHUB_TOKEN` | Update to reference `COPILOT_APP_ID` / `COPILOT_APP_PRIVATE_KEY` (FR-006) |
 
 **Conditional gates**: Same `if:` as existing validate step:
