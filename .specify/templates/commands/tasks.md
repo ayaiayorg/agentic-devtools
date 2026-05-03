@@ -57,10 +57,11 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Validate task completeness (each user story has all needed tasks,
      independently testable)
 
-4. **Generate tasks.md**: Use `templates/tasks-template.md` as structure, fill
-   with:
+4. **Generate tasks.md**: Use `.specify/templates/tasks-template.md` as structure,
+   fill with:
 
 - Correct feature name from plan.md
+- Phase Mapping table (if task phases differ from plan phases in numbering, count, or organizational scheme)
 - Phase 1: Setup tasks (project initialization)
 - Phase 2: Foundational tasks (blocking prerequisites for all user stories)
 - Phase 3+: One phase per user story (in priority order from spec.md)
@@ -177,3 +178,25 @@ Every task MUST strictly follow this format:
   - Within each story: Tests → Models → Services → Endpoints → Integration
   - Each phase should be a complete, independently testable increment
 - **Final Phase**: Polish & Cross-Cutting Concerns
+
+### Phase Mapping
+
+If the task list uses different phase numbering, count, or organizational
+scheme than the plan, include a **Phase Mapping: Plan → Tasks** table at the
+top of tasks.md (after any Path Conventions section, before Phase 1) that maps
+each task phase to its corresponding plan phase(s).
+
+The table uses three columns: `Tasks Phase`, `Plan Phase(s)`, and `Description`.
+
+**Example:**
+
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | — | Project scaffolding (no direct plan equivalent) |
+| Phase 2: Foundational | Phase 1: Core Module | Core infrastructure from plan Phase 1 |
+| Phase 3: US1 | Phase 2: Integration, Phase 3: API Layer | Story draws from multiple plan phases |
+
+**Edge case — plans without numbered phases:** When `plan.md` uses section
+headings rather than numbered phases (e.g., "Design Overview",
+"Integration Layer"), reference those headings verbatim in the
+`Plan Phase(s)` column.

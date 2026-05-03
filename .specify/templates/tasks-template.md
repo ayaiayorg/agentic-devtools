@@ -30,7 +30,8 @@ implementation and testing of each story.
 
 <!-- 
   ============================================================================
-  IMPORTANT: The tasks below are SAMPLE TASKS for illustration purposes only.
+  IMPORTANT: The phase task checklists below (Phase 1, Phase 2, etc.) are
+  SAMPLE TASKS for illustration purposes only.
   
   The /speckit.tasks command MUST replace these with actual tasks based on:
 
@@ -46,8 +47,32 @@ implementation and testing of each story.
   - Delivered as an MVP increment
   
   DO NOT keep these sample tasks in the generated tasks.md file.
+  
+  NOTE: The "Phase Mapping: Plan → Tasks" section below is a REQUIRED
+  structural element — keep the heading and follow its instructions even
+  when replacing all sample task content.
   ============================================================================
 -->
+
+## Phase Mapping: Plan → Tasks
+
+<!-- Phase Mapping is required when the task list uses different phase numbering,
+     count, or organizational scheme than the plan (e.g., plan uses domain-driven
+     phases while tasks use story-driven phases).
+
+     - When phases DIFFER: populate the table below with actual mappings
+       (remove the sample rows and replace with real content).
+     - When phases are 1:1 ALIGNED: keep the heading, remove the table,
+       and replace it with a single-line note such as:
+       "Phases are 1:1 aligned with plan.md — no mapping needed." -->
+
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | — | Project scaffolding (no direct plan equivalent) |
+| Phase 2: Foundational | Phase 1: Core Module | Core infrastructure from plan Phase 1 |
+| Phase 3: US1 | Phase 2: Integration | User story delivery mapped to plan integration work |
+
+---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
