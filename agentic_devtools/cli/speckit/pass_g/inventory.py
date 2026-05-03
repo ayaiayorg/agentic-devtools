@@ -126,10 +126,6 @@ def _apply_protected_filter(file_paths: list[str]) -> list[str]:
         basename = fp.rsplit("/", 1)[-1]
         if basename in _BASENAME_PATTERNS:
             continue
-        if not any(
-            pattern in fp
-            for pattern in PROTECTED_FILE_PATTERNS
-            if pattern not in _BASENAME_PATTERNS
-        ):
+        if not any(pattern in fp for pattern in PROTECTED_FILE_PATTERNS if pattern not in _BASENAME_PATTERNS):
             filtered.append(fp)
     return filtered

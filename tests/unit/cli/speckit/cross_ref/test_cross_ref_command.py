@@ -89,9 +89,7 @@ def test_pipeline_extracts_references_and_classifies(tmp_path, capsys):
     # Plan references the existing function and a nonexistent one
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "# Plan\n\n"
-        "Use `existing_func` for processing.\n"
-        "Also call `totally_nonexistent_xyz_abc` for cleanup.\n"
+        "# Plan\n\nUse `existing_func` for processing.\nAlso call `totally_nonexistent_xyz_abc` for cleanup.\n"
     )
 
     # Mock git ls-files to return our file

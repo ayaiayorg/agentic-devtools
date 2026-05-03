@@ -100,7 +100,9 @@ def test_invalid_with_suggestions():
     """References with low-confidence fuzzy matches → INVALID with candidates."""
     files = ["src/mod.py"]
     symbols = [
-        SymbolEntry("validate_frs_command", "src.mod.validate_frs_command", ReferenceKind.FUNCTION_NAME, "src/mod.py", 1),
+        SymbolEntry(
+            "validate_frs_command", "src.mod.validate_frs_command", ReferenceKind.FUNCTION_NAME, "src/mod.py", 1
+        ),
     ]
     inv = SymbolInventory(files, symbols)
     # "validate_frs_comman" is close but not exact, single top match → INVALID with suggestions

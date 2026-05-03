@@ -18,9 +18,7 @@ def test_build_inventory_extracts_pyproject_entry_points(tmp_path):
 
     # Create pyproject.toml with entry points
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text(
-        '[project.scripts]\nagdt-test = "agentic_devtools.cli.runner:run"\n'
-    )
+    pyproject.write_text('[project.scripts]\nagdt-test = "agentic_devtools.cli.runner:run"\n')
 
     with patch("agentic_devtools.cli.speckit.pass_g.inventory._discover_files") as mock_discover:
         mock_discover.return_value = ["module.py"]
@@ -122,9 +120,7 @@ def test_discover_files_git_success(tmp_path):
     """When git ls-files succeeds, return its output directly."""
     import subprocess
 
-    mock_result = subprocess.CompletedProcess(
-        args=[], returncode=0, stdout="src/main.py\nlib/utils.py\n\n", stderr=""
-    )
+    mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="src/main.py\nlib/utils.py\n\n", stderr="")
     with patch("subprocess.run", return_value=mock_result):
         files = _discover_files(tmp_path)
 
