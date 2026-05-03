@@ -6,6 +6,37 @@
 **Input**: GitHub Issue #1202 — Validate each FR has at least one test task
 **Source Issue**: #1202 (<https://github.com/ayaiayorg/agentic-devtools/issues/1202>)
 
+## Clarifications
+
+### Session 2026-05-03
+
+- Q: Where exactly should the test-coverage sub-pass be inserted within the existing detection passes (A–G) in `speckit.analyze.agent.md`, and should it be a new lettered category or a sub-pass within
+  Category E (Coverage Gaps)? → A: It should be integrated as a sub-pass within Category E (Coverage Gaps), directly after the existing FR-to-task coverage check. This aligns with FR-010's requirement
+  to integrate within the existing coverage-gaps analysis and avoids disrupting the established A–G category lettering. The sub-pass should be labeled "E.2 Test Coverage Validation" (with the existing
+  coverage check becoming "E.1 Task Coverage").
+- Q: FR-003 defines heuristic matching via shared user-story labels (e.g., `[US1]`), but what is the precise mapping rule from `[USn]` to FRs — is it positional (User Story 1 in document order),
+  explicit heading text, or some other mechanism? → A: The mapping is positional by document order in `spec.md`: `[US1]` maps to FRs associated with the first user story section, `[US2]` maps to FRs
+  associated with the second, and so on. The set of FRs associated with a user story section is derived by collecting all `FR-NNN` identifiers explicitly referenced anywhere within that section's
+  text boundary (from the user story heading to the next same-level heading or the end of the User Stories block). References in acceptance-scenario prose, description text, and independent-test
+  notes are all included. The user story number corresponds to the 1-based index of user story sections as they appear in the spec. If a task references `[USn]` and the spec has fewer than n user
+  stories, it is treated as an unmapped reference and reported as a LOW finding.
+- Q: When a task contains test-related keywords but no explicit FR reference and no `[USn]` label, should it be treated as unmapped (covering no FRs) or should there be a fallback heuristic (e.g.,
+  keyword similarity to FR descriptions)? → A: The task should be treated as unmapped — it covers zero FRs for test-coverage purposes. No keyword-similarity fallback should be applied, as this would
+  introduce non-deterministic behavior. The task should appear in the existing "Unmapped Tasks" section of the report, and a LOW finding should note that the test task lacks an FR or user-story
+  mapping.
+- Q: FR-006 defines happy-path keywords including "direct reference to P1 acceptance criteria with positive outcomes" — how should this semantic matching be implemented given that acceptance criteria
+  are free-form text? → A: This clause should be interpreted narrowly: a task qualifies via "direct reference to P1 acceptance criteria" only if it explicitly cites an acceptance scenario identifier
+  (e.g., "Acceptance Scenario 1 from US1") or quotes near-verbatim phrasing from a P1 acceptance scenario with a positive outcome. General semantic similarity is not sufficient. In practice, the
+  keyword-based detection (happy path, success, nominal, etc.) will be the primary classification mechanism; the acceptance-criteria reference is a supplementary signal, not a fuzzy-match requirement.
+- Q: NFR-003 requires zero false positives on existing `specs/` directory examples — should the implementation include an automated regression test that runs analysis against all existing spec
+  directories, or is manual verification during development sufficient? → A: An automated regression test MUST be included. It should be a parameterized test that discovers all `specs/*/` directories
+  containing both `spec.md` and `tasks.md`, runs the test-coverage validation logic against each, and asserts zero test-coverage findings are produced — unless the spec directory contains an explicit
+  allowlist file (`expected-findings.txt`) enumerating the expected findings as stable keys (one per line). Two key formats are supported:
+  (1) `FR-NNN:<kind>` for FR-scoped coverage-gap findings (e.g., `FR-002:no-test-task`, `FR-001:no-happy-path`), and
+  (2) `TASK:<kind>` for task-scoped LOW findings not tied to a specific FR (e.g., `TASK:invalid-us-ref`, `TASK:unmapped-test-task`, `TASK:ambiguous-task`).
+  When an allowlist is present the test asserts exact match (no new findings, no stale entries); when absent it asserts zero findings.
+  This ensures NFR-003 is continuously enforced in CI, not just verified once.
+
 ## Problem Statement
 
 The SpecKit analysis step (`speckit.analyze`) currently validates that each functional requirement (FR) maps to at least one task (the existing coverage-gaps validation),
@@ -13,8 +44,9 @@ but it does not distinguish between implementation tasks and **test** tasks. Thi
 test coverage for its most important requirements — exactly what happened in PR #1178, where FR-001 (the core feature) had infrastructure tests but no
 happy-path test task.
 
-This specification defines the rules for a dedicated **test coverage sub-pass** within the existing analysis pipeline that ensures every FR has at least
-one associated test task, with elevated severity for P1-associated FRs missing happy-path coverage.
+This specification defines the rules for a dedicated **test coverage sub-pass** within the existing Category E (Coverage Gaps) analysis that ensures every FR has at least
+one associated test task, with elevated severity for P1-associated FRs missing happy-path coverage. The sub-pass is designated **E.2 Test Coverage Validation** (with the existing task-coverage check
+becoming **E.1 Task Coverage**), preserving the established A–G category structure.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -123,6 +155,12 @@ The keyword set must be extensible and include common synonyms beyond the initia
 - What happens when a task is ambiguously both implementation and test (e.g., "Implement and verify user login flow")?
 The task should be counted as a test task if it contains any test-related keyword,
 but the analysis should note the ambiguity as a LOW finding.
+- What happens when a test task contains a `[USn]` label but the spec has fewer than n user stories?
+The task is treated as unmapped (covers zero FRs for test-coverage purposes), appears in the "Unmapped Tasks" section,
+and a LOW finding notes the invalid user-story reference.
+- What happens when a test task has test-related keywords but no explicit FR reference and no `[USn]` label?
+The task is treated as unmapped — it covers zero FRs for test-coverage purposes. No keyword-similarity fallback
+is applied. The task appears in the "Unmapped Tasks" section with a LOW finding noting the missing FR or user-story mapping.
 
 ## Requirements *(mandatory)*
 
@@ -172,7 +210,17 @@ and multi-word keywords allow a trailing `s`/`es` on the last token only (e.g., 
 
 - **FR-003**: The analysis MUST map each identified test task to one or more FRs using two strategies:
 (a) explicit FR identifier references in the task description (e.g., `FR-001`),
-and (b) heuristic matching via shared user-story labels (e.g., `[US1]` in the task maps to FRs under User Story 1 in the spec).
+and (b) heuristic matching via shared user-story labels (e.g., `[US1]` in the task maps to FRs associated with User Story 1 in the spec).
+The user-story label mapping is positional by document order: `[US1]` maps to FRs associated with the first user story section,
+`[US2]` to FRs associated with the second, and so on.
+The set of FRs associated with a user story section is derived by collecting all `FR-NNN` identifiers
+explicitly referenced anywhere within that section's text boundary (from the user story heading
+to the next same-level heading or the end of the User Stories block); references in acceptance-scenario
+prose, description text, and independent-test notes are all included.
+If a task references `[USn]` and the spec has fewer than n user stories,
+the reference is treated as unmapped and reported as a LOW finding.
+Test tasks that contain test-related keywords but lack both an explicit FR reference and a `[USn]` label
+are treated as unmapped — they cover zero FRs for test-coverage purposes and appear in the "Unmapped Tasks" section.
 
 - **FR-004**: The analysis MUST report any FR with zero associated test tasks as a finding with severity HIGH in the findings table.
 
@@ -183,7 +231,9 @@ a single finding using the highest applicable severity (CRITICAL), not duplicate
 - **FR-006**: Happy-path test tasks MUST be distinguished from edge-case, negative, and infrastructure test tasks.
 A task qualifies as happy-path if its description indicates testing of the primary success scenario
 (keywords: `happy path`, `happy-path`, `success`, `nominal`, `primary flow`, `basic flow`, `main scenario`,
-or direct reference to P1 acceptance criteria with positive outcomes).
+or direct reference to P1 acceptance criteria with positive outcomes — where "direct reference" means the task
+explicitly cites an acceptance scenario identifier such as "Acceptance Scenario 1 from US1" or quotes near-verbatim
+phrasing from a P1 acceptance scenario; general semantic similarity is not sufficient).
 
   **Explicit test-type keyword sets**: Each supported test type has a defined keyword set for classification:
 
@@ -221,8 +271,9 @@ acceptance scenarios are still flagged for missing test coverage.
 - **FR-009**: The analysis MUST treat the absence of a `tasks.md` file, or a `tasks.md` file that is empty (zero tasks defined), as a CRITICAL finding
 that supersedes individual FR test-coverage checks.
 
-- **FR-010**: The test-coverage validation MUST be integrated within the existing coverage-gaps analysis
-of `speckit.analyze`, preserving backward compatibility with all other analysis passes.
+- **FR-010**: The test-coverage validation MUST be integrated within the existing Category E (Coverage Gaps) analysis
+of `speckit.analyze` as sub-pass **E.2 Test Coverage Validation** (with the existing task-coverage check designated **E.1 Task Coverage**),
+preserving backward compatibility with all other analysis passes (A, B, C, D, F, G) and the established category lettering.
 
 - **FR-011**: The keyword set used for test-task identification MUST be defined as a discoverable, enumerated list
 in a clearly marked, single-edit location (e.g., a dedicated configuration section) so that it can be extended without structural changes.
@@ -237,6 +288,24 @@ and table structure as existing analysis findings, maintaining report consistenc
 
 - **NFR-003**: The validation MUST produce zero false positives on the existing `specs/` directory examples —
 any existing spec+tasks pair that already has adequate test coverage must not generate spurious findings.
+This MUST be enforced via an automated parameterized regression test that discovers all `specs/*/` directories
+containing both `spec.md` and `tasks.md`, runs the test-coverage validation logic against each, and asserts
+zero test-coverage findings are produced — unless the spec directory contains an explicit allowlist file
+(`expected-findings.txt`) enumerating expected findings as stable keys (one per line) that are known and accepted.
+Two key formats are supported:
+(1) `FR-NNN:<kind>` for FR-scoped coverage-gap findings (e.g., `FR-002:no-test-task`, `FR-001:no-happy-path`), and
+(2) `TASK:<kind>` for task-scoped LOW findings not tied to a specific FR (e.g., `TASK:invalid-us-ref`,
+`TASK:unmapped-test-task`, `TASK:ambiguous-task`).
+Task-scoped keys use **set semantics** (deduplicated by kind): if multiple tasks produce the same kind
+(e.g., two distinct unmapped test tasks both emit `TASK:unmapped-test-task`), the key appears only once
+in both the generated set and the allowlist. This is intentional — the allowlist captures which *kinds*
+of findings are accepted, not their multiplicity.
+The `<kind>` suffix corresponds to the finding type emitted by E.2 (e.g., `no-test-task`, `no-happy-path`,
+`invalid-us-ref`, `unmapped-test-task`, `ambiguous-task`),
+making entries resilient to sequential `F-NN` ID renumbering caused by other passes.
+When an allowlist file is present, the test asserts that the set of generated finding keys exactly matches
+the allowlist (no new findings, no stale entries). When no allowlist file is present, the test asserts
+zero findings. This test MUST run in CI to continuously enforce NFR-003.
 
 - **NFR-004**: The analysis output MUST remain parseable by downstream consumers (e.g., `speckit.implement`, human reviewers)
 without format changes beyond the additive "Test Coverage Summary" table.
@@ -251,6 +320,8 @@ associated with one or more FRs via explicit reference or heuristic matching.
 or infrastructure — derived from keywords in the task description.
 - **Test Coverage Mapping**: The relationship between an FR and its associated test tasks,
 including coverage status (covered, uncovered) and test types present.
+- **User-Story Label**: A tag in the format `[USn]` in `tasks.md` that maps a task to FRs under the nth user story
+(1-based, positional by document order) in `spec.md`.
 
 ## Success Criteria *(mandatory)*
 
@@ -262,8 +333,9 @@ The fixture MUST be checked in at `specs/1202-speckit-pipeline-validate-each/fix
 and a `tasks.md` (with implementation tasks but no happy-path test task for that FR), ensuring SC-001 remains verifiable in CI
 independently of external PR artifacts.
 
-- **SC-002**: Running `/speckit.analyze` on all existing `specs/` directory examples produces no new false-positive findings —
-backward compatibility is maintained.
+- **SC-002**: Running `/speckit.analyze` on all existing `specs/` directory examples produces no new false-positive test-coverage findings —
+backward compatibility is maintained. This is verified by the automated regression test described in NFR-003,
+which asserts that each spec directory's test-coverage (E.2) findings exactly match its allowlist (or zero findings when no allowlist exists).
 
 - **SC-003**: The analysis report for any spec with 3+ FRs includes a "Test Coverage Summary" table
 with one row per FR and accurate test task mapping.
