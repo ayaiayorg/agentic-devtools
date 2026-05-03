@@ -1,10 +1,10 @@
 """Test extract_references — code fence paths and classify_reference_kind edge cases."""
 
+from agentic_devtools.cli.speckit.pass_g.models import ReferenceKind
 from agentic_devtools.cli.speckit.pass_g.reference_extractor import (
     classify_reference_kind,
     extract_references,
 )
-from agentic_devtools.cli.speckit.pass_g.models import ReferenceKind
 
 
 def test_extract_from_code_fence_backtick():

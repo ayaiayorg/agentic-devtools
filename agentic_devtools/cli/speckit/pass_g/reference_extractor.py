@@ -9,9 +9,7 @@ from .models import Reference, ReferenceKind
 # Patterns for extracting references from plan text
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 _CODE_FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
-_FILE_EXT_RE = re.compile(
-    r"\.(py|toml|yml|yaml|json|md|txt|cfg|ini|sh|ts|js|rs|go)$"
-)
+_FILE_EXT_RE = re.compile(r"\.(py|toml|yml|yaml|json|md|txt|cfg|ini|sh|ts|js|rs|go)$")
 
 
 def extract_references(plan_text: str) -> list[Reference]:
