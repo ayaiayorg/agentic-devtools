@@ -56,6 +56,7 @@ htmlcov/
 .agdt/
 *.log
 state-out.txt
+approve-output.txt
 poll-output.txt
 poll-output.json
 poll*.txt
