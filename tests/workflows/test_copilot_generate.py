@@ -403,3 +403,154 @@ class TestMainFunction:
             result = asyncio.run(module.main())
         assert result == 1
         assert "COPILOT_TIMEOUT must be a positive integer" in stderr_buf.getvalue()
+
+    def test_create_session_passes_github_token(self, _mock_copilot_sdk):
+        """Verify that create_session() receives github_token when SDK supports it."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        msg_data = MagicMock()
+        msg_data.content = "spec output"
+        events = [("assistant.message", msg_data), ("session.idle", None)]
+        _mock_session, mock_client_instance = self._make_mock_session_and_client(_mock_copilot_sdk, events)
+
+        stdout_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stdout", stdout_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "my-token", "COPILOT_MODEL": "test-model"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+
+        assert result == 0
+        assert stdout_buf.getvalue() == "spec output"
+        # First call should include github_token
+        call_kwargs = mock_client_instance.create_session.call_args.kwargs
+        assert "github_token" in call_kwargs
+        assert call_kwargs["github_token"] == "my-token"
+
+    def test_create_session_falls_back_on_github_token_type_error(self, _mock_copilot_sdk):
+        """Verify fallback when SDK raises TypeError for github_token kwarg."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+
+        mock_session = AsyncMock()
+        mock_session.disconnect = AsyncMock()
+
+        # Set up on/send so the session completes successfully
+        _callback = None
+
+        def fake_on(callback):
+            nonlocal _callback
+            _callback = callback
+
+        async def fake_send(_prompt):
+            assert _callback is not None
+
+            class _Type:
+                value = "assistant.message"
+
+            class _Event:
+                type = _Type
+                data = MagicMock(content="output")
+
+            _callback(_Event())
+
+            class _IdleType:
+                value = "session.idle"
+
+            class _IdleEvent:
+                type = _IdleType
+                data = None
+
+            _callback(_IdleEvent())
+
+        mock_session.on = fake_on
+        mock_session.send = fake_send
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.start = AsyncMock()
+        mock_client_instance.stop = AsyncMock()
+        # First call raises TypeError mentioning github_token; second succeeds
+        mock_client_instance.create_session = AsyncMock(
+            side_effect=[
+                TypeError("create_session() got an unexpected keyword argument 'github_token'"),
+                mock_session,
+            ]
+        )
+        fake_copilot.CopilotClient.return_value = mock_client_instance
+
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stdout", stdout_buf),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "my-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+
+        assert result == 0
+        assert stdout_buf.getvalue() == "output"
+        # Verify fallback was taken — two calls total
+        assert mock_client_instance.create_session.call_count == 2
+        # Verify first call included github_token
+        first_call_kwargs = mock_client_instance.create_session.call_args_list[0].kwargs
+        assert "github_token" in first_call_kwargs
+        assert first_call_kwargs["github_token"] == "my-token"
+        # Verify warning was emitted to stderr
+        assert "Warning" in stderr_buf.getvalue()
+        assert "github_token" in stderr_buf.getvalue()
+        # Second call should NOT include github_token
+        second_call_kwargs = mock_client_instance.create_session.call_args_list[1].kwargs
+        assert "github_token" not in second_call_kwargs
+
+    def test_create_session_reraises_unrelated_type_error(self, _mock_copilot_sdk):
+        """Verify that TypeError not mentioning github_token is re-raised (caught by outer handler)."""
+        module, spec = _load_module()
+        spec.loader.exec_module(module)
+
+        import asyncio
+        import io
+
+        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.start = AsyncMock()
+        mock_client_instance.stop = AsyncMock()
+        mock_client_instance.create_session = AsyncMock(
+            side_effect=TypeError("some unrelated type error in create_session()")
+        )
+        fake_copilot.CopilotClient.return_value = mock_client_instance
+
+        stderr_buf = io.StringIO()
+        with (
+            patch("sys.stdin", MagicMock(read=MagicMock(return_value="prompt"))),
+            patch("sys.stderr", stderr_buf),
+            patch.dict(
+                "os.environ",
+                {"COPILOT_GITHUB_TOKEN": "my-token"},
+                clear=False,
+            ),
+        ):
+            result = asyncio.run(module.main())
+
+        assert result == 1
+        assert "Copilot SDK call failed" in stderr_buf.getvalue()
+        assert "some unrelated type error" in stderr_buf.getvalue()
