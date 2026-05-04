@@ -24,7 +24,8 @@
 - [ ] CHK007 Each of the five user scenarios specifies Actor, Precondition, Steps, and Expected outcome in a consistent structured format
 - [ ] CHK008 Success criteria include measurable thresholds: "100% of prose-only files reported as blocking," "100% of fenced-block lines excluded," "no more than 2 retries per file," and
   "`--min-items` flag correctly overrides default"
-- [ ] CHK009 Scope boundaries are defined: pipeline mode defaults to `specs/<issue>/checklists/*.md`, standalone mode accepts explicit paths/globs, re-prompting is opt-in only via `--retry` flag
+- [ ] CHK009 Scope boundaries are defined: pipeline mode defaults to `{base_path}/<issue>-*/checklists/*.md` (where `{base_path}` is determined by `SPEC_BASE_PATH` env var,
+  defaulting to `specs`), standalone mode accepts explicit paths/globs, re-prompting is opt-in only via `--retry` flag
 - [ ] CHK010 Dependencies and assumptions are documented: CommonMark fenced code block specification for delimiter handling, sibling spec #1191 staged remediation pattern for retry behavior, existing
   `agdt-speckit-*` CLI entry point convention for command integration
 
