@@ -2,7 +2,8 @@
 
 ## Problem Statement
 
-The SpecKit pipeline generates checklist markdown files (e.g., `specs/<issue>/checklists/requirements.md`) as part of AI-assisted specification workflows. Currently, no validation ensures these files
+The SpecKit pipeline generates checklist markdown files (e.g., `specs/<issue>-<short-name>/checklists/requirements.md`) as part of AI-assisted specification
+workflows. Currently, no validation ensures these files
 contain actual markdown checkbox items (`- [ ]`, `- [x]`). This means the pipeline can produce and merge checklist artifacts that contain only descriptive prose — or too few actionable items to be
 useful — without any warning or failure signal. This gap undermines the reliability of generated artifacts and forces manual inspection to catch deficient outputs. The solution adds a deterministic
 checkbox-counting validator that integrates into both CI pipeline and standalone CLI usage, with an optional bounded LLM retry for auto-remediation.
@@ -48,15 +49,16 @@ may re-prompt the LLM to regenerate deficient files using a bounded retry strate
 ### Scenario 1: Pipeline catches prose-only checklist during CI
 
 **Actor:** CI pipeline  
-**Precondition:** A SpecKit pipeline run has generated `specs/1234/checklists/requirements.md` containing only prose headings and paragraphs with zero checkbox items.  
-**Steps:** (1) Pipeline invokes `agdt-speckit-validate-checklists` as a stage. (2) Validator scans `specs/1234/checklists/*.md`. (3) `requirements.md` is classified as prose-only (MEDIUM severity).  
+**Precondition:** A SpecKit pipeline run has generated `specs/1234-some-feature/checklists/requirements.md` containing only prose headings and paragraphs with zero checkbox items.  
+**Steps:** (1) Pipeline invokes `agdt-speckit-validate-checklists` as a stage. (2) Validator discovers the spec directory via glob `specs/1234-*/checklists/*.md`
+and scans all matched files. (3) `requirements.md` is classified as prose-only (MEDIUM severity).  
 **Expected:** Pipeline fails with a non-zero exit code. Output shows the file path, `checkbox_count: 0`, classification `prose-only`, severity `MEDIUM`, and a remediation hint.
 
 ### Scenario 2: Developer validates locally before push
 
 **Actor:** Developer  
-**Precondition:** Developer has edited `specs/1234/checklists/requirements.md` locally.  
-**Steps:** (1) Developer runs `agdt-speckit-validate-checklists specs/1234/checklists/requirements.md`. (2) File contains 5 real checkbox items.  
+**Precondition:** Developer has edited `specs/1234-some-feature/checklists/requirements.md` locally.  
+**Steps:** (1) Developer runs `agdt-speckit-validate-checklists specs/1234-some-feature/checklists/requirements.md`. (2) File contains 5 real checkbox items.  
 **Expected:** CLI exits with code 0. Output shows the file as `valid` with `checkbox_count: 5`.
 
 ### Scenario 3: Fenced code block exclusion
@@ -77,7 +79,7 @@ fenced region; only a closing fence of the same character and at least the same 
 ### Scenario 5: Multiple files with mixed results
 
 **Actor:** CI pipeline  
-**Precondition:** `specs/1234/checklists/` contains `requirements.md` (valid, 6 items), `security.md` (deficient, 2 items), `performance.md` (prose-only, 0 items).  
+**Precondition:** `specs/1234-some-feature/checklists/` contains `requirements.md` (valid, 6 items), `security.md` (deficient, 2 items), `performance.md` (prose-only, 0 items).  
 **Steps:** (1) Validator processes all three files. (2) Aggregate result computed.  
 **Expected:** Pipeline fails. Per-file results show `requirements.md` as valid, `security.md` as deficient (LOW), `performance.md` as prose-only (MEDIUM). Aggregate status: `FAIL`.
 
@@ -85,10 +87,17 @@ fenced region; only a closing fence of the same character and at least the same 
 
 ### Functional Requirements
 
-**FR-001:** In pipeline mode, the system shall validate `specs/<issue>/checklists/requirements.md` by default as the baseline checklist file produced by the SpecKit pipeline.
+**FR-001:** In pipeline mode, the system shall discover the spec directory via glob `{base_path}/<issue>-*/checklists/*.md`
+(where `{base_path}` defaults to `specs` but is overridden by the `SPEC_BASE_PATH` environment variable, matching the
+existing SpecKit pipeline convention). If the glob matches multiple directories for the same issue number, the validator
+shall abort with exit code 1 (matching the generator's collision-abort behavior). For 3-digit issue numbers (100–999),
+the validator shall additionally verify that the matched directory contains a `**Source Issue**` marker referencing the
+issue number, since that prefix range overlaps the legacy numbering namespace (mirroring the identical guard in
+`generate-spec-from-issue.sh`). Otherwise it validates all `*.md` files in the single matched directory, including
+`requirements.md` as the baseline checklist file produced by the SpecKit pipeline.
 
-**FR-002:** In pipeline mode, when additional checklist markdown files exist under `specs/<issue>/checklists/`, the system shall also validate each matching `*.md` file in that directory in the same
-run.
+**FR-002:** In pipeline mode, the system shall validate each `*.md` file found in the resolved
+`{base_path}/<issue>-*/checklists/` directory in a single run, after collision detection and safety checks pass.
 
 **FR-003:** In standalone CLI mode, the validator shall accept one or more explicit file paths and/or glob patterns that resolve to markdown files to validate.
 
@@ -180,7 +189,20 @@ consecutive tildes, per FR-005) from checkbox counting.
 9. Given `--min-items 5` is passed, when a file contains 4 checkbox items, then the file is classified as deficient and the pipeline fails.
 10. Given a remediated file that passes after 1 retry, when validation output is produced, then it includes `remediated: true` and `retries_used: 1`.
 11. Given the validator is invoked via the CLI, then it is accessible as `agdt-speckit-validate-checklists` following the established `agdt-speckit-*` entry point pattern.
-12. Given pipeline mode runs with no explicit file paths, when the validator executes, then it defaults to validating `specs/<issue>/checklists/requirements.md` plus any other `*.md` files in that directory.
+12. Given pipeline mode runs with no explicit file paths, when the validator executes, then it defaults to
+    discovering the spec directory via glob `{base_path}/<issue>-*/checklists/*.md` where
+    `{base_path}` is determined by the `SPEC_BASE_PATH` environment variable (defaulting to `specs`
+    when unset), matching the existing SpecKit pipeline convention. This ensures the validator
+    continues to discover checklists correctly when a repository overrides the default base directory.
+    Since `generate-spec-from-issue.sh` reuses the original directory even after issue title renames,
+    the glob-based approach handles that case automatically.
+    If the glob matches multiple directories for the same issue number, the validator errors
+    (exit code 1) instead of silently choosing one, matching the generator's collision-abort behavior
+    (which also exits with code 1). For 3-digit issue numbers (100–999), the validator additionally
+    verifies that the matched directory contains a `**Source Issue**` marker referencing the issue
+    number, since that prefix range overlaps the legacy numbering namespace (mirroring the identical
+    guard in `generate-spec-from-issue.sh`).
+    Otherwise it validates all `*.md` files found in the single matched directory.
 13. Given glob patterns that resolve to zero files, when the validator runs, then it produces a warning and exits with code 0 without reporting a blocking failure.
 
 ---

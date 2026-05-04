@@ -72,6 +72,7 @@ specs/*/research.md
 specs/*/data-model.md
 specs/*/quickstart.md
 specs/*/contracts/
+specs/*/checklists/.generation-prompt-*.md
 .specify/memory/agent-file.md
 .markdownlint-debug.log
 msg.txt
