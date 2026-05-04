@@ -5,7 +5,7 @@ Reads a prompt from stdin, sends it to the Copilot SDK with a configurable
 model, and prints the assistant's response to stdout.
 
 Environment Variables:
-    COPILOT_GITHUB_TOKEN  - Required. Provided by the workflow via GitHub App token.
+    COPILOT_GITHUB_TOKEN  - Required. Provided by the workflow via secrets.COPILOT_GITHUB_TOKEN.
     COPILOT_MODEL         - Optional. Model to use (default: claude-opus-4.6).
     COPILOT_TIMEOUT       - Optional. Seconds to wait for a response (default: 600).
                             Heavy phases (Plan, Tasks, Analyze) may need 900s or more.
@@ -45,7 +45,7 @@ async def main() -> int:
     if not token:
         print(
             "Error: COPILOT_GITHUB_TOKEN environment variable is required"
-            " (provided by workflow via GitHub App token)",
+            " (provided by workflow via secrets.COPILOT_GITHUB_TOKEN)",
             file=sys.stderr,
         )
         return 1
@@ -56,11 +56,27 @@ async def main() -> int:
         client = CopilotClient(SubprocessConfig(github_token=token))
         await client.start()
 
-        session = await client.create_session(
-            model=model,
-            on_permission_request=PermissionHandler.approve_all,
-            infinite_sessions={"enabled": False},
-        )
+        try:
+            session = await client.create_session(
+                model=model,
+                on_permission_request=PermissionHandler.approve_all,
+                infinite_sessions={"enabled": False},
+                github_token=token,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
+                raise
+            # Fallback for SDK versions that don't accept github_token kwarg
+            print(
+                "Warning: create_session() does not accept github_token; "
+                "falling back to session without explicit token.",
+                file=sys.stderr,
+            )
+            session = await client.create_session(
+                model=model,
+                on_permission_request=PermissionHandler.approve_all,
+                infinite_sessions={"enabled": False},
+            )
 
         content_parts: list[str] = []
         received_events: list[str] = []
