@@ -83,41 +83,41 @@ compatible. Specifically, assert that an `OSError` without a `winerror` attribut
 
 ### Functional Requirements
 
-1. The Windows auto-start path must detect transient file access failures consistent with `[WinError 32]` (`ERROR_SHARING_VIOLATION`) by inspecting the `winerror` attribute of the `OSError` instance.
-   Only `winerror == 32` is classified as retryable.
-2. The implementation must handle retryable file access failures using bounded retry logic rather than failing immediately on the first
-   occurrence. The retry wraps the `subprocess.run` call site in `copilot_auto_start_cmd`.
-3. The retry loop must stop and return success as soon as the protected operation completes successfully.
-4. The retry loop must stop and return failure when the maximum retry budget is exhausted (5 retries, 6 total tries, approximately 11.5 s of cumulative backoff delay plus execution overhead).
-5. Errors that are not classified as transient file access conflicts (i.e., `OSError` without `winerror == 32`, `FileNotFoundError`, or any non-`OSError` exception) must not be retried and must
-   continue to fail immediately.
-6. Each retry attempt must emit diagnostic logging to stderr that records the attempt number (e.g., "retry 2/5"), the backoff delay before the next attempt, and the `winerror` code confirming the
-   error was classified as retryable.
-7. Final failure logging must indicate that retries were attempted, the number of retries made (5 at maximum), the total number of tries (6 at maximum), and include the terminal exception details.
-8. The implementation must release or avoid retaining file and process handles that could contribute to self-inflicted locking during startup
-   and cleanup. Specifically, no new file handles should be opened or held open across retry iterations.
-9. If the user interrupts the command during retry delay or retry execution, the command must stop retrying, call `_unmark_run_triggered`, and exit with code 130 through normal `KeyboardInterrupt`
-   handling.
-10. If the worktree or target file disappears during retries (i.e., the error changes from `winerror=32` to `FileNotFoundError` or the worktree directory no longer exists), the command must fail with
-    the appropriate terminal error rather than retrying
-    indefinitely.
-11. Existing success-path behavior, command-line interface expectations, and state interactions must remain backward compatible outside the
-    retryable failure path.
-12. Retry constants must be defined as named module-level values (`_RETRY_MAX_ATTEMPTS = 5`, `_RETRY_INITIAL_DELAY_S = 0.5`, `_RETRY_BACKOFF_FACTOR = 2.0`, `_RETRY_MAX_DELAY_S = 4.0`) for
-    maintainability.
-13. The best-effort cleanup phase (`_cleanup_auto_start_task`) must not use retry logic. A `[WinError 32]` during cleanup is logged as a warning and does not affect the exit code.
+- **FR-001**: The Windows auto-start path must detect transient file access failures consistent with `[WinError 32]` (`ERROR_SHARING_VIOLATION`) by inspecting the `winerror` attribute of the
+  `OSError` instance. Only `winerror == 32` is classified as retryable.
+- **FR-002**: The implementation must handle retryable file access failures using bounded retry logic rather than failing immediately on the first occurrence. The retry wraps the `subprocess.run`
+  call site in `copilot_auto_start_cmd`.
+- **FR-003**: The retry loop must stop and return success as soon as the protected operation completes successfully.
+- **FR-004**: The retry loop must stop and return failure when the maximum retry budget is exhausted (5 retries, 6 total tries, approximately 11.5 s of cumulative backoff delay plus execution
+  overhead).
+- **FR-005**: Errors that are not classified as transient file access conflicts (i.e., `OSError` without `winerror == 32`, `FileNotFoundError`, or any non-`OSError` exception) must not be retried
+  and must continue to fail immediately.
+- **FR-006**: Each retry attempt must emit diagnostic logging to stderr that records the attempt number (e.g., "retry 2/5"), the backoff delay before the next attempt, and the `winerror` code
+  confirming the error was classified as retryable.
+- **FR-007**: Final failure logging must indicate that retries were attempted, the number of retries made (5 at maximum), the total number of tries (6 at maximum), and include the terminal
+  exception details.
+- **FR-008**: The implementation must release or avoid retaining file and process handles that could contribute to self-inflicted locking during startup and cleanup. Specifically, no new file
+  handles should be opened or held open across retry iterations.
+- **FR-009**: If the user interrupts the command during retry delay or retry execution, the command must stop retrying, call `_unmark_run_triggered`, and exit with code 130 through normal
+  `KeyboardInterrupt` handling.
+- **FR-010**: If the worktree or target file disappears during retries (i.e., the error changes from `winerror=32` to `FileNotFoundError` or the worktree directory no longer exists), the command
+  must fail with the appropriate terminal error rather than retrying indefinitely.
+- **FR-011**: Existing success-path behavior, command-line interface expectations, and state interactions must remain backward compatible outside the retryable failure path.
+- **FR-012**: Retry constants must be defined as named module-level values (`_RETRY_MAX_ATTEMPTS = 5`, `_RETRY_INITIAL_DELAY_S = 0.5`, `_RETRY_BACKOFF_FACTOR = 2.0`, `_RETRY_MAX_DELAY_S = 4.0`)
+  for maintainability.
+- **FR-013**: The best-effort cleanup phase (`_cleanup_auto_start_task`) must not use retry logic. A `[WinError 32]` during cleanup is logged as a warning and does not affect the exit code.
 
 ### Non-Functional Requirements
 
-1. The retry strategy must use exponential backoff starting at 0.5 s, doubling each attempt, capped at 4 s per delay, with a maximum of 5 retries (6 total tries), yielding approximately 11.5 s of
-   cumulative backoff delay (0.5 + 1 + 2 + 4 + 4) plus subprocess execution overhead.
-2. The fix must preserve backward compatibility for unaffected platforms and for successful runs that never enter retry handling. On non-Windows platforms, the `winerror` attribute is absent from
-   `OSError` instances, so the classifier returns `False` and no retry is attempted.
-3. User-facing output should remain consistent with existing UX patterns. Retry diagnostic messages must use the existing `agdt-copilot-auto-start:` prefix and print to stderr, matching the style of
-   other diagnostic messages in the module.
-4. Automated test coverage must include: (a) transient retry success after 1, 2, and N failures; (b) retry exhaustion after max attempts; (c) `KeyboardInterrupt` during backoff sleep; (d)
-   non-retryable `OSError` (no `winerror` attribute or `winerror != 32`); (e) error type change mid-retry (e.g., `winerror=32` → `FileNotFoundError`). All tests must follow the 1:1:1 test structure
-   under `tests/unit/cli/copilot/auto_start/`.
+- **NFR-001**: The retry strategy must use exponential backoff starting at 0.5 s, doubling each attempt, capped at 4 s per delay, with a maximum of 5 retries (6 total tries), yielding
+  approximately 11.5 s of cumulative backoff delay (0.5 + 1 + 2 + 4 + 4) plus subprocess execution overhead.
+- **NFR-002**: The fix must preserve backward compatibility for unaffected platforms and for successful runs that never enter retry handling. On non-Windows platforms, the `winerror` attribute is
+  absent from `OSError` instances, so the classifier returns `False` and no retry is attempted.
+- **NFR-003**: User-facing output should remain consistent with existing UX patterns. Retry diagnostic messages must use the existing `agdt-copilot-auto-start:` prefix and print to stderr,
+  matching the style of other diagnostic messages in the module.
+- **NFR-004**: Automated test coverage must include: (a) transient retry success after 1, 2, and N failures; (b) retry exhaustion after max attempts; (c) `KeyboardInterrupt` during backoff sleep;
+  (d) non-retryable `OSError` (no `winerror` attribute or `winerror != 32`); (e) error type change mid-retry (e.g., `winerror=32` → `FileNotFoundError`). All tests must follow the 1:1:1 test
+  structure under `tests/unit/cli/copilot/auto_start/`.
 
 ## Success Criteria
 
