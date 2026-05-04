@@ -460,16 +460,22 @@ jobs:
           app-id: ${{ secrets.COPILOT_APP_ID }}
           private-key: ${{ secrets.COPILOT_APP_PRIVATE_KEY }}
 
-      - name: Validate App Token
+      - name: Validate Tokens
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
         env:
           APP_TOKEN: ${{ steps.app_token.outputs.token }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           if [[ -z "$APP_TOKEN" ]]; then
             echo "::error::GitHub App token generation failed. Verify that COPILOT_APP_ID and COPILOT_APP_PRIVATE_KEY secrets are configured correctly. Install or verify the App at https://github.com/apps/agentic-devtools-copilot-reviewer/installations/new"
             exit 1
           fi
           echo "✓ GitHub App installation token generated"
+          if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. This PAT is required for Copilot SDK authentication. Configure the COPILOT_GITHUB_TOKEN secret with a PAT that has Copilot API access."
+            exit 1
+          fi
+          echo "✓ COPILOT_GITHUB_TOKEN is set"
 
       - name: Set up Python
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
@@ -495,7 +501,7 @@ jobs:
           ISSUE_URL: ${{ steps.issue.outputs.url }}
           SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
           COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
-          COPILOT_GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SPECKIT_CRITICAL_GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
         run: |
           chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
