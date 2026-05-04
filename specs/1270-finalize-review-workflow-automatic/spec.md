@@ -174,6 +174,11 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   state? → Targeted fallback attempts repair; if that also fails, partial success is reported.
 - What happens when the API rate limit is hit during comment patching? → The system respects retry-after headers
   and reports any comments that could not be patched within the timeout window.
+- What happens when `review-state.json` is missing or corrupt at completion time? → Finalization reports no
+  eligible comments (no-op success) and does not block the completion step. The system does not attempt to
+  reconstruct review state from API data alone.
+- What if a comment's marker is valid but the thread has been deleted or is inaccessible? → The comment is
+  counted as a non-blocking failure in reporting and does not prevent other comments from being finalized.
 
 ## Requirements *(mandatory)*
 
@@ -187,14 +192,23 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   workflow phase to perform finalization.
 - **FR-003**: The implementation **MUST** reuse existing session-closing, cascade-update, and comment-patching
   internals where those internals already provide the required behavior, rather than duplicating equivalent
-  orchestration logic.
+  orchestration logic. Specifically, the batch-first pass **MUST** reuse the existing `submit_reviews()`
+  function (or its underlying parallel file-processing and single-cascade logic) as the entry point for
+  driving file-summary convergence. For activity-log entry finalization, `_complete_active_session()` is the
+  primary entry point for completing the current session (which internally calls
+  `_update_activity_log_comment_status()`), while `_update_activity_log_comment_status()` **MAY** be invoked
+  directly only for targeted fallback repairs of individual activity-log entries that were not covered by
+  the session-completion path.
 
 #### Thread/comment eligibility and classification
 
 - **FR-004**: The system **MUST** classify which PR review threads/comments are part of the agentic-devtools
   prompt-based review flow and therefore eligible for repair/finalization.
-  Eligible comment types include: file summary threads, the overall PR summary thread, and
-  review-session reply comments within the activity-log thread (identified by the `activity-log-entry` marker).
+  Eligible comment types include: file summary threads (marker type `file-summary`), the overall PR summary
+  thread (marker type `overall-summary`), and review-session reply comments within the activity-log thread
+  (marker type `activity-log-entry`). Classification **MUST** use the existing `classify_agdt_threads()` and
+  `parse_marker()` functions from `agentic_devtools.cli.azure_devops.marker` as the primary mechanism,
+  consistent with FR-012.
 - **FR-005**: The system **MUST** limit repair/finalization attempts to comments that are both classified as
   eligible prompt-based comments and attributable to the current authenticated PAT identity.
 - **FR-006**: The system **MUST** skip comments that are unclassified, ambiguously classified, or classified as
@@ -204,13 +218,22 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
 - **FR-007a**: The system **MUST** classify review-session reply comments (bearing the `activity-log-entry`
   marker) as eligible for finalization and **MUST** rewrite the reply belonging to the current review session
   and commit into its completed form (e.g., replacing intermediate status strings like `New Review` or
-  `Resuming` with the terminal session-complete content). The system **MUST NOT** finalize activity-log
+  `Resuming` with the terminal session-complete content rendered by `_update_activity_log_comment_status` with
+  `status_emoji="✅"` and `status_text="Completed"`). The system **MUST NOT** finalize activity-log
   entries belonging to other review sessions or commits, as those represent independent review cycles with
-  their own audit trails.
+  their own audit trails. Session/commit scoping **MUST** be determined by matching the session ID
+  (from the `*Session ID:*` line) embedded in the activity-log entry's body content against the current
+  review session in `review-state.json`. Additionally, the commit hash (from the `*Commit:*` line) **MAY**
+  be used as a secondary scoping signal via prefix comparison (the rendered short hash is a prefix of the
+  full `commitHash` stored in `review-state.json`).
 
 #### Identity resolution
 
 - **FR-008**: The system **MUST** resolve the current PAT-backed identity before mutating repairable comments.
+  Identity is resolved by calling the Azure DevOps Connection Data API (`/_apis/connectionData`) using the
+  configured PAT, which returns the authenticated user's `id` (required for authorship checks). The display
+  name field (e.g., `providerDisplayName` or `customDisplayName`) is optional and implementation-defined.
+  The resolved identity is compared against each comment's `author.id` field (GUID equality).
 - **FR-009**: If PAT identity resolution fails or returns insufficient data, the system **MUST NOT** mutate any
   comments whose authorship cannot be confidently established.
 
@@ -218,9 +241,13 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
 
 - **FR-010**: The system **MUST** drive the bulk repair/finalization pass through a single batch-review
   submission (producing one final overall cascade) rather than issuing repeated single-file
-  approve/request-changes calls that would reintroduce multiple-cascade behavior. The implementation
-  **MAY** invoke this behavior through any suitable in-process entry point consistent with CLAR-003
-  (synchronous completion execution path).
+  approve/request-changes calls that would reintroduce multiple-cascade behavior. The batch pass **MUST**
+  ensure that no per-file cascade is triggered during individual file processing, and that at most one
+  `execute_cascade()` call is performed at the end of the batch (skipped when no file operations succeeded,
+  consistent with existing `submit_reviews()` behavior). The implementation **MAY** achieve this
+  through any suitable in-process entry point (e.g., the internal parallel file-processing path of
+  `submit_reviews()`) consistent with CLAR-003 (synchronous completion execution path), as long as the
+  single-cascade invariant is preserved.
 - **FR-010a**: The batch pass **MUST** preserve each file's existing review outcome (approved vs.
   needs-work) and associated summary/suggestion content. The system **MUST NOT** alter a file's verdict
   solely to force terminal comment content; each file's final posted comment **MUST** reflect the actual
@@ -229,16 +256,29 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   to targeted repair for only the remaining non-converged eligible comments. The targeted fallback
   **MUST** produce comment content consistent with the authoritative review state rather than writing
   ad-hoc comment bodies directly, preventing drift between the persisted review decisions and the
-  posted comment content visible to users.
-- **FR-012**: The system **MUST** use the existing structured marker-parsing mechanisms (rather than
-  fragile content heuristics) to identify and scope candidate comments for repair/finalization.
+  posted comment content visible to users. Targeted repair uses direct Azure DevOps PATCH
+  `threads/{threadId}/comments/{commentId}` API calls with content rendered from `render_file_summary()`
+  or `render_overall_summary()` against the authoritative `review-state.json` data, and
+  `_update_activity_log_comment_status()` from `review_scaffold.py` for activity-log entries.
+  Because the renderers return body-only content (without the leading `<!-- agdt-review:v1 ... -->` marker
+  line), targeted repair **MUST** prepend the appropriate marker (via `build_marker(...)`) before PATCHing
+  the comment, preserving the marker metadata required for future classification.
+- **FR-012**: The system **MUST** use the existing structured marker-parsing mechanisms (specifically
+  `marker.py`'s public API — `parse_marker()`, `has_agdt_marker()`, and `classify_agdt_threads()` —
+  rather than fragile content heuristics) to identify and scope candidate comments for
+  repair/finalization.
   Marker parsing alone **MUST NOT** be treated as sufficient to determine whether a comment's current
   body is already in its correct terminal form, because marker metadata does not encode review-status
   text, placeholder narrative content, or model-progress rows. The system **MUST** determine whether a
   comment is already correct, still repairable, or still needs patching by comparing the current
-  comment body against the expected terminal rendering for that comment type. The classification logic
-  **SHOULD** leverage structured AGDT markers for safe candidate matching and use rendered-content
-  comparison for convergence validation, rather than requiring brittle ad-hoc heuristics.
+  comment body against the expected terminal rendering for that comment type (produced by
+  `render_file_summary()` and `render_overall_summary()` from `review_templates.py`). Because Azure DevOps
+  comment content includes the AGDT marker prefix line (prepended at post/patch time via `build_marker()`)
+  while the renderers produce body-only content, convergence comparison **MUST** normalize by stripping the
+  leading marker line from the observed comment content before comparing against the expected rendering.
+  The classification logic **SHOULD** leverage structured AGDT markers for safe candidate matching and use
+  rendered-content comparison (after marker-line normalization) for convergence validation, rather than
+  requiring brittle ad-hoc heuristics.
 - **FR-013**: The system **SHOULD** avoid patching comments whose current content already exactly matches the
   expected final content.
 - **FR-014**: The system **MAY** leave already-correct comments unchanged while still counting them in reporting
@@ -247,7 +287,9 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
 #### Verification and convergence
 
 - **FR-015**: After each repair/finalization pass, the system **MUST** verify observed state convergence by
-  re-reading or re-evaluating the relevant thread/comment state.
+  re-reading the relevant thread/comment content from the Azure DevOps API (not from local cache or
+  optimistic state) and comparing the fetched content against the expected terminal rendering. This ensures
+  verification reflects the actual repository state rather than optimistic local assumptions.
 - **FR-015a**: Convergence for file summary and overall summary comments is defined as reaching their terminal
   content state — only the final `approved` or `needs-work` renderings are valid terminal content. Placeholder
   or intermediate strings (e.g., `Awaiting review...`, in-progress status sections, partial marker content)
@@ -262,7 +304,8 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
     classified as out-of-branch/skipped during prompt generation) **MUST** be pruned from the summary
     to reflect only the files in the active `review-state.json` file entries for the current commit.
 - **FR-015b**: Convergence for `activity-log-entry` comments is defined as the current session's
-  review-session reply reaching its terminal completed state as produced by the existing renderer.
+  review-session reply reaching its terminal completed state as produced by the existing renderer
+  (`_format_activity_log_entry` with `status_emoji="✅"` and `status_text="Completed"`).
   Intermediate status strings (e.g., `New Review`, `Resuming`) **MUST** be replaced with the terminal
   session-complete content. The comment is considered converged only when its full body matches the
   canonical completed output — partial content or alternate prose that omits required elements
@@ -276,16 +319,31 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
 
 - **FR-018**: The system **MUST** produce a finalization report that includes, at minimum, which eligible
   comments were repaired/finalized, which were skipped and why, which were unchanged, and whether convergence
-  was achieved fully, partially, or not at all.
+  was achieved fully, partially, or not at all. The report **MUST** be emitted to stdout (for interactive
+  consumption) and also persisted to the workflow state directory as
+  `finalization-report-{commit_hash_short}.json` for automated downstream consumption.
+
+#### Resilience
+
+- **FR-019**: When `review-state.json` is missing or corrupt at completion time, the finalization pass
+  **MUST** treat this as a no-op success: report "no eligible comments (review state unavailable)" and
+  allow the completion step to proceed normally without blocking. The system **MUST NOT** attempt to
+  reconstruct review state from API data alone. This is consistent with NFR-002 (non-blocking failures).
 
 ### Non-Functional Requirements
 
 - **NFR-001**: The finalization process **MUST** complete within 60 seconds in the normal bounded execution path,
-  including verification and any permitted retry/fallback behavior.
+  including verification and any permitted retry/fallback behavior. The retry model uses bounded global retry
+  rounds (not independent per-comment timers): after the initial batch pass, up to 2 additional retry rounds
+  are performed across all remaining non-converged comments, with a 5-second delay between rounds. Each round
+  targets only comments that have not yet converged. This caps the retry overhead at a fixed 10 seconds of
+  backoff regardless of the number of non-converged comments, keeping the worst case well within the 60-second
+  budget.
 - **NFR-002**: Failures in the finalization process **MUST** be non-blocking to the overall completion step
   unless an existing higher-level workflow failure condition already requires termination.
 - **NFR-003**: The implementation **MUST** support dry-run behavior such that no comment mutations occur while
-  still producing a meaningful preview report of intended actions.
+  still producing a meaningful preview report of intended actions. Dry-run is activated when the `dry_run`
+  state key is truthy, consistent with the existing `agdt-set dry_run true` pattern and `is_dry_run()` utility.
 - **NFR-004**: The implementation **MUST** be idempotent: rerunning the same finalization logic against an
   already-converged state must not introduce duplicate mutations or incorrect drift.
 - **NFR-005**: The implementation **SHOULD** minimize unnecessary API calls by skipping already-correct comments
@@ -317,9 +375,40 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   **MUST** preserve the existing non-blocking error-handling and reporting expectations, without requiring a
   separate user-visible repair phase.
 
+### Session 2026-05-04
+
+- Q: How does the finalization pass invoke the batch-review submission synchronously within the completion step, given that `submit_reviews()` is designed as a CLI entry point that reads from state? →
+  A: The finalization orchestrator calls `submit_reviews()` (or its underlying internal logic) as a direct in-process Python function call within the completion step. It pre-populates the required
+  state keys (`batch_reviews.items`, `pull_request_id`) before invocation and reads results from state/review-state afterward. This is consistent with CLAR-003 and avoids spawning a subprocess or
+  background task for an operation that must complete synchronously within the 60-second window.
+  Because `submit_reviews()` calls `sys.exit(1)` on validation errors or file-review failures, the
+  finalization orchestrator **MUST** invoke the underlying non-exiting logic path (e.g., the internal
+  file-processing and cascade functions) rather than the top-level CLI entry point, or alternatively
+  catch `SystemExit` and translate it into a non-blocking failure report. This ensures the completion
+  step is never aborted by an exit call, consistent with NFR-002's non-blocking requirement.
+- Q: What is the expected retry strategy when targeted per-comment repair fails — exponential backoff, fixed delay, or bounded retries? → A: Bounded global retry
+  rounds with fixed backoff: after the initial batch pass, up to 2 additional retry rounds are performed across all remaining non-converged comments, with a 5-second delay between rounds. Each round
+  targets only comments that have not yet converged. This caps retry overhead at a fixed 10 seconds of backoff regardless of comment count, keeping the worst case well within the 60-second NFR-001
+  budget while allowing transient API errors to resolve. Applied to NFR-001.
+- Q: When `review-state.json` is missing or corrupt at completion time (e.g., interrupted workflow, manual deletion), should finalization fail loudly or treat it as a no-op? → A: Treat as a no-op:
+  report "no eligible comments (review state unavailable)" and allow the completion step to proceed normally. This is consistent with NFR-002 (non-blocking failures) and matches the existing
+  `_complete_active_session()` pattern which silently returns on `FileNotFoundError`. Added to Edge Cases.
+- Q: Should the finalization report be persisted to disk (e.g., as a JSON file in the state directory) or only emitted to stdout? → A: Both — emit a human-readable summary to stdout for interactive
+  use, and persist a structured JSON report to `finalization-report-{commit_hash_short}.json` in the workflow state directory for automated consumption and auditability. Applied to FR-018.
+- Q: How does identity comparison work — is it `author.id` equality, `author.displayName` matching, or something else? → A: Identity comparison uses `author.id` (GUID) equality, which is the stable
+  unique identifier in Azure DevOps. Display names are not reliable for identity comparison due to potential duplicates and changes. The PAT identity's `id` is obtained from the Connection Data API
+  (`/_apis/connectionData`). Applied to FR-008.
+
 ## Notes for subsequent phases
 
 - Thread classification and authorship scoping are hard safety boundaries that later phases must not relax.
 - The finalization report must distinguish between: no eligible comments found, eligible comments already
   correct, eligible comments repaired successfully, eligible comments partially converged, and eligible
   comments that failed to converge within the allowed execution window.
+- The retry strategy (2 additional attempts, 5-second fixed backoff) may need tuning in subsequent phases based
+  on observed API latency patterns for large PRs. The 60-second budget provides headroom for adjustment.
+- Finalization execution ordering (after `_complete_active_session`, before workflow-state cleanup) is a
+  sequencing contract that subsequent phases must preserve if they add additional completion-step logic.
+
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
