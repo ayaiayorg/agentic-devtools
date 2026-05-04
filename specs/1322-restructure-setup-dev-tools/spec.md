@@ -40,8 +40,38 @@ The restructured system consists of five scripts with clear ownership boundaries
   → A: The exact list is determined dynamically by `agdt-setup` based on the user's answers. Known candidates include cspell, ruff,
   markdownlint-cli2, and other project-quality tools. The configured script only installs what the user selected.
 - Q: Should the `--foreground` flag be exposed on `setup-dev-tools.py` or only on the inner scripts?
-  → A: Expose `--foreground` on `setup-dev-tools.py` (the repo-root entry point) and propagate it to inner scripts. This allows users to
-  run the full setup synchronously when needed (e.g., in CI or when debugging).
+  → A: Expose `--foreground` on `setup-dev-tools.py` (the repo-root entry point) and propagate it to inner scripts. The flag exists for
+  explicitness and forward-compatibility with a future `--background` mode; since the default is already synchronous (see below), passing
+  `--foreground` today is a no-op that documents intent (e.g., in CI scripts or debugging sessions).
+- Q: The `.agdt/` directory is currently listed in `.gitignore` (used for runtime state, workflows, and background tasks). Should the new managed setup scripts in `.agdt/` be committed to the
+  repository, or generated on-the-fly each time `agdt-setup` runs?
+  → A: The scripts must be committed to the repository so that `setup-dev-tools.py` can invoke them immediately after clone without requiring `agdt-setup` to have been run first. To achieve this,
+  the `.gitignore` must use the following pattern (because git does not check negation rules for files inside a fully-ignored directory):
+
+  ```gitignore
+  # Keep .agdt/ contents ignored for runtime state, but track managed setup scripts
+  .agdt/*
+  !.agdt/agentic-devtools-*.py
+  ```
+
+  The key insight is that the existing `.agdt/` rule (trailing slash) ignores the **directory** itself, which prevents git from ever
+  examining its contents — making negation rules ineffective. Changing to `.agdt/*` (with a glob) tells git to ignore the directory's
+  **contents** while still traversing the directory, allowing subsequent `!` negations to re-include specific files.
+- Q: What specific marker comment identifies the new modular orchestrator entry point in `setup-dev-tools.py`, so that FR-013's legacy detection can distinguish between old monolithic scripts and the
+  new orchestrator?
+  → A: Use the marker comment `# AGDT-MANAGED-ORCHESTRATOR` on a line by itself near the top of the generated `setup-dev-tools.py`. FR-013's detection logic checks whether this exact string appears
+  anywhere in the file; if absent, the file is treated as a legacy monolithic script.
+- Q: In FR-009, "propagating any errors" is ambiguous — does the orchestrator use a fail-fast strategy (abort on the first script failure) or a collect-all strategy (run all scripts and report all
+  failures)?
+  → A: Fail-fast. If `agentic-devtools-required-setup.py` fails, the orchestrator must stop immediately and not run `agentic-devtools-configured-setup.py`, because configured tools depend on a working
+  agentic-devtools installation. The same fail-fast rule applies in the root `setup-dev-tools.py`: if the complete-setup script fails, the repo-specific script is not run.
+- Q: What is the default execution mode when `--foreground` is not passed? The spec defines `--foreground` for synchronous execution but does not specify the default.
+  → A: The default execution mode is foreground (synchronous). The `--foreground` flag exists for explicitness and forward-compatibility — a future `--background` mode may run scripts as background
+  tasks via the existing task infrastructure. For now, omitting the flag behaves identically to passing `--foreground`.
+- Q: How does this restructuring relate to the existing `agdt-setup` command (`setup_cmd` in `agentic_devtools/cli/setup/commands.py`)? Does this extend the existing command or replace it?
+  → A: This extends the existing `agdt-setup` command. The current `agdt-setup` already handles dependency checking, Copilot CLI installation, GH CLI installation, and cert prefetching. The
+  restructuring adds a new phase at the end of `agdt-setup` that generates the `.agdt/` setup scripts and updates the repo-root `setup-dev-tools.py`. The existing `agdt-setup` functionality
+  (dependency checks, CLI installs, cert setup) is preserved unchanged.
 
 ## User Scenarios & Testing
 
@@ -77,7 +107,8 @@ full chain: required setup (self-repair/install), configured setup (selected too
 **Why this priority**: This is the standard onboarding flow for existing repositories.
 
 **How to test**: Set up a repository with all scripts present. Run `setup-dev-tools.py` and verify each script executes in order. Mock
-subprocess calls to confirm the orchestration sequence.
+subprocess calls to confirm the orchestration sequence. Verify that if `agentic-devtools-required-setup.py` fails, the subsequent scripts
+are not executed (fail-fast behavior per the clarified FR-009).
 
 ### User Scenario 4 — Backward compatibility with existing repos (Priority: P2)
 
@@ -87,9 +118,10 @@ repo-specific logic by migrating it into `setup-repo-specific-dev-tools.py`.
 
 **Why this priority**: Existing repos must not break when updating agentic-devtools.
 
-**How to test**: Start with a legacy monolithic `setup-dev-tools.py`. Run `agdt-setup` and verify the old content is preserved in
-`setup-repo-specific-dev-tools.py`, the new modular scripts are created in `.agdt/`, and the root `setup-dev-tools.py` is replaced with the
-orchestrator entry point.
+**How to test**: Start with a legacy monolithic `setup-dev-tools.py` (one that does not contain the `# AGDT-MANAGED-ORCHESTRATOR` marker).
+Run `agdt-setup` and verify the old content is preserved in `setup-repo-specific-dev-tools.py`, the new modular scripts are created in
+`.agdt/`, and the root `setup-dev-tools.py` is replaced with the orchestrator entry point containing the marker comment. Verify that if
+`setup-repo-specific-dev-tools.py` already exists, the legacy content is appended below a separator comment rather than overwriting.
 
 ### User Scenario 5 — Git hooks setup via required-setup (Priority: P3)
 
@@ -120,25 +152,35 @@ overwritten with a logged warning.
   indicating the previous value.
 - **FR-005**: `agdt-setup` must generate `agentic-devtools-configured-setup.py` based on the user's interactive tool selections.
 - **FR-006**: `agdt-setup` must always overwrite `agentic-devtools-required-setup.py`, `agentic-devtools-configured-setup.py`,
-  `agentic-devtools-complete-setup.py`, and the root `setup-dev-tools.py` on each run.
+  `agentic-devtools-complete-setup.py`, and the root `setup-dev-tools.py` on each run. The generated `setup-dev-tools.py` must contain the
+  `# AGDT-MANAGED-ORCHESTRATOR` marker comment near the top of the file.
 - **FR-007**: `agdt-setup` must only create `setup-repo-specific-dev-tools.py` if it does not already exist. It must never overwrite a
   customer-managed script.
 - **FR-008**: When `setup-repo-specific-dev-tools.py` is auto-created, it must contain initial content that logs "No repo-specific dev tools
   configured" with an explanatory comment guiding the user on how to customize it.
 - **FR-009**: `agentic-devtools-complete-setup.py` must call `agentic-devtools-required-setup.py` first, then
-  `agentic-devtools-configured-setup.py`, propagating any errors.
+  `agentic-devtools-configured-setup.py`, using a fail-fast strategy: if the required-setup script exits with a non-zero code, the
+  orchestrator must abort immediately without running the configured-setup script.
 - **FR-010**: The root `setup-dev-tools.py` must call `.agdt/agentic-devtools-complete-setup.py` first, then
-  `setup-repo-specific-dev-tools.py`.
+  `setup-repo-specific-dev-tools.py`, using the same fail-fast strategy: if complete-setup fails, the repo-specific script is not executed.
 - **FR-011**: All scripts must support a `--foreground` flag that runs operations synchronously (for CI and debugging use cases). The root
-  `setup-dev-tools.py` must propagate this flag to inner scripts.
+  `setup-dev-tools.py` must propagate this flag to inner scripts. The default execution mode (when `--foreground` is omitted) is also
+  synchronous; the flag exists for explicitness and forward-compatibility with a future `--background` mode.
 - **FR-012**: Each script must be executable standalone (e.g., `python .agdt/agentic-devtools-required-setup.py`) without requiring the
   orchestrator.
-- **FR-013**: When `agdt-setup` detects an existing legacy monolithic `setup-dev-tools.py` (one that does not contain the modular
-  orchestrator marker comment), it must migrate the legacy content into `setup-repo-specific-dev-tools.py` using the following rules:
+- **FR-013**: When `agdt-setup` detects an existing legacy monolithic `setup-dev-tools.py` (one that does not contain the
+  `# AGDT-MANAGED-ORCHESTRATOR` marker comment), it must migrate the legacy content into `setup-repo-specific-dev-tools.py` using the
+  following rules:
   (a) the entire content of the old `setup-dev-tools.py` is moved verbatim into `setup-repo-specific-dev-tools.py`;
   (b) if `setup-repo-specific-dev-tools.py` already exists, the legacy content must be appended below a clearly-delimited separator
   comment (e.g., `# --- Migrated from legacy setup-dev-tools.py ---`) rather than overwriting existing customer content;
   (c) after migration, the root `setup-dev-tools.py` is replaced with the new modular orchestrator entry point.
+- **FR-014**: The `.gitignore` file must be updated to allow managed setup scripts in `.agdt/` to be tracked by git. The existing
+  `.agdt/` ignore rule must be replaced with `.agdt/*` (glob form), followed by a negation rule for managed scripts:
+  `!.agdt/agentic-devtools-*.py`. This ensures runtime state files remain ignored while the managed setup scripts are committed to the
+  repository.
+- **FR-015**: The script generation phase must be added as a new phase at the end of the existing `agdt-setup` command
+  (`agentic_devtools/cli/setup/commands.py`), preserving all existing functionality (dependency checks, CLI installs, cert prefetching) unchanged.
 
 ### Non-Functional Requirements
 
@@ -146,26 +188,56 @@ overwritten with a logged warning.
   handling and subprocess execution.
 - **NFR-002**: The self-repair logic in `agentic-devtools-required-setup.py` must complete within 30 seconds under normal conditions
   (excluding network latency for pip install).
-- **NFR-003**: Script generation by `agdt-setup` must be idempotent — running `agdt-setup` twice with the same inputs must produce identical
-  output files.
-- **NFR-004**: Error messages from script failures must clearly indicate which script in the chain failed and provide actionable guidance for
-  manual recovery.
+- **NFR-003**: Script generation by `agdt-setup` must be idempotent — running `agdt-setup` twice with the same inputs must produce
+  byte-for-byte identical output files.
+- **NFR-004**: Error messages from script failures must clearly indicate which script in the chain failed (by name and path) and provide
+  actionable guidance for manual recovery (e.g., "Run `python .agdt/agentic-devtools-required-setup.py` directly to diagnose the issue").
 - **NFR-005**: The restructured system must maintain backward compatibility: repositories with only the old monolithic `setup-dev-tools.py`
   must continue to function until explicitly migrated via `agdt-setup`.
+
+## Success Criteria
+
+1. **Self-repair works end-to-end**: A developer with a corrupted agentic-devtools installation can run `setup-dev-tools.py` and have the
+   corruption automatically detected, cleaned, and the package reinstalled from PyPI without any manual intervention.
+2. **Modular generation works**: Running `agdt-setup` in a repository produces all five scripts with correct content matching the user's
+   tool selections. Re-running with different selections regenerates all managed scripts (per FR-006), but only the configured-setup
+   script's content changes; the other scripts are overwritten with byte-for-byte identical output.
+3. **Orchestration chain is correct**: `setup-dev-tools.py` executes the scripts in the correct order (required → configured → repo-specific)
+   with fail-fast error propagation.
+4. **Legacy migration preserves content**: Running `agdt-setup` in a repository with an old monolithic `setup-dev-tools.py` migrates the
+   legacy content into `setup-repo-specific-dev-tools.py` without data loss, and the new orchestrator entry point replaces the old file.
+5. **Scripts are standalone**: Each `.agdt/` script can be invoked directly with `python <script>` and functions correctly without depending
+   on the orchestrator.
+6. **Cross-platform**: All scripts pass on Windows, macOS, and Linux without platform-specific code paths for basic path/subprocess
+   operations.
+7. **Gitignore selective un-ignore**: Managed setup scripts in `.agdt/` are tracked by git while runtime state remains ignored.
+8. **Existing agdt-setup preserved**: The dependency checking, CLI installation, and cert prefetching phases of `agdt-setup` continue to
+   work unchanged.
 
 ## Edge Cases
 
 - **Read-only site-packages**: If the Python environment's site-packages directory is read-only (e.g., system Python on Linux),
-  `agentic-devtools-required-setup.py` must detect the permission error during cleanup, report it clearly, and suggest using a virtual
-  environment instead of failing with an obscure traceback.
+  `agentic-devtools-required-setup.py` must detect the permission error during cleanup, report it clearly (e.g.,
+  "Permission denied: cannot clean site-packages at `/usr/lib/python3.x/site-packages`. Use a virtual environment instead."), and exit with
+  a non-zero code without proceeding to the install step.
 - **Non-git contexts**: If `agentic-devtools-required-setup.py` is run outside a git repository (e.g., in an extracted archive or a bare
-  directory), the git hooks setup step must be skipped with an informational message rather than failing.
+  directory), the git hooks setup step must be skipped with an informational message (e.g., "Not a git repository — skipping git hooks
+  setup") rather than failing.
 - **Syntax errors in customer scripts**: If `setup-repo-specific-dev-tools.py` contains syntax errors, the orchestrator must catch the
-  failure, report which script failed, and still return a non-zero exit code without masking the error.
+  failure, report which script failed (including the full path), and still return a non-zero exit code without masking the error.
 - **Direct script execution without orchestrator**: Each `.agdt/` script must function correctly when invoked directly (e.g.,
   `python .agdt/agentic-devtools-required-setup.py`) without depending on environment variables or state set by the orchestrator.
 - **Multiple orphaned artifacts**: If site-packages contains multiple generations of corrupted artifacts (e.g., both `~gentic-devtools` and
   an old `.dist-info` without RECORD), all must be cleaned in a single pass rather than requiring multiple runs.
+- **Missing `.agdt/` directory after clone**: If a repository has the managed scripts committed but the `.agdt/` directory was not created
+  (e.g., sparse checkout or incomplete clone), `setup-dev-tools.py` must detect the missing directory and report a clear error
+  (e.g., "`.agdt/` directory not found — restore tracked files with `git checkout -- .agdt/` or re-clone the repository") rather than
+  failing with a confusing FileNotFoundError. The error message must not assume `agentic-devtools` is installed; if the CLI is available,
+  running `agdt-setup` may be mentioned as an optional fallback but must not be the primary recovery instruction.
+- **Concurrent `agdt-setup` runs**: If two developers run `agdt-setup` simultaneously in different terminals of the same worktree, the
+  generated files must not be corrupted. File writes must be atomic (e.g., the implementation must ensure partial writes are never visible
+  to concurrent readers). The expected outcome is a consistent final state reflecting whichever run completed last, with no truncated or
+  interleaved file content.
 
 ---
 
