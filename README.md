@@ -835,7 +835,8 @@ Configure the action using repository variables:
 
 | Secret | Description |
 |--------|-------------|
-| `COPILOT_GITHUB_TOKEN` | Fine-grained PAT with `Copilot Requests: Read` permission |
+| `COPILOT_APP_ID` | App ID of the `agentic-devtools-copilot-reviewer` GitHub App |
+| `COPILOT_APP_PRIVATE_KEY` | PEM private key for the `agentic-devtools-copilot-reviewer` GitHub App. Required permissions: `Pull requests: Read & Write`, `Contents: Read`, `Copilot: Read` |
 
 ### Usage
 

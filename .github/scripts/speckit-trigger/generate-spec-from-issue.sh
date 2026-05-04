@@ -24,7 +24,7 @@
 #   ISSUE_BODY    - The issue body/description
 #   ISSUE_URL     - The issue URL
 #   SHORT_NAME    - Sanitized short name for branch/directory
-#   COPILOT_GITHUB_TOKEN - Fine-grained PAT with Copilot Requests: Read permission
+#   COPILOT_GITHUB_TOKEN - Provided by the workflow via GitHub App token
 #
 # Environment Variables (optional):
 #   COPILOT_MODEL   - Model to use via the Copilot SDK (default: claude-opus-4.6)
@@ -87,7 +87,7 @@ done
 : "${ISSUE_TITLE:?ISSUE_TITLE is required}"
 : "${SHORT_NAME:?SHORT_NAME is required}"
 
-: "${COPILOT_GITHUB_TOKEN:?COPILOT_GITHUB_TOKEN is required}"
+: "${COPILOT_GITHUB_TOKEN:?COPILOT_GITHUB_TOKEN is required (provided by workflow via GitHub App token)}"
 
 ISSUE_BODY="${ISSUE_BODY:-}"
 ISSUE_URL="${ISSUE_URL:-}"
