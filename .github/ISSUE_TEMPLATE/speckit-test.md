@@ -53,7 +53,7 @@ When the `speckit` label is applied to this issue, the GitHub Action should:
 If the action fails:
 
 1. Check the [Actions tab](../../actions/workflows/speckit-issue-trigger.yml) for logs
-2. Verify the COPILOT_GITHUB_TOKEN secret is configured
+2. Verify the COPILOT_APP_ID and COPILOT_APP_PRIVATE_KEY secrets are configured
 3. Ensure the `SPECKIT_TRIGGER_LABEL` repository variable matches the label used
 4. Review the "Failed" comment on this issue for specific error details
 

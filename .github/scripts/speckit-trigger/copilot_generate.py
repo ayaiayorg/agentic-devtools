@@ -5,7 +5,7 @@ Reads a prompt from stdin, sends it to the Copilot SDK with a configurable
 model, and prints the assistant's response to stdout.
 
 Environment Variables:
-    COPILOT_GITHUB_TOKEN  - Required. Fine-grained PAT with Copilot Requests: Read permission.
+    COPILOT_GITHUB_TOKEN  - Required. Provided by the workflow via GitHub App token.
     COPILOT_MODEL         - Optional. Model to use (default: claude-opus-4.6).
     COPILOT_TIMEOUT       - Optional. Seconds to wait for a response (default: 600).
                             Heavy phases (Plan, Tasks, Analyze) may need 900s or more.
@@ -43,7 +43,11 @@ async def main() -> int:
         )
         return 1
     if not token:
-        print("Error: COPILOT_GITHUB_TOKEN is required", file=sys.stderr)
+        print(
+            "Error: COPILOT_GITHUB_TOKEN environment variable is required"
+            " (provided by workflow via GitHub App token)",
+            file=sys.stderr,
+        )
         return 1
 
     client = None

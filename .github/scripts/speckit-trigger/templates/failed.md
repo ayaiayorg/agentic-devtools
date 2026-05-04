@@ -7,7 +7,7 @@ An error occurred while generating the specification.
 ### Troubleshooting
 
 1. Check that the issue has a descriptive title and body
-2. Verify that the COPILOT_GITHUB_TOKEN secret is configured with a fine-grained PAT that has Copilot Requests: Read permission
+2. Verify that the COPILOT_APP_ID and COPILOT_APP_PRIVATE_KEY secrets are configured
 3. Review the workflow logs for detailed error messages
 
 ### Manual Alternative
