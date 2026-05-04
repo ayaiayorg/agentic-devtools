@@ -67,7 +67,8 @@ Key decisions (from research phase — research artifacts are gitignored and not
 
 #### Todo 1.1 — Data types
 
-Create dataclasses: `FileClassification` (enum: `valid`, `deficient`, `prose_only`), `Severity` (enum: `LOW`, `MEDIUM`, `NONE`), `FileResult` (including `explanation: str` per FR-013), `AggregateResult`.
+Define enums and dataclasses: `FileClassification` (enum: `valid`, `deficient`, `prose_only`), `Severity` (enum: `LOW`, `MEDIUM`, `NONE`), `FileResult` (including `explanation: str` per FR-013),
+`AggregateResult`.
 
 #### Todo 1.2 — `count_checkboxes(content: str) -> int`
 
