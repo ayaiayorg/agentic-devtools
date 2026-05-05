@@ -41,6 +41,20 @@ FR-002 is secondary.
         frs = extract_frs_with_priority("")
         assert frs == []
 
+    def test_user_story_without_priority_is_ambiguous(self) -> None:
+        """FR in user story section with no priority → ambiguous, defaults to P2."""
+        spec = """
+### User Story 1 — Feature without priority annotation
+
+FR-001 is the main requirement here.
+"""
+        frs = extract_frs_with_priority(spec)
+        assert len(frs) == 1
+        assert frs[0].fr_id == "FR-001"
+        assert frs[0].priority == 2
+        assert frs[0].priority_ambiguous is True
+        assert frs[0].user_story == 1
+
     def test_deduplicates_frs(self) -> None:
         spec = """
 ### User Story 1 — Feature (Priority: P1)

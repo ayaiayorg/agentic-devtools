@@ -53,6 +53,14 @@ class TestIsTestTask:
         # The key is: single-word 'test' alone should not match inside compounds
         assert is_test_task("Run the unit-test suite") is True  # matches 'unit test' multi-word
 
+    def test_e2e_test_hyphenated_matches(self) -> None:
+        """'e2e-test' should match via the 'e2e test' multi-word keyword."""
+        assert is_test_task("Run e2e-test suite") is True
+
+    def test_e2e_tests_hyphenated_plural_matches(self) -> None:
+        """'e2e-tests' should match via the 'e2e test' multi-word keyword with trailing s."""
+        assert is_test_task("write e2e-tests") is True
+
     def test_no_test_keywords(self) -> None:
         assert is_test_task("Implement user login feature") is False
 

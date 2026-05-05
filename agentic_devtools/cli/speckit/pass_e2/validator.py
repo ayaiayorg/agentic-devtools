@@ -32,12 +32,41 @@ def _parse_tasks_from_content(tasks_content: str) -> list[tuple[str, str]]:
     """Parse task lines from tasks.md content.
 
     Returns list of (task_id, description) tuples.
+    Tasks may span multiple lines — indented continuation lines are joined
+    into the description of the preceding task header.
     """
     tasks: list[tuple[str, str]] = []
-    for match in _TASK_LINE_RE.finditer(tasks_content):
-        task_id = match.group(1)
-        description = match.group(2).strip()
-        tasks.append((task_id, description))
+    lines = tasks_content.splitlines()
+    current_task_id: str | None = None
+    current_desc_parts: list[str] = []
+
+    for line in lines:
+        match = _TASK_LINE_RE.match(line)
+        if match:
+            # Flush previous task
+            if current_task_id is not None:
+                tasks.append((current_task_id, " ".join(current_desc_parts)))
+            current_task_id = match.group(1)
+            current_desc_parts = [match.group(2).strip()]
+        elif current_task_id is not None and line and (line[0] == " " or line[0] == "\t"):
+            # Indented continuation line belonging to current task
+            stripped = line.strip()
+            if stripped:
+                current_desc_parts.append(stripped)
+        elif not line.strip():
+            # Blank line — retain within active task block (don't flush)
+            continue
+        else:
+            # Non-blank, non-indented, non-task line — flush current task
+            if current_task_id is not None:
+                tasks.append((current_task_id, " ".join(current_desc_parts)))
+                current_task_id = None
+                current_desc_parts = []
+
+    # Flush final task
+    if current_task_id is not None:
+        tasks.append((current_task_id, " ".join(current_desc_parts)))
+
     return tasks
 
 
@@ -135,7 +164,8 @@ def validate_test_coverage(
                     severity="LOW",
                     fr_id=fr_info.fr_id,
                     description=(
-                        f"{fr_info.fr_id} priority could not be determined — defaulting to HIGH severity (non-P1)."
+                        f"{fr_info.fr_id} priority could not be determined — "
+                        f"defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL)."
                     ),
                     recommendation=(
                         f"Associate {fr_info.fr_id} with a user story that has "
@@ -233,24 +263,44 @@ def test_coverage_command(argv: list[str] | None = None) -> None:
     raise SystemExit(1 if result.findings else 0)
 
 
+def _safe_print(text: str) -> None:
+    """Print text safely, handling unicode encoding errors on Windows cp1252."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        ascii_replacements = {
+            "\u26a0": "[!]",  # ⚠
+            "\u2705": "[OK]",  # ✅
+            "\u274c": "[X]",  # ❌
+            "\u2192": "->",  # →
+        }
+        safe_text = text
+        for char, replacement in ascii_replacements.items():
+            safe_text = safe_text.replace(char, replacement)
+        encoding = sys.stdout.encoding or "utf-8"
+        print(safe_text.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+
+
 def _print_human_output(result: TestCoverageResult) -> None:
     """Print human-readable validation output."""
-    print("=" * 60)
-    print("SpecKit E.2 Test Coverage Validation")
-    print("=" * 60)
+    _safe_print("=" * 60)
+    _safe_print("SpecKit E.2 Test Coverage Validation")
+    _safe_print("=" * 60)
 
     if not result.coverage and not result.findings:
-        print("\nNo FRs found or no findings generated.")
+        _safe_print("\nNo FRs found or no findings generated.")
         return
 
     if result.findings:
-        print(f"\n⚠ {len(result.findings)} finding(s) detected:\n")
+        _safe_print(f"\n⚠ {len(result.findings)} finding(s) detected:\n")
         for finding in result.findings:
-            print(f"  [{finding.severity}] {finding.key}: {finding.description}")
-        print()
+            _safe_print(f"  [{finding.severity}] {finding.key}: {finding.description}")
+            if finding.recommendation:
+                _safe_print(f"             → {finding.recommendation}")
+        _safe_print("")
 
     if result.summary_table:
-        print(result.summary_table)
+        _safe_print(result.summary_table)
 
     if not result.findings:
-        print("\n✅ All FRs have associated test tasks.")
+        _safe_print("\n✅ All FRs have associated test tasks.")

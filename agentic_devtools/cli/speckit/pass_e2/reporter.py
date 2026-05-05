@@ -48,16 +48,18 @@ def render_findings(
     lines.append("### E.2 Test Coverage Findings")
     lines.append("")
 
-    # Separate FR-scoped from task-scoped findings
+    # Separate FR-scoped from task-scoped findings.
+    # Use fr_id field (case-insensitive) rather than key prefix to avoid
+    # misclassification when FR IDs have non-standard casing (e.g. "fr-001").
     fr_findings = [
         f
         for f in findings
-        if f.key.startswith("FR-") or f.key.startswith("TASK:missing") or f.key.startswith("TASK:empty")
+        if f.fr_id is not None or f.key.startswith("TASK:missing") or f.key.startswith("TASK:empty")
     ]
     task_findings = [
         f
         for f in findings
-        if f.key.startswith("TASK:") and not f.key.startswith("TASK:missing") and not f.key.startswith("TASK:empty")
+        if f.fr_id is None and not f.key.startswith("TASK:missing") and not f.key.startswith("TASK:empty")
     ]
 
     if fr_findings:

@@ -20,6 +20,14 @@ class TestValidateTestCoverage:
         assert result.findings[0].key == "TASK:empty-tasks-file"
         assert result.findings[0].severity == "CRITICAL"
 
+    def test_no_frs_in_spec_returns_empty(self) -> None:
+        """Tasks exist but spec has no FR references → empty result."""
+        spec = "This spec has no functional requirements defined."
+        tasks = "- [ ] T001 Implement the feature\n- [ ] T002 Write tests for the module"
+        result = validate_test_coverage(spec, tasks)
+        assert result.findings == []
+        assert result.coverage == {}
+
     def test_all_frs_covered(self) -> None:
         """All FRs have test tasks → no coverage findings."""
         spec = """
@@ -40,7 +48,7 @@ FR-001 is the core feature.
         coverage_findings = [
             f
             for f in result.findings
-            if f.severity in ("HIGH", "CRITICAL") and "no-test-task" in f.key or "no-happy-path" in f.key
+            if f.severity in ("HIGH", "CRITICAL") and ("no-test-task" in f.key or "no-happy-path" in f.key)
         ]
         assert coverage_findings == []
 
@@ -105,12 +113,13 @@ FR-001 is a P2 feature.
         tasks_path = os.path.join(fixtures_dir, "tasks.md")
 
         if not os.path.isfile(spec_path):
-            # Skip if fixture not available
-            return
+            import pytest
 
-        with open(spec_path) as f:
+            pytest.skip("Fixture file not available: specs/1202-speckit-pipeline-validate-each/fixtures/sc-001/spec.md")
+
+        with open(spec_path, encoding="utf-8") as f:
             spec = f.read()
-        with open(tasks_path) as f:
+        with open(tasks_path, encoding="utf-8") as f:
             tasks = f.read()
 
         result = validate_test_coverage(spec, tasks)

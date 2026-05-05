@@ -15,8 +15,7 @@ from .constants import TEST_TASK_KEYWORDS, TEST_TYPE_KEYWORDS
 # digit, or hyphen. Hyphens are NOT boundaries.
 # ---------------------------------------------------------------------------
 
-# Characters that are part of a "word" (NOT boundaries)
-_WORD_CHAR_PATTERN = r"[a-zA-Z0-9\-]"
+# Characters that are NOT part of a "word" (i.e., boundaries)
 _NON_WORD_CHAR_PATTERN = r"[^a-zA-Z0-9\-]"
 
 
@@ -88,6 +87,37 @@ for _kw in TEST_TASK_KEYWORDS:
     else:
         _SINGLE_WORD_PATTERNS.append(_build_single_word_pattern(_kw))
 
+# Compiled patterns for test-type keywords (cached at module level)
+# Avoids recompiling regex patterns on every call to classify_test_types()
+_TEST_TYPE_PATTERNS: dict[str, list[tuple[bool, re.Pattern[str]]]] = {}
+for _type, _keywords in TEST_TYPE_KEYWORDS.items():
+    _patterns: list[tuple[bool, re.Pattern[str]]] = []
+    for _kw in _keywords:
+        if _is_multi_word(_kw):
+            _patterns.append((True, _build_multi_word_pattern(_kw)))
+        else:
+            _patterns.append((False, _build_single_word_pattern(_kw)))
+    _TEST_TYPE_PATTERNS[_type] = _patterns
+
+# Compiled patterns for implementation keywords used by detect_ambiguous_task()
+# Avoids recompiling regex patterns on every call
+_IMPL_KEYWORDS = [
+    "implement",
+    "build",
+    "develop",
+    "design",
+    "refactor",
+    "configure",
+    "setup",
+]
+_IMPL_KEYWORD_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(
+        rf"(?:^|(?<=[^a-zA-Z0-9\-])){re.escape(kw)}(?:$|(?=[^a-zA-Z0-9\-]))",
+        re.IGNORECASE,
+    )
+    for kw in _IMPL_KEYWORDS
+]
+
 
 def is_test_task(description: str) -> bool:
     """Determine if a task description indicates a test task (FR-002).
@@ -121,18 +151,12 @@ def classify_test_types(description: str) -> list[str]:
     matched_types: list[str] = []
     normalized = _normalize_for_phrase_match(description)
 
-    for test_type, keywords in TEST_TYPE_KEYWORDS.items():
-        for keyword in keywords:
-            if _is_multi_word(keyword):
-                pattern = _build_multi_word_pattern(keyword)
-                if pattern.search(normalized):
-                    matched_types.append(test_type)
-                    break
-            else:
-                pattern = _build_single_word_pattern(keyword)
-                if pattern.search(description):
-                    matched_types.append(test_type)
-                    break
+    for test_type, patterns in _TEST_TYPE_PATTERNS.items():
+        for is_multi, pattern in patterns:
+            text = normalized if is_multi else description
+            if pattern.search(text):
+                matched_types.append(test_type)
+                break
 
     return matched_types
 
@@ -159,26 +183,11 @@ def detect_ambiguous_task(description: str) -> bool:
     if not is_test_task(description):
         return False
 
-    # Check for implementation keywords
-    impl_keywords = [
-        "implement",
-        "create",
-        "build",
-        "develop",
-        "add",
-        "write",
-        "design",
-        "refactor",
-        "configure",
-        "setup",
-    ]
+    # Check for implementation keywords (narrowed to avoid false positives
+    # with common test-task verbs like "write tests", "create test fixtures",
+    # "add test coverage")
     desc_lower = description.lower()
-    for kw in impl_keywords:
-        # Use word boundary matching for implementation keywords
-        pattern = re.compile(
-            rf"(?:^|(?<=[^a-zA-Z0-9\-])){re.escape(kw)}(?:$|(?=[^a-zA-Z0-9\-]))",
-            re.IGNORECASE,
-        )
+    for pattern in _IMPL_KEYWORD_PATTERNS:
         if pattern.search(desc_lower):
             return True
 

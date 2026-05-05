@@ -26,6 +26,7 @@ class FRInfo:
     priority: int  # 1, 2, or 3 (P1, P2, P3)
     user_story: int | None = None  # 1-based user story index, or None
     priority_ambiguous: bool = False
+    acceptance_scenarios: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -92,6 +93,7 @@ class TestCoverageResult:
                 }
                 for fr_id, cov in self.coverage.items()
             },
+            "summary_table": self.summary_table,
             "summary": {
                 "total_frs": len(self.coverage),
                 "covered_frs": sum(1 for c in self.coverage.values() if c.is_covered),
