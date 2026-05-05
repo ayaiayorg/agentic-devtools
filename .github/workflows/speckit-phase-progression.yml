@@ -557,10 +557,10 @@ jobs:
             fi
           fi
 
-          # Build markdownlint warnings argument
-          LINT_ARGS=""
+          # Build markdownlint warnings argument (array to preserve multi-line content)
+          LINT_ARGS=()
           if [[ -n "${MARKDOWNLINT_WARNINGS:-}" ]]; then
-            LINT_ARGS="--markdownlint-warnings"
+            LINT_ARGS+=(--markdownlint-warnings "$MARKDOWNLINT_WARNINGS")
           fi
 
           if [[ -n "$DRAFT_ARGS" && "$DRAFT_ARGS" == *"--critical-findings-json"* ]]; then
@@ -574,7 +574,7 @@ jobs:
               --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
               --draft \
               --critical-findings-json "$CRITICAL_FINDINGS" \
-              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
+              "${LINT_ARGS[@]}"
           elif [[ -n "$DRAFT_ARGS" ]]; then
             .github/scripts/speckit-trigger/create-spec-pr.sh \
               "${{ steps.commit.outputs.branch_name }}" \
@@ -585,7 +585,7 @@ jobs:
               --phase-number "${{ steps.extract.outputs.next_phase }}" \
               --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
               --draft \
-              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
+              "${LINT_ARGS[@]}"
           else
             .github/scripts/speckit-trigger/create-spec-pr.sh \
               "${{ steps.commit.outputs.branch_name }}" \
@@ -595,7 +595,7 @@ jobs:
               "$ISSUE_LABELS" \
               --phase-number "${{ steps.extract.outputs.next_phase }}" \
               --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
-              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
+              "${LINT_ARGS[@]}"
           fi
 
       - name: Auto-Merge (if configured)
@@ -603,10 +603,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPECKIT_AUTO_MERGE_PHASES: ${{ vars.SPECKIT_AUTO_MERGE_PHASES }}
+          MARKDOWNLINT_STATUS: ${{ steps.generate.outputs.markdownlint_status }}
         run: |
           NEXT_PHASE_NAME="${{ steps.extract.outputs.next_phase_name }}"
           PR_NUMBER="${{ steps.create-pr.outputs.pr_number }}"
           AUTO_MERGE_PHASES="${SPECKIT_AUTO_MERGE_PHASES:-}"
+
+          # Block auto-merge when markdownlint finished with unresolved warnings
+          if [[ "${MARKDOWNLINT_STATUS:-}" == "warning-fallback" ]]; then
+            echo "Markdownlint finished with warning-fallback — PR requires manual review"
+            exit 0
+          fi
 
           if [[ -z "$AUTO_MERGE_PHASES" ]]; then
             echo "No auto-merge phases configured — PR requires manual review"

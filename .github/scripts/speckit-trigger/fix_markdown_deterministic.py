@@ -22,12 +22,14 @@ import sys
 from pathlib import Path
 
 # Regex matching a bare fence opener with NO language identifier.
-# Captures: (leading whitespace)(fence marker: ``` or ~~~)
-_BARE_FENCE_RE = re.compile(r"^(\s*)(```|~~~)\s*$")
+# Captures: (leading whitespace 0-3 spaces)(fence marker: 3+ backticks or 3+ tildes)
+# CommonMark spec: opening code fences may be indented 0-3 spaces only.
+_BARE_FENCE_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})\s*$")
 
 # Regex matching a fence opener WITH a language identifier (used to detect
 # when we're entering a code block that already has a language).
-_FENCE_OPEN_RE = re.compile(r"^(\s*)(```|~~~)")
+# CommonMark spec: opening code fences may be indented 0-3 spaces only.
+_FENCE_OPEN_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})")
 
 
 def fix_md040(lines: list[str]) -> list[str]:
@@ -39,7 +41,6 @@ def fix_md040(lines: list[str]) -> list[str]:
     result: list[str] = []
     in_fence = False
     fence_marker = ""
-    fence_indent = ""
 
     for line in lines:
         stripped = line.rstrip("\n")
@@ -52,34 +53,53 @@ def fix_md040(lines: list[str]) -> list[str]:
                 result.append(f"{indent}{marker}text\n")
                 in_fence = True
                 fence_marker = marker
-                fence_indent = indent
                 continue
 
             # Check if this is a fence opener with a language (enter block)
             m2 = _FENCE_OPEN_RE.match(stripped)
             if m2:
                 indent, marker = m2.group(1), m2.group(2)
-                rest = stripped[len(indent) + len(marker):]
+                after_marker = stripped[len(indent) + len(marker):]
                 # Only enter fence if there's content after the marker
                 # (language identifier) or if it's a closing fence for a
                 # never-opened block (shouldn't happen in valid markdown)
-                if rest.strip():
+                if after_marker.strip():
                     in_fence = True
                     fence_marker = marker
-                    fence_indent = indent
             result.append(line)
         else:
-            # Inside a fence — check for closing fence
+            # Inside a fence — check for closing fence.
+            # Per CommonMark spec, a closing fence can have 0-3 spaces of
+            # indentation regardless of the opener's indent, and must use the
+            # same fence character with at least as many markers.
             close_re = re.compile(
-                r"^" + re.escape(fence_indent) + re.escape(fence_marker) + r"+\s*$"
+                r"^ {0,3}" + re.escape(fence_marker[0]) + r"{" + str(len(fence_marker)) + r",}\s*$"
             )
             if close_re.match(stripped):
                 in_fence = False
                 fence_marker = ""
-                fence_indent = ""
             result.append(line)
 
     return result
+
+
+def _has_code_block_indent(line: str) -> bool:
+    """Return True if line has >= 4 columns of leading indentation (CommonMark).
+
+    Tabs advance to the next tab stop (multiple of 4).  This catches mixed
+    prefixes like `` \t`` that the simple 4-space / leading-tab checks miss.
+    """
+    col = 0
+    for ch in line:
+        if ch == " ":
+            col += 1
+        elif ch == "\t":
+            col = (col // 4 + 1) * 4
+        else:
+            break
+        if col >= 4:
+            return True
+    return False
 
 
 def _is_table_line(line: str) -> bool:
@@ -96,31 +116,30 @@ def _is_separator_row(line: str) -> bool:
     # Remove outer pipes and check cells contain only dashes, colons, spaces
     inner = stripped[1:-1]
     cells = inner.split("|")
-    return all(re.match(r"^[\s:*-]*-[\s:*-]*$", c) for c in cells)
+    return all(re.match(r"^[\s:-]*-[\s:-]*$", c) for c in cells)
 
 
-def _count_columns(line: str) -> int:
-    """Count the number of columns in a table row."""
+def _split_table_cells(line: str) -> list[str]:
+    """Split a table row into cells, respecting escaped pipes."""
     stripped = line.strip()
     # Remove outer pipes
     if stripped.startswith("|"):
         stripped = stripped[1:]
     if stripped.endswith("|"):
         stripped = stripped[:-1]
-    return len(stripped.split("|"))
+    # Split on unescaped pipes (not preceded by backslash)
+    cells = re.split(r"(?<!\\)\|", stripped)
+    return cells
+
+
+def _count_columns(line: str) -> int:
+    """Count the number of columns in a table row."""
+    return len(_split_table_cells(line))
 
 
 def _normalize_row(line: str, expected_cols: int) -> str:
     """Pad or truncate a table row to match expected column count."""
-    stripped = line.strip()
-    # Remove outer pipes
-    inner = stripped
-    if inner.startswith("|"):
-        inner = inner[1:]
-    if inner.endswith("|"):
-        inner = inner[:-1]
-
-    cells = inner.split("|")
+    cells = _split_table_cells(line)
     current_cols = len(cells)
 
     if current_cols == expected_cols:
@@ -133,7 +152,41 @@ def _normalize_row(line: str, expected_cols: int) -> str:
         # Truncate excess cells
         cells = cells[:expected_cols]
 
-    return "| " + " | ".join(c.strip() or " " for c in cells) + " |\n"
+    # Preserve original leading whitespace (e.g., tables indented under list items)
+    leading = line[: len(line) - len(line.lstrip(" "))]
+    return leading + "| " + " | ".join(c.strip() or " " for c in cells) + " |\n"
+
+
+def _normalize_separator_row(line: str, expected_cols: int) -> str:
+    """Pad or truncate a table separator row to match expected column count.
+
+    Unlike _normalize_row, this preserves separator-cell formatting (dashes,
+    colons for alignment) rather than treating cells as data content.
+    """
+    cells = _split_table_cells(line)
+    current_cols = len(cells)
+
+    if current_cols == expected_cols:
+        return line  # No change needed
+
+    if current_cols < expected_cols:
+        # Pad with separator cells (---)
+        cells.extend([" --- "] * (expected_cols - current_cols))
+    else:
+        # Truncate excess cells
+        cells = cells[:expected_cols]
+
+    # Rebuild with proper separator formatting
+    formatted = []
+    for c in cells:
+        stripped = c.strip()
+        if not stripped or not re.match(r"^[:\s-]*-[:\s-]*$", stripped):
+            # Not a valid separator cell — use default
+            stripped = "---"
+        formatted.append(f" {stripped} ")
+    # Preserve original leading whitespace (e.g., tables indented under list items)
+    leading = line[: len(line) - len(line.lstrip(" "))]
+    return leading + "|" + "|".join(formatted) + "|\n"
 
 
 def fix_md056(lines: list[str]) -> list[str]:
@@ -157,18 +210,18 @@ def fix_md056(lines: list[str]) -> list[str]:
             m = _FENCE_OPEN_RE.match(stripped)
             if m:
                 marker = m.group(2)
-                rest = stripped[len(m.group(1)) + len(marker):]
-                # Check if it's opening (has content or is bare) vs closing
+                # Opening fence (bare or with language) — enter block
                 in_fence = True
                 fence_marker = marker
                 result.append(line)
                 i += 1
                 continue
         else:
-            if stripped.rstrip().endswith(fence_marker) and stripped.strip() in (
-                fence_marker,
-                fence_marker * 2,
-            ) or re.match(r"^\s*" + re.escape(fence_marker) + r"+\s*$", stripped):
+            # Closing fence: same char, at least same count, 0-3 spaces indent
+            if re.match(
+                r"^ {0,3}" + re.escape(fence_marker[0]) + r"{" + str(len(fence_marker)) + r",}\s*$",
+                stripped,
+            ):
                 in_fence = False
                 fence_marker = ""
             result.append(line)
@@ -176,16 +229,25 @@ def fix_md056(lines: list[str]) -> list[str]:
             continue
 
         # Not in a fence — check for table blocks
+        # Skip indented code blocks per CommonMark (tab, 4+ spaces, or mixed)
+        if _has_code_block_indent(line):
+            result.append(line)
+            i += 1
+            continue
+
         if _is_table_line(stripped):
             # Collect the entire table block
-            table_start = i
             table_lines: list[str] = []
             while i < len(lines) and _is_table_line(lines[i].rstrip("\n")):
+                # Stop collecting if line is an indented code block
+                if _has_code_block_indent(lines[i]):
+                    break
                 table_lines.append(lines[i])
                 i += 1
 
-            # Need at least a header + separator (2 rows) to be a valid table
-            if len(table_lines) >= 2:
+            # Need at least header + separator (2 rows) and second row
+            # must be a valid separator to confirm this is a real table
+            if len(table_lines) >= 2 and _is_separator_row(table_lines[1].rstrip("\n")):
                 # Header is the first row
                 expected_cols = _count_columns(table_lines[0].rstrip("\n"))
 
@@ -193,13 +255,12 @@ def fix_md056(lines: list[str]) -> list[str]:
                     if j == 0:
                         # Keep header as-is (it defines the expected count)
                         result.append(tline)
-                    elif _is_separator_row(tline.rstrip("\n")):
-                        # Normalize separator row too
-                        result.append(_normalize_row(tline, expected_cols))
+                    elif j == 1:
+                        # Only the second row is the table separator
+                        result.append(_normalize_separator_row(tline, expected_cols))
                     else:
                         # Data row — normalize to expected column count
                         result.append(_normalize_row(tline, expected_cols))
-                    pass
             else:
                 # Not a real table, just pass through
                 result.extend(table_lines)

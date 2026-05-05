@@ -265,6 +265,7 @@ jobs:
           SHORT_NAME: ${{ steps.sanitize.outputs.short_name }}
           COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_COPILOT_CLI_ON_STALL: ${{ vars.SPECKIT_COPILOT_CLI_ON_STALL || 'true' }}
         run: |
           chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
           .github/scripts/speckit-trigger/generate-spec-from-issue.sh --phase 1
@@ -325,8 +326,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
+          MARKDOWNLINT_WARNINGS: ${{ steps.generate.outputs.markdownlint_remaining_violations }}
         run: |
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
+
+          # Build markdownlint warnings argument
+          LINT_ARGS=()
+          if [[ -n "${MARKDOWNLINT_WARNINGS:-}" ]]; then
+            LINT_ARGS+=(--markdownlint-warnings "$MARKDOWNLINT_WARNINGS")
+          fi
+
           .github/scripts/speckit-trigger/create-spec-pr.sh \
             "${{ steps.commit.outputs.branch_name }}" \
             "${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}" \
@@ -334,7 +343,8 @@ jobs:
             "${{ steps.issue.outputs.title }}" \
             "$ISSUE_LABELS" \
             --phase-number 1 \
-            --phase-name specify
+            --phase-name specify \
+            "${LINT_ARGS[@]}"
 
       - name: Post Completed Comment
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'

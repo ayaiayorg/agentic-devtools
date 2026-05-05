@@ -340,7 +340,8 @@ if [[ -n "$MARKDOWNLINT_WARNINGS" ]]; then
 ## ⚠️ Markdownlint Warnings
 
 > **Note:** Some markdownlint violations could not be automatically resolved.
-> These are cosmetic issues that do not affect functionality.
+> These may include formatting issues that affect rendering (e.g., table alignment,
+> line length). Please review before merging.
 
 \`\`\`text
 $MARKDOWNLINT_WARNINGS

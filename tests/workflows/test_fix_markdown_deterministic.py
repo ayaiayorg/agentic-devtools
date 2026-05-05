@@ -5,8 +5,6 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-import pytest
-
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[2]
     / ".github"
@@ -58,10 +56,18 @@ class TestFixMD040:
     def test_does_not_modify_content_inside_fence(self):
         """Lines inside a fenced block that look like fences are not touched."""
         mod = _load_module()
-        lines = ["```python\n", "```\n", "nested example\n", "```\n"]
+        # Use a 4-backtick opener so that a 3-backtick line inside is
+        # genuinely content (closing requires >= 4 markers of same type).
+        lines = [
+            "````python\n",   # 4-backtick opener
+            "Here is an example:\n",
+            "```\n",           # 3 backticks — content, NOT a closer (needs 4+)
+            "more code\n",
+            "````\n",          # 4 backticks — this IS the closing fence
+        ]
         result = mod.fix_md040(lines)
-        # The inner ``` is content, should be unchanged
-        assert result[1] == "```\n"
+        # Nothing should be modified — the inner ``` is content
+        assert result == lines
 
     def test_multiple_bare_fences(self):
         mod = _load_module()
@@ -123,6 +129,50 @@ class TestFixMD056:
         # Table inside fence should not be modified
         assert result[2] == "| 1 |\n"
 
+    def test_short_separator_row_gets_proper_padding(self):
+        """Separator rows padded with --- cells, not empty data cells."""
+        mod = _load_module()
+        lines = [
+            "| A | B | C |\n",
+            "|---|---|\n",
+            "| 1 | 2 | 3 |\n",
+        ]
+        result = mod.fix_md056(lines)
+        # Separator should have 3 columns with proper --- format
+        sep = result[1]
+        assert sep.count("|") == 4  # 3 columns = 4 pipes
+        # Each separator cell should contain dashes, not empty space
+        assert "---" in sep
+
+    def test_does_not_modify_indented_code_blocks(self):
+        """Lines with 4+ leading spaces are indented code blocks, not tables."""
+        mod = _load_module()
+        lines = [
+            "Some text\n",
+            "    |---|---|\n",
+            "    | a | b |\n",
+            "More text\n",
+        ]
+        result = mod.fix_md056(lines)
+        # Indented lines should pass through untouched
+        assert result == lines
+
+
+class TestFixMD040Indent:
+    """Tests for fence indent constraint (CommonMark: 0-3 spaces only)."""
+
+    def test_4_space_indent_not_treated_as_fence(self):
+        """Lines with 4+ spaces of indent should not be treated as fences."""
+        mod = _load_module()
+        lines = [
+            "    ```\n",  # 4 spaces — indented code, NOT a fence
+            "    code\n",
+            "    ```\n",
+        ]
+        result = mod.fix_md040(lines)
+        # Should be unchanged — 4-space indented lines are not fences
+        assert result == lines
+
 
 class TestFixFile:
     """Tests for the fix_file() integration function."""
@@ -147,7 +197,7 @@ class TestFixFile:
         assert "```text\n" in content
         # Table row should have been padded
         lines = content.splitlines()
-        table_data_line = [l for l in lines if l.startswith("| 1")]
+        table_data_line = [ln for ln in lines if ln.startswith("| 1")]
         assert len(table_data_line) == 1
         assert table_data_line[0].count("|") == 4
 
