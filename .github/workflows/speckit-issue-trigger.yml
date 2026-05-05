@@ -229,28 +229,13 @@ jobs:
           chmod +x .github/scripts/speckit-trigger/sanitize-branch-name.sh
           .github/scripts/speckit-trigger/sanitize-branch-name.sh "${{ steps.issue.outputs.title }}"
 
-      - name: Generate GitHub App Token
-        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
-        id: app_token
-        uses: actions/create-github-app-token@v1
-        continue-on-error: true
-        with:
-          app-id: ${{ secrets.COPILOT_APP_ID }}
-          private-key: ${{ secrets.COPILOT_APP_PRIVATE_KEY }}
-
       - name: Validate Tokens
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true'
         env:
-          APP_TOKEN: ${{ steps.app_token.outputs.token }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
-          if [[ -z "$APP_TOKEN" ]]; then
-            echo "::error::GitHub App token generation failed. Verify that COPILOT_APP_ID and COPILOT_APP_PRIVATE_KEY secrets are configured correctly. Install or verify the App at https://github.com/apps/agentic-devtools-copilot-reviewer/installations/new"
-            exit 1
-          fi
-          echo "✓ GitHub App installation token generated"
           if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
-            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. This PAT is required for Copilot SDK authentication. Configure the COPILOT_GITHUB_TOKEN secret with a PAT that has Copilot API access."
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. This PAT is required for Copilot SDK authentication and PR creation. Configure the COPILOT_GITHUB_TOKEN secret with a PAT that has Copilot API access and repo permissions."
             exit 1
           fi
           echo "✓ COPILOT_GITHUB_TOKEN is set"
@@ -338,7 +323,7 @@ jobs:
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false'
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
         run: |
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
@@ -351,73 +336,6 @@ jobs:
             --phase-number 1 \
             --phase-name specify
 
-      - name: Request Copilot Review
-        id: request-copilot-review
-        if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != ''
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ steps.app_token.outputs.token }}
-          script: |
-            const prNumber = parseInt('${{ steps.create-pr.outputs.pr_number }}', 10);
-            const reviewerLogin = 'copilot-pull-request-reviewer';
-            const reviewerBotLogin = `${reviewerLogin}[bot]`;
-            try {
-              const { data: requestedReviewers } = await github.rest.pulls.listRequestedReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              });
-
-              const alreadyRequested = (requestedReviewers.users || []).some(
-                (user) => user.login === reviewerBotLogin
-              );
-
-              if (alreadyRequested) {
-                core.info(`Copilot review was already requested on PR #${prNumber}`);
-                core.setOutput('copilot_review_requested', 'true');
-                return;
-              }
-
-              await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                reviewers: [reviewerLogin],
-              });
-              core.info(`Requested Copilot review on PR #${prNumber}`);
-              core.setOutput('copilot_review_requested', 'true');
-            } catch (e) {
-              const message = String(e && e.message ? e.message : e);
-              const responseMessage = e.response?.data?.message || '';
-              const responseErrors = Array.isArray(e.response?.data?.errors)
-                ? e.response.data.errors
-                    .map((error) =>
-                      typeof error === 'string' ? error : JSON.stringify(error)
-                    )
-                    .join(' ')
-                : '';
-              const combinedMessage = `${message} ${responseMessage} ${responseErrors}`.toLowerCase();
-              const isAlreadyRequested422 =
-                e.status === 422 &&
-                (
-                  combinedMessage.includes('already requested') ||
-                  combinedMessage.includes('already a reviewer')
-                );
-
-              if (isAlreadyRequested422) {
-                core.info(
-                  `Copilot review was already requested on PR #${prNumber}; treating 422 response as success.`
-                );
-                core.setOutput('copilot_review_requested', 'true');
-              } else {
-                core.warning(
-                  `Failed to request Copilot review on PR #${prNumber}: ${message}`
-                );
-                core.setOutput('copilot_review_requested', 'false');
-              }
-            }
-
       - name: Post Completed Comment
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
@@ -427,7 +345,6 @@ jobs:
             const branchName = '${{ steps.commit.outputs.branch_name }}';
             const prUrl = '${{ steps.create-pr.outputs.pr_url }}' || null;
             const specDir = '${{ steps.commit.outputs.spec_dir || steps.generate.outputs.spec_dir }}';
-            const copilotReviewRequested = '${{ steps.request-copilot-review.outputs.copilot_review_requested }}';
 
             const branchPushed = '${{ vars.SPECKIT_CREATE_BRANCH }}' !== 'false';
 
@@ -450,11 +367,6 @@ jobs:
 
             if (prUrl) {
               lines.push('', `**Pull Request**: ${prUrl}`);
-              if (copilotReviewRequested === 'true') {
-                lines.push('🤖 Copilot review requested');
-              } else if (copilotReviewRequested === 'false') {
-                lines.push('⚠️ Copilot review request failed');
-              }
             }
 
             lines.push(
@@ -551,7 +463,7 @@ jobs:
                 '### Troubleshooting',
                 '',
                 '1. Check that the issue has a descriptive title and body',
-                '2. Verify that the COPILOT_APP_ID and COPILOT_APP_PRIVATE_KEY secrets are configured',
+                '2. Verify that the COPILOT_GITHUB_TOKEN secret is configured with repo permissions',
                 '3. Review the workflow logs for detailed error messages',
                 '',
                 '### Manual Alternative',
