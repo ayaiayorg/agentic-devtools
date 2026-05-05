@@ -1554,3 +1554,147 @@ class TestAutoStartModelFallback:
                                         )
 
         mock_build.assert_called_once_with("hello", interactive=True, model="gpt-4o")
+
+
+# --------------------------------------------------------------------------
+# WinError 32 Retry Integration Tests
+# --------------------------------------------------------------------------
+
+_SLEEP = "agentic_devtools.cli.copilot.auto_start.time.sleep"
+_MARKER_CLEANUP = "agentic_devtools.cli.workflows.worktree_setup._cleanup_pending_auto_start_marker"
+
+
+def _make_win_error_32() -> OSError:
+    """Create a fresh OSError simulating WinError 32."""
+    exc = OSError("file in use")
+    exc.winerror = 32  # type: ignore[attr-defined]
+    return exc
+
+
+class TestWinError32RetryIntegration:
+    """Integration tests for WinError 32 retry logic in copilot_auto_start_cmd."""
+
+    @pytest.fixture(autouse=True)
+    def mock_agdt_which(self):
+        """Patch shutil.which so agdt-advance-workflow appears on PATH."""
+        with patch(_WHICH, return_value="/usr/local/bin/agdt-advance-workflow"):
+            yield
+
+    def test_winerror_32_retries_and_succeeds(self, tmp_path, capsys):
+        """WinError 32 triggers retry and succeeds after transient failure."""
+        sf = _state_file(tmp_path)
+
+        mock_result = MagicMock(returncode=0)
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
+                        with patch(_SUBPROC, side_effect=[_make_win_error_32(), mock_result]):
+                            with patch(_SLEEP):
+                                with patch(_CLEANUP):
+                                    with patch(_MARKER_CLEANUP):
+                                        with pytest.raises(SystemExit) as exc_info:
+                                            copilot_auto_start_cmd(
+                                                [
+                                                    "--worktree-path",
+                                                    str(tmp_path),
+                                                    "--start-prompt",
+                                                    "hello",
+                                                    "--run-id",
+                                                    _RUN_ID,
+                                                ]
+                                            )
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "transient file lock" in captured.err
+
+    def test_winerror_32_exhaustion_exits_1(self, tmp_path, capsys):
+        """WinError 32 exhaustion after all retries exits with code 1."""
+        sf = _state_file(tmp_path)
+
+        # 6 consecutive failures exhaust the retry budget
+        side_effects = [_make_win_error_32() for _ in range(6)]
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
+                        with patch(_SUBPROC, side_effect=side_effects):
+                            with patch(_SLEEP):
+                                with pytest.raises(SystemExit) as exc_info:
+                                    copilot_auto_start_cmd(
+                                        [
+                                            "--worktree-path",
+                                            str(tmp_path),
+                                            "--start-prompt",
+                                            "hello",
+                                            "--run-id",
+                                            _RUN_ID,
+                                        ]
+                                    )
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "retry budget exhausted" in captured.err
+
+    def test_keyboard_interrupt_during_retry_exits_130(self, tmp_path):
+        """KeyboardInterrupt during retry backoff exits with code 130."""
+        sf = _state_file(tmp_path)
+
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
+                        with patch(_SUBPROC, side_effect=_make_win_error_32()):
+                            with patch(_SLEEP, side_effect=KeyboardInterrupt):
+                                with pytest.raises(SystemExit) as exc_info:
+                                    copilot_auto_start_cmd(
+                                        [
+                                            "--worktree-path",
+                                            str(tmp_path),
+                                            "--start-prompt",
+                                            "hello",
+                                            "--run-id",
+                                            _RUN_ID,
+                                        ]
+                                    )
+
+        assert exc_info.value.code == 130
+
+
+class TestCleanupWinError32Warning:
+    """Tests for WinError 32 warning logging during cleanup."""
+
+    @pytest.fixture(autouse=True)
+    def mock_agdt_which(self):
+        """Patch shutil.which so agdt-advance-workflow appears on PATH."""
+        with patch(_WHICH, return_value="/usr/local/bin/agdt-advance-workflow"):
+            yield
+
+    def test_winerror_32_during_cleanup_logs_warning(self, tmp_path, capsys):
+        """WinError 32 during cleanup is logged as warning, exit code remains 0."""
+        sf = _state_file(tmp_path)
+
+        mock_result = MagicMock(returncode=0)
+        with patch(_GET_STATE_FILE, return_value=sf):
+            with patch(_AVAIL, return_value=True):
+                with patch(_DEFAULT_MODEL, return_value="gpt-4o"):
+                    with patch(_BUILD, return_value=["copilot", "-i", "hello"]):
+                        with patch(_SUBPROC, return_value=mock_result):
+                            with patch(_REMOVE, side_effect=_make_win_error_32()):
+                                with patch(_MARKER_CLEANUP):
+                                    with pytest.raises(SystemExit) as exc_info:
+                                        copilot_auto_start_cmd(
+                                            [
+                                                "--worktree-path",
+                                                str(tmp_path),
+                                                "--start-prompt",
+                                                "hello",
+                                                "--run-id",
+                                                _RUN_ID,
+                                            ]
+                                        )
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "warning: cleanup encountered transient file lock" in captured.err
