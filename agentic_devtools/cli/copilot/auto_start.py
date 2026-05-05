@@ -32,6 +32,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from agentic_devtools.cli.copilot.session import (
@@ -47,6 +48,12 @@ _DEFAULT_TASK_LABEL = "agdt-copilot-auto-start"
 _STATE_KEY = "copilot"
 _TRIGGERED_RUNS_KEY = "auto_start_triggered_runs"
 _MODEL_KEY = "model_id"
+
+# Retry constants for transient Windows file-lock errors (WinError 32).
+_RETRY_MAX_ATTEMPTS = 5  # retries (6 total tries)
+_RETRY_INITIAL_DELAY_S = 0.5  # first backoff delay in seconds
+_RETRY_BACKOFF_FACTOR = 2.0  # doubling
+_RETRY_MAX_DELAY_S = 4.0  # cap per delay in seconds
 
 
 def _read_model_from_state(state_file_path: Path) -> str | None:
@@ -179,6 +186,84 @@ def _unmark_run_triggered(state_file_path: Path, run_id: str) -> None:
         )
 
 
+def _is_retryable_win_error(exc: OSError) -> bool:
+    """Return ``True`` if *exc* is a Windows ``ERROR_SHARING_VIOLATION``.
+
+    On Windows, ``OSError`` instances carry a ``winerror`` attribute with the
+    native Windows error code.  Code 32 (``ERROR_SHARING_VIOLATION``) indicates
+    a transient file lock held by another process (e.g., antivirus, indexer,
+    VS Code).
+
+    On non-Windows platforms, ``OSError`` instances lack the ``winerror``
+    attribute entirely, so this function safely returns ``False``.
+    """
+    return getattr(exc, "winerror", None) == 32
+
+
+def _run_copilot_with_retry(
+    copilot_args: list[str],
+    cwd: str,
+) -> subprocess.CompletedProcess:
+    """Run the Copilot CLI with retry logic for transient Windows file locks.
+
+    Wraps ``subprocess.run`` with exponential backoff retries specifically for
+    ``OSError`` with ``winerror == 32`` (Windows ``ERROR_SHARING_VIOLATION``).
+
+    Non-retryable errors (``FileNotFoundError``, other ``OSError`` variants)
+    are re-raised immediately without retry.
+
+    Args:
+        copilot_args: Command-line arguments for the Copilot CLI.
+        cwd: Working directory for the subprocess.
+
+    Returns:
+        The ``CompletedProcess`` on success.
+
+    Raises:
+        FileNotFoundError: If the binary or cwd is missing (not retried).
+        OSError: If a non-retryable OS error occurs, or if retries are
+            exhausted for a retryable error.
+        KeyboardInterrupt: If the user interrupts during a backoff sleep.
+    """
+    if _RETRY_MAX_ATTEMPTS < 0:
+        raise ValueError(
+            f"_RETRY_MAX_ATTEMPTS must be >= 0, got {_RETRY_MAX_ATTEMPTS}"
+        )
+    total_tries = _RETRY_MAX_ATTEMPTS + 1
+    delay = _RETRY_INITIAL_DELAY_S
+
+    for attempt in range(1, total_tries + 1):
+        try:
+            return subprocess.run(copilot_args, cwd=cwd)  # noqa: S603
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            if not _is_retryable_win_error(exc):
+                raise
+            if attempt == total_tries:
+                # Budget exhausted — log summary and re-raise.
+                print(
+                    f"agdt-copilot-auto-start: error: retry budget exhausted "
+                    f"after {total_tries} attempts (winerror={getattr(exc, 'winerror', '?')}): {exc}",
+                    file=sys.stderr,
+                )
+                raise
+            # Log retry info and sleep with backoff.
+            print(
+                f"agdt-copilot-auto-start: warning: transient file lock "
+                f"(attempt {attempt}/{total_tries}, winerror={getattr(exc, 'winerror', '?')}), "
+                f"retrying in {delay:.1f}s: {exc}",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+            delay = min(delay * _RETRY_BACKOFF_FACTOR, _RETRY_MAX_DELAY_S)
+
+    # Should never be reached given the validation above, but guard defensively.
+    raise RuntimeError(  # pragma: no cover
+        "_run_copilot_with_retry: loop completed without returning or raising"
+    )
+
+
 def _cleanup_auto_start_task(
     worktree_path: str,
     task_label: str,
@@ -188,8 +273,9 @@ def _cleanup_auto_start_task(
 
     Delegates to :func:`~agentic_devtools.cli.vscode_tasks.remove_auto_start_task`.
 
-    All errors are silently caught — cleanup failure must never change the
-    caller's exit code.
+    Errors are caught so that cleanup failure never changes the caller's exit
+    code.  Transient Windows file-lock errors (``winerror == 32``) emit a
+    warning to stderr; all other errors are silently ignored.
 
     Args:
         worktree_path: Absolute path to the worktree directory.
@@ -211,6 +297,14 @@ def _cleanup_auto_start_task(
             task_label,
             delete_if_empty=created_new,
         )
+    except OSError as exc:
+        if _is_retryable_win_error(exc):
+            print(
+                f"agdt-copilot-auto-start: warning: cleanup encountered transient "
+                f"file lock (winerror=32), skipping: {exc}",
+                file=sys.stderr,
+            )
+        # Best-effort cleanup: any failure must not affect the caller's exit code.
     except Exception:
         # Best-effort cleanup: any failure must be silently ignored so it cannot
         # affect the caller's exit code.
@@ -455,7 +549,7 @@ def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:
     #    targeted message rather than a confusing "executable not found" report
     #    for a missing cwd.
     try:
-        result = subprocess.run(copilot_args, cwd=worktree_path)  # noqa: S603
+        result = _run_copilot_with_retry(copilot_args, worktree_path)
         exit_code = result.returncode
     except FileNotFoundError as exc:
         if not os.path.isdir(worktree_path):
