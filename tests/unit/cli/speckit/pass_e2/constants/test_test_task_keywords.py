@@ -10,7 +10,7 @@ class TestTestTaskKeywords:
         assert len(TEST_TASK_KEYWORDS) > 0
 
     def test_contains_required_single_word_keywords(self) -> None:
-        required = {"test", "verify", "validate", "assert"}
+        required = {"test", "verify", "validate", "assert", "e2e"}
         actual = set(TEST_TASK_KEYWORDS)
         assert required.issubset(actual)
 
@@ -18,7 +18,7 @@ class TestTestTaskKeywords:
         required = {
             "spec test",
             "specification test",
-            "e2e",
+            "e2e test",
             "integration test",
             "unit test",
             "smoke test",

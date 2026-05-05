@@ -2393,28 +2393,32 @@ run_fr_validation() {
 # run_test_coverage_validation
 #
 # Calls the Python E.2 test coverage validator and captures JSON output to
-# $SPEC_DIR/test-coverage.json.  Returns the validator exit code:
-#   0 = all FRs have test tasks (no findings)
-#   1 = findings present (non-blocking — flows into analyze phase)
-#   2 = operational error
+# $SPEC_DIR/test-coverage.json.  Always returns 0 (non-blocking):
+#   Validator exit 0 = all FRs have test tasks (no findings) → file written
+#   Validator exit 1 = findings present (flows into analyze phase) → file written
+#   Validator exit 2 = operational error → file removed to avoid downstream parse failures
 # ---------------------------------------------------------------------------
 run_test_coverage_validation() {
     echo ""
     echo "=== E.2 Test Coverage Validation ==="
     local tc_rc=0
     local tc_stderr_log
+    local tc_tmp_output
     tc_stderr_log=$(mktemp)
+    tc_tmp_output=$(mktemp)
     agdt-speckit-test-coverage \
         --spec-file "$SPEC_DIR/spec.md" \
         --tasks-file "$SPEC_DIR/tasks.md" \
         --json \
-        > "$SPEC_DIR/test-coverage.json" \
+        > "$tc_tmp_output" \
         2> "$tc_stderr_log" || tc_rc=$?
 
     if [[ "$tc_rc" -eq 0 ]]; then
+        mv "$tc_tmp_output" "$SPEC_DIR/test-coverage.json"
         echo "✓ Test coverage validation passed — all FRs have test tasks"
         rm -f "$tc_stderr_log"
     elif [[ "$tc_rc" -eq 1 ]]; then
+        mv "$tc_tmp_output" "$SPEC_DIR/test-coverage.json"
         echo "⚠ Test coverage findings detected (non-blocking)" >&2
         rm -f "$tc_stderr_log"
     elif [[ "$tc_rc" -eq 2 ]]; then
@@ -2423,12 +2427,16 @@ run_test_coverage_validation() {
             echo "Validator stderr:" >&2
             cat "$tc_stderr_log" >&2
         fi
-        rm -f "$tc_stderr_log"
+        rm -f "$tc_stderr_log" "$tc_tmp_output" "$SPEC_DIR/test-coverage.json"
     else
         echo "Error: Test coverage validator returned unexpected exit code: $tc_rc" >&2
-        rm -f "$tc_stderr_log"
+        if [[ -s "$tc_stderr_log" ]]; then
+            echo "Validator stderr:" >&2
+            cat "$tc_stderr_log" >&2
+        fi
+        rm -f "$tc_stderr_log" "$tc_tmp_output" "$SPEC_DIR/test-coverage.json"
     fi
-    # Non-blocking: findings (exit 1) flow into the analyze phase
+    # Non-blocking: always returns 0; findings flow into the analyze phase
     return 0
 }
 
@@ -2527,9 +2535,9 @@ $(cat "$SPEC_DIR/fr-coverage.json")
 "
     fi
 
-    # Inject test coverage data if available (produced by run_test_coverage_validation)
+    # Inject test coverage data if available and non-empty (produced by run_test_coverage_validation)
     local test_coverage_context=""
-    if [[ -f "$SPEC_DIR/test-coverage.json" ]]; then
+    if [[ -s "$SPEC_DIR/test-coverage.json" ]]; then
         test_coverage_context="
 
 ## E.2 Test Coverage Data (Deterministic — Pre-Validated)

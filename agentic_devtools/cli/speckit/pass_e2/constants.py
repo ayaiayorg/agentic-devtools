@@ -22,10 +22,11 @@ TEST_TASK_KEYWORDS: list[str] = [
     "verify",
     "validate",
     "assert",
+    "e2e",
     # Multi-word keywords (phrase matched with hyphen/space normalization)
     "spec test",
     "specification test",
-    "e2e",
+    "e2e test",
     "integration test",
     "unit test",
     "smoke test",
@@ -77,6 +78,7 @@ TEST_TYPE_KEYWORDS: dict[str, list[str]] = {
     ],
     "e2e": [
         "e2e",
+        "e2e test",
         "end to end",
         "end-to-end",
         "full flow",
