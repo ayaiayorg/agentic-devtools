@@ -68,6 +68,14 @@ Load only the minimal necessary context from each artifact:
 - Do **not** re-evaluate FR coverage — use these results directly
 - Include the `covered` and `uncovered` FR lists in the Coverage Gaps detection pass
 
+**From test-coverage.json (if present in FEATURE_DIR):**
+
+- Load `FEATURE_DIR/test-coverage.json` if it exists
+- This file contains deterministic test-coverage findings produced by `agdt-speckit-test-coverage`
+- The data is pre-validated and should be reported as-is in the E.2 Test Coverage section
+- Do **not** re-evaluate test coverage — use these results directly
+- Include the findings and Test Coverage Summary table in the report output
+
 **From constitution:**
 
 - Load `.specify/memory/constitution.md` for principle validation
@@ -111,12 +119,26 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 
 #### E. Coverage Gaps
 
+##### E.1 Task Coverage
+
 - Requirements with zero associated tasks
 - Tasks with no mapped requirement/story
 - Non-functional requirements not reflected in tasks (e.g., performance, security)
 - **FR coverage data**: If `fr-coverage.json` was loaded, use its deterministic
   `covered`/`uncovered` lists as the authoritative source for FR-to-task coverage.
   Report any `uncovered` FRs as coverage gap findings (severity depends on context).
+
+##### E.2 Test Coverage Validation
+
+- FRs with zero associated **test** tasks (severity: HIGH per FR-004)
+- P1-associated FRs missing happy-path test tasks (severity: CRITICAL per FR-005)
+- **Test coverage data**: If `test-coverage.json` was loaded, use its deterministic
+  findings as the authoritative source for test-coverage gaps.
+  - CRITICAL: P1 FR with no happy-path test task
+  - HIGH: Any FR with zero test tasks
+  - LOW: Priority-ambiguous FRs, unmapped test tasks, invalid [USn] refs, ambiguous tasks
+- Include the "Test Coverage Summary" table (FR-007) in the report output showing:
+  FR identifier, associated user story, test task IDs, detected test types, and coverage status.
 
 #### F. Inconsistency
 

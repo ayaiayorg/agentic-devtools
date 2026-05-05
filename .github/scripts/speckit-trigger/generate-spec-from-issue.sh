@@ -2390,6 +2390,49 @@ run_fr_validation() {
 }
 
 # ---------------------------------------------------------------------------
+# run_test_coverage_validation
+#
+# Calls the Python E.2 test coverage validator and captures JSON output to
+# $SPEC_DIR/test-coverage.json.  Returns the validator exit code:
+#   0 = all FRs have test tasks (no findings)
+#   1 = findings present (non-blocking — flows into analyze phase)
+#   2 = operational error
+# ---------------------------------------------------------------------------
+run_test_coverage_validation() {
+    echo ""
+    echo "=== E.2 Test Coverage Validation ==="
+    local tc_rc=0
+    local tc_stderr_log
+    tc_stderr_log=$(mktemp)
+    agdt-speckit-test-coverage \
+        --spec-file "$SPEC_DIR/spec.md" \
+        --tasks-file "$SPEC_DIR/tasks.md" \
+        --json \
+        > "$SPEC_DIR/test-coverage.json" \
+        2> "$tc_stderr_log" || tc_rc=$?
+
+    if [[ "$tc_rc" -eq 0 ]]; then
+        echo "✓ Test coverage validation passed — all FRs have test tasks"
+        rm -f "$tc_stderr_log"
+    elif [[ "$tc_rc" -eq 1 ]]; then
+        echo "⚠ Test coverage findings detected (non-blocking)" >&2
+        rm -f "$tc_stderr_log"
+    elif [[ "$tc_rc" -eq 2 ]]; then
+        echo "Error: Test coverage validation encountered an operational error" >&2
+        if [[ -s "$tc_stderr_log" ]]; then
+            echo "Validator stderr:" >&2
+            cat "$tc_stderr_log" >&2
+        fi
+        rm -f "$tc_stderr_log"
+    else
+        echo "Error: Test coverage validator returned unexpected exit code: $tc_rc" >&2
+        rm -f "$tc_stderr_log"
+    fi
+    # Non-blocking: findings (exit 1) flow into the analyze phase
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # run_fr_validation_with_retry
 #
 # Runs FR validation against the current tasks.md and retries only when
@@ -2484,6 +2527,23 @@ $(cat "$SPEC_DIR/fr-coverage.json")
 "
     fi
 
+    # Inject test coverage data if available (produced by run_test_coverage_validation)
+    local test_coverage_context=""
+    if [[ -f "$SPEC_DIR/test-coverage.json" ]]; then
+        test_coverage_context="
+
+## E.2 Test Coverage Data (Deterministic — Pre-Validated)
+
+The following test coverage data was produced by the deterministic E.2 validator
+(\`agdt-speckit-test-coverage\`). Report findings as-is in the E.2 Test Coverage
+section. Do not re-evaluate test coverage — use these results directly.
+
+\`\`\`json
+$(cat "$SPEC_DIR/test-coverage.json")
+\`\`\`
+"
+    fi
+
     local prompt
     prompt="You are a specification quality analyst. Perform a cross-artifact consistency and quality analysis across the following specification, plan, and task list.
 
@@ -2569,6 +2629,7 @@ $plan_content
 ## Task List
 $tasks_content
 $fr_coverage_context
+$test_coverage_context
 CRITICAL: Your output MUST begin with a markdown heading on the very first line.
 WRONG: \"Here is the analysis...\"
 WRONG: \"Certainly! Here is...\"
@@ -2712,6 +2773,9 @@ run_single_phase() {
                 exit "$fr_validation_rc"
             fi
 
+            # E.2 Test coverage validation (non-blocking — findings flow to analyze)
+            run_test_coverage_validation
+
             echo ""
             echo "=== Markdownlint Validation ==="
             quick_markdown_sanity_check "$SPEC_DIR"
@@ -2816,6 +2880,9 @@ else
         echo "Error: FR coverage validation failed — tasks PR blocked" >&2
         exit "$fr_validation_rc"
     fi
+
+    # E.2 Test coverage validation (non-blocking — findings flow to analyze)
+    run_test_coverage_validation
 
     echo ""
     echo "=== Phase 6/7: Analyze ==="

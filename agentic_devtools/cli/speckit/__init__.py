@@ -19,6 +19,7 @@ from .commands import (
     speckit_taskstoissues,
 )
 from .cross_ref import cross_ref_command as speckit_cross_ref
+from .pass_e2.validator import test_coverage_command as speckit_test_coverage
 from .validate_frs import validate_frs_command as speckit_validate_frs
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "speckit_constitution",
     "speckit_cross_ref",
     "speckit_implement",
+    "speckit_test_coverage",
     "speckit_plan",
     "speckit_specify",
     "speckit_tasks",

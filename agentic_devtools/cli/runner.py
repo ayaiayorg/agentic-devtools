@@ -364,6 +364,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.speckit",
         "speckit_cross_ref",
     ),
+    "agdt-speckit-test-coverage": (
+        "agentic_devtools.cli.speckit",
+        "speckit_test_coverage",
+    ),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Setup
