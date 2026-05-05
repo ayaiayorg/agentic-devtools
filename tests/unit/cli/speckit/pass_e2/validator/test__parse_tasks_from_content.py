@@ -12,11 +12,7 @@ class TestParseTasksFromContent:
         When the parser encounters a line that is neither a new task header
         nor an indented continuation, it terminates the active task.
         """
-        content = (
-            "- [ ] T001 First task description\n"
-            "Some non-indented non-task line\n"
-            "- [ ] T002 Second task\n"
-        )
+        content = "- [ ] T001 First task description\nSome non-indented non-task line\n- [ ] T002 Second task\n"
         tasks = _parse_tasks_from_content(content)
         assert len(tasks) == 2
         assert tasks[0] == ("T001", "First task description")
@@ -24,11 +20,7 @@ class TestParseTasksFromContent:
 
     def test_blank_line_does_not_flush_current_task(self) -> None:
         """A blank line is skipped; the next task header triggers the flush."""
-        content = (
-            "- [ ] T001 Task one\n"
-            "\n"
-            "- [ ] T002 Task two\n"
-        )
+        content = "- [ ] T001 Task one\n\n- [ ] T002 Task two\n"
         tasks = _parse_tasks_from_content(content)
         assert len(tasks) == 2
         assert tasks[0] == ("T001", "Task one")
@@ -36,11 +28,7 @@ class TestParseTasksFromContent:
 
     def test_non_task_text_before_first_task(self) -> None:
         """Non-task lines before first task don't crash (current_task_id is None)."""
-        content = (
-            "# Heading\n"
-            "Some preamble text\n"
-            "- [ ] T001 The only task\n"
-        )
+        content = "# Heading\nSome preamble text\n- [ ] T001 The only task\n"
         tasks = _parse_tasks_from_content(content)
         assert len(tasks) == 1
         assert tasks[0] == ("T001", "The only task")

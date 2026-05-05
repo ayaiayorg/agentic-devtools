@@ -52,9 +52,7 @@ def render_findings(
     # Use fr_id field (case-insensitive) rather than key prefix to avoid
     # misclassification when FR IDs have non-standard casing (e.g. "fr-001").
     fr_findings = [
-        f
-        for f in findings
-        if f.fr_id is not None or f.key.startswith("TASK:missing") or f.key.startswith("TASK:empty")
+        f for f in findings if f.fr_id is not None or f.key.startswith("TASK:missing") or f.key.startswith("TASK:empty")
     ]
     task_findings = [
         f

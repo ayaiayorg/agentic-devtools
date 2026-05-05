@@ -4,29 +4,53 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 ## Workflows
 
-### auto-fix-on-failure.yml
+### ai-pr-loop.yml
 
-**Automated PR Check Failure Fix**
+**Automated AI PR Fix → Review → Merge Loop**
 
-- Runs on: `workflow_run` completion for test, workflow integration tests, and lint workflows
-- Trigger condition: Only when workflow fails and was triggered by a pull request
-- Purpose: Automatically applies `ruff` auto-fixes and pushes them to the PR branch
-- Retry Limit: 3 Tier 1 (ruff) attempts per PR
-- Loop Prevention: Tracks attempts using HTML comments, stops at max retry limit
+- Runs on: `workflow_run` completion of "AI PR Loop Lint" AND `pull_request_review` (Copilot)
+- Purpose: Fully autonomous PR handling — fix lint failures, detect review comments, approve, and merge
+- Supersedes the former `auto-fix-on-failure.yml`
 
 **How it works**:
 
-1. **Failure Detection**: Triggered when "Python Tests and Linting", "Workflow Integration Tests", or "Lint" workflows fail on a PR
-2. **PR Lookup**: Finds the associated pull request from the workflow run's head branch
-3. **Tier 1 — ruff auto-fix**: Runs `ruff check --fix` and `ruff format`, commits and pushes any changes
-4. **Retry Tracking**: Marks each attempt with an HTML comment; stops after 3 attempts
-5. **Exhaustion Notice**: Posts a human-intervention comment when all retries are used
+1. **Trigger Guards**: Prevents redundant runs — if triggered by Copilot review but checks are still pending,
+   polls every 30 seconds for up to 10 minutes (skips on timeout);
+   if a Copilot review on the head commit has `CHANGES_REQUESTED` state, blocks merge until resolved
+2. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; `do-not-auto-merge` prevents merge but allows fixes/approval
+3. **Layer 1 — Deterministic fixers**: Downloads and applies lint patches produced by the unprivileged "AI PR Loop Lint" workflow
+4. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
+5. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved
+6. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
+7. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
+8. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
 
 **Required Permissions**:
 
 - `contents: write`
-- `issues: write`
 - `pull-requests: write`
+- `issues: write`
+- `actions: write`
+- `checks: read`
+
+**Concurrency**: Single instance per PR (`ai-pr-loop-{pr_number}`), non-cancelling
+
+### ai-pr-loop-lint.yml
+
+**Unprivileged Lint Patch Generator**
+
+- Runs on: `pull_request` events (`synchronize`, `opened`, `reopened`)
+- Purpose: Runs deterministic auto-fixers (ruff lint/format, markdownlint) on PR code in a
+  read-only sandbox, producing a patch artifact for the privileged "AI PR Loop" workflow to apply.
+  This trust-boundary split ensures untrusted PR code never executes with write permissions or secrets.
+- Artifact: `ai-pr-loop-lint-patch` (contains `lint-fixes.patch` + PR metadata; retention: 1 day)
+
+**Required Permissions** (read-only):
+
+- `contents: read`
+- `actions: read`
+
+**Concurrency**: Single instance per PR (`ai-pr-loop-lint-{pr_number}`), cancel-in-progress
 
 ### speckit-issue-trigger.yml
 

@@ -226,9 +226,7 @@ def _run_copilot_with_retry(
         KeyboardInterrupt: If the user interrupts during a backoff sleep.
     """
     if _RETRY_MAX_ATTEMPTS < 0:
-        raise ValueError(
-            f"_RETRY_MAX_ATTEMPTS must be >= 0, got {_RETRY_MAX_ATTEMPTS}"
-        )
+        raise ValueError(f"_RETRY_MAX_ATTEMPTS must be >= 0, got {_RETRY_MAX_ATTEMPTS}")
     total_tries = _RETRY_MAX_ATTEMPTS + 1
     delay = _RETRY_INITIAL_DELAY_S
 

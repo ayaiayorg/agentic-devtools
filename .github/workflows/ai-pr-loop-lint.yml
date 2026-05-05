@@ -1,0 +1,147 @@
+name: AI PR Loop Lint
+
+# UNPRIVILEGED workflow: runs deterministic auto-fixers on PR code.
+# Produces a patch artifact consumed by the privileged "AI PR Loop" workflow.
+# This separation ensures untrusted PR code is never executed in a context
+# with write permissions or access to secrets.
+#
+# Uses `pull_request` trigger (not workflow_run) so that:
+# 1. CodeQL does not flag it as untrusted-checkout-in-privileged-context
+# 2. Fork PRs are automatically sandboxed by GitHub
+# 3. No secrets are available to the job
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened]
+
+# Read-only permissions — this workflow cannot push, comment, or merge.
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ai-pr-loop-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  generate-patch:
+    name: Generate lint fix patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve PR metadata
+        id: pr-meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const headBranch = pr.head.ref;
+            const headSha = pr.head.sha;
+            const prNumber = pr.number;
+
+            // Skip forks
+            if (pr.head.repo.full_name !== pr.base.repo.full_name) {
+              core.info('Fork PR — skipping.');
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            // Skip excluded PRs
+            const labels = pr.labels.map(l => l.name);
+            if (labels.includes('ai-pr-loop-ignore')) {
+              core.info('PR has ai-pr-loop-ignore label — skipping.');
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            core.setOutput('should_proceed', 'true');
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_branch', headBranch);
+            core.setOutput('head_sha', headSha);
+
+      # Checkout PR code — safe here because this job has NO write permissions
+      # and NO access to secrets. CodeQL does not flag this pattern.
+      - name: Checkout PR branch
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr-meta.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Python
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run deterministic auto-fixers
+        id: fix
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        run: |
+          set -euo pipefail
+          echo "Running deterministic auto-fixers..."
+
+          # Install ruff at a pinned version
+          python -m pip install --quiet ruff==0.11.12
+
+          # Ruff lint + format using repo's pyproject.toml configuration
+          ruff check --fix . || true
+          ruff format .
+
+      # Markdownlint deterministic fixers — sourced from trusted `main` ref
+      # to prevent artifact-injection via PR-modified scripts.
+      - name: Checkout trusted markdown fixer from main
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: __trusted_main
+          sparse-checkout: .github/scripts/speckit-trigger/fix_markdown_deterministic.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Run markdown fixer from trusted ref
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        run: |
+          set -euo pipefail
+          if [ -f "__trusted_main/.github/scripts/speckit-trigger/fix_markdown_deterministic.py" ]; then
+            echo "Running markdownlint deterministic fixer (from trusted main ref)..."
+            find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" -not -path "./__trusted_main/*" | while read -r f; do
+              python __trusted_main/.github/scripts/speckit-trigger/fix_markdown_deterministic.py "$f" || true
+            done
+          fi
+
+      - name: Generate patch
+        id: patch
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        run: |
+          set -euo pipefail
+          # Generate patch
+          if git diff --quiet; then
+            echo "No changes — no patch to upload."
+            echo "has_patch=false" >> "$GITHUB_OUTPUT"
+          else
+            git diff > /tmp/lint-fixes.patch
+            echo "has_patch=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save PR metadata for downstream workflow
+        if: steps.patch.outputs.has_patch == 'true'
+        run: |
+          mkdir -p /tmp/pr-meta
+          echo "${{ steps.pr-meta.outputs.pr_number }}" > /tmp/pr-meta/pr_number
+          echo "${{ steps.pr-meta.outputs.head_branch }}" > /tmp/pr-meta/head_branch
+          echo "${{ steps.pr-meta.outputs.head_sha }}" > /tmp/pr-meta/head_sha
+
+      - name: Upload patch artifact
+        if: steps.patch.outputs.has_patch == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-pr-loop-lint-patch
+          path: |
+            /tmp/lint-fixes.patch
+            /tmp/pr-meta/
+          retention-days: 1
