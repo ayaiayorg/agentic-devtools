@@ -110,7 +110,7 @@ MARKDOWNLINT_PROMPT_MAX_CHARS=32000
 # the parser.  Update this AND .github/workflows/copilot-setup-steps.yml together.
 MARKDOWNLINT_CLI2_VERSION="0.17.2"
 # Enable/disable the enhanced recovery layers (Layer 3: multi-turn SDK remediation,
-# Layer 4: Copilot CLI session) on stall detection.  Set to "false" to disable.
+# Layer 4: alternate LLM remediation) on stall detection.  Set to "false" to disable.
 SPECKIT_COPILOT_CLI_ON_STALL="${SPECKIT_COPILOT_CLI_ON_STALL:-true}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -927,6 +927,15 @@ Start your response with ===FILE: delimiter. No preamble."
         fi
 
         # Parse response and write files
+        # Helper: validate that a parsed path is in the affected_files allowlist
+        _is_allowed_file() {
+            local candidate="$1"
+            for allowed in "${affected_files[@]}"; do
+                [[ "$candidate" == "$allowed" ]] && return 0
+            done
+            return 1
+        }
+
         local current_file="" current_content=""
         while IFS= read -r line; do
             if [[ "$line" =~ ^===FILE:(.+)===$ ]]; then
@@ -943,6 +952,11 @@ Start your response with ===FILE: delimiter. No preamble."
                 current_file="${BASH_REMATCH[1]}"
                 current_file="${current_file#"${current_file%%[![:space:]]*}"}"
                 current_file="${current_file%"${current_file##*[![:space:]]}"}"
+                # Validate path is in the affected_files allowlist
+                if ! _is_allowed_file "$current_file"; then
+                    echo "[Phase 7] [Layer 3]     ⚠ Skipping unrecognized path from model: $current_file" >&2
+                    current_file=""
+                fi
                 current_content=""
             else
                 if [[ -n "$current_file" ]]; then
@@ -979,25 +993,23 @@ Start your response with ===FILE: delimiter. No preamble."
 }
 
 # ---------------------------------------------------------------------------
-# _run_copilot_cli_remediation <spec_dir> <affected_files...>
+# _run_alternate_llm_remediation <spec_dir> <affected_files...>
 #
-# Layer 4: Copilot CLI session with self-validation.  Launches `gh copilot`
-# with a structured prompt containing file contents, violations, and explicit
-# self-validation instructions.  Returns 0 if all violations resolved, 1
-# otherwise.  If `gh copilot` is not available, skips with a warning.
+# Layer 4: Alternate LLM remediation with distinct prompt strategy.  Uses
+# call_llm with a differently structured prompt (focused on self-validation
+# instructions) to attempt fixes from a fresh angle.  Returns 0 if all
+# violations resolved, 1 otherwise.
+#
+# Note: Despite the historical "Copilot CLI" name in logs, this layer uses
+# the SDK-based call_llm helper (not `gh copilot`) because the CLI does not
+# produce the ===FILE: delimited output required by the parser.
 # ---------------------------------------------------------------------------
-_run_copilot_cli_remediation() {
+_run_alternate_llm_remediation() {
     local spec_dir="$1"
     shift
     local -a affected_files=("$@")
 
-    # Check if gh copilot is available
-    if ! command -v gh &>/dev/null || ! gh copilot --help &>/dev/null 2>&1; then
-        echo "[Phase 7] [Layer 4] Warning: 'gh copilot' not available — skipping CLI remediation." >&2
-        return 1
-    fi
-
-    echo "[Phase 7] [Layer 4] Starting Copilot CLI remediation (${#affected_files[@]} file(s))..." >&2
+    echo "[Phase 7] [Layer 4] Starting alternate LLM remediation (${#affected_files[@]} file(s))..." >&2
 
     local max_attempts=3
     local attempt
@@ -1029,7 +1041,7 @@ $file_lint
             return 0
         fi
 
-        local cli_prompt="Fix the following markdownlint violations in these markdown files. After fixing, validate by running: npx markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION} --no-globs ${affected_files[*]}
+        local cli_prompt="Fix the following markdownlint violations in these markdown files.
 
 VIOLATIONS:
 $violations
@@ -1043,12 +1055,29 @@ INSTRUCTIONS:
 3. For MD056: ensure all table rows have same column count as header
 4. For MD013: break long lines at natural points (under 200 chars)
 5. Output ONLY the corrected file contents with ===FILE:<path>=== delimiters
-6. DO NOT consider task complete until validation passes with zero violations"
+6. Start your response with ===FILE: delimiter. No preamble."
+
+        # Guard: skip if prompt exceeds size limit (avoids timeouts when
+        # Layer 3 already skipped for the same reason).
+        local cli_prompt_len=${#cli_prompt}
+        if [[ $cli_prompt_len -gt 64000 ]]; then
+            echo "[Phase 7] [Layer 4]   Warning: Combined prompt too large ($cli_prompt_len chars). Skipping." >&2
+            return 1
+        fi
 
         local cli_response=""
-        cli_response=$(echo "$cli_prompt" | gh copilot suggest -t shell 2>/dev/null) || {
-            echo "[Phase 7] [Layer 4]   Warning: gh copilot call failed in attempt $attempt." >&2
+        if ! cli_response=$(call_llm "$cli_prompt"); then
+            echo "[Phase 7] [Layer 4]   Warning: LLM call failed in attempt $attempt." >&2
             continue
+        fi
+
+        # Helper: validate that a parsed path is in the affected_files allowlist
+        _is_allowed_file_l4() {
+            local candidate="$1"
+            for allowed in "${affected_files[@]}"; do
+                [[ "$candidate" == "$allowed" ]] && return 0
+            done
+            return 1
         }
 
         # If response contains file delimiters, parse and apply
@@ -1057,6 +1086,9 @@ INSTRUCTIONS:
             while IFS= read -r line; do
                 if [[ "$line" =~ ^===FILE:(.+)===$ ]]; then
                     if [[ -n "$current_file" && -n "$current_content" ]]; then
+                        local original_first_line=""
+                        original_first_line=$(head -n 1 "$current_file" 2>/dev/null || echo "")
+                        current_content=$(strip_llm_preamble "$current_content" "$original_first_line")
                         if [[ "$current_content" =~ [^[:space:]] ]]; then
                             printf '%s\n' "$current_content" > "$current_file"
                             append_model_footer "$current_file"
@@ -1065,6 +1097,11 @@ INSTRUCTIONS:
                     current_file="${BASH_REMATCH[1]}"
                     current_file="${current_file#"${current_file%%[![:space:]]*}"}"
                     current_file="${current_file%"${current_file##*[![:space:]]}"}"
+                    # Validate path is in the affected_files allowlist
+                    if ! _is_allowed_file_l4 "$current_file"; then
+                        echo "[Phase 7] [Layer 4]     ⚠ Skipping unrecognized path from model: $current_file" >&2
+                        current_file=""
+                    fi
                     current_content=""
                 else
                     if [[ -n "$current_file" ]]; then
@@ -1074,6 +1111,9 @@ INSTRUCTIONS:
                 fi
             done <<< "$cli_response"
             if [[ -n "$current_file" && -n "$current_content" ]]; then
+                local original_first_line=""
+                original_first_line=$(head -n 1 "$current_file" 2>/dev/null || echo "")
+                current_content=$(strip_llm_preamble "$current_content" "$original_first_line")
                 if [[ "$current_content" =~ [^[:space:]] ]]; then
                     printf '%s\n' "$current_content" > "$current_file"
                     append_model_footer "$current_file"
@@ -1092,7 +1132,7 @@ INSTRUCTIONS:
         echo "[Phase 7] [Layer 4]   Violations remain after attempt $attempt." >&2
     done
 
-    echo "[Phase 7] [Layer 4]   ✗ Copilot CLI remediation exhausted ($max_attempts attempts)." >&2
+    echo "[Phase 7] [Layer 4]   ✗ Alternate LLM remediation exhausted ($max_attempts attempts)." >&2
     return 1
 }
 
@@ -1108,7 +1148,7 @@ INSTRUCTIONS:
 #   Layer 1: Deterministic fixers (MD040, MD056) — run before iteration loop
 #   Layer 2: Standard per-file LLM remediation (existing iteration loop)
 #   Layer 3: Enhanced multi-turn SDK remediation (_run_enhanced_remediation)
-#   Layer 4: Copilot CLI session (_run_copilot_cli_remediation)
+#   Layer 4: Alternate LLM remediation (_run_alternate_llm_remediation)
 #   Layer 5: Graceful fallback — proceed with warning
 #
 # Returns 0 on success (all files lint-clean or graceful fallback).
@@ -1478,7 +1518,9 @@ Your response must begin with the actual markdown content. The very first charac
     fi
 
     # --- Recovery Layers 3-5 (when enabled) ---
-    if [[ "$SPECKIT_COPILOT_CLI_ON_STALL" == "true" && "$markdownlint_status" != "failed-unparseable" ]]; then
+    # Use defaulted expansion so test harnesses sourcing only this section
+    # under set -u do not abort with an unbound-variable error.
+    if [[ "${SPECKIT_COPILOT_CLI_ON_STALL:-true}" == "true" && "$markdownlint_status" != "failed-unparseable" ]]; then
         echo "" >&2
         echo "[Phase 7] === Recovery Layers (SPECKIT_COPILOT_CLI_ON_STALL=true) ===" >&2
 
@@ -1507,9 +1549,9 @@ Your response must begin with the actual markdown content. The very first charac
             return 0
         fi
 
-        # Layer 4: Copilot CLI session
-        if _run_copilot_cli_remediation "$spec_dir" "${recovery_affected_files[@]}"; then
-            echo "[Phase 7]   Result: ✓ SUCCESS — resolved via Layer 4 (Copilot CLI)" >&2
+        # Layer 4: Alternate LLM remediation
+        if _run_alternate_llm_remediation "$spec_dir" "${recovery_affected_files[@]}"; then
+            echo "[Phase 7]   Result: ✓ SUCCESS — resolved via Layer 4 (alternate LLM)" >&2
             echo "markdownlint_status=success" >> "${GITHUB_OUTPUT:-/dev/stdout}"
             echo "markdownlint_iterations=$total_iterations" >> "${GITHUB_OUTPUT:-/dev/stdout}"
             echo "markdownlint_violations=0" >> "${GITHUB_OUTPUT:-/dev/stdout}"
@@ -1520,15 +1562,31 @@ Your response must begin with the actual markdown content. The very first charac
         echo "" >&2
         echo "[Phase 7] [Layer 5] Graceful fallback — proceeding with remaining violations as warnings." >&2
         local remaining_violations=""
-        remaining_violations=$(cd "$spec_dir" && npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "${md_files[@]}" 2>&1) || true
-        echo "[Phase 7]   Remaining violations (warning-only):" >&2
-        printf '%s\n' "$remaining_violations" | head -50 >&2
+        local lint_rerun_exit=0
+        remaining_violations=$(cd "$spec_dir" && npx "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}" --no-globs "${md_files[@]}" 2>&1) || lint_rerun_exit=$?
+        # Re-count actual remaining violations (final_violation_count may be stale
+        # after Layers 3/4 partially reduced findings)
+        local actual_remaining_count=0
+        actual_remaining_count=$(printf '%s\n' "$remaining_violations" | grep -cE '^.+\.md:[0-9]+' || true)
+        # Guard against tooling/config errors: if markdownlint exited non-zero
+        # but we parsed zero violation lines, something else went wrong.
+        if [[ $lint_rerun_exit -ne 0 && $actual_remaining_count -eq 0 ]]; then
+            echo "[Phase 7] [Layer 5]   ⚠ markdownlint exited $lint_rerun_exit but no parseable violations found — possible tooling error." >&2
+            echo "[Phase 7] [Layer 5]   Output: $remaining_violations" >&2
+            echo "markdownlint_status=failed" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            echo "markdownlint_iterations=$total_iterations" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            echo "markdownlint_violations=0" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            return 1
+        fi
+        echo "[Phase 7]   Remaining violations (warning-only): $actual_remaining_count" >&2
+        printf '%s\n' "$remaining_violations" | head -50 >&2 || true
+        echo "[Phase 7]   Result: ⚠ WARNING-FALLBACK — $actual_remaining_count violation(s) remain as warnings" >&2
 
         echo "markdownlint_status=warning-fallback" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         echo "markdownlint_iterations=$total_iterations" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-        echo "markdownlint_violations=$final_violation_count" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "markdownlint_violations=$actual_remaining_count" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         echo "markdownlint_remaining_violations<<EOF" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-        printf '%s\n' "$remaining_violations" | head -30 >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        printf '%s\n' "$remaining_violations" | sed "s|${spec_dir}/||g" | head -30 >> "${GITHUB_OUTPUT:-/dev/stdout}" || true
         echo "EOF" >> "${GITHUB_OUTPUT:-/dev/stdout}"
         return 0
     fi
@@ -3264,7 +3322,7 @@ else
     echo "=== Phase 7/7: Markdownlint Validation ==="
     quick_markdown_sanity_check "$SPEC_DIR"
     run_markdownlint_validation "$SPEC_DIR" || { echo "Error: Markdownlint validation failed — lint violations remain after remediation" >&2; exit 1; }
-    echo "✓ Phase 7 complete: all markdown files lint-clean"
+    echo "✓ Phase 7 complete: markdownlint validation finished"
 fi
 
 # Output results (spec_dir as repo-relative path for portability)
