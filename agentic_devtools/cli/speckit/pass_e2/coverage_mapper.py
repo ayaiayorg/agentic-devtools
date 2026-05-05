@@ -188,12 +188,10 @@ def generate_task_scoped_findings(
                 key="TASK:invalid-us-ref",
                 severity="LOW",
                 description=(
-                    f"{len(invalid_us_task_ids)} task(s) reference non-existent "
-                    f"user stories ({us_list}): {task_list}."
+                    f"{len(invalid_us_task_ids)} task(s) reference non-existent user stories ({us_list}): {task_list}."
                 ),
                 recommendation=(
-                    "Update these tasks to reference valid user stories "
-                    "or add explicit FR-NNN references."
+                    "Update these tasks to reference valid user stories or add explicit FR-NNN references."
                 ),
             )
         )
@@ -217,9 +215,7 @@ def generate_task_scoped_findings(
         )
 
     # Ambiguous tasks (deduplicated by kind)
-    ambiguous_task_ids: list[str] = [
-        task.task_id for task in test_tasks if task.is_ambiguous
-    ]
+    ambiguous_task_ids: list[str] = [task.task_id for task in test_tasks if task.is_ambiguous]
     if ambiguous_task_ids:
         task_list = ", ".join(ambiguous_task_ids)
         findings.append(
@@ -231,10 +227,7 @@ def generate_task_scoped_findings(
                     f"implementation and test keywords, making their "
                     f"intent ambiguous: {task_list}."
                 ),
-                recommendation=(
-                    "Split these tasks into separate implementation "
-                    "and test tasks for clarity."
-                ),
+                recommendation=("Split these tasks into separate implementation and test tasks for clarity."),
             )
         )
 

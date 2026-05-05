@@ -1,0 +1,855 @@
+name: AI PR Loop
+
+# PRIVILEGED workflow: handles push, approve, merge, and review orchestration.
+# SECURITY: This workflow NEVER executes untrusted PR code. The PR branch is
+# fetched only to apply a validated patch artifact (plain text diff) produced by
+# the unprivileged "AI PR Loop Lint" workflow — no PR scripts are run.
+# This two-workflow pattern is the CodeQL-recommended architecture for
+# workflow_run triggers that need write permissions.
+
+on:
+  # Trigger 1: When the unprivileged lint workflow produces a patch.
+  # NOTE: Only "AI PR Loop Lint" is listed here intentionally. This workflow
+  # does not react to test/CI failures — those are handled by branch protection
+  # rules. This workflow specifically handles lint-fix patches and Copilot review
+  # orchestration (approve/merge when review is clean).
+  workflow_run:
+    workflows: ["AI PR Loop Lint"]
+    types: [completed]
+  # Trigger 2: When a Copilot review is submitted
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  checks: read
+
+# Only one pipeline instance per PR runs at a time.
+# Use a consistent key for both triggers: PR number (from review event) or
+# the first associated PR number from workflow_run, falling back to branch.
+concurrency:
+  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  ai-pr-loop:
+    name: AI PR Loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Gate: only run for PR-related events
+    if: >
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request') ||
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')
+
+    steps:
+      # ─── Step 0: Resolve PR metadata ───────────────────────────────────────
+      - name: Resolve PR metadata
+        id: pr-meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber, headBranch, headSha;
+
+            if (context.eventName === 'pull_request_review') {
+              prNumber = context.payload.pull_request.number;
+              headBranch = context.payload.pull_request.head.ref;
+              headSha = context.payload.pull_request.head.sha;
+            } else {
+              // workflow_run event — find associated PR
+              const workflowRun = context.payload.workflow_run;
+              headBranch = workflowRun.head_branch;
+
+              // Prefer the pull_requests array from the payload (deterministic,
+              // avoids ambiguity when multiple PRs share the same head branch).
+              if (workflowRun.pull_requests && workflowRun.pull_requests.length > 0) {
+                prNumber = workflowRun.pull_requests[0].number;
+                headSha = workflowRun.head_sha;
+              } else {
+                // Fallback: list open PRs by head branch
+                const { data: pulls } = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                  head: `${context.repo.owner}:${headBranch}`,
+                });
+
+                if (pulls.length === 0) {
+                  core.info('No open PR found for this workflow run — skipping.');
+                  core.setOutput('should_proceed', 'false');
+                  return;
+                }
+
+                prNumber = pulls[0].number;
+                headSha = pulls[0].head.sha;
+              }
+            }
+
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_branch', headBranch);
+            core.setOutput('head_sha', headSha);
+
+            // Check exclusion labels
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const labels = pr.labels.map(l => l.name);
+
+            if (labels.includes('ai-pr-loop-ignore')) {
+              core.info('PR has ai-pr-loop-ignore label — skipping entirely.');
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            core.setOutput('should_proceed', 'true');
+            core.setOutput('do_not_merge', labels.includes('do-not-auto-merge') ? 'true' : 'false');
+
+            // Skip fork PRs — cannot push to forks
+            if (pr.head.repo.full_name !== pr.base.repo.full_name) {
+              core.info('PR is from a fork — skipping (cannot push to forks).');
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+      # ─── Trigger Guards ────────────────────────────────────────────────────
+      - name: Check trigger guards
+        id: guards
+        if: steps.pr-meta.outputs.should_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+
+            // Check if Copilot review is currently in progress
+            const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const copilotReviewsOnHead = allReviews.filter(
+              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+            );
+
+            // Check workflow run statuses (paginate to handle >100 check runs)
+            const allCheckRuns = await github.paginate(
+              github.rest.checks.listForRef,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: headSha,
+                per_page: 100,
+              },
+              (response) => response.data.check_runs
+            );
+
+            const ciChecks = allCheckRuns.filter(
+              cr => cr.name !== 'AI PR Loop' &&
+                    cr.name !== 'Generate lint fix patch'
+            );
+            const pendingChecks = ciChecks.filter(
+              cr => cr.status !== 'completed'
+            );
+            let failedChecks = ciChecks.filter(
+              cr => cr.status === 'completed' && cr.conclusion === 'failure'
+            );
+
+            if (context.eventName === 'workflow_run') {
+              // Triggered by lint workflow completing — if a Copilot review already
+              // exists on this commit and has changes requested, skip to avoid
+              // conflicting with the review-triggered path.
+              const changesRequested = copilotReviewsOnHead.some(
+                r => r.state === 'CHANGES_REQUESTED'
+              );
+              if (changesRequested) {
+                core.info('Copilot review has CHANGES_REQUESTED on head commit — skipping to let review trigger handle it.');
+                core.setOutput('should_proceed', 'false');
+                return;
+              }
+            }
+
+            if (context.eventName === 'pull_request_review') {
+              // Triggered by Copilot review — if PR checks still running, poll
+              // until they complete (or job timeout). Without this, there is no
+              // event to re-trigger the merge gate after checks finish.
+              if (pendingChecks.length > 0) {
+                core.info(`PR checks still running (${pendingChecks.length} pending) — polling until complete.`);
+                const pollIntervalMs = 30_000; // 30 seconds
+                const maxWaitMs = 10 * 60 * 1000; // 10 minutes (within job timeout)
+                const startTime = Date.now();
+
+                while (Date.now() - startTime < maxWaitMs) {
+                  await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+
+                  const freshCheckRuns = await github.paginate(
+                    github.rest.checks.listForRef,
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: headSha,
+                      per_page: 100,
+                    },
+                    (response) => response.data.check_runs
+                  );
+
+                  const freshCiChecks = freshCheckRuns.filter(
+                    cr => cr.name !== 'AI PR Loop' &&
+                          cr.name !== 'Generate lint fix patch'
+                  );
+                  const stillPending = freshCiChecks.filter(cr => cr.status !== 'completed');
+
+                  if (stillPending.length === 0) {
+                    core.info('All CI checks completed — proceeding.');
+                    // Update failedChecks from fresh data so the final output reflects post-wait state
+                    failedChecks = freshCiChecks.filter(
+                      cr => cr.status === 'completed' && cr.conclusion === 'failure'
+                    );
+                    if (failedChecks.length > 0) {
+                      const names = failedChecks.map(c => `${c.name} (${c.conclusion})`).join(', ');
+                      core.info(`Checks completed with failures: ${names}`);
+                    }
+                    break;
+                  }
+
+                  const elapsed = Math.round((Date.now() - startTime) / 1000);
+                  core.info(`Still waiting for ${stillPending.length} check(s) (${elapsed}s elapsed)...`);
+                }
+
+                if (Date.now() - startTime >= maxWaitMs) {
+                  core.info('Timed out waiting for checks to complete — skipping this trigger.');
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: [
+                      '<!-- ai-pr-loop-timeout -->',
+                      '⏱️ **AI PR Loop**: Timed out waiting for CI checks to complete (10 min limit).',
+                      'The PR may become mergeable once checks finish — re-request a Copilot review or push a new commit to re-trigger.',
+                      '',
+                      `**Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                    ].join('\n'),
+                  });
+                  core.setOutput('should_proceed', 'false');
+                  return;
+                }
+              }
+            }
+
+            // Check outer cycle count from the single tracker comment.
+            // The tracker comment contains <!-- cycle-count: N --> for parsing.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const trackerComment = comments.find(
+              c => c.body && c.body.includes('<!-- ai-pr-loop-cycle-tracker -->')
+            );
+            let cycleCount = 0;
+            if (trackerComment) {
+              const match = trackerComment.body.match(/<!-- cycle-count: (\d+) -->/);
+              cycleCount = match ? parseInt(match[1], 10) : 0;
+            }
+
+            if (cycleCount >= 50) {
+              core.info('Reached 50-cycle limit — posting failure comment and stopping.');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: [
+                  '<!-- ai-pr-loop-exhausted -->',
+                  '## ⚠️ AI PR Loop Exhausted',
+                  '',
+                  `The AI PR loop has reached the maximum of 50 cycles without achieving a mergeable state.`,
+                  '',
+                  `**Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                  '',
+                  'Human intervention is required.',
+                ].join('\n'),
+              });
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            core.setOutput('should_proceed', 'true');
+            core.setOutput('has_failed_checks', failedChecks.length > 0 ? 'true' : 'false');
+            core.setOutput('has_copilot_review', copilotReviewsOnHead.length > 0 ? 'true' : 'false');
+            core.setOutput('cycle_count', cycleCount);
+
+      # ─── Step 1: Download & Apply Lint Patch ───────────────────────────────
+      # SECURITY: We download a patch artifact (plain text diff) produced by the
+      # unprivileged "AI PR Loop Lint" workflow. We never check out or execute
+      # PR code in this privileged workflow.
+      - name: Download lint patch artifact
+        id: download-patch
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true' &&
+          github.event_name == 'workflow_run'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = context.payload.workflow_run.id;
+
+            // List artifacts from the lint workflow run
+            const { data: { artifacts } } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            const patchArtifact = artifacts.find(a => a.name === 'ai-pr-loop-lint-patch');
+            if (!patchArtifact) {
+              core.info('No lint patch artifact found — lint workflow produced no fixes.');
+              core.setOutput('has_patch', 'false');
+              return;
+            }
+
+            // Download the artifact
+            const { data } = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: patchArtifact.id,
+              archive_format: 'zip',
+            });
+
+            const fs = require('fs');
+            fs.writeFileSync('/tmp/patch-artifact.zip', Buffer.from(data));
+            core.setOutput('has_patch', 'true');
+
+      - name: Extract and validate patch
+        id: validate-patch
+        if: steps.download-patch.outputs.has_patch == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/patch-content
+          unzip -o /tmp/patch-artifact.zip -d /tmp/patch-content
+
+          # Validate PR metadata matches current PR
+          PATCH_PR=$(cat /tmp/patch-content/pr-meta/pr_number 2>/dev/null || echo "")
+          PATCH_SHA=$(cat /tmp/patch-content/pr-meta/head_sha 2>/dev/null || echo "")
+          EXPECTED_PR="${{ steps.pr-meta.outputs.pr_number }}"
+          EXPECTED_SHA="${{ steps.pr-meta.outputs.head_sha }}"
+
+          if [ "$PATCH_PR" != "$EXPECTED_PR" ]; then
+            echo "Patch PR ($PATCH_PR) doesn't match current PR ($EXPECTED_PR) — skipping."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$PATCH_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Patch SHA ($PATCH_SHA) doesn't match current head ($EXPECTED_SHA) — stale patch, skipping."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -f /tmp/patch-content/lint-fixes.patch ]; then
+            echo "No patch file found in artifact — skipping."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Basic safety check: patch should only contain diff data, not scripts
+          if grep -qP '^\+.*\b(eval|exec|import os|subprocess)\b' /tmp/patch-content/lint-fixes.patch 2>/dev/null; then
+            echo "::warning::Patch contains potentially dangerous content — review manually."
+          fi
+
+          # Extract ALL modified paths from the patch (additions, modifications,
+          # deletions, and renames). Deletions use "+++ /dev/null" so we must also
+          # parse "--- a/" lines. Exclude /dev/null itself.
+          ALL_PATHS=$(grep -E '^(\+\+\+ b/|--- a/)' /tmp/patch-content/lint-fixes.patch \
+            | sed -E 's#^\+\+\+ b/##' \
+            | sed -E 's#^--- a/##' \
+            | grep -v '^/dev/null$' \
+            | sort -u)
+
+          # Strict file-path allowlisting: reject patches touching privileged paths.
+          # Exception: markdown files (.md) under these paths are safe (e.g. README.md).
+          DISALLOWED_PATHS=$(echo "$ALL_PATHS" | grep -E '^\.github/(workflows|actions|scripts)/' | grep -vE '\.md$' || true)
+          if [ -n "$DISALLOWED_PATHS" ]; then
+            echo "::error::Patch modifies privileged paths — rejecting for security:"
+            echo "$DISALLOWED_PATHS"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Only allow patches to known safe file extensions
+          DISALLOWED_EXTENSIONS=$(echo "$ALL_PATHS" | grep -vE '\.(py|md|txt|toml|cfg|ini|yaml|yml|json|rst)$' || true)
+          if [ -n "$DISALLOWED_EXTENSIONS" ]; then
+            echo "::error::Patch modifies files with non-allowlisted extensions — rejecting:"
+            echo "$DISALLOWED_EXTENSIONS"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+          echo "Patch validated successfully."
+
+      # Checkout the PR branch via the GitHub API (merge ref) to apply the patch.
+      # We use the TRUSTED default branch checkout + git fetch pattern.
+      - name: Checkout repository (trusted base)
+        if: steps.validate-patch.outputs.valid == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Apply patch to PR branch
+        id: apply-patch
+        if: steps.validate-patch.outputs.valid == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BRANCH: ${{ steps.pr-meta.outputs.head_branch }}
+        run: |
+          set -euo pipefail
+
+          # Configure git with token for push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+
+          # Fetch PR branch
+          git fetch --depth=2 origin "${PR_BRANCH}"
+          git checkout -B "${PR_BRANCH}" "origin/${PR_BRANCH}"
+
+          # Apply the patch
+          if git apply --check /tmp/patch-content/lint-fixes.patch 2>/dev/null; then
+            git apply /tmp/patch-content/lint-fixes.patch
+            git add -A
+            git commit --amend --no-edit
+            git push --force-with-lease origin HEAD
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            echo "Patch applied and pushed successfully."
+          else
+            echo "::warning::Patch does not apply cleanly — PR may have been updated since lint ran."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # After pushing a lint-fix patch, the new HEAD has no Copilot review.
+      # Re-request one so the PR doesn't get stuck waiting for a manual request.
+      - name: Re-request Copilot review after patch push
+        if: steps.apply-patch.outputs.pushed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                reviewers: ['Copilot'],
+              });
+              core.info(`Re-requested Copilot review for PR #${prNumber} after patch push.`);
+            } catch (error) {
+              core.warning(`Failed to request Copilot review (best-effort): ${error.message}`);
+            }
+
+      # ─── Step 2: Handle Copilot Review Comments ────────────────────────────
+      - name: Check for addressable Copilot review comments
+        id: check-review
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.has_copilot_review == 'true' &&
+          steps.apply-patch.outputs.pushed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+
+            // Get Copilot reviews on the head commit
+            const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const copilotReviews = allReviews.filter(
+              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+            );
+
+            if (copilotReviews.length === 0) {
+              core.setOutput('has_comments', 'false');
+              return;
+            }
+
+            // Only evaluate the LATEST Copilot review on this commit.
+            // Earlier reviews may have stale comments that were addressed;
+            // only the most recent review reflects the current state.
+            const latestReview = copilotReviews[copilotReviews.length - 1];
+            const reviewComments = await github.paginate(
+              github.rest.pulls.listCommentsForReview,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                review_id: latestReview.id,
+                per_page: 100,
+              }
+            );
+
+            core.info(`Latest Copilot review (${latestReview.id}) has ${reviewComments.length} comment(s).`);
+            core.setOutput('has_comments', reviewComments.length > 0 ? 'true' : 'false');
+
+      # ─── Step 3: Approve & Merge ───────────────────────────────────────────
+      - name: Check if ready to merge
+        id: merge-check
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.has_failed_checks != 'true' &&
+          steps.guards.outputs.has_copilot_review == 'true' &&
+          steps.check-review.outputs.has_comments != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            let doNotMerge = '${{ steps.pr-meta.outputs.do_not_merge }}' === 'true';
+
+            // SECURITY: Block auto-merge for PRs that modify privileged automation paths.
+            // These paths control CI/CD permissions and must require human review.
+            const PRIVILEGED_PATH_PREFIXES = ['.github/workflows/', '.github/actions/', '.github/scripts/'];
+            const prFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+            const touchesPrivileged = prFiles.some(
+              f => PRIVILEGED_PATH_PREFIXES.some(prefix => f.filename.startsWith(prefix)) &&
+                   !f.filename.endsWith('.md')
+            );
+            if (touchesPrivileged) {
+              core.info('PR modifies privileged automation paths — blocking auto-merge and auto-approval (requires human review).');
+              doNotMerge = true;
+              core.setOutput('touches_privileged', 'true');
+            }
+
+            // Final check: verify all checks are passing
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const headSha = pr.head.sha;
+
+            // Guard: block merge if Copilot review state is CHANGES_REQUESTED
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+            const copilotReviewsOnHead = allReviews.filter(
+              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+            );
+            const latestCopilotReview = copilotReviewsOnHead[copilotReviewsOnHead.length - 1];
+            if (latestCopilotReview && latestCopilotReview.state === 'CHANGES_REQUESTED') {
+              core.info('Copilot review is CHANGES_REQUESTED — cannot merge.');
+              core.setOutput('ready', 'false');
+              return;
+            }
+            if (!latestCopilotReview || latestCopilotReview.state !== 'APPROVED') {
+              core.info(`Copilot review state is "${latestCopilotReview?.state || 'none'}" (not APPROVED) — cannot merge.`);
+              core.setOutput('ready', 'false');
+              return;
+            }
+
+            const allCheckRuns = await github.paginate(
+              github.rest.checks.listForRef,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: headSha,
+                per_page: 100,
+              },
+              (response) => response.data.check_runs
+            );
+
+            const ciChecks = allCheckRuns.filter(
+              cr => cr.name !== 'AI PR Loop' && cr.name !== 'Generate lint fix patch'
+            );
+            const failedChecks = ciChecks.filter(
+              cr => cr.status === 'completed' &&
+                    cr.conclusion !== 'success' &&
+                    cr.conclusion !== 'skipped' &&
+                    cr.conclusion !== 'neutral'
+            );
+
+            if (failedChecks.length > 0) {
+              const names = failedChecks.map(c => `${c.name} (${c.conclusion})`).join(', ');
+              core.info(`Checks not passing: ${names} — cannot merge yet.`);
+              core.setOutput('ready', 'false');
+              return;
+            }
+
+            const pendingChecks = ciChecks.filter(cr => cr.status !== 'completed');
+            if (pendingChecks.length > 0) {
+              const names = pendingChecks.map(c => c.name).join(', ');
+              core.info(`Checks still pending: ${names} — cannot merge yet.`);
+              core.setOutput('ready', 'false');
+              return;
+            }
+
+            core.setOutput('ready', 'true');
+            core.setOutput('do_not_merge', doNotMerge ? 'true' : 'false');
+
+      - name: Approve PR
+        id: approve
+        if: >
+          steps.merge-check.outputs.ready == 'true' &&
+          steps.merge-check.outputs.touches_privileged != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+
+            // Verify head SHA hasn't changed since merge-check validated it
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.head.sha !== headSha) {
+              core.warning(`PR head SHA changed (expected ${headSha.slice(0,7)}, got ${pr.head.sha.slice(0,7)}) — aborting approval.`);
+              core.setOutput('approved', 'false');
+              return;
+            }
+
+            try {
+              await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                commit_id: headSha,
+                event: 'APPROVE',
+                body: '✅ All checks passing, no outstanding review comments. Approved by AI PR Loop.',
+              });
+              core.info(`Approved PR #${prNumber} at commit ${headSha.slice(0,7)}.`);
+              core.setOutput('approved', 'true');
+            } catch (error) {
+              core.warning(`Failed to approve PR: ${error.message}`);
+              core.setOutput('approved', 'false');
+            }
+
+      - name: Merge PR
+        id: merge
+        if: >
+          steps.merge-check.outputs.ready == 'true' &&
+          steps.merge-check.outputs.do_not_merge != 'true' &&
+          steps.approve.outputs.approved == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                sha: headSha,
+                merge_method: 'squash',
+              });
+              core.info(`Merged PR #${prNumber} via squash.`);
+            } catch (error) {
+              // Retry once after a short delay
+              core.warning(`First merge attempt failed: ${error.message}. Retrying in 10s...`);
+              await new Promise(resolve => setTimeout(resolve, 10000));
+
+              try {
+                await github.rest.pulls.merge({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  sha: headSha,
+                  merge_method: 'squash',
+                });
+                core.info(`Merged PR #${prNumber} on retry.`);
+              } catch (retryError) {
+                core.setFailed(`Failed to merge PR #${prNumber}: ${retryError.message}`);
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: [
+                    '<!-- ai-pr-loop-merge-failed -->',
+                    '## ❌ AI PR Loop: Merge Failed',
+                    '',
+                    `Could not merge PR after retry.`,
+                    `**Error**: ${retryError.message}`,
+                    '',
+                    `**Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                  ].join('\n'),
+                });
+              }
+            }
+
+      - name: Comment when do-not-auto-merge blocks merge
+        if: >
+          steps.merge-check.outputs.ready == 'true' &&
+          steps.merge-check.outputs.do_not_merge == 'true' &&
+          steps.approve.outputs.approved == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: [
+                '<!-- ai-pr-loop-ready-no-merge -->',
+                '## ✅ AI PR Loop: Ready for Manual Merge',
+                '',
+                'All checks are passing and the PR has been approved.',
+                'The `do-not-auto-merge` label is present, so automatic merge is skipped.',
+                '',
+                'A human can now merge this PR when ready.',
+              ].join('\n'),
+            });
+
+      # ─── Step 4: Re-request stale reviews ──────────────────────────────────
+      - name: Re-request stale Copilot review
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.has_copilot_review != 'true' &&
+          steps.apply-patch.outputs.pushed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            // The requestReviewers API uses 'Copilot' (virtual user), not the bot login.
+            const copilotReviewer = 'Copilot';
+
+            // Get timeline events to find when review was last requested.
+            // The timeline API requires a preview Accept header and may fail;
+            // handle gracefully by falling back to requesting a fresh review.
+            let reviewRequests = [];
+            try {
+              const events = await github.paginate(github.rest.issues.listEventsForTimeline, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                per_page: 100,
+                headers: { accept: 'application/vnd.github.mockingbird-preview+json' },
+              });
+
+              reviewRequests = events.filter(
+                e => e.event === 'review_requested' &&
+                     e.requested_reviewer &&
+                     (e.requested_reviewer.login === copilotLogin ||
+                      e.requested_reviewer.login === copilotReviewer)
+              );
+            } catch (timelineError) {
+              core.warning(`Timeline API failed (${timelineError.message}) — requesting fresh review.`);
+            }
+
+            if (reviewRequests.length === 0) {
+              core.info('No Copilot review request found — requesting one now.');
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  reviewers: [copilotReviewer],
+                });
+                core.info('Copilot review requested.');
+              } catch (error) {
+                core.warning(`Failed to request Copilot review: ${error.message}`);
+              }
+              return;
+            }
+
+            const lastRequest = reviewRequests[reviewRequests.length - 1];
+            const requestedAt = new Date(lastRequest.created_at);
+            const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+            if (requestedAt < thirtyMinutesAgo) {
+              core.info('Copilot review request is stale (>30 min) — re-requesting.');
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  reviewers: [copilotReviewer],
+                });
+                core.info('Copilot review re-requested.');
+              } catch (error) {
+                core.warning(`Failed to re-request Copilot review: ${error.message}`);
+              }
+            }
+
+      # ─── Record cycle ──────────────────────────────────────────────────────
+      # Record a cycle for every meaningful run that passes guards. Uses a single
+      # updatable comment (identified by a hidden marker) to avoid flooding the PR
+      # with bot comments and notifications. The comment body contains cycle count
+      # and recent run history for auditability.
+      - name: Record cycle
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const cycleCount = parseInt('${{ steps.guards.outputs.cycle_count }}', 10) + 1;
+            const marker = '<!-- ai-pr-loop-cycle-tracker -->';
+
+            // Find existing tracker comment
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const trackerComment = comments.find(c => c.body && c.body.includes(marker));
+
+            const body = [
+              marker,
+              `<!-- cycle-count: ${cycleCount} -->`,
+              `**AI PR Loop**: Cycle **${cycleCount}**/50 — [run ${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            ].join('\n');
+
+            if (trackerComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: trackerComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
