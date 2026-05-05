@@ -488,6 +488,7 @@ jobs:
           COPILOT_MODEL: ${{ env.COPILOT_MODEL }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SPECKIT_CRITICAL_GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
+          SPECKIT_COPILOT_CLI_ON_STALL: ${{ vars.SPECKIT_COPILOT_CLI_ON_STALL || 'true' }}
         run: |
           chmod +x .github/scripts/speckit-trigger/generate-spec-from-issue.sh
           .github/scripts/speckit-trigger/generate-spec-from-issue.sh \
@@ -543,6 +544,7 @@ jobs:
           GATE_RESULT: ${{ steps.generate.outputs.gate_result }}
           GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
           CRITICAL_FINDINGS: ${{ steps.generate.outputs.critical_findings }}
+          MARKDOWNLINT_WARNINGS: ${{ steps.generate.outputs.markdownlint_remaining_violations }}
         run: |
           chmod +x .github/scripts/speckit-trigger/create-spec-pr.sh
 
@@ -555,6 +557,12 @@ jobs:
             fi
           fi
 
+          # Build markdownlint warnings argument
+          LINT_ARGS=""
+          if [[ -n "${MARKDOWNLINT_WARNINGS:-}" ]]; then
+            LINT_ARGS="--markdownlint-warnings"
+          fi
+
           if [[ -n "$DRAFT_ARGS" && "$DRAFT_ARGS" == *"--critical-findings-json"* ]]; then
             .github/scripts/speckit-trigger/create-spec-pr.sh \
               "${{ steps.commit.outputs.branch_name }}" \
@@ -565,7 +573,8 @@ jobs:
               --phase-number "${{ steps.extract.outputs.next_phase }}" \
               --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
               --draft \
-              --critical-findings-json "$CRITICAL_FINDINGS"
+              --critical-findings-json "$CRITICAL_FINDINGS" \
+              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
           elif [[ -n "$DRAFT_ARGS" ]]; then
             .github/scripts/speckit-trigger/create-spec-pr.sh \
               "${{ steps.commit.outputs.branch_name }}" \
@@ -575,7 +584,8 @@ jobs:
               "$ISSUE_LABELS" \
               --phase-number "${{ steps.extract.outputs.next_phase }}" \
               --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
-              --draft
+              --draft \
+              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
           else
             .github/scripts/speckit-trigger/create-spec-pr.sh \
               "${{ steps.commit.outputs.branch_name }}" \
@@ -584,7 +594,8 @@ jobs:
               "${{ steps.issue.outputs.title }}" \
               "$ISSUE_LABELS" \
               --phase-number "${{ steps.extract.outputs.next_phase }}" \
-              --phase-name "${{ steps.extract.outputs.next_phase_name }}"
+              --phase-name "${{ steps.extract.outputs.next_phase_name }}" \
+              ${LINT_ARGS:+$LINT_ARGS "$MARKDOWNLINT_WARNINGS"}
           fi
 
       - name: Auto-Merge (if configured)

@@ -43,6 +43,7 @@ PHASE_NUMBER=""
 PHASE_NAME=""
 CREATE_DRAFT=""
 CRITICAL_FINDINGS_JSON=""
+MARKDOWNLINT_WARNINGS=""
 shift 4  # consume required positional args
 # Only consume labels_json if the next arg exists and is not a named flag
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -80,6 +81,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             CRITICAL_FINDINGS_JSON="$2"
+            shift 2
+            ;;
+        --markdownlint-warnings)
+            if [[ $# -lt 2 || "$2" == --* ]]; then
+                echo "Error: --markdownlint-warnings requires a value" >&2
+                exit 1
+            fi
+            MARKDOWNLINT_WARNINGS="$2"
             shift 2
             ;;
         *)
@@ -321,6 +330,23 @@ if [[ "$CREATE_DRAFT" == "true" ]] && [[ -n "$CRITICAL_FINDINGS_JSON" ]] && [[ "
 
 "
     PR_BODY="${FINDINGS_WARNING}${PR_BODY}"
+fi
+
+# Append markdownlint warnings section when violations were not fully resolved
+if [[ -n "$MARKDOWNLINT_WARNINGS" ]]; then
+    LINT_WARNING="
+---
+
+## ⚠️ Markdownlint Warnings
+
+> **Note:** Some markdownlint violations could not be automatically resolved.
+> These are cosmetic issues that do not affect functionality.
+
+\`\`\`text
+$MARKDOWNLINT_WARNINGS
+\`\`\`
+"
+    PR_BODY="${PR_BODY}${LINT_WARNING}"
 fi
 
 # Build gh pr create command arguments
