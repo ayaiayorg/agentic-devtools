@@ -351,7 +351,9 @@ $MARKDOWNLINT_WARNINGS
 fi
 
 # Build gh pr create command arguments
+REPO_SLUG="${GITHUB_REPOSITORY:-OWNER/REPO}"
 GH_CREATE_ARGS=(
+    --repo "$REPO_SLUG"
     --title "$PR_TITLE"
     --body "$PR_BODY"
     --base "$BASE_BRANCH"
@@ -367,10 +369,45 @@ fi
 
 # Create the PR
 PR_URL=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>&1) || {
-    echo "Warning: Failed to create PR" >&2
+    echo "" >&2
+    echo "❌ Failed to create PR automatically." >&2
     echo "Error: $PR_URL" >&2
+    echo "" >&2
+    echo "To create this PR manually, run the following command locally:" >&2
+    echo "" >&2
+    echo "  Prerequisites:" >&2
+    echo "  - Ensure you are authenticated: gh auth login" >&2
+    echo "  - Ensure the branch is pushed: git push origin $BRANCH_NAME" >&2
+    echo "" >&2
+    echo "  Step 1: Save the PR body to a local file:" >&2
+    echo "" >&2
+    echo "  cat > pr-body.md << 'SPECKIT_PR_BODY_EOF'" >&2
+    echo "$PR_BODY" >&2
+    echo "SPECKIT_PR_BODY_EOF" >&2
+    echo "" >&2
+    echo "  Step 2: Create the PR:" >&2
+    echo "" >&2
+    echo "  gh pr create \\" >&2
+    echo "    --repo $REPO_SLUG \\" >&2
+    echo "    --head \"$BRANCH_NAME\" \\" >&2
+    echo "    --base \"$BASE_BRANCH\" \\" >&2
+    echo "    --title \"$PR_TITLE\" \\" >&2
+    if [[ "$CREATE_DRAFT" == "true" ]]; then
+        echo "    --draft \\" >&2
+    fi
+    echo "    --body-file \"pr-body.md\"" >&2
+    echo "" >&2
+    # Show label instructions if labels are available
+    if [[ -n "$PHASE_NUMBER" ]]; then
+        echo "  After creating the PR, apply labels manually:" >&2
+        echo "  gh pr edit <PR_NUMBER> --add-label \"speckit:phase-${PHASE_NUMBER}\"" >&2
+    else
+        echo "  After creating the PR, apply labels manually:" >&2
+        echo "  gh pr edit <PR_NUMBER> --add-label \"speckit:spec\"" >&2
+    fi
+    echo "" >&2
     echo "pr_url=" >> "${GITHUB_OUTPUT:-/dev/stdout}"
-    exit 0
+    exit 1
 }
 
 # Output draft status

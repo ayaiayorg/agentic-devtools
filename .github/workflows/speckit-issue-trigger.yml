@@ -324,7 +324,7 @@ jobs:
         if: steps.validate-label.outputs.label_matches == 'true' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false'
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
           MARKDOWNLINT_WARNINGS: ${{ steps.generate.outputs.markdownlint_remaining_violations }}
         run: |
