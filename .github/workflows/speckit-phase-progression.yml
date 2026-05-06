@@ -539,7 +539,7 @@ jobs:
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && vars.SPECKIT_CREATE_BRANCH != 'false' && vars.SPECKIT_CREATE_PR != 'false' && steps.commit.outcome == 'success' && (steps.generate.outputs.gate_result == 'pass' || vars.SPECKIT_CRITICAL_GATE_MODE == 'draft')
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
           GATE_RESULT: ${{ steps.generate.outputs.gate_result }}
           GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}
