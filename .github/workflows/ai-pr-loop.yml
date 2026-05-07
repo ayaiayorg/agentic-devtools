@@ -164,7 +164,7 @@ jobs:
             );
 
             const ciChecks = allCheckRuns.filter(
-              cr => cr.name !== 'AI PR Loop' &&
+              cr => cr && cr.name !== 'AI PR Loop' &&
                     cr.name !== 'Generate lint fix patch'
             );
             const pendingChecks = ciChecks.filter(
@@ -213,7 +213,7 @@ jobs:
                   );
 
                   const freshCiChecks = freshCheckRuns.filter(
-                    cr => cr.name !== 'AI PR Loop' &&
+                    cr => cr && cr.name !== 'AI PR Loop' &&
                           cr.name !== 'Generate lint fix patch'
                   );
                   const stillPending = freshCiChecks.filter(cr => cr.status !== 'completed');
@@ -672,7 +672,7 @@ jobs:
             );
 
             const ciChecks = allCheckRuns.filter(
-              cr => cr.name !== 'AI PR Loop' && cr.name !== 'Generate lint fix patch'
+              cr => cr && cr.name !== 'AI PR Loop' && cr.name !== 'Generate lint fix patch'
             );
             const failedChecks = ciChecks.filter(
               cr => cr.status === 'completed' &&
