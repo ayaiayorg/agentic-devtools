@@ -47,6 +47,8 @@ project config or checked on subsequent runs.
 As a developer running `agdt-setup` for the first time or with a newer version, I want the current `agentic-devtools` version to be recorded in `.agdt/config/project.json` so that the team has a
 shared record of the minimum required version.
 
+**Covers**: FR-001, FR-002, FR-003, FR-006, FR-012, FR-013
+
 **Why this priority**: This is the foundational capability — without recording the version, no subsequent guard logic can function. Every other story depends on this.
 
 **Independent Test**: Run `agdt-setup` against a repo with no `agdt_version` in `project.json`. After completion, verify that `project.json` contains the correct `agdt_version` value matching the
@@ -71,6 +73,8 @@ running package version. Run again with the same version and verify the value is
 As a developer who accidentally has an older version of `agentic-devtools` installed, I want `agdt-setup` to refuse to modify repo files and clearly tell me how to upgrade, so that I do not
 inadvertently regress work done by teammates with a newer version.
 
+**Covers**: FR-003, FR-004, FR-010, FR-011
+
 **Why this priority**: This is the core safety guard — the primary motivation of the feature. Without this, the version pin from Story 1 is unused metadata.
 
 **Independent Test**: Set `project.json` to `"agdt_version": "0.2.69"`, then run `agdt-setup` from a build with version `0.2.64`. Verify that an error is printed, no repo files are modified, no branch
@@ -92,6 +96,8 @@ is created, no PR is opened, and the exit code is non-zero.
 
 As a developer who needs to configure my local environment but cannot upgrade right now, I want a `--force-old-version` flag that allows `agdt-setup` to run local-only configuration steps (cert
 prefetch, shell profile, dependency checks) while still skipping all repo file mutations.
+
+**Covers**: FR-007, FR-008, FR-009
 
 **Why this priority**: Provides an escape hatch for real-world scenarios where upgrading is temporarily impossible (e.g., broken CI, version not yet released to PyPI). Lower priority than the hard
 block because the default-safe behaviour (Story 2) is more important.
@@ -116,6 +122,8 @@ repo-modifying steps are skipped (no `.agdt/.gitignore` write, no skill injectio
 
 As a developer encountering the version guard, I want the error message to include my current version, the required version, the specific upgrade command, and the force-override flag, so I can resolve
 the situation without searching documentation.
+
+**Covers**: FR-005, FR-009
 
 **Why this priority**: Good error messages are critical for developer experience and reduce support burden, but this is an enhancement to the behaviour defined in Story 2.
 
@@ -146,29 +154,29 @@ the situation without searching documentation.
 
 ### Functional Requirements
 
-- **FR-001**: During `agdt-setup`, the system MUST write the current `agentic-devtools` version to `.agdt/config/project.json` under the key `agdt_version` upon successful completion of all
+- **FR-001** [US1]: During `agdt-setup`, the system MUST write the current `agentic-devtools` version to `.agdt/config/project.json` under the key `agdt_version` upon successful completion of all
   repo-modifying steps. Specifically: any validation or check that could cause a non-zero exit (e.g., missing required dependencies, failed pre-flight validation) MUST execute **before** any
   repo-mutating steps run. This "fail-fast before mutations" constraint ensures that once repo-modifying steps begin, the process will complete successfully and the version pin will be recorded.
   The version write MUST occur immediately after all repo-modifying steps have succeeded — even if optional post-setup checks (e.g., informational diagnostics) run afterward. If a repo-modifying
   step itself fails, the version MUST NOT be written and the process MUST exit non-zero. This does NOT apply when `--force-old-version` is active (see FR-008). Implementation note: the version write
   is the LAST step inside `_run_file_modifying_steps()`, after all other repo-modifying steps succeed. This placement ensures the write is captured in the PR commit created by
   `run_setup_with_pr_workflow()` (which commits working tree changes before returning to the user's branch).
-- **FR-002**: The version MUST be written as a string value (e.g., `"0.2.69"`) sourced from `agentic_devtools.__version__`.
-- **FR-003**: On subsequent `agdt-setup` runs, the system MUST compare the running version against the `agdt_version` recorded in `project.json` using PEP 440-compliant version comparison.
-- **FR-004**: If the running version is strictly older than the recorded `agdt_version` **and `--force-old-version` is NOT specified**, the system MUST print an error to stderr, skip all repo file
+- **FR-002** [US1]: The version MUST be written as a string value (e.g., `"0.2.69"`) sourced from `agentic_devtools.__version__`.
+- **FR-003** [US1, US2]: On subsequent `agdt-setup` runs, the system MUST compare the running version against the `agdt_version` recorded in `project.json` using PEP 440-compliant version comparison.
+- **FR-004** [US2]: If the running version is strictly older than the recorded `agdt_version` **and `--force-old-version` is NOT specified**, the system MUST print an error to stderr, skip all repo file
   mutations **and all local-only steps** (fail fast — no cert prefetch, no managed installs, no dependency checks, no shell profile persistence), and exit with a non-zero exit code. When
   `--force-old-version` IS specified, the system MUST instead print a warning and continue with local-only steps (see FR-007/FR-009).
-- **FR-005**: The error message (non-force path) MUST include: (a) the running version, (b) the required version, (c) a recommendation to run `python setup-dev-tools.py`, (d) mention of the
+- **FR-005** [US4]: The error message (non-force path) MUST include: (a) the running version, (b) the required version, (c) a recommendation to run `python setup-dev-tools.py`, (d) mention of the
   `--force-old-version` flag.
-- **FR-006**: If the running version is equal to or newer than the recorded `agdt_version`, setup MUST proceed normally and update `agdt_version` to the current version.
-- **FR-007**: The `--force-old-version` flag MUST allow `agdt-setup` to run local-only steps (cert prefetch, managed installs, dependency checks, shell profile persistence) while skipping all
+- **FR-006** [US1]: If the running version is equal to or newer than the recorded `agdt_version`, setup MUST proceed normally and update `agdt_version` to the current version.
+- **FR-007** [US3]: The `--force-old-version` flag MUST allow `agdt-setup` to run local-only steps (cert prefetch, managed installs, dependency checks, shell profile persistence) while skipping all
   repo-modifying steps.
-- **FR-008**: When `--force-old-version` is used, the system MUST NOT update `agdt_version` in `project.json`.
-- **FR-009**: When `--force-old-version` is used, the system MUST print a warning that repo files will not be modified and that this mode is not recommended.
-- **FR-010**: The version guard MUST NOT trigger when `project.json` does not exist or does not contain `agdt_version` (first-time setup scenario).
-- **FR-011**: The version guard MUST NOT trigger when `agdt_version` contains a malformed/unparseable value; in this case, a warning should be logged and setup should proceed normally.
-- **FR-012**: Writing `agdt_version` MUST preserve all existing keys in `project.json` (use the existing `load_project_config` / `save_project_config` pattern).
-- **FR-013**: The implementation MUST update the root `.gitignore` to add negation rules in the correct order: `!.agdt/` (unignore the parent directory), then `!.agdt/config/`, then
+- **FR-008** [US3]: When `--force-old-version` is used, the system MUST NOT update `agdt_version` in `project.json`.
+- **FR-009** [US3, US4]: When `--force-old-version` is used, the system MUST print a warning that repo files will not be modified and that this mode is not recommended.
+- **FR-010** [US2]: The version guard MUST NOT trigger when `project.json` does not exist or does not contain `agdt_version` (first-time setup scenario).
+- **FR-011** [US2]: The version guard MUST NOT trigger when `agdt_version` contains a malformed/unparseable value; in this case, a warning should be logged and setup should proceed normally.
+- **FR-012** [US1]: Writing `agdt_version` MUST preserve all existing keys in `project.json` (use the existing `load_project_config` / `save_project_config` pattern).
+- **FR-013** [US1]: The implementation MUST update the root `.gitignore` to add negation rules in the correct order: `!.agdt/` (unignore the parent directory), then `!.agdt/config/`, then
   `!.agdt/config/project.json`. These negation rules MUST be placed *after* the existing `.agdt/` ignore rule in the file; Git processes `.gitignore` top-to-bottom and a negation rule only
   takes effect if it appears after the pattern it negates. Additionally, Git requires each ancestor directory to be unignored before child negation rules take effect. Without `!.agdt/` first,
   the subsequent negation rules are silently ignored. This ensures `project.json` is tracked by Git and shared across teammates, despite the existing `.agdt/` ignore rule. Implementation note: a new
