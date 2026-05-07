@@ -52,6 +52,47 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 **Concurrency**: Single instance per PR (`ai-pr-loop-lint-{pr_number}`), cancel-in-progress
 
+### synthetic-copilot-review.yml
+
+**Synthetic Copilot Review Fallback**
+
+- Runs on: `schedule` (every 30 minutes) and `workflow_dispatch` (manual)
+- Purpose: Detects PRs stuck waiting for Copilot Code Review (CCR) and posts synthetic reviews
+  to unblock them when CCR completes agent sessions but fails to post a review
+
+**How it works**:
+
+1. Lists open PRs targeting `main` with a pending Copilot review request older than 1 hour
+   (determined from the `review_requested` timeline event timestamp, with fallback to `pr.updated_at`)
+2. For each stuck PR, attempts to parse agent-task logs for intended comments (`store_comment` minus `remove_comment`)
+3. Posts a synthetic review based on parse results:
+   - **Parse success, comments found**: Posts with reconstructed inline comments
+   - **Parse success, no comments**: Posts a clean "no comments" review (`COMMENT` event)
+   - **Parse failure**: Posts `REQUEST_CHANGES` with `parse_failed=true` marker to block auto-merge
+   - **Inline posting failure**: Falls back to summary-only review with `inline_post_failed=true` marker
+4. Skips PRs that already have a real Copilot review or existing synthetic review on the current head commit
+
+**Synthetic Review Marker**: `<!-- synthetic-copilot-review -->`
+
+**Machine-readable metadata** (included in all synthetic review bodies):
+`<!-- intended_comments=N inline_posted=N parse_failed=true/false [inline_post_failed=true] -->`
+
+Reviews with this marker from trusted users (`acmarsnik`) are recognized by `copilot-review-gate.yml`
+and `ai-pr-loop.yml` as equivalent to official `copilot-pull-request-reviewer[bot]` reviews:
+
+- Synthetic review with 0 inline comments and `parse_failed=false` → gate passes (clean review)
+- Synthetic review with >0 inline comments → gate fails, triggers review addresser flow
+- Synthetic review with `parse_failed=true` → gate fails (inconclusive, manual review required)
+- Synthetic review with `intended_comments>0` but `inline_posted=0` → gate/merge blocked
+
+**Required Permissions**:
+
+- `contents: read`
+- `issues: read`
+- `pull-requests: write`
+
+**Required Secrets**: `SPECKIT_PR_TOKEN` (PAT owned by `acmarsnik` with `repo` scope)
+
 ### speckit-issue-trigger.yml
 
 **SpecKit Issue to Specification Automation (Phase 1 — Specify)**

@@ -51,9 +51,16 @@ jobs:
             });
 
             // 3. Filter to Copilot reviews on the latest commit.
+            //    Also accept synthetic reviews from trusted users (fallback for
+            //    when CCR completes but fails to post a review).
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
+            const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
             const copilotReviews = allReviews.filter(
-              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+              r => r.commit_id === headSha && r.user && (
+                r.user.login === copilotLogin ||
+                (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
+              )
             );
 
             // 4. If no Copilot review found on the latest commit, fail.
@@ -90,6 +97,89 @@ jobs:
             // earlier ones — "generated no new comments" means prior issues
             // have been addressed.
             const latestBody = latestReview.body || '';
+            const isSyntheticReview = latestBody.includes(SYNTHETIC_MARKER);
+
+            // 6a. Handle synthetic reviews separately — their body format differs.
+            if (isSyntheticReview) {
+              core.info('Latest review is a synthetic Copilot review (fallback).');
+
+              // Check for parse_failed marker — if parsing failed, the review is inconclusive
+              const parseFailed = /parse_failed=true/.test(latestBody);
+              if (parseFailed) {
+                core.setFailed(
+                  `❌ Synthetic Copilot review on commit ${headSha} has parse_failed=true.\n` +
+                  `Agent-task log parsing failed — unable to determine Copilot's intended comments.\n` +
+                  `Manual review required. Re-request a Copilot review or address the issue manually.`
+                );
+                return;
+              }
+
+              // Check machine-readable metadata for intended comments vs inline posted
+              const intendedMatch = latestBody.match(/intended_comments=(\d+)/);
+              const inlinePostedMatch = latestBody.match(/inline_posted=(\d+)/);
+              const intendedComments = intendedMatch ? parseInt(intendedMatch[1], 10) : null;
+              const inlinePostedMeta = inlinePostedMatch ? parseInt(inlinePostedMatch[1], 10) : null;
+
+              // Fail closed when metadata is missing or unparseable — synthetic review
+              // format may have drifted or was manually posted without proper markers.
+              if (intendedComments === null || inlinePostedMeta === null) {
+                core.setFailed(
+                  `❌ Synthetic Copilot review on commit ${headSha} is missing machine-readable metadata.\n` +
+                  `Expected <!-- intended_comments=N inline_posted=N ... --> in the review body.\n` +
+                  `Re-request a Copilot review or re-run the synthetic-copilot-review workflow.`
+                );
+                return;
+              }
+
+              // If intended_comments > 0 but inline_posted == 0, inline posting failed —
+              // the summary may still describe issues that need addressing.
+              if (intendedComments > 0 && inlinePostedMeta === 0) {
+                core.setFailed(
+                  `❌ Synthetic Copilot review on commit ${headSha} intended ${intendedComments} comment(s) but posted 0 inline.\n` +
+                  `Inline comments could not be attached (likely lines outside the diff). Review the summary body for details.\n` +
+                  `Please address all Copilot feedback, push a new commit, and wait for Copilot to re-review.`
+                );
+                return;
+              }
+
+              // Count inline comments on the synthetic review via API
+              const syntheticComments = await github.paginate(
+                github.rest.pulls.listCommentsForReview,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  review_id: latestReview.id,
+                  per_page: 100,
+                }
+              );
+              const inlineCount = syntheticComments.length;
+
+              // Fail closed on mismatch: metadata says comments were posted but API returns 0
+              // (could indicate deleted comments or incomplete API listing).
+              if (inlinePostedMeta > 0 && inlineCount === 0) {
+                core.setFailed(
+                  `❌ Synthetic Copilot review on commit ${headSha} reports inline_posted=${inlinePostedMeta} but API returned 0 comments.\n` +
+                  `This mismatch may indicate deleted comments or an API listing issue — failing closed.\n` +
+                  `Re-request a Copilot review or re-run the synthetic-copilot-review workflow.`
+                );
+                return;
+              }
+
+              if (inlineCount === 0) {
+                core.info(
+                  `✅ Synthetic Copilot review on commit ${headSha} has 0 inline comments. All clear!`
+                );
+              } else {
+                core.setFailed(
+                  `❌ Synthetic Copilot review found issues on commit ${headSha}.\n` +
+                  `- Inline comments: ${inlineCount}\n` +
+                  `Please address all Copilot feedback, push a new commit, and wait for Copilot to re-review.`
+                );
+              }
+              return;
+            }
+
             let bodyCommentCount = null;
             let suppressedCount = 0;
 

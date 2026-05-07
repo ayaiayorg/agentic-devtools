@@ -1,0 +1,411 @@
+name: Synthetic Copilot Review Fallback
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: synthetic-copilot-review-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-review:
+    name: Synthetic Copilot Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate token
+        env:
+          TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::SPECKIT_PR_TOKEN secret is not configured or empty."
+            exit 1
+          fi
+
+      - name: Find stuck PRs and post synthetic reviews
+        uses: actions/github-script@v7
+        env:
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+        with:
+          github-token: ${{ secrets.SPECKIT_PR_TOKEN }}
+          script: |
+            const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
+            const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const ONE_HOUR_MS = 60 * 60 * 1000;
+
+            // 1. List open PRs targeting main
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: 'main',
+              per_page: 100,
+            });
+
+            core.info(`Found ${prs.length} open PR(s) targeting main.`);
+
+            for (const pr of prs) {
+              const prNumber = pr.number;
+              const headSha = pr.head.sha;
+              core.info(`\nProcessing PR #${prNumber} (head: ${headSha})...`);
+
+              try {
+                // 2. Check if Copilot is in the requested reviewers list
+                const { data: reviewRequests } = await github.rest.pulls.listRequestedReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                });
+
+                const copilotRequested = reviewRequests.users.some(
+                  u => u.login === copilotLogin || u.login === 'Copilot'
+                );
+
+                if (!copilotRequested) {
+                  core.info(`  PR #${prNumber}: No pending Copilot review request — skipping.`);
+                  continue;
+                }
+
+                // 3. Check if the review request is older than 1 hour.
+                // Query timeline events to find the most recent review_requested event for Copilot.
+                // Falls back to pr.updated_at if no timeline event is found.
+                const now = Date.now();
+                let reviewRequestedAt = null;
+
+                try {
+                  const timelineEvents = await github.paginate(github.rest.issues.listEventsForTimeline, {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    per_page: 100,
+                    headers: { accept: 'application/vnd.github.mockingbird-preview+json' },
+                  });
+
+                  // Find the most recent review_requested event for Copilot
+                  const copilotReviewEvents = timelineEvents.filter(
+                    e => e.event === 'review_requested' &&
+                      e.requested_reviewer &&
+                      (e.requested_reviewer.login === copilotLogin || e.requested_reviewer.login === 'Copilot')
+                  );
+
+                  if (copilotReviewEvents.length > 0) {
+                    // Sort by created_at descending to reliably pick the latest event
+                    // (timeline API ordering is not guaranteed).
+                    copilotReviewEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    const latestEvent = copilotReviewEvents[0];
+                    reviewRequestedAt = new Date(latestEvent.created_at).getTime();
+                    core.info(`  PR #${prNumber}: Copilot review requested at ${latestEvent.created_at} (from timeline).`);
+                  }
+                } catch (timelineErr) {
+                  core.warning(`  PR #${prNumber}: Failed to fetch timeline events, falling back to pr.updated_at: ${timelineErr.message}`);
+                }
+
+                // Fall back to pr.updated_at if timeline lookup failed or found no events
+                if (reviewRequestedAt === null) {
+                  reviewRequestedAt = new Date(pr.updated_at).getTime();
+                  core.info(`  PR #${prNumber}: Using pr.updated_at as fallback (${pr.updated_at}).`);
+                }
+
+                // If the review request is less than 1 hour old, skip
+                if (now - reviewRequestedAt < ONE_HOUR_MS) {
+                  core.info(`  PR #${prNumber}: Copilot review requested less than 1 hour ago — skipping.`);
+                  continue;
+                }
+
+                // 4. Check if a Copilot review already exists on the current head commit
+                const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  per_page: 100,
+                });
+
+                const copilotReviewOnHead = allReviews.some(
+                  r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+                );
+
+                if (copilotReviewOnHead) {
+                  core.info(`  PR #${prNumber}: Copilot review already exists on head commit — skipping.`);
+                  continue;
+                }
+
+                // 5. Check if a synthetic review already exists on the current head commit
+                const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
+                const syntheticReviewOnHead = allReviews.some(
+                  r => r.user &&
+                       TRUSTED_SYNTHETIC_USERS.includes(r.user.login) &&
+                       (r.body || '').includes(SYNTHETIC_MARKER) &&
+                       r.commit_id === headSha
+                );
+
+                if (syntheticReviewOnHead) {
+                  core.info(`  PR #${prNumber}: Synthetic review already exists on head commit — skipping.`);
+                  continue;
+                }
+
+                // 6. Attempt to parse agent-task logs for intended comments.
+                // Distinguishes three cases:
+                //   (a) No completed agent-task found for the PR — skip posting (CCR may not have run yet)
+                //   (b) Task found but log field is missing — skip posting (incomplete task data)
+                //   (c) Parse error during log processing — post REQUEST_CHANGES with parse_failed=true
+                let inlineComments = [];
+                let unanchoredComments = [];
+                let parseSuccess = false;
+                let noAgentTaskEvidence = false;
+
+                try {
+                  // Try to get agent-task logs using gh CLI
+                  // Note: gh agent-task may not be available in all environments
+                  const { execFileSync } = require('child_process');
+                  const execEnv = { ...process.env, GH_TOKEN: process.env.SPECKIT_PR_TOKEN };
+                  let agentTaskList;
+                  try {
+                    agentTaskList = execFileSync('gh', [
+                      'agent-task', 'list',
+                      '--repo', `${context.repo.owner}/${context.repo.repo}`,
+                      '--json', 'id,status,pullRequestNumber,createdAt'
+                    ], { encoding: 'utf-8', timeout: 30000, env: execEnv }).trim();
+                  } catch (e) {
+                    agentTaskList = '[]';
+                  }
+
+                  const tasks = JSON.parse(agentTaskList);
+                  const prTasks = tasks.filter(
+                    t => t.pullRequestNumber === prNumber && t.status === 'completed'
+                  );
+
+                  if (prTasks.length === 0) {
+                    // (a) No completed agent tasks — CCR may not have run yet.
+                    // Do NOT post a synthetic review to avoid false-positive REQUEST_CHANGES.
+                    noAgentTaskEvidence = true;
+                    core.info(`  PR #${prNumber}: No completed agent tasks found — skipping synthetic review (CCR may not have run yet).`);
+                  } else {
+                    // Sort by createdAt descending to reliably select the latest completed task
+                    prTasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    const latestTask = prTasks[0];
+                    let taskLog;
+                    try {
+                      taskLog = execFileSync('gh', [
+                        'agent-task', 'view', latestTask.id,
+                        '--repo', `${context.repo.owner}/${context.repo.repo}`,
+                        '--json', 'log'
+                      ], { encoding: 'utf-8', timeout: 30000, env: execEnv }).trim();
+                    } catch (e) {
+                      taskLog = '{}';
+                    }
+
+                    const taskData = JSON.parse(taskLog);
+                    if (!taskData.log) {
+                      // (b) Task found but log field is missing — incomplete data.
+                      // Do NOT post a synthetic review to avoid false-positive REQUEST_CHANGES.
+                      noAgentTaskEvidence = true;
+                      core.info(`  PR #${prNumber}: Agent task found but log field is missing — skipping synthetic review.`);
+                    } else {
+                      // Parse store_comment and remove_comment actions
+                      const storeActions = [];
+                      const removeActions = new Set();
+                      let storeCommentLinesSeen = 0;
+
+                      const lines = taskData.log.split('\n');
+                      for (const line of lines) {
+                        if (line.includes('store_comment')) {
+                          storeCommentLinesSeen++;
+                          try {
+                            const match = line.match(/store_comment.*?({.*})/);
+                            if (match) {
+                              const comment = JSON.parse(match[1]);
+                              storeActions.push(comment);
+                            }
+                          } catch (e) {
+                            // Skip unparseable entries
+                          }
+                        }
+                        if (line.includes('remove_comment')) {
+                          try {
+                            const match = line.match(/remove_comment.*?({.*})/);
+                            if (match) {
+                              const removed = JSON.parse(match[1]);
+                              // Support both 'id' and 'comment_id' keys for backward compatibility
+                              const removedId = removed.id || removed.comment_id;
+                              if (removedId) removeActions.add(removedId);
+                            }
+                          } catch (e) {
+                            // Skip unparseable entries
+                          }
+                        }
+                      }
+
+                      // Compute net comments (store minus remove)
+                      let hasRecognizedSchema = false;
+                      for (const comment of storeActions) {
+                        // Support both 'id' and 'comment_id' keys for removal matching
+                        const commentId = comment.id || comment.comment_id;
+                        if (commentId && removeActions.has(commentId)) continue;
+
+                        // Map alternative tool argument names to expected fields:
+                        // store_comment payload may use: comment_content, file_location, start_line/end_line
+                        const body = comment.body || comment.comment_content || '';
+                        const path = comment.path || comment.file || comment.file_location || '';
+                        const lineNum = comment.line || comment.start_line || null;
+                        const endLine = comment.end_line || null;
+
+                        if (!body) {
+                          core.warning(`  Skipping comment with empty body in agent-task log.`);
+                          continue;
+                        }
+
+                        // Track that we found at least one comment with recognized schema
+                        if (body && path) hasRecognizedSchema = true;
+
+                        // Only post as inline comment when we have an actual line number.
+                        // Comments without line numbers are collected separately and
+                        // included in the review body to avoid anchoring to wrong lines.
+                        if (!lineNum) {
+                          unanchoredComments.push({ path, body });
+                          continue;
+                        }
+
+                        const inlineComment = {
+                          path: path,
+                          body: `${SYNTHETIC_MARKER}\n${body}`,
+                          side: 'RIGHT',
+                          line: lineNum,
+                        };
+
+                        if (endLine && endLine !== lineNum) {
+                          inlineComment.start_line = lineNum;
+                          inlineComment.start_side = 'RIGHT';
+                          inlineComment.line = endLine;
+                        }
+
+                        if (inlineComment.path) {
+                          inlineComments.push(inlineComment);
+                        }
+                      }
+
+                      // If store_comment lines were seen but none were successfully parsed,
+                      // treat as parse failure to avoid false clean reviews when log format drifts.
+                      if (storeCommentLinesSeen > 0 && storeActions.length === 0) {
+                        core.warning(`  PR #${prNumber}: ${storeCommentLinesSeen} store_comment line(s) seen but 0 parsed — treating as parse failure.`);
+                        parseSuccess = false;
+                      } else if (storeActions.length > 0 && !hasRecognizedSchema) {
+                        core.warning(`  PR #${prNumber}: store_comment entries found but schema not recognized — treating as parse failure.`);
+                        parseSuccess = false;
+                      } else {
+                        parseSuccess = true;
+                      }
+                    }
+                  }
+                } catch (parseError) {
+                  core.warning(`  PR #${prNumber}: Agent-task log parsing failed: ${parseError.message}. Falling back to REQUEST_CHANGES review with parse_failed=true.`);
+                }
+
+                // Skip posting if no agent-task evidence was found (cases a/b above).
+                // This avoids false-positive REQUEST_CHANGES reviews on PRs where CCR
+                // simply hasn't run yet or task data is incomplete.
+                if (noAgentTaskEvidence) {
+                  continue;
+                }
+
+                // 7. Re-check for race condition — Copilot may have posted while we parsed
+                const freshReviews = await github.paginate(github.rest.pulls.listReviews, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  per_page: 100,
+                });
+
+                const copilotNowExists = freshReviews.some(
+                  r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+                );
+
+                if (copilotNowExists) {
+                  core.info(`  PR #${prNumber}: Copilot review appeared during processing — skipping.`);
+                  continue;
+                }
+
+                // 8. Post synthetic review
+                let reviewBody;
+                let reviewComments = [];
+                let reviewEvent = 'COMMENT';
+
+                if (inlineComments.length > 0 || unanchoredComments.length > 0) {
+                  const totalIntended = inlineComments.length + unanchoredComments.length;
+                  let bodyExtra = '';
+                  if (unanchoredComments.length > 0) {
+                    bodyExtra = '\n\n**Comments without line context:**\n\n';
+                    for (const uc of unanchoredComments) {
+                      bodyExtra += `- **${uc.path}**: ${uc.body}\n`;
+                    }
+                  }
+                  reviewBody = `${SYNTHETIC_MARKER}\n⚠️ **Synthetic Copilot Review** (fallback — CCR session completed but review was not posted)\n\nCopilot intended ${totalIntended} comment(s).${bodyExtra}\n\n<!-- intended_comments=${totalIntended} inline_posted=${inlineComments.length} parse_failed=false -->`;
+                  reviewComments = inlineComments;
+                } else if (!parseSuccess) {
+                  // Parse failed — we don't know what Copilot found. Post as REQUEST_CHANGES
+                  // so the gate does not auto-approve based on ambiguous results.
+                  reviewBody = `${SYNTHETIC_MARKER}\n⚠️ **Synthetic Copilot Review** (fallback — agent-task log parsing failed)\n\nUnable to determine Copilot's intended comments. Manual review required.\n\n<!-- intended_comments=unknown inline_posted=0 parse_failed=true -->`;
+                  reviewEvent = 'REQUEST_CHANGES';
+                } else {
+                  reviewBody = `${SYNTHETIC_MARKER}\nCopilot code review generated no comments that need to be addressed.\n\n<!-- intended_comments=0 inline_posted=0 parse_failed=false -->`;
+                }
+
+                // Post the review, handling inline comment failures gracefully
+                const reviewParams = {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  commit_id: headSha,
+                  body: reviewBody,
+                  event: reviewEvent,
+                };
+
+                if (reviewComments.length > 0) {
+                  reviewParams.comments = reviewComments;
+                }
+
+                try {
+                  await github.rest.pulls.createReview(reviewParams);
+                  core.info(`  PR #${prNumber}: Posted synthetic review with ${reviewComments.length} inline comment(s).`);
+                } catch (reviewError) {
+                  if (reviewComments.length > 0) {
+                    // If posting with inline comments fails (e.g., lines outside diff),
+                    // fall back to posting comments in the review body
+                    core.warning(`  PR #${prNumber}: Failed to post review with inline comments: ${reviewError.message}`);
+                    core.warning(`  Falling back to summary-only review with comment details in body.`);
+
+                    let fallbackBody = `${SYNTHETIC_MARKER}\n⚠️ **Synthetic Copilot Review** (fallback — CCR session completed but review was not posted)\n\nCopilot intended ${inlineComments.length + unanchoredComments.length} comment(s).\n\n**Note:** Inline comments could not be posted (lines may be outside the diff). Details below:\n\n`;
+                    for (const c of inlineComments) {
+                      const cleanBody = c.body.replace(SYNTHETIC_MARKER + '\n', '');
+                      fallbackBody += `- **${c.path}** (line ${c.line}): ${cleanBody}\n`;
+                    }
+                    for (const uc of unanchoredComments) {
+                      fallbackBody += `- **${uc.path}**: ${uc.body}\n`;
+                    }
+                    fallbackBody += `\n<!-- intended_comments=${inlineComments.length + unanchoredComments.length} inline_posted=0 parse_failed=false inline_post_failed=true -->`;
+
+                    await github.rest.pulls.createReview({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: prNumber,
+                      commit_id: headSha,
+                      body: fallbackBody,
+                      event: 'COMMENT',
+                    });
+                    core.info(`  PR #${prNumber}: Posted fallback summary-only synthetic review.`);
+                  } else {
+                    throw reviewError;
+                  }
+                }
+              } catch (error) {
+                core.warning(`  PR #${prNumber}: Failed to process — ${error.message}`);
+                // Continue processing other PRs
+              }
+            }
+
+            core.info('\nSynthetic Copilot Review fallback completed.');
