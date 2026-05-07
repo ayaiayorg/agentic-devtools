@@ -111,6 +111,7 @@ agdt-speckit-taskstoissues = "agentic_devtools.cli.runner:run_as_script"
 agdt-speckit-validate-frs = "agentic_devtools.cli.runner:run_as_script"
 agdt-speckit-cross-ref = "agentic_devtools.cli.runner:run_as_script"
 agdt-speckit-test-coverage = "agentic_devtools.cli.runner:run_as_script"
+agdt-speckit-validate-checklists = "agentic_devtools.cli.runner:run_as_script"
 agdt-release-pypi = "agentic_devtools.cli.runner:run_as_script"
 agdt-setup = "agentic_devtools.cli.runner:run_as_script"
 agdt-setup-copilot-cli = "agentic_devtools.cli.runner:run_as_script"
@@ -208,6 +209,11 @@ filterwarnings = [
     # the test closes the temp directory.  These are test-environment artifacts
     # and not indicative of production resource leaks.
     "ignore::pytest.PytestUnraisableExceptionWarning",
+    # langgraph imports trigger a LangChain pending-deprecation warning about
+    # allowed_objects default value change.  This is a third-party internal
+    # detail outside our control.  Filter by standard category + module to
+    # avoid depending on the private _api.deprecation submodule path.
+    "ignore::PendingDeprecationWarning:langchain_core",
 ]
 
 [tool.ruff]
