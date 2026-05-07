@@ -49,7 +49,7 @@ Out of scope:
 
 ## User Scenarios & Testing *(mandatory)*
 
-### US-001 — Automatic finalization after review completion (Priority: P1)
+### User Story 1 — Automatic finalization after review completion (Priority: P1)
 
 As a reviewer running `agdt-initiate-pull-request-review-workflow`, I want the workflow to automatically finalize
 prompt-based PR review comments during completion so that the review ends in a consistent and polished state
@@ -72,7 +72,7 @@ comments and verifying that eligible comments are repaired/finalized without man
 
 ---
 
-### US-002 — Safe authorship scoping (Priority: P1)
+### User Story 2 — Safe authorship scoping (Priority: P1)
 
 As a reviewer using a PAT-backed identity, I want the workflow to modify only comments attributable to my current
 authenticated identity so that it never repairs or overwrites someone else's review content.
@@ -94,7 +94,7 @@ that only comments matching the authenticated PAT identity are mutated, while ot
 
 ---
 
-### US-003 — Batch-first repair strategy (Priority: P2)
+### User Story 3 — Batch-first repair strategy (Priority: P2)
 
 As a maintainer, I want the workflow to drive the bulk repair through a single batch-review submission
 (which performs one final overall cascade after the batch) before falling back to targeted per-comment fixes,
@@ -117,7 +117,7 @@ the batch pass is attempted first, and only remaining non-converged comments are
 
 ---
 
-### US-004 — Verified convergence (Priority: P2)
+### User Story 4 — Verified convergence (Priority: P2)
 
 As a maintainer, I want finalization to verify the resulting thread state after repair attempts so that the
 workflow can distinguish success, partial success, and non-blocking failure based on actual repository state
@@ -140,7 +140,7 @@ the workflow correctly classifies the outcome as partial success rather than ful
 
 ---
 
-### US-005 — Actionable reporting (Priority: P3)
+### User Story 5 — Actionable reporting (Priority: P3)
 
 As an operator or future debugging reviewer, I want the workflow to emit a useful report of what it changed,
 skipped, and failed to verify so that I can understand the finalization outcome without reading raw implementation
@@ -215,7 +215,7 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   outside the prompt-based review flow.
 - **FR-007**: The system **MUST** skip comments authored by a different identity, and the skip reason **MUST** be
   represented in the finalization reporting.
-- **FR-007a**: The system **MUST** classify review-session reply comments (bearing the `activity-log-entry`
+- **FR-020**: The system **MUST** classify review-session reply comments (bearing the `activity-log-entry`
   marker) as eligible for finalization and **MUST** rewrite the reply belonging to the current review session
   and commit into its completed form (e.g., replacing intermediate status strings like `New Review` or
   `Resuming` with the terminal session-complete content rendered by `_update_activity_log_comment_status` with
@@ -248,7 +248,7 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   through any suitable in-process entry point (e.g., the internal parallel file-processing path of
   `submit_reviews()`) consistent with CLAR-003 (synchronous completion execution path), as long as the
   single-cascade invariant is preserved.
-- **FR-010a**: The batch pass **MUST** preserve each file's existing review outcome (approved vs.
+- **FR-021**: The batch pass **MUST** preserve each file's existing review outcome (approved vs.
   needs-work) and associated summary/suggestion content. The system **MUST NOT** alter a file's verdict
   solely to force terminal comment content; each file's final posted comment **MUST** reflect the actual
   review decision and reasoning that was originally recorded for that file.
@@ -290,7 +290,7 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
   re-reading the relevant thread/comment content from the Azure DevOps API (not from local cache or
   optimistic state) and comparing the fetched content against the expected terminal rendering. This ensures
   verification reflects the actual repository state rather than optimistic local assumptions.
-- **FR-015a**: Convergence for file summary and overall summary comments is defined as reaching their terminal
+- **FR-022**: Convergence for file summary and overall summary comments is defined as reaching their terminal
   content state — only the final `approved` or `needs-work` renderings are valid terminal content. Placeholder
   or intermediate strings (e.g., `Awaiting review...`, in-progress status sections, partial marker content)
   **MUST** be removed or replaced with the correct terminal rendering for the comment to be considered converged.
@@ -303,7 +303,7 @@ report includes counts for repaired, skipped, unchanged, and failed items with c
     Files that are no longer part of the current review scope (e.g., removed from the PR diff or
     classified as out-of-branch/skipped during prompt generation) **MUST** be pruned from the summary
     to reflect only the files in the active `review-state.json` file entries for the current commit.
-- **FR-015b**: Convergence for `activity-log-entry` comments is defined as the current session's
+- **FR-023**: Convergence for `activity-log-entry` comments is defined as the current session's
   review-session reply reaching its terminal completed state as produced by the existing renderer
   (`_format_activity_log_entry` with `status_emoji="✅"` and `status_text="Completed"`).
   Intermediate status strings (e.g., `New Review`, `Resuming`) **MUST** be replaced with the terminal

@@ -40,7 +40,7 @@ See [research.md](research.md) for detailed decisions on:
 │  Phase 2: Classify eligible comments (markers + authorship)          │
 │  Phase 3: Compute expected terminal content per comment              │
 │  Phase 4: Compare observed vs expected (convergence check)           │
-│  Phase 5: Batch-first repair (repair-safe PATCH)                     │
+│  Phase 5: Batch-first repair (batch via submit_reviews + cascade)     │
 │  Phase 6: Verify convergence (re-fetch from API)                     │
 │  Phase 7: Targeted fallback for non-converged comments               │
 │  Phase 8: Final verification + retry rounds (max 2)                  │
@@ -48,19 +48,19 @@ See [research.md](research.md) for detailed decisions on:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**New Module**: `agentic_devtools/cli/azure_devops/finalization.py`
+**New Package**: `agentic_devtools/cli/azure_devops/finalization/`
 
-This module contains:
+This package contains the following modules:
 
-- `run_finalization_pass()` — the top-level orchestrator
-- `resolve_pat_identity()` — wraps the Connection Data API call
-- `classify_eligible_comments()` — marker-based + authorship filtering
-- `compute_expected_content()` — renders terminal content per comment type
-- `check_convergence()` — compares observed vs expected after marker normalization
-- `batch_repair_pass()` — drives file-summary convergence via existing internals
-- `targeted_repair()` — PATCH individual non-converged comments
-- `verify_convergence()` — re-reads from API and confirms state
-- `build_finalization_report()` — structures the output report
+- `__init__.py` — exports `run_finalization_pass`, `FinalizationReport`
+- `models.py` — data classes (`EligibleComment`, `EligibleComments`, `ConvergenceResult`, `BatchRepairResult`, `TargetedRepairResult`, `FinalizationReport`)
+- `identity.py` — `resolve_pat_identity()` — wraps the Connection Data API call
+- `classification.py` — `classify_eligible_comments()` — marker-based + authorship filtering
+- `convergence.py` — `compute_expected_content()`, `normalize_for_comparison()`, `check_convergence()` — convergence computation and comparison
+- `repair.py` — `batch_repair_pass()`, `targeted_repair()` — batch-first and targeted fallback repair
+- `verification.py` — `verify_convergence()` — re-reads from API and confirms state
+- `reporting.py` — `build_finalization_report()` — structures the output report
+- `orchestrator.py` — `run_finalization_pass()` — the top-level orchestrator that sequences phases 0–9
 
 ## Implementation Phases
 
@@ -89,12 +89,12 @@ This module contains:
 
 **Tests (TDD):**
 
-- `tests/unit/cli/azure_devops/finalization/test_resolve_pat_identity.py`
-- `tests/unit/cli/azure_devops/finalization/test_classify_eligible_comments.py`
+- `tests/unit/cli/azure_devops/finalization/identity/test_resolve_pat_identity.py`
+- `tests/unit/cli/azure_devops/finalization/classification/test_classify_eligible_comments.py`
 
 ---
 
-### Phase 2: Convergence Computation and Comparison (FR-012 through FR-015b)
+### Phase 2: Convergence Computation and Comparison (FR-012, FR-013, FR-014, FR-022, FR-023)
 
 **Deliverables:**
 
@@ -119,49 +119,48 @@ This module contains:
 - For overall-summary: call `render_overall_summary(state, base_url, **attribution_params)`
 - For activity-log-entry: call `_format_activity_log_entry(status_emoji="✅", status_text="Completed", ...)`
   and return the body portion only (exclude the marker line that `_format_activity_log_entry()` may prepend)
-- FR-015a: Model Review Progress table rows with intermediate states (`⏳`, `🔃`) must be resolved
-- FR-015a: Stale file links pruned from overall summary (compare against current `review_state.files` keys)
+- FR-022: Model Review Progress table rows with intermediate states (`⏳`, `🔃`) must be resolved
+- FR-022: Stale file links pruned from overall summary (compare against current `review_state.files` keys)
 
 **Tests (TDD):**
 
-- `tests/unit/cli/azure_devops/finalization/test_compute_expected_content.py`
-- `tests/unit/cli/azure_devops/finalization/test_normalize_for_comparison.py`
-- `tests/unit/cli/azure_devops/finalization/test_check_convergence.py`
+- `tests/unit/cli/azure_devops/finalization/convergence/test_compute_expected_content.py`
+- `tests/unit/cli/azure_devops/finalization/convergence/test_normalize_for_comparison.py`
+- `tests/unit/cli/azure_devops/finalization/convergence/test_check_convergence.py`
 
 ---
 
-### Phase 3: Batch-First Repair Pass (FR-003, FR-010, FR-010a, FR-011)
+### Phase 3: Batch-First Repair Pass (FR-003, FR-010, FR-021, FR-011)
 
 **Deliverables:**
 
 1. `batch_repair_pass(eligible: EligibleComments, review_state, config, headers, pr_id, dry_run) -> BatchRepairResult`
-2. Uses a repair-safe code path that directly PATCHes file-summary comments to their terminal
-   rendered content, avoiding `_process_file_parallel()` (which triggers suggestion rotation
-   and re-posting via `clear_suggestions_for_re_review()`); single `execute_cascade()` at end
-3. Does NOT alter file verdicts — preserves existing `approved`/`needs-work` outcomes (FR-010a)
+2. Drives convergence via `submit_reviews()` (or its underlying parallel file-processing and
+   single-cascade logic) as required by FR-003/FR-010, reserving direct PATCH for targeted
+   fallback only (FR-011)
+3. Does NOT alter file verdicts — preserves existing `approved`/`needs-work` outcomes (FR-021)
 4. Drives file-summary comments to their terminal rendered content
 5. Single cascade at end (FR-010)
 
 **Key Implementation Details:**
 
 - Build `valid_items` list from review state file entries (not from `batch_reviews.items` state key)
-- **Repair-safe code path**: Do NOT call `_process_file_parallel()` directly, as it always
-  invokes `clear_suggestions_for_re_review()` in lock phase 1. For terminal files where
-  `previousSuggestions is None`, this would rotate/clear suggestions and can trigger
-  duplicate suggestion thread POSTs. Instead, introduce a repair-safe helper (e.g.,
-  `_repair_file_comment(file_entry, review_state, config, headers, pr_id)`) that:
-  1. Renders the expected terminal content via `render_file_summary()`
-  2. PATCHes the file-summary comment directly (marker + body)
-  3. Skips re-review rotation, suggestion POSTs, and mark-as-reviewed logic entirely
-  Alternatively, add a `repair_mode=True` flag to `_process_file_parallel()` that
-  short-circuits the suggestion rotation and POST paths.
-- After all files: single `cascade_overall_summary_update()` + `execute_cascade()`
+- **Batch-first via `submit_reviews()` internals**: Reuse the existing `submit_reviews()`
+  function (or its internal parallel file-processing path) as the entry point for driving
+  file-summary convergence (FR-003). The implementation **MAY** add a `repair_mode=True`
+  flag to `_process_file_parallel()` that short-circuits suggestion rotation
+  (`clear_suggestions_for_re_review()`) and suggestion POST paths while still rendering
+  and posting file-summary content via the existing batch mechanism. This preserves the
+  single-cascade invariant (at most one `execute_cascade()` at the end of the batch,
+  skipped when no file operations succeeded) consistent with FR-010.
+- Direct PATCH is reserved for targeted fallback (Phase 4/FR-011) only — the batch-first
+  pass must not bypass `submit_reviews()` internals
 - For activity-log entries: call `_complete_active_session()` which internally calls `_update_activity_log_comment_status()`
 - Catch `SystemExit` from internal calls and translate to non-blocking failure (CLAR-003)
 
 **Tests (TDD):**
 
-- `tests/unit/cli/azure_devops/finalization/test_batch_repair_pass.py`
+- `tests/unit/cli/azure_devops/finalization/repair/test_batch_repair_pass.py`
 
 ---
 
@@ -183,8 +182,8 @@ This module contains:
 
 **Tests (TDD):**
 
-- `tests/unit/cli/azure_devops/finalization/test_verify_convergence.py`
-- `tests/unit/cli/azure_devops/finalization/test_targeted_repair.py`
+- `tests/unit/cli/azure_devops/finalization/verification/test_verify_convergence.py`
+- `tests/unit/cli/azure_devops/finalization/repair/test_targeted_repair.py`
 
 ---
 
@@ -208,8 +207,8 @@ This module contains:
 
 **Tests (TDD):**
 
-- `tests/unit/cli/azure_devops/finalization/test_run_finalization_pass.py`
-- `tests/unit/cli/azure_devops/finalization/test_build_finalization_report.py`
+- `tests/unit/cli/azure_devops/finalization/orchestrator/test_run_finalization_pass.py`
+- `tests/unit/cli/azure_devops/finalization/reporting/test_build_finalization_report.py`
 
 ---
 
@@ -227,10 +226,13 @@ This module contains:
   implementation, `decision` is derived from `review_state.overallSummary.status` *before* the
   `execute_cascade()` call and before `save_review_state()`. Because `run_finalization_pass()`
   may update overall/file statuses in `review_state`, the call must be placed **after
-  `execute_cascade()` and `save_review_state()`**, and `decision` **must be explicitly
-  re-derived after finalization returns**. Concretely, the implementation must:
-  1. Insert `run_finalization_pass()` after `save_review_state(review_state)`, then
-  2. Re-derive `decision` from `review_state.overallSummary.status` after the finalization
+  `execute_cascade()` and before `save_review_state()`**, so that post-finalization state is
+  persisted in a single save. `decision` **must be explicitly re-derived after finalization
+  returns**. Concretely, the implementation must:
+  1. Call `execute_cascade()` (existing),
+  2. Call `run_finalization_pass()` (new — placed after cascade, before save),
+  3. Call `save_review_state(review_state)` (existing — now persists post-finalization state),
+  4. Re-derive `decision` from `review_state.overallSummary.status` after the finalization
      call returns, ensuring the workflow step receives the post-finalization status.
   Without the re-derivation, `decision` would remain stale (reflecting pre-finalization state).
 - Non-blocking: wrap in try/except, log warning on failure — if finalization raises, fall through to the existing `decision` derivation unchanged
