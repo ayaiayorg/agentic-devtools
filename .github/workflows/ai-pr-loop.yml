@@ -46,7 +46,10 @@ jobs:
        github.event.workflow_run.event == 'pull_request') ||
       (github.event_name == 'pull_request_review' &&
        (github.event.review.user.login == 'Copilot' ||
-        github.event.review.user.login == 'copilot-pull-request-reviewer[bot]'))
+        github.event.review.user.login == 'copilot-pull-request-reviewer[bot]' ||
+        (github.event.review.user.login == 'acmarsnik' &&
+         contains(github.event.review.body || '', '<!-- synthetic-copilot-review -->'))))
+
 
     steps:
       # ─── Step 0: Resolve PR metadata ───────────────────────────────────────
@@ -139,8 +142,13 @@ jobs:
             });
 
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
+            const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
             const copilotReviewsOnHead = allReviews.filter(
-              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+              r => r.commit_id === headSha && r.user && (
+                r.user.login === copilotLogin ||
+                (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
+              )
             );
 
             // Check workflow run statuses (paginate to handle >100 check runs)
@@ -475,6 +483,8 @@ jobs:
             const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
             const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
+            const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
 
             // Get Copilot reviews on the head commit
             const allReviews = await github.paginate(github.rest.pulls.listReviews, {
@@ -485,8 +495,13 @@ jobs:
             });
 
             const copilotReviews = allReviews.filter(
-              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+              r => r.commit_id === headSha && r.user && (
+                r.user.login === copilotLogin ||
+                (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
+              )
             );
+            // Sort by submitted_at descending so the first element is the most recent
+            copilotReviews.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
 
             if (copilotReviews.length === 0) {
               core.setOutput('has_comments', 'false');
@@ -496,7 +511,7 @@ jobs:
             // Only evaluate the LATEST Copilot review on this commit.
             // Earlier reviews may have stale comments that were addressed;
             // only the most recent review reflects the current state.
-            const latestReview = copilotReviews[copilotReviews.length - 1];
+            const latestReview = copilotReviews[0];
             const reviewComments = await github.paginate(
               github.rest.pulls.listCommentsForReview,
               {
@@ -556,6 +571,8 @@ jobs:
 
             // Guard: block merge if Copilot review state is CHANGES_REQUESTED
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
+            const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
+            const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
             const allReviews = await github.paginate(github.rest.pulls.listReviews, {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -563,15 +580,81 @@ jobs:
               per_page: 100,
             });
             const copilotReviewsOnHead = allReviews.filter(
-              r => r.user && r.user.login === copilotLogin && r.commit_id === headSha
+              r => r.commit_id === headSha && r.user && (
+                r.user.login === copilotLogin ||
+                (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
+              )
             );
-            const latestCopilotReview = copilotReviewsOnHead[copilotReviewsOnHead.length - 1];
+            // Sort by submitted_at descending so the first element is the most recent
+            copilotReviewsOnHead.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+            const latestCopilotReview = copilotReviewsOnHead[0];
             if (latestCopilotReview && latestCopilotReview.state === 'CHANGES_REQUESTED') {
               core.info('Copilot review is CHANGES_REQUESTED — cannot merge.');
               core.setOutput('ready', 'false');
               return;
             }
-            if (!latestCopilotReview || latestCopilotReview.state !== 'APPROVED') {
+            // Synthetic reviews with 0 inline comments are treated as APPROVED equivalent
+            const isSyntheticReview = latestCopilotReview &&
+              TRUSTED_SYNTHETIC_USERS.includes(latestCopilotReview.user?.login) &&
+              (latestCopilotReview.body || '').includes(SYNTHETIC_MARKER);
+            if (isSyntheticReview) {
+              const syntheticBody = latestCopilotReview.body || '';
+
+              // Check machine-readable metadata for parse failures or failed inline posts
+              const parseFailed = /parse_failed=true/.test(syntheticBody);
+              if (parseFailed) {
+                core.info('Synthetic Copilot review has parse_failed=true — cannot merge.');
+                core.setOutput('ready', 'false');
+                return;
+              }
+
+              // Check if intended comments > 0 but inline_posted == 0 (inline posting failed)
+              const intendedMatch = syntheticBody.match(/intended_comments=(\d+)/);
+              const inlinePostedMatch = syntheticBody.match(/inline_posted=(\d+)/);
+              const intendedComments = intendedMatch ? parseInt(intendedMatch[1], 10) : null;
+              const inlinePosted = inlinePostedMatch ? parseInt(inlinePostedMatch[1], 10) : null;
+
+              // Fail closed when metadata is missing — synthetic review format may have
+              // drifted or was manually crafted without proper markers.
+              if (intendedComments === null || inlinePosted === null) {
+                core.info('Synthetic Copilot review is missing machine-readable metadata — cannot merge (failing closed).');
+                core.setOutput('ready', 'false');
+                return;
+              }
+
+              if (intendedComments > 0 && inlinePosted === 0) {
+                core.info(`Synthetic Copilot review intended ${intendedComments} comments but posted 0 inline — cannot merge until addressed.`);
+                core.setOutput('ready', 'false');
+                return;
+              }
+
+              // Check if the synthetic review has inline comments via API
+              const syntheticComments = await github.paginate(
+                github.rest.pulls.listCommentsForReview,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  review_id: latestCopilotReview.id,
+                  per_page: 100,
+                }
+              );
+
+              // Fail closed on mismatch: metadata says comments were posted but API returns 0
+              // (could indicate deleted comments or incomplete API listing).
+              if (inlinePosted > 0 && syntheticComments.length === 0) {
+                core.info(`Synthetic review reports inline_posted=${inlinePosted} but API returned 0 comments — cannot merge (failing closed).`);
+                core.setOutput('ready', 'false');
+                return;
+              }
+
+              if (syntheticComments.length > 0) {
+                core.info('Synthetic Copilot review has inline comments — cannot merge until addressed.');
+                core.setOutput('ready', 'false');
+                return;
+              }
+              core.info('Synthetic Copilot review with 0 inline comments — treating as APPROVED equivalent.');
+            } else if (!latestCopilotReview || latestCopilotReview.state !== 'APPROVED') {
               core.info(`Copilot review state is "${latestCopilotReview?.state || 'none'}" (not APPROVED) — cannot merge.`);
               core.setOutput('ready', 'false');
               return;
