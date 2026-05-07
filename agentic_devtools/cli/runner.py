@@ -368,6 +368,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.speckit",
         "speckit_test_coverage",
     ),
+    "agdt-speckit-validate-checklists": (
+        "agentic_devtools.cli.speckit",
+        "speckit_validate_checklists",
+    ),
     # Release
     "agdt-release-pypi": ("agentic_devtools.cli.release", "release_pypi_async"),
     # Setup
