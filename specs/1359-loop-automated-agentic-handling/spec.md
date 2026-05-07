@@ -1,6 +1,6 @@
 # Feature Specification: AI PR Loop Automated Agentic Repair
 
-**Feature Branch**: `speckit/1359/phase-1-specify`  
+**Feature Branch**: `speckit/1359/phase-2-clarify`  
 **Created**: 2026-05-07  
 **Status**: Draft  
 **Input**: User description: "Enable the AI PR Loop to programmatically trigger an agentic fix workflow via a Copilot CLI session on a GitHub-hosted runner when PRs are blocked by Copilot review
@@ -14,6 +14,31 @@ comments or failing required checks"
 The current AI PR Loop workflow (`ai-pr-loop.yml`) detects when a PR is blocked by Copilot review comments or CI failures but stops without taking automated corrective action. A human must manually
 start a local `/agdt.pr-merge-manager` or `/agdt.address-copilot-review` session. This feature closes that gap by dispatching an agentic repair job on a GitHub-hosted runner that addresses review
 comments, fixes lint/test/coverage failures, pushes changes, and re-requests Copilot review — enabling fully automated PR convergence to a mergeable state.
+
+---
+
+## Clarifications
+
+### Session 2026-05-07
+
+- Q: What is the appropriate job timeout for the repair job — 15 minutes or 20 minutes (FR-012)? → A: 15 minutes. The repair job is scoped to a single focused task (address review comments or fix
+  lint/formatting issues) and should not require the full 20-minute budget of the outer AI PR Loop job. A 15-minute timeout provides ample time for typical repairs while preserving GitHub Actions
+  minutes. If the agent cannot fix the issue within 15 minutes, it is unlikely to succeed with 5 more minutes — the issue likely requires human intervention.
+- Q: How does the repair job obtain CI failure logs for diagnosis when dispatched for CI failures (FR-002, User Story 2)? → A: The repair job uses `gh run view` and `gh api` to fetch workflow run logs
+  and check-suite annotations for the failing checks on the PR's head SHA. It parses the log output to identify specific failure messages (e.g., ruff violations, pytest assertion errors) and uses
+  those as context for the Copilot agent session. Only the most recent failing run per required check is consulted.
+- Q: What happens if the repair agent partially succeeds — e.g., addresses 3 of 5 review comments but cannot resolve the remaining 2? → A: The agent pushes whatever fixes it has made, replies to the
+  threads it addressed (resolving those), and posts explanatory replies on the threads it could not address. It then re-requests Copilot review. The subsequent AI PR Loop cycle will re-evaluate: if
+  the remaining comments are still blocking, another repair dispatch (up to the 3-per-SHA limit) may be triggered. Partial progress is preferable to all-or-nothing behavior.
+- Q: Should the deduplication guard's hidden marker comment format (`<!-- repair-dispatch:SHA:N -->`) be a single comment that is updated or one comment per dispatch? → A: A single hidden marker
+  comment per PR that is updated in place (via `gh api PATCH`) with incrementing count. This keeps the PR timeline clean. Format: `<!-- repair-dispatch:FULL_SHA:COUNT -->`. The marker is searched via
+  `gh api` listing PR comments and filtering for the HTML comment pattern matching the current head SHA.
+- Q: What specific Copilot CLI invocation is used on the GitHub-hosted runner to start the agentic session? → A: The repair job uses the existing session launcher
+  (`agentic_devtools/cli/copilot/session.py`), which prefers the standalone `copilot` binary (`copilot -p`) and falls back to `gh copilot suggest` with a prompt file written to disk for reliability
+  and to avoid command-line length limits. The rendered `/agdt.address-copilot-review` prompt is passed via the session launcher. The `gh copilot` extension must be pre-installed in the job's setup
+  step via `gh extension install github/gh-copilot`. The job sets `GH_TOKEN` (the environment variable read by `gh` for authentication) from the `COPILOT_GITHUB_TOKEN` repository secret — this is
+  distinct from the default `secrets.GITHUB_TOKEN`, which lacks the permissions needed for pushing code and requesting reviewers. If `gh copilot` installation or invocation fails, the job posts a
+  failure comment and exits with a non-zero code.
 
 ---
 
@@ -37,7 +62,7 @@ retry budget.
 
 ---
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing
 
 ### User Story 1 — Automated Copilot Review Comment Resolution (Priority: P1)
 
@@ -73,6 +98,10 @@ loop's self-healing capability beyond just review comments.
 
 **Independent Test**: Can be tested by creating a PR with intentional lint violations or a failing unit test, then observing that the repair job identifies the failures, applies fixes, pushes, and CI
 subsequently passes.
+
+**CI Failure Log Retrieval**: The repair job obtains CI failure context by using `gh run view` and `gh api` to fetch workflow run logs and check-suite annotations for the failing checks on the PR's
+head SHA. It parses the log output to identify specific failure messages (e.g., ruff violations, pytest assertion errors) and uses those as context for the Copilot agent session. Only the most recent
+failing run per required check is consulted.
 
 **Acceptance Scenarios**:
 
@@ -139,7 +168,7 @@ configured retry limit.
    same issues persist, **Then** it does NOT dispatch further repairs for that SHA and posts
    a "human intervention required" comment (bounded retry guard per SC-004).
 2. **Given** the overall AI PR Loop cycle count reaches the configured maximum (50), **When** the next trigger fires, **Then** the loop posts a "human intervention required" comment and stops.
-3. **Given** the repair job's internal timeout is reached (e.g., 15 minutes), **When** the agent has not completed, **Then** the job is terminated and a failure comment is posted on the PR.
+3. **Given** the repair job's internal timeout is reached (15 minutes), **When** the agent has not completed, **Then** the job is terminated and a failure comment is posted on the PR.
 
 ---
 
@@ -168,10 +197,13 @@ As a repository maintainer, I want visibility into what the repair agent did, so
 - What happens when the PR is closed or merged between dispatch and execution? The repair job should detect the terminal state and exit cleanly without posting comments.
 - What happens when the repair agent's push is rejected (e.g., branch protection requires signed commits)? The failure should be reported clearly.
 - What happens when the PR modifies privileged paths (`.github/workflows/`)? The repair job should NOT be dispatched — these PRs require human review per existing policy.
+- What happens when the repair agent partially succeeds (addresses some but not all review comments)? The agent pushes whatever fixes it has made, replies to addressed threads (resolving those), posts
+  explanatory replies on unresolved threads, and re-requests Copilot review. Partial progress is committed; the subsequent AI PR Loop cycle re-evaluates remaining blockers and may dispatch another
+  repair (up to the 3-per-SHA limit).
 
 ---
 
-## Requirements *(mandatory)*
+## Requirements
 
 ### Functional Requirements
 
@@ -190,6 +222,9 @@ As a repository maintainer, I want visibility into what the repair agent did, so
      status.
   3. **Deterministic decision**: A repair dispatch for CI failures is only triggered when
      ALL required checks have completed AND at least one has `conclusion: failure`.
+  4. **CI log retrieval**: The repair job uses `gh run view` and `gh api` to fetch workflow
+     run logs and check-suite annotations for the failing checks. Only the most recent
+     failing run per required check is consulted.
 - **FR-003**: The repair job MUST run on a standard GitHub-hosted runner (ubuntu-latest), NOT a self-hosted runner or the GitHub Copilot Cloud Coding Agent sandbox.
 - **FR-004**: The repair job MUST authenticate using a repository secret PAT (`COPILOT_GITHUB_TOKEN`) that has permission to push code, post comments, resolve threads, and request reviewers.
 - **FR-005**: The repair job MUST install `agentic-devtools` from a trusted source — either a
@@ -201,24 +236,34 @@ As a repository maintainer, I want visibility into what the repair agent did, so
   (`.github/agents/`, `.github/prompts/`) MUST be sourced from the default branch checkout
   (or a pinned artifact), NOT from the PR branch — otherwise a malicious PR could alter
   agent instructions while the PAT is present. Code edits are applied to the PR worktree,
-  but the agent's own instructions remain trusted.
+  but the agent's own instructions remain trusted. The Copilot CLI is installed via
+  `gh extension install github/gh-copilot` in the job's setup step. The session is started
+  using the existing session launcher (`agentic_devtools/cli/copilot/session.py`), which
+  prefers the standalone `copilot` binary (`copilot -p <prompt>`) and falls back to
+  `gh copilot suggest` with a prompt file written to disk for reliability and to avoid
+  command-line length limits.
 - **FR-006**: The repair job MUST NOT approve or merge PRs — these actions remain the exclusive responsibility of the existing privileged AI PR Loop steps.
 - **FR-007**: The system MUST limit repair dispatches to at most 3 per PR head SHA
-  (bounded retry with deduplication guard). Each dispatch is counted via a hidden marker
-  in PR comments (`<!-- repair-dispatch:SHA:N -->`). Once 3 dispatches have been issued
-  for a given SHA, no further repairs are dispatched for that SHA and a "human
-  intervention required" comment is posted.
+  (bounded retry with deduplication guard). Each dispatch is counted via a single hidden
+  marker comment per PR that is updated in place (via `gh api PATCH`) with incrementing
+  count. Format: `<!-- repair-dispatch:FULL_SHA:COUNT -->`. The marker is searched via
+  `gh api` listing PR comments and filtering for the HTML comment pattern matching the
+  current head SHA. Once 3 dispatches have been issued for a given SHA, no further repairs
+  are dispatched for that SHA and a "human intervention required" comment is posted.
 - **FR-008**: The repair job MUST post a PR comment when it starts and update it when it completes (success or failure).
 - **FR-009**: The repair job MUST re-request Copilot review after pushing fixes, so the loop can naturally re-trigger.
 - **FR-010**: The repair job MUST NOT be dispatched for PRs that modify privileged paths (`.github/workflows/`, `.github/actions/`, `.github/scripts/` — excluding `.md` files).
 - **FR-011**: The repair job MUST respect the existing 50-cycle outer loop limit.
-- **FR-012**: The repair job MUST have an internal timeout (maximum job duration) after which it is terminated. [NEEDS CLARIFICATION: What is the appropriate timeout — 15 minutes? 20 minutes?]
+- **FR-012**: The repair job MUST have an internal timeout of 15 minutes (maximum job duration) after which it is terminated. This is shorter than the outer AI PR Loop's 20-minute timeout because the
+  repair job is scoped to a single focused task. If the agent cannot complete within 15 minutes, the issue likely requires human intervention.
 - **FR-013**: The system MUST skip repair dispatch for fork PRs (cannot push to forks).
 - **FR-014**: The system MUST skip repair dispatch for PRs with the `ai-pr-loop-ignore` label.
+- **FR-015**: When the repair agent partially succeeds (addresses some but not all review comments or CI failures), it MUST push the partial fixes, reply to addressed threads, post explanatory replies
+  on unresolved threads, and re-request Copilot review. The subsequent AI PR Loop cycle re-evaluates remaining blockers.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The repair job MUST complete within a bounded time to avoid consuming excessive GitHub Actions minutes. Target: under 15 minutes for typical PRs.
+- **NFR-001**: The repair job MUST complete within 15 minutes for typical PRs (enforced by the job-level `timeout-minutes: 15` setting per FR-012).
 - **NFR-002**: The dispatch decision (whether to trigger repair) MUST be deterministic and auditable from the workflow run logs.
 - **NFR-003**: The repair job MUST NOT leak secrets (PAT) in logs, PR comments, or commit messages.
 - **NFR-004**: The system MUST be resilient to transient GitHub API failures (retry with backoff where appropriate).
@@ -286,13 +331,15 @@ risk:
 
 - **Repair Dispatch**: A decision point in the AI PR Loop where it determines a repair is needed and triggers the repair job. Contains: PR number, head SHA, review ID (if review-triggered), failure
   type (review/CI/both).
-- **Repair Job**: A GitHub Actions job that runs the agentic fix workflow. Contains: PAT authentication, `agentic-devtools` installation, Copilot CLI session execution, timeout bounds.
-- **Deduplication Guard**: A mechanism to prevent re-dispatching repair for the same head SHA. Could use PR comments with hidden markers or workflow artifacts.
+- **Repair Job**: A GitHub Actions job that runs the agentic fix workflow. Contains: PAT authentication, `agentic-devtools` installation (from trusted source), `gh copilot` extension installation,
+  Copilot CLI session execution in non-interactive mode, 15-minute timeout bound.
+- **Deduplication Guard**: A single hidden marker comment per PR, updated in place via `gh api PATCH`, with format `<!-- repair-dispatch:FULL_SHA:COUNT -->`. Searched by listing PR comments and
+  filtering for the HTML comment pattern matching the current head SHA.
 - **Cycle Tracker**: The existing `<!-- ai-pr-loop-cycle-tracker -->` comment that counts total loop iterations across all trigger types.
 
 ---
 
-## Success Criteria *(mandatory)*
+## Success Criteria
 
 ### Measurable Outcomes
 
@@ -319,7 +366,8 @@ risk:
   FR-010/SEC-006 prohibit dispatch for any PR that modifies `.github/workflows/` (non-`.md`). If the PR's diff touches
   workflow files, repair is skipped entirely regardless of the failure source. This eliminates the attack surface of
   workflow-file manipulation.~~
-- [NEEDS CLARIFICATION]: What is the appropriate job timeout for the repair job — 15 minutes or 20 minutes? (The current AI PR Loop job has a 20-minute timeout.)
+- ~~[RESOLVED]: What is the appropriate job timeout for the repair job — 15 minutes. The repair job is scoped to a single focused task and should complete well within this bound. See FR-012.~~
+- No remaining open questions. All ambiguities have been resolved.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
