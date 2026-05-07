@@ -73,13 +73,15 @@ The restructured system consists of five scripts with clear ownership boundaries
   restructuring adds a new phase at the end of `agdt-setup` that generates the `.agdt/` setup scripts and updates the repo-root `setup-dev-tools.py`. The existing `agdt-setup` functionality
   (dependency checks, CLI installs, cert setup) is preserved unchanged.
 
-## User Scenarios & Testing
+## User Stories & Testing
 
-### User Scenario 1 — Corrupted install self-repair (Priority: P1)
+### User Story 1 — Corrupted install self-repair (Priority: P1)
 
 A developer has a corrupted agentic-devtools installation (missing RECORD file, leftover `~gentic-devtools` artifacts from a failed
 editable install). Running `setup-dev-tools.py` should automatically detect the corruption, clean up invalid artifacts from site-packages,
 and reinstall cleanly from PyPI without manual intervention.
+
+**Covers**: FR-001, FR-002, FR-003, FR-004, FR-012
 
 **Why this priority**: This is the primary pain point that blocks developers when switching between dev builds and PyPI releases.
 
@@ -87,11 +89,13 @@ and reinstall cleanly from PyPI without manual intervention.
 `_editable_impl_agentic_devtools.pth` file in the site-packages directory. Run `agentic-devtools-required-setup.py` and verify the artifacts
 are removed and `agentic-devtools` is installed successfully from PyPI.
 
-### User Scenario 2 — Modular script generation via agdt-setup (Priority: P1)
+### User Story 2 — Modular script generation via agdt-setup (Priority: P1)
 
 A developer runs `agdt-setup` in a new repository. The command prompts for tool selections (e.g., cspell, ruff) and generates
 `agentic-devtools-configured-setup.py` with only the selected tools. Re-running `agdt-setup` regenerates the configured script with
 updated selections.
+
+**Covers**: FR-005, FR-006, FR-014, FR-015
 
 **Why this priority**: This is the core user-facing workflow for configuring per-repo tooling.
 
@@ -99,10 +103,12 @@ updated selections.
 `agentic-devtools-configured-setup.py` contains install commands only for the selected tools. Re-run with different selections and verify
 the file is overwritten with the new configuration.
 
-### User Scenario 3 — Orchestrated complete setup (Priority: P2)
+### User Story 3 — Orchestrated complete setup (Priority: P2)
 
 A developer clones a repository that already has `.agdt/` scripts configured. Running `setup-dev-tools.py` from the repo root executes the
 full chain: required setup (self-repair/install), configured setup (selected tools), then repo-specific setup (customer script).
+
+**Covers**: FR-009, FR-010, FR-011
 
 **Why this priority**: This is the standard onboarding flow for existing repositories.
 
@@ -110,11 +116,13 @@ full chain: required setup (self-repair/install), configured setup (selected too
 subprocess calls to confirm the orchestration sequence. Verify that if `agentic-devtools-required-setup.py` fails, the subsequent scripts
 are not executed (fail-fast behavior per the clarified FR-009).
 
-### User Scenario 4 — Backward compatibility with existing repos (Priority: P2)
+### User Story 4 — Backward compatibility with existing repos (Priority: P2)
 
 A repository that predates this restructuring (has only a monolithic `setup-dev-tools.py`) continues to work. Running `agdt-setup` in such a
 repository creates the `.agdt/` structure and replaces the old `setup-dev-tools.py` with the new modular entry point, while preserving any
 repo-specific logic by migrating it into `setup-repo-specific-dev-tools.py`.
+
+**Covers**: FR-007, FR-008, FR-013
 
 **Why this priority**: Existing repos must not break when updating agentic-devtools.
 
@@ -123,10 +131,12 @@ Run `agdt-setup` and verify the old content is preserved in `setup-repo-specific
 `.agdt/`, and the root `setup-dev-tools.py` is replaced with the orchestrator entry point containing the marker comment. Verify that if
 `setup-repo-specific-dev-tools.py` already exists, the legacy content is appended below a separator comment rather than overwriting.
 
-### User Scenario 5 — Git hooks setup via required-setup (Priority: P3)
+### User Story 5 — Git hooks setup via required-setup (Priority: P3)
 
 Running `agentic-devtools-required-setup.py` configures git hooks (e.g., `core.hooksPath`) as part of the required environment setup,
 ensuring developers have consistent pre-commit/pre-push behavior without additional manual steps.
+
+**Covers**: FR-004
 
 **Why this priority**: Git hooks are a convenience feature, not blocking for core functionality.
 
