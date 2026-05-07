@@ -61,8 +61,8 @@ running package version. Run again with the same version and verify the value is
 3. **Given** a repo where `project.json` has `"agdt_version": "0.2.69"` and the running version is also `0.2.69`, **When** `agdt-setup` completes successfully, **Then** `agdt_version`
    remains `"0.2.69"` (no-op update).
 4. **Given** a repo whose root `.gitignore` contains `.agdt/` but no negation rules for the config path, **When** `agdt-setup` completes successfully (equal or newer version), **Then** the root
-   `.gitignore` contains the negation rules `!.agdt/`, `!.agdt/config/`, and `!.agdt/config/project.json` in that order *after* the `.agdt/` ignore rule, and `git check-ignore .agdt/config/project.json`
-   confirms the file is **not** ignored (i.e., the version pin is shareable across teammates).
+   `.gitignore` contains the negation rules `!.agdt/`, `!.agdt/config/`, and `!.agdt/config/project.json` in that order *after* the `.agdt/` ignore rule, and
+   `git check-ignore .agdt/config/project.json` confirms the file is **not** ignored (i.e., the version pin is shareable across teammates).
 
 ---
 
