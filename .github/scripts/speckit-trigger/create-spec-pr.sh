@@ -32,6 +32,10 @@
 
 set -euo pipefail
 
+# Source shared retry library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/retry.sh"
+
 BRANCH_NAME="${1:?Branch name is required}"
 SPEC_DIR="${2:?Spec directory path is required}"
 ISSUE_NUMBER="${3:?Issue number is required}"
@@ -367,11 +371,129 @@ else
     echo "Creating pull request..."
 fi
 
-# Create the PR
-PR_URL=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>&1) || {
+# ---------------------------------------------------------------------------
+# Non-retryable pattern detection for gh pr create failures
+# ---------------------------------------------------------------------------
+_is_non_retryable() {
+    local exit_code="$1"
+    local stderr_output="$2"
+
+    # Exit code 127 = command not found
+    if [[ $exit_code -eq 127 ]]; then
+        return 0  # non-retryable
+    fi
+
+    # Check stderr for non-retryable patterns
+    local pattern
+    for pattern in "not found" "does not exist" "permission denied" "authentication" "command not found"; do
+        if echo "$stderr_output" | grep -qi "$pattern"; then
+            return 0  # non-retryable
+        fi
+    done
+
+    return 1  # retryable
+}
+
+# ---------------------------------------------------------------------------
+# Wrapper for gh pr create that handles "already exists" recovery
+# ---------------------------------------------------------------------------
+_PR_CREATE_OUTPUT=""
+_PR_CREATE_STDERR=""
+
+_create_pr_with_retry() {
+    local tmpfile
+    tmpfile=$(mktemp)
+    trap "rm -f '$tmpfile'" RETURN
+
+    _PR_CREATE_OUTPUT=""
+    _PR_CREATE_STDERR=""
+
+    local exit_code=0
+    _PR_CREATE_OUTPUT=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>"$tmpfile") || exit_code=$?
+    _PR_CREATE_STDERR=$(cat "$tmpfile")
+
+    if [[ $exit_code -eq 0 ]]; then
+        return 0
+    fi
+
+    # Check for "already exists" — treat as recoverable
+    if echo "$_PR_CREATE_STDERR" | grep -qi "already exists"; then
+        echo "PR already exists, attempting to recover existing PR URL..." >&2
+        return 2  # special code signals "already exists"
+    fi
+
+    # Check for non-retryable patterns
+    if _is_non_retryable "$exit_code" "$_PR_CREATE_STDERR"; then
+        echo "Non-retryable error detected (exit $exit_code): $_PR_CREATE_STDERR" >&2
+        return 1
+    fi
+
+    return "$exit_code"
+}
+
+# ---------------------------------------------------------------------------
+# Recovery: look up existing PR by head branch
+# ---------------------------------------------------------------------------
+_PR_RECOVERY_OUTPUT=""
+
+_recover_existing_pr() {
+    _PR_RECOVERY_OUTPUT=""
+    _PR_RECOVERY_OUTPUT=$(gh pr list --repo "$REPO_SLUG" --head "$BRANCH_NAME" --json url,number --jq '.[0]' 2>&1)
+    local exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        return 1
+    fi
+
+    # Treat empty/null output as failure to force retry
+    if [[ -z "$_PR_RECOVERY_OUTPUT" ]] || [[ "$_PR_RECOVERY_OUTPUT" == "null" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+# Create the PR with retry logic
+_do_create_pr() {
+    # Try creating the PR with retries
+    local create_result=0
+    call_with_retry 3 5 _create_pr_with_retry || create_result=$?
+
+    if [[ $create_result -eq 0 ]]; then
+        PR_URL="$_PR_CREATE_OUTPUT"
+        return 0
+    fi
+
+    # Check if the last attempt returned "already exists" (exit 2 from wrapper)
+    # In that case, _create_pr_with_retry returns 2 which call_with_retry treats as failure
+    # but we captured the stderr - check for "already exists" pattern
+    if echo "$_PR_CREATE_STDERR" | grep -qi "already exists"; then
+        echo "Attempting to recover existing PR for branch: $BRANCH_NAME" >&2
+        if call_with_retry 3 5 _recover_existing_pr; then
+            local pr_url pr_number
+            pr_url=$(echo "$_PR_RECOVERY_OUTPUT" | jq -r '.url // empty' 2>/dev/null || echo "")
+            pr_number=$(echo "$_PR_RECOVERY_OUTPUT" | jq -r '.number // empty' 2>/dev/null || echo "")
+
+            if [[ -n "$pr_url" ]]; then
+                echo "✓ Recovered existing PR: $pr_url" >&2
+                PR_URL="$pr_url"
+                PR_NUMBER="$pr_number"
+                return 0
+            fi
+        fi
+        echo "❌ Failed to recover existing PR URL" >&2
+    fi
+
+    return 1
+}
+
+PR_URL=""
+PR_NUMBER=""
+
+if ! _do_create_pr; then
     echo "" >&2
-    echo "❌ Failed to create PR automatically." >&2
-    echo "Error: $PR_URL" >&2
+    echo "❌ Failed to create PR automatically after retries." >&2
+    echo "Error: $_PR_CREATE_STDERR" >&2
     echo "" >&2
     echo "To create this PR manually, run the following command locally:" >&2
     echo "" >&2
@@ -407,8 +529,9 @@ PR_URL=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>&1) || {
     fi
     echo "" >&2
     echo "pr_url=" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+    echo "pr_number=" >> "${GITHUB_OUTPUT:-/dev/stdout}"
     exit 1
-}
+fi
 
 # Output draft status
 if [[ "$CREATE_DRAFT" == "true" ]]; then
@@ -417,8 +540,10 @@ fi
 
 echo "✓ Pull request created: $PR_URL"
 
-# Extract PR number from URL
-PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]\+$' || echo "")
+# Extract PR number from URL (if not already set from recovery)
+if [[ -z "$PR_NUMBER" ]]; then
+    PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]\+$' || echo "")
+fi
 
 # Apply labels if provided
 if [[ "$LABELS_JSON" != "[]" ]] && [[ -n "$LABELS_JSON" ]]; then

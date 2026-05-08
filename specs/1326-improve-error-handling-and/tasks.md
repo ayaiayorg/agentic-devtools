@@ -7,19 +7,19 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create directory structure `.github/scripts/speckit-trigger/lib/`
-- [ ] T002 Create empty `lib/retry.sh` file with shebang, header comment, and sourcing guard at `.github/scripts/speckit-trigger/lib/retry.sh`
-- [ ] T003 [US1] Create test directory `.github/scripts/speckit-trigger/tests/` for new test scripts and update CI runner/harness to discover and execute scripts in this subdirectory (FR-012)
+- [x] T001 Create directory structure `.github/scripts/speckit-trigger/lib/`
+- [x] T002 Create empty `lib/retry.sh` file with shebang, header comment, and sourcing guard at `.github/scripts/speckit-trigger/lib/retry.sh`
+- [x] T003 [US1] Create test directory `.github/scripts/speckit-trigger/tests/` for new test scripts and update CI runner/harness to discover and execute scripts in this subdirectory (FR-012)
 
 ---
 
 ## Phase 2: Foundational — Shared Retry Library
 
-- [ ] T004 Implement `calculate_backoff_delay` function in `lib/retry.sh` — accepts retry_number (1-based) and initial_delay, outputs `initial_delay × 2^(retry_number-1)` to stdout (FR-007)
-- [ ] T005 Implement `call_with_retry` function in `lib/retry.sh` — accepts max_attempts, initial_delay, command; uses `calculate_backoff_delay` internally; logs attempt/total/delay per FR-009; logs
+- [x] T004 Implement `calculate_backoff_delay` function in `lib/retry.sh` — accepts retry_number (1-based) and initial_delay, outputs `initial_delay × 2^(retry_number-1)` to stdout (FR-007)
+- [x] T005 Implement `call_with_retry` function in `lib/retry.sh` — accepts max_attempts, initial_delay, command; uses `calculate_backoff_delay` internally; logs attempt/total/delay per FR-009; logs
   command name and exit code per FR-010; returns 0 on success, 1 on exhaustion (FR-007)
-- [ ] T006 Add `BASH_SOURCE[0]`-relative path resolution pattern in `lib/retry.sh` header comment as usage example for consuming scripts (FR-007)
-- [ ] T007 [US3] Verify `lib/retry.sh` is compatible with Bash 4.x+ and `set -euo pipefail` (NFR-004)
+- [x] T006 Add `BASH_SOURCE[0]`-relative path resolution pattern in `lib/retry.sh` header comment as usage example for consuming scripts (FR-007)
+- [x] T007 [US3] Verify `lib/retry.sh` is compatible with Bash 4.x+ and `set -euo pipefail` (NFR-004)
 
 ---
 
@@ -27,17 +27,17 @@
 
 - [ ] T008 [US1] Write test script `tests/test_create_spec_pr_retry.sh` — stub `gh` to simulate transient failures, non-retryable patterns, exit code 127, and "already exists" scenarios; include
   happy-path test (successful `gh pr create` on first attempt returns PR URL); verify exit codes and GITHUB_OUTPUT content (FR-001, FR-002, FR-012)
-- [ ] T009 [US1] Add `source` statement in `create-spec-pr.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path (FR-012)
-- [ ] T010 [US1] Implement non-retryable pattern detection function `_is_non_retryable` in `create-spec-pr.sh` — checks exit code 127 and greps stderr for "not found", "does not exist", "permission
+- [x] T009 [US1] Add `source` statement in `create-spec-pr.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path (FR-012)
+- [x] T010 [US1] Implement non-retryable pattern detection function `_is_non_retryable` in `create-spec-pr.sh` — checks exit code 127 and greps stderr for "not found", "does not exist", "permission
   denied", "authentication", "command not found" (FR-002)
-- [ ] T011 [US1] Implement wrapper function `_create_pr_with_retry` in `create-spec-pr.sh` — captures stdout+stderr from `gh pr create`, applies `_is_non_retryable` check, returns appropriate exit
+- [x] T011 [US1] Implement wrapper function `_create_pr_with_retry` in `create-spec-pr.sh` — captures stdout+stderr from `gh pr create`, applies `_is_non_retryable` check, returns appropriate exit
   code for `call_with_retry` (FR-001, FR-002, FR-012)
-- [ ] T012 [US1] Replace direct `gh pr create` call (line 371) with `call_with_retry 3 5 _create_pr_with_retry` — ensure non-zero exit propagates when all retries exhausted (FR-001, FR-012)
-- [ ] T013 [US1] Implement "already exists" recovery path (FR-013) — detect pattern in stderr, attempt `gh pr list --head <branch> --json url,number --jq '.[0]'` wrapped in `call_with_retry`, treat
+- [x] T012 [US1] Replace direct `gh pr create` call (line 371) with `call_with_retry 3 5 _create_pr_with_retry` — ensure non-zero exit propagates when all retries exhausted (FR-001, FR-012)
+- [x] T013 [US1] Implement "already exists" recovery path (FR-013) — detect pattern in stderr, attempt `gh pr list --head <branch> --json url,number --jq '.[0]'` wrapped in `call_with_retry`, treat
   empty output as failure to force retries
-- [ ] T014 [US1] Ensure empty `pr_url=` and `pr_number=` are written to `GITHUB_OUTPUT` on all failure paths including recovery failure (NFR-005)
-- [ ] T015 [US1] Preserve `GITHUB_OUTPUT` fallback to `/dev/stdout` for local testing (NFR-005)
-- [ ] T016 [US1] Verify structural acceptance scenario US1-S7 — `create-spec-pr.sh` sources lib, does not define own `call_with_retry`, invokes it wrapping `gh pr create`
+- [x] T014 [US1] Ensure empty `pr_url=` and `pr_number=` are written to `GITHUB_OUTPUT` on all failure paths including recovery failure (NFR-005)
+- [x] T015 [US1] Preserve `GITHUB_OUTPUT` fallback to `/dev/stdout` for local testing (NFR-005)
+- [x] T016 [US1] Verify structural acceptance scenario US1-S7 — `create-spec-pr.sh` sources lib, does not define own `call_with_retry`, invokes it wrapping `gh pr create`
 
 ---
 
@@ -45,29 +45,29 @@
 
 - [ ] T017 [US2] Write test script `tests/test_post_issue_comment_retry.sh` — mock HTTP endpoint for 201 (happy-path: successful POST returns 201 Created), 5xx, 429, 403±Retry-After, 4xx,
   transport errors (exit codes 6,7,28,35,52,56), redirects (301/302/303), and non-retryable transport errors (exit code 3, 60) (FR-003, FR-005, FR-006)
-- [ ] T018 [US2] Add `source` statement in `post-issue-comment.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path
-- [ ] T019 [US2] Implement `curl_with_retry` function in `post-issue-comment.sh` — uses `curl -s -o <tmpfile> -D <headerfile> -w '%{http_code}' -L --post301 --post302 --post303` to capture
+- [x] T018 [US2] Add `source` statement in `post-issue-comment.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path
+- [x] T019 [US2] Implement `curl_with_retry` function in `post-issue-comment.sh` — uses `curl -s -o <tmpfile> -D <headerfile> -w '%{http_code}' -L --post301 --post302 --post303` to capture
   HTTP status, body, and response headers separately; headers captured via `-D <headerfile>` for deterministic `Retry-After` parsing in T022 (FR-003, FR-011)
-- [ ] T020 [US2] Implement HTTP status classification in `curl_with_retry` — 2xx=success, 5xx=retryable, 429=retryable with Retry-After, 403+Retry-After=retryable, 403 without=fail, other 4xx=fail
+- [x] T020 [US2] Implement HTTP status classification in `curl_with_retry` — 2xx=success, 5xx=retryable, 429=retryable with Retry-After, 403+Retry-After=retryable, 403 without=fail, other 4xx=fail
   (FR-005, FR-006)
-- [ ] T021 [US2] Implement transport error classification in `curl_with_retry` — retryable codes: 6,7,28,35,52,56; all other non-zero=immediate failure (FR-005)
-- [ ] T022 [US2] Implement `Retry-After` header parsing in `curl_with_retry` — use `max(Retry-After, calculated_backoff)`; fail immediately if `Retry-After > 60` (FR-006, NFR-002)
-- [ ] T023 [US2] Integrate `calculate_backoff_delay` from shared library into `curl_with_retry` delay computation (FR-005)
-- [ ] T024 [US2] Add retry observability logging in `curl_with_retry` — log attempt/total/delay/command/status to stderr (FR-009, FR-010)
-- [ ] T025 [US2] Replace bare `curl -s` call (line 69-73) with `curl_with_retry` invocation; ensure non-zero exit on persistent failure (FR-003, FR-004)
-- [ ] T026 [US2] Verify structural acceptance scenario US2-S17 — `post-issue-comment.sh` sources lib, does not define own `calculate_backoff_delay`, uses it inside `curl_with_retry`
+- [x] T021 [US2] Implement transport error classification in `curl_with_retry` — retryable codes: 6,7,28,35,52,56; all other non-zero=immediate failure (FR-005)
+- [x] T022 [US2] Implement `Retry-After` header parsing in `curl_with_retry` — use `max(Retry-After, calculated_backoff)`; fail immediately if `Retry-After > 60` (FR-006, NFR-002)
+- [x] T023 [US2] Integrate `calculate_backoff_delay` from shared library into `curl_with_retry` delay computation (FR-005)
+- [x] T024 [US2] Add retry observability logging in `curl_with_retry` — log attempt/total/delay/command/status to stderr (FR-009, FR-010)
+- [x] T025 [US2] Replace bare `curl -s` call (line 69-73) with `curl_with_retry` invocation; ensure non-zero exit on persistent failure (FR-003, FR-004)
+- [x] T026 [US2] Verify structural acceptance scenario US2-S17 — `post-issue-comment.sh` sources lib, does not define own `calculate_backoff_delay`, uses it inside `curl_with_retry`
 
 ---
 
 ## Phase 5: User Story 3 — Shared Retry Helper Library (P2)
 
-- [ ] T027 [US3] Write test script `tests/test_retry_lib.sh` — test `calculate_backoff_delay` arithmetic (retry 1 → 5, retry 2 → 10), `call_with_retry` success after failures, exhaustion, enhanced
+- [x] T027 [US3] Write test script `tests/test_retry_lib.sh` — test `calculate_backoff_delay` arithmetic (retry 1 → 5, retry 2 → 10), `call_with_retry` success after failures, exhaustion, enhanced
   error messages with command name/exit code (FR-007, FR-008)
-- [ ] T028 [US3] Test `BASH_SOURCE[0]`-relative sourcing from different working directories (FR-007 portability — US3-S6)
-- [ ] T029 [US3] Remove inline `call_with_retry` function from `generate-spec-from-issue.sh` (around line 273-295) (FR-008)
-- [ ] T030 [US3] Add `source` statement in `generate-spec-from-issue.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path (FR-008)
-- [ ] T031 [US3] Verify all existing `call_with_retry` call sites in `generate-spec-from-issue.sh` still work after migration
-- [ ] T032 [US3] Verify SC-004 — `grep -rE 'call_with_retry[[:space:]]*(\(|\{)' .github/scripts/` returns exactly one match (the definition in `lib/retry.sh`)
+- [x] T028 [US3] Test `BASH_SOURCE[0]`-relative sourcing from different working directories (FR-007 portability — US3-S6)
+- [x] T029 [US3] Remove inline `call_with_retry` function from `generate-spec-from-issue.sh` (around line 273-295) (FR-008)
+- [x] T030 [US3] Add `source` statement in `generate-spec-from-issue.sh` to load `lib/retry.sh` via `BASH_SOURCE[0]`-relative path (FR-008)
+- [x] T031 [US3] Verify all existing `call_with_retry` call sites in `generate-spec-from-issue.sh` still work after migration
+- [x] T032 [US3] Verify SC-004 — `grep -rE 'call_with_retry[[:space:]]*(\(|\{)' .github/scripts/` returns exactly one match (the definition in `lib/retry.sh`)
 
 ---
 

@@ -120,6 +120,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 # shellcheck source=check-analysis-gate.sh
 source "$SCRIPT_DIR/check-analysis-gate.sh"
 
+# Source shared retry library
+# shellcheck source=lib/retry.sh
+source "$SCRIPT_DIR/lib/retry.sh"
+
 # ---------------------------------------------------------------------------
 # Validate ISSUE_NUMBER is a positive integer (FR-011)
 # ---------------------------------------------------------------------------
@@ -267,32 +271,9 @@ if [[ -f "$_mdlint_template" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Retry helper — exponential backoff for transient API errors
+# Retry helper — provided by shared library (lib/retry.sh)
 # Usage: call_with_retry <max_attempts> <initial_delay_seconds> <command...>
 # ---------------------------------------------------------------------------
-call_with_retry() {
-    local max_attempts="${1:?}"
-    local delay="${2:?}"
-    shift 2
-
-    local attempt=1
-    while [[ $attempt -le $max_attempts ]]; do
-        local exit_code=0
-        "$@" || exit_code=$?
-        if [[ $exit_code -eq 0 ]]; then
-            return 0
-        fi
-        if [[ $attempt -lt $max_attempts ]]; then
-            echo "Attempt $attempt/$max_attempts failed (exit $exit_code). Retrying in ${delay}s..." >&2
-            sleep "$delay"
-            delay=$(( delay * 2 ))  # double the wait each time
-        fi
-        attempt=$(( attempt + 1 ))
-    done
-
-    echo "All $max_attempts attempts failed." >&2
-    return 1
-}
 
 # ---------------------------------------------------------------------------
 # call_llm <prompt_text>
