@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# Composite key type: (thread_id, comment_id) — unique across all threads.
+# Azure DevOps comment IDs are per-thread (e.g. the first comment in every
+# thread is id=1), so comment_id alone is NOT unique.
+CommentKey = tuple[int, int]
+
+
+def comment_key(comment: EligibleComment) -> CommentKey:
+    """Return the composite key ``(thread_id, comment_id)`` for *comment*."""
+    return (comment.thread_id, comment.comment_id)
+
 
 @dataclass
 class EligibleComment:

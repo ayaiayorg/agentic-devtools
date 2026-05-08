@@ -45,13 +45,16 @@ def classify_eligible_comments(
         if comment is not None:
             result.overall_summary = comment
 
-    # Process activity-log threads — scan replies for activity-log-entry markers
+    # Process activity-log threads — scan replies for activity-log-entry markers.
+    # When there is no session ID, skip activity-log scanning entirely to avoid
+    # unintentionally including all historical entries.
     latest_session_id = None
     if review_state.sessions:
         latest_session_id = review_state.sessions[-1].sessionId
 
-    for thread in classified.get("activity-log", []):
-        _scan_activity_log_replies(thread, pat_user_id, latest_session_id, result)
+    if latest_session_id is not None:
+        for thread in classified.get("activity-log", []):
+            _scan_activity_log_replies(thread, pat_user_id, latest_session_id, result)
 
     return result
 

@@ -16,7 +16,7 @@ from ..review_state import ReviewState
 from .classification import classify_eligible_comments
 from .convergence import check_convergence, compute_expected_content
 from .identity import resolve_pat_identity
-from .models import EligibleComments, FinalizationReport
+from .models import CommentKey, EligibleComments, FinalizationReport, comment_key
 from .repair import batch_repair_pass, targeted_repair
 from .reporting import build_finalization_report, emit_report_summary, persist_report
 from .verification import verify_convergence
@@ -43,8 +43,8 @@ def run_finalization_pass(
     retry → reporting.
 
     This function is designed to be **non-blocking**: any exception is caught
-    and reported rather than propagated.  Missing or corrupt review state
-    results in a no-op success report.
+    and reported rather than propagated.  If an unhandled error occurs,
+    it is caught and a failure report is returned.
 
     Args:
         review_state: Current review state (source of truth, may be mutated).
@@ -66,13 +66,13 @@ def run_finalization_pass(
         pat_user_id = resolve_pat_identity(organization, headers)
         if pat_user_id is None:
             details.append("PAT identity resolution failed — no mutations performed")
-            return _build_report("skipped", 0, 0, 0, 0, details, start_time)
+            return _build_report("skipped", 0, 0, 0, 0, details, start_time, review_state)
 
         # Phase 1: Fetch current threads from API
         threads = _fetch_threads(config, headers, review_state.repoId, pr_id)
         if threads is None:
             details.append("Could not fetch PR threads")
-            return _build_report("skipped", 0, 0, 0, 0, details, start_time)
+            return _build_report("skipped", 0, 0, 0, 0, details, start_time, review_state)
 
         # Phase 2: Classify eligible comments
         eligible = classify_eligible_comments(threads, pat_user_id, review_state)
@@ -82,22 +82,55 @@ def run_finalization_pass(
             if eligible.skipped:
                 for skip in eligible.skipped:
                     details.append(f"Skipped: thread {skip.get('thread_id', '?')}: {skip.get('reason', 'unknown')}")
-            return _build_report("no-op", 0, len(eligible.skipped), 0, 0, details, start_time)
+            return _build_report("no-op", 0, len(eligible.skipped), 0, 0, details, start_time, review_state)
 
         # Phase 3: Compute expected terminal content
         from ..review_scaffold import build_pr_base_url
 
         base_url = build_pr_base_url(config, pr_id)
-        expected_map: dict[int, str] = {}
+        expected_map: dict[CommentKey, str] = {}
         all_comments = _collect_all_comments(eligible)
+        skipped_empty: list[dict[str, str]] = []
         for comment in all_comments:
-            expected_map[comment.comment_id] = compute_expected_content(comment, review_state, base_url)
+            expected = compute_expected_content(comment, review_state, base_url)
+            if not expected:
+                skipped_empty.append(
+                    {"thread_id": str(comment.thread_id), "reason": "empty expected content"}
+                )
+                continue
+            expected_map[comment_key(comment)] = expected
+
+        # Remove comments with empty expected content from the working set
+        all_comments = [c for c in all_comments if comment_key(c) in expected_map]
+
+        # Record skipped-empty comments
+        if skipped_empty:
+            for skip in skipped_empty:
+                details.append(
+                    f"Skipped: thread {skip['thread_id']}: {skip['reason']}"
+                )
+            eligible = EligibleComments(
+                file_summaries=[c for c in eligible.file_summaries if comment_key(c) in expected_map],
+                overall_summary=(
+                    eligible.overall_summary
+                    if eligible.overall_summary is not None and comment_key(eligible.overall_summary) in expected_map
+                    else None
+                ),
+                activity_log_entries=[c for c in eligible.activity_log_entries if comment_key(c) in expected_map],
+                skipped=eligible.skipped + skipped_empty,
+            )
+            total_eligible = _count_eligible(eligible)
+            if total_eligible == 0:
+                details.append("All eligible comments had empty expected content")
+                return _build_report(
+                    "no-op", 0, len(eligible.skipped), 0, 0, details, start_time, review_state
+                )
 
         # Phase 4: Check initial convergence
         unchanged = 0
         non_converged = []
         for comment in all_comments:
-            expected = expected_map.get(comment.comment_id, "")
+            expected = expected_map.get(comment_key(comment), "")
             if check_convergence(comment, expected):
                 unchanged += 1
             else:
@@ -108,7 +141,7 @@ def run_finalization_pass(
             if eligible.skipped:
                 for skip in eligible.skipped:
                     details.append(f"Skipped: thread {skip.get('thread_id', '?')}: {skip.get('reason', 'unknown')}")
-            return _build_report("no-op", 0, len(eligible.skipped), unchanged, 0, details, start_time)
+            return _build_report("no-op", 0, len(eligible.skipped), unchanged, 0, details, start_time, review_state)
 
         # Phase 5: Batch-first repair
         if not dry_run:
@@ -135,14 +168,27 @@ def run_finalization_pass(
                 0,
                 details,
                 start_time,
+                review_state,
             )
 
         # Phase 6-8: Verification and retry
-        repaired = 0
+        all_keys: set[CommentKey] = {comment_key(c) for c in all_comments}
+        # Seed converged_keys with initially-converged comments so that
+        # the repaired count is never negative even if verification misses them.
+        converged_keys: set[CommentKey] = set()
+        for comment in all_comments:
+            expected = expected_map.get(comment_key(comment), "")
+            if check_convergence(comment, expected):
+                converged_keys.add(comment_key(comment))
         failed = 0
         for round_num in range(_MAX_RETRY_ROUNDS + 1):
             if _check_timeout(start_time):
                 details.append(f"Timeout reached after {_TIMEOUT_SECONDS}s")
+                # Mark remaining non-converged as failed
+                still_pending = all_keys - converged_keys
+                if still_pending:
+                    failed = len(still_pending)
+                    details.append(f"Timeout: {failed} comments still non-converged")
                 break
 
             # Verify convergence
@@ -156,9 +202,9 @@ def run_finalization_pass(
             )
 
             still_non_converged = [cr.comment for cr in convergence_results if not cr.converged]
-            newly_converged = len(convergence_results) - len(still_non_converged)
-            repaired += newly_converged - unchanged
-            unchanged = 0  # Only count on first pass
+            for cr in convergence_results:
+                if cr.converged:
+                    converged_keys.add(comment_key(cr.comment))
 
             if not still_non_converged:
                 details.append("All comments converged after verification")
@@ -193,17 +239,18 @@ def run_finalization_pass(
                 details.append(f"Skipped: thread {skip.get('thread_id', '?')}: {skip.get('reason', 'unknown')}")
 
         # Determine final status
+        repaired = max(0, len(converged_keys) - unchanged)
         if failed > 0:
             status = "partial" if repaired > 0 else "failure"
         else:
             status = "success"
 
-        return _build_report(status, repaired, len(eligible.skipped), 0, failed, details, start_time)
+        return _build_report(status, repaired, len(eligible.skipped), unchanged, failed, details, start_time, review_state)
 
     except Exception as exc:
         details.append(f"Finalization error: {exc}")
         print(f"Warning: Finalization pass failed: {exc}", file=sys.stderr)
-        return _build_report("failure", 0, 0, 0, 0, details, start_time)
+        return _build_report("failure", 0, 0, 0, 0, details, start_time, review_state)
 
 
 def _build_report(
@@ -214,6 +261,7 @@ def _build_report(
     failed: int,
     details: list[str],
     start_time: float,
+    review_state: ReviewState | None = None,
 ) -> FinalizationReport:
     """Build a finalization report with duration calculation."""
     duration_ms = int((time.monotonic() - start_time) * 1000)
@@ -221,10 +269,14 @@ def _build_report(
 
     # Persist and emit
     try:
-        from ...state import get_state_dir
+        from ....state import get_state_dir, get_value
 
         state_dir = get_state_dir()
-        commit_hash_short = "unknown"
+        commit_hash_short = (
+            (review_state.commitHash or "")[:12]
+            if review_state and review_state.commitHash
+            else get_value("review.commit_hash_short") or "unknown"
+        )
         persist_report(report, state_dir, commit_hash_short)
     except Exception:
         pass  # Non-critical

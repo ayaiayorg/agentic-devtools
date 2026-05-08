@@ -1040,6 +1040,8 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
                 headers = get_auth_headers(pat)
                 repo_id = review_state.repoId
 
+                from ...state import is_dry_run as _is_dry_run
+
                 execute_cascade(
                     patch_operations=patch_ops,
                     requests_module=requests,
@@ -1047,11 +1049,11 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
                     config=config,
                     repo_id=repo_id,
                     pull_request_id=pr_id_int,
+                    dry_run=_is_dry_run(),
                 )
 
                 # Run finalization pass after cascade, before save
                 try:
-                    from ...state import is_dry_run
                     from ..azure_devops.finalization import run_finalization_pass
 
                     run_finalization_pass(
@@ -1059,10 +1061,11 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
                         pr_id=pr_id_int,
                         config=config,
                         headers=headers,
-                        dry_run=is_dry_run(),
+                        dry_run=_is_dry_run(),
                     )
 
-                    # Re-derive decision after finalization (status may have changed)
+                    # Re-derive decision after finalization (status may have changed);
+                    # the updated value feeds into variables["decision"] below for template rendering
                     overall_status = review_state.overallSummary.status
                     decision = _STATUS_DECISION_MAP.get(overall_status, format_status(overall_status, use_emoji=True))
                 except Exception as fin_exc:
