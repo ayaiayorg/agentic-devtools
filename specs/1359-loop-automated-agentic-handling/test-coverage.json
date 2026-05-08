@@ -1,0 +1,222 @@
+{
+  "findings": [],
+  "coverage": {
+    "FR-001": {
+      "fr_id": "FR-001",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T007",
+        "T048",
+        "T050",
+        "T051"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-002": {
+      "fr_id": "FR-002",
+      "priority": 2,
+      "user_story": "US2",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T049",
+        "T050",
+        "T057"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-003": {
+      "fr_id": "FR-003",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T052"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-004": {
+      "fr_id": "FR-004",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T053"
+      ],
+      "test_types": [
+        "happy-path",
+        "negative"
+      ]
+    },
+    "FR-005": {
+      "fr_id": "FR-005",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T019",
+        "T059"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-006": {
+      "fr_id": "FR-006",
+      "priority": 1,
+      "user_story": "US4",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T027",
+        "T060"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-007": {
+      "fr_id": "FR-007",
+      "priority": 1,
+      "user_story": "US5",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T029",
+        "T043",
+        "T061"
+      ],
+      "test_types": [
+        "happy-path",
+        "edge-case"
+      ]
+    },
+    "FR-008": {
+      "fr_id": "FR-008",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T054"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-009": {
+      "fr_id": "FR-009",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T007",
+        "T048",
+        "T055"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-010": {
+      "fr_id": "FR-010",
+      "priority": 3,
+      "user_story": "US6",
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T044"
+      ],
+      "test_types": []
+    },
+    "FR-011": {
+      "fr_id": "FR-011",
+      "priority": 1,
+      "user_story": "US5",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T056"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-012": {
+      "fr_id": "FR-012",
+      "priority": 1,
+      "user_story": "US5",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T030",
+        "T046",
+        "T062"
+      ],
+      "test_types": [
+        "happy-path",
+        "negative"
+      ]
+    },
+    "FR-013": {
+      "fr_id": "FR-013",
+      "priority": 3,
+      "user_story": "US6",
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T045"
+      ],
+      "test_types": []
+    },
+    "FR-014": {
+      "fr_id": "FR-014",
+      "priority": 3,
+      "user_story": "US6",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T058"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-015": {
+      "fr_id": "FR-015",
+      "priority": 2,
+      "user_story": "US3",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T047",
+        "T050"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    }
+  },
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-001 | US1 (P1) | T007, T048, T050, T051 | happy-path | \u2705 Covered |\n| FR-002 | US2 (P2) | T049, T050, T057 | happy-path | \u2705 Covered |\n| FR-003 | US1 (P1) | T052 | happy-path | \u2705 Covered |\n| FR-004 | US1 (P1) | T053 | happy-path, negative | \u2705 Covered |\n| FR-005 | US1 (P1) | T019, T059 | happy-path | \u2705 Covered |\n| FR-006 | US4 (P1) | T027, T060 | happy-path | \u2705 Covered |\n| FR-007 | US5 (P1) | T029, T043, T061 | happy-path, edge-case | \u2705 Covered |\n| FR-008 | US1 (P1) | T054 | happy-path | \u2705 Covered |\n| FR-009 | US1 (P1) | T007, T048, T055 | happy-path | \u2705 Covered |\n| FR-010 | US6 (P3) | T044 | None | \u2705 Covered |\n| FR-011 | US5 (P1) | T056 | happy-path | \u2705 Covered |\n| FR-012 | US5 (P1) | T030, T046, T062 | happy-path, negative | \u2705 Covered |\n| FR-013 | US6 (P3) | T045 | None | \u2705 Covered |\n| FR-014 | US6 (P3) | T058 | happy-path | \u2705 Covered |\n| FR-015 | US3 (P2) | T047, T050 | happy-path | \u2705 Covered |\n",
+  "summary": {
+    "total_frs": 15,
+    "covered_frs": 15,
+    "uncovered_frs": 0,
+    "total_test_tasks": 29,
+    "unmapped_test_tasks": 0,
+    "total_findings": 0
+  }
+}
