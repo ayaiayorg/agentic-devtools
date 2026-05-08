@@ -41,6 +41,12 @@
 #   SPECKIT_COPILOT_CLI_ON_STALL - Enable recovery layers (Layer 3-5) on stall
 #                                  detection (default: true).  Set to "false" to
 #                                  disable and fail immediately on stall.
+#   SPECKIT_CRITICAL_GATE_REMEDIATION - Enable/disable CRITICAL analysis gate
+#                                       remediation (default: true).  When true,
+#                                       the gate attempts multi-layer LLM-based
+#                                       remediation before failing.
+#   SPECKIT_CRITICAL_GATE_MAX_RETRIES - Max retries for Layer 1 (standard LLM
+#                                       remediation) of CRITICAL gate (default: 2).
 #
 # Outputs:
 #   GITHUB_OUTPUT: branch_name, spec_file, issue_number, spec_dir
@@ -112,6 +118,16 @@ MARKDOWNLINT_CLI2_VERSION="0.17.2"
 # Enable/disable the enhanced recovery layers (Layer 3: multi-turn SDK remediation,
 # Layer 4: alternate LLM remediation) on stall detection.  Set to "false" to disable.
 SPECKIT_COPILOT_CLI_ON_STALL="${SPECKIT_COPILOT_CLI_ON_STALL:-true}"
+# Enable/disable CRITICAL analysis gate remediation.  When enabled, the gate
+# attempts LLM-based remediation before failing.  Set to "false" to disable.
+SPECKIT_CRITICAL_GATE_REMEDIATION="${SPECKIT_CRITICAL_GATE_REMEDIATION:-true}"
+# Maximum retries for Layer 1 (standard LLM remediation) of the CRITICAL gate.
+SPECKIT_CRITICAL_GATE_MAX_RETRIES="${SPECKIT_CRITICAL_GATE_MAX_RETRIES:-2}"
+# Validate as a non-negative base-10 integer; fall back to default on bad input.
+if ! [[ "$SPECKIT_CRITICAL_GATE_MAX_RETRIES" =~ ^[0-9]+$ ]]; then
+    echo "Warning: SPECKIT_CRITICAL_GATE_MAX_RETRIES='$SPECKIT_CRITICAL_GATE_MAX_RETRIES' is not a valid non-negative integer. Using default (2)." >&2
+    SPECKIT_CRITICAL_GATE_MAX_RETRIES=2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -1116,6 +1132,10 @@ INSTRUCTIONS:
     echo "[Phase 7] [Layer 4]   ✗ Alternate LLM remediation exhausted ($max_attempts attempts)." >&2
     return 1
 }
+
+# Source CRITICAL gate remediation library (FR-009)
+# shellcheck source=lib/critical-gate-remediation.sh
+source "$SCRIPT_DIR/lib/critical-gate-remediation.sh"
 
 # ---------------------------------------------------------------------------
 # run_markdownlint_validation <spec_dir>
@@ -2684,6 +2704,19 @@ You MUST ensure that every FR identifier listed above appears at least once in t
         unset SPECKIT_FR_RETRY_FEEDBACK
     fi
 
+    # Append CRITICAL gate feedback if set by _run_critical_gate_remediation
+    if [[ -n "${SPECKIT_CRITICAL_GATE_FEEDBACK:-}" ]]; then
+        prompt="$prompt
+
+## IMPORTANT: CRITICAL Analysis Gate Feedback (Remediation)
+
+$SPECKIT_CRITICAL_GATE_FEEDBACK
+
+You MUST address ALL findings listed above. Failure to do so will cause the CRITICAL analysis gate to fail; in block mode the pipeline will abort."
+        # Clear feedback after use so it doesn't persist across retries
+        unset SPECKIT_CRITICAL_GATE_FEEDBACK
+    fi
+
     local result
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
@@ -3183,12 +3216,32 @@ run_single_phase() {
             check_analysis_gate "$report_path" "$gate_mode" true || gate_rc=$?
 
             if [[ "$gate_rc" -eq 10 ]]; then
-                # Unresolved CRITICALs detected
-                if [[ "$gate_mode" == "draft" ]]; then
-                    echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+                # Unresolved CRITICALs detected — attempt remediation
+                if [[ "${SPECKIT_CRITICAL_GATE_REMEDIATION:-true}" == "true" ]]; then
+                    echo "=== CRITICAL Gate Remediation ===" >&2
+                    if _run_critical_gate_remediation "$SPEC_DIR" "$critical_findings_json"; then
+                        echo "✓ CRITICAL findings resolved via remediation (${critical_gate_remediation_layer:-unknown})" >&2
+                        echo "critical_gate_remediation_status=success-${critical_gate_remediation_layer:-layer1}" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+                        # Refresh gate outputs so downstream steps see gate_result=pass
+                        check_analysis_gate "$report_path" "$gate_mode" true >/dev/null 2>&1 || true
+                    else
+                        # Remediation failed — fall through to mode check
+                        echo "critical_gate_remediation_status=failed" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+                        if [[ "$gate_mode" == "draft" ]]; then
+                            echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+                        else
+                            echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+                            exit 1
+                        fi
+                    fi
                 else
-                    echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
-                    exit 1
+                    echo "critical_gate_remediation_status=skipped" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+                    if [[ "$gate_mode" == "draft" ]]; then
+                        echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+                    else
+                        echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+                        exit 1
+                    fi
                 fi
             elif [[ "$gate_rc" -eq 20 ]]; then
                 echo "Error: CRITICAL analysis gate failed — report missing or malformed" >&2
@@ -3284,12 +3337,32 @@ else
     check_analysis_gate "$report_path" "$gate_mode" true || gate_rc=$?
 
     if [[ "$gate_rc" -eq 10 ]]; then
-        # Unresolved CRITICALs detected
-        if [[ "$gate_mode" == "draft" ]]; then
-            echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+        # Unresolved CRITICALs detected — attempt remediation
+        if [[ "${SPECKIT_CRITICAL_GATE_REMEDIATION:-true}" == "true" ]]; then
+            echo "=== CRITICAL Gate Remediation ===" >&2
+            if _run_critical_gate_remediation "$SPEC_DIR" "$critical_findings_json"; then
+                echo "✓ CRITICAL findings resolved via remediation (${critical_gate_remediation_layer:-unknown})" >&2
+                echo "critical_gate_remediation_status=success-${critical_gate_remediation_layer:-layer1}" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+                # Refresh gate outputs so downstream steps see gate_result=pass
+                check_analysis_gate "$report_path" "$gate_mode" true >/dev/null 2>&1 || true
+            else
+                # Remediation failed — fall through to mode check
+                echo "critical_gate_remediation_status=failed" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+                if [[ "$gate_mode" == "draft" ]]; then
+                    echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+                else
+                    echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+                    exit 1
+                fi
+            fi
         else
-            echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
-            exit 1
+            echo "critical_gate_remediation_status=skipped" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+            if [[ "$gate_mode" == "draft" ]]; then
+                echo "⚠ CRITICAL findings detected — draft mode: continuing to markdownlint" >&2
+            else
+                echo "Error: CRITICAL analysis gate failed — aborting (block mode)" >&2
+                exit 1
+            fi
         fi
     elif [[ "$gate_rc" -eq 20 ]]; then
         echo "Error: CRITICAL analysis gate failed — report missing or malformed" >&2

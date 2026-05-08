@@ -16,8 +16,9 @@
 #   return 20 = hard fail — report missing, empty, or malformed
 #
 # Caller-visible variables set on return:
-#   gate_result    = "pass" | "fail"
-#   critical_count = <integer>
+#   gate_result           = "pass" | "fail"
+#   critical_count        = <integer>
+#   critical_findings_json = JSON array of unresolved findings ([] when none)
 #
 # stdout: GATE_RESULT_JSON:{...} line (always)
 # stderr: Human-readable summary with banner (always)
@@ -37,6 +38,7 @@ check_analysis_gate() {
     # Initialize caller-visible variables
     gate_result="fail"
     critical_count=0
+    critical_findings_json="[]"
 
     # Validate mode parameter
     if [[ "$mode" != "block" ]] && [[ "$mode" != "draft" ]]; then
@@ -238,6 +240,7 @@ check_analysis_gate() {
         return 0
     else
         gate_result="fail"
+        critical_findings_json="$findings_json"
         _gate_emit_result "critical_findings_detected" "$report_path" "$findings_json" "$github_actions"
         echo "## ❌ SpecKit: CRITICAL Gate Failed" >&2
         echo "" >&2
