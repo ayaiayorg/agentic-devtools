@@ -1048,6 +1048,26 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
                     repo_id=repo_id,
                     pull_request_id=pr_id_int,
                 )
+
+                # Run finalization pass after cascade, before save
+                try:
+                    from ...state import is_dry_run
+                    from ..azure_devops.finalization import run_finalization_pass
+
+                    run_finalization_pass(
+                        review_state=review_state,
+                        pr_id=pr_id_int,
+                        config=config,
+                        headers=headers,
+                        dry_run=is_dry_run(),
+                    )
+
+                    # Re-derive decision after finalization (status may have changed)
+                    overall_status = review_state.overallSummary.status
+                    decision = _STATUS_DECISION_MAP.get(overall_status, format_status(overall_status, use_emoji=True))
+                except Exception as fin_exc:
+                    print(f"Warning: Finalization pass failed: {fin_exc}", file=sys.stderr)
+
             except Exception as exc:
                 print(f"Warning: Failed to update PR summary: {exc}", file=sys.stderr)
             finally:

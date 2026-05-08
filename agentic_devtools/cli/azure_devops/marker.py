@@ -174,6 +174,35 @@ def has_agdt_marker(content: str) -> bool:
     return bool(marker_type) and marker_type in MARKER_TYPES
 
 
+def strip_marker_line(content: str) -> str:
+    """Strip the leading agdt-review marker line from *content*.
+
+    Uses :func:`parse_marker` internally to detect the marker.  If a
+    marker is found on the first line, that line is removed and the
+    remaining content is returned.  If no marker is present, *content*
+    is returned unchanged.
+
+    Args:
+        content: Arbitrary string that may start with a marker line.
+
+    Returns:
+        *content* without the leading marker line, or unchanged when no
+        marker is detected.
+    """
+    if not content:
+        return content
+
+    first_line_end = content.find("\n")
+    first_line = content[:first_line_end] if first_line_end != -1 else content
+
+    if parse_marker(first_line) is None:
+        return content
+
+    if first_line_end == -1:
+        return ""
+    return content[first_line_end + 1 :]
+
+
 # ---------------------------------------------------------------------------
 # Thread filtering / classification
 # ---------------------------------------------------------------------------
