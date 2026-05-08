@@ -1,84 +1,140 @@
 # Tasks: Pin agentic-devtools Version & Guard agdt-setup
 
-## Phase 1: Setup
+**Issue**: [#1324](https://github.com/ayaiayorg/agentic-devtools/issues/1324)
 
-- [ ] T001 Add `packaging>=21.0` to `[project.dependencies]` in `pyproject.toml` and install with `pip install -e .`
-- [ ] T002 Create file `agentic_devtools/cli/setup/version_guard.py` (empty module) and file `agentic_devtools/cli/setup/gitignore_negations.py` (empty module);
-  ensure parent directory `agentic_devtools/cli/setup/` exists with `__init__.py`
-- [ ] T003 Scaffold the 1:1:1 unit-check directory structure with `__init__.py` for `version_guard` and `gitignore_negations` modules
+## Phase 1: Setup — Project Scaffolding
+
+- [ ] T001 Add `"packaging>=21.0"` to `[project.dependencies]` in `pyproject.toml` and run `pip install -e .` to confirm resolution
+- [ ] T002 Create directory `agentic_devtools/cli/setup/` with `__init__.py` if it does not already exist
+- [ ] T003 Create directory `tests/unit/cli/setup/version_guard/` with `__init__.py` files at each level
+- [ ] T004 [P] Create directory `tests/unit/cli/setup/gitignore_negations/` with `__init__.py` files at each level
 
 ## Phase 2: Foundational — Version Comparison & Gitignore Helpers
 
-- [ ] T004 [P] Write failing happy-path and edge-case tests for `_fallback_compare(running, pinned) -> int` covering: normal versions, pre-release (`dev`, `rc`,
-  `alpha`, `beta`), post-release, local metadata stripping (`+local`), segments with no leading digits, equal versions, padding shorter lists (FR-003, NFR-003 fallback rules)
-- [ ] T005 [P] Write failing happy-path and edge-case tests for `compare_versions(running, pinned) -> int` covering: PEP 440 normal/pre-release/dev/post ordering
-  via `packaging.version.Version`, fallback path when `packaging` is unavailable (FR-003), returns -1/0/1
-- [ ] T006 [P] Write failing happy-path and negative tests for `check_version_guard(git_root, force_old_version) -> str | None` covering: no `project.json` →
-  `None` (FR-010), no `agdt_version` key → `None` (FR-010), malformed `agdt_version` → `None` + warning (FR-011), older+no-force → `"block"` + stderr contains running version/required version/upgrade
-  cmd/force flag (FR-004, FR-005), older+force → `"force"` + stderr warning about skipped repo files (FR-007, FR-009), equal version → `None` (FR-006), newer version → `None` (FR-006), force flag with
-  equal/newer version → `None` silent no-op (US3/AS4)
-- [ ] T007 [P] Write failing happy-path and edge-case tests for `ensure_root_gitignore_negations(git_root)` covering: insert negation rules after `.agdt/` line (FR-013), idempotent re-run,
-  missing `.gitignore` file, no `.agdt/` rule in file, correct ordering `!.agdt/` then `!.agdt/config/` then `!.agdt/config/project.json`
-- [ ] T008 Implement `_fallback_compare(running, pinned) -> int` in `agentic_devtools/cli/setup/version_guard.py` — segment-based comparison per NFR-003 rules (strip `+local`, decompose segments,
-  suffix ordering, pad, lexicographic compare, fail-open on error)
-- [ ] T009 Implement `compare_versions(running, pinned) -> int` in `agentic_devtools/cli/setup/version_guard.py` — use `packaging.version.Version` with try/except falling back to `_fallback_compare`
-  (FR-003); log warning when fallback is used
-- [ ] T010 Implement `check_version_guard(git_root, force_old_version) -> str | None` in `agentic_devtools/cli/setup/version_guard.py` — load `project.json` via `load_project_config`, read
-  `agdt_version`, handle missing/malformed values (FR-010, FR-011), call `compare_versions`, emit error to stderr with running version + required version + upgrade command + force flag (FR-005), emit
-  force-path warning (FR-009), return `"block"` / `"force"` / `None`
-- [ ] T011 Implement `ensure_root_gitignore_negations(git_root: Path) -> bool` in `agentic_devtools/cli/setup/gitignore_negations.py` — idempotent insertion of `!.agdt/`, `!.agdt/config/`,
-  `!.agdt/config/project.json` after the `.agdt/` ignore rule (FR-013); handle edge cases
-- [ ] T012 Phase 2 gate: run unit checks for `version_guard` and `gitignore_negations` modules — all green
-- [ ] T013 [P] Write integration test for `ensure_root_gitignore_negations(git_root)` — init temp git repo, write `.gitignore` with `.agdt/`, run helper,
-  shell out to `git check-ignore .agdt/config/project.json` to confirm file is NOT ignored (FR-013)
+- [ ] T005 Write tests `tests/unit/cli/setup/version_guard/test__fallback_compare.py` covering: happy-path (equal versions, older/newer), pre-release suffixes (`dev`, `alpha`, `rc`, `post`), local metadata
+  stripping (`+local`), non-numeric segments, empty strings, garbage input fail-open — 100% coverage of `_fallback_compare`
+- [ ] T006 Create `agentic_devtools/cli/setup/version_guard.py` with `_fallback_compare(running: str, pinned: str) -> int` implementing NFR-003 segment-based fallback (strip `+local`, split on `.`,
+  decompose segments with suffix ordering, pad, compare lexicographically, fail-open on error)
+- [ ] T007 Write tests `tests/unit/cli/setup/version_guard/test_compare_versions.py` covering: happy-path (PEP 440 normal versions, equal versions), pre-release ordering (`0.2.69.dev1` < `0.2.69`), post-release,
+  fallback path when `packaging` import fails (mock `ImportError`)
+- [ ] T008 Add `compare_versions(running: str, pinned: str) -> int` to `version_guard.py` using `packaging.version.Version` with try/except fallback to `_fallback_compare`; log warning on fallback
+- [ ] T009 Write tests `tests/unit/cli/setup/version_guard/test_check_version_guard.py` covering: happy-path (equal version → `None`, newer version → `None`),
+  no `project.json` → `None` (FR-010), no `agdt_version` key → `None` (FR-010), malformed `agdt_version`
+  (empty, garbage) → `None` + warning logged (FR-011), older + no force → `"block"` + stderr contains running version, required version, upgrade command, `--force-old-version` (FR-005), older + force
+  → `"force"` + warning on stderr (FR-009), force + equal/newer → `None` silently (US3/AS4)
+- [ ] T010 Add `check_version_guard(git_root: Path | None, force_old_version: bool) -> str | None` to `version_guard.py` implementing:
+  load `project.json` via `load_project_config`, read `agdt_version`, handle missing/None/malformed values (FR-010, FR-011),
+  compare versions, return `None`/`"block"`/`"force"`, emit error to stderr on block (FR-005),
+  emit warning to stderr on force (FR-009), silently return `None` when force + version >= pinned (US3/AS4)
+- [ ] T011 [P] Write tests `tests/unit/cli/setup/gitignore_negations/test_ensure_root_gitignore_negations.py` covering:
+  happy-path (insert after `.agdt/` rule), idempotent (already present), no `.gitignore` file,
+  `.gitignore` exists but no `.agdt/` rule, partial negation rules already present, file permissions error
+- [ ] T012 [P] Create `agentic_devtools/cli/setup/gitignore_negations.py` with `ensure_root_gitignore_negations(git_root: Path) -> bool` implementing FR-013: read root `.gitignore`, find `.agdt/`
+  line, insert `!.agdt/`, `!.agdt/config/`, `!.agdt/config/project.json` after it in order, idempotent, handle missing file / no `.agdt/` rule / not writable
+- [ ] T013 [P] Write integration test `tests/unit/cli/setup/gitignore_negations/test_ensure_root_gitignore_negations_integration.py` that initializes a temp git repo, writes `.gitignore` with
+  `.agdt/`, runs helper, shells out to `git check-ignore .agdt/config/project.json` to confirm file is NOT ignored
 
 ## Phase 3: User Story 1 — Version Pinning on Successful Setup (P1)
 
-- [ ] T014 [US1] Write failing happy-path tests for version pin write inside `_run_file_modifying_steps()`: assert `project.json` gains `agdt_version` matching `__version__` (FR-001, FR-002), assert existing
-  keys preserved (FR-012), assert version write is last step (FR-001), assert version updates when newer (FR-006), assert no-op when equal version
-- [ ] T015 [US1] Write failing happy-path tests for `ensure_root_gitignore_negations(git_root)` call inside `_run_file_modifying_steps()` after `ensure_agdt_gitignore()` (FR-013)
-- [ ] T016 [US1] Add `ensure_root_gitignore_negations(git_root)` call inside `_run_file_modifying_steps()` immediately after existing `ensure_agdt_gitignore()` call in
-  `agentic_devtools/cli/setup/commands.py` (FR-013)
-- [ ] T017 [US1] Add version pin write as the LAST step inside `_run_file_modifying_steps()` in `agentic_devtools/cli/setup/commands.py`: load config, set `config["agdt_version"] = __version__`, save
-  config (FR-001, FR-002, FR-006, FR-012)
-- [ ] T018 [US1] Remove or update outdated console guidance in `setup_cmd()` that tells users to manually add `.agdt/` negation rules to root `.gitignore`
-- [ ] T019 [US1] US1 gate: confirm all `agdt-setup` command checks pass
+- [ ] T014 [US1] Modify `agentic_devtools/cli/setup/commands.py` → `setup_cmd()` to: (a) move `git_root = _get_git_repo_root()` immediately after argparse, (b) add `--force-old-version` argparse flag
+  (`store_true`), (c) insert version guard call after `git_root` — if `"block"` then `sys.exit(1)` before any local-only steps, if `"force"` set `skip_repo_steps=True`, (d) gate local-only steps to
+  NOT run when guard returns `"block"` (FR-004 fail-fast), (e) gate `_run_file_modifying_steps()` and PR workflow to NOT run when `skip_repo_steps=True`, (f) inside `_run_file_modifying_steps()` add
+  `ensure_root_gitignore_negations(git_root)` call after `ensure_agdt_gitignore()` (FR-013), (g) as LAST step inside `_run_file_modifying_steps()` write `agdt_version` to `project.json` via
+  `load_project_config`/`save_project_config` (FR-001, FR-002, FR-012), (h) remove/update any outdated console guidance about manually adding `!.agdt/.gitignore` negation rules
+- [ ] T015 [US1] Write/update tests in `tests/unit/cli/setup/commands/` for version pin write:
+  happy-path (mock `_run_file_modifying_steps` internals to verify `agdt_version` is written as LAST step), verify
+  existing keys preserved (FR-012), verify version string matches `__version__` (FR-002), verify no write when preceding step fails, verify idempotent on same version (US1/AS3), verify update on newer
+  version (US1/AS2)
+- [ ] T016 [US1] Write/update tests in `tests/unit/cli/setup/commands/` for gitignore negation integration: verify `ensure_root_gitignore_negations()` is called inside `_run_file_modifying_steps()`
+  after `ensure_agdt_gitignore()`, verify not called when `skip_repo_steps=True`
 
 ## Phase 4: User Story 2 — Block Downgrade on Older Version (P1)
 
-- [ ] T020 [US2] Write failing happy-path and negative tests for version guard integration in `agdt-setup`: older version + no force → `sys.exit(1)` called (FR-004),
-  `_run_file_modifying_steps` NOT called, local-only steps NOT called (FR-004 fail-fast), `agdt_version` NOT modified (FR-004 — no mutations occur)
-- [ ] T021 [US2] Write failing test: `_get_git_repo_root()` is called BEFORE `check_version_guard()` (verify call ordering)
-- [ ] T022 [US2] Move `git_root = _get_git_repo_root()` earlier in `setup_cmd()` — immediately after argparse parsing, before any local-only steps (NFR-001)
-- [ ] T023 [US2] Insert version guard call after `git_root` detection in `setup_cmd()`: call `check_version_guard(git_root, args.force_old_version)`, if result is `"block"` → `sys.exit(1)` (FR-004);
-  set `skip_repo_steps = (result == "force")`
-- [ ] T024 [US2] When `skip_repo_steps` is True, skip call to `_run_file_modifying_steps()` and skip PR workflow invocation; local-only steps still execute (FR-007)
-- [ ] T025 [US2] US2 gate: confirm all `agdt-setup` command checks pass
+- [ ] T017 [US2] Write/update tests in `tests/unit/cli/setup/commands/` for fail-fast block path:
+  happy-path (mock `check_version_guard` → `None`, assert normal execution),
+  negative (mock `check_version_guard` → `"block"`, assert `sys.exit(1)`, assert `_run_file_modifying_steps` NOT
+  called, assert local-only steps (cert prefetch, managed installs, dependency check, env persist) NOT called (FR-004),
+  assert `agdt_version` NOT modified, assert no branch created, no PR opened)
+- [ ] T018 [US2] Write/update tests for happy-path pass-through when no `agdt_version` exists:
+  mock `check_version_guard` → `None`, assert both local-only and `_run_file_modifying_steps()` run normally (FR-010)
+- [ ] T019 [US2] Write/update test verifying `_get_git_repo_root()` is called BEFORE `check_version_guard()` via mock call-order assertion (NFR-001)
 
 ## Phase 5: User Story 3 — Force Override for Local-Only Steps (P2)
 
-- [ ] T026 [US3] Add `--force-old-version` argparse argument to `setup_cmd()` (store_true, default False) in `agentic_devtools/cli/setup/commands.py`
-- [ ] T027 [US3] Write failing tests: older + `--force-old-version` → exit 0, local-only steps run (cert prefetch, managed installs, dep check, env persist), `_run_file_modifying_steps()` NOT called
-  (FR-007), PR workflow NOT invoked, `agdt_version` NOT modified (FR-008)
-- [ ] T028 [US3] Write failing test: equal/newer version + `--force-old-version` → flag silently ignored, `agdt-setup` proceeds normally (US3/AS4)
-- [ ] T029 [US3] Write failing tests for flag interactions: `--force-old-version` + `--skip-pr-workflow` both respected independently; `--force-old-version` + `--system-only` both respected
-- [ ] T030 [US3] US3 gate: confirm all `agdt-setup` command checks pass
+- [ ] T020 [US3] Write/update tests in `tests/unit/cli/setup/commands/` for happy-path force-skip path:
+  mock `check_version_guard` → `"force"`, assert exit code 0, assert local-only steps ARE called, assert
+  `_run_file_modifying_steps()` NOT called, assert PR workflow NOT invoked, assert `agdt_version` NOT modified (FR-008)
+- [ ] T021 [US3] Write/update tests for flag interaction `--force-old-version` + `--skip-pr-workflow`: assert both flags respected independently, PR workflow not invoked, repo-modifying steps skipped
+- [ ] T022 [US3] Write/update tests for flag interaction `--force-old-version` + `--system-only`: assert `--system-only` behavior preserved, repo-modifying steps still skipped by force flag
 
 ## Phase 6: User Story 4 — Clear Version Mismatch Messaging (P2)
 
-- [ ] T031 [US4] Write failing tests: error message (block path) contains exact running version, exact required version, `python setup-dev-tools.py` command, and `--force-old-version` flag (FR-005)
-- [ ] T032 [US4] Write failing tests: warning message (force path) explains local-only steps run but repo changes skipped, states mode is not recommended (FR-009)
-- [ ] T033 [US4] Verify messaging implementation in `check_version_guard()` satisfies FR-005 and FR-009 — adjust formatting to match existing `agdt-setup` output style with `✓`/`⚠` emoji prefixes and
-  `print(..., file=sys.stderr)` (NFR-002)
-- [ ] T034 [US4] US4 gate: confirm all `version_guard` checks pass
+- [ ] T023 [US4] Write/update tests verifying error message content on block path:
+  happy-path (stderr contains exact running version, exact required version, `python setup-dev-tools.py`,
+  `--force-old-version`) (FR-005)
+- [ ] T024 [US4] Write/update tests verifying warning message content on happy-path force path: captured stderr explains repo files will not be modified and mode is not recommended (FR-009)
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T035 Full suite gate — `agdt-test` + `agdt-task-wait` — all 2000+ pass
-- [ ] T036 Structure gate — run the 1:1:1 structural validator — passes with new files
-- [ ] T037 Run `bash scripts/run-pr-checks.sh` — all PR checks pass (SC-006)
-- [ ] T038 Run `ruff check . && ruff format --check .` — no lint/format issues
-- [ ] T039 Verify backward compatibility: repos without `agdt_version` in `project.json` proceed normally (SC-005, FR-010)
+- [ ] T025 Run `python scripts/validate_test_structure.py` and fix any structural violations
+- [ ] T026 Run `ruff check --fix . && ruff format .` to fix lint/format issues
+- [ ] T027 Run `bash scripts/run-pr-checks.sh` — all checks must pass (SC-006)
+- [ ] T028 Update `agentic_devtools/cli/setup/__init__.py` to export new public symbols (`check_version_guard`, `compare_versions`, `ensure_root_gitignore_negations`)
+
+---
+
+## Dependency Graph
+
+```text
+T001 ─┐
+T002 ─┤
+T003 ─┼→ T005 → T006 → T007 → T008 → T009 → T010 ─┐
+T004 ─┼→ T011 → T012                                 │
+      └→ T011 → T013                                 │
+                                                      ├→ T014 → T015
+                                                      │       → T016
+                                                      │       → T017
+                                                      │       → T018
+                                                      │       → T019
+                                                      │       → T020
+                                                      │       → T021
+                                                      │       → T022
+                                                      │       → T023
+                                                      │       → T024
+                                                      │
+T015–T024 ──────────────────────────→ T025 → T026 → T027
+T014 ────────────────────────────────→ T028
+```
+
+## Requirement Traceability
+
+| Requirement | Task(s) |
+|---|---|
+| FR-001 (version write on success) | T014(g), T015 |
+| FR-002 (version as string from `__version__`) | T014(g), T015 |
+| FR-003 (PEP 440 comparison) | T005, T006, T007, T008, T009, T010 |
+| FR-004 (fail-fast, no local steps) | T014(c)(d), T017 |
+| FR-005 (error message content) | T009, T010, T023 |
+| FR-006 (equal/newer proceeds normally) | T009, T010, T014(g), T015 |
+| FR-007 (force allows local-only) | T009, T014(e), T020 |
+| FR-008 (force does not update version) | T014(e), T020 |
+| FR-009 (force warning message) | T009, T010, T024 |
+| FR-010 (no guard when no agdt_version) | T009, T010, T018 |
+| FR-011 (malformed version warning) | T009, T010 |
+| FR-012 (preserve existing keys) | T014(g), T015 |
+| FR-013 (gitignore negation rules) | T011, T012, T013, T014(f), T016 |
+| NFR-001 (guard before file-modifying) | T014(a)(c), T019 |
+| NFR-002 (output style) | T009, T023, T024 |
+| NFR-003 (packaging dep + fallback) | T001, T005, T006, T007, T008 |
+| NFR-004 (100% coverage, 1:1:1) | T003, T004, T005, T007, T009, T011, T013, T015–T024, T025 |
+
+## Remediation Notes
+
+- **[F-01]** Resolved: The E.2 coverage data (`test-coverage.json`) has been updated to replace all stale task IDs (T029, T031, T032, T033, T039) from a prior draft
+  with the correct task IDs from the current traceability table (T001–T028). All 13 FRs now reference valid, existing tasks. Additionally, FR-008 traceability was strengthened by adding T014(e) (the
+  implementation sub-item that gates `_run_file_modifying_steps()`) alongside T020 (the test task).
+- **[G-01]** Fixed: All five `setup_cmd()` modifications consolidated into single task T014 with sub-items (a–h).
+- **[G-02]** Fixed: Both `_run_file_modifying_steps()` additions (gitignore negations + version write) consolidated into T014 sub-items (f) and (g).
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*

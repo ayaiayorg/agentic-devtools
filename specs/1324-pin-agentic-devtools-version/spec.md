@@ -163,8 +163,8 @@ the situation without searching documentation.
   `run_setup_with_pr_workflow()` (which commits working tree changes before returning to the user's branch).
 - **FR-002** [US1]: The version MUST be written as a string value (e.g., `"0.2.69"`) sourced from `agentic_devtools.__version__`.
 - **FR-003** [US1, US2]: On subsequent `agdt-setup` runs, the system MUST compare the running version against the `agdt_version` recorded in `project.json` using PEP 440-compliant version comparison.
-- **FR-004** [US2]: If the running version is strictly older than the recorded `agdt_version` **and `--force-old-version` is NOT specified**, the system MUST print an error to stderr, skip all repo file
-  mutations **and all local-only steps** (fail fast — no cert prefetch, no managed installs, no dependency checks, no shell profile persistence), and exit with a non-zero exit code. When
+- **FR-004** [US2]: If the running version is strictly older than the recorded `agdt_version` **and `--force-old-version` is NOT specified**, the system MUST print an error to stderr, skip all
+  repo file mutations **and all local-only steps** (fail fast — no cert prefetch, no managed installs, no dependency checks, no shell profile persistence), and exit with a non-zero exit code. When
   `--force-old-version` IS specified, the system MUST instead print a warning and continue with local-only steps (see FR-007/FR-009).
 - **FR-005** [US4]: The error message (non-force path) MUST include: (a) the running version, (b) the required version, (c) a recommendation to run `python setup-dev-tools.py`, (d) mention of the
   `--force-old-version` flag.
