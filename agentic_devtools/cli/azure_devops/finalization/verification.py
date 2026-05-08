@@ -6,12 +6,12 @@ from typing import Any
 
 from ..config import AzureDevOpsConfig
 from .convergence import normalize_for_comparison
-from .models import ConvergenceResult, EligibleComment, EligibleComments
+from .models import CommentKey, ConvergenceResult, EligibleComment, EligibleComments, comment_key
 
 
 def verify_convergence(
     eligible: EligibleComments,
-    expected_map: dict[int, str],
+    expected_map: dict[CommentKey, str],
     config: AzureDevOpsConfig,
     headers: dict[str, str],
     pr_id: int,
@@ -24,7 +24,8 @@ def verify_convergence(
 
     Args:
         eligible: The classified eligible comments.
-        expected_map: Map of comment_id → expected body content (marker-free).
+        expected_map: Map of (thread_id, comment_id) → expected body content
+            (marker-free).
         config: Azure DevOps configuration.
         headers: Auth headers for API calls.
         pr_id: Pull request ID.
@@ -37,7 +38,7 @@ def verify_convergence(
     all_comments = _collect_all_comments(eligible)
 
     for comment in all_comments:
-        expected = expected_map.get(comment.comment_id, "")
+        expected = expected_map.get(comment_key(comment), "")
         try:
             current_content = _fetch_comment_content(config, headers, repo_id, pr_id, comment)
             observed = normalize_for_comparison(current_content)

@@ -2,38 +2,12 @@
 
 from __future__ import annotations
 
-from ..marker import parse_marker
-from ..review_state import COMPLETE_STATUSES, ReviewState, ReviewStatus
+from dataclasses import replace
+
+from ..marker import strip_marker_line
+from ..review_state import COMPLETE_STATUSES, ReviewState, ReviewStatus, normalize_file_path
 from ..review_templates import render_file_summary, render_overall_summary
 from .models import EligibleComment
-
-
-def strip_marker_line(content: str) -> str:
-    """Strip the leading AGDT marker line from content.
-
-    Uses ``parse_marker()`` internally to detect the marker.  If a marker
-    is found, removes the first line (which contains the marker) from
-    the content.  If no marker is present, returns content unchanged.
-
-    Args:
-        content: Arbitrary content string that may start with a marker line.
-
-    Returns:
-        Content with the leading marker line removed, or unchanged if no
-        marker is present.
-    """
-    if not content:
-        return content
-
-    parsed = parse_marker(content)
-    if parsed is None:
-        return content
-
-    # The marker is on the first line — remove it
-    lines = content.split("\n", 1)
-    if len(lines) > 1:
-        return lines[1]
-    return ""
 
 
 def compute_expected_content(
@@ -81,7 +55,7 @@ def normalize_for_comparison(content: str) -> str:
 def check_convergence(comment: EligibleComment, expected: str) -> bool:
     """Check if a comment's observed content matches the expected terminal content.
 
-    Normalizes the observed content (strips marker line) before comparison.
+    Strips the leading marker line from the observed content before comparison.
 
     Args:
         comment: The eligible comment with current observed content.
@@ -91,7 +65,7 @@ def check_convergence(comment: EligibleComment, expected: str) -> bool:
     Returns:
         True if the comment has converged (content matches), False otherwise.
     """
-    observed = normalize_for_comparison(comment.current_content)
+    observed = strip_marker_line(comment.current_content)
     return observed.strip() == expected.strip()
 
 
@@ -102,13 +76,17 @@ def _compute_file_summary_content(
 ) -> str:
     """Compute expected file summary content."""
     file_path = comment.file_path
-    if not file_path or file_path not in review_state.files:
+    if not file_path:
         return ""
 
-    file_entry = review_state.files[file_path]
-    # Ensure file has a terminal status
+    normalized = normalize_file_path(file_path)
+    if normalized not in review_state.files:
+        return ""
+
+    file_entry = review_state.files[normalized]
+    # Use effective status without mutating the original file entry
     if file_entry.status not in COMPLETE_STATUSES:
-        file_entry.status = ReviewStatus.APPROVED.value
+        file_entry = replace(file_entry, status=ReviewStatus.APPROVED.value)
 
     suggestions = file_entry.suggestions or []
     rendered = render_file_summary(file_entry, suggestions, base_url)
@@ -119,8 +97,23 @@ def _compute_overall_summary_content(
     review_state: ReviewState,
     base_url: str,
 ) -> str:
-    """Compute expected overall summary content."""
-    rendered = render_overall_summary(review_state, base_url)
+    """Compute expected overall summary content.
+
+    Creates a shallow copy of review_state with effective terminal statuses
+    so that rendering reflects the finalized state without mutating the
+    original review_state.
+    """
+    # Build effective files dict with non-terminal statuses promoted to approved
+    effective_files = {}
+    for file_path, file_entry in review_state.files.items():
+        if file_entry.status not in COMPLETE_STATUSES:
+            effective_files[file_path] = replace(file_entry, status=ReviewStatus.APPROVED.value)
+        else:
+            effective_files[file_path] = file_entry
+
+    # Create a shallow copy of review_state with effective file statuses
+    effective_state = replace(review_state, files=effective_files)
+    rendered = render_overall_summary(effective_state, base_url)
     return rendered
 
 
@@ -143,7 +136,7 @@ def _compute_activity_log_content(review_state: ReviewState) -> str:
     entry = _format_activity_log_entry(
         status_emoji="✅",
         status_text="Completed",
-        timestamp=session.completedUtc or session.startedUtc,
+        timestamp=session.startedUtc,
         model_name=session.modelId,
         short_hash=short_hash,
         session_id=session.sessionId,

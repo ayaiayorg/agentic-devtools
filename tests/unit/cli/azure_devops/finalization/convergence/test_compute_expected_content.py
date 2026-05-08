@@ -100,3 +100,102 @@ class TestComputeExpectedContent:
         )
         result = compute_expected_content(comment, _minimal_review_state(), _BASE_URL)
         assert result == ""
+
+    def test_does_not_mutate_review_state_for_non_terminal_status(self):
+        """Should not mutate the original file_entry.status when it is non-terminal."""
+        state = _minimal_review_state()
+        state.files["/src/a.py"].status = "in-progress"
+
+        comment = EligibleComment(
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={"type": "file-summary", "file": "/src/a.py"},
+            current_content="old content",
+            file_path="/src/a.py",
+        )
+        result = compute_expected_content(comment, state, _BASE_URL)
+        # The function should still produce output (treating as approved)
+        assert "File Review Summary" in result
+        # But the original state must NOT be mutated
+        assert state.files["/src/a.py"].status == "in-progress"
+
+    def test_file_summary_returns_empty_when_file_not_in_state(self):
+        """Should return empty string when file_path is not in review_state.files."""
+        comment = EligibleComment(
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={"type": "file-summary", "file": "/src/missing.py"},
+            current_content="old content",
+            file_path="/src/missing.py",
+        )
+        result = compute_expected_content(comment, _minimal_review_state(), _BASE_URL)
+        assert result == ""
+
+    def test_file_summary_returns_empty_when_no_file_path(self):
+        """Should return empty string when comment has no file_path."""
+        comment = EligibleComment(
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={"type": "file-summary"},
+            current_content="old content",
+            file_path=None,
+        )
+        result = compute_expected_content(comment, _minimal_review_state(), _BASE_URL)
+        assert result == ""
+
+    def test_overall_summary_promotes_non_terminal_statuses(self):
+        """Should promote non-terminal file statuses to approved in overall summary."""
+        state = _minimal_review_state()
+        state.files["/src/a.py"].status = "in-progress"
+
+        comment = EligibleComment(
+            thread_id=100,
+            comment_id=1,
+            marker_type="overall-summary",
+            marker_data={"type": "overall-summary"},
+            current_content="old content",
+        )
+        result = compute_expected_content(comment, state, _BASE_URL)
+        # Should produce output (rendering with effective approved status)
+        assert "Overall PR Review Summary" in result
+        # Original state must NOT be mutated
+        assert state.files["/src/a.py"].status == "in-progress"
+
+    def test_activity_log_returns_empty_when_no_sessions(self):
+        """Should return empty string when review_state has no sessions."""
+        comment = EligibleComment(
+            thread_id=200,
+            comment_id=2,
+            marker_type="activity-log-entry",
+            marker_data={"type": "activity-log-entry"},
+            current_content="old content",
+        )
+        result = compute_expected_content(comment, _minimal_review_state(sessions=[]), _BASE_URL)
+        assert result == ""
+
+    def test_activity_log_uses_started_utc_not_completed_utc(self):
+        """Should use startedUtc for the timestamp, not completedUtc.
+
+        _update_activity_log_comment_status always renders with session.startedUtc,
+        so _compute_activity_log_content must match to avoid convergence mismatch.
+        """
+        session = ReviewSession(
+            sessionId="sess-1",
+            modelId="gpt-5",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+        )
+        comment = EligibleComment(
+            thread_id=200,
+            comment_id=2,
+            marker_type="activity-log-entry",
+            marker_data={"type": "activity-log-entry"},
+            current_content="old content",
+        )
+        result = compute_expected_content(comment, _minimal_review_state(sessions=[session]), _BASE_URL)
+        assert "2026-01-01T00:00:00+00:00" in result
+        assert "2026-01-01T01:00:00+00:00" not in result

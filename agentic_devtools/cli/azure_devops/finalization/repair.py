@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import sys
-from typing import Any
+from datetime import datetime, timezone
 
 from ..config import AzureDevOpsConfig
+from ..helpers import patch_comment, patch_thread_status, require_requests
 from ..marker import build_marker
-from ..review_state import COMPLETE_STATUSES, ReviewState, ReviewStatus
-from .convergence import compute_expected_content
-from .models import BatchRepairResult, EligibleComment, EligibleComments, TargetedRepairResult
+from ..review_state import ReviewState, normalize_file_path
+from ..status_cascade import _THREAD_STATUS_MAP
+from .convergence import check_convergence, compute_expected_content
+from .models import BatchRepairResult, CommentKey, EligibleComment, EligibleComments, TargetedRepairResult, comment_key
 
 
 def batch_repair_pass(
@@ -25,8 +26,8 @@ def batch_repair_pass(
 
     Drives file-summary convergence by re-rendering from review state and
     executing a single cascade at the end.  Preserves existing file verdicts
-    (approved/needs-work).  Calls ``_complete_active_session()`` for
-    activity-log finalization.
+    (approved/needs-work).  Completes the active review session directly on
+    the already-loaded *review_state* for activity-log finalization.
 
     Args:
         eligible: Classified eligible comments.
@@ -42,11 +43,6 @@ def batch_repair_pass(
     """
     result = BatchRepairResult()
 
-    # Ensure all files have terminal statuses in review state
-    for file_path, file_entry in review_state.files.items():
-        if file_entry.status not in COMPLETE_STATUSES:
-            file_entry.status = ReviewStatus.APPROVED.value
-
     # Repair file summaries via direct PATCH (re-render from state)
     for comment in eligible.file_summaries:
         result.attempted += 1
@@ -56,13 +52,35 @@ def batch_repair_pass(
 
         try:
             expected = compute_expected_content(comment, review_state, base_url)
+            if not expected:
+                result.failed += 1
+                result.errors.append(f"file-summary {comment.file_path}: empty expected content, skipping to avoid wiping comment")
+                continue
+            # Skip PATCH if already converged to avoid unnecessary API calls
+            if check_convergence(comment, expected):
+                result.succeeded += 1
+                continue
             marker = build_marker(
                 "file-summary",
                 file=comment.file_path,
                 pr=pr_id,
             )
             new_content = f"{marker}\n{expected}"
-            _patch_comment(config, headers, review_state.repoId, pr_id, comment, new_content)
+            requests_module = require_requests()
+            patch_comment(
+                requests_module,
+                headers,
+                config,
+                review_state.repoId,
+                pr_id,
+                comment.thread_id,
+                comment.comment_id,
+                new_content,
+            )
+            # Sync thread status with file review status
+            _patch_file_thread_status(
+                comment, review_state, config, headers, pr_id,
+            )
             result.succeeded += 1
         except Exception as exc:
             result.failed += 1
@@ -87,9 +105,9 @@ def batch_repair_pass(
             result.activity_log_completed = True
         else:
             try:
-                _complete_activity_log(pr_id)
+                _complete_activity_log(review_state, config, headers, pr_id)
                 result.activity_log_completed = True
-            except (Exception, SystemExit) as exc:
+            except Exception as exc:
                 result.errors.append(f"activity-log completion: {exc}")
 
     return result
@@ -97,7 +115,7 @@ def batch_repair_pass(
 
 def targeted_repair(
     non_converged: list[EligibleComment],
-    expected_map: dict[int, str],
+    expected_map: dict[CommentKey, str],
     config: AzureDevOpsConfig,
     headers: dict[str, str],
     pr_id: int,
@@ -115,7 +133,7 @@ def targeted_repair(
 
     Args:
         non_converged: List of non-converged comments.
-        expected_map: Map of comment_id → expected body content.
+        expected_map: Map of (thread_id, comment_id) → expected body content.
         config: Azure DevOps configuration.
         headers: Auth headers for API calls.
         pr_id: Pull request ID.
@@ -133,10 +151,10 @@ def targeted_repair(
             result.succeeded += 1
             continue
 
-        expected = expected_map.get(comment.comment_id, "")
+        expected = expected_map.get(comment_key(comment), "")
         if not expected:
             result.failed += 1
-            result.errors.append(f"No expected content for comment {comment.comment_id}")
+            result.errors.append(f"No expected content for comment thread={comment.thread_id} comment={comment.comment_id}")
             continue
 
         try:
@@ -149,39 +167,28 @@ def targeted_repair(
                     pr=pr_id,
                 )
                 new_content = f"{marker}\n{expected}"
-                _patch_comment(config, headers, review_state.repoId, pr_id, comment, new_content)
+                requests_module = require_requests()
+                patch_comment(
+                    requests_module,
+                    headers,
+                    config,
+                    review_state.repoId,
+                    pr_id,
+                    comment.thread_id,
+                    comment.comment_id,
+                    new_content,
+                )
+                # Sync thread status for file-summary comments
+                if comment.marker_type == "file-summary":
+                    _patch_file_thread_status(
+                        comment, review_state, config, headers, pr_id,
+                    )
             result.succeeded += 1
         except Exception as exc:
             result.failed += 1
             result.errors.append(f"{comment.marker_type} thread={comment.thread_id}: {exc}")
 
     return result
-
-
-def _patch_comment(
-    config: AzureDevOpsConfig,
-    headers: dict[str, str],
-    repo_id: str,
-    pr_id: int,
-    comment: EligibleComment,
-    new_content: str,
-) -> None:
-    """PATCH a single comment's content via Azure DevOps API."""
-    from ..helpers import require_requests
-
-    requests_module: Any = require_requests()
-    url = config.build_api_url(
-        repo_id,
-        "pullRequests",
-        pr_id,
-        "threads",
-        comment.thread_id,
-        "comments",
-        comment.comment_id,
-    )
-    payload = {"content": new_content}
-    response = requests_module.patch(url, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
 
 
 def _cascade_overall_summary(
@@ -207,15 +214,57 @@ def _cascade_overall_summary(
     )
 
 
-def _complete_activity_log(pr_id: int) -> None:
-    """Complete the active review session's activity log."""
-    try:
-        from ..file_review_commands import _complete_active_session
+def _complete_activity_log(
+    review_state: ReviewState,
+    config: AzureDevOpsConfig,
+    headers: dict[str, str],
+    pr_id: int,
+) -> None:
+    """Complete the active review session's activity log.
 
-        _complete_active_session(pr_id)
-    except SystemExit:
-        # _complete_active_session may call sys.exit; treat as non-blocking
-        print("Warning: _complete_active_session raised SystemExit", file=sys.stderr)
+    Operates on the already-loaded *review_state* to avoid a redundant
+    load-mutate-save cycle that would race with the caller's copy.
+
+    Args:
+        review_state: The already-loaded review state (mutated in place).
+        config: Azure DevOps configuration.
+        headers: Auth headers for API calls.
+        pr_id: Pull request ID.
+    """
+    completed_session = None
+
+    for session in reversed(review_state.sessions):
+        if session.status == "in_progress":
+            session.status = "completed"
+            session.completedUtc = datetime.now(timezone.utc).isoformat()
+            completed_session = session
+            break
+
+    if completed_session is None:
+        return
+
+    if completed_session.activityLogCommentId is not None and review_state.activityLogThreadId:
+        from ..review_scaffold import _update_activity_log_comment_status
+
+        requests_module = require_requests()
+        threads_url = config.build_api_url(
+            review_state.repoId, "pullRequests", pr_id, "threads",
+        )
+        session_index = review_state.sessions.index(completed_session) + 1
+
+        _update_activity_log_comment_status(
+            requests_module,
+            headers,
+            threads_url,
+            review_state.activityLogThreadId,
+            completed_session.activityLogCommentId,
+            "✅",
+            "Completed",
+            completed_session,
+            review_state.commitHash or "unknown",
+            session_index,
+            "Review session completed successfully.",
+        )
 
 
 def _targeted_repair_activity_log(
@@ -251,4 +300,45 @@ def _targeted_repair_activity_log(
         commit_hash,
         session_index,
         "Review session completed successfully.",
+    )
+
+
+def _patch_file_thread_status(
+    comment: EligibleComment,
+    review_state: ReviewState,
+    config: AzureDevOpsConfig,
+    headers: dict[str, str],
+    pr_id: int,
+) -> None:
+    """Patch the thread status to match the file's review status.
+
+    Mirrors the behaviour of ``approve_file`` / ``execute_cascade`` which
+    always keep thread status in sync with the review verdict (e.g.
+    ``approved`` → ``closed``, ``needs-work`` → ``active``).
+
+    Args:
+        comment: The file-summary comment being repaired.
+        review_state: Current review state (source of truth for file status).
+        config: Azure DevOps configuration.
+        headers: Auth headers for API calls.
+        pr_id: Pull request ID.
+    """
+    if not comment.file_path:
+        return
+
+    normalized = normalize_file_path(comment.file_path)
+    file_entry = review_state.files.get(normalized)
+    if file_entry is None:
+        return
+
+    thread_status = _THREAD_STATUS_MAP.get(file_entry.status, "active")
+    requests_module = require_requests()
+    patch_thread_status(
+        requests_module,
+        headers,
+        config,
+        review_state.repoId,
+        pr_id,
+        comment.thread_id,
+        thread_status,
     )

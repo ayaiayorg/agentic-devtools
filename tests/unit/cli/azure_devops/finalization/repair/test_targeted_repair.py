@@ -48,7 +48,7 @@ class TestTargetedRepair:
         )
         result = targeted_repair(
             [comment],
-            {1: "expected content"},
+            {(10, 1): "expected content"},
             _mock_config(),
             {},
             42,
@@ -68,24 +68,26 @@ class TestTargetedRepair:
             current_content="old",
             file_path="/src/a.py",
         )
-        mock_requests = MagicMock()
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_requests.patch.return_value = mock_response
 
-        with patch(
-            "agentic_devtools.cli.azure_devops.helpers.require_requests",
-            return_value=mock_requests,
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.repair.patch_comment",
+            ) as mock_pc,
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.repair._patch_file_thread_status",
+            ) as mock_pts,
         ):
             result = targeted_repair(
                 [comment],
-                {1: "expected content"},
+                {(10, 1): "expected content"},
                 _mock_config(),
                 {},
                 42,
                 _minimal_review_state(),
             )
         assert result.succeeded == 1
+        mock_pc.assert_called_once()
+        mock_pts.assert_called_once()
 
     def test_handles_missing_expected_content(self):
         """Should fail gracefully when expected content is missing."""
@@ -106,3 +108,82 @@ class TestTargetedRepair:
             _minimal_review_state(),
         )
         assert result.failed == 1
+
+    def test_repairs_activity_log_entry(self):
+        """Should call _targeted_repair_activity_log for activity-log-entry type."""
+        comment = EligibleComment(
+            thread_id=200,
+            comment_id=2,
+            marker_type="activity-log-entry",
+            marker_data={"type": "activity-log-entry"},
+            current_content="old log",
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.finalization.repair._targeted_repair_activity_log",
+        ) as mock_repair:
+            result = targeted_repair(
+                [comment],
+                {(200, 2): "expected log content"},
+                _mock_config(),
+                {},
+                42,
+                _minimal_review_state(),
+            )
+        assert result.succeeded == 1
+        mock_repair.assert_called_once()
+
+    def test_catches_api_error_on_activity_log_repair(self):
+        """Should catch and record error when activity-log-entry repair fails."""
+        comment = EligibleComment(
+            thread_id=200,
+            comment_id=2,
+            marker_type="activity-log-entry",
+            marker_data={"type": "activity-log-entry"},
+            current_content="old log",
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.finalization.repair._targeted_repair_activity_log",
+            side_effect=Exception("repair failed"),
+        ):
+            result = targeted_repair(
+                [comment],
+                {(200, 2): "expected content"},
+                _mock_config(),
+                {},
+                42,
+                _minimal_review_state(),
+            )
+        assert result.failed == 1
+        assert any("activity-log-entry" in e for e in result.errors)
+
+    def test_skips_thread_status_for_non_file_summary(self):
+        """Should NOT call _patch_file_thread_status for non-file-summary types."""
+        comment = EligibleComment(
+            thread_id=100,
+            comment_id=1,
+            marker_type="overall-summary",
+            marker_data={},
+            current_content="old",
+            file_path=None,
+        )
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.repair.patch_comment",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.repair._patch_file_thread_status",
+            ) as mock_pts,
+        ):
+            result = targeted_repair(
+                [comment],
+                {(100, 1): "expected content"},
+                _mock_config(),
+                {},
+                42,
+                _minimal_review_state(),
+            )
+        assert result.succeeded == 1
+        mock_pts.assert_not_called()
