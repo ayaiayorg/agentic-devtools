@@ -101,7 +101,8 @@
 ## Phase 8: .gitignore Update (P2)
 
 - [ ] T038 [P] [FR-014] Test `.gitignore` updater — happy-path and failure scenarios in `tests/unit/cli/setup/script_generators/gitignore_updater/test_update_gitignore.py`
-- [ ] T039 [P] [FR-014] Implement `agentic_devtools/cli/setup/script_generators/gitignore_updater.py` — replaces `.agdt/` with `.agdt/*`, adds `!.agdt/agentic-devtools-*.py` negation, idempotent (FR-014)
+- [ ] T039 [P] [FR-014] Implement `agentic_devtools/cli/setup/script_generators/gitignore_updater.py` — replaces `.agdt/` with `.agdt/*`, adds `!.agdt/agentic-devtools-*.py` negation, idempotent
+  (FR-014)
 - [ ] T040 [FR-014] Integrate `.gitignore` updater into `agdt-setup` script generation phase in `agentic_devtools/cli/setup/commands.py`
 
 ---
