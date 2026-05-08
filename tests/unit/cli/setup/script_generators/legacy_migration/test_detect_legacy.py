@@ -1,5 +1,7 @@
 """Tests for detect_legacy_script."""
 
+from unittest.mock import patch
+
 from agentic_devtools.cli.setup.script_generators.constants import ORCHESTRATOR_MARKER
 from agentic_devtools.cli.setup.script_generators.legacy_migration import detect_legacy_script
 
@@ -28,3 +30,10 @@ class TestDetectLegacy:
         f = tmp_path / "setup-dev-tools.py"
         f.write_text("", encoding="utf-8")
         assert detect_legacy_script(f) is True
+
+    def test_unreadable_file_returns_true(self, tmp_path):
+        """Returns True when file exists but cannot be read (OSError)."""
+        f = tmp_path / "setup-dev-tools.py"
+        f.write_text("some content", encoding="utf-8")
+        with patch.object(type(f), "read_text", side_effect=OSError("permission denied")):
+            assert detect_legacy_script(f) is True

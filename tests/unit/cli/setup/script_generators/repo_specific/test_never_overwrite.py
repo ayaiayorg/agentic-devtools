@@ -30,3 +30,9 @@ class TestNeverOverwrite:
         """Stub includes guidance for customization."""
         stub = generate_repo_specific_stub()
         assert "YOURS" in stub or "never overwrite" in stub.lower()
+
+    def test_stdlib_only(self):
+        """Stub does not import agentic_devtools."""
+        stub = generate_repo_specific_stub()
+        assert "import agentic_devtools" not in stub
+        assert "from agentic_devtools" not in stub

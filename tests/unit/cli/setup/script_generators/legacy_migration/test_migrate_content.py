@@ -1,5 +1,7 @@
 """Tests for migrate_legacy_content."""
 
+from unittest.mock import patch
+
 from agentic_devtools.cli.setup.script_generators.legacy_migration import migrate_legacy_content
 
 
@@ -12,7 +14,8 @@ class TestMigrateContent:
         legacy.write_text("print('legacy')\n", encoding="utf-8")
         target = tmp_path / "setup-repo-specific-dev-tools.py"
 
-        msg = migrate_legacy_content(legacy, target)
+        success, msg = migrate_legacy_content(legacy, target)
+        assert success is True
         assert target.exists()
         assert "print('legacy')" in target.read_text(encoding="utf-8")
         assert "moved to" in msg
@@ -24,7 +27,8 @@ class TestMigrateContent:
         target = tmp_path / "setup-repo-specific-dev-tools.py"
         target.write_text("print('existing')\n", encoding="utf-8")
 
-        msg = migrate_legacy_content(legacy, target)
+        success, msg = migrate_legacy_content(legacy, target)
+        assert success is True
         content = target.read_text(encoding="utf-8")
         assert "print('existing')" in content
         assert "print('legacy')" in content
@@ -37,7 +41,8 @@ class TestMigrateContent:
         legacy.write_text("", encoding="utf-8")
         target = tmp_path / "setup-repo-specific-dev-tools.py"
 
-        msg = migrate_legacy_content(legacy, target)
+        success, msg = migrate_legacy_content(legacy, target)
+        assert success is True
         assert "empty" in msg
         assert not target.exists()
 
@@ -46,5 +51,33 @@ class TestMigrateContent:
         legacy = tmp_path / "nonexistent.py"
         target = tmp_path / "target.py"
 
-        msg = migrate_legacy_content(legacy, target)
+        success, msg = migrate_legacy_content(legacy, target)
+        assert success is False
         assert "Failed to read" in msg
+
+    def test_uses_atomic_write(self, tmp_path):
+        """migrate_legacy_content uses atomic_write for safe file writes."""
+        legacy = tmp_path / "setup-dev-tools.py"
+        legacy.write_text("print('legacy')\n", encoding="utf-8")
+        target = tmp_path / "setup-repo-specific-dev-tools.py"
+
+        with patch(
+            "agentic_devtools.cli.setup.script_generators.legacy_migration.atomic_write"
+        ) as mock_aw:
+            success, msg = migrate_legacy_content(legacy, target)
+            assert success is True
+            mock_aw.assert_called_once_with(target, "print('legacy')\n")
+
+    def test_write_failure(self, tmp_path):
+        """Reports error when atomic_write raises OSError."""
+        legacy = tmp_path / "setup-dev-tools.py"
+        legacy.write_text("print('legacy')\n", encoding="utf-8")
+        target = tmp_path / "setup-repo-specific-dev-tools.py"
+
+        with patch(
+            "agentic_devtools.cli.setup.script_generators.legacy_migration.atomic_write",
+            side_effect=OSError("disk full"),
+        ):
+            success, msg = migrate_legacy_content(legacy, target)
+            assert success is False
+            assert "Failed to migrate" in msg

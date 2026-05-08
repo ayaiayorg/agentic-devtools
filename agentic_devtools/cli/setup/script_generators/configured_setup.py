@@ -14,15 +14,33 @@ def render_tool_installs(selected_tools: list[str]) -> str:
 
     Each tool is installed via ``subprocess.run`` with a human-readable
     header.  Unknown tool names are silently skipped.
+
+    For pip-based installs the generated code uses
+    ``[sys.executable, "-m", "pip", ...]`` so that packages are installed
+    into the same environment as the running interpreter.
     """
     lines: list[str] = []
     for tool_name in selected_tools:
         entry = TOOL_REGISTRY.get(tool_name)
         if entry is None:
             continue
+        argv: list[str] = list(entry["install_argv"])  # type: ignore[arg-type]
+        # For pip installs, prefix with sys.executable so the correct
+        # interpreter is always used regardless of PATH.
+        if argv and argv[0] == "pip":
+            argv_expr = f"[sys.executable, \"-m\", {', '.join(repr(a) for a in argv)}]"
+            shell_expr = ""
+        else:
+            # Non-pip tools (e.g. npm) are batch scripts on Windows and
+            # require shell=True to locate the .cmd wrapper.
+            argv_expr = repr(argv)
+            shell_expr = ", shell=(sys.platform == \"win32\")"
         lines.append(f"    # {entry['description']}")
         lines.append(f'    print("Installing {tool_name}...")')
-        lines.append(f"    subprocess.run({entry['install_cmd']!r}.split(), check=False)")
+        lines.append(f"    result = subprocess.run({argv_expr}{shell_expr})")
+        lines.append("    if result.returncode != 0:")
+        lines.append(f'        print("  \u2717 Failed to install {tool_name}", file=sys.stderr)')
+        lines.append("        sys.exit(1)")
         lines.append("")
     return "\n".join(lines)
 
@@ -39,7 +57,8 @@ def generate_configured_setup_script(selected_tools: list[str] | None = None) ->
         tool_body = '    print("  ℹ No optional tools configured. Re-run agdt-setup to select tools.")'
     else:
         tool_body = render_tool_installs(selected_tools)
-
+        if not tool_body.strip():
+            tool_body = '    print("  ℹ No optional tools configured. Re-run agdt-setup to select tools.")'
     return _CONFIGURED_TEMPLATE.format(tool_body=tool_body)
 
 

@@ -13,21 +13,25 @@ ROOT_ENTRY_POINT_FILENAME = "setup-dev-tools.py"
 REPO_SPECIFIC_FILENAME = "setup-repo-specific-dev-tools.py"
 
 # Known tool registry — maps tool names used by ``agdt-setup`` to their
-# pip/npm install commands.  Only tools the user has selected are included
+# install commands.  Only tools the user has selected are included
 # in the generated configured-setup script.
-TOOL_REGISTRY: dict[str, dict[str, str]] = {
+#
+# ``install_argv`` is a list of argument tokens.  For pip-based installs
+# the generated script prepends ``[sys.executable, "-m"]`` so the package
+# is installed into the same environment as the running interpreter.
+TOOL_REGISTRY: dict[str, dict[str, str | list[str]]] = {
     "ruff": {
-        "install_cmd": "pip install ruff",
+        "install_argv": ["pip", "install", "ruff"],
         "check_cmd": "ruff --version",
         "description": "Python linter and formatter",
     },
     "cspell": {
-        "install_cmd": "npm install -g cspell",
+        "install_argv": ["npm", "install", "-g", "cspell"],
         "check_cmd": "cspell --version",
         "description": "Spell checker for code",
     },
     "markdownlint-cli2": {
-        "install_cmd": "npm install -g markdownlint-cli2",
+        "install_argv": ["npm", "install", "-g", "markdownlint-cli2"],
         "check_cmd": "markdownlint-cli2 --help",
         "description": "Markdown linter",
     },

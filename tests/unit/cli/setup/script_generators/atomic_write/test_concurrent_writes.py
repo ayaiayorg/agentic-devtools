@@ -28,14 +28,16 @@ class TestAtomicWrite:
 
     def test_no_partial_writes(self, tmp_path):
         """On error, target is not left in a partial state."""
+        from unittest.mock import patch
+
         target = tmp_path / "test.py"
         target.write_text("original", encoding="utf-8")
 
-        # Simulate a write error by making the temp file creation succeed
-        # but the rename fail
-        try:
-            # Force an error during write by passing non-string content
-            atomic_write(target, "original")  # This should succeed
-        except Exception:
-            pass
+        # Simulate os.replace raising an error after the temp file is written
+        with patch("os.replace", side_effect=OSError("disk full")):
+            try:
+                atomic_write(target, "new content")
+            except OSError:
+                pass
+        # Original file must remain unchanged
         assert target.read_text(encoding="utf-8") == "original"

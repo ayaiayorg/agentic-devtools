@@ -13,6 +13,14 @@ from pathlib import Path
 _AGDT_IGNORE_DIR = ".agdt/"
 _AGDT_IGNORE_GLOB = ".agdt/*"
 _AGDT_NEGATION = "!.agdt/agentic-devtools-*.py"
+_AGDT_GITIGNORE_NEGATION = "!.agdt/.gitignore"
+
+
+def _detect_newline(content: str) -> str:
+    """Return the dominant line ending in *content* (``\\r\\n`` or ``\\n``)."""
+    if "\r\n" in content:
+        return "\r\n"
+    return "\n"
 
 
 def update_gitignore(repo_root: Path) -> str:
@@ -27,27 +35,44 @@ def update_gitignore(repo_root: Path) -> str:
 
     try:
         content = gitignore_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         return f"  ⚠ Failed to read .gitignore: {exc}"
 
+    newline = _detect_newline(content)
     lines = content.splitlines(keepends=True)
     modified = False
+
+    # Ensure the last line is newline-terminated to prevent concatenation
+    if lines and not lines[-1].endswith(("\n", "\r")):
+        lines[-1] = lines[-1] + newline
 
     # Replace ".agdt/" with ".agdt/*"
     new_lines: list[str] = []
     for line in lines:
         stripped = line.rstrip("\n\r")
         if stripped == _AGDT_IGNORE_DIR:
-            new_lines.append(_AGDT_IGNORE_GLOB + "\n")
+            new_lines.append(_AGDT_IGNORE_GLOB + newline)
             modified = True
         else:
             new_lines.append(line)
 
+    # Deduplicate .agdt/* lines (can occur when both .agdt/ and .agdt/* existed)
+    seen_glob = False
+    deduped_lines: list[str] = []
+    for line in new_lines:
+        if line.rstrip("\n\r") == _AGDT_IGNORE_GLOB:
+            if seen_glob:
+                modified = True
+                continue
+            seen_glob = True
+        deduped_lines.append(line)
+    new_lines = deduped_lines
+
     # Ensure .agdt/* line exists (if neither .agdt/ nor .agdt/* was present)
     has_glob = any(line.rstrip("\n\r") == _AGDT_IGNORE_GLOB for line in new_lines)
     if not has_glob:
-        # Append after last non-empty line or at end
-        new_lines.append(_AGDT_IGNORE_GLOB + "\n")
+        # Append at end
+        new_lines.append(_AGDT_IGNORE_GLOB + newline)
         modified = True
 
     # Add negation if not already present
@@ -60,9 +85,24 @@ def update_gitignore(repo_root: Path) -> str:
                 idx = i
                 break
         if idx is not None:
-            new_lines.insert(idx + 1, _AGDT_NEGATION + "\n")
+            new_lines.insert(idx + 1, _AGDT_NEGATION + newline)
         else:
-            new_lines.append(_AGDT_NEGATION + "\n")
+            new_lines.append(_AGDT_NEGATION + newline)
+        modified = True
+
+    # Add .gitignore negation if not already present
+    has_gitignore_negation = any(line.rstrip("\n\r") == _AGDT_GITIGNORE_NEGATION for line in new_lines)
+    if not has_gitignore_negation:
+        # Insert after the managed scripts negation rule
+        idx = None
+        for i, line in enumerate(new_lines):
+            if line.rstrip("\n\r") == _AGDT_NEGATION:
+                idx = i
+                break
+        if idx is not None:
+            new_lines.insert(idx + 1, _AGDT_GITIGNORE_NEGATION + newline)
+        else:
+            new_lines.append(_AGDT_GITIGNORE_NEGATION + newline)
         modified = True
 
     if not modified:

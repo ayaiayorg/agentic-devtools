@@ -38,7 +38,12 @@ def detect_corrupted_artifacts() -> list[Path]:
         if not sp.is_dir():
             continue
 
-        for child in sp.iterdir():
+        try:
+            children = list(sp.iterdir())
+        except (PermissionError, OSError):
+            continue
+
+        for child in children:
             name = child.name
 
             # Tilde-prefixed leftover directories
@@ -75,7 +80,9 @@ def cleanup_artifacts(artifacts: list[Path]) -> list[str]:
     messages: list[str] = []
     for artifact in artifacts:
         try:
-            if artifact.is_dir():
+            if artifact.is_symlink():
+                artifact.unlink()
+            elif artifact.is_dir():
                 shutil.rmtree(artifact)
             else:
                 artifact.unlink()
@@ -129,8 +136,9 @@ def setup_git_hooks() -> str | None:
     except FileNotFoundError:
         return None
 
+    warning: str | None = None
     if current and current != ".githooks":
-        return f"  ⚠ core.hooksPath is already set to '{current}' (not '.githooks'). Overwriting."
+        warning = f"  ⚠ core.hooksPath is already set to '{current}' (not '.githooks'). Overwriting."
 
     try:
         subprocess.run(
@@ -155,6 +163,8 @@ def setup_git_hooks() -> str | None:
     except (subprocess.CalledProcessError, OSError):
         pass
 
+    if warning:
+        return warning + "\n  ✓ core.hooksPath set to '.githooks'"
     return "  ✓ core.hooksPath set to '.githooks'"
 
 
@@ -207,7 +217,6 @@ Supports: ``--foreground`` (default, forward-compatible no-op).
 """
 
 import argparse
-import os
 import shutil
 import site
 import subprocess
@@ -237,7 +246,11 @@ def _detect_corrupted_artifacts():
         sp = Path(sp_dir)
         if not sp.is_dir():
             continue
-        for child in sp.iterdir():
+        try:
+            children = list(sp.iterdir())
+        except (PermissionError, OSError):
+            continue
+        for child in children:
             name = child.name
             if child.is_dir() and name in {"~gentic-devtools", "~gentic_devtools"}:
                 artifacts.append(child)
@@ -259,7 +272,9 @@ def _cleanup_artifacts(artifacts):
     """Remove corrupted artefacts with permission error handling."""
     for artifact in artifacts:
         try:
-            if artifact.is_dir():
+            if artifact.is_symlink():
+                artifact.unlink()
+            elif artifact.is_dir():
                 shutil.rmtree(artifact)
             else:
                 artifact.unlink()

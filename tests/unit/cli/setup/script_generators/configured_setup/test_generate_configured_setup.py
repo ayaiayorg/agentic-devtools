@@ -17,19 +17,26 @@ class TestGenerateConfiguredSetup:
         assert "No optional tools configured" in script
 
     def test_ruff_selected(self):
-        """Selecting ruff produces pip install ruff."""
+        """Selecting ruff uses sys.executable for deterministic pip install."""
         script = generate_configured_setup_script(["ruff"])
-        assert "pip install ruff" in script
+        assert "sys.executable" in script
+        assert "'pip'" in script
+        assert "'install'" in script
+        assert "'ruff'" in script
 
     def test_cspell_selected(self):
-        """Selecting cspell produces npm install."""
+        """Selecting cspell produces npm install as argv list."""
         script = generate_configured_setup_script(["cspell"])
-        assert "npm install -g cspell" in script
+        assert "'npm'" in script
+        assert "'install'" in script
+        assert "'-g'" in script
+        assert "'cspell'" in script
 
     def test_unknown_tool_ignored(self):
         """Unknown tool names are silently skipped."""
         script = generate_configured_setup_script(["nonexistent_tool"])
-        assert "No optional tools configured" not in script or "nonexistent_tool" not in script
+        assert "nonexistent_tool" not in script
+        assert "No optional tools configured" in script
 
     def test_stdlib_only(self):
         """Script does not import agentic_devtools."""

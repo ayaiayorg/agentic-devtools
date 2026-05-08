@@ -44,10 +44,10 @@ def main():
         "--foreground", action="store_true", default=True,
         help="Run in foreground (default, forward-compatible).",
     )
-    args = parser.parse_args()
+    parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
-    foreground_args = ["--foreground"] if args.foreground else []
+    foreground_args = ["--foreground"]
 
     # Step 1: Required setup (fail-fast)
     required = script_dir / "{required}"

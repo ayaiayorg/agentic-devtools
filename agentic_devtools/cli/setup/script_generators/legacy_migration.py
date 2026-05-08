@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .atomic_write import atomic_write
 from .constants import ORCHESTRATOR_MARKER
 
 _MIGRATION_SEPARATOR = (
@@ -30,15 +31,16 @@ def detect_legacy_script(setup_dev_tools_path: Path) -> bool:
         return False
     try:
         content = setup_dev_tools_path.read_text(encoding="utf-8")
-    except OSError:
-        return False
+    except (OSError, UnicodeDecodeError):
+        # Unreadable file — treat as legacy to prevent accidental overwrite.
+        return True
     return ORCHESTRATOR_MARKER not in content
 
 
 def migrate_legacy_content(
     legacy_path: Path,
     repo_specific_path: Path,
-) -> str:
+) -> tuple[bool, str]:
     """Move legacy script content into *repo_specific_path*.
 
     * If *repo_specific_path* does **not** exist, the content is written
@@ -46,24 +48,28 @@ def migrate_legacy_content(
     * If *repo_specific_path* **already** exists, the legacy content is
       appended below a separator comment.
 
-    Returns a human-readable status message.
+    Returns a ``(success, message)`` tuple where *success* is ``True``
+    when migration completed without errors.
     """
     try:
         legacy_content = legacy_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        return f"  ⚠ Failed to read legacy script: {exc}"
+    except (OSError, UnicodeDecodeError) as exc:
+        return False, f"  ⚠ Failed to read legacy script: {exc}"
 
     if not legacy_content.strip():
-        return "  ℹ Legacy setup-dev-tools.py is empty — skipping migration."
+        return True, "  ℹ Legacy setup-dev-tools.py is empty — skipping migration."
 
     try:
         if repo_specific_path.is_file():
-            existing = repo_specific_path.read_text(encoding="utf-8")
+            try:
+                existing = repo_specific_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError as exc:
+                return False, f"  ⚠ Failed to read {repo_specific_path.name}: {exc}"
             combined = existing.rstrip() + _MIGRATION_SEPARATOR + legacy_content
-            repo_specific_path.write_text(combined, encoding="utf-8")
-            return f"  ✓ Legacy content appended to {repo_specific_path.name} (below migration separator)."
+            atomic_write(repo_specific_path, combined)
+            return True, f"  ✓ Legacy content appended to {repo_specific_path.name} (below migration separator)."
         else:
-            repo_specific_path.write_text(legacy_content, encoding="utf-8")
-            return f"  ✓ Legacy content moved to {repo_specific_path.name}."
+            atomic_write(repo_specific_path, legacy_content)
+            return True, f"  ✓ Legacy content moved to {repo_specific_path.name}."
     except OSError as exc:
-        return f"  ⚠ Failed to migrate legacy content: {exc}"
+        return False, f"  ⚠ Failed to migrate legacy content: {exc}"
