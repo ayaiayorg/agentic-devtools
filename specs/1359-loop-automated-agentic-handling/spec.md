@@ -75,6 +75,8 @@ the most common human-in-the-loop bottleneck.
 **Independent Test**: Can be fully tested by creating a PR that triggers a Copilot review with actionable comments, then observing that the AI PR Loop dispatches a repair job, addresses comments,
 replies, resolves threads, re-requests review, and the PR eventually merges.
 
+**Related Requirements**: FR-001, FR-003, FR-004, FR-005, FR-008, FR-009
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with a `CHANGES_REQUESTED` Copilot review containing inline comments, **When** the AI PR Loop workflow runs (triggered by `pull_request_review` event), **Then** a repair job is
@@ -103,6 +105,8 @@ subsequently passes.
 head SHA. It parses the log output to identify specific failure messages (e.g., ruff violations, pytest assertion errors) and uses those as context for the Copilot agent session. Only the most recent
 failing run per required check is consulted.
 
+**Related Requirements**: FR-002
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR where required CI checks have failed (and no Copilot review comments exist), **When** the AI PR Loop detects failed checks, **Then** a repair job is dispatched that checks out the
@@ -123,6 +127,8 @@ time-to-merge.
 
 **Independent Test**: Can be tested by creating a PR with both review comments and a failing test, then observing that the repair job addresses comments AND fixes the test in one commit.
 
+**Related Requirements**: FR-015
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with both actionable Copilot comments and a failing lint check, **When** the repair job runs, **Then** it addresses the review comments first, applies `ruff` fixes for lint issues
@@ -141,6 +147,8 @@ pushing fixes and interacting with reviews. It must NEVER approve or merge PRs. 
 
 **Independent Test**: Can be verified by inspecting the workflow definition to confirm the repair job has no merge/approve permissions, and by observing that after repair the normal AI PR Loop cycle
 performs the approval and merge.
+
+**Related Requirements**: FR-006
 
 **Acceptance Scenarios**:
 
@@ -161,6 +169,8 @@ but the repair dispatch itself needs its own safeguards.
 **Independent Test**: Can be tested by creating a scenario where the agent cannot fix the issue (e.g., a test failure caused by missing external dependency), then observing that it stops after the
 configured retry limit.
 
+**Related Requirements**: FR-007, FR-011, FR-012
+
 **Acceptance Scenarios**:
 
 1. **Given** the repair job has already been dispatched 3 times for this PR on the current
@@ -179,6 +189,8 @@ As a repository maintainer, I want visibility into what the repair agent did, so
 **Why this priority**: Important for trust and debugging but not blocking for the core functionality.
 
 **Independent Test**: Can be tested by triggering a repair dispatch and then verifying that the workflow run logs, PR comments, and commit messages provide a complete audit trail.
+
+**Related Requirements**: FR-008, FR-010, FR-013, FR-014
 
 **Acceptance Scenarios**:
 
@@ -284,6 +296,8 @@ risk:
   fine-grained PAT permission labels:
   - **Contents: Read and write** (push commits to the PR branch)
   - **Pull requests: Read and write** (post comments, request reviewers, resolve threads)
+  - **Issues: Read and write** (create/update repair marker comments via `issues.createComment`/`issues.updateComment`)
+  - **Checks: Read** (query check-runs and check-suites for CI status)
   - **Actions: Read** (check workflow/CI status)
 
   It MUST NOT have Administration, Security events, or Organization scopes. The token
