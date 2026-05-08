@@ -588,6 +588,68 @@ def _prompt_copilot_model(*, force_prompt: bool = False) -> None:
     print(f"  ✓ Default Copilot model set to: {chosen}")
 
 
+def _generate_setup_scripts(git_root: Path) -> None:
+    """Generate the modular setup scripts in ``.agdt/`` and repo root.
+
+    This is the new final phase of ``agdt-setup``.  It always overwrites
+    managed scripts and only creates ``setup-repo-specific-dev-tools.py``
+    when it does not already exist.
+    """
+    from .script_generators.atomic_write import atomic_write
+    from .script_generators.complete_setup import generate_complete_setup_script
+    from .script_generators.configured_setup import generate_configured_setup_script
+    from .script_generators.constants import (
+        COMPLETE_SETUP_FILENAME,
+        CONFIGURED_SETUP_FILENAME,
+        REPO_SPECIFIC_FILENAME,
+        REQUIRED_SETUP_FILENAME,
+        ROOT_ENTRY_POINT_FILENAME,
+    )
+    from .script_generators.gitignore_updater import update_gitignore
+    from .script_generators.legacy_migration import detect_legacy_script, migrate_legacy_content
+    from .script_generators.repo_specific import generate_repo_specific_stub
+    from .script_generators.required_setup import generate_required_setup_script
+    from .script_generators.root_entry_point import generate_root_entry_point
+
+    agdt_dir = git_root / ".agdt"
+    agdt_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1) Always overwrite managed scripts
+    atomic_write(agdt_dir / REQUIRED_SETUP_FILENAME, generate_required_setup_script())
+    print(f"  ✓ Generated .agdt/{REQUIRED_SETUP_FILENAME}")
+
+    # For now, no tool selections are wired — generate with empty tools.
+    # Future: pass selected tools from agdt-setup prompts.
+    atomic_write(agdt_dir / CONFIGURED_SETUP_FILENAME, generate_configured_setup_script())
+    print(f"  ✓ Generated .agdt/{CONFIGURED_SETUP_FILENAME}")
+
+    atomic_write(agdt_dir / COMPLETE_SETUP_FILENAME, generate_complete_setup_script())
+    print(f"  ✓ Generated .agdt/{COMPLETE_SETUP_FILENAME}")
+
+    # 2) Legacy migration — check before overwriting the root entry point
+    root_entry = git_root / ROOT_ENTRY_POINT_FILENAME
+    if detect_legacy_script(root_entry):
+        repo_specific = git_root / REPO_SPECIFIC_FILENAME
+        msg = migrate_legacy_content(root_entry, repo_specific)
+        print(msg)
+
+    # 3) Always overwrite root entry point
+    atomic_write(root_entry, generate_root_entry_point())
+    print(f"  ✓ Generated {ROOT_ENTRY_POINT_FILENAME}")
+
+    # 4) Create repo-specific stub only if it doesn't exist
+    repo_specific = git_root / REPO_SPECIFIC_FILENAME
+    if not repo_specific.exists():
+        atomic_write(repo_specific, generate_repo_specific_stub())
+        print(f"  ✓ Created {REPO_SPECIFIC_FILENAME} (customize as needed)")
+    else:
+        print(f"  ℹ {REPO_SPECIFIC_FILENAME} already exists — not overwriting")
+
+    # 5) Update .gitignore
+    msg = update_gitignore(git_root)
+    print(msg)
+
+
 def setup_cmd() -> None:
     """Full setup: install Copilot CLI + GitHub CLI, then verify all dependencies.
 
@@ -816,6 +878,14 @@ def setup_cmd() -> None:
                             )
                 except Exception as exc:  # noqa: BLE001
                     print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
+
+            # ── Script Generation Phase ────────────────────────────────
+            print()
+            print("─── Setup Script Generation ─────────────────────────────────")
+            try:
+                _generate_setup_scripts(git_root)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ⚠ Script generation failed ({exc}) — skipping", file=sys.stderr)
 
         # ── Run file-modifying steps (with or without PR workflow) ─────
         use_pr_workflow = not args.system_only and git_root is not None and not args.skip_pr_workflow
