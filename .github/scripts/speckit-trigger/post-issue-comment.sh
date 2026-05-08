@@ -85,13 +85,12 @@ curl_with_retry() {
     local body_tmpfile header_tmpfile
     body_tmpfile=$(mktemp)
     header_tmpfile=$(mktemp)
-    trap "rm -f '$body_tmpfile' '$header_tmpfile'" RETURN
 
     while [[ $attempt -le $max_attempts ]]; do
         local http_code=""
         local curl_exit=0
 
-        http_code=$(curl -s -o "$body_tmpfile" -D "$header_tmpfile" -w '%{http_code}' \
+        http_code=$(curl -sS -o "$body_tmpfile" -D "$header_tmpfile" -w '%{http_code}' \
             -L --post301 --post302 --post303 \
             "${curl_args[@]}") || curl_exit=$?
 
@@ -104,27 +103,35 @@ curl_with_retry() {
                     if [[ $attempt -lt $max_attempts ]]; then
                         local delay
                         delay=$(calculate_backoff_delay "$attempt" "$initial_delay")
-                        echo "Attempt $attempt/$max_attempts failed (curl exit $curl_exit). Retrying in ${delay}s..." >&2
+                        echo "curl: Attempt $attempt/$max_attempts failed (curl exit $curl_exit). Retrying in ${delay}s..." >&2
                         sleep "$delay"
                         attempt=$(( attempt + 1 ))
                         continue
                     fi
-                    echo "All $max_attempts attempts failed. curl exit code: $curl_exit" >&2
+                    echo "curl: All $max_attempts attempts failed. curl exit code: $curl_exit" >&2
+                    rm -f "$body_tmpfile" "$header_tmpfile"
                     return 1
                     ;;
                 *)
                     # Non-retryable transport error
-                    echo "Non-retryable curl error (exit $curl_exit). Failing immediately." >&2
+                    echo "curl: Non-retryable curl error (exit $curl_exit). Failing immediately." >&2
+                    rm -f "$body_tmpfile" "$header_tmpfile"
                     return 1
                     ;;
             esac
         fi
+
+        # Extract only the final response's headers (curl -L -D writes
+        # headers from all redirect hops into the same file)
+        local final_response_headers
+        final_response_headers=$(awk '/^HTTP\//{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}' "$header_tmpfile")
 
         # Classify HTTP status
         case "$http_code" in
             2[0-9][0-9])
                 # Success
                 cat "$body_tmpfile"
+                rm -f "$body_tmpfile" "$header_tmpfile"
                 return 0
                 ;;
             429)
@@ -132,9 +139,10 @@ curl_with_retry() {
                 ;;
             403)
                 # Check for Retry-After header (rate limit)
-                if ! grep -qi "^Retry-After:" "$header_tmpfile"; then
-                    echo "HTTP 403 without Retry-After. Non-retryable, failing immediately." >&2
+                if ! echo "$final_response_headers" | grep -qi "^Retry-After:"; then
+                    echo "curl: HTTP 403 without Retry-After. Non-retryable, failing immediately." >&2
                     echo "Response body: $(cat "$body_tmpfile")" >&2
+                    rm -f "$body_tmpfile" "$header_tmpfile"
                     return 1
                 fi
                 # 403 with Retry-After — treat like 429
@@ -144,16 +152,18 @@ curl_with_retry() {
                 ;;
             *)
                 # Other 4xx — non-retryable
-                echo "HTTP $http_code error. Non-retryable, failing immediately." >&2
+                echo "curl: HTTP $http_code error. Non-retryable, failing immediately." >&2
                 echo "Response body: $(cat "$body_tmpfile")" >&2
+                rm -f "$body_tmpfile" "$header_tmpfile"
                 return 1
                 ;;
         esac
 
         # If we get here, the error is retryable
         if [[ $attempt -ge $max_attempts ]]; then
-            echo "All $max_attempts attempts failed. Last HTTP status: $http_code" >&2
+            echo "curl: All $max_attempts attempts failed. Last HTTP status: $http_code" >&2
             echo "Response body: $(cat "$body_tmpfile")" >&2
+            rm -f "$body_tmpfile" "$header_tmpfile"
             return 1
         fi
 
@@ -161,11 +171,14 @@ curl_with_retry() {
         local delay
         delay=$(calculate_backoff_delay "$attempt" "$initial_delay")
 
-        local retry_after=""
-        retry_after=$(grep -i "^Retry-After:" "$header_tmpfile" | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '\r' || echo "")
+        # Parse Retry-After header value from the final response
+        local retry_after_raw="" retry_after=""
+        retry_after_raw=$(echo "$final_response_headers" | grep -i "^Retry-After:" | tail -1 || echo "")
+        retry_after=$(echo "$retry_after_raw" | sed 's/^[^:]*:[[:space:]]*//' | tr -d '\r')
         if [[ -n "$retry_after" ]] && [[ "$retry_after" =~ ^[0-9]+$ ]]; then
             if [[ "$retry_after" -gt 60 ]]; then
-                echo "Retry-After value ($retry_after) exceeds 60s limit. Failing immediately." >&2
+                echo "curl: Retry-After value ($retry_after) exceeds 60s limit. Failing immediately." >&2
+                rm -f "$body_tmpfile" "$header_tmpfile"
                 return 1
             fi
             if [[ "$retry_after" -gt "$delay" ]]; then
@@ -173,11 +186,12 @@ curl_with_retry() {
             fi
         fi
 
-        echo "Attempt $attempt/$max_attempts failed (HTTP $http_code). Retrying in ${delay}s..." >&2
+        echo "curl: Attempt $attempt/$max_attempts failed (HTTP $http_code). Retrying in ${delay}s..." >&2
         sleep "$delay"
         attempt=$(( attempt + 1 ))
     done
 
+    rm -f "$body_tmpfile" "$header_tmpfile"
     return 1
 }
 

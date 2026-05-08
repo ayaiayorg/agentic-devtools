@@ -383,15 +383,20 @@ _is_non_retryable() {
         return 0  # non-retryable
     fi
 
-    # Check stderr for non-retryable patterns
-    local pattern
-    for pattern in "not found" "does not exist" "permission denied" "authentication" "command not found"; do
-        if echo "$stderr_output" | grep -qi "$pattern"; then
-            return 0  # non-retryable
-        fi
-    done
+    # Check stderr for non-retryable patterns (single grep with alternation)
+    if echo "$stderr_output" | grep -qiE '(not found|does not exist|permission denied|authentication|command not found)'; then
+        return 0  # non-retryable
+    fi
 
     return 1  # retryable
+}
+
+# ---------------------------------------------------------------------------
+# Helper: check if stderr indicates "already exists" error
+# ---------------------------------------------------------------------------
+_is_already_exists_error() {
+    local stderr_output="$1"
+    echo "$stderr_output" | grep -qi "already exists"
 }
 
 # ---------------------------------------------------------------------------
@@ -403,7 +408,6 @@ _PR_CREATE_STDERR=""
 _create_pr_with_retry() {
     local tmpfile
     tmpfile=$(mktemp)
-    trap "rm -f '$tmpfile'" RETURN
 
     _PR_CREATE_OUTPUT=""
     _PR_CREATE_STDERR=""
@@ -411,21 +415,23 @@ _create_pr_with_retry() {
     local exit_code=0
     _PR_CREATE_OUTPUT=$(gh pr create "${GH_CREATE_ARGS[@]}" 2>"$tmpfile") || exit_code=$?
     _PR_CREATE_STDERR=$(cat "$tmpfile")
+    rm -f "$tmpfile"
 
     if [[ $exit_code -eq 0 ]]; then
         return 0
     fi
 
-    # Check for "already exists" — treat as recoverable
-    if echo "$_PR_CREATE_STDERR" | grep -qi "already exists"; then
+    # Check for "already exists" — not retryable, abort immediately and let
+    # _do_create_pr recover via _recover_existing_pr
+    if _is_already_exists_error "$_PR_CREATE_STDERR"; then
         echo "PR already exists, attempting to recover existing PR URL..." >&2
-        return 2  # special code signals "already exists"
+        return "$_RETRY_ABORT_CODE"  # abort retries — recovery handled by caller
     fi
 
-    # Check for non-retryable patterns
+    # Check for non-retryable patterns — abort immediately (no further retries)
     if _is_non_retryable "$exit_code" "$_PR_CREATE_STDERR"; then
         echo "Non-retryable error detected (exit $exit_code): $_PR_CREATE_STDERR" >&2
-        return 1
+        return "$_RETRY_ABORT_CODE"
     fi
 
     return "$exit_code"
@@ -438,15 +444,33 @@ _PR_RECOVERY_OUTPUT=""
 
 _recover_existing_pr() {
     _PR_RECOVERY_OUTPUT=""
-    _PR_RECOVERY_OUTPUT=$(gh pr list --repo "$REPO_SLUG" --head "$BRANCH_NAME" --json url,number --jq '.[0]' 2>&1)
-    local exit_code=$?
+    local stderr_tmpfile
+    stderr_tmpfile=$(mktemp)
+
+    local exit_code=0
+    _PR_RECOVERY_OUTPUT=$(gh pr list --repo "$REPO_SLUG" --head "$BRANCH_NAME" --json url,number --jq '.[0]' 2>"$stderr_tmpfile") || exit_code=$?
+    local stderr_content
+    stderr_content=$(cat "$stderr_tmpfile")
+    rm -f "$stderr_tmpfile"
 
     if [[ $exit_code -ne 0 ]]; then
+        [[ -n "$stderr_content" ]] && echo "gh pr list stderr: $stderr_content" >&2
         return 1
     fi
 
     # Treat empty/null output as failure to force retry
-    if [[ -z "$_PR_RECOVERY_OUTPUT" ]] || [[ "$_PR_RECOVERY_OUTPUT" == "null" ]]; then
+    if [[ -z "$_PR_RECOVERY_OUTPUT" ]]; then
+        echo "gh pr list: no PRs found for head branch '$BRANCH_NAME' (empty output)" >&2
+        return 1
+    fi
+    if [[ "$_PR_RECOVERY_OUTPUT" == "null" ]]; then
+        echo "gh pr list: no PRs found for head branch '$BRANCH_NAME' (null output)" >&2
+        return 1
+    fi
+
+    # Validate JSON shape before returning success
+    if ! echo "$_PR_RECOVERY_OUTPUT" | jq -e '.url' > /dev/null 2>&1; then
+        echo "Recovery output is not valid JSON with 'url' field: $_PR_RECOVERY_OUTPUT" >&2
         return 1
     fi
 
@@ -464,10 +488,10 @@ _do_create_pr() {
         return 0
     fi
 
-    # Check if the last attempt returned "already exists" (exit 2 from wrapper)
-    # In that case, _create_pr_with_retry returns 2 which call_with_retry treats as failure
-    # but we captured the stderr - check for "already exists" pattern
-    if echo "$_PR_CREATE_STDERR" | grep -qi "already exists"; then
+    # Check if the last attempt returned "already exists" (abort code from wrapper)
+    # In that case, _create_pr_with_retry returns $_RETRY_ABORT_CODE which call_with_retry
+    # treats as immediate abort — no unnecessary retries/sleep for a deterministic condition
+    if _is_already_exists_error "$_PR_CREATE_STDERR"; then
         echo "Attempting to recover existing PR for branch: $BRANCH_NAME" >&2
         if call_with_retry 3 5 _recover_existing_pr; then
             local pr_url pr_number

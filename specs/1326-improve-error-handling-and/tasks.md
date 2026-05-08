@@ -9,7 +9,7 @@
 
 - [x] T001 Create directory structure `.github/scripts/speckit-trigger/lib/`
 - [x] T002 Create empty `lib/retry.sh` file with shebang, header comment, and sourcing guard at `.github/scripts/speckit-trigger/lib/retry.sh`
-- [x] T003 [US1] Create test directory `.github/scripts/speckit-trigger/tests/` for new test scripts and update CI runner/harness to discover and execute scripts in this subdirectory (FR-012)
+- [ ] T003 [US1] Create test directory `.github/scripts/speckit-trigger/tests/` for new test scripts and update CI runner/harness to discover and execute scripts in this subdirectory (FR-012)
 
 ---
 
