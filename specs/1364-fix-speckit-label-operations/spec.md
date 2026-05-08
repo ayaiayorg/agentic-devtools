@@ -1,16 +1,46 @@
 # Feature Specification: SpecKit Label Operations Token Fix
 
-**Feature Branch**: `speckit/1364/phase-1-specify`  
+**Feature Branch**: `speckit/1364/phase-2-clarify`  
 **Created**: 2026-05-07  
 **Status**: Draft  
 **Input**: GitHub Issue #1364 — label operations fail silently in create-spec-pr.sh due to token permission mismatch  
 **Source Issue**: #1364 (<https://github.com/ayaiayorg/agentic-devtools/issues/1364>)
 
+## Clarifications
+
+### Session 2026-05-08
+
+- Q: Should the `LABEL_TOKEN` environment variable be introduced as a new name in the workflow YAML `env:` block, or should the script simply accept a second token parameter alongside `GH_TOKEN`?
+  The spec says "expose as a distinct environment variable" but doesn't clarify whether this is a new workflow-level env var or a script-level convention. → A: `LABEL_TOKEN` is a workflow-level `env:`
+  variable set on the "Create Pull Request" step in both `speckit-issue-trigger.yml` and `speckit-phase-progression.yml`, mapped to `${{ secrets.GITHUB_TOKEN }}`. The script reads it from the
+  environment; no new CLI parameter is added.
+- Q: FR-007 requires batch label application via `gh pr edit --add-label`, but User Story 1 Scenario 3 requires auto-creating missing labels first (`gh label create --force`). Since `gh label create`
+  is per-label, should label creation remain per-label while only the final `gh pr edit --add-label` call is batched? → A: Yes. Label creation (`gh label create --force`) remains per-label in a loop
+  (it has no batch API). Only the application step (`gh pr edit --add-label`) is batched into a single comma-separated call. FR-008 already specifies this sequence: ensure all labels exist first, then
+  batch-apply.
+- Q: FR-009 specifies a "best-effort preflight check" of token permissions, but does not specify the API call to use. What endpoint should the preflight check call to validate `issues: write` scope? →
+  A: The preflight check calls `gh label list --limit 1` using the effective token (i.e., `LABEL_TOKEN` if set, otherwise `GH_TOKEN` after the FR-010 fallback has been applied). This requires label
+  read access. If the call succeeds, the token is valid for at least label read. If it fails with 401/403, the script logs a diagnostic and exits. If the preflight fails due to a transient or
+  network error (timeout, DNS failure, HTTP 5xx), the script logs a warning and proceeds with label operations (matching FR-009(b) — avoids blocking on intermittent infrastructure issues). An unset
+  `LABEL_TOKEN` does not cause a preflight failure — the fallback token is used instead. This is best-effort — it cannot distinguish `issues: read` from `issues: write` without attempting a write,
+  so the primary protection remains the error logging in FR-003/FR-004.
+- Q: The retry specification (FR-005) says "minimum 2 retries" and NFR-003 says "2s, 4s" backoff. Should the retry apply to both `gh label create` and `gh pr edit --add-label`, or only to the batch
+  `gh pr edit` call? → A: Retry applies to both `gh label create` (per-label) and `gh pr edit --add-label` (batch). Any label API call that returns a transient HTTP error (429, 500, 502, 503, 504) is
+  retried. Both operations use the same retry logic.
+- Q: What should happen when batch `gh pr edit --add-label` fails for the entire batch (e.g., one invalid label causes the whole call to fail)? FR-007 says batch, but User Story 4 Scenario 2 says
+  "fall back to applying remaining valid labels individually." How is the invalid label identified from the batch error? → A: If the batch `gh pr edit --add-label` call fails, the script falls back to
+  applying each label individually via separate `gh pr edit --add-label` calls. The invalid label is identified by which individual call fails. The batch error message from `gh` does not reliably
+  identify which specific label caused the failure, so individual fallback is the only reliable approach.
+
 ## Problem Statement
 
-All label operations in the SpecKit pipeline fail silently during PR creation across all phases (1–5). The root cause is a token permission mismatch: the script uses `GH_TOKEN` (a PAT/App token
-configured for PR creation) for label operations that require `issues: write` scope. The `GITHUB_TOKEN` with proper permissions is never passed to the script. Additionally, all errors are suppressed
-via `2>/dev/null`, making failures invisible to operators.
+All label operations in the SpecKit pipeline fail silently during PR creation across all phases (1–5).
+The root cause is a token permission mismatch: the script uses `GH_TOKEN`
+(set to `SPECKIT_PR_TOKEN || COPILOT_GITHUB_TOKEN` — a PAT/App token configured for PR creation)
+for label operations that require `issues: write` scope.
+The `GITHUB_TOKEN` with proper permissions (declared at job level as `permissions: issues: write` in both workflow files)
+is never passed to the script.
+Additionally, all errors are suppressed via `2>/dev/null`, making failures invisible to operators.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -32,7 +62,8 @@ notification rules). Every SpecKit PR is affected.
 1. **Given** a SpecKit issue with labels `["enhancement", "speckit:processing"]` triggers phase 4, **When** the `create-spec-pr.sh` script creates the PR, **Then** the PR has labels `enhancement`,
    `speckit:processing`, and `speckit:phase-4`.
 2. **Given** a SpecKit issue triggers the issue-trigger workflow (no phase number), **When** the script creates the PR, **Then** the PR has the `speckit:spec` label plus all source issue labels.
-3. **Given** a label does not yet exist in the repository, **When** the script attempts to apply it, **Then** the label is created with appropriate defaults and applied to the PR.
+3. **Given** a label does not yet exist in the repository, **When** the script attempts to apply it, **Then** the label is created (via `gh label create --force` using the effective token — i.e.,
+   `LABEL_TOKEN` if set, otherwise `GH_TOKEN` per FR-010) with appropriate defaults and applied to the PR.
 4. **Given** a label already exists in the repository, **When** the script attempts to apply it, **Then** the existing label is reused (not duplicated) and applied to the PR.
 
 ---
@@ -94,7 +125,8 @@ that could fail.
 
 1. **Given** a PR needs labels `["enhancement", "speckit:processing", "speckit:phase-4"]`, **When** labels are applied, **Then** a single
    `gh pr edit --add-label "enhancement,speckit:processing,speckit:phase-4"` call is made.
-2. **Given** one label in the batch does not exist and cannot be created, **When** batch application fails, **Then** the script falls back to applying remaining valid labels individually.
+2. **Given** one label in the batch does not exist and cannot be created, **When** batch application fails, **Then** the script falls back to applying each label individually via separate `gh pr edit
+   --add-label` calls, logging which specific label(s) failed.
 3. **Given** the batch label string exceeds any API limits, **When** the script builds the label list, **Then** it gracefully splits into multiple batch calls.
 
 ---
@@ -109,23 +141,28 @@ discovered through multiple individual failures.
 **Why this priority**: This is a defense-in-depth measure. The primary fix (correct token) eliminates the immediate problem, and error logging (P1) catches future issues. Preflight validation adds
 early detection but is less critical than the operational fixes.
 
-**Independent Test**: Run the script in a workflow configured with `permissions: issues: read` (instead of `issues: write`) and verify the preflight check detects the insufficient
-permission before any label operations are attempted.
+**Independent Test**: Run the script in a workflow configured with **no** `issues` permission (i.e., the token cannot access the Issues/Labels API at all) and verify the preflight check
+(`gh label list --limit 1`) detects the failure and logs a clear error before any label operations are attempted. Note: the preflight **cannot** distinguish `issues: read` from `issues: write`
+because `gh label list` is a read operation; insufficient write permission is caught during actual label create/apply operations via FR-004 error logging.
 
 **Acceptance Scenarios**:
 
-1. **Given** the label token has valid permissions, **When** the preflight check runs, **Then** it passes silently and label operations proceed.
-2. **Given** the label token lacks label permissions, **When** the preflight check runs, **Then** the script logs a clear error (including which permissions are missing) and exits with a non-zero
-   code.
+1. **Given** the label token has valid permissions, **When** the preflight check runs (via `gh label list --limit 1` using the effective token per FR-009/FR-010), **Then** it passes silently
+   and label operations proceed.
+2. **Given** the label token lacks any label API access (e.g., no `issues` permission), **When** the preflight check runs, **Then** the script logs a clear error and exits with a non-zero code.
+   Note: if the token has `issues: read` but not `issues: write`, the preflight will pass; the missing write permission is caught during actual label create/apply operations via FR-003/FR-004 logging.
 3. **Given** the preflight API call itself fails (network error), **When** evaluated, **Then** the script logs a warning but continues (to avoid blocking on transient preflight failures).
 
 ---
 
 ### Edge Cases
 
-- What happens when `LABELS_JSON` contains duplicate labels? → Deduplication before application.
-- What happens when a label name contains special characters (colons, spaces, unicode)? → Proper quoting and URL-encoding must be preserved.
-- What happens when `LABEL_TOKEN` environment variable is empty or unset? → Fall back to `GH_TOKEN` with a logged warning.
+- What happens when `LABELS_JSON` contains duplicate labels? → Deduplication before application (via `jq -r '.[]' | sort -u`).
+- What happens when a label name contains special characters (colons, spaces, unicode)? → Proper quoting and URL-encoding must be preserved. The `gh` CLI handles encoding internally; the script must
+  ensure labels are properly quoted in shell arguments.
+- What happens when `LABEL_TOKEN` environment variable is empty or unset? → Fall back to `GH_TOKEN` with a logged warning (FR-010). The preflight check (FR-009)
+  then runs using the effective token (`GH_TOKEN` in this case), so an unset `LABEL_TOKEN` does **not** cause the preflight to exit — the fallback is resolved first. Warning text:
+  `"Warning: LABEL_TOKEN not set, falling back to GH_TOKEN — label operations may fail if this token lacks issues: write permission."`
 - What happens when the repository has reached its label limit? → Log the API error and continue with remaining operations.
 - What happens when `gh pr edit` succeeds for some labels but the PR was deleted between calls? → Log the error and exit gracefully.
 
@@ -133,18 +170,33 @@ permission before any label operations are attempted.
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST pass a token with `issues: write` permission to all label-related API calls (`gh label create`, `gh pr edit --add-label`).
-- **FR-002**: The system MUST expose the label token as a distinct environment variable (`LABEL_TOKEN`) in both `speckit-issue-trigger.yml` and `speckit-phase-progression.yml` workflow files.
-- **FR-003**: The system MUST NOT suppress stderr output from label API calls via `2>/dev/null`.
-- **FR-004**: The system MUST log the specific API error message when any label operation fails.
-- **FR-005**: The system MUST retry transient failures (HTTP 429, 500, 502, 503, 504) with exponential backoff, minimum 2 retries.
+- **FR-001**: The system MUST use the **effective label token** (`LABEL_TOKEN` if set, otherwise `GH_TOKEN` after the FR-010 fallback) for all label-related API calls (`gh label create`,
+  `gh pr edit --add-label`). Permission enforcement is handled by FR-009 (preflight detection of missing access) and FR-003/FR-004 (error logging when write operations fail).
+  Non-label operations (e.g., `gh pr create`) MUST remain unaffected and continue using `GH_TOKEN` directly.
+- **FR-002**: The system MUST expose the label token as a distinct environment variable (`LABEL_TOKEN`) in both `speckit-issue-trigger.yml` and `speckit-phase-progression.yml` workflow files, mapped
+  to `${{ secrets.GITHUB_TOKEN }}` in the "Create Pull Request" step's `env:` block.
+- **FR-003**: The system MUST NOT suppress stderr output from label API calls via `2>/dev/null`. All existing `2>/dev/null` redirections on `gh label create` and `gh pr edit --add-label` calls must be
+  removed.
+- **FR-004**: The system MUST log the specific API error message when any label operation fails. Error output must include the operation attempted, the HTTP status code (when available), and a
+  suggested remediation action per NFR-002.
+- **FR-005**: The system MUST retry transient failures (HTTP 429, 500, 502, 503, 504) with exponential backoff, minimum 2 retries. Retry applies to both `gh label create` (per-label) and `gh pr edit
+  --add-label` (batch) calls.
 - **FR-006**: The system MUST NOT retry non-transient failures (HTTP 401, 403, 404, 422).
-- **FR-007**: The system MUST batch label application into a single `gh pr edit --add-label` call, with all labels comma-separated.
-- **FR-008**: The system MUST ensure all labels exist (via `gh label create --force`) before attempting batch application.
-- **FR-009**: The system MUST attempt a best-effort preflight check of the label token's permissions before performing label operations. If the preflight check itself fails
-  (e.g., network error), the system MUST log a warning and proceed with label operations.
-- **FR-010**: The system MUST fall back to `GH_TOKEN` if `LABEL_TOKEN` is not set, with a logged warning indicating potential permission issues.
-- **FR-011**: The system MUST preserve all existing SpecKit workflow functionality (PR creation, branch management, artifact linking) unchanged.
+- **FR-007**: The system MUST batch label application into a single `gh pr edit --add-label` call, with all labels comma-separated. If the batch call fails, the system MUST fall back to individual `gh
+  pr edit --add-label` calls per label.
+- **FR-008**: The system MUST ensure all labels exist (via per-label `gh label create --force` calls using the effective token per FR-009/FR-010) before attempting batch application.
+- **FR-009**: The system MUST attempt a best-effort preflight check of the label token's permissions before performing label operations (via `gh label list --limit 1` using the **effective
+  token** — i.e., `LABEL_TOKEN` if set, otherwise `GH_TOKEN` after the FR-010 fallback has been applied). The preflight runs *after* token resolution (FR-010), so an unset `LABEL_TOKEN` does not
+  cause a preflight failure; the fallback token is used instead.
+  - **(a)** If the preflight check fails with an **auth/permission error** (HTTP 401 or 403), the system MUST log a clear error and **exit with a non-zero code** — this indicates the effective
+    token lacks label API access entirely, and proceeding would cause every subsequent label operation to fail.
+  - **(b)** If the preflight check fails with a **transient/network error** (e.g., timeout, DNS failure, HTTP 5xx), the system MUST log a warning and **proceed** with label operations to avoid
+    blocking on intermittent infrastructure issues.
+  - The preflight cannot distinguish `issues: read` from `issues: write` without attempting a write; primary protection for missing write permission is FR-003/FR-004 error logging.
+- **FR-010**: The system MUST fall back to `GH_TOKEN` if `LABEL_TOKEN` is not set, with a logged warning indicating potential permission issues. Warning text:
+  `"Warning: LABEL_TOKEN not set, falling back to GH_TOKEN — label operations may fail if this token lacks issues: write permission."`
+- **FR-011**: The system MUST preserve all existing SpecKit workflow functionality (PR creation, branch management, artifact linking) unchanged. The `GH_TOKEN` used for `gh pr create` is not modified;
+  only label operations use `LABEL_TOKEN`.
 
 ### Non-Functional Requirements
 
@@ -153,14 +205,19 @@ permission before any label operations are attempted.
   403 → "Ensure `LABEL_TOKEN` uses `GITHUB_TOKEN` with `permissions: issues: write`"; 404 → "Verify the repository and PR number are correct";
   422 → "Check that the label name is valid and not a duplicate".
 - **NFR-003**: The retry backoff MUST use a minimum 2-second initial delay with exponential growth (2s, 4s) to respect GitHub API rate limits.
-- **NFR-004**: The fix MUST NOT require changes to repository secret configuration (i.e., must use the already-available `GITHUB_TOKEN`).
-- **NFR-005**: The script MUST remain compatible with both `speckit-issue-trigger.yml` and `speckit-phase-progression.yml` without divergent logic.
+- **NFR-004**: The fix MUST NOT require changes to repository secret configuration (i.e., must use the already-available `GITHUB_TOKEN` which is automatically provided by GitHub Actions with the
+  permissions declared at job level).
+- **NFR-005**: The script MUST remain compatible with both `speckit-issue-trigger.yml` and `speckit-phase-progression.yml` without divergent logic. Both workflows call the same `create-spec-pr.sh`
+  script; the fix is entirely within the script and the workflow `env:` blocks.
 
 ### Key Entities
 
-- **Label Token (`LABEL_TOKEN`)**: A GitHub token with `issues: write` scope, sourced from the workflow's `GITHUB_TOKEN`, used exclusively for label API operations.
-- **GH_TOKEN**: The existing PR creation token (`SPECKIT_PR_TOKEN` or `COPILOT_GITHUB_TOKEN`), unchanged in its current role for PR creation.
-- **Label Set**: The combined collection of source issue labels plus the phase-specific SpecKit label to be applied to the PR.
+- **Label Token (`LABEL_TOKEN`)**: A GitHub token with `issues: write` scope, sourced from the workflow's `GITHUB_TOKEN` (the automatic token provided by GitHub Actions, scoped by the job-level
+  `permissions:` declaration), used exclusively for label API operations (`gh label create`, `gh pr edit --add-label`).
+- **GH_TOKEN**: The existing PR creation token (`SPECKIT_PR_TOKEN || COPILOT_GITHUB_TOKEN`), unchanged in its current role for `gh pr create`.
+  This token may lack `issues: write` scope, which is why label operations use `LABEL_TOKEN` instead.
+- **Label Set**: The combined collection of source issue labels (from `LABELS_JSON`) plus the phase-specific SpecKit label (e.g., `speckit:phase-4` or `speckit:spec`) to be applied to the PR. Labels
+  are deduplicated before application.
 
 ## Success Criteria *(mandatory)*
 
@@ -170,7 +227,8 @@ permission before any label operations are attempted.
 - **SC-002**: Zero silent label failures — every label operation failure produces at least one line of diagnostic output in the workflow log.
 - **SC-003**: Transient failures (502, rate limit) are recovered from in ≥95% of cases within the retry window.
 - **SC-004**: Total label operation time (creation + application + retries) adds ≤15 seconds to the PR creation step under normal conditions.
-- **SC-005**: All existing SpecKit integration tests and workflows continue to pass without modification beyond the affected files.
+- **SC-005**: All existing SpecKit integration tests and workflows continue to pass without modification beyond the affected files (`create-spec-pr.sh`, `speckit-issue-trigger.yml`,
+  `speckit-phase-progression.yml`).
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
