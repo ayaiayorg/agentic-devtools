@@ -51,7 +51,7 @@ echo ""
 echo "=== Testing call_with_retry - success on first attempt ==="
 
 _test_success() { return 0; }
-if call_with_retry 3 1 _test_success; then
+if call_with_retry 3 0 _test_success; then
     assert_eq "returns 0 on immediate success" "0" "0"
 else
     assert_eq "returns 0 on immediate success" "0" "1"
@@ -70,7 +70,7 @@ _test_fail_then_succeed() {
 }
 
 _ATTEMPT_COUNT=0
-if call_with_retry 3 1 _test_fail_then_succeed 2>/dev/null; then
+if call_with_retry 3 0 _test_fail_then_succeed 2>/dev/null; then
     assert_eq "succeeds after 2 failures (3 attempts)" "0" "0"
 else
     assert_eq "succeeds after 2 failures (3 attempts)" "0" "1"
@@ -80,7 +80,7 @@ echo ""
 echo "=== Testing call_with_retry - exhaustion ==="
 
 _test_always_fail() { return 42; }
-if call_with_retry 2 1 _test_always_fail 2>/dev/null; then
+if call_with_retry 2 0 _test_always_fail 2>/dev/null; then
     assert_eq "returns 1 when all attempts exhausted" "1" "0"
 else
     assert_eq "returns 1 when all attempts exhausted" "1" "1"
@@ -90,7 +90,7 @@ echo ""
 echo "=== Testing call_with_retry - error messages ==="
 
 _test_fail_msg() { return 7; }
-stderr_output=$(call_with_retry 2 1 _test_fail_msg 2>&1 >/dev/null || true)
+stderr_output=$(call_with_retry 2 0 _test_fail_msg 2>&1 >/dev/null || true)
 if echo "$stderr_output" | grep -q "Command: '_test_fail_msg'"; then
     assert_eq "error message includes command name" "yes" "yes"
 else
@@ -104,6 +104,24 @@ else
 fi
 
 echo ""
+echo "=== Testing call_with_retry - abort code (no retry) ==="
+
+_test_abort() { return "$_RETRY_ABORT_CODE"; }
+_ABORT_ATTEMPT_COUNT=0
+_test_abort_counter() {
+    _ABORT_ATTEMPT_COUNT=$(( _ABORT_ATTEMPT_COUNT + 1 ))
+    return "$_RETRY_ABORT_CODE"
+}
+
+_ABORT_ATTEMPT_COUNT=0
+if call_with_retry 3 0 _test_abort_counter 2>/dev/null; then
+    assert_eq "abort code stops retries" "1" "0"
+else
+    assert_eq "abort code stops retries" "1" "1"
+fi
+assert_eq "abort code runs only 1 attempt" "1" "$_ABORT_ATTEMPT_COUNT"
+
+echo ""
 echo "=== Testing sourcing guard ==="
 
 # Source again — should not fail
@@ -113,20 +131,37 @@ assert_eq "re-sourcing does not fail" "0" "0"
 echo ""
 echo "=== Testing BASH_SOURCE[0]-relative sourcing from different directory ==="
 
-# Source from /tmp to verify relative path resolution works
-(
-    cd /tmp
-    unset _RETRY_LIB_LOADED
-    source "$LIB_DIR/lib/retry.sh"
-    result=$(calculate_backoff_delay 1 5)
-    if [[ "$result" == "5" ]]; then
-        echo "  ✓ sourcing from different directory works"
-    else
-        echo "  ✗ sourcing from different directory failed"
-        exit 1
-    fi
-)
-PASS=$(( PASS + 1 ))
+# Create a temporary directory tree that mirrors the documented consumer pattern:
+#   <tmpdir>/consumer.sh        ← uses SCRIPT_DIR/lib/retry.sh
+#   <tmpdir>/lib/retry.sh       ← copy of the real library
+# Then run consumer.sh from /tmp to verify the SCRIPT_DIR-relative pattern works.
+_tmp_dir=$(mktemp -d /tmp/test_retry_consumer_XXXXXX)
+mkdir -p "$_tmp_dir/lib"
+cp "$LIB_DIR/lib/retry.sh" "$_tmp_dir/lib/retry.sh"
+
+cat > "$_tmp_dir/consumer.sh" <<'CONSUMER_EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/retry.sh"
+result=$(calculate_backoff_delay 1 5)
+if [[ "$result" == "5" ]]; then
+    exit 0
+else
+    echo "Expected 5, got $result" >&2
+    exit 1
+fi
+CONSUMER_EOF
+chmod +x "$_tmp_dir/consumer.sh"
+
+if (cd /tmp && bash "$_tmp_dir/consumer.sh"); then
+    echo "  ✓ SCRIPT_DIR-relative sourcing from different CWD works"
+    PASS=$(( PASS + 1 ))
+else
+    echo "  ✗ SCRIPT_DIR-relative sourcing from different CWD failed"
+    FAIL=$(( FAIL + 1 ))
+fi
+rm -rf "$_tmp_dir"
 
 echo ""
 echo "=== Results ==="

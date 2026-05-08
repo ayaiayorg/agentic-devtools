@@ -27,6 +27,10 @@ if [[ -n "${_RETRY_LIB_LOADED:-}" ]]; then
 fi
 _RETRY_LIB_LOADED=1
 
+# Non-retryable abort code: if a command returns this code, call_with_retry
+# aborts immediately without further retries.
+_RETRY_ABORT_CODE=99
+
 # ---------------------------------------------------------------------------
 # calculate_backoff_delay <retry_number> <initial_delay>
 #
@@ -58,6 +62,11 @@ call_with_retry() {
     local initial_delay="${2:?Usage: call_with_retry <max_attempts> <initial_delay> <command...>}"
     shift 2
 
+    if [[ $# -eq 0 ]]; then
+        echo "call_with_retry: no command provided after max_attempts and initial_delay" >&2
+        return 1
+    fi
+
     local cmd_name="$1"
     local attempt=1
     local exit_code=0
@@ -68,6 +77,12 @@ call_with_retry() {
 
         if [[ $exit_code -eq 0 ]]; then
             return 0
+        fi
+
+        # Abort immediately on non-retryable exit code
+        if [[ $exit_code -eq $_RETRY_ABORT_CODE ]]; then
+            echo "Command '$cmd_name' returned abort code $_RETRY_ABORT_CODE. Not retrying." >&2
+            return 1
         fi
 
         if [[ $attempt -lt $max_attempts ]]; then
