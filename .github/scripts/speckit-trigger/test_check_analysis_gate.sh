@@ -319,6 +319,47 @@ else
 fi
 echo ""
 
+# ─── critical_findings_json caller-visible variable ─────────────────────────
+
+echo "--- critical_findings_json variable ---"
+
+# Test: set correctly on rc=10
+TOTAL=$((TOTAL + 1))
+critical_findings_json=""
+check_analysis_gate "$FIXTURES_DIR/analysis-report-with-criticals.md" "block" "false" >/dev/null 2>&1 || true
+if [[ -n "$critical_findings_json" && "$critical_findings_json" != "[]" ]]; then
+    echo "  ✅ critical_findings_json is non-empty on rc=10"
+    PASS=$((PASS + 1))
+else
+    echo "  ❌ critical_findings_json should be non-empty on rc=10 (got: $critical_findings_json)"
+    FAIL=$((FAIL + 1))
+fi
+
+# Test: is [] when gate returns 0
+TOTAL=$((TOTAL + 1))
+critical_findings_json="should-be-cleared"
+check_analysis_gate "$FIXTURES_DIR/analysis-report-no-criticals.md" "block" "false" >/dev/null 2>&1 || true
+if [[ "$critical_findings_json" == "[]" ]]; then
+    echo "  ✅ critical_findings_json is [] on pass (rc=0)"
+    PASS=$((PASS + 1))
+else
+    echo "  ❌ critical_findings_json should be [] on pass (got: $critical_findings_json)"
+    FAIL=$((FAIL + 1))
+fi
+
+# Test: is [] when gate returns 20 (malformed)
+TOTAL=$((TOTAL + 1))
+critical_findings_json="should-be-cleared"
+check_analysis_gate "$FIXTURES_DIR/analysis-report-malformed-no-table.md" "block" "false" >/dev/null 2>&1 || true
+if [[ "$critical_findings_json" == "[]" ]]; then
+    echo "  ✅ critical_findings_json is [] on malformed report (rc=20)"
+    PASS=$((PASS + 1))
+else
+    echo "  ❌ critical_findings_json should be [] on malformed (got: $critical_findings_json)"
+    FAIL=$((FAIL + 1))
+fi
+echo ""
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 
 echo "=== Test Results ==="
