@@ -29,13 +29,20 @@ class TestGenerateRootEntryPoint:
     def test_fail_fast(self):
         """Script exits on failure."""
         script = generate_root_entry_point()
+        assert "returncode != 0" in script
         assert "sys.exit" in script
+
+    def test_skips_repo_specific_on_failure(self):
+        """Script mentions skipping repo-specific on failure."""
+        script = generate_root_entry_point()
+        assert "skipping repo-specific" in script.lower()
 
     def test_missing_agdt_dir_error(self):
         """Script detects missing .agdt/ directory."""
         script = generate_root_entry_point()
         assert ".agdt/" in script
         assert "agdt-setup" in script
+        assert "agdt_dir.is_dir()" in script
 
     def test_stdlib_only(self):
         """Script does not import agentic_devtools."""
@@ -46,3 +53,19 @@ class TestGenerateRootEntryPoint:
         """Script supports --foreground flag."""
         script = generate_root_entry_point()
         assert "--foreground" in script
+        assert 'action="store_true"' in script
+
+    def test_foreground_propagated_to_subprocess(self):
+        """Script propagates --foreground to subprocess calls."""
+        script = generate_root_entry_point()
+        assert "foreground_args" in script
+
+    def test_subprocess_uses_cwd(self):
+        """subprocess.run calls use cwd=str(repo_root) for location independence."""
+        script = generate_root_entry_point()
+        assert "cwd=str(repo_root)" in script
+
+    def test_uses_pathlib(self):
+        """Script uses pathlib.Path for cross-platform paths."""
+        script = generate_root_entry_point()
+        assert "from pathlib import Path" in script

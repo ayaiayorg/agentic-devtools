@@ -48,12 +48,12 @@ def main():
     )
     parser.add_argument(
         "--foreground", action="store_true", default=True,
-        help="Run in foreground (default, forward-compatible).",
+        help="Run in foreground (default, forward-compatible no-op).",
     )
-    args = parser.parse_args()
+    parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent
-    foreground_args = ["--foreground"] if args.foreground else []
+    foreground_args = ["--foreground"]
 
     # Step 1: Complete setup (managed by agentic-devtools)
     agdt_dir = repo_root / ".agdt"
@@ -76,6 +76,7 @@ def main():
 
     result = subprocess.run(
         [sys.executable, str(complete)] + foreground_args,
+        cwd=str(repo_root),
     )
     if result.returncode != 0:
         print(
@@ -89,6 +90,7 @@ def main():
     if repo_specific.exists():
         result = subprocess.run(
             [sys.executable, str(repo_specific)] + foreground_args,
+            cwd=str(repo_root),
         )
         if result.returncode != 0:
             print("  ✗ Repo-specific setup failed.", file=sys.stderr)

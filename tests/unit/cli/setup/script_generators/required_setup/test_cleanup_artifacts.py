@@ -1,6 +1,7 @@
 """Tests for cleanup_artifacts."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 from agentic_devtools.cli.setup.script_generators.required_setup import cleanup_artifacts
 
@@ -36,3 +37,18 @@ class TestCleanupArtifacts:
     def test_empty_list(self):
         """Empty artifact list returns empty messages."""
         assert cleanup_artifacts([]) == []
+
+    def test_rmtree_permission_error(self, tmp_path):
+        """Permission errors during rmtree are handled gracefully."""
+        sp = tmp_path / "site-packages"
+        sp.mkdir()
+        d = sp / "~gentic-devtools"
+        d.mkdir()
+        (d / "file.py").write_text("x", encoding="utf-8")
+
+        def failing_rmtree(path, **kw):
+            raise PermissionError("read-only")
+
+        with patch("shutil.rmtree", side_effect=failing_rmtree):
+            msgs = cleanup_artifacts([d])
+        assert any("Permission denied" in m for m in msgs)

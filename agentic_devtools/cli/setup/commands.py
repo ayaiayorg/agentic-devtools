@@ -628,14 +628,20 @@ def _generate_setup_scripts(git_root: Path) -> None:
 
     # 2) Legacy migration — check before overwriting the root entry point
     root_entry = git_root / ROOT_ENTRY_POINT_FILENAME
+    migration_failed = False
     if detect_legacy_script(root_entry):
         repo_specific = git_root / REPO_SPECIFIC_FILENAME
-        msg = migrate_legacy_content(root_entry, repo_specific)
+        success, msg = migrate_legacy_content(root_entry, repo_specific)
         print(msg)
+        if not success:
+            migration_failed = True
 
-    # 3) Always overwrite root entry point
-    atomic_write(root_entry, generate_root_entry_point())
-    print(f"  ✓ Generated {ROOT_ENTRY_POINT_FILENAME}")
+    # 3) Overwrite root entry point only if migration succeeded (or was not needed)
+    if migration_failed:
+        print(f"  ⚠ Skipping {ROOT_ENTRY_POINT_FILENAME} overwrite due to migration failure")
+    else:
+        atomic_write(root_entry, generate_root_entry_point())
+        print(f"  ✓ Generated {ROOT_ENTRY_POINT_FILENAME}")
 
     # 4) Create repo-specific stub only if it doesn't exist
     repo_specific = git_root / REPO_SPECIFIC_FILENAME
@@ -882,10 +888,13 @@ def setup_cmd() -> None:
             # ── Script Generation Phase ────────────────────────────────
             print()
             print("─── Setup Script Generation ─────────────────────────────────")
-            try:
-                _generate_setup_scripts(git_root)
-            except Exception as exc:  # noqa: BLE001
-                print(f"  ⚠ Script generation failed ({exc}) — skipping", file=sys.stderr)
+            if git_root is None:
+                print("  ℹ Not inside a git repository — skipping script generation")
+            else:
+                try:
+                    _generate_setup_scripts(git_root)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ⚠ Script generation failed ({exc}) — skipping", file=sys.stderr)
 
         # ── Run file-modifying steps (with or without PR workflow) ─────
         use_pr_workflow = not args.system_only and git_root is not None and not args.skip_pr_workflow

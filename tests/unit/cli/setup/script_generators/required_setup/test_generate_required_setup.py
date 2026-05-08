@@ -48,3 +48,8 @@ class TestGenerateRequiredSetup:
         script = generate_required_setup_script()
         assert "import agentic_devtools" not in script
         assert "from agentic_devtools" not in script
+
+    def test_uses_pathlib(self):
+        """Script uses pathlib.Path for cross-platform paths."""
+        script = generate_required_setup_script()
+        assert "from pathlib import Path" in script
