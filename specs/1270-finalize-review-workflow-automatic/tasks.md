@@ -57,11 +57,13 @@
 - [ ] T014 [US3] [P] Write failing tests for `normalize_for_comparison()` in
   `tests/unit/cli/azure_devops/finalization/convergence/test_normalize_for_comparison.py` — covers stripping marker line, passthrough
   when no marker present
-- [ ] T015 [US3] [P] Write failing tests for `check_convergence()` in `tests/unit/cli/azure_devops/finalization/convergence/test_check_convergence.py` — covers exact match (FR-013/FR-014 already-correct
+- [ ] T015 [US3] [P] Write failing tests for `check_convergence()` in `tests/unit/cli/azure_devops/finalization/convergence/test_check_convergence.py` — covers exact match (FR-013/FR-014
+  already-correct
   detection), mismatch detection, intermediate model-progress rows flagged as non-converged (FR-022), stale file links in overall summary flagged (FR-022), activity-log intermediate status flagged
   (FR-023); uses marker-based classification per FR-012
 - [ ] T016 [US3] Implement `compute_expected_content(comment, review_state) -> str` in `agentic_devtools/cli/azure_devops/finalization/convergence.py` — dispatches to `render_file_summary()`,
-  `render_overall_summary()`, or a wrapper around `_format_activity_log_entry(status_emoji, status_text, timestamp, model_name, short_hash, session_id, detail_message, sequence_number)` based on marker
+  `render_overall_summary()`, or a wrapper around `_format_activity_log_entry(status_emoji, status_text, timestamp, model_name, short_hash, session_id, detail_message, sequence_number)` based on
+  marker
   type; the wrapper supplies the required timestamp/model/hash/session/detail/sequence fields from review-state context and strips the leading marker line (since `_format_activity_log_entry` prepends
   the AGDT marker) to return body-only content (FR-012, FR-022, FR-023)
 - [ ] T017 [US3] Implement `normalize_for_comparison(content: str) -> str` in `agentic_devtools/cli/azure_devops/finalization/convergence.py` — strips leading marker line using `strip_marker_line()`

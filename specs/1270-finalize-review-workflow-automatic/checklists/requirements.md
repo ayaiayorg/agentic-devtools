@@ -20,7 +20,8 @@
   verify User Story 4 scenario 2 ("retry strategy executes within timeout limits") specifies a concrete observable assertion, not just process description
 - [ ] CHK006 All seven edge cases (no eligible comments, already-correct content, PAT timeout, partial batch success, API rate limit, missing `review-state.json`, deleted/inaccessible thread) have
   corresponding functional requirements or explicit handling rules in FR-004 through FR-023
-- [ ] CHK007 Acceptance scenarios use consistent Given/When/Then format across all user stories; verify User Story 3 scenario 3 and User Story 5 scenario 3 have unambiguous "Then" assertions rather than
+- [ ] CHK007 Acceptance scenarios use consistent Given/When/Then format across all user stories; verify User Story 3 scenario 3 and User Story 5 scenario 3 have unambiguous "Then" assertions rather
+  than
   open-ended descriptions
 - [ ] CHK008 Success criteria 1–7 each define a measurable pass/fail condition — confirm criterion 7 ("completes within 60 seconds for up to 50 comments") aligns with NFR-001's retry budget
   (2 additional global retry rounds across all non-converged comments with 5s delay between rounds, bounded by the 60s total window)
@@ -31,7 +32,8 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 Every functional requirement (FR-001 through FR-023) maps to at least one acceptance scenario in User Story 1 through User Story 5 — specifically verify FR-020 (activity-log-entry finalization),
+- [ ] CHK011 Every functional requirement (FR-001 through FR-023) maps to at least one acceptance scenario in User Story 1 through User Story 5 — specifically verify FR-020 (activity-log-entry
+  finalization),
   FR-021 (verdict preservation), FR-022/FR-023 (convergence definitions) have traceable acceptance coverage
 - [ ] CHK012 User scenarios cover the full lifecycle: normal finalization (User Story 1), authorship safety (User Story 2),
   batch-then-fallback strategy (User Story 3), convergence verification (User Story 4), and reporting (User Story 5) —
