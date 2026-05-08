@@ -669,3 +669,191 @@ class TestAdvancePullRequestReviewWorkflow:
         workflow = state.get_workflow_state()
         assert workflow["step"] == "completion"
         assert workflow["status"] == "completed"
+
+    def test_advance_to_completion_calls_finalization(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test finalization pass is called after cascade during completion."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_file = MagicMock()
+        mock_file.status = "approved"
+        mock_review_state = MagicMock()
+        mock_review_state.files = {"/src/a.py": mock_file}
+        mock_review_state.repoId = "repo-guid"
+        mock_review_state.overallSummary = MagicMock()
+        mock_review_state.overallSummary.status = "approved"
+
+        mock_fin_report = MagicMock()
+        mock_fin_report.status = "no-op"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "completed_count": 1,
+                    "pending_count": 0,
+                    "total_count": 1,
+                    "current_file": None,
+                    "prompt_file_path": None,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=mock_review_state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.auth.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+                return_value={"Authorization": "Basic fake"},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.helpers.require_requests",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
+                return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.run_finalization_pass",
+                return_value=mock_fin_report,
+            ) as mock_finalization,
+            patch(
+                "agentic_devtools.state.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Decision: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        # Finalization was called
+        mock_finalization.assert_called_once()
+
+        # Workflow completes successfully
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"
+
+    def test_advance_to_completion_non_blocking_on_finalization_error(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Test workflow completes even when finalization raises an exception."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="decision",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_file = MagicMock()
+        mock_file.status = "approved"
+        mock_review_state = MagicMock()
+        mock_review_state.files = {"/src/a.py": mock_file}
+        mock_review_state.repoId = "repo-guid"
+        mock_review_state.overallSummary = MagicMock()
+        mock_review_state.overallSummary.status = "approved"
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "completed_count": 1,
+                    "pending_count": 0,
+                    "total_count": 1,
+                    "current_file": None,
+                    "prompt_file_path": None,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=mock_review_state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.status_cascade.cascade_overall_summary_update",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.status_cascade.execute_cascade",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.save_review_state",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.auth.get_pat",
+                return_value="fake-pat",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.auth.get_auth_headers",
+                return_value={"Authorization": "Basic fake"},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.helpers.require_requests",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.config.AzureDevOpsConfig.from_state",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.build_pr_base_url",
+                return_value="https://dev.azure.com/org/proj/_git/repo/pullrequest/123",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.finalization.run_finalization_pass",
+                side_effect=RuntimeError("finalization crash"),
+            ),
+            patch(
+                "agentic_devtools.state.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-completion-prompt.md"
+            template_file.write_text(
+                "Decision: {{decision}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow(step="completion")
+
+        captured = capsys.readouterr()
+        assert "Finalization pass failed" in captured.err
+
+        # Decision should still be correct even though finalization failed
+        assert "✅ Approved" in captured.out
+
+        # Workflow should still complete
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "completion"
+        assert workflow["status"] == "completed"
