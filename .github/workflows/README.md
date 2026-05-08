@@ -221,11 +221,10 @@ Fails if any downstream test job failed. This is the single required status chec
 **Automated Release Creation**
 
 - Runs on:
-  - Pushes to main affecting `.specify/memory/**`, `.specify/scripts/**`, `.specify/templates/**`, or `.github/workflows/**`
+  - Pushes to `main` affecting `agentic_devtools/**` or `pyproject.toml`
   - Manual workflow dispatch
-- Purpose: Automatically creates releases with Spec-Driven Development (SDD) template packages
-- Outputs: Creates release packages for multiple AI assistants (Claude, Copilot, Gemini, Cursor, etc.)
-- Scripts: Uses helper scripts in `.github/workflows/scripts/`
+- Purpose: Automatically create a new patch release tag and publish a GitHub release with generated notes
+- Scripts: Uses helper scripts in `.github/workflows/scripts/` for next-version calculation and release existence checks
 - **Required for automatic PyPI publishing**: `RELEASE_PAT` — a fine-grained PAT with `contents: write` permission
   (see [RELEASING.md](../../RELEASING.md#release_pat-requirement)); the workflow falls back to `GITHUB_TOKEN`
   but automatic publishing to PyPI will not trigger without it
@@ -239,16 +238,12 @@ Fails if any downstream test job failed. This is the single required status chec
 
 The release workflow:
 
-1. **Version Management**: Automatically increments version based on latest git tag
-2. **Package Creation**: Generates SDD template packages for different AI assistants:
-   - Claude (`.claude/commands/`)
-   - Copilot (`.github/agents/`)
-   - Gemini (`.gemini/commands/`)
-   - Cursor (`.cursor/commands/`)
-   - And many others (OpenCode, Windsurf, Qwen, etc.)
-3. **Release Notes**: Auto-generates release notes from git history
-4. **GitHub Release**: Creates a GitHub release with all package variants
-5. **Version Update**: Updates `pyproject.toml` with the new version
+1. **Version Management**: Automatically increments version based on latest git tag, or reuses the
+   latest tag when it exists without a corresponding release (for idempotent reruns)
+2. **Duplicate Protection**: Skips execution when the next version release already exists
+3. **Tag Creation**: Creates and pushes the new semantic version tag on the triggering commit
+   (`github.sha` for push events, `main` HEAD for `workflow_dispatch`)
+4. **GitHub Release**: Publishes a release for the new tag using GitHub-generated notes (`gh release create --generate-notes`)
 
 ### Release Scripts
 
@@ -256,10 +251,6 @@ Located in `.github/workflows/scripts/`:
 
 - `get-next-version.sh`: Calculates next semantic version
 - `check-release-exists.sh`: Prevents duplicate releases
-- `create-release-packages.sh`: Builds all SDD template packages
-- `generate-release-notes.sh`: Creates release notes from commits
-- `create-github-release.sh`: Publishes the GitHub release
-- `update-version.sh`: Updates version in pyproject.toml
 
 ## Spec-Driven Development (SDD)
 
@@ -270,4 +261,4 @@ This project follows the [Spec-Kit](https://github.com/github/spec-kit) methodol
 - `templates/`: Feature specification templates
 - `templates/commands/`: AI assistant command templates
 
-The release workflow packages these templates into formats compatible with different AI coding assistants.
+These templates support the development process but are not release assets for the Python package workflow.

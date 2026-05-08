@@ -12,10 +12,17 @@ fi
 
 VERSION="$1"
 
-if gh release view "$VERSION" >/dev/null 2>&1; then
-  echo "exists=true" >> $GITHUB_OUTPUT
+# Distinguish "release not found" (404) from other errors (auth/network)
+# to avoid proceeding with a release on transient GitHub failures.
+RELEASE_CHECK_HTTP=$(gh api -i "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" 2>&1 | head -1 || true)
+
+if echo "$RELEASE_CHECK_HTTP" | grep -q "200"; then
+  echo "exists=true" >> "$GITHUB_OUTPUT"
   echo "Release $VERSION already exists, skipping..."
-else
-  echo "exists=false" >> $GITHUB_OUTPUT
+elif echo "$RELEASE_CHECK_HTTP" | grep -q "404"; then
+  echo "exists=false" >> "$GITHUB_OUTPUT"
   echo "Release $VERSION does not exist, proceeding..."
+else
+  echo "::error::Failed to check release for $VERSION: $RELEASE_CHECK_HTTP"
+  exit 1
 fi

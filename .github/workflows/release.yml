@@ -2,61 +2,68 @@ name: Create Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - '.specify/memory/**'
-      - '.specify/scripts/**'
-      - '.specify/templates/**'
-      - '.github/workflows/**'
+      - "agentic_devtools/**"
+      - "pyproject.toml"
   workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+    env:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.sha }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Get latest tag
+          token: ${{ env.RELEASE_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Get latest tag and calculate next version
         id: get_tag
         run: |
           chmod +x .github/workflows/scripts/get-next-version.sh
           .github/workflows/scripts/get-next-version.sh
+        env:
+          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
+
       - name: Check if release already exists
         id: check_release
         run: |
           chmod +x .github/workflows/scripts/check-release-exists.sh
-          .github/workflows/scripts/check-release-exists.sh ${{ steps.get_tag.outputs.new_version }}
+          .github/workflows/scripts/check-release-exists.sh "${{ steps.get_tag.outputs.new_version }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create release package variants
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          chmod +x .github/workflows/scripts/create-release-packages.sh
-          .github/workflows/scripts/create-release-packages.sh ${{ steps.get_tag.outputs.new_version }}
-      - name: Generate release notes
-        if: steps.check_release.outputs.exists == 'false'
-        id: release_notes
-        run: |
-          chmod +x .github/workflows/scripts/generate-release-notes.sh
-          .github/workflows/scripts/generate-release-notes.sh ${{ steps.get_tag.outputs.new_version }} ${{ steps.get_tag.outputs.latest_tag }}
-      - name: Create GitHub Release
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          chmod +x .github/workflows/scripts/create-github-release.sh
-          .github/workflows/scripts/create-github-release.sh ${{ steps.get_tag.outputs.new_version }}
-        env:
-          # Use RELEASE_PAT here so the published release triggers publish.yml via the
-          # `release: published` event. GITHUB_TOKEN-created releases do NOT fire that event.
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
-      - name: Update version in pyproject.toml (for release artifacts only)
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          chmod +x .github/workflows/scripts/update-version.sh
-          .github/workflows/scripts/update-version.sh ${{ steps.get_tag.outputs.new_version }}
+          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
 
+      - name: Create and push tag
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          if git rev-parse "${{ steps.get_tag.outputs.new_version }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.get_tag.outputs.new_version }} already exists — skipping creation"
+          else
+            git tag -a "${{ steps.get_tag.outputs.new_version }}" HEAD -m "Release ${{ steps.get_tag.outputs.new_version }}"
+            git push origin "${{ steps.get_tag.outputs.new_version }}"
+          fi
+
+      - name: Create and publish GitHub release
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.get_tag.outputs.new_version }}" \
+            --target main \
+            --title "${{ steps.get_tag.outputs.new_version }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ env.RELEASE_TOKEN }}

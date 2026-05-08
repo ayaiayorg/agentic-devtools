@@ -65,6 +65,7 @@ _poll_output.txt
 
 # Workflow artifacts (ad-hoc, not source files)
 replies.json
+review-comments.json
 poll-result.json
 copilot-status.json
 
