@@ -20,3 +20,14 @@ class TestGetConfigPath:
 
         assert result is not None
         assert result == tmp_path / ".agdt" / "config" / "project.json"
+
+    def test_uses_explicit_git_root_without_cwd_detection(self, tmp_path):
+        """When git_root is passed, uses it directly without calling _get_git_repo_root."""
+        result = _get_config_path(git_root=tmp_path)
+
+        assert result == tmp_path / ".agdt" / "config" / "project.json"
+
+    def test_explicit_git_root_none_falls_back_to_detection(self):
+        """When git_root is explicitly None, falls back to CWD-based detection."""
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=None):
+            assert _get_config_path(git_root=None) is None

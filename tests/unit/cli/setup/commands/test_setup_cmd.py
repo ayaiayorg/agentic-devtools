@@ -1095,3 +1095,242 @@ class TestSetupCmd:
         out = capsys.readouterr().out
         assert "Setup changes committed to branch" in out
         assert "PR creation failed" in out
+
+    # ── Version guard integration tests ────────────────────────────────
+
+    def test_version_guard_block_exits_one(self, capsys):
+        """guard_result == 'block' → sys.exit(1) before any setup steps."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=Path("/fake/repo")):
+                with patch(
+                    "agentic_devtools.cli.setup.version_guard.check_version_guard",
+                    return_value="block",
+                ):
+                    with pytest.raises(SystemExit) as exc_info:
+                        commands.setup_cmd()
+        assert exc_info.value.code == 1
+
+    def test_version_guard_force_skips_repo_steps(self, capsys, tmp_path):
+        """guard_result == 'force' → file-modifying steps are skipped."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                with patch(
+                    "agentic_devtools.cli.setup.version_guard.check_version_guard",
+                    return_value="force",
+                ):
+                    with patch.object(commands, "_prefetch_certs"):
+                        with patch.object(commands, "install_copilot_cli", return_value=True):
+                            with patch.object(commands, "install_gh_cli", return_value=True):
+                                with patch.object(
+                                    commands, "check_all_dependencies", return_value=_make_statuses(True)
+                                ):
+                                    with patch.object(commands, "_persist_env_vars_to_profile"):
+                                        with patch(
+                                            "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore"
+                                        ) as mock_gitignore:
+                                            with patch(
+                                                "agentic_devtools.cli.setup.pr_workflow.run_setup_with_pr_workflow"
+                                            ) as mock_pr_workflow:
+                                                commands.setup_cmd()
+        # File-modifying steps should NOT have run
+        mock_gitignore.assert_not_called()
+        mock_pr_workflow.assert_not_called()
+
+    def test_force_old_version_flag_passes_true_to_check_version_guard(self):
+        """--force-old-version flag passes force_old_version=True to check_version_guard."""
+        with patch("sys.argv", ["agdt-setup", "--force-old-version"]):
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=Path("/fake/repo")):
+                with patch(
+                    "agentic_devtools.cli.setup.version_guard.check_version_guard",
+                    return_value="force",
+                ) as mock_guard:
+                    with patch.object(commands, "_prefetch_certs"):
+                        with patch.object(commands, "install_copilot_cli", return_value=True):
+                            with patch.object(commands, "install_gh_cli", return_value=True):
+                                with patch.object(
+                                    commands, "check_all_dependencies", return_value=_make_statuses(True)
+                                ):
+                                    with patch.object(commands, "_persist_env_vars_to_profile"):
+                                        commands.setup_cmd()
+        mock_guard.assert_called_once_with(Path("/fake/repo"), True)
+
+    def test_without_force_old_version_flag_passes_false_to_check_version_guard(self):
+        """Without --force-old-version, force_old_version=False is passed to check_version_guard."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=Path("/fake/repo")):
+                with patch(
+                    "agentic_devtools.cli.setup.version_guard.check_version_guard",
+                    return_value="force",
+                ) as mock_guard:
+                    with patch.object(commands, "_prefetch_certs"):
+                        with patch.object(commands, "install_copilot_cli", return_value=True):
+                            with patch.object(commands, "install_gh_cli", return_value=True):
+                                with patch.object(
+                                    commands, "check_all_dependencies", return_value=_make_statuses(True)
+                                ):
+                                    with patch.object(commands, "_persist_env_vars_to_profile"):
+                                        commands.setup_cmd()
+        mock_guard.assert_called_once_with(Path("/fake/repo"), False)
+
+    # ── Root gitignore negation integration tests ──────────────────────
+
+    def test_gitignore_negations_success_prints_message(self, capsys, tmp_path):
+        """Prints success message when root .gitignore negation rules are added."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch(
+                                            "agentic_devtools.cli.setup.gitignore_negations.ensure_root_gitignore_negations",
+                                            return_value=True,
+                                        ):
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    commands.setup_cmd()
+
+        out = capsys.readouterr().out
+        assert "Added .gitignore negation rules for .agdt/config/project.json" in out
+
+    # ── Version pinning integration tests ──────────────────────────────
+
+    def test_version_pinning_success_prints_message(self, capsys, tmp_path):
+        """Prints success message when agdt_version is pinned in project.json."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.config.project_config.load_project_config",
+                                                    return_value={},
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.config.project_config.save_project_config",
+                                                    ) as mock_save:
+                                                        commands.setup_cmd()
+
+        out = capsys.readouterr().out
+        assert "Pinned agdt_version=" in out
+        mock_save.assert_called_once()
+
+    def test_version_pinning_exception_warns_on_stderr(self, capsys, tmp_path):
+        """Prints warning to stderr when version pinning fails."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.config.project_config.load_project_config",
+                                                    side_effect=[{}, RuntimeError("disk full")],
+                                                ):
+                                                    commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        assert "Failed to pin agdt_version" in err
+
+    def test_version_pinning_skipped_when_no_repo_mutations_succeeded(self, capsys, tmp_path):
+        """Version pin is NOT written when all repo-mutating steps failed."""
+        with patch("sys.argv", ["agdt-setup", "--skip-platform-detection", "--skip-templates"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    # All mutation steps fail or return False
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
+                                    ):
+                                        with patch(
+                                            "agentic_devtools.skill_injector.inject_skills", return_value=False
+                                        ):
+                                            with patch.object(commands, "_prompt_project_config"):
+                                                with patch.object(commands, "_prompt_copilot_model"):
+                                                    with patch.object(
+                                                        commands,
+                                                        "_generate_setup_scripts",
+                                                        side_effect=RuntimeError("boom"),
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.gitignore_negations.ensure_root_gitignore_negations",
+                                                            return_value=False,
+                                                        ):
+                                                            with patch(
+                                                                "agentic_devtools.cli.config.project_config.save_project_config",
+                                                            ) as mock_save:
+                                                                commands.setup_cmd()
+
+        out = capsys.readouterr().out
+        assert "Pinned agdt_version=" not in out
+        mock_save.assert_not_called()
+
+    def test_skill_injector_import_failure_silenced_when_no_git_root(self, capsys):
+        """Silently skips skill injection warning when import fails and git_root is None."""
+        import builtins
+
+        original_import = builtins.__import__
+
+        def _raising_import(name, *args, **kwargs):
+            if name == "agentic_devtools.skill_injector":
+                raise ImportError("simulated import error")
+            return original_import(name, *args, **kwargs)
+
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                # autouse fixture already sets git_root=None
+                                with patch("builtins.__import__", side_effect=_raising_import):
+                                    commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        # Warning should NOT appear when git_root is None
+        assert "Failed to import skill injector" not in err
+
+    def test_script_generation_exception_warns_on_stderr(self, capsys, tmp_path):
+        """Prints warning to stderr when _generate_setup_scripts raises."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch.object(
+                                                    commands,
+                                                    "_generate_setup_scripts",
+                                                    side_effect=RuntimeError("disk full"),
+                                                ):
+                                                    commands.setup_cmd()
+
+        err = capsys.readouterr().err
+        assert "Script generation failed" in err
+        assert "disk full" in err

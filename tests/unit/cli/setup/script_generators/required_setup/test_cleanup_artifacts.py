@@ -52,3 +52,24 @@ class TestCleanupArtifacts:
         with patch("shutil.rmtree", side_effect=failing_rmtree):
             msgs = cleanup_artifacts([d])
         assert any("Permission denied" in m for m in msgs)
+
+    def test_removes_symlink(self, tmp_path):
+        """Symlinks are removed via unlink."""
+        link = tmp_path / "link"
+        link.write_text("x", encoding="utf-8")
+        with patch.object(Path, "is_symlink", return_value=True):
+            msgs = cleanup_artifacts([link])
+        assert not link.exists()
+        assert any("Removed" in m for m in msgs)
+
+    def test_handles_oserror(self, tmp_path):
+        """OSError (non-PermissionError) is handled gracefully."""
+        f = tmp_path / "broken.pth"
+        f.write_text("x", encoding="utf-8")
+        with (
+            patch.object(Path, "is_symlink", return_value=False),
+            patch.object(Path, "is_dir", return_value=False),
+            patch.object(Path, "unlink", side_effect=OSError("disk error")),
+        ):
+            msgs = cleanup_artifacts([f])
+        assert any("Failed to remove" in m for m in msgs)

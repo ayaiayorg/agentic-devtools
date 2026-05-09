@@ -325,3 +325,24 @@ class TestPrefetchCerts:
         assert os.environ.get("NODE_EXTRA_CA_CERTS") == user_certs
         out = capsys.readouterr().out
         assert "NODE_EXTRA_CA_CERTS set for this session" not in out
+
+    def test_skips_jira_when_hostname_is_empty(self, capsys, tmp_path):
+        """Does not add Jira host when URL resolves to empty hostname."""
+        pem_path = str(tmp_path / "cert.pem")
+
+        with patch.object(commands, "_ensure_ca_bundle", return_value=pem_path) as mock_ensure:
+            with patch.object(commands, "_build_unified_ca_bundle", return_value=None):
+                with patch("agentic_devtools.cli.setup.commands.Path") as mock_path_cls:
+                    mock_npmrc = mock_path_cls.home.return_value.__truediv__.return_value.__truediv__.return_value
+                    mock_npmrc.parent = tmp_path
+                    # An empty string URL produces a None hostname from urlparse
+                    with patch(
+                        "agentic_devtools.cli.jira.config.get_jira_base_url",
+                        return_value="",
+                    ):
+                        commands._prefetch_certs()
+
+        # Only the fixed setup hosts + npm should be called, not any Jira host
+        called_hostnames = [c.args[0] for c in mock_ensure.call_args_list]
+        expected = set(commands._SETUP_HOSTS) | {"registry.npmjs.org"}
+        assert set(called_hostnames) == expected

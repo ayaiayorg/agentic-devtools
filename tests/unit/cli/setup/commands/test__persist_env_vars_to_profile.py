@@ -212,6 +212,29 @@ class TestPersistEnvVarsToProfile:
         out = capsys.readouterr().out
         assert "PATH entry persisted" not in out
 
+    def test_path_entry_not_found_in_profile_prints_nothing(self, tmp_path, capsys):
+        """Prints nothing when PATH entry doesn't exist in profile and persist fails."""
+        profile = tmp_path / ".bashrc"
+        profile.write_text("# empty profile\n", encoding="utf-8")
+
+        with patch("agentic_devtools.cli.setup.commands._is_managed_bin_on_path", return_value=False):
+            with patch("agentic_devtools.cli.setup.commands.detect_shell_profile", return_value=profile):
+                with patch("agentic_devtools.cli.setup.commands.detect_shell_type", return_value="bash"):
+                    with patch(
+                        "agentic_devtools.cli.setup.commands.persist_path_entry",
+                        return_value=False,
+                    ):
+                        _persist_env_vars_to_profile(
+                            npmrc_path=None,
+                            unified_path=None,
+                            persist_env=True,
+                            overwrite_env=False,
+                            path_only=False,
+                        )
+        out = capsys.readouterr().out
+        assert "PATH entry persisted" not in out
+        assert "already set" not in out
+
     def test_skips_vars_when_path_only(self, tmp_path, capsys):
         """Skips npmrc and unified path when path_only=True."""
         profile = tmp_path / ".bashrc"

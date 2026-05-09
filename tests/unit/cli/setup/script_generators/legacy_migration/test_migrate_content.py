@@ -81,3 +81,15 @@ class TestMigrateContent:
             success, msg = migrate_legacy_content(legacy, target)
             assert success is False
             assert "Failed to migrate" in msg
+
+    def test_target_unicode_decode_error(self, tmp_path):
+        """Reports error when existing target file has invalid encoding."""
+        legacy = tmp_path / "setup-dev-tools.py"
+        legacy.write_text("print('legacy')\n", encoding="utf-8")
+        target = tmp_path / "setup-repo-specific-dev-tools.py"
+        # Write invalid UTF-8 bytes to the target file
+        target.write_bytes(b"\x80\x81\x82\x83")
+
+        success, msg = migrate_legacy_content(legacy, target)
+        assert success is False
+        assert "Failed to read" in msg

@@ -44,3 +44,13 @@ class TestSaveProjectConfig:
         data = json.loads(config_file.read_text(encoding="utf-8"))
         assert data["jira_project_keys"] == ""
         assert data["vpn_url"] == ""
+
+    def test_explicit_git_root_writes_to_that_path(self, tmp_path):
+        """When git_root is passed, writes config under that path directly."""
+        result = save_project_config({"agdt_version": "0.2.69"}, git_root=tmp_path)
+
+        expected = tmp_path / ".agdt" / "config" / "project.json"
+        assert result == expected
+        assert expected.exists()
+        data = json.loads(expected.read_text(encoding="utf-8"))
+        assert data == {"agdt_version": "0.2.69"}
