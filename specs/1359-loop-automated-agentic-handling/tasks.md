@@ -4,6 +4,25 @@
 
 ---
 
+## Task Deduplication Analysis (Phase 5)
+
+Phase 5 analysis identified potential task overlaps documented in the
+[analysis report](analysis-report.md) (findings G-01 and G-02).
+These are **recommendations for future consolidation** — the task list
+below remains unchanged from Phase 4 (62 tasks, T001–T062).
+
+| Finding | Recommendation |
+|---------|---------------|
+| **G-01** (T034/T061) | T034 (CI failure dispatch) and T061 (dedup guard happy-path verification) have distinct scopes — no action needed |
+| **G-02** (T031/T046) | T046 (manual timeout test) could be consolidated with T031 (CI log retrieval) if structured metadata overlaps — review during implementation |
+
+> **Note**: NFR-004 has no covering task (finding E-01) and SEC-002 is
+> partially covered (finding E-02) — see the
+> [analysis report](analysis-report.md) for details.
+> All other FR/NFR/SEC requirements remain fully traced.
+
+---
+
 ## Phase 1: Setup — Project Scaffolding & Configuration
 
 - [ ] T001 Add `AGDT_VERSION` env variable to the top-level `env:` block in `.github/workflows/ai-pr-loop.yml` (e.g., `AGDT_VERSION: '0.42.0'`) as the single source of truth for the pinned
