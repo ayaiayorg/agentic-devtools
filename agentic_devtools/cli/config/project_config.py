@@ -15,24 +15,32 @@ _CONFIG_DIR = "config"
 _CONFIG_FILENAME = "project.json"
 
 
-def _get_config_path() -> Path | None:
-    """Return the path to ``.agdt/config/project.json`` or ``None``."""
-    # Deferred import to avoid circular dependency
-    from agentic_devtools.state import _get_git_repo_root
+def _get_config_path(git_root: Path | None = None) -> Path | None:
+    """Return the path to ``.agdt/config/project.json`` or ``None``.
 
-    git_root = _get_git_repo_root()
+    When *git_root* is given it is used directly; otherwise the root is
+    detected from the current working directory.
+    """
+    if git_root is None:
+        # Deferred import to avoid circular dependency
+        from agentic_devtools.state import _get_git_repo_root
+
+        git_root = _get_git_repo_root()
     if git_root is None:
         return None
     return git_root / ".agdt" / _CONFIG_DIR / _CONFIG_FILENAME
 
 
-def load_project_config() -> dict[str, Any]:
+def load_project_config(*, git_root: Path | None = None) -> dict[str, Any]:
     """Read ``.agdt/config/project.json`` and return its contents.
+
+    When *git_root* is given, the config is read from that repo root
+    instead of detecting the root from the current working directory.
 
     Returns ``{}`` when the file does not exist, the current directory is
     not inside a git repository, or the JSON is malformed.
     """
-    config_path = _get_config_path()
+    config_path = _get_config_path(git_root)
     if config_path is None or not config_path.exists():
         return {}
     try:
@@ -58,14 +66,17 @@ def load_project_config() -> dict[str, Any]:
     return parsed
 
 
-def save_project_config(config: dict[str, Any]) -> Path:
+def save_project_config(config: dict[str, Any], *, git_root: Path | None = None) -> Path:
     """Write *config* to ``.agdt/config/project.json``, creating directories as needed.
+
+    When *git_root* is given, the config is written under that repo root
+    instead of detecting the root from the current working directory.
 
     Returns the path that was written.
 
     Raises ``RuntimeError`` if the git repository root cannot be determined.
     """
-    config_path = _get_config_path()
+    config_path = _get_config_path(git_root)
     if config_path is None:
         raise RuntimeError("Cannot determine git repository root. Run from inside a git repo.")
     config_path.parent.mkdir(parents=True, exist_ok=True)

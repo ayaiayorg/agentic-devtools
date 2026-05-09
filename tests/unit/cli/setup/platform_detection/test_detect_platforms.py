@@ -53,8 +53,13 @@ class TestDetectJiraFromConfig:
     @patch(f"{_MOD}.load_repo_config")
     @patch(f"{_MOD}._get_origin_remote_url", return_value=None)
     @patch(f"{_MOD}.load_platform_config")
-    def test_detects_jira_from_issue_adapter_config(self, mock_cfg, _mock_url, mock_raw, tmp_path):
+    @patch.dict("os.environ", {}, clear=False)
+    def test_detects_jira_from_issue_adapter_config(self, mock_cfg, _mock_url, mock_raw, tmp_path, monkeypatch):
         """Detect Jira with medium confidence when issue_adapter is explicitly 'jira'."""
+        # Remove Jira env vars so env_signal is False and confidence is "medium"
+        monkeypatch.delenv("JIRA_COPILOT_PAT", raising=False)
+        monkeypatch.delenv("JIRA_BASE_URL", raising=False)
+        monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
         mock_cfg.return_value = {"issue_adapter": "jira", "jira": {}, "github": {}, "azure_devops": {}}
         mock_raw.return_value = {"platform": {"issue_adapter": "jira"}}
 

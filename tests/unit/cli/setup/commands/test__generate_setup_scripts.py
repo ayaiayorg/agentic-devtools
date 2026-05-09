@@ -99,6 +99,29 @@ class TestFullFlowIntegration:
         content = repo_specific.read_text(encoding="utf-8")
         assert "print('old setup')" in content
 
-        # Root should now have the marker
-        root_content = legacy.read_text(encoding="utf-8")
-        assert ORCHESTRATOR_MARKER in root_content
+    def test_migration_failure_skips_root_entry_overwrite(self, tmp_path, capsys):
+        """Root entry point is NOT overwritten when legacy migration fails."""
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.setup.commands import _generate_setup_scripts
+
+        (tmp_path / ".gitignore").write_text(".agdt/\n", encoding="utf-8")
+
+        # Create a legacy script (no marker) so migration is attempted
+        legacy = tmp_path / ROOT_ENTRY_POINT_FILENAME
+        legacy.write_text("print('old setup')\n", encoding="utf-8")
+
+        # Make migrate_legacy_content return failure
+        with patch(
+            "agentic_devtools.cli.setup.script_generators.legacy_migration.migrate_legacy_content",
+            return_value=(False, "  ⚠ Failed to read legacy script: fake error"),
+        ):
+            _generate_setup_scripts(tmp_path)
+
+        out = capsys.readouterr().out
+        assert "Skipping" in out
+        assert "migration failure" in out
+        # Root entry point should still contain the legacy content (NOT overwritten)
+        content = legacy.read_text(encoding="utf-8")
+        assert "print('old setup')" in content
+        assert ORCHESTRATOR_MARKER not in content

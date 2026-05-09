@@ -95,7 +95,15 @@ class TestUpdateGitignore:
         """Returns warning when .gitignore cannot be read."""
         gi = tmp_path / ".gitignore"
         gi.write_text(".agdt/\n", encoding="utf-8")
-        with patch.object(type(gi), "read_text", side_effect=OSError("perm denied")):
+        real_open = open
+
+        def _open_side_effect(*args, **kwargs):
+            path_arg = str(args[0]) if args else ""
+            if ".gitignore" in path_arg and kwargs.get("newline") == "":
+                raise OSError("perm denied")
+            return real_open(*args, **kwargs)
+
+        with patch("builtins.open", side_effect=_open_side_effect):
             msg = update_gitignore(tmp_path)
         assert "Failed to read" in msg
 
@@ -103,7 +111,19 @@ class TestUpdateGitignore:
         """Returns warning when .gitignore cannot be written."""
         gi = tmp_path / ".gitignore"
         gi.write_text(".agdt/\n", encoding="utf-8")
-        with patch.object(type(gi), "write_text", side_effect=OSError("read-only")):
+        real_open = open
+        call_count = 0
+
+        def _open_side_effect(*args, **kwargs):
+            nonlocal call_count
+            path_arg = str(args[0]) if args else ""
+            if ".gitignore" in path_arg and kwargs.get("newline") == "":
+                call_count += 1
+                if call_count > 1:  # second open() call is the write
+                    raise OSError("read-only")
+            return real_open(*args, **kwargs)
+
+        with patch("builtins.open", side_effect=_open_side_effect):
             msg = update_gitignore(tmp_path)
         assert "Failed to write" in msg
 

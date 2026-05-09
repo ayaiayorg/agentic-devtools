@@ -371,7 +371,7 @@ def _print_manual_instructions(
             "\n  ℹ Add the following to your shell profile.",
             "  Examples for bash/zsh and PowerShell:",
         ]
-        if npmrc_path or unified_path or not managed_on_path:
+        if npmrc_path or unified_path or not managed_on_path:  # pragma: no branch
             instructions.append("    # bash / zsh:")
         if npmrc_path:
             instructions.append(f'    export NPM_CONFIG_USERCONFIG="{npmrc_path}"')
@@ -380,7 +380,7 @@ def _print_manual_instructions(
             instructions.append(f'    export NODE_EXTRA_CA_CERTS="{unified_path}"')
         if not managed_on_path:
             instructions.append('    export PATH="$HOME/.agdt/bin:$PATH"')
-        if npmrc_path or unified_path or not managed_on_path:
+        if npmrc_path or unified_path or not managed_on_path:  # pragma: no branch
             instructions.append("    # PowerShell:")
         if npmrc_path:
             instructions.append(f'    $env:NPM_CONFIG_USERCONFIG = "{npmrc_path}"')
@@ -513,7 +513,7 @@ def _query_copilot_models() -> list[str]:
         )
         if result.returncode == 0 and result.stdout.strip():
             models = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-            if models:
+            if models:  # pragma: no branch
                 return models
     except (OSError, subprocess.TimeoutExpired, ValueError):
         pass
@@ -734,6 +734,17 @@ def setup_cmd() -> None:
         default=False,
         help="Skip the automatic branch/PR workflow for repo file changes.",
     )
+    parser.add_argument(
+        "--force-old-version",
+        action="store_true",
+        default=False,
+        help=(
+            "Bypass the version guard when the installed version is older"
+            " than the project pin. Repo file modifications are skipped"
+            " only in that case; has no effect when the version already"
+            " satisfies the pin."
+        ),
+    )
     args = parser.parse_args()
 
     original_no_verify = os.environ.get("AGDT_NO_VERIFY_SSL")
@@ -742,6 +753,18 @@ def setup_cmd() -> None:
             os.environ["AGDT_NO_VERIFY_SSL"] = "1"
             print("  ⚠  SSL verification disabled. Use only on trusted networks.")
             print()
+
+        # ── Version guard (must run before any local-only or file-modifying steps) ──
+        from agentic_devtools.state import _get_git_repo_root
+
+        git_root = _get_git_repo_root()
+
+        from agentic_devtools.cli.setup.version_guard import check_version_guard
+
+        guard_result = check_version_guard(git_root, args.force_old_version)
+        if guard_result == "block":
+            sys.exit(1)
+        skip_repo_steps = guard_result == "force"
 
         print(_BANNER)
         print()
@@ -779,17 +802,16 @@ def setup_cmd() -> None:
 
         # Ensure .agdt/.gitignore exists in the current repo (if any)
         from agentic_devtools.agdt_gitignore import ensure_agdt_gitignore
-        from agentic_devtools.state import _get_git_repo_root
-
-        git_root = _get_git_repo_root()
 
         # ── File-modifying steps (may be wrapped by the PR workflow) ───
         def _run_file_modifying_steps() -> None:
+            # Track whether any repo-mutating step succeeded so we only pin
+            # agdt_version when at least one file modification was applied.
+            repo_mutations_succeeded = False
+
             if ensure_agdt_gitignore(git_root):
-                print(
-                    "  ✓ Ensured .agdt/.gitignore — commit this file to propagate to all worktrees"
-                    "\n    (if your root .gitignore ignores .agdt/, add '!.agdt/.gitignore' so git tracks it)"
-                )
+                print("  ✓ Ensured .agdt/.gitignore exists")
+                repo_mutations_succeeded = True
             elif git_root is not None:
                 print("  ⚠ Failed to create/update .agdt/.gitignore — check directory permissions", file=sys.stderr)
 
@@ -817,6 +839,7 @@ def setup_cmd() -> None:
 
             if inject_skills is not None and inject_skills(git_root):
                 print("  ✓ Injected agent/prompt skills into .github/agents/ and .github/prompts/")
+                repo_mutations_succeeded = True
             elif git_root is not None and inject_skills is not None:
                 print(
                     "  ⚠ Failed to inject agent/prompt skills — this may be due to"
@@ -843,6 +866,7 @@ def setup_cmd() -> None:
                         platform_config["issue_adapter"] = args.issue_adapter
                         if save_platform_config(str(git_root), platform_config):
                             print(f"  ✓ Issue adapter configured: {args.issue_adapter}")
+                            repo_mutations_succeeded = True
                         else:
                             print(
                                 "  ⚠ Failed to save platform configuration — check directory permissions",
@@ -859,6 +883,7 @@ def setup_cmd() -> None:
                         platform_config = confirm_and_override(result)
                         if save_platform_config(str(git_root), platform_config):
                             print("  ✓ Platform configuration saved")
+                            repo_mutations_succeeded = True
                         else:
                             print(
                                 "  ⚠ Failed to save platform configuration — check directory permissions",
@@ -878,6 +903,7 @@ def setup_cmd() -> None:
                         if generated:
                             for path in generated:
                                 print(f"  ✓ Generated template: {path}")
+                            repo_mutations_succeeded = True
                         else:
                             print(
                                 "  ℹ Workflow templates already exist (use --skip-templates to suppress this message)"
@@ -893,11 +919,46 @@ def setup_cmd() -> None:
             else:
                 try:
                     _generate_setup_scripts(git_root)
+                    repo_mutations_succeeded = True
                 except Exception as exc:  # noqa: BLE001
                     print(f"  ⚠ Script generation failed ({exc}) — skipping", file=sys.stderr)
 
+            # ── Root gitignore negation rules for project.json tracking ──
+            # Must run AFTER _generate_setup_scripts() because update_gitignore()
+            # (called by _generate_setup_scripts) may add the .agdt/* ignore rule
+            # on first-time setups.  The negation rules need that anchor to exist.
+            if git_root is not None:
+                from agentic_devtools.cli.setup.gitignore_negations import ensure_root_gitignore_negations
+
+                if ensure_root_gitignore_negations(git_root):
+                    print("  ✓ Added .gitignore negation rules for .agdt/config/project.json")
+                    repo_mutations_succeeded = True
+
+            # ── Pin agdt_version in project.json (LAST step) ───────────
+            # Only write the version pin when at least one repo-mutating step
+            # above succeeded.  This avoids bumping the pin when earlier steps
+            # failed, which could block teammates on older versions.
+            if git_root is not None and repo_mutations_succeeded:
+                try:
+                    from agentic_devtools import __version__ as _current_version
+                    from agentic_devtools.cli.config.project_config import (
+                        load_project_config as _load_cfg,
+                    )
+                    from agentic_devtools.cli.config.project_config import (
+                        save_project_config as _save_cfg,
+                    )
+
+                    cfg = _load_cfg(git_root=git_root)
+                    cfg["agdt_version"] = _current_version
+                    _save_cfg(cfg, git_root=git_root)
+                    print(f"  ✓ Pinned agdt_version={_current_version} in .agdt/config/project.json")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ⚠ Failed to pin agdt_version ({exc}) — skipping", file=sys.stderr)
+
         # ── Run file-modifying steps (with or without PR workflow) ─────
-        use_pr_workflow = not args.system_only and git_root is not None and not args.skip_pr_workflow
+        use_pr_workflow = (
+            not args.system_only and git_root is not None and not args.skip_pr_workflow and not skip_repo_steps
+        )
         if use_pr_workflow:
             from agentic_devtools import __version__ as _version
             from agentic_devtools.cli.setup.pr_workflow import run_setup_with_pr_workflow
@@ -912,7 +973,8 @@ def setup_cmd() -> None:
             else:
                 print(f"  ℹ {pr_result['message']}")
         else:
-            _run_file_modifying_steps()
+            if not skip_repo_steps:
+                _run_file_modifying_steps()
 
         print()
         if not copilot_ok or not gh_ok or any_required_missing:

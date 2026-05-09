@@ -34,7 +34,8 @@ def update_gitignore(repo_root: Path) -> str:
         return "  ℹ No .gitignore found — skipping."
 
     try:
-        content = gitignore_path.read_text(encoding="utf-8")
+        with open(gitignore_path, encoding="utf-8", newline="") as fh:
+            content = fh.read()
     except (OSError, UnicodeDecodeError) as exc:
         return f"  ⚠ Failed to read .gitignore: {exc}"
 
@@ -80,13 +81,13 @@ def update_gitignore(repo_root: Path) -> str:
     if not has_negation:
         # Insert negation right after the .agdt/* line
         idx = None
-        for i, line in enumerate(new_lines):
+        for i, line in enumerate(new_lines):  # pragma: no branch
             if line.rstrip("\n\r") == _AGDT_IGNORE_GLOB:
                 idx = i
                 break
         if idx is not None:
             new_lines.insert(idx + 1, _AGDT_NEGATION + newline)
-        else:
+        else:  # pragma: no cover – glob line is guaranteed to exist above
             new_lines.append(_AGDT_NEGATION + newline)
         modified = True
 
@@ -95,13 +96,13 @@ def update_gitignore(repo_root: Path) -> str:
     if not has_gitignore_negation:
         # Insert after the managed scripts negation rule
         idx = None
-        for i, line in enumerate(new_lines):
+        for i, line in enumerate(new_lines):  # pragma: no branch
             if line.rstrip("\n\r") == _AGDT_NEGATION:
                 idx = i
                 break
         if idx is not None:
             new_lines.insert(idx + 1, _AGDT_GITIGNORE_NEGATION + newline)
-        else:
+        else:  # pragma: no cover – negation line is guaranteed to exist above
             new_lines.append(_AGDT_GITIGNORE_NEGATION + newline)
         modified = True
 
@@ -109,7 +110,8 @@ def update_gitignore(repo_root: Path) -> str:
         return "  ✓ .gitignore already up to date."
 
     try:
-        gitignore_path.write_text("".join(new_lines), encoding="utf-8")
+        with open(gitignore_path, "w", encoding="utf-8", newline="") as fh:
+            fh.write("".join(new_lines))
     except OSError as exc:
         return f"  ⚠ Failed to write .gitignore: {exc}"
 

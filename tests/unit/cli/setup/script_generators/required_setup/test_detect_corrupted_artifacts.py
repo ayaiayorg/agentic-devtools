@@ -1,5 +1,8 @@
 """Tests for detect_corrupted_artifacts."""
 
+from pathlib import Path
+from unittest.mock import patch
+
 from agentic_devtools.cli.setup.script_generators.required_setup import detect_corrupted_artifacts
 
 
@@ -98,3 +101,14 @@ class TestDetectCorruptedArtifacts:
             lambda: ["/nonexistent/dir/xyz"],
         )
         assert detect_corrupted_artifacts() == []
+
+    def test_handles_permission_error_on_iterdir(self, tmp_path, monkeypatch):
+        """PermissionError during iterdir() is caught and skipped."""
+        sp = tmp_path / "site-packages"
+        sp.mkdir()
+        monkeypatch.setattr(
+            "agentic_devtools.cli.setup.script_generators.required_setup._site_packages_dirs",
+            lambda: [str(sp)],
+        )
+        with patch.object(Path, "iterdir", side_effect=PermissionError("denied")):
+            assert detect_corrupted_artifacts() == []

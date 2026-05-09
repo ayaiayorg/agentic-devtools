@@ -70,3 +70,43 @@ class TestSetupGitHooks:
         """Returns None when git binary is not found."""
         with patch(f"{_MOD}.subprocess.run", side_effect=FileNotFoundError("git not found")):
             assert setup_git_hooks() is None
+
+    def test_returns_none_when_config_get_raises_file_not_found(self):
+        """Returns None when git config --get raises FileNotFoundError."""
+        mock_run = MagicMock(
+            side_effect=[
+                MagicMock(returncode=0, stdout=".git\n"),  # rev-parse --git-dir
+                FileNotFoundError("git not found"),  # config --get
+            ]
+        )
+        with patch(f"{_MOD}.subprocess.run", mock_run):
+            assert setup_git_hooks() is None
+
+    def test_returns_error_when_config_set_fails(self):
+        """Returns error message when git config set raises CalledProcessError."""
+        mock_run = MagicMock(
+            side_effect=[
+                MagicMock(returncode=0, stdout=".git\n"),  # rev-parse --git-dir
+                MagicMock(returncode=1, stdout=""),  # config --get (not set)
+                _real_subprocess.CalledProcessError(1, "git config"),  # config set
+            ]
+        )
+        with patch(f"{_MOD}.subprocess.run", mock_run):
+            result = setup_git_hooks()
+            assert result is not None
+            assert "Failed to set core.hooksPath" in result
+
+    def test_handles_show_toplevel_failure(self):
+        """Handles CalledProcessError on git rev-parse --show-toplevel."""
+        mock_run = MagicMock(
+            side_effect=[
+                MagicMock(returncode=0, stdout=".git\n"),  # rev-parse --git-dir
+                MagicMock(returncode=1, stdout=""),  # config --get (not set)
+                MagicMock(returncode=0),  # config set
+                _real_subprocess.CalledProcessError(1, "git rev-parse"),  # show-toplevel
+            ]
+        )
+        with patch(f"{_MOD}.subprocess.run", mock_run):
+            result = setup_git_hooks()
+            assert result is not None
+            assert "set to '.githooks'" in result

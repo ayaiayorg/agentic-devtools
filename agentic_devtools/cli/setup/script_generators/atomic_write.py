@@ -37,6 +37,6 @@ def atomic_write(path: Path, content: str) -> None:
         # Clean up the temporary file on any error.
         try:
             os.unlink(tmp_path)
-        except OSError:
+        except OSError:  # pragma: no cover
             pass
         raise

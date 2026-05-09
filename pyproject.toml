@@ -23,6 +23,7 @@ dependencies = [
     "langgraph>=0.2.0",
     "langgraph-checkpoint-sqlite>=3.0.1",
     "mcp>=1.0.0",
+    "packaging>=21.0",
 ]
 
 [project.optional-dependencies]

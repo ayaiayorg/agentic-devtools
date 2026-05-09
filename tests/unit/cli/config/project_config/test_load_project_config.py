@@ -70,3 +70,13 @@ class TestLoadProjectConfig:
         assert result == {}
         captured = capsys.readouterr()
         assert "Cannot read" in captured.err
+
+    def test_explicit_git_root_reads_from_that_path(self, tmp_path):
+        """When git_root is passed, reads config from that path directly."""
+        config_dir = tmp_path / ".agdt" / "config"
+        config_dir.mkdir(parents=True)
+        config_file = config_dir / "project.json"
+        config_file.write_text(json.dumps({"agdt_version": "0.2.69"}), encoding="utf-8")
+
+        result = load_project_config(git_root=tmp_path)
+        assert result == {"agdt_version": "0.2.69"}
