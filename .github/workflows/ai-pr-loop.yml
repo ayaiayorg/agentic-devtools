@@ -1300,49 +1300,54 @@ jobs:
           set -euo pipefail
           HEAD_SHA="${{ needs.ai-pr-loop.outputs.head_sha }}"
           REPO="${{ github.repository }}"
-          CI_CONTEXT=""
 
           # List check runs for the head SHA, filter to failed ones
-          FAILED_CHECKS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+          FAILED_CHECK_NAMES=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
             --paginate \
-            --jq '.check_runs[] | select(.status == "completed" and .conclusion == "failure" and .name != "AI PR Loop" and .name != "Generate lint fix patch") | {name, id, details_url}' \
+            --jq '.check_runs[] | select(.status == "completed" and .conclusion == "failure" and .name != "AI PR Loop" and .name != "Generate lint fix patch") | .name' \
             2>/dev/null || echo "")
 
-          if [ -z "$FAILED_CHECKS" ]; then
+          if [ -z "$FAILED_CHECK_NAMES" ]; then
             echo "No failed checks found."
             echo "ci_context=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          CI_CONTEXT="## CI Failure Context\n\n"
+          # Build CI context file directly (avoids subshell variable scoping issues)
+          CI_CONTEXT_FILE="/tmp/ci-failure-context.md"
+          echo "## CI Failure Context" > "$CI_CONTEXT_FILE"
+          echo "" >> "$CI_CONTEXT_FILE"
 
           # Process each failed check
-          echo "$FAILED_CHECKS" | jq -r '.name' | while read -r CHECK_NAME; do
+          echo "$FAILED_CHECK_NAMES" | while IFS= read -r CHECK_NAME; do
+            [ -z "$CHECK_NAME" ] && continue
             echo "Fetching logs for failed check: ${CHECK_NAME}"
 
-            # Try to get the workflow run ID and fetch logs
-            RUN_ID=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+            # Get the check run ID for annotations
+            CHECK_RUN_ID=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
               --jq ".check_runs[] | select(.name == \"${CHECK_NAME}\") | .id" \
               2>/dev/null | head -1 || echo "")
 
-            if [ -n "$RUN_ID" ]; then
+            if [ -n "$CHECK_RUN_ID" ]; then
               # Get annotations for the check run (most useful for lint errors)
-              ANNOTATIONS=$(gh api "repos/${REPO}/check-runs/${RUN_ID}/annotations" \
+              ANNOTATIONS=$(gh api "repos/${REPO}/check-runs/${CHECK_RUN_ID}/annotations" \
                 --jq '.[] | "- \(.path):\(.start_line): \(.message)"' \
                 2>/dev/null | head -50 || echo "")
 
-              CI_CONTEXT="${CI_CONTEXT}### ${CHECK_NAME}\n\n"
+              echo "### ${CHECK_NAME}" >> "$CI_CONTEXT_FILE"
+              echo "" >> "$CI_CONTEXT_FILE"
               if [ -n "$ANNOTATIONS" ]; then
-                CI_CONTEXT="${CI_CONTEXT}\`\`\`\n${ANNOTATIONS}\n\`\`\`\n\n"
+                echo '```' >> "$CI_CONTEXT_FILE"
+                echo "$ANNOTATIONS" >> "$CI_CONTEXT_FILE"
+                echo '```' >> "$CI_CONTEXT_FILE"
               else
-                CI_CONTEXT="${CI_CONTEXT}(No annotations available — check the workflow run for details)\n\n"
+                echo "(No annotations available — check the workflow run for details)" >> "$CI_CONTEXT_FILE"
               fi
+              echo "" >> "$CI_CONTEXT_FILE"
             fi
           done
 
-          # Write CI context to a file for the prompt rendering step
-          printf '%b' "$CI_CONTEXT" > /tmp/ci-failure-context.md
-          echo "ci_context_file=/tmp/ci-failure-context.md" >> "$GITHUB_OUTPUT"
+          echo "ci_context_file=${CI_CONTEXT_FILE}" >> "$GITHUB_OUTPUT"
 
       # ─── Step 11: Render prompt ─────────────────────────────────────────
       - name: Render repair prompt
@@ -1399,10 +1404,9 @@ jobs:
           set -euo pipefail
           cd pr-worktree
 
-          PROMPT=$(cat /tmp/repair-prompt.md)
-
-          # Try Python session launcher first
-          python3 - <<'PY' || PYTHON_FAILED=true
+          # Try Python session launcher first; capture exit code explicitly
+          PYTHON_EXIT=0
+          python3 - <<'PY' || PYTHON_EXIT=$?
           import pathlib, sys
           try:
               from agentic_devtools.cli.copilot.session import start_copilot_session
@@ -1425,8 +1429,8 @@ jobs:
               sys.exit(2)
           PY
 
-          # Fallback to standalone copilot CLI if Python launcher failed with exit 2
-          if [ "${PYTHON_FAILED:-}" = "true" ]; then
+          # Exit code 2 = ImportError or session launcher unavailable → try CLI fallback
+          if [ "$PYTHON_EXIT" -eq 2 ]; then
             echo "Falling back to standalone copilot CLI..."
             if command -v copilot &>/dev/null; then
               copilot --allow-all -p "Read the prompt from /tmp/repair-prompt.md and follow the instructions."
@@ -1436,6 +1440,9 @@ jobs:
               echo "::error::No Copilot CLI available — cannot run repair session."
               exit 1
             fi
+          elif [ "$PYTHON_EXIT" -ne 0 ]; then
+            echo "::error::Copilot session failed with exit code ${PYTHON_EXIT}."
+            exit "$PYTHON_EXIT"
           fi
 
       # ─── Step 13: Re-request Copilot review (FR-009) ───────────────────
