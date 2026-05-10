@@ -1,5 +1,9 @@
 # Address Copilot PR Review Comments
 
+> **Defense-in-depth**: If the environment variable `AGDT_CI_REPAIR_MODE=1` is set,
+> skip all test execution steps (Phase 4 test verification). This variable is set
+> by the CI repair job to prevent executing untrusted PR code on the runner.
+
 You are a senior software engineer addressing feedback from a GitHub Copilot pull request review.
 Follow this workflow systematically, completing each phase before proceeding to the next.
 
