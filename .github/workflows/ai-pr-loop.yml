@@ -5,12 +5,15 @@ name: AI PR Loop
 # SECURITY: This workflow follows a two-phase trust model:
 #   1. The ai-pr-loop job applies validated patch artifacts (plain text diffs) and
 #      handles approve/merge decisions — no PR code is executed.
-#   2. The agentic-repair job checks out the PR branch as DATA-ONLY
-#      (persist-credentials: false) for code edits. Agent prompts and executable
-#      tooling are sourced exclusively from trusted sources: prompts from a
-#      `main` branch checkout (__trusted_main/), agentic-devtools from PyPI
-#      (pinned version), and only pinned trusted tooling (ruff, markdownlint-cli2).
-#      The PR branch is NEVER used as an executable source.
+#   2. The agentic-repair job installs ALL trusted tooling (Python, agentic-devtools
+#      from PyPI, ruff, markdownlint-cli2, Copilot CLI) BEFORE fetching the PR
+#      branch. The PR branch is then fetched using explicit git commands (not
+#      actions/checkout) with one-shot credentials and SHA verification. This
+#      ensures: (a) untrusted PR code cannot influence tool installations,
+#      (b) no opaque credential helpers or hooks interact with untrusted config,
+#      (c) the fetched SHA is verified against the expected value (TOCTOU guard).
+#      Agent prompts are sourced from a `main` branch checkout (__trusted_main/).
+#      Fork PRs are blocked at the metadata step (line ~140).
 # This two-workflow pattern is the CodeQL-recommended architecture for
 # workflow_run triggers that need write permissions.
 
@@ -544,8 +547,11 @@ jobs:
               }
             );
 
-            core.info(`Latest Copilot review (${latestReview.id}) has ${reviewComments.length} comment(s).`);
-            core.setOutput('has_comments', reviewComments.length > 0 ? 'true' : 'false');
+            core.info(`Latest Copilot review (${latestReview.id}) state=${latestReview.state}, ${reviewComments.length} comment(s).`);
+            core.setOutput('review_state', latestReview.state || '');
+            // FR-001: "actionable" means CHANGES_REQUESTED with inline comments
+            const isActionable = latestReview.state === 'CHANGES_REQUESTED' && reviewComments.length > 0;
+            core.setOutput('has_comments', isActionable ? 'true' : 'false');
             core.setOutput('review_id', String(latestReview.id));
             core.setOutput('review_url', `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}#pullrequestreview-${latestReview.id}`);
 
@@ -568,7 +574,6 @@ jobs:
           script: |
             const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
             const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
-            const headBranch = '${{ steps.pr-meta.outputs.head_branch }}';
             const hasComments = '${{ steps.check-review.outputs.has_comments }}' === 'true';
             const hasFailedChecks = '${{ steps.guards.outputs.has_failed_checks }}' === 'true';
             const reviewUrl = '${{ steps.check-review.outputs.review_url }}' || '';
@@ -585,6 +590,41 @@ jobs:
               return;
             }
 
+            // Fetch all PR comments for the upsert helper and the deduplication guard.
+            // Placed after the early-exit to avoid unnecessary API calls when no repair is needed.
+            const allComments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            // Helper: upsert a single updatable marker comment for this SHA.
+            // Used by privileged-path guard, Docker guard, and the main dispatch path
+            // to avoid duplicating the list→find→update/create pattern.
+            async function upsertRepairMarker(body) {
+              const existing = allComments.find(
+                c => c.body && c.body.includes(`<!-- repair-dispatch:${headSha}:`)
+              );
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                return existing.id;
+              } else {
+                const { data: created } = await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body,
+                });
+                return created.id;
+              }
+            }
+
             // ── Guard: privileged paths (FR-010) ──
             const PRIVILEGED_PATH_PREFIXES = ['.github/workflows/', '.github/actions/', '.github/scripts/'];
             const prFiles = await github.paginate(github.rest.pulls.listFiles, {
@@ -599,6 +639,17 @@ jobs:
             );
             if (touchesPrivileged) {
               core.notice('PR modifies privileged automation paths — skipping repair dispatch (requires human review).');
+              const guardRunUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              const guardBody = [
+                `<!-- repair-dispatch:${headSha}:0 -->`,
+                `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`)`,
+                `**Status**: ⚠️ human intervention required (privileged paths modified)`,
+                `**Type**: ${hasComments && hasFailedChecks ? 'both' : hasComments ? 'review' : 'ci'}`,
+                `**Trigger**: ${context.eventName}`,
+                reviewUrl ? `**Review**: ${reviewUrl}` : null,
+                `**Run**: [${context.runId}](${guardRunUrl})`,
+              ].filter(Boolean).join('\n');
+              await upsertRepairMarker(guardBody);
               return;
             }
 
@@ -609,6 +660,17 @@ jobs:
             );
             if (touchesDocker) {
               core.notice('PR modifies Docker files — skipping repair dispatch (requires human review).');
+              const dockerRunUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              const guardBody = [
+                `<!-- repair-dispatch:${headSha}:0 -->`,
+                `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`)`,
+                `**Status**: ⚠️ human intervention required (Docker files modified)`,
+                `**Type**: ${hasComments && hasFailedChecks ? 'both' : hasComments ? 'review' : 'ci'}`,
+                `**Trigger**: ${context.eventName}`,
+                reviewUrl ? `**Review**: ${reviewUrl}` : null,
+                `**Run**: [${context.runId}](${dockerRunUrl})`,
+              ].filter(Boolean).join('\n');
+              await upsertRepairMarker(guardBody);
               return;
             }
 
@@ -616,14 +678,7 @@ jobs:
             const MAX_DISPATCHES_PER_SHA = 3;
             const markerPrefix = `<!-- repair-dispatch:${headSha}:`;
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              per_page: 100,
-            });
-
-            const markerComment = comments.find(
+            const markerComment = allComments.find(
               c => c.body && c.body.includes(markerPrefix)
             );
 
@@ -637,6 +692,7 @@ jobs:
 
               if (dispatchCount >= MAX_DISPATCHES_PER_SHA) {
                 core.warning(`Dedup guard: ${dispatchCount} dispatches already for SHA ${headSha.slice(0,7)} — human intervention required.`);
+                const dedupRunUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -646,7 +702,10 @@ jobs:
                     `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${dispatchCount}/${MAX_DISPATCHES_PER_SHA})`,
                     `**Status**: ⚠️ human intervention required (dispatch limit reached)`,
                     `**Type**: ${hasComments && hasFailedChecks ? 'both' : hasComments ? 'review' : 'ci'}`,
-                  ].join('\n'),
+                    `**Trigger**: ${context.eventName}`,
+                    reviewUrl ? `**Review**: ${reviewUrl}` : null,
+                    `**Run**: [${context.runId}](${dedupRunUrl})`,
+                  ].filter(Boolean).join('\n'),
                 });
                 return;
               }
@@ -662,31 +721,19 @@ jobs:
 
             // ── Create or update marker comment ──
             const newCount = dispatchCount + 1;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const commentBody = [
               `<!-- repair-dispatch:${headSha}:${newCount} -->`,
               `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA})`,
               `**Status**: pending`,
               `**Type**: ${repairType}`,
-            ].join('\n');
+              `**Trigger**: ${context.eventName}`,
+              reviewUrl ? `**Review**: ${reviewUrl}` : null,
+              `**Run**: [${context.runId}](${runUrl})`,
+            ].filter(Boolean).join('\n');
 
-            if (commentId) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: commentId,
-                body: commentBody,
-              });
-              core.info(`Updated repair marker comment (dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA}).`);
-            } else {
-              const { data: newComment } = await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: commentBody,
-              });
-              commentId = newComment.id;
-              core.info(`Created repair marker comment (dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA}).`);
-            }
+            commentId = await upsertRepairMarker(commentBody);
+            core.info(`Upserted repair marker comment (dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA}).`);
 
             // ── Set outputs ──
             core.setOutput('repair_needed', 'true');
@@ -1113,8 +1160,17 @@ jobs:
   # Copilot review comments or CI failures. Runs a Copilot CLI session on a
   # GitHub-hosted runner to address the issues, push fixes, and re-request review.
   #
-  # SECURITY INVARIANT: This job DOES NOT approve or merge the PR. Those actions
-  # remain exclusively in the ai-pr-loop job. This job is limited to:
+  # SECURITY DESIGN: This job is intended exclusively for code repair.
+  # Approve/merge operations are restricted via prompt-based policy:
+  # the system prompt instructs the Copilot session to only perform code
+  # edits, lint fixes, and comment replies — never approve or merge.
+  # Additionally, the job's GitHub token permissions (contents:write,
+  # pull-requests:write) do NOT include admin/bypass privileges. Merges
+  # require all branch-protection rules (required reviews, status checks)
+  # to be satisfied first, which the repair job cannot fulfil on its own.
+  # NOTE: There is no hard application-layer guard in agdt-* commands
+  # today; this is defense-in-depth via prompt policy + branch protection.
+  # Intended scope:
   #   - Code changes (edit, lint-fix, commit, push)
   #   - Comment replies and thread resolution
   #   - Re-requesting Copilot review
@@ -1125,6 +1181,12 @@ jobs:
     if: needs.ai-pr-loop.outputs.repair_needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
+      actions: read
 
     steps:
       # ─── Step 0: PAT masking and validation (SEC-004, NFR-003, NFR-006) ───
@@ -1149,16 +1211,87 @@ jobs:
           ref: main
           path: __trusted_main
 
-      # ─── Step 2: Checkout PR branch (data-only, SEC-003) ─────────────────
-      # PR code is checked out for editing only — never executed.
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
+      # ─── Step 2: Set up Python 3.12 ─────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          ref: ${{ needs.ai-pr-loop.outputs.head_sha }}
-          path: pr-worktree
-          persist-credentials: false
+          python-version: '3.12'
 
-      # ─── Step 3: Configure git credentials and restore branch ────────────
+      # ─── Step 3: Install agentic-devtools from PyPI (FR-005) ─────────────
+      - name: Install agentic-devtools
+        run: |
+          set -euo pipefail
+          pip install "agentic-devtools==${{ env.AGDT_VERSION }}"
+          echo "Installed agentic-devtools ${{ env.AGDT_VERSION }} from PyPI."
+
+      # ─── Step 4: Install trusted tooling (SEC-003) ──────────────────────
+      - name: Install ruff and markdownlint
+        run: |
+          set -euo pipefail
+          pip install ruff==0.11.12
+          npm install -g markdownlint-cli2@0.17.2
+          echo "Installed ruff 0.11.12 and markdownlint-cli2 0.17.2."
+
+      # ─── Step 5: Install Copilot CLI (FR-005) ───────────────────────────
+      - name: Install Copilot CLI
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Install standalone copilot binary via agdt helper
+          agdt-setup-copilot-cli --no-persist-env || true
+          # Fallback: install gh copilot extension
+          gh extension install github/gh-copilot 2>/dev/null || true
+          # Validate at least one is available
+          if command -v copilot &>/dev/null; then
+            echo "Standalone copilot binary available."
+          elif gh copilot --help &>/dev/null 2>&1; then
+            echo "::warning::Only gh copilot extension is available (not standalone binary). The gh copilot extension uses 'suggest' mode which cannot autonomously apply edits in non-interactive CI. Repair effectiveness may be limited."
+            echo "gh copilot extension available (degraded mode)."
+          else
+            echo "::error::Neither standalone copilot binary nor gh copilot extension could be installed. The agentic-repair job cannot proceed without a Copilot CLI."
+            exit 1
+          fi
+
+      # ─── Step 6: Fetch PR branch as data-only worktree (SEC-003) ────────
+      # SECURITY: Uses explicit git commands instead of actions/checkout for
+      # the untrusted PR branch. This provides three concrete security benefits
+      # over the opaque actions/checkout composite action:
+      #   1. Every command is visible and auditable — no hidden credential
+      #      helpers, submodule processing, or LFS hooks that could interact
+      #      with untrusted repo config.
+      #   2. Fetch credentials are one-shot (git -c extraheader), never persisted
+      #      in .git/config. Push credentials (Step 7) are supplied via
+      #      GIT_ASKPASS at runtime — never stored in .git/config — and
+      #      contained to the ephemeral runner, destroyed when the job ends.
+      #   3. SHA verification (TOCTOU guard) detects if the PR head changed
+      #      between dispatch and fetch.
+      # The PR code is fetched AFTER all trusted tool installations (Steps 2-5)
+      # and is used strictly for editing — never executed as build scripts,
+      # tests, or package definitions.
+      - name: Fetch PR branch (data-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.ai-pr-loop.outputs.pr_number }}
+          EXPECTED_SHA: ${{ needs.ai-pr-loop.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          mkdir pr-worktree && cd pr-worktree
+          git init
+          git remote add origin "https://github.com/${{ github.repository }}.git"
+          # Fetch PR head ref using default workflow token (not persisted)
+          AUTH="Authorization: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=${AUTH}" \
+            fetch --depth=1 origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
+          git checkout "refs/remotes/origin/pr-head"
+          # Verify checked-out SHA matches expected (TOCTOU guard)
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::PR head SHA changed during fetch (expected ${EXPECTED_SHA:0:7}, got ${ACTUAL_SHA:0:7}). Aborting to avoid conflicts."
+            exit 1
+          fi
+
+      # ─── Step 7: Configure git credentials and restore branch ────────────
       - name: Configure git credentials
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -1168,49 +1301,19 @@ jobs:
           cd pr-worktree
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${COPILOT_GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          # Use tokenless remote URL + GIT_ASKPASS for one-shot auth.
+          # This avoids persisting the PAT in .git/config where it could leak
+          # via debug output, error messages, or tooling that prints remotes.
+          git remote set-url origin "https://x-access-token@github.com/${{ github.repository }}.git"
+          printf '#!/bin/sh\nprintf "%%s" "${COPILOT_GITHUB_TOKEN}"\n' > /tmp/git-askpass.sh
+          chmod +x /tmp/git-askpass.sh
           # Switch from detached HEAD to the actual PR branch
-          git checkout -B "${HEAD_BRANCH}" HEAD
-
-      # ─── Step 4: Set up Python 3.12 ─────────────────────────────────────
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      # ─── Step 5: Install agentic-devtools from PyPI (FR-005) ─────────────
-      - name: Install agentic-devtools
-        run: |
-          set -euo pipefail
-          pip install "agentic-devtools==${{ env.AGDT_VERSION }}"
-          echo "Installed agentic-devtools ${{ env.AGDT_VERSION }} from PyPI."
-
-      # ─── Step 6: Install trusted tooling (SEC-003) ──────────────────────
-      - name: Install ruff and markdownlint
-        run: |
-          set -euo pipefail
-          pip install ruff==0.11.12
-          npm install -g markdownlint-cli2@0.17.2
-          echo "Installed ruff 0.11.12 and markdownlint-cli2 0.17.2."
-
-      # ─── Step 7: Install Copilot CLI (FR-005) ───────────────────────────
-      - name: Install Copilot CLI
-        env:
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Install standalone copilot binary via agdt helper
-          agdt-setup-copilot-cli || true
-          # Fallback: install gh copilot extension
-          gh extension install github/gh-copilot 2>/dev/null || true
-          # Validate at least one is available
-          if command -v copilot &>/dev/null; then
-            echo "Standalone copilot binary available."
-          elif gh copilot --help &>/dev/null 2>&1; then
-            echo "gh copilot extension available."
-          else
-            echo "::warning::Neither standalone copilot binary nor gh copilot extension could be installed."
+          # Guard against option injection if branch name starts with '-'
+          if [[ "${HEAD_BRANCH}" == -* ]]; then
+            echo "::error::Branch name '${HEAD_BRANCH}' starts with '-' — refusing to proceed (potential option injection)."
+            exit 1
           fi
+          git checkout -B "${HEAD_BRANCH}" HEAD
 
       # ─── Step 8: PR state validation ────────────────────────────────────
       - name: Validate PR state
@@ -1241,9 +1344,27 @@ jobs:
               return;
             }
 
-            // Check for merge conflicts
-            if (pr.mergeable === false) {
+            // Check for merge conflicts (poll briefly if mergeable is null)
+            let mergeable = pr.mergeable;
+            if (mergeable === null) {
+              // GitHub is still computing mergeability — retry up to 5 times
+              for (let attempt = 0; attempt < 5 && mergeable === null; attempt++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const { data: freshPr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                });
+                mergeable = freshPr.mergeable;
+              }
+            }
+            if (mergeable === false) {
               core.warning(`PR #${prNumber} has merge conflicts — skipping repair.`);
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+            if (mergeable === null) {
+              core.warning(`PR #${prNumber} mergeability is still unknown after retries — skipping repair to avoid conflicts.`);
               core.setOutput('should_proceed', 'false');
               return;
             }
@@ -1266,7 +1387,7 @@ jobs:
             const repairType = '${{ needs.ai-pr-loop.outputs.repair_type }}';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-            // Read existing comment to preserve dispatch count
+            // Read existing comment to preserve dispatch count and metadata
             const { data: existing } = await github.rest.issues.getComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -1274,6 +1395,9 @@ jobs:
             });
             const countMatch = (existing.body || '').match(/<!-- repair-dispatch:[a-f0-9]+:(\d+) -->/);
             const count = countMatch ? countMatch[1] : '1';
+            // Preserve Trigger and Review fields from the original dispatch comment
+            const triggerMatch = (existing.body || '').match(/\*\*Trigger\*\*: (.+)/);
+            const reviewMatch = (existing.body || '').match(/\*\*Review\*\*: (.+)/);
 
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
@@ -1284,12 +1408,14 @@ jobs:
                 `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${count}/3)`,
                 `**Status**: 🔄 started`,
                 `**Type**: ${repairType}`,
+                triggerMatch ? `**Trigger**: ${triggerMatch[1]}` : null,
+                reviewMatch ? `**Review**: ${reviewMatch[1]}` : null,
                 `**Run**: [${context.runId}](${runUrl})`,
-              ].join('\n'),
+              ].filter(Boolean).join('\n'),
             });
 
-      # ─── Step 10: Retrieve CI failure logs (FR-002) ─────────────────────
-      - name: Retrieve CI failure logs
+      # ─── Step 10: Retrieve CI failure context (FR-002) ────────────────────
+      - name: Retrieve CI failure context
         id: ci-logs
         if: >
           steps.validate-pr.outputs.should_proceed == 'true' &&
@@ -1302,16 +1428,35 @@ jobs:
           REPO="${{ github.repository }}"
 
           # List check runs for the head SHA, filter to failed ones
+          API_STDERR=$(mktemp)
           FAILED_CHECK_NAMES=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
             --paginate \
             --jq '.check_runs[] | select(.status == "completed" and .conclusion == "failure" and .name != "AI PR Loop" and .name != "Generate lint fix patch") | .name' \
-            2>/dev/null || echo "")
+            2>"$API_STDERR") || {
+            echo "::error::Failed to retrieve check runs from GitHub API. Stderr:"
+            cat "$API_STDERR" >&2
+            rm -f "$API_STDERR"
+            exit 1
+          }
+          rm -f "$API_STDERR"
 
           if [ -z "$FAILED_CHECK_NAMES" ]; then
             echo "No failed checks found."
-            echo "ci_context=" >> "$GITHUB_OUTPUT"
+            echo "ci_context_file=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # Build name→id map from a single API call (avoids re-querying per check)
+          CHECK_RUNS_STDERR=$(mktemp)
+          CHECK_RUNS_JSON=$(gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+            --jq '.check_runs[] | {name: .name, id: .id}' 2>"$CHECK_RUNS_STDERR") || {
+            echo "::error::Failed to fetch check-run details for name→id mapping. Cannot proceed without CI context. Stderr:"
+            cat "$CHECK_RUNS_STDERR" >&2
+            rm -f "$CHECK_RUNS_STDERR"
+            echo "ci_context_file=" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          rm -f "$CHECK_RUNS_STDERR"
 
           # Build CI context file directly (avoids subshell variable scoping issues)
           CI_CONTEXT_FILE="/tmp/ci-failure-context.md"
@@ -1323,28 +1468,45 @@ jobs:
             [ -z "$CHECK_NAME" ] && continue
             echo "Fetching logs for failed check: ${CHECK_NAME}"
 
-            # Get the check run ID for annotations
-            CHECK_RUN_ID=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
-              --jq ".check_runs[] | select(.name == \"${CHECK_NAME}\") | .id" \
-              2>/dev/null | head -1 || echo "")
+            # Look up the check run ID from the pre-fetched map
+            # Slurp the newline-delimited JSON stream into a single array, then
+            # select + first to guarantee exactly one ID (or empty) even when
+            # duplicate check names exist (e.g., matrix jobs).
+            CHECK_RUN_ID=$(echo "$CHECK_RUNS_JSON" | jq -rs --arg name "$CHECK_NAME" '[.[] | select(.name == $name)] | first | .id // empty')
 
-            if [ -n "$CHECK_RUN_ID" ]; then
-              # Get annotations for the check run (most useful for lint errors)
-              ANNOTATIONS=$(gh api "repos/${REPO}/check-runs/${CHECK_RUN_ID}/annotations" \
-                --jq '.[] | "- \(.path):\(.start_line): \(.message)"' \
-                2>/dev/null | head -50 || echo "")
-
+            if [ -z "$CHECK_RUN_ID" ] || [ "$CHECK_RUN_ID" = "null" ]; then
+              echo "::warning::Could not find check-run ID for '${CHECK_NAME}' — skipping annotations."
               echo "### ${CHECK_NAME}" >> "$CI_CONTEXT_FILE"
               echo "" >> "$CI_CONTEXT_FILE"
-              if [ -n "$ANNOTATIONS" ]; then
-                echo '```' >> "$CI_CONTEXT_FILE"
-                echo "$ANNOTATIONS" >> "$CI_CONTEXT_FILE"
-                echo '```' >> "$CI_CONTEXT_FILE"
-              else
-                echo "(No annotations available — check the workflow run for details)" >> "$CI_CONTEXT_FILE"
-              fi
+              echo "(Could not resolve check-run ID)" >> "$CI_CONTEXT_FILE"
               echo "" >> "$CI_CONTEXT_FILE"
+              continue
             fi
+
+            # Get annotations for the check run (most useful for lint errors)
+            # Request exactly 50 annotations in a single page to enforce a global
+            # cap. Using --paginate with per-page jq slicing would apply the limit
+            # per page, potentially exceeding the intended 50-annotation cap.
+            ANNOTATIONS_STDERR=$(mktemp)
+            ANNOTATIONS=$(gh api "repos/${REPO}/check-runs/${CHECK_RUN_ID}/annotations?per_page=50" \
+              --jq '[.[] | "- \(.path):\(.start_line): \(.message)"] | .[]' \
+              2>"$ANNOTATIONS_STDERR") || {
+              echo "::warning::Failed to retrieve annotations for '${CHECK_NAME}' (check-run ${CHECK_RUN_ID}). Stderr:"
+              cat "$ANNOTATIONS_STDERR" >&2
+              ANNOTATIONS=""
+            }
+            rm -f "$ANNOTATIONS_STDERR"
+
+            echo "### ${CHECK_NAME}" >> "$CI_CONTEXT_FILE"
+            echo "" >> "$CI_CONTEXT_FILE"
+            if [ -n "$ANNOTATIONS" ]; then
+              echo '```' >> "$CI_CONTEXT_FILE"
+              echo "$ANNOTATIONS" >> "$CI_CONTEXT_FILE"
+              echo '```' >> "$CI_CONTEXT_FILE"
+            else
+              echo "(No annotations available — check the workflow run for details)" >> "$CI_CONTEXT_FILE"
+            fi
+            echo "" >> "$CI_CONTEXT_FILE"
           done
 
           echo "ci_context_file=${CI_CONTEXT_FILE}" >> "$GITHUB_OUTPUT"
@@ -1396,6 +1558,8 @@ jobs:
         if: steps.validate-pr.outputs.should_proceed == 'true'
         env:
           GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GIT_ASKPASS: /tmp/git-askpass.sh
           AGDT_CI_REPAIR_MODE: '1'
           REPAIR_PR_NUMBER: ${{ needs.ai-pr-loop.outputs.pr_number }}
           REPAIR_REVIEW_URL: ${{ needs.ai-pr-loop.outputs.review_url }}
@@ -1416,7 +1580,7 @@ jobs:
                   interactive=False
               )
               if result.process is None:
-                  print('ERROR: Copilot session did not start (fallback path)', file=sys.stderr)
+                  print('ERROR: Copilot session did not start (no process handle)', file=sys.stderr)
                   sys.exit(1)
               result.process.wait()
               if result.process.returncode != 0:
@@ -1477,8 +1641,9 @@ jobs:
             const repairType = '${{ needs.ai-pr-loop.outputs.repair_type }}';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const jobStatus = '${{ job.status }}';
+            const shouldProceed = '${{ steps.validate-pr.outputs.should_proceed }}';
 
-            // Read existing comment to preserve dispatch count
+            // Read existing comment to preserve dispatch count and metadata
             const { data: existing } = await github.rest.issues.getComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -1486,17 +1651,36 @@ jobs:
             });
             const countMatch = (existing.body || '').match(/<!-- repair-dispatch:[a-f0-9]+:(\d+) -->/);
             const count = countMatch ? countMatch[1] : '1';
+            // Preserve Trigger and Review fields from the original dispatch comment
+            const triggerMatch = (existing.body || '').match(/\*\*Trigger\*\*: (.+)/);
+            const reviewMatch = (existing.body || '').match(/\*\*Review\*\*: (.+)/);
 
             let status, icon;
-            if (jobStatus === 'success') {
-              status = 'completed';
-              icon = '✅';
-            } else if (jobStatus === 'cancelled') {
-              status = 'cancelled';
-              icon = '⚠️';
+            if (shouldProceed === 'true') {
+              // Validation passed — use job status to determine outcome
+              if (jobStatus === 'success') {
+                status = 'completed';
+                icon = '✅';
+              } else if (jobStatus === 'cancelled') {
+                status = 'timed out/cancelled — human intervention required';
+                icon = '⚠️';
+              } else {
+                status = 'failed — human intervention required';
+                icon = '❌';
+              }
+            } else if (shouldProceed === 'false') {
+              // Validation explicitly blocked execution (PR closed, SHA changed, merge conflicts)
+              status = 'skipped (validation blocked)';
+              icon = '⏭️';
             } else {
-              status = 'failed — human intervention required';
-              icon = '❌';
+              // shouldProceed is empty — validation step never ran (e.g., earlier step failed)
+              if (jobStatus === 'cancelled') {
+                status = 'timed out/cancelled — human intervention required';
+                icon = '⚠️';
+              } else {
+                status = 'failed — human intervention required';
+                icon = '❌';
+              }
             }
 
             await github.rest.issues.updateComment({
@@ -1508,7 +1692,9 @@ jobs:
                 `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${count}/3)`,
                 `**Status**: ${icon} ${status}`,
                 `**Type**: ${repairType}`,
+                triggerMatch ? `**Trigger**: ${triggerMatch[1]}` : null,
+                reviewMatch ? `**Review**: ${reviewMatch[1]}` : null,
                 `**Run**: [${context.runId}](${runUrl})`,
-              ].join('\n'),
+              ].filter(Boolean).join('\n'),
             });
 

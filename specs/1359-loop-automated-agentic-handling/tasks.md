@@ -95,8 +95,8 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 - [x] T013 [US1] Add trusted `main` branch checkout step in the `agentic-repair` job (`.github/workflows/ai-pr-loop.yml`): `actions/checkout@v4` with `ref: main`, `path: __trusted_main`. Agent prompts
   and instructions are sourced from this trusted checkout, not the PR branch (FR-005, SEC-003)
   - Depends on: T011
-- [x] T014 [US1] Add PR branch checkout step in the `agentic-repair` job (`.github/workflows/ai-pr-loop.yml`): `actions/checkout@v4` with `ref: ${{ needs.ai-pr-loop.outputs.head_sha }}`, `path:
-  pr-worktree`, `persist-credentials: false` (SEC-003)
+- [x] T014 [US1] Add PR branch fetch step in the `agentic-repair` job (`.github/workflows/ai-pr-loop.yml`): use explicit `git` commands (`git init`, `git remote add`, `git fetch` with one-shot
+  credentials, `git checkout`) to fetch the PR head as a data-only worktree in `pr-worktree/`, with SHA verification (TOCTOU guard) against `needs.ai-pr-loop.outputs.head_sha` (SEC-003)
   - Depends on: T011
 - [x] T015 [US1] Add git credential configuration and branch restoration step in the `agentic-repair` job (`.github/workflows/ai-pr-loop.yml`): `git remote set-url origin` with COPILOT_GITHUB_TOKEN,
   `git checkout -B` to switch from detached HEAD to the actual PR branch
@@ -178,10 +178,10 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 ### CI Log Retrieval
 
 - [x] T031 [US2] Add CI log retrieval step in the `agentic-repair` job (`.github/workflows/ai-pr-loop.yml`): use `gh api` to list check runs for head SHA, filter to failed checks (excluding `AI PR
-  Loop` and `Generate lint fix patch`), get workflow run ID for each, use `gh run view <run_id> --log-failed` to get failure logs, truncate to last 200 lines per check (FR-002)
+  Loop` and `Generate lint fix patch`), fetch check-run annotations (up to 50 per check) to surface lint errors and failure details (FR-002)
   - Depends on: T020
-- [x] T032 [US2] Add CI failure context injection into the prompt rendering step (`.github/workflows/ai-pr-loop.yml`): append `## CI Failure Context` section to the rendered prompt with check name,
-  conclusion, and log excerpt for each failing check
+- [x] T032 [US2] Add CI failure context injection into the prompt rendering step (`.github/workflows/ai-pr-loop.yml`): append `## CI Failure Context` section to the rendered prompt with check name
+  and annotations for each failing check
   - Depends on: T021, T031
 
 ### CI-Safe Prompt — CI Failure Instructions
@@ -192,9 +192,9 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 
 ### Dispatch Decision — CI Failure Detection
 
-- [x] T034 [US2] Enhance the dispatch-decision step in `.github/workflows/ai-pr-loop.yml` to handle the `workflow_run` trigger path for CI failures: poll all required check suites via `gh api`
-  check-suites endpoint to confirm terminal state before dispatching. Wait with bounded timeout if any required check is still `in_progress` or `queued`. Only dispatch when ALL required checks have
-  completed AND at least one has `conclusion: failure` (FR-002 deterministic decision)
+- [x] T034 [US2] Enhance the dispatch-decision step in `.github/workflows/ai-pr-loop.yml` to handle CI failures: detect failed checks via the guards step (which checks
+  required check suites on `pull_request_review` events) and set `has_failed_checks` output. On `workflow_run` events, rely on the existing guards step's check-run query rather than
+  additional polling. Only dispatch when actionable failures are detected (FR-002 deterministic decision)
   - Depends on: T002
 - [ ] T057 [US2] Verify CI failure detection: dispatch-decision step polls all required check suites to terminal state and sets `repair_needed=true`, `repair_type='ci'` when at least one has
   `conclusion: failure` (FR-002, happy-path)
@@ -215,8 +215,8 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 
 ## Phase 8: User Story 6 — Observability & Auditability (P3)
 
-- [x] T037 [P] [US6] Enhance the repair comment body format in the dispatch-decision step (`.github/workflows/ai-pr-loop.yml`) to include structured metadata: repair type, trigger event, cycle count,
-  dispatch count for this SHA, and a deep link to the workflow run with step-level anchor
+- [x] T037 [P] [US6] Enhance the repair comment body format in the dispatch-decision step (`.github/workflows/ai-pr-loop.yml`) to include structured metadata: repair type, trigger event,
+  dispatch count for this SHA, and a link to the workflow run. Cycle count is tracked in a separate `ai-pr-loop-cycle-tracker` comment rather than in the repair marker
   - Depends on: T003
 - [x] T038 [P] [US6] Add `core.notice()` and `core.warning()` workflow run annotations in the dispatch-decision step and repair job steps (`.github/workflows/ai-pr-loop.yml`) for key decision points:
   dispatch decision rationale, dedup guard state (current count, limit), PR state validation results
@@ -224,8 +224,8 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 - [x] T039 [US6] Add commit message instruction to `.github/prompts/agdt.address-copilot-review.ci-repair.prompt.md`: instruct the agent to include `[ai-repair]` in the commit body so repair commits
   are identifiable in git log
   - Depends on: T008
-- [x] T040 [US6] Enhance the completion handling step in `.github/workflows/ai-pr-loop.yml` to include outcome summary in the PATCH-ed repair comment: comments addressed (count), threads resolved
-  (count), commit SHA (if pushed), CI failures fixed (if CI repair), duration, Copilot session log link
+- [x] T040 [US6] Enhance the completion handling step in `.github/workflows/ai-pr-loop.yml` to include outcome summary in the PATCH-ed repair comment: status (completed/failed/skipped/cancelled),
+  repair type, and a link to the workflow run. Detailed counts (comments, threads, commit SHA, CI failures, duration, session log) are deferred to a future iteration
   - Depends on: T025
 
 ---

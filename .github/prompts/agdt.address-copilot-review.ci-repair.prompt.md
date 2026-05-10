@@ -3,7 +3,7 @@
 > **CI Repair Mode**: This prompt is designed for automated execution on a
 > GitHub-hosted runner. Verification (tests, CI) is delegated to the subsequent
 > CI pipeline triggered by the push — this agent does NOT run tests.
-
+>
 > **⚠️ SECURITY CONSTRAINTS**:
 >
 > - Do NOT run `pytest`, `agdt-test`, `agdt-test-quick`, `agdt-test-file`,
@@ -29,12 +29,16 @@ each phase before proceeding to the next.
 | Reply to review comments | `agdt-gh-reply-to-review-comments` | `gh api .../comments/{id}/replies` per comment |
 | Resolve review threads | `agdt-gh-resolve-review-threads` | GraphQL `resolveReviewThread` mutation per thread |
 | Request Copilot re-review | `agdt-gh-request-copilot-review` | `gh api .../requested_reviewers -X POST` |
-| Stage changes | `agdt-git-stage` | `git add` |
-| Commit & push | `agdt-git-save-work` | `git commit` + `git push` |
-| Force push | `agdt-git-force-push` | `git push --force-with-lease` |
+| Stage changes | — | `git add` |
+| Commit & push | — | `git commit` + `git push` |
+| Force push | — | `git push --force-with-lease` |
 
-The `agdt-*` commands provide: centralized state tracking, consistent formatting,
-and background task management.
+> **CI Repair Note**: Because the `agentic-devtools` package is NOT installed on the
+> runner (security constraint: no `pip install` from PR branch), only `agdt-gh-*`
+> commands that wrap `gh` CLI are available. Git operations (`stage`, `commit`,
+> `push`) use raw git commands directly.
+
+The `agdt-gh-*` commands provide: centralized state tracking and consistent formatting.
 
 ---
 
@@ -175,13 +179,17 @@ once (not per-comment).
 > **⚠️ DO NOT run tests.** Verification is delegated to the subsequent CI run
 > triggered by the push.
 
-### Secret Scanning Guard
+### Stage Changes and Secret Scanning Guard
 
-Before committing, run the following check to prevent accidentally committing
-secrets:
+Explicitly stage all changes first, then run the secret scan on the staged diff.
+This ensures the scan covers all pending work before committing.
 
 ```bash
-if git diff HEAD --staged | grep -iqE '(token|password|secret|api_key|private_key)'; then
+# Stage all changes explicitly
+git add -A
+
+# Scan staged diff for potential secrets
+if git diff --cached | grep -iqE '(token|password|secret|api_key|private_key)'; then
   echo 'ABORT: potential secret detected in staged changes'
   exit 1
 fi
@@ -224,9 +232,12 @@ agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/iss
 [ai-repair]
 
 [#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
-agdt-git-save-work
+agdt-git-save-work --skip-stage
 agdt-task-wait
 ```
+
+> **Note:** `--skip-stage` is used because changes were already staged in the
+> secret scanning guard step above. This prevents re-staging after the scan.
 
 Choose the commit **type** based on the nature of the changes:
 
