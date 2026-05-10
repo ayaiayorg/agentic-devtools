@@ -1,9 +1,16 @@
 name: AI PR Loop
 
-# PRIVILEGED workflow: handles push, approve, merge, and review orchestration.
-# SECURITY: This workflow NEVER executes untrusted PR code. The PR branch is
-# fetched only to apply a validated patch artifact (plain text diff) produced by
-# the unprivileged "AI PR Loop Lint" workflow — no PR scripts are run.
+# PRIVILEGED workflow: handles push, approve, merge, review orchestration, and
+# automated agentic repair.
+# SECURITY: This workflow follows a two-phase trust model:
+#   1. The ai-pr-loop job applies validated patch artifacts (plain text diffs) and
+#      handles approve/merge decisions — no PR code is executed.
+#   2. The agentic-repair job checks out the PR branch as DATA-ONLY
+#      (persist-credentials: false) for code edits. Agent prompts and executable
+#      tooling are sourced exclusively from trusted sources: prompts from a
+#      `main` branch checkout (__trusted_main/), agentic-devtools from PyPI
+#      (pinned version), and only pinned trusted tooling (ruff, markdownlint-cli2).
+#      The PR branch is NEVER used as an executable source.
 # This two-workflow pattern is the CodeQL-recommended architecture for
 # workflow_run triggers that need write permissions.
 
@@ -27,6 +34,11 @@ permissions:
   actions: write
   checks: read
 
+env:
+  # Pinned version of agentic-devtools installed by the repair job from PyPI.
+  # This is the single source of truth — update here when upgrading.
+  AGDT_VERSION: '0.42.0'
+
 # Only one pipeline instance per PR runs at a time.
 # Use a consistent key for both triggers: PR number (from review event) or
 # the first associated PR number from workflow_run, falling back to branch.
@@ -39,6 +51,15 @@ jobs:
     name: AI PR Loop
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    outputs:
+      repair_needed: ${{ steps.dispatch-decision.outputs.repair_needed }}
+      repair_type: ${{ steps.dispatch-decision.outputs.repair_type }}
+      review_url: ${{ steps.dispatch-decision.outputs.review_url }}
+      pr_number: ${{ steps.pr-meta.outputs.pr_number }}
+      head_sha: ${{ steps.pr-meta.outputs.head_sha }}
+      head_branch: ${{ steps.pr-meta.outputs.head_branch }}
+      repair_comment_id: ${{ steps.dispatch-decision.outputs.repair_comment_id }}
 
     # Gate: only run for PR-related events
     if: >
@@ -525,6 +546,154 @@ jobs:
 
             core.info(`Latest Copilot review (${latestReview.id}) has ${reviewComments.length} comment(s).`);
             core.setOutput('has_comments', reviewComments.length > 0 ? 'true' : 'false');
+            core.setOutput('review_id', String(latestReview.id));
+            core.setOutput('review_url', `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}#pullrequestreview-${latestReview.id}`);
+
+      # ─── Step 2b: Dispatch Decision ──────────────────────────────────────
+      # Decides whether to dispatch the agentic-repair job based on:
+      # - Actionable Copilot review comments (CHANGES_REQUESTED with inline comments)
+      # - Failing required CI checks
+      # - Deduplication guard (max 3 dispatches per SHA)
+      # - Privileged path / Docker / fork / label guards
+      # SECURITY INVARIANT: This step NEVER approves or merges — it only decides
+      # whether to dispatch the repair job.
+      - name: Dispatch decision
+        id: dispatch-decision
+        if: >
+          steps.pr-meta.outputs.should_proceed == 'true' &&
+          steps.guards.outputs.should_proceed == 'true' &&
+          steps.apply-patch.outputs.pushed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr-meta.outputs.pr_number }}', 10);
+            const headSha = '${{ steps.pr-meta.outputs.head_sha }}';
+            const headBranch = '${{ steps.pr-meta.outputs.head_branch }}';
+            const hasComments = '${{ steps.check-review.outputs.has_comments }}' === 'true';
+            const hasFailedChecks = '${{ steps.guards.outputs.has_failed_checks }}' === 'true';
+            const reviewUrl = '${{ steps.check-review.outputs.review_url }}' || '';
+
+            // Default outputs
+            core.setOutput('repair_needed', 'false');
+            core.setOutput('repair_type', '');
+            core.setOutput('review_url', reviewUrl);
+            core.setOutput('repair_comment_id', '');
+
+            // Only dispatch when there's something to fix
+            if (!hasComments && !hasFailedChecks) {
+              core.info('No actionable comments or failed checks — no repair needed.');
+              return;
+            }
+
+            // ── Guard: privileged paths (FR-010) ──
+            const PRIVILEGED_PATH_PREFIXES = ['.github/workflows/', '.github/actions/', '.github/scripts/'];
+            const prFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+            const touchesPrivileged = prFiles.some(
+              f => PRIVILEGED_PATH_PREFIXES.some(prefix => f.filename.startsWith(prefix)) &&
+                   !f.filename.endsWith('.md')
+            );
+            if (touchesPrivileged) {
+              core.notice('PR modifies privileged automation paths — skipping repair dispatch (requires human review).');
+              return;
+            }
+
+            // ── Guard: Docker / privileged-file detection (SEC-008) ──
+            const dockerFiles = ['Dockerfile', 'docker-compose.yml', 'docker-compose.yaml'];
+            const touchesDocker = prFiles.some(
+              f => dockerFiles.some(df => f.filename === df || f.filename.endsWith('/' + df))
+            );
+            if (touchesDocker) {
+              core.notice('PR modifies Docker files — skipping repair dispatch (requires human review).');
+              return;
+            }
+
+            // ── Deduplication guard (FR-007) ──
+            const MAX_DISPATCHES_PER_SHA = 3;
+            const markerPrefix = `<!-- repair-dispatch:${headSha}:`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const markerComment = comments.find(
+              c => c.body && c.body.includes(markerPrefix)
+            );
+
+            let dispatchCount = 0;
+            let commentId = null;
+
+            if (markerComment) {
+              commentId = markerComment.id;
+              const countMatch = markerComment.body.match(/<!-- repair-dispatch:[a-f0-9]+:(\d+) -->/);
+              dispatchCount = countMatch ? parseInt(countMatch[1], 10) : 0;
+
+              if (dispatchCount >= MAX_DISPATCHES_PER_SHA) {
+                core.warning(`Dedup guard: ${dispatchCount} dispatches already for SHA ${headSha.slice(0,7)} — human intervention required.`);
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: commentId,
+                  body: [
+                    `<!-- repair-dispatch:${headSha}:${dispatchCount} -->`,
+                    `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${dispatchCount}/${MAX_DISPATCHES_PER_SHA})`,
+                    `**Status**: ⚠️ human intervention required (dispatch limit reached)`,
+                    `**Type**: ${hasComments && hasFailedChecks ? 'both' : hasComments ? 'review' : 'ci'}`,
+                  ].join('\n'),
+                });
+                return;
+              }
+            }
+
+            // ── Determine repair type ──
+            let repairType = 'review';
+            if (hasComments && hasFailedChecks) {
+              repairType = 'both';
+            } else if (hasFailedChecks) {
+              repairType = 'ci';
+            }
+
+            // ── Create or update marker comment ──
+            const newCount = dispatchCount + 1;
+            const commentBody = [
+              `<!-- repair-dispatch:${headSha}:${newCount} -->`,
+              `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA})`,
+              `**Status**: pending`,
+              `**Type**: ${repairType}`,
+            ].join('\n');
+
+            if (commentId) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: commentId,
+                body: commentBody,
+              });
+              core.info(`Updated repair marker comment (dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA}).`);
+            } else {
+              const { data: newComment } = await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+              commentId = newComment.id;
+              core.info(`Created repair marker comment (dispatch ${newCount}/${MAX_DISPATCHES_PER_SHA}).`);
+            }
+
+            // ── Set outputs ──
+            core.setOutput('repair_needed', 'true');
+            core.setOutput('repair_type', repairType);
+            core.setOutput('review_url', reviewUrl);
+            core.setOutput('repair_comment_id', String(commentId));
+            core.notice(`Dispatching agentic repair: type=${repairType}, SHA=${headSha.slice(0,7)}, dispatch=${newCount}/${MAX_DISPATCHES_PER_SHA}`);
 
       # ─── Step 3: Approve & Merge ───────────────────────────────────────────
       - name: Check if ready to merge
@@ -937,3 +1106,402 @@ jobs:
                 body,
               });
             }
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Job: agentic-repair
+  # Performs automated code repair when the ai-pr-loop job detects actionable
+  # Copilot review comments or CI failures. Runs a Copilot CLI session on a
+  # GitHub-hosted runner to address the issues, push fixes, and re-request review.
+  #
+  # SECURITY INVARIANT: This job DOES NOT approve or merge the PR. Those actions
+  # remain exclusively in the ai-pr-loop job. This job is limited to:
+  #   - Code changes (edit, lint-fix, commit, push)
+  #   - Comment replies and thread resolution
+  #   - Re-requesting Copilot review
+  # ═══════════════════════════════════════════════════════════════════════════
+  agentic-repair:
+    name: Agentic Repair
+    needs: ai-pr-loop
+    if: needs.ai-pr-loop.outputs.repair_needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ─── Step 0: PAT masking and validation (SEC-004, NFR-003, NFR-006) ───
+      - name: Mask and validate PAT
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COPILOT_GITHUB_TOKEN:-}" ]; then
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. The agentic-repair job requires a PAT with Contents R/W, Pull requests R/W, Issues R/W, Checks Read, and Actions Read permissions."
+            exit 1
+          fi
+          echo "::add-mask::${COPILOT_GITHUB_TOKEN}"
+          echo "PAT validated and masked."
+
+      # ─── Step 1: Checkout trusted main branch (FR-005, SEC-003) ───────────
+      # Agent prompts and instructions are sourced from this trusted checkout,
+      # not the PR branch.
+      - name: Checkout trusted main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: __trusted_main
+
+      # ─── Step 2: Checkout PR branch (data-only, SEC-003) ─────────────────
+      # PR code is checked out for editing only — never executed.
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ai-pr-loop.outputs.head_sha }}
+          path: pr-worktree
+          persist-credentials: false
+
+      # ─── Step 3: Configure git credentials and restore branch ────────────
+      - name: Configure git credentials
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ needs.ai-pr-loop.outputs.head_branch }}
+        run: |
+          set -euo pipefail
+          cd pr-worktree
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${COPILOT_GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          # Switch from detached HEAD to the actual PR branch
+          git checkout -B "${HEAD_BRANCH}" HEAD
+
+      # ─── Step 4: Set up Python 3.12 ─────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ─── Step 5: Install agentic-devtools from PyPI (FR-005) ─────────────
+      - name: Install agentic-devtools
+        run: |
+          set -euo pipefail
+          pip install "agentic-devtools==${{ env.AGDT_VERSION }}"
+          echo "Installed agentic-devtools ${{ env.AGDT_VERSION }} from PyPI."
+
+      # ─── Step 6: Install trusted tooling (SEC-003) ──────────────────────
+      - name: Install ruff and markdownlint
+        run: |
+          set -euo pipefail
+          pip install ruff==0.11.12
+          npm install -g markdownlint-cli2@0.17.2
+          echo "Installed ruff 0.11.12 and markdownlint-cli2 0.17.2."
+
+      # ─── Step 7: Install Copilot CLI (FR-005) ───────────────────────────
+      - name: Install Copilot CLI
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Install standalone copilot binary via agdt helper
+          agdt-setup-copilot-cli || true
+          # Fallback: install gh copilot extension
+          gh extension install github/gh-copilot 2>/dev/null || true
+          # Validate at least one is available
+          if command -v copilot &>/dev/null; then
+            echo "Standalone copilot binary available."
+          elif gh copilot --help &>/dev/null 2>&1; then
+            echo "gh copilot extension available."
+          else
+            echo "::warning::Neither standalone copilot binary nor gh copilot extension could be installed."
+          fi
+
+      # ─── Step 8: PR state validation ────────────────────────────────────
+      - name: Validate PR state
+        id: validate-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ needs.ai-pr-loop.outputs.pr_number }}', 10);
+            const expectedSha = '${{ needs.ai-pr-loop.outputs.head_sha }}';
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            // Check if PR is still open
+            if (pr.state !== 'open') {
+              core.info(`PR #${prNumber} is ${pr.state} — exiting cleanly.`);
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            // Check if head SHA still matches (another push may have occurred)
+            if (pr.head.sha !== expectedSha) {
+              core.info(`PR head SHA changed (expected ${expectedSha.slice(0,7)}, got ${pr.head.sha.slice(0,7)}) — exiting to avoid conflicts.`);
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            // Check for merge conflicts
+            if (pr.mergeable === false) {
+              core.warning(`PR #${prNumber} has merge conflicts — skipping repair.`);
+              core.setOutput('should_proceed', 'false');
+              return;
+            }
+
+            core.setOutput('should_proceed', 'true');
+
+      # ─── Step 9: Update repair comment to "started" (FR-008) ───────────
+      - name: Update repair comment (started)
+        if: steps.validate-pr.outputs.should_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentId = parseInt('${{ needs.ai-pr-loop.outputs.repair_comment_id }}', 10);
+            if (!commentId) {
+              core.info('No repair comment ID — skipping status update.');
+              return;
+            }
+
+            const headSha = '${{ needs.ai-pr-loop.outputs.head_sha }}';
+            const repairType = '${{ needs.ai-pr-loop.outputs.repair_type }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Read existing comment to preserve dispatch count
+            const { data: existing } = await github.rest.issues.getComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+            });
+            const countMatch = (existing.body || '').match(/<!-- repair-dispatch:[a-f0-9]+:(\d+) -->/);
+            const count = countMatch ? countMatch[1] : '1';
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: [
+                `<!-- repair-dispatch:${headSha}:${count} -->`,
+                `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${count}/3)`,
+                `**Status**: 🔄 started`,
+                `**Type**: ${repairType}`,
+                `**Run**: [${context.runId}](${runUrl})`,
+              ].join('\n'),
+            });
+
+      # ─── Step 10: Retrieve CI failure logs (FR-002) ─────────────────────
+      - name: Retrieve CI failure logs
+        id: ci-logs
+        if: >
+          steps.validate-pr.outputs.should_proceed == 'true' &&
+          (needs.ai-pr-loop.outputs.repair_type == 'ci' || needs.ai-pr-loop.outputs.repair_type == 'both')
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ needs.ai-pr-loop.outputs.head_sha }}"
+          REPO="${{ github.repository }}"
+          CI_CONTEXT=""
+
+          # List check runs for the head SHA, filter to failed ones
+          FAILED_CHECKS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+            --paginate \
+            --jq '.check_runs[] | select(.status == "completed" and .conclusion == "failure" and .name != "AI PR Loop" and .name != "Generate lint fix patch") | {name, id, details_url}' \
+            2>/dev/null || echo "")
+
+          if [ -z "$FAILED_CHECKS" ]; then
+            echo "No failed checks found."
+            echo "ci_context=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CI_CONTEXT="## CI Failure Context\n\n"
+
+          # Process each failed check
+          echo "$FAILED_CHECKS" | jq -r '.name' | while read -r CHECK_NAME; do
+            echo "Fetching logs for failed check: ${CHECK_NAME}"
+
+            # Try to get the workflow run ID and fetch logs
+            RUN_ID=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+              --jq ".check_runs[] | select(.name == \"${CHECK_NAME}\") | .id" \
+              2>/dev/null | head -1 || echo "")
+
+            if [ -n "$RUN_ID" ]; then
+              # Get annotations for the check run (most useful for lint errors)
+              ANNOTATIONS=$(gh api "repos/${REPO}/check-runs/${RUN_ID}/annotations" \
+                --jq '.[] | "- \(.path):\(.start_line): \(.message)"' \
+                2>/dev/null | head -50 || echo "")
+
+              CI_CONTEXT="${CI_CONTEXT}### ${CHECK_NAME}\n\n"
+              if [ -n "$ANNOTATIONS" ]; then
+                CI_CONTEXT="${CI_CONTEXT}\`\`\`\n${ANNOTATIONS}\n\`\`\`\n\n"
+              else
+                CI_CONTEXT="${CI_CONTEXT}(No annotations available — check the workflow run for details)\n\n"
+              fi
+            fi
+          done
+
+          # Write CI context to a file for the prompt rendering step
+          printf '%b' "$CI_CONTEXT" > /tmp/ci-failure-context.md
+          echo "ci_context_file=/tmp/ci-failure-context.md" >> "$GITHUB_OUTPUT"
+
+      # ─── Step 11: Render prompt ─────────────────────────────────────────
+      - name: Render repair prompt
+        id: render-prompt
+        if: steps.validate-pr.outputs.should_proceed == 'true'
+        env:
+          REPAIR_TYPE: ${{ needs.ai-pr-loop.outputs.repair_type }}
+          REVIEW_URL: ${{ needs.ai-pr-loop.outputs.review_url }}
+          PR_NUMBER: ${{ needs.ai-pr-loop.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.ai-pr-loop.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # Read CI-safe prompt from trusted main checkout
+          PROMPT_FILE="__trusted_main/.github/prompts/agdt.address-copilot-review.ci-repair.prompt.md"
+          if [ ! -f "$PROMPT_FILE" ]; then
+            echo "::error::CI-safe prompt file not found at ${PROMPT_FILE}"
+            exit 1
+          fi
+
+          cp "$PROMPT_FILE" /tmp/repair-prompt.md
+
+          # Inject review URL if available
+          if [ -n "${REVIEW_URL}" ]; then
+            printf '\n---\n\n## Review URL\n\n%s\n' "${REVIEW_URL}" >> /tmp/repair-prompt.md
+          fi
+
+          # Inject CI failure context if available
+          if [ -f "/tmp/ci-failure-context.md" ]; then
+            printf '\n---\n\n' >> /tmp/repair-prompt.md
+            cat /tmp/ci-failure-context.md >> /tmp/repair-prompt.md
+          fi
+
+          # Add environment context
+          printf '\n---\n\n## Environment Context\n\n' >> /tmp/repair-prompt.md
+          printf '- **PR Number**: %s\n' "${PR_NUMBER}" >> /tmp/repair-prompt.md
+          printf '- **Head SHA**: %s\n' "${HEAD_SHA}" >> /tmp/repair-prompt.md
+          printf '- **Repository**: %s\n' "${{ github.repository }}" >> /tmp/repair-prompt.md
+          printf '- **Repair Type**: %s\n' "${REPAIR_TYPE}" >> /tmp/repair-prompt.md
+
+          echo "Rendered repair prompt to /tmp/repair-prompt.md"
+
+      # ─── Step 12: Run Copilot session ───────────────────────────────────
+      - name: Run Copilot repair session
+        id: copilot-session
+        if: steps.validate-pr.outputs.should_proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          AGDT_CI_REPAIR_MODE: '1'
+          REPAIR_PR_NUMBER: ${{ needs.ai-pr-loop.outputs.pr_number }}
+          REPAIR_REVIEW_URL: ${{ needs.ai-pr-loop.outputs.review_url }}
+          REPAIR_HEAD_SHA: ${{ needs.ai-pr-loop.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          cd pr-worktree
+
+          PROMPT=$(cat /tmp/repair-prompt.md)
+
+          # Try Python session launcher first
+          python3 - <<'PY' || PYTHON_FAILED=true
+          import pathlib, sys
+          try:
+              from agentic_devtools.cli.copilot.session import start_copilot_session
+              result = start_copilot_session(
+                  prompt=pathlib.Path('/tmp/repair-prompt.md').read_text(),
+                  working_directory='.',
+                  interactive=False
+              )
+              if result.process is None:
+                  print('ERROR: Copilot session did not start (fallback path)', file=sys.stderr)
+                  sys.exit(1)
+              result.process.wait()
+              if result.process.returncode != 0:
+                  sys.exit(result.process.returncode)
+          except ImportError:
+              print('agentic_devtools.cli.copilot.session not available — falling back to CLI', file=sys.stderr)
+              sys.exit(2)
+          except Exception as e:
+              print(f'Session launcher error: {e}', file=sys.stderr)
+              sys.exit(2)
+          PY
+
+          # Fallback to standalone copilot CLI if Python launcher failed with exit 2
+          if [ "${PYTHON_FAILED:-}" = "true" ]; then
+            echo "Falling back to standalone copilot CLI..."
+            if command -v copilot &>/dev/null; then
+              copilot --allow-all -p "Read the prompt from /tmp/repair-prompt.md and follow the instructions."
+            elif gh copilot suggest --help &>/dev/null 2>&1; then
+              gh copilot suggest "Read the prompt from /tmp/repair-prompt.md and follow the instructions."
+            else
+              echo "::error::No Copilot CLI available — cannot run repair session."
+              exit 1
+            fi
+          fi
+
+      # ─── Step 13: Re-request Copilot review (FR-009) ───────────────────
+      - name: Re-request Copilot review
+        if: steps.validate-pr.outputs.should_proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ needs.ai-pr-loop.outputs.pr_number }}', 10);
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                reviewers: ['Copilot'],
+              });
+              core.info(`Re-requested Copilot review for PR #${prNumber} after repair.`);
+            } catch (error) {
+              core.warning(`Failed to request Copilot review (best-effort): ${error.message}`);
+            }
+
+      # ─── Step 14: Update repair comment (completed/failed) (FR-008) ────
+      - name: Update repair comment (completed)
+        if: always() && needs.ai-pr-loop.outputs.repair_comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentId = parseInt('${{ needs.ai-pr-loop.outputs.repair_comment_id }}', 10);
+            if (!commentId) return;
+
+            const headSha = '${{ needs.ai-pr-loop.outputs.head_sha }}';
+            const repairType = '${{ needs.ai-pr-loop.outputs.repair_type }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const jobStatus = '${{ job.status }}';
+
+            // Read existing comment to preserve dispatch count
+            const { data: existing } = await github.rest.issues.getComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+            });
+            const countMatch = (existing.body || '').match(/<!-- repair-dispatch:[a-f0-9]+:(\d+) -->/);
+            const count = countMatch ? countMatch[1] : '1';
+
+            let status, icon;
+            if (jobStatus === 'success') {
+              status = 'completed';
+              icon = '✅';
+            } else if (jobStatus === 'cancelled') {
+              status = 'cancelled';
+              icon = '⚠️';
+            } else {
+              status = 'failed — human intervention required';
+              icon = '❌';
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: [
+                `<!-- repair-dispatch:${headSha}:${count} -->`,
+                `🔧 **AI PR Loop Repair** (SHA: \`${headSha.slice(0,7)}\`, dispatch ${count}/3)`,
+                `**Status**: ${icon} ${status}`,
+                `**Type**: ${repairType}`,
+                `**Run**: [${context.runId}](${runUrl})`,
+              ].join('\n'),
+            });
+
