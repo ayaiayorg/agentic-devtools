@@ -540,6 +540,7 @@ jobs:
         id: create-pr
         env:
           GH_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
+          LABEL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_LABELS: ${{ steps.issue.outputs.labels }}
           GATE_RESULT: ${{ steps.generate.outputs.gate_result }}
           GATE_MODE: ${{ vars.SPECKIT_CRITICAL_GATE_MODE }}

@@ -24,7 +24,9 @@
 #   --phase-name   - Phase name (specify, clarify, plan, tasks, analyze) (optional)
 #
 # Environment:
-#   GH_TOKEN or GITHUB_TOKEN - GitHub token for gh CLI
+#   GH_TOKEN or GITHUB_TOKEN - GitHub token for gh CLI (PR creation)
+#   LABEL_TOKEN              - GitHub token with issues:write for label operations
+#                              (falls back to GH_TOKEN if not set)
 #   GITHUB_REPOSITORY        - Repository in owner/repo format
 #
 # Outputs:
@@ -127,6 +129,10 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
     echo "Error: GH_TOKEN or GITHUB_TOKEN is required" >&2
     exit 1
 fi
+
+# LABEL_TOKEN is used for label operations (gh label create / gh pr edit --add-label)
+# which require issues:write permission. Falls back to GH_TOKEN if not set.
+LABEL_TOKEN="${LABEL_TOKEN:-$GH_TOKEN}"
 
 # Validate GITHUB_REPOSITORY — required for building artifact URLs in the PR body
 if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
@@ -569,21 +575,80 @@ if [[ -z "$PR_NUMBER" ]]; then
     PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]\+$' || echo "")
 fi
 
-# Apply labels if provided
+# ---------------------------------------------------------------------------
+# Label operations — use LABEL_TOKEN (issues:write) instead of GH_TOKEN
+# ---------------------------------------------------------------------------
+
+# Preflight: verify LABEL_TOKEN can read repository labels (issues:read).
+# Note: this does NOT prove issues:write — a full write-scoped check would
+# require creating/deleting a scratch label, which is unnecessarily destructive.
+# A read failure, however, reliably detects missing/invalid tokens and wrong scopes.
+LABEL_PREFLIGHT_OK=true
+LABEL_PREFLIGHT_ERR=""
+if ! LABEL_PREFLIGHT_ERR=$(GH_TOKEN="$LABEL_TOKEN" gh api "/repos/${REPO_SLUG}/labels" --silent --jq '.[0].name' 2>&1); then
+    echo "Warning: LABEL_TOKEN failed read-access preflight — labels will not be applied. Error: $LABEL_PREFLIGHT_ERR" >&2
+    LABEL_PREFLIGHT_OK=false
+fi
+
+# Helper: create a label with retry (ensures label exists before applying)
+_create_label_with_retry() {
+    local label_name="$1"
+    local description="${2:-}"
+    local color="${3:-}"
+    local create_args=("$label_name" "--force")
+    [[ -n "$description" ]] && create_args+=(--description "$description")
+    [[ -n "$color" ]] && create_args+=(--color "$color")
+
+    local error_output
+    if ! error_output=$(GH_TOKEN="$LABEL_TOKEN" gh label create "${create_args[@]}" --repo "$REPO_SLUG" 2>&1); then
+        echo "  Warning: Could not create label '$label_name': $error_output" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Helper: apply labels to PR in batch with retry
+_apply_labels_with_retry() {
+    local pr_url="$1"
+    local label_csv="$2"
+    local error_output
+    if ! error_output=$(GH_TOKEN="$LABEL_TOKEN" gh pr edit "$pr_url" --add-label "$label_csv" 2>&1); then
+        echo "  Warning: Could not apply labels '$label_csv' to PR: $error_output" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Collect all labels to apply in a single batch
+ALL_LABELS=()
+
+# Short-circuit all label operations when the preflight failed — avoids
+# pointless retries with backoff that slow down PR creation and spam logs.
+if [[ "$LABEL_PREFLIGHT_OK" != "true" ]]; then
+    echo "Skipping all label operations (preflight failed)." >&2
+else
+
+# Parse issue labels
 if [[ "$LABELS_JSON" != "[]" ]] && [[ -n "$LABELS_JSON" ]]; then
     echo "Applying labels from issue..."
-
-    # Parse labels and apply them
-    LABELS=$(echo "$LABELS_JSON" | jq -r '.[]' 2>/dev/null || echo "")
+    JQ_TMPFILE=$(mktemp)
+    LABELS=$(echo "$LABELS_JSON" | jq -r '.[]' 2>"$JQ_TMPFILE") || true
+    JQ_ERR=$(cat "$JQ_TMPFILE")
+    rm -f "$JQ_TMPFILE"
+    if [[ -n "$JQ_ERR" ]]; then
+        echo "  Warning: jq failed to parse LABELS_JSON: $JQ_ERR" >&2
+        LABELS=""
+    fi
 
     if [[ -n "$LABELS" ]]; then
         while IFS= read -r label; do
             [[ -z "$label" ]] && continue
-            echo "  Adding label: $label"
-            gh label create "$label" --force 2>/dev/null || true
-            gh pr edit "$PR_URL" --add-label "$label" 2>/dev/null || {
-                echo "  Warning: Could not add label '$label'"
-            }
+            echo "  Ensuring label exists: $label"
+            if call_with_retry 3 2 _create_label_with_retry "$label"; then
+                ALL_LABELS+=("$label")
+            else
+                echo "  Warning: Skipping label '$label' after retry exhaustion" >&2
+            fi
         done <<< "$LABELS"
     fi
 fi
@@ -592,17 +657,30 @@ fi
 if [[ -n "$PHASE_NUMBER" ]]; then
     PHASE_LABEL="speckit:phase-${PHASE_NUMBER}"
     echo "Adding $PHASE_LABEL label..."
-    gh label create "$PHASE_LABEL" --force --description "SpecKit Phase $PHASE_NUMBER PR" --color "0E8A16" 2>/dev/null || true
-    gh pr edit "$PR_URL" --add-label "$PHASE_LABEL" 2>/dev/null || {
-        echo "Warning: Could not add $PHASE_LABEL label"
-    }
+    if call_with_retry 3 2 _create_label_with_retry "$PHASE_LABEL" "SpecKit Phase $PHASE_NUMBER PR" "0E8A16"; then
+        ALL_LABELS+=("$PHASE_LABEL")
+    else
+        echo "Warning: Skipping label '$PHASE_LABEL' after retry exhaustion" >&2
+    fi
 else
     echo "Adding speckit:spec label..."
-    gh label create "speckit:spec" --force --description "Spec PR created by SpecKit pipeline" --color "0E8A16" 2>/dev/null || true
-    gh pr edit "$PR_URL" --add-label "speckit:spec" 2>/dev/null || {
-        echo "Warning: Could not add speckit:spec label"
+    if call_with_retry 3 2 _create_label_with_retry "speckit:spec" "Spec PR created by SpecKit pipeline" "0E8A16"; then
+        ALL_LABELS+=("speckit:spec")
+    else
+        echo "Warning: Skipping label 'speckit:spec' after retry exhaustion" >&2
+    fi
+fi
+
+# Apply all labels in a single batch call
+if [[ ${#ALL_LABELS[@]} -gt 0 ]]; then
+    LABEL_CSV=$(IFS=,; echo "${ALL_LABELS[*]}")
+    echo "Applying labels to PR: $LABEL_CSV"
+    call_with_retry 3 2 _apply_labels_with_retry "$PR_URL" "$LABEL_CSV" || {
+        echo "Warning: Failed to apply some labels after retries" >&2
     }
 fi
+
+fi  # end of LABEL_PREFLIGHT_OK gate
 
 # Output results
 echo "pr_url=$PR_URL" >> "${GITHUB_OUTPUT:-/dev/stdout}"
