@@ -585,7 +585,7 @@ fi
 # A read failure, however, reliably detects missing/invalid tokens and wrong scopes.
 LABEL_PREFLIGHT_OK=true
 LABEL_PREFLIGHT_ERR=""
-if ! LABEL_PREFLIGHT_ERR=$(GH_TOKEN="$LABEL_TOKEN" gh api "/repos/${REPO_SLUG}/labels" --silent --jq '.[0].name' 2>&1); then
+if ! LABEL_PREFLIGHT_ERR=$(GH_TOKEN="$LABEL_TOKEN" gh api "/repos/${REPO_SLUG}/labels" --jq '.[0].name' 2>&1); then
     echo "Warning: LABEL_TOKEN failed read-access preflight — labels will not be applied. Error: $LABEL_PREFLIGHT_ERR" >&2
     LABEL_PREFLIGHT_OK=false
 fi
