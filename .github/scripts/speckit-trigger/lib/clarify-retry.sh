@@ -12,8 +12,14 @@
 #              strip_llm_preamble, ensure_heading_start
 #   Variables: MANDATORY_SECTIONS, REQUIREMENT_RETENTION_THRESHOLD
 #
-# Caller-visible variables set on return:
+# Output variables (emitted via GITHUB_OUTPUT by the orchestrator in
+# generate-spec-from-issue.sh; local to run_clarify_phase, not exported):
 #   clarify_layer_used = "layer1" | "layer2" | "layer3" | "layer4"
+#
+# Return code contract for layer functions:
+#   0 = success (valid result on stdout)
+#   1 = validation/content failure (counts as a retry attempt)
+#   2 = operational/LLM failure (does NOT count as a retry attempt)
 
 # Sourcing guard — safe to source multiple times
 if [[ -n "${_CLARIFY_RETRY_LIB_LOADED:-}" ]]; then
@@ -105,10 +111,15 @@ _compute_clarify_validation_fingerprint() {
 #
 # Parameters:
 #   spec_file          - Path to the original spec.md file
-#   original_content   - Content of the original (pre-clarify) spec
+#   original_content   - Base content to patch (may be the last invalid
+#                        candidate from Layer 1, not necessarily the pristine
+#                        pre-clarify spec)
 #   validation_failures - Structured feedback from _build_structured_clarify_feedback
 #
-# Returns 0 on success (result written to stdout), 1 on failure.
+# Returns:
+#   0 = success (result written to stdout)
+#   1 = validation/content failure (counts as a retry attempt)
+#   2 = operational/LLM failure (does NOT count as a retry attempt)
 # ---------------------------------------------------------------------------
 _run_clarify_incremental_patch() {
     local spec_file="$1"
@@ -150,7 +161,7 @@ Example output format:
 
     if [[ -z "$patch_result" ]]; then
         echo "[Clarify] [Layer 2] LLM returned empty patch response" >&2
-        return 1
+        return 2  # Operational failure — don't consume retry budget
     fi
 
     # Check for no-patches-needed signal
@@ -170,7 +181,7 @@ Example output format:
     local current_marker="" current_block=""
 
     while IFS= read -r line; do
-        if [[ "$line" =~ ^===INSERT_AFTER:(.+)===$  ]]; then
+        if [[ "$line" =~ ^===INSERT_AFTER:(.+)===$ ]]; then
             # Apply any pending block from previous marker
             if [[ -n "$current_marker" && -n "$current_block" ]]; then
                 merged_content=$(_apply_patch_block "$merged_content" "$current_marker" "$current_block")
@@ -190,8 +201,15 @@ Example output format:
 
     # Validate merged result
     local tmp_merged
-    tmp_merged=$(mktemp "${spec_file}.merged.XXXXXX") || return 1
-    printf '%s\n' "$merged_content" > "$tmp_merged"
+    tmp_merged=$(mktemp "${spec_file}.merged.XXXXXX") || {
+        echo "[Clarify] [Layer 2] Failed to create temp file for merged validation" >&2
+        return 2  # Operational failure — don't count as retry
+    }
+    if ! printf '%s\n' "$merged_content" > "$tmp_merged"; then
+        rm -f "$tmp_merged"
+        echo "[Clarify] [Layer 2] Failed to write merged content to temp file" >&2
+        return 2  # Operational failure — don't count as retry
+    fi
 
     if validate_structural_integrity "$spec_file" "$tmp_merged" --type spec 2>/dev/null; then
         rm -f "$tmp_merged"
@@ -211,15 +229,24 @@ Example output format:
 # matching <after_heading>.  If no next heading is found after the match,
 # appends the block at the end of the content.
 # If the heading is not found at all, appends the block at the end.
+#
+# Matching normalizes optional ` *(mandatory)*` suffixes and trailing
+# whitespace so that both `## Requirements` and
+# `## Requirements *(mandatory)*` are treated as equivalent targets.
 # ---------------------------------------------------------------------------
 _apply_patch_block() {
     local content="$1"
     local after_heading="$2"
     local block="$3"
 
-    if printf '%s\n' "$content" | grep -qxF "$after_heading"; then
+    # Normalize the marker: strip optional *(mandatory)* suffix and trailing whitespace
+    local normalized_marker
+    normalized_marker=$(printf '%s' "$after_heading" | sed -E 's/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$//' | sed 's/[[:space:]]*$//')
+
+    # Check if any line in content matches the marker (with or without *(mandatory)* suffix)
+    if printf '%s\n' "$content" | sed -E 's/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$//' | sed 's/[[:space:]]*$//' | grep -qxF "$normalized_marker"; then
         local result
-        result=$(printf '%s\n' "$content" | awk -v marker="$after_heading" -v patch="$block" '
+        result=$(printf '%s\n' "$content" | awk -v marker="$normalized_marker" -v patch="$block" '
             BEGIN { found = 0; inserted = 0 }
             {
                 if (found && !inserted && /^## /) {
@@ -229,7 +256,11 @@ _apply_patch_block() {
                     inserted = 1
                 }
                 print
-                if (!found && $0 == marker) {
+                # Normalize line for comparison: strip *(mandatory)* suffix and trailing whitespace
+                normalized = $0
+                gsub(/[[:space:]]*\*\(mandatory\)\*[[:space:]]*$/, "", normalized)
+                gsub(/[[:space:]]*$/, "", normalized)
+                if (!found && normalized == marker) {
                     found = 1
                 }
             }
@@ -261,7 +292,10 @@ _apply_patch_block() {
 #   section_headings  - Newline-separated list of original section headings
 #   requirement_count - Number of requirement entries in the original spec
 #
-# Returns 0 on success (result written to stdout), 1 on failure.
+# Returns:
+#   0 = success (result written to stdout)
+#   1 = validation/content failure (counts as a retry attempt)
+#   2 = operational/LLM failure (does NOT count as a retry attempt)
 # ---------------------------------------------------------------------------
 _run_clarify_alternate_strategy() {
     local spec_file="$1"
@@ -330,20 +364,27 @@ Do NOT include any conversational preamble before the heading."
 
     if [[ -z "$result" ]]; then
         echo "[Clarify] [Layer 3] LLM returned empty response" >&2
-        return 1
+        return 2  # Operational failure — don't consume retry budget
     fi
 
     result=$(strip_llm_preamble "$result" "# ")
     if [[ -z "${result//[[:space:]]/}" ]]; then
         echo "[Clarify] [Layer 3] LLM returned blank content after sanitization" >&2
-        return 1
+        return 2  # Operational failure — don't consume retry budget
     fi
     result=$(ensure_heading_start "$result" "# Spec: Specification")
 
     # Validate the result
     local tmp_alt
-    tmp_alt=$(mktemp "${spec_file}.alt.XXXXXX") || return 1
-    printf '%s\n' "$result" > "$tmp_alt"
+    tmp_alt=$(mktemp "${spec_file}.alt.XXXXXX") || {
+        echo "[Clarify] [Layer 3] Failed to create temp file for validation" >&2
+        return 2  # Operational failure — don't count as retry
+    }
+    if ! printf '%s\n' "$result" > "$tmp_alt"; then
+        rm -f "$tmp_alt"
+        echo "[Clarify] [Layer 3] Failed to write result to temp file" >&2
+        return 2  # Operational failure — don't count as retry
+    fi
 
     if validate_structural_integrity "$spec_file" "$tmp_alt" --type spec 2>/dev/null; then
         rm -f "$tmp_alt"
