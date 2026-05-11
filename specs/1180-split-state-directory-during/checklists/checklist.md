@@ -11,10 +11,11 @@
   for state consistency, environment propagation, and backward compatibility express *why* the user benefits
 - [ ] CHK002 All 5 user stories follow "As a [role], I want [goal], so that [benefit]" format — check
   AI agent and developer roles are used consistently
-- [ ] CHK003 All 9 functional requirements have P1/P2 priority assigned — verify P1 covers environment
+- [ ] CHK003 All 10 functional requirements have P1/P2 priority assigned — verify P1 covers environment
   variable propagation and state directory resolution, P2 covers fallback and diagnostics
 - [ ] CHK004 Requirements describe *what* the system does, not *how* — verify no references to specific
   Python stdlib calls, data structure internals, or algorithm pseudocode appear in functional requirements
+  (exception: `os.replace()` in FR-001 is permitted as it defines an inter-process atomicity contract)
 
 ## Requirement Completeness
 
