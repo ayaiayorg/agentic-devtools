@@ -17,7 +17,7 @@ task modifies `runtime-bootstrap.json` to set the worktree key. Concurrent CLI c
 `workflows/ama/PR25553/` and `workflows/ama/DFLY-2674/`), leading to missing `review-state.json`,
 duplicate comments, and legacy fallback activation.
 
-## Problem statement
+## Problem Statement
 
 The `get_state_dir()` function resolves the state directory by reading `runtime-bootstrap.json`,
 a shared file that any process can modify. During the PR review workflow, the setup background
@@ -56,7 +56,54 @@ cross-process communication without synchronization.
 - **Developers** using multi-worktree setups with concurrent review sessions
 - **CI pipelines** running automated reviews in `--interactive false` mode
 
-## User stories
+## Clarifications
+
+The following ambiguities were identified during a self-review pass and resolved inline. Answers have been applied to the relevant spec sections.
+
+### C1: Atomic write mechanism for the pin file
+
+**Q:** FR-001 states that the initiate function writes `.agdt/pinned-state-dir.json` "atomically" but does not specify the mechanism. What technique should be used?
+
+**A:** Use the standard **write-to-temp-then-rename** pattern: write the JSON content to a temporary file in the same directory (e.g., `.agdt/.pinned-state-dir.json.tmp`), then call `os.replace()`
+(which is atomic on all supported platforms — POSIX guarantees, and Windows guarantees when source and destination are on the same volume, which they always are here). This is consistent with the
+existing `_atomic_write_text` helper in `review_state.py` which uses the same temp-file-then-`os.replace()` technique. Applied to FR-001 and edge case #10.
+
+### C2: TTL renewal behavior during long-running reviews
+
+**Q:** FR-003 enforces a `ttl_hours` expiration check, but the spec does not say whether the TTL is renewed when the pin is read or used. A 24-hour review session could have its pin expire mid-review.
+
+**A:** The TTL is **not** renewed on read. It is a fixed window from `created_utc`. However, workflow-progress commands that write to the pin file (specifically `agdt-advance-workflow` and
+re-invocations of `agdt-initiate-pull-request-review-workflow`) reset `created_utc` to the current time, effectively renewing the TTL. This ensures that actively progressing reviews do not expire,
+while truly abandoned pins are cleaned up. Applied to FR-003, FR-010, and edge case #7.
+
+### C3: Logging level and destination for diagnostic warnings
+
+**Q:** FR-003 and FR-009 require "diagnostic logging" and "diagnostic warning" but do not specify the logging level or destination (stdout, stderr, Python `logging` module, or `print`).
+
+**A:** Diagnostic messages must use **`print(..., file=sys.stderr)`** — consistent with the existing pattern in `get_state_dir()` and other CLI functions in `state.py`. These specific diagnostics
+do not use the Python `logging` module (note: other components in the codebase may still use `logging` for their own purposes). Messages should be prefixed with `[agdt]` for grep-ability (e.g.,
+`[agdt] Pin file expired (created 2026-05-10T12:00:00Z, TTL 24h), falling back to bootstrap`). Applied to FR-003 and FR-009.
+
+### C4: Behavior when `AGENTIC_DEVTOOLS_STATE_DIR` points to a path outside the repo root
+
+**Q:** FR-003 validates that the pin file's `state_dir` is inside the repo root (directory traversal check), but no such check exists for the `AGENTIC_DEVTOOLS_STATE_DIR` environment variable. Should
+the env var be constrained to the repo root?
+
+**A:** **No.** The `AGENTIC_DEVTOOLS_STATE_DIR` environment variable is the highest-priority override and is intentionally unconstrained — it may legitimately point outside the repository (e.g., a
+shared CI artifacts directory, a tmpfs mount for testing). The directory traversal check in FR-003 applies **only** to the pin file, which is an auto-generated intermediary and should not escape the
+repository boundary. This is consistent with the existing behavior where `AGENTIC_DEVTOOLS_STATE_DIR` is already accepted without path validation. No spec changes needed — the existing text is
+correct.
+
+### C5: Pin file cleanup scope for `agdt-clear-workflow`
+
+**Q:** FR-001 says the pin is "cleared when the workflow completes or is explicitly cancelled" and edge case #7 mentions `agdt-clear-workflow`. Does `agdt-clear-workflow` unconditionally delete the
+pin file, or only if the active workflow matches?
+
+**A:** `agdt-clear-workflow` must **unconditionally** delete `.agdt/pinned-state-dir.json` if it exists, regardless of the `workflow` field value. Rationale: `agdt-clear-workflow` is a deliberate
+reset action; leaving a stale pin after an explicit clear would be surprising and could cause the same split-state issues this spec aims to fix. The workflow completion handler, by contrast, should
+only delete the pin if the `workflow` field matches the completing workflow. Applied to FR-001 (added clarifying note).
+
+## User Scenarios & Testing
 
 ### US1: Consistent state directory during review initiation
 
@@ -74,6 +121,10 @@ always found in the expected location.
 - Given a PR review workflow is initiated with only `--pull-request-id` from an existing
   worktree, when the setup background task modifies bootstrap state, then concurrent commands
   still resolve to the original state directory.
+- Given a PR review session has been active for longer than 12 hours, when
+  `agdt-advance-workflow` is run to progress the review, then the pin file's `created_utc`
+  is refreshed and subsequent commands continue to resolve the pinned state directory
+  without TTL expiration.
 
 ### US2: Environment-based state directory propagation
 
@@ -128,9 +179,11 @@ to maintain its own isolated state so that one session's state changes do not af
 - Given a worktree-scoped environment variable is set, when commands run in that worktree, then
   they use only the worktree's state directory.
 
-## Functional requirements
+## Requirements
 
-### P1
+### Functional requirements
+
+#### P1
 
 - **FR-001**: The initiate function must resolve the state directory once at workflow start and
   propagate it via two mechanisms:
@@ -154,8 +207,11 @@ to maintain its own isolated state so that one session's state changes do not af
      `get_state_dir()` can read it after the environment variable check but before the
      `runtime-bootstrap.json` fallback — without the circular dependency of reading from the
      scoped `state.json` (which itself requires a resolved state directory to locate). The
-     initiate function writes this file atomically; it is cleared when the workflow completes
-     or is explicitly cancelled.
+     initiate function writes this file atomically using the **write-to-temp-then-rename**
+     pattern (`os.replace()` on a temp file in the same directory); it is cleared when the
+     workflow completes or is explicitly cancelled. `agdt-clear-workflow` unconditionally
+     deletes the pin file if it exists, regardless of the `workflow` field value; the workflow
+     completion handler deletes it only if the `workflow` field matches the completing workflow.
 
   **Scoping and validation rules for the pin file:**
 
@@ -197,20 +253,25 @@ to maintain its own isolated state so that one session's state changes do not af
 
   When `AGENTIC_DEVTOOLS_STATE_DIR` is set, `get_state_dir()` must bypass **both** the pin
   file and `runtime-bootstrap.json` to preserve the O(1) / no-pin/bootstrap-reads guarantee
-  (NFR-001).
+  (NFR-001). The environment variable is intentionally unconstrained — it may point outside
+  the repository root (e.g., a shared CI artifacts directory or a tmpfs mount for testing).
 - **FR-003**: `get_state_dir()` must validate the pin file before using it. The following
   conditions cause the pin to be **ignored** (resolution falls through to bootstrap):
   1. The `state_dir` path does not exist and cannot be created.
   2. The `state_dir` path is outside the repository root (directory traversal safety check).
   3. The `created_utc` timestamp is older than `ttl_hours` (default 24 hours) — the pin has
-     expired.
+     expired. The TTL is a fixed window from `created_utc` and is **not** renewed on read.
+     However, workflow-progress commands that write to the pin file reset `created_utc` to
+     the current time, effectively renewing the TTL for actively progressing reviews (see
+     FR-010 for the authoritative list of commands that refresh `created_utc`).
   4. The `workflow` field is absent or does not match a recognized workflow name.
   5. The file cannot be parsed as valid JSON.
 
-  When a pin is ignored due to expiration or validation failure, `get_state_dir()` must log
-  a diagnostic warning indicating the reason. The expired/invalid pin file is **not**
-  automatically deleted — cleanup is the responsibility of the workflow completion handler or
-  the `agdt-clear-workflow` command.
+  When a pin is ignored due to expiration or validation failure, `get_state_dir()` must emit
+  a diagnostic warning to stderr using `print(..., file=sys.stderr)`, prefixed with `[agdt]`
+  (e.g., `[agdt] Pin file expired (created 2026-05-10T12:00:00Z, TTL 24h), falling back to
+  bootstrap`). The expired/invalid pin file is **not** automatically deleted — cleanup is the
+  responsibility of the workflow completion handler or the `agdt-clear-workflow` command.
 - **FR-004**: `setup_pull_request_review()` must not call `set_bootstrap_state()` to modify
   `runtime-bootstrap.json` when `AGENTIC_DEVTOOLS_STATE_DIR` is already set in its environment.
 - **FR-005**: Background task spawning (via `run_in_background()`) must inherit the parent
@@ -218,8 +279,21 @@ to maintain its own isolated state so that one session's state changes do not af
 - **FR-006**: When `AGENTIC_DEVTOOLS_STATE_DIR` is set, all state file operations
   (`get_value`, `set_value`, `load_state`, etc.) must use the directory specified by the
   environment variable.
+- **FR-010**: Workflow-progress commands must refresh the pin file's `created_utc` timestamp
+  to prevent TTL expiration during actively progressing reviews. The following commands
+  must reset `created_utc` to the current UTC time when they write to
+  `.agdt/pinned-state-dir.json`:
+  1. **`agdt-advance-workflow`** — updates `created_utc` each time the workflow step is
+     advanced, ensuring long-running multi-step reviews do not expire mid-session.
+  2. **`agdt-initiate-pull-request-review-workflow`** (re-invocation) — overwrites the pin
+     file with a fresh `created_utc` when a new review session is started in the same
+     worktree (see edge case #9).
 
-### P2
+  The TTL is **not** renewed on read (FR-003 validation reads do not update the pin). Only
+  explicit pin file writes refresh `created_utc`. This ensures that truly abandoned sessions
+  expire after `ttl_hours`, while actively progressing reviews remain valid indefinitely.
+
+#### P2
 
 - **FR-007**: The existing bootstrap resolution chain (`runtime-bootstrap.json` →
   `.agdt/workflows/{identity}/{worktree_key}/`) must remain the fallback when
@@ -227,15 +301,19 @@ to maintain its own isolated state so that one session's state changes do not af
 - **FR-008**: The initiate function must validate that the resolved state directory exists (or
   can be created) before propagating it to subprocesses.
 - **FR-009**: Diagnostic logging must record which resolution path was used (environment
-  variable vs. bootstrap file) for debugging purposes.
+  variable, pin file, or bootstrap file) for debugging purposes. Diagnostics are emitted to
+  stderr via `print(..., file=sys.stderr)` with an `[agdt]` prefix, consistent with the
+  existing CLI output pattern.
 
-## Non-functional requirements
+### Non-functional requirements
 
 - **NFR-001 Performance**: State directory resolution via environment variable must be O(1) —
   a single environment variable read with no pin/bootstrap file reads (directory creation
   via `mkdir` is permitted as it only occurs once on first access).
 - **NFR-002 Cross-platform safety**: The environment variable propagation must work correctly
-  on Windows, macOS, and Linux.
+  on Windows, macOS, and Linux. The pin file atomic write mechanism (`os.replace()`) is
+  guaranteed atomic on POSIX; on Windows it is atomic when source and destination are on the
+  same volume, which is always the case for `.agdt/` files within the repository.
 - **NFR-003 Test coverage**: All new and modified code must have 100% test coverage per the
   project's existing policy.
 - **NFR-004 Backward compatibility**: Existing workflows that do not set
@@ -248,7 +326,8 @@ to maintain its own isolated state so that one session's state changes do not af
 1. **State directory**: The filesystem path where all workflow state files are stored
    (e.g., `.agdt/workflows/{identity}/{worktree_key}/`).
 2. **`AGENTIC_DEVTOOLS_STATE_DIR`**: Environment variable used to propagate the resolved state
-   directory to subprocesses, bypassing `runtime-bootstrap.json`.
+   directory to subprocesses, bypassing `runtime-bootstrap.json`. Intentionally unconstrained —
+   may point outside the repository root.
 3. **`runtime-bootstrap.json`**: Shared configuration file containing only `worktree_key` —
    the current (racy) mechanism for state directory resolution. Note: `identity` is stored
    separately in `.agdt/identity.json` (with legacy fallback to reading from the bootstrap
@@ -256,13 +335,17 @@ to maintain its own isolated state so that one session's state changes do not af
 4. **`setup_pull_request_review()`**: Background task that configures the review environment,
    currently the source of the race condition.
 5. **`get_state_dir()`**: Central function that resolves the state directory path.
+6. **`.agdt/pinned-state-dir.json`**: Repo-root-level pin file written atomically (via
+   write-to-temp-then-rename with `os.replace()`) by the workflow initiate function. Read by
+   `get_state_dir()` as step 2 in the resolution chain. Contains `state_dir`, `workflow`,
+   `created_utc`, and `ttl_hours` fields.
 
 ## Edge cases
 
 1. `AGENTIC_DEVTOOLS_STATE_DIR` is set to a non-existent directory — must create it or fail
    with a clear error.
 2. `AGENTIC_DEVTOOLS_STATE_DIR` is set to an empty string — must fall back to bootstrap
-   resolution.
+   resolution (treated as unset).
 3. Multiple background tasks are spawned concurrently — all must inherit the same environment
    variable value.
 4. A user manually sets `AGENTIC_DEVTOOLS_STATE_DIR` before running a workflow — the manually
@@ -282,21 +365,25 @@ to maintain its own isolated state so that one session's state changes do not af
    `.agdt/pinned-state-dir.json` — the pin file remains on disk. On the next `get_state_dir()`
    call, the pin must be validated via FR-003 (TTL expiration check). If expired, it is
    ignored and resolution proceeds to the bootstrap chain. The stale file is cleaned up by the
-   next `agdt-clear-workflow` invocation or workflow completion handler.
+   next `agdt-clear-workflow` invocation or workflow completion handler. Note: actively
+   progressing reviews have their TTL renewed by `agdt-advance-workflow` (see C2), so only
+   truly abandoned sessions expire.
 8. **Pin file pointing to moved/deleted directory**: The `state_dir` path in the pin file no
    longer exists (e.g., worktree was removed) — `get_state_dir()` detects the non-existent
    path during FR-003 validation (check 1), ignores the pin, and falls through to bootstrap
    resolution with a diagnostic warning.
 9. **Concurrent review started in same worktree**: A second `agdt-initiate-pull-request-
    review-workflow` is run while a pin file from a prior review still exists — the initiate
-   function overwrites the pin file atomically with the new session's `state_dir`,
-   `workflow`, `created_utc`, and `ttl_hours`. The prior session's commands that relied on
-   the old pin will resolve via the environment variable (if set) or fall through to
-   bootstrap. This is acceptable because concurrent workflows in the same worktree are
-   explicitly a non-goal.
+   function overwrites the pin file atomically (write-to-temp-then-rename via `os.replace()`)
+   with the new session's `state_dir`, `workflow`, `created_utc`, and `ttl_hours`. The prior
+   session's commands that relied on the old pin will resolve via the environment variable
+   (if set) or fall through to bootstrap. This is acceptable because concurrent workflows in
+   the same worktree are explicitly a non-goal.
 10. **Pin file with unexpected content or partial writes**: The file exists but contains
     invalid JSON, missing required fields, or is truncated due to a partial write — FR-003
-    validation (check 5) causes it to be ignored with a diagnostic log warning.
+    validation (check 5) causes it to be ignored with a diagnostic log warning. The
+    write-to-temp-then-rename pattern (see C1) prevents partial writes under normal operation;
+    this edge case covers crash-during-write or external file corruption.
 
 ## Affected files
 
@@ -318,7 +405,7 @@ to maintain its own isolated state so that one session's state changes do not af
 6. State directory resolution via environment variable completes without pin/bootstrap file
    reads.
 
-## Success criteria
+## Success Criteria
 
 - Zero duplicate state directories created during PR review workflows.
 - All existing tests pass without modification.
@@ -334,3 +421,6 @@ to maintain its own isolated state so that one session's state changes do not af
   the resolution level.
 - Whether the environment variable approach should be extended to all workflows or kept
   specific to the PR review workflow.
+
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
