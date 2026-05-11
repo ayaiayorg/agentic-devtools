@@ -91,10 +91,57 @@ The implementation already provides _some_ diagnostic output:
 
 ## Clarifications
 
-- [NEEDS CLARIFICATION] Should the bot login
-  (`copilot-pull-request-reviewer[bot]`) be configurable (e.g., via state key or
-  environment variable) or remain a code constant? Current code uses
-  `COPILOT_REVIEWER_LOGIN` as a module-level constant.
+### Session 2026-05-11
+
+- Q: Should the bot login (`copilot-pull-request-reviewer[bot]`) be configurable
+  (e.g., via state key or environment variable) or remain a code constant?
+  Current code uses `COPILOT_REVIEWER_LOGIN` as a module-level constant. → A:
+  Keep it as a module-level constant. The Copilot bot login is a well-known
+  GitHub-defined value that does not vary across environments. Adding
+  configurability would increase complexity without practical benefit and risks
+  misconfiguration. If GitHub ever changes the bot login, a code change and
+  release is the appropriate response. The existing TODO comment about
+  consolidating the constant with `copilot_review_status.py` (issue #1120)
+  should be addressed separately by extracting it to a shared constants module.
+
+- Q: What is the exact shape of the new diagnostic fields added to the JSON
+  output (`diagnostics`, `elapsedSeconds`)? → A: The JSON result gains two
+  additive fields: (1) `elapsedSeconds` (float, rounded to 1 decimal place) —
+  wall-clock time from first verification attempt to final result; (2)
+  `diagnostics` (object, present only when `verified` is `false`) containing
+  `lastUsersFound` (list of login strings from the last attempt's `users`
+  array), `lastTeamsFound` (list of slug strings from the last attempt's `teams`
+  array), `wellFormedResponseSeen` (bool — true if any attempt returned valid
+  JSON with a `users` key), and `message` (human-readable summary string). When
+  `verified` is `true`, the `diagnostics` key is omitted entirely to keep
+  success output minimal.
+
+- Q: How should `_verify_reviewer_requested()` communicate the `degraded` flag
+  back to the caller, given it currently returns a simple `bool`? → A: Refactor
+  `_verify_reviewer_requested()` to return a `VerificationResult` dataclass (or
+  `NamedTuple`) with fields: `verified` (bool), `retries` (int),
+  `elapsed_seconds` (float), `degraded` (bool), `diagnostics` (dict | None).
+  The caller (`request_copilot_review()`) destructures this result to populate
+  the JSON output. This keeps the verification logic self-contained and avoids
+  side-channel communication via module-level state or mutable arguments.
+
+- Q: What constitutes "verbose/debug logging" in AC-3.2, given the codebase
+  uses `print(..., file=sys.stderr)` rather than Python's `logging` module? → A:
+  AC-3.2 verbose logging uses an `AGDT_DEBUG` environment variable (truthy
+  values: `"1"`, `"true"`, `"yes"`, case-insensitive). When enabled, each
+  verification attempt prints the response shape (top-level keys and array
+  lengths) to stderr. This is consistent with the existing `AGDT_DRY_RUN`
+  environment variable pattern and avoids introducing a `logging` module
+  dependency. The check is a simple `os.environ.get("AGDT_DEBUG", "").lower()
+  in ("1", "true", "yes")`.
+
+- Q: Should the exponential backoff delays be exact (deterministic) or include
+  jitter to avoid thundering-herd effects? → A: Use deterministic delays without
+  jitter. This command runs as a single-caller operation (one AI agent verifying
+  one PR at a time), so thundering-herd is not a concern. Deterministic delays
+  satisfy NFR-002 (determinism) and make unit tests straightforward — each test
+  can assert the exact sleep duration for each retry. The exact delays are:
+  2s, 4s, 8s, 16s (4 retries, base=2, factor=2×, total backoff=30s).
 
 ## User Scenarios & Testing
 
@@ -130,11 +177,11 @@ negatives.
 **Acceptance Criteria / Scenarios**
 
 - **AC-2.1**: Given verification fails on the first attempt, when retries are
-  configured, then the system retries with exponential backoff delays (e.g.,
-  2s, 4s, 8s, 16s).
-- **AC-2.2**: Given a maximum retry count, when all retries are exhausted, then
-  the total sum of backoff delays provides at least 30 seconds of retry budget
-  (e.g., 2s + 4s + 8s + 16s = 30s). Total wall time (including API call
+  configured, then the system retries with deterministic exponential backoff
+  delays of 2s, 4s, 8s, 16s (base=2, factor=2×, no jitter).
+- **AC-2.2**: Given a maximum retry count of 4, when all retries are exhausted,
+  then the total sum of backoff delays is exactly 30 seconds
+  (2s + 4s + 8s + 16s = 30s). Total wall time (including API call
   durations) may exceed this and is bounded by SC-002.
 - **AC-2.3**: Given verification succeeds on any retry attempt, then the system
   returns `verified: true` immediately without waiting for remaining retries.
@@ -151,9 +198,10 @@ distinguish a timing issue from a structural mismatch.
   result is produced, then stderr includes: the login values found in `users`,
   the team slugs found in `teams`, the total elapsed time, and the number of
   retries attempted.
-- **AC-3.2**: Given verbose/debug logging is enabled, when each verification
-  attempt runs, then the raw API response shape (field names and counts) is
-  logged.
+- **AC-3.2**: Given the `AGDT_DEBUG` environment variable is set to a truthy
+  value (`"1"`, `"true"`, or `"yes"`, case-insensitive), when each verification
+  attempt runs, then the response shape (top-level keys and array lengths) is
+  printed to stderr.
 - **AC-3.3**: Given a verification API call returns an unexpected HTTP status,
   then the status code and response body excerpt are included in the warning.
 
@@ -165,12 +213,15 @@ and prompts continue to work.
 
 **Acceptance Criteria / Scenarios**
 
-- **AC-4.1**: Given a successful verification, when the JSON result is produced,
+- **AC-4.1**: Given verification completes, when the JSON result is produced,
   then it contains at minimum: `prNumber`, `repo`, `requested`, `reviewer`,
   `verified`, and `retries`. The `retries` field is defined as the number of
   additional verification attempts after the initial one (i.e., 0 means success
   on first attempt; 4 means 4 retries were needed after the initial try, for
-  5 total attempts).
+  5 total attempts). The result also includes `elapsedSeconds` (float, rounded
+  to 1 decimal place). When `verified` is `false`, a `diagnostics` object is
+  included (see Clarifications for schema). When `verified` is `true`, the
+  `diagnostics` key is omitted.
 - **AC-4.2**: Given verification completes, when state is updated, then
   `github.copilot_review_requested` and
   `github.copilot_review_request_verified` are set as before.
@@ -188,8 +239,9 @@ retries.
 
 - **AC-5.1**: Given the verification API consistently returns an empty or
   malformed response across all retries, when the final result is produced,
-  then it includes a `"degraded": true` flag and a human-readable message
-  explaining the structural limitation.
+  then it includes a `"degraded": true` flag and the `diagnostics.message`
+  field contains a human-readable explanation of the structural limitation
+  (using the same `diagnostics` object defined in FR-006).
 - **AC-5.2**: Given graceful degradation is triggered, then the overall command
   still exits with code 0 (the POST succeeded; only verification is uncertain).
 - **AC-5.3**: Given degradation, then `github.copilot_review_requested` is
@@ -226,10 +278,11 @@ retries.
   array in the API response when searching for the Copilot bot login.
   (The `teams` array uses `slug`, not `login`, and team-based reviewer
   routing is out of scope per Non-Goals.)
-- **FR-002**: The retry loop must use exponential backoff (e.g., base 2s,
-  factor 2×) instead of a fixed 5-second delay.
-- **FR-003**: The maximum number of retries must provide at least 30 seconds of
-  cumulative backoff delay (e.g., 4 retries: 2s + 4s + 8s + 16s = 30s). Total
+- **FR-002**: The retry loop must use deterministic exponential backoff
+  (base=2s, factor=2×, no jitter) instead of a fixed 5-second delay. The exact
+  delays are: 2s, 4s, 8s, 16s.
+- **FR-003**: The maximum number of retries must be 4, providing exactly 30
+  seconds of cumulative backoff delay (2s + 4s + 8s + 16s = 30s). Total
   wall time including API call durations is bounded by SC-002 (~55s, computed as
   5 attempts × 5s timeout + 30s backoff).
 - **FR-004**: Verification must return `True` as soon as the bot is found on
@@ -240,17 +293,28 @@ retries.
 - **FR-005**: On final verification failure, the system must emit a diagnostic
   message to stderr containing: login values found in `users`, team slugs found
   in `teams`, total elapsed time, and retry count.
-- **FR-006**: New diagnostic fields added to the JSON result (e.g.,
-  `diagnostics`, `elapsedSeconds`) must be additive — no existing fields may be
-  removed or renamed.
+- **FR-006**: New diagnostic fields added to the JSON result must be additive —
+  no existing fields may be removed or renamed. The new fields are:
+  `elapsedSeconds` (float, always present on verification path) and
+  `diagnostics` (object, present only when `verified` is `false`, containing
+  `lastUsersFound`, `lastTeamsFound`, `wellFormedResponseSeen`, and `message`).
 - **FR-007**: The JSON result schema must continue to include `prNumber`,
   `repo`, `requested`, `reviewer`, `verified`, and `retries`. The `retries`
   field represents the number of additional attempts after the initial one
   (0 = success on first try).
+- **FR-008**: `_verify_reviewer_requested()` must be refactored to return a
+  `VerificationResult` dataclass (or `NamedTuple`) with fields: `verified`
+  (bool), `retries` (int), `elapsed_seconds` (float), `degraded` (bool),
+  `diagnostics` (dict | None). The caller destructures this result to populate
+  the JSON output.
+- **FR-009**: When the `AGDT_DEBUG` environment variable is set to a truthy
+  value (`"1"`, `"true"`, `"yes"`, case-insensitive), each verification attempt
+  must print the API response shape (top-level keys and array lengths) to
+  stderr.
 
 #### P3
 
-- **FR-008**: When the verification API returns an unexpected or empty response
+- **FR-010**: When the verification API returns an unexpected or empty response
   shape on every retry (i.e., no attempt produced a well-formed JSON object
   with a `users` key), the system should set a `degraded` flag in the result
   and include an explanatory message rather than reporting a hard failure. If
@@ -262,7 +326,8 @@ retries.
 - **NFR-001 Backward compatibility**: Existing JSON output fields and state keys
   must not be removed or renamed. New fields are additive only.
 - **NFR-002 Determinism**: For a given sequence of API responses, the retry
-  behavior and final result must be deterministic.
+  behavior and final result must be deterministic. Backoff delays are exact
+  (no jitter), ensuring unit tests can assert precise sleep durations.
 - **NFR-003 Performance**: The maximum verification window (~55s wall time)
   must not block the caller longer than necessary — early exit on success is
   required (FR-004).
@@ -282,15 +347,20 @@ retries.
 2. The bot appears in `users` only after a delay (e.g., 3rd retry) — should
    succeed on that attempt.
 3. The API returns `{"users": [], "teams": []}` on every attempt — should fail
-   with diagnostics after exhausting retries.
+   with diagnostics after exhausting retries; `degraded` is `false` because the
+   response shape is well-formed (contains a `users` key).
 4. The API returns a non-JSON response or HTTP error — should warn and continue
-   retrying.
+   retrying. If all attempts are malformed, `degraded` is `true`.
 5. The API returns users but none match the expected login — diagnostics should
    list the logins that were found.
 6. Network timeout during a verification attempt — should not crash; should
-   retry on next attempt.
+   retry on next attempt. Timeout is treated as a retryable failure and counted
+   in diagnostic output.
 7. The bot login constant is correct but casing differs — comparison is already
    case-insensitive (preserved).
+8. Mixed responses: some attempts return malformed JSON, others return
+   well-formed JSON without the bot — `degraded` is `false` because at least
+   one well-formed response was seen (AC-1.2 precedence rule).
 
 ---
 _Generated by Copilot SDK (claude-opus-4.6) — expanded per review feedback._
