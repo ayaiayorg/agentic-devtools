@@ -2121,17 +2121,30 @@ Do NOT include any conversational preamble before the heading."
     local clarify_max_retries="$CLARIFY_MAX_RETRIES"
     local clarify_retry_feedback=""
     local result
-    local clarify_status="success"
+    local clarify_status="pending"
     local prev_fingerprint=""
+    local clarify_layer_used=""
 
     # Save original spec content for Layer 4 fallback and Layer 2/3
     local original_spec_content="$spec_content"
+    # Track the last invalid candidate from Layer 1 for use as Layer 2 patch base
+    local last_failed_candidate=""
+
+    # ── Early guard: skip all remediation when budget is 0 ──────────────
+    if [[ "$clarify_max_retries" -le 0 ]]; then
+        echo "[Clarify] All layers skipped (SPECKIT_CLARIFY_MAX_RETRIES=0) — preserving original spec.md" >&2
+        clarify_status="warning-fallback"
+        clarify_layer_used="layer4"
+        echo "clarify_status=$clarify_status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        echo "clarify_layer_used=$clarify_layer_used" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+        return 0
+    fi
 
     # ── Layer 1: Targeted Feedback ──────────────────────────────────────
-    if [[ "$clarify_max_retries" -gt 0 ]]; then
-        echo "[Clarify] [Layer 1] Targeted feedback retries (max $clarify_max_retries)" >&2
+    echo "[Clarify] [Layer 1] Targeted feedback retries (max $clarify_max_retries)" >&2
 
         clarify_attempt=0
+        local _l1_op_failures=0
         while true; do
             # Build prompt (with retry feedback if set)
             local full_prompt="$prompt"
@@ -2146,19 +2159,37 @@ ${prompt}"
             local llm_rc=0
             result=$(call_llm "$full_prompt") || llm_rc=$?
             if [[ "$llm_rc" -ne 0 ]]; then
-                echo "[Clarify] [Layer 1] LLM call failed (operational error, rc=$llm_rc) — escalating" >&2
-                break  # Operational failure — escalate immediately
+                _l1_op_failures=$((_l1_op_failures + 1))
+                echo "[Clarify] [Layer 1] LLM call failed (operational error, rc=$llm_rc) — failure $_l1_op_failures/3" >&2
+                if [[ "$_l1_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 1] Too many operational failures — escalating" >&2
+                    break
+                fi
+                continue  # Retry without consuming retry budget
             fi
             if [[ -z "$result" ]]; then
-                echo "[Clarify] [Layer 1] LLM returned empty content — escalating" >&2
-                break
+                _l1_op_failures=$((_l1_op_failures + 1))
+                echo "[Clarify] [Layer 1] LLM returned empty content — failure $_l1_op_failures/3" >&2
+                if [[ "$_l1_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 1] Too many operational failures — escalating" >&2
+                    break
+                fi
+                continue  # Retry without consuming retry budget
             fi
             result=$(strip_llm_preamble "$result" "# ")
             if [[ -z "${result//[[:space:]]/}" ]]; then
-                echo "[Clarify] [Layer 1] LLM returned blank content after preamble stripping — escalating" >&2
-                break
+                _l1_op_failures=$((_l1_op_failures + 1))
+                echo "[Clarify] [Layer 1] LLM returned blank content after preamble stripping — failure $_l1_op_failures/3" >&2
+                if [[ "$_l1_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 1] Too many operational failures — escalating" >&2
+                    break
+                fi
+                continue  # Retry without consuming retry budget
             fi
             result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
+
+            # LLM produced usable content — reset operational failure counter
+            _l1_op_failures=0
 
             # --- Diagnostic logging before validation ---
             local _diag_tmp
@@ -2199,8 +2230,9 @@ ${prompt}"
                 clarify_retry_feedback=""
                 if safe_write_with_validation "$spec_file" "$result" --type spec; then
                     clarify_status="success"
+                    clarify_layer_used="layer1"
                     echo "[Clarify] [Layer 1] ✓ Validation passed" >&2
-                    break 2>/dev/null || true  # Exit the layer loop
+                    break 2>/dev/null || true  # Exit Layer 1 retry loop
                 fi
                 echo "Error: Failed to persist validated Clarify phase output to $spec_file. Original spec.md preserved." >&2
                 return 1
@@ -2211,6 +2243,9 @@ ${prompt}"
             if [[ -z "$validation_failure_reasons" ]]; then
                 validation_failure_reasons="Structural integrity validation failed without detailed diagnostics."
             fi
+
+            # Track last failed candidate for Layer 2 patch base
+            last_failed_candidate="$result"
 
             # Stall detection: compare fingerprints
             local current_fingerprint
@@ -2229,7 +2264,16 @@ ${prompt}"
                 echo "Error: Clarify phase failed to create temp file for structured feedback" >&2
                 return 1
             }
-            printf '%s\n' "$result" > "$_struct_tmp"
+            if ! printf '%s\n' "$result" > "$_struct_tmp"; then
+                rm -f "$_struct_tmp"
+                echo "[Clarify] [Layer 1] Failed to write candidate for structured feedback — treating as operational failure" >&2
+                _l1_op_failures=$((_l1_op_failures + 1))
+                if [[ "$_l1_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 1] Too many operational failures — escalating" >&2
+                    break
+                fi
+                continue  # Retry without consuming retry budget
+            fi
             local structured_feedback
             structured_feedback=$(_build_structured_clarify_feedback "$spec_file" "$_struct_tmp")
             rm -f "$_struct_tmp"
@@ -2244,16 +2288,13 @@ ${validation_failure_reasons}"
             fi
 
             clarify_attempt=$((clarify_attempt + 1))
-            if [[ "$clarify_attempt" -ge "$clarify_max_retries" ]]; then
-                echo "[Clarify] [Layer 1] Exhausted ($clarify_max_retries attempts)" >&2
+            if [[ "$clarify_attempt" -gt "$clarify_max_retries" ]]; then
+                echo "[Clarify] [Layer 1] Exhausted ($clarify_max_retries retries)" >&2
                 break
             fi
 
             echo "[Clarify] [Layer 1] Retry $clarify_attempt/$clarify_max_retries — validation failed. Reasons: $validation_failure_reasons" >&2
         done
-    else
-        echo "[Clarify] [Layer 1] Skipped (SPECKIT_CLARIFY_MAX_RETRIES=0)" >&2
-    fi
 
     # Check if Layer 1 succeeded
     if [[ "$clarify_status" == "success" ]]; then
@@ -2266,45 +2307,88 @@ ${validation_failure_reasons}"
         # ── Layer 2: Incremental Patching ────────────────────────────────
         echo "[Clarify] [Layer 2] Incremental patching (max $clarify_max_retries retries)" >&2
 
-        for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries; clarify_attempt++ )); do
-            echo "[Clarify] [Layer 2] Attempt $clarify_attempt/$clarify_max_retries" >&2
+        local _l2_op_failures=0
+        local _l2_exit_reason="exhausted"
+        for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries + 1; clarify_attempt++ )); do
+            echo "[Clarify] [Layer 2] Attempt $clarify_attempt/$((clarify_max_retries + 1))" >&2
 
-            # Build validation failures text from current state
-            local _l2_tmp _l2_failures
-            _l2_tmp=$(mktemp "${spec_file}.l2.XXXXXX") || continue
-            # Use original content for patching
-            printf '%s\n' "$original_spec_content" > "$_l2_tmp"
+            # Build validation failures text from last failed candidate (or original)
+            local _l2_tmp _l2_failures _l2_patch_base
+            _l2_patch_base="${last_failed_candidate:-$original_spec_content}"
+            _l2_tmp=$(mktemp "${spec_file}.l2.XXXXXX") || {
+                _l2_op_failures=$((_l2_op_failures + 1))
+                echo "[Clarify] [Layer 2] Failed to create temp file (operational failure $_l2_op_failures/3)" >&2
+                if [[ "$_l2_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 2] Too many operational failures — escalating" >&2
+                    _l2_exit_reason="operational"
+                    break
+                fi
+                clarify_attempt=$((clarify_attempt - 1))  # Don't consume retry budget
+                continue  # Retry without consuming retry budget
+            }
+            if ! printf '%s\n' "$_l2_patch_base" > "$_l2_tmp"; then
+                rm -f "$_l2_tmp"
+                _l2_op_failures=$((_l2_op_failures + 1))
+                echo "[Clarify] [Layer 2] Failed to write patch base to temp file (operational failure $_l2_op_failures/3)" >&2
+                if [[ "$_l2_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 2] Too many operational failures — escalating" >&2
+                    _l2_exit_reason="operational"
+                    break
+                fi
+                clarify_attempt=$((clarify_attempt - 1))  # Don't consume retry budget
+                continue
+            fi
             _l2_failures=$(_build_structured_clarify_feedback "$spec_file" "$_l2_tmp" 2>/dev/null || true)
             rm -f "$_l2_tmp"
 
             if [[ -z "$_l2_failures" ]]; then
-                # No failures detected against original — try with last result
+                # No failures detected — try with last result
                 _l2_failures="Missing mandatory sections or heading structure issues detected."
             fi
 
             local patch_rc=0
             local patched_result=""
-            patched_result=$(_run_clarify_incremental_patch "$spec_file" "$original_spec_content" "$_l2_failures") || patch_rc=$?
+            patched_result=$(_run_clarify_incremental_patch "$spec_file" "$_l2_patch_base" "$_l2_failures") || patch_rc=$?
 
             if [[ "$patch_rc" -eq 2 ]]; then
-                echo "[Clarify] [Layer 2] Operational failure — not counting as retry" >&2
+                _l2_op_failures=$((_l2_op_failures + 1))
+                echo "[Clarify] [Layer 2] Operational failure ($_l2_op_failures) — not counting as retry" >&2
+                if [[ "$_l2_op_failures" -ge 3 ]]; then
+                    echo "[Clarify] [Layer 2] Too many operational failures — escalating" >&2
+                    _l2_exit_reason="operational"
+                    break
+                fi
+                clarify_attempt=$((clarify_attempt - 1))  # Don't consume retry budget
                 continue
             fi
+
+            # Non-operational outcome — reset consecutive operational failure counter
+            _l2_op_failures=0
 
             if [[ "$patch_rc" -eq 0 && -n "$patched_result" ]]; then
                 patched_result=$(ensure_heading_start "$patched_result" "# Spec: $ISSUE_TITLE")
                 if safe_write_with_validation "$spec_file" "$patched_result" --type spec; then
                     clarify_status="success-layer2"
+                    clarify_layer_used="layer2"
                     echo "[Clarify] [Layer 2] ✓ Incremental patching succeeded after attempt $clarify_attempt" >&2
                     break
                 fi
+                # safe_write_with_validation failed after _run_clarify_incremental_patch
+                # already validated the content — this is an I/O/persistence error, not
+                # a validation failure. Fail fast rather than consuming retry budget.
+                echo "Error: [Clarify] [Layer 2] Persistence failure writing validated content to $spec_file. Original spec.md preserved." >&2
+                return 1
             fi
 
             echo "[Clarify] [Layer 2] Attempt $clarify_attempt failed" >&2
         done
 
         if [[ "$clarify_status" != "success-layer2" ]]; then
-            echo "[Clarify] [Layer 2] Exhausted ($clarify_max_retries attempts)" >&2
+            if [[ "$_l2_exit_reason" == "operational" ]]; then
+                echo "[Clarify] [Layer 2] Escalating due to repeated operational failures" >&2
+            else
+                echo "[Clarify] [Layer 2] Exhausted ($clarify_max_retries retries)" >&2
+            fi
 
             # Clear stale feedback before Layer 3
             clarify_retry_feedback=""
@@ -2312,43 +2396,67 @@ ${validation_failure_reasons}"
             # ── Layer 3: Alternate Prompt Strategy ──────────────────────────
             echo "[Clarify] [Layer 3] Alternate prompt strategy (max $clarify_max_retries retries)" >&2
 
-            for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries; clarify_attempt++ )); do
-                echo "[Clarify] [Layer 3] Attempt $clarify_attempt/$clarify_max_retries" >&2
+            local _l3_op_failures=0
+            local _l3_exit_reason="exhausted"
+            for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries + 1; clarify_attempt++ )); do
+                echo "[Clarify] [Layer 3] Attempt $clarify_attempt/$((clarify_max_retries + 1))" >&2
 
                 local alt_rc=0
                 local alt_result=""
                 alt_result=$(_run_clarify_alternate_strategy "$spec_file" "$original_spec_content" "$section_headings" "$requirement_count") || alt_rc=$?
 
                 if [[ "$alt_rc" -eq 2 ]]; then
-                    echo "[Clarify] [Layer 3] Operational failure — not counting as retry" >&2
+                    _l3_op_failures=$((_l3_op_failures + 1))
+                    echo "[Clarify] [Layer 3] Operational failure ($_l3_op_failures) — not counting as retry" >&2
+                    if [[ "$_l3_op_failures" -ge 3 ]]; then
+                        echo "[Clarify] [Layer 3] Too many operational failures — escalating" >&2
+                        _l3_exit_reason="operational"
+                        break
+                    fi
+                    clarify_attempt=$((clarify_attempt - 1))  # Don't consume retry budget
                     continue
                 fi
+
+                # Non-operational outcome — reset consecutive operational failure counter
+                _l3_op_failures=0
 
                 if [[ "$alt_rc" -eq 0 && -n "$alt_result" ]]; then
                     alt_result=$(ensure_heading_start "$alt_result" "# Spec: $ISSUE_TITLE")
                     if safe_write_with_validation "$spec_file" "$alt_result" --type spec; then
                         clarify_status="success-layer3"
+                        clarify_layer_used="layer3"
                         echo "[Clarify] [Layer 3] ✓ Alternate strategy succeeded after attempt $clarify_attempt" >&2
                         break
                     fi
+                    # safe_write_with_validation failed after _run_clarify_alternate_strategy
+                    # already validated the content — this is an I/O/persistence error, not
+                    # a validation failure. Fail fast rather than consuming retry budget.
+                    echo "Error: [Clarify] [Layer 3] Persistence failure writing validated content to $spec_file. Original spec.md preserved." >&2
+                    return 1
                 fi
 
                 echo "[Clarify] [Layer 3] Attempt $clarify_attempt failed" >&2
             done
 
             if [[ "$clarify_status" != "success-layer3" ]]; then
-                echo "[Clarify] [Layer 3] Exhausted ($clarify_max_retries attempts)" >&2
+                if [[ "$_l3_exit_reason" == "operational" ]]; then
+                    echo "[Clarify] [Layer 3] Escalating due to repeated operational failures" >&2
+                else
+                    echo "[Clarify] [Layer 3] Exhausted ($clarify_max_retries retries)" >&2
+                fi
 
                 # ── Layer 4: Graceful Degradation ───────────────────────────
                 echo "[Clarify] [Layer 4] Graceful degradation — preserving original spec.md" >&2
                 echo "[Clarify] WARNING-FALLBACK: All remediation layers exhausted. Original spec.md preserved." >&2
                 clarify_status="warning-fallback"
+                clarify_layer_used="layer4"
             fi
         fi
     fi
 
-    # Write clarify_status to GITHUB_OUTPUT
+    # Write clarify_status and clarify_layer_used to GITHUB_OUTPUT
     echo "clarify_status=$clarify_status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+    echo "clarify_layer_used=$clarify_layer_used" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
     # If graceful degradation, return 0 without modifying the spec
     if [[ "$clarify_status" == "warning-fallback" ]]; then

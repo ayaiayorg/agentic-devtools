@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 #
-# test_clarify_retry.sh - Integration tests for multi-layer clarify retry logic
+# test_clarify_retry.sh - Unit tests for multi-layer clarify retry library functions
 #
 # Tests the _run_clarify_incremental_patch, _run_clarify_alternate_strategy,
-# _build_structured_clarify_feedback, _compute_clarify_validation_fingerprint,
-# and the multi-layer orchestration in run_clarify_phase().
+# _build_structured_clarify_feedback, and _compute_clarify_validation_fingerprint
+# library functions.  Also includes contract-level tests that verify the expected
+# behavior of orchestrator variables (clarify_status, clarify_retry_feedback,
+# stall detection) via simulated state transitions — these do NOT invoke the full
+# run_clarify_phase() orchestrator.
 #
 # Usage: bash test_clarify_retry.sh
 #
@@ -15,9 +18,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------------------
-# Source only the utility functions we need from generate-spec-from-issue.sh
-# without running the full pipeline.  We source the full script but set up
-# enough env vars to prevent it from running main logic.
+# Source the clarify-retry library directly (no need to source the full
+# generate-spec-from-issue.sh pipeline script).
 # ---------------------------------------------------------------------------
 
 # Source library files directly
@@ -90,6 +92,32 @@ assert_exit_code() {
         PASS=$((PASS + 1))
     else
         echo "  ❌ $description (expected exit=$expected_exit, got exit=$actual_exit)"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+assert_appears_before() {
+    local description="$1"
+    local first="$2"
+    local second="$3"
+    local text="$4"
+    TOTAL=$((TOTAL + 1))
+
+    local first_line second_line
+    first_line=$(printf '%s\n' "$text" | grep -nF -- "$first" | head -1 | cut -d: -f1 || true)
+    second_line=$(printf '%s\n' "$text" | grep -nF -- "$second" | head -1 | cut -d: -f1 || true)
+
+    if [[ -z "$first_line" ]]; then
+        echo "  ❌ $description ('$first' not found in text)"
+        FAIL=$((FAIL + 1))
+    elif [[ -z "$second_line" ]]; then
+        echo "  ❌ $description ('$second' not found in text)"
+        FAIL=$((FAIL + 1))
+    elif [[ "$first_line" -lt "$second_line" ]]; then
+        echo "  ✅ $description"
+        PASS=$((PASS + 1))
+    else
+        echo "  ❌ $description ('$first' at line $first_line is not before '$second' at line $second_line)"
         FAIL=$((FAIL + 1))
     fi
 }
@@ -402,9 +430,6 @@ test_incremental_patch_success() {
     local tmp_dir
     tmp_dir=$(setup_valid_spec)
 
-    local original_content
-    original_content=$(cat "$tmp_dir/spec.md")
-
     # Mock call_llm to return patches that add missing sections
     call_llm() {
         echo "===INSERT_AFTER:## Problem Statement===
@@ -421,9 +446,9 @@ test_incremental_patch_success() {
 
     local failures="MISSING_SECTIONS: ## User Scenarios & Testing, ## Success Criteria"
 
-    # The spec_file remains valid (the original with all sections).
-    # The "original_content" passed to the function is a broken version
-    # (missing sections) that the patches are applied to.
+    # The spec_file (first arg) remains valid (the original with all sections).
+    # The broken_content (second arg) is a version missing sections that the
+    # patches are applied to.
     local broken_content="# Feature Specification: Test Feature
 
 ## Problem Statement
@@ -444,6 +469,15 @@ This is the problem statement.
     assert_eq "incremental patch returns 0 on success" "0" "$rc"
     assert_contains "result contains Problem Statement" "## Problem Statement" "$result"
     assert_contains "result contains Requirements" "## Requirements" "$result"
+    # Verify newly inserted sections are present
+    assert_contains "result contains inserted User Scenarios heading" "## User Scenarios & Testing" "$result"
+    assert_contains "result contains inserted Success Criteria heading" "## Success Criteria" "$result"
+    # Verify inserted content is present
+    assert_contains "result contains User Scenarios content" "- US-001: User logs in" "$result"
+    assert_contains "result contains Success Criteria content" "- All tests pass" "$result"
+    # Verify relative ordering: inserted sections appear after their markers
+    assert_appears_before "User Scenarios inserted after Problem Statement" "## Problem Statement" "## User Scenarios & Testing" "$result"
+    assert_appears_before "Success Criteria inserted after Requirements" "## Requirements" "## Success Criteria" "$result"
 
     rm -rf "$tmp_dir"
 }
@@ -484,6 +518,24 @@ test_incremental_patch_llm_failure() {
     rm -rf "$tmp_dir"
 }
 test_incremental_patch_llm_failure
+
+test_incremental_patch_empty_response() {
+    local tmp_dir
+    tmp_dir=$(setup_valid_spec)
+
+    # Mock call_llm to return empty
+    call_llm() {
+        echo ""
+    }
+
+    local rc=0
+    _run_clarify_incremental_patch "$tmp_dir/spec.md" "$(cat "$tmp_dir/spec.md")" "MISSING_SECTIONS: foo" 2>/dev/null || rc=$?
+
+    assert_eq "empty patch response returns 2 (operational)" "2" "$rc"
+
+    rm -rf "$tmp_dir"
+}
+test_incremental_patch_empty_response
 
 # ===========================================================================
 # Test: _run_clarify_alternate_strategy
@@ -573,14 +625,32 @@ test_alternate_strategy_empty_response() {
     local rc=0
     _run_clarify_alternate_strategy "$tmp_dir/spec.md" "$(cat "$tmp_dir/spec.md")" "" "0" 2>/dev/null || rc=$?
 
-    assert_eq "empty response returns 1" "1" "$rc"
+    assert_eq "empty response returns 2 (operational)" "2" "$rc"
 
     rm -rf "$tmp_dir"
 }
 test_alternate_strategy_empty_response
 
+test_alternate_strategy_blank_after_sanitization() {
+    local tmp_dir
+    tmp_dir=$(setup_valid_spec)
+
+    # Mock call_llm to return only whitespace (blank after strip_llm_preamble)
+    call_llm() {
+        echo "   "
+    }
+
+    local rc=0
+    _run_clarify_alternate_strategy "$tmp_dir/spec.md" "$(cat "$tmp_dir/spec.md")" "" "0" 2>/dev/null || rc=$?
+
+    assert_eq "blank after sanitization returns 2 (operational)" "2" "$rc"
+
+    rm -rf "$tmp_dir"
+}
+test_alternate_strategy_blank_after_sanitization
+
 # ===========================================================================
-# Test: Layer 4 graceful degradation preserves original
+# Test: Layer 4 graceful degradation contract (simulated state transitions)
 # ===========================================================================
 echo ""
 echo "=== Test: Graceful degradation (SPECKIT_CLARIFY_MAX_RETRIES=0) ==="
@@ -592,8 +662,7 @@ test_graceful_degradation_max_retries_zero() {
     local original_content
     original_content=$(cat "$tmp_dir/spec.md")
 
-    # Set up minimal environment for clarify phase logic
-    # This tests the concept: when max_retries=0, skip layers 1-3, go to layer 4
+    # Verify the orchestrator contract: when max_retries=0, status becomes warning-fallback
     local clarify_max_retries=0
     local clarify_status="pending"
 
@@ -614,15 +683,15 @@ test_graceful_degradation_max_retries_zero() {
 test_graceful_degradation_max_retries_zero
 
 # ===========================================================================
-# Test: clarify_retry_feedback cleared between layers
+# Test: clarify_retry_feedback cleared between layers (contract verification)
 # ===========================================================================
 echo ""
 echo "=== Test: Feedback cleared between layers ==="
 
 test_feedback_cleared_between_layers() {
-    # This tests the contract: clarify_retry_feedback is cleared when
-    # transitioning between layers.  We verify by checking that the
-    # orchestrator clears the variable.
+    # Verifies the orchestrator contract: clarify_retry_feedback must be cleared
+    # when transitioning between layers (simulated state transition, not full
+    # orchestrator invocation).
     local clarify_retry_feedback="stale feedback from Layer 1"
 
     # Simulate layer transition (as done in the orchestrator)
@@ -659,6 +728,63 @@ test_stall_detection_same_fingerprint() {
     rm -rf "$tmp_dir"
 }
 test_stall_detection_same_fingerprint
+
+# ===========================================================================
+# Test: _apply_patch_block with *(mandatory)* suffix normalization
+# ===========================================================================
+echo ""
+echo "=== Test: _apply_patch_block heading normalization ==="
+
+test_apply_patch_block_mandatory_suffix() {
+    # Spec content has headings with *(mandatory)* annotations
+    local content="# Spec: Test Feature
+
+## Problem Statement *(mandatory)*
+
+This is the problem.
+
+## Requirements *(mandatory)*
+
+- FR-001: The system shall work"
+
+    # LLM emits marker WITHOUT the *(mandatory)* suffix
+    local block="## User Scenarios & Testing *(mandatory)*
+
+- US-001: User logs in"
+
+    local result
+    result=$(_apply_patch_block "$content" "## Problem Statement" "$block")
+
+    assert_contains "patch inserted after annotated heading" "## User Scenarios & Testing" "$result"
+    assert_appears_before "patch appears between Problem Statement and Requirements" "## Problem Statement" "## User Scenarios & Testing" "$result"
+    assert_appears_before "patch appears before Requirements" "## User Scenarios & Testing" "## Requirements" "$result"
+}
+test_apply_patch_block_mandatory_suffix
+
+test_apply_patch_block_exact_match_still_works() {
+    # Standard headings without *(mandatory)* still work
+    local content="# Spec: Test Feature
+
+## Problem Statement
+
+This is the problem.
+
+## Requirements
+
+- FR-001: The system shall work"
+
+    local block="## New Section
+
+Some content."
+
+    local result
+    result=$(_apply_patch_block "$content" "## Problem Statement" "$block")
+
+    assert_contains "patch inserted with exact match" "## New Section" "$result"
+    assert_appears_before "patch appears after marker" "## Problem Statement" "## New Section" "$result"
+    assert_appears_before "patch appears before next heading" "## New Section" "## Requirements" "$result"
+}
+test_apply_patch_block_exact_match_still_works
 
 # ---------------------------------------------------------------------------
 # Summary
