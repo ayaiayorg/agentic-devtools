@@ -64,7 +64,7 @@ poll*.txt
 poll*.json
 poll*.out
 poll*.err
-_poll_output.txt
+_poll*.txt
 
 # Workflow artifacts (ad-hoc, not source files)
 replies.json
