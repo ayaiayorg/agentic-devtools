@@ -1137,6 +1137,10 @@ INSTRUCTIONS:
 # shellcheck source=lib/critical-gate-remediation.sh
 source "$SCRIPT_DIR/lib/critical-gate-remediation.sh"
 
+# Source clarify retry library (multi-layer clarify phase remediation)
+# shellcheck source=lib/clarify-retry.sh
+source "$SCRIPT_DIR/lib/clarify-retry.sh"
+
 # ---------------------------------------------------------------------------
 # run_markdownlint_validation <spec_dir>
 #
@@ -2108,121 +2112,248 @@ WRONG: \"Certainly! Here is...\"
 CORRECT: \"# Spec: Feature Name\"
 Do NOT include any conversational preamble before the heading."
 
-    # --- LLM call with validation retry loop ---
+    # --- LLM call with multi-layer validation retry ---
+    # Layer 1: Targeted feedback retries with stall detection
+    # Layer 2: Incremental patching (_run_clarify_incremental_patch)
+    # Layer 3: Alternate prompt strategy (_run_clarify_alternate_strategy)
+    # Layer 4: Graceful degradation (preserve original, return 0)
     local clarify_attempt=0
-    local clarify_max_retries="$FR_VALIDATION_MAX_RETRIES"
+    local clarify_max_retries="$CLARIFY_MAX_RETRIES"
     local clarify_retry_feedback=""
     local result
+    local clarify_status="success"
+    local prev_fingerprint=""
 
-    while true; do
-        # Build prompt (with retry feedback if set)
-        local full_prompt="$prompt"
-        if [[ -n "$clarify_retry_feedback" ]]; then
-            full_prompt="RETRY CONTEXT — PREVIOUS ATTEMPT FAILED VALIDATION:
+    # Save original spec content for Layer 4 fallback and Layer 2/3
+    local original_spec_content="$spec_content"
+
+    # ── Layer 1: Targeted Feedback ──────────────────────────────────────
+    if [[ "$clarify_max_retries" -gt 0 ]]; then
+        echo "[Clarify] [Layer 1] Targeted feedback retries (max $clarify_max_retries)" >&2
+
+        clarify_attempt=0
+        while true; do
+            # Build prompt (with retry feedback if set)
+            local full_prompt="$prompt"
+            if [[ -n "$clarify_retry_feedback" ]]; then
+                full_prompt="RETRY CONTEXT — PREVIOUS ATTEMPT FAILED VALIDATION:
 ${clarify_retry_feedback}
 You MUST fix ALL of the above issues in your output this time.
 
 ${prompt}"
-        fi
+            fi
 
-        result=$(call_llm "$full_prompt") || return 1
-        if [[ -z "$result" ]]; then
-            echo "Error: Clarify phase returned empty content" >&2
-            return 1
-        fi
-        result=$(strip_llm_preamble "$result" "# ")
-        if [[ -z "${result//[[:space:]]/}" ]]; then
-            echo "Error: Clarify phase returned blank content after preamble stripping" >&2
-            return 1
-        fi
-        result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
+            local llm_rc=0
+            result=$(call_llm "$full_prompt") || llm_rc=$?
+            if [[ "$llm_rc" -ne 0 ]]; then
+                echo "[Clarify] [Layer 1] LLM call failed (operational error, rc=$llm_rc) — escalating" >&2
+                break  # Operational failure — escalate immediately
+            fi
+            if [[ -z "$result" ]]; then
+                echo "[Clarify] [Layer 1] LLM returned empty content — escalating" >&2
+                break
+            fi
+            result=$(strip_llm_preamble "$result" "# ")
+            if [[ -z "${result//[[:space:]]/}" ]]; then
+                echo "[Clarify] [Layer 1] LLM returned blank content after preamble stripping — escalating" >&2
+                break
+            fi
+            result=$(ensure_heading_start "$result" "# Spec: $ISSUE_TITLE")
 
-        # --- Diagnostic logging before validation ---
-        local _diag_tmp
-        if ! _diag_tmp=$(mktemp "${spec_file}.diag.XXXXXX.tmp"); then
-            echo "Error: Clarify phase failed to create a diagnostic temp file for validation logging" >&2
-            return 1
-        fi
-        if ! printf '%s\n' "$result" > "$_diag_tmp"; then
+            # --- Diagnostic logging before validation ---
+            local _diag_tmp
+            if ! _diag_tmp=$(mktemp "${spec_file}.diag.XXXXXX.tmp"); then
+                echo "Error: Clarify phase failed to create a diagnostic temp file for validation logging" >&2
+                return 1
+            fi
+            if ! printf '%s\n' "$result" > "$_diag_tmp"; then
+                rm -f "$_diag_tmp"
+                echo "Error: Clarify phase failed to write diagnostic content to temporary file '$_diag_tmp'" >&2
+                return 1
+            fi
+            echo "[Clarify] [Layer 1] Candidate section headings:" >&2
+            extract_section_headings "$_diag_tmp" >&2 || true
+            log_file_header "Clarify" "$_diag_tmp" || true
             rm -f "$_diag_tmp"
-            echo "Error: Clarify phase failed to write diagnostic content to temporary file '$_diag_tmp'" >&2
-            return 1
-        fi
-        echo "[Clarify] Candidate section headings:" >&2
-        extract_section_headings "$_diag_tmp" >&2 || true
-        log_file_header "Clarify" "$_diag_tmp" || true
-        rm -f "$_diag_tmp"
 
-        # --- Distinguish structural validation failures from write failures ---
-        local _missing_sections
-        if ! _missing_sections=$(capture_missing_mandatory_sections "$spec_file" "$result"); then
-            echo "Error: Clarify phase mandatory-section validation failed unexpectedly. Original spec.md preserved." >&2
-            return 1
-        fi
-        if [[ -n "$_missing_sections" ]]; then
-            clarify_retry_feedback="The following mandatory sections are MISSING from your previous output: ${_missing_sections}
-You MUST include ALL of the above missing sections in your output this time."
-            clarify_attempt=$((clarify_attempt + 1))
-
-            if [[ "$clarify_attempt" -gt "$clarify_max_retries" ]]; then
-                echo "Error: Clarify phase output failed structural validation after $clarify_max_retries retry(ies). Original spec.md preserved." >&2
-                echo "Missing mandatory sections: $_missing_sections" >&2
+            # --- Pre-validation with full structural integrity check ---
+            local _preval_tmp _preval_err validation_failure_reasons
+            _preval_tmp=$(mktemp "${spec_file}.preval.XXXXXX") || {
+                echo "Error: Clarify phase failed to create temp file for pre-validation" >&2
+                return 1
+            }
+            _preval_err=$(mktemp "${spec_file}.preval.err.XXXXXX") || {
+                rm -f "$_preval_tmp"
+                echo "Error: Clarify phase failed to create temp file for validation diagnostics" >&2
+                return 1
+            }
+            if ! printf '%s\n' "$result" > "$_preval_tmp"; then
+                rm -f "$_preval_tmp" "$_preval_err"
+                echo "Error: Clarify phase failed to write candidate for pre-validation" >&2
                 return 1
             fi
 
-            echo "[Clarify] Validation retry $clarify_attempt/$clarify_max_retries — missing sections: $_missing_sections" >&2
-            continue
-        fi
+            if validate_structural_integrity "$spec_file" "$_preval_tmp" --type spec 2>"$_preval_err"; then
+                rm -f "$_preval_tmp" "$_preval_err"
+                # Validation passed — attempt safe write
+                clarify_retry_feedback=""
+                if safe_write_with_validation "$spec_file" "$result" --type spec; then
+                    clarify_status="success"
+                    echo "[Clarify] [Layer 1] ✓ Validation passed" >&2
+                    break 2>/dev/null || true  # Exit the layer loop
+                fi
+                echo "Error: Failed to persist validated Clarify phase output to $spec_file. Original spec.md preserved." >&2
+                return 1
+            fi
 
-        # The mandatory-section check above is narrower than the full validation
-        # performed by safe_write_with_validation. Pre-validate with
-        # validate_structural_integrity before calling safe_write_with_validation
-        # to avoid accumulating stale .bak* backup files from failed attempts.
-        local _preval_tmp _preval_err validation_failure_reasons
-        _preval_tmp=$(mktemp "${spec_file}.preval.XXXXXX") || {
-            echo "Error: Clarify phase failed to create temp file for pre-validation" >&2
-            return 1
-        }
-        _preval_err=$(mktemp "${spec_file}.preval.err.XXXXXX") || {
-            rm -f "$_preval_tmp"
-            echo "Error: Clarify phase failed to create temp file for validation diagnostics" >&2
-            return 1
-        }
-        if ! printf '%s\n' "$result" > "$_preval_tmp"; then
-            rm -f "$_preval_tmp" "$_preval_err"
-            echo "Error: Clarify phase failed to write candidate for pre-validation" >&2
-            return 1
-        fi
-
-        if ! validate_structural_integrity "$spec_file" "$_preval_tmp" --type spec 2>"$_preval_err"; then
+            # Validation failed — build structured feedback
             validation_failure_reasons="$(sed '/^[[:space:]]*$/d' "$_preval_err" || true)"
             if [[ -z "$validation_failure_reasons" ]]; then
                 validation_failure_reasons="Structural integrity validation failed without detailed diagnostics."
             fi
-            clarify_retry_feedback=$'The previous Clarify response failed structural validation. Fix these issues and regenerate the complete response:\n'"$validation_failure_reasons"
+
+            # Stall detection: compare fingerprints
+            local current_fingerprint
+            current_fingerprint=$(_compute_clarify_validation_fingerprint "$spec_file" "$_preval_tmp")
             rm -f "$_preval_tmp" "$_preval_err"
-            # Full structural validation failed — retry without creating backups
-            clarify_attempt=$((clarify_attempt + 1))
-            if [[ "$clarify_attempt" -gt "$clarify_max_retries" ]]; then
-                echo "Error: Clarify phase output could not pass structural validation after $clarify_max_retries retry(ies). Original spec.md preserved. Validation failure reasons: $validation_failure_reasons" >&2
-                return 1
+
+            if [[ -n "$prev_fingerprint" && "$current_fingerprint" == "$prev_fingerprint" ]]; then
+                echo "[Clarify] [Layer 1] Stall detected — validation fingerprint unchanged, escalating to Layer 2" >&2
+                break
             fi
-            echo "[Clarify] Validation/write retry $clarify_attempt/$clarify_max_retries — candidate failed full structural validation; requesting a regenerated response. Reasons: $validation_failure_reasons" >&2
-            continue
-        fi
-        rm -f "$_preval_tmp" "$_preval_err"
+            prev_fingerprint="$current_fingerprint"
+
+            # Build structured retry feedback
+            local _struct_tmp
+            _struct_tmp=$(mktemp "${spec_file}.struct.XXXXXX") || {
+                echo "Error: Clarify phase failed to create temp file for structured feedback" >&2
+                return 1
+            }
+            printf '%s\n' "$result" > "$_struct_tmp"
+            local structured_feedback
+            structured_feedback=$(_build_structured_clarify_feedback "$spec_file" "$_struct_tmp")
+            rm -f "$_struct_tmp"
+
+            if [[ -n "$structured_feedback" ]]; then
+                clarify_retry_feedback="The previous Clarify response failed structural validation. Fix these specific issues:
+${structured_feedback}
+Raw validation errors:
+${validation_failure_reasons}"
+            else
+                clarify_retry_feedback=$'The previous Clarify response failed structural validation. Fix these issues and regenerate the complete response:\n'"$validation_failure_reasons"
+            fi
+
+            clarify_attempt=$((clarify_attempt + 1))
+            if [[ "$clarify_attempt" -ge "$clarify_max_retries" ]]; then
+                echo "[Clarify] [Layer 1] Exhausted ($clarify_max_retries attempts)" >&2
+                break
+            fi
+
+            echo "[Clarify] [Layer 1] Retry $clarify_attempt/$clarify_max_retries — validation failed. Reasons: $validation_failure_reasons" >&2
+        done
+    else
+        echo "[Clarify] [Layer 1] Skipped (SPECKIT_CLARIFY_MAX_RETRIES=0)" >&2
+    fi
+
+    # Check if Layer 1 succeeded
+    if [[ "$clarify_status" == "success" ]]; then
+        # Layer 1 succeeded — skip remaining layers
+        :
+    else
+        # Clear stale feedback before Layer 2
         clarify_retry_feedback=""
 
-        # Pre-validation passed; safe_write_with_validation will re-validate and
-        # perform the atomic write with backup. Since validation already passed,
-        # any failure here is an operational/persistence issue — bail immediately.
-        if safe_write_with_validation "$spec_file" "$result" --type spec; then
-            break  # Success — exit retry loop
-        fi
+        # ── Layer 2: Incremental Patching ────────────────────────────────
+        echo "[Clarify] [Layer 2] Incremental patching (max $clarify_max_retries retries)" >&2
 
-        echo "Error: Failed to persist validated Clarify phase output to $spec_file. Original spec.md preserved." >&2
-        return 1
-    done
+        for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries; clarify_attempt++ )); do
+            echo "[Clarify] [Layer 2] Attempt $clarify_attempt/$clarify_max_retries" >&2
+
+            # Build validation failures text from current state
+            local _l2_tmp _l2_failures
+            _l2_tmp=$(mktemp "${spec_file}.l2.XXXXXX") || continue
+            # Use original content for patching
+            printf '%s\n' "$original_spec_content" > "$_l2_tmp"
+            _l2_failures=$(_build_structured_clarify_feedback "$spec_file" "$_l2_tmp" 2>/dev/null || true)
+            rm -f "$_l2_tmp"
+
+            if [[ -z "$_l2_failures" ]]; then
+                # No failures detected against original — try with last result
+                _l2_failures="Missing mandatory sections or heading structure issues detected."
+            fi
+
+            local patch_rc=0
+            local patched_result=""
+            patched_result=$(_run_clarify_incremental_patch "$spec_file" "$original_spec_content" "$_l2_failures") || patch_rc=$?
+
+            if [[ "$patch_rc" -eq 2 ]]; then
+                echo "[Clarify] [Layer 2] Operational failure — not counting as retry" >&2
+                continue
+            fi
+
+            if [[ "$patch_rc" -eq 0 && -n "$patched_result" ]]; then
+                patched_result=$(ensure_heading_start "$patched_result" "# Spec: $ISSUE_TITLE")
+                if safe_write_with_validation "$spec_file" "$patched_result" --type spec; then
+                    clarify_status="success-layer2"
+                    echo "[Clarify] [Layer 2] ✓ Incremental patching succeeded after attempt $clarify_attempt" >&2
+                    break
+                fi
+            fi
+
+            echo "[Clarify] [Layer 2] Attempt $clarify_attempt failed" >&2
+        done
+
+        if [[ "$clarify_status" != "success-layer2" ]]; then
+            echo "[Clarify] [Layer 2] Exhausted ($clarify_max_retries attempts)" >&2
+
+            # Clear stale feedback before Layer 3
+            clarify_retry_feedback=""
+
+            # ── Layer 3: Alternate Prompt Strategy ──────────────────────────
+            echo "[Clarify] [Layer 3] Alternate prompt strategy (max $clarify_max_retries retries)" >&2
+
+            for (( clarify_attempt=1; clarify_attempt<=clarify_max_retries; clarify_attempt++ )); do
+                echo "[Clarify] [Layer 3] Attempt $clarify_attempt/$clarify_max_retries" >&2
+
+                local alt_rc=0
+                local alt_result=""
+                alt_result=$(_run_clarify_alternate_strategy "$spec_file" "$original_spec_content" "$section_headings" "$requirement_count") || alt_rc=$?
+
+                if [[ "$alt_rc" -eq 2 ]]; then
+                    echo "[Clarify] [Layer 3] Operational failure — not counting as retry" >&2
+                    continue
+                fi
+
+                if [[ "$alt_rc" -eq 0 && -n "$alt_result" ]]; then
+                    alt_result=$(ensure_heading_start "$alt_result" "# Spec: $ISSUE_TITLE")
+                    if safe_write_with_validation "$spec_file" "$alt_result" --type spec; then
+                        clarify_status="success-layer3"
+                        echo "[Clarify] [Layer 3] ✓ Alternate strategy succeeded after attempt $clarify_attempt" >&2
+                        break
+                    fi
+                fi
+
+                echo "[Clarify] [Layer 3] Attempt $clarify_attempt failed" >&2
+            done
+
+            if [[ "$clarify_status" != "success-layer3" ]]; then
+                echo "[Clarify] [Layer 3] Exhausted ($clarify_max_retries attempts)" >&2
+
+                # ── Layer 4: Graceful Degradation ───────────────────────────
+                echo "[Clarify] [Layer 4] Graceful degradation — preserving original spec.md" >&2
+                echo "[Clarify] WARNING-FALLBACK: All remediation layers exhausted. Original spec.md preserved." >&2
+                clarify_status="warning-fallback"
+            fi
+        fi
+    fi
+
+    # Write clarify_status to GITHUB_OUTPUT
+    echo "clarify_status=$clarify_status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+
+    # If graceful degradation, return 0 without modifying the spec
+    if [[ "$clarify_status" == "warning-fallback" ]]; then
+        return 0
+    fi
 
     # --- Post-write: append model footer only after successful validation ---
     append_model_footer "$spec_file"
@@ -2748,6 +2879,21 @@ elif [[ -n "${SPECKIT_VALIDATE_MAX_RETRIES:-}" ]]; then
     fi
 else
     FR_VALIDATION_MAX_RETRIES=2
+fi
+
+# ---------------------------------------------------------------------------
+# Resolve clarify phase retry budget (independent of FR validation)
+# Precedence: SPECKIT_CLARIFY_MAX_RETRIES env > default 2
+# ---------------------------------------------------------------------------
+if [[ -n "${SPECKIT_CLARIFY_MAX_RETRIES:-}" ]]; then
+    if [[ "$SPECKIT_CLARIFY_MAX_RETRIES" =~ ^[0-9]+$ ]]; then
+        CLARIFY_MAX_RETRIES="$SPECKIT_CLARIFY_MAX_RETRIES"
+    else
+        echo "Warning: ignoring invalid SPECKIT_CLARIFY_MAX_RETRIES='$SPECKIT_CLARIFY_MAX_RETRIES'; using default 2" >&2
+        CLARIFY_MAX_RETRIES=2
+    fi
+else
+    CLARIFY_MAX_RETRIES=2
 fi
 
 # ---------------------------------------------------------------------------
