@@ -101,8 +101,8 @@
 - [ ] T034 Write failing test verifying `clear_workflow_cmd()` passes `force_delete=True` to `clear_workflow_state()` in `tests/unit/cli/state/test_clear_workflow_cmd.py` — assert that calling
   `clear_workflow_cmd()` results in `clear_workflow_state(force_delete=True)` being invoked (unconditional pin deletion per spec C5); separately verify that workflow-completion paths call
   `clear_workflow_state()` without `force_delete` (conditional deletion) (FR-001)
-- [ ] T035 Write failing test for `advance_workflow_cmd()` refreshing pin TTL in `tests/unit/cli/workflows/commands/test_advance_workflow_cmd.py` — assert `refresh_pin_file_ttl()` called after successful
-  advancement (FR-010)
+- [ ] T035 Write failing test for `advance_workflow_cmd()` refreshing pin TTL in `tests/unit/cli/workflows/commands/test_advance_workflow_cmd.py` — assert
+  `refresh_pin_file_ttl()` called after successful advancement (FR-010)
 - [ ] T036 Modify `advance_workflow_cmd()` in `agentic_devtools/cli/workflows/__init__.py` — call `refresh_pin_file_ttl()` after successfully advancing the workflow step (FR-010)
 - [ ] T037 Run cleanup tests green (FR-001, FR-010) — execute:
 
