@@ -51,8 +51,9 @@
 
 - [ ] T016 [US4] Write failing tests asserting JSON result contains `prNumber`, `repo`, `requested`, `reviewer`, `verified`, `retries`, plus new `elapsedSeconds` and conditional `diagnostics` at
   `tests/unit/cli/github/request_copilot_review/test_request_copilot_review.py` (FR-006, FR-007)
-- [ ] T017 [US4] Update `request_copilot_review()` in `agentic_devtools/cli/github/request_copilot_review.py`: replace inline retry loop with single call to the reviewer-requested check helper, destructure
-  `VerificationResult`, add `elapsedSeconds` and `diagnostics` fields to JSON result, preserve all existing keys (FR-006, FR-007)
+- [ ] T017 [US4] Update `request_copilot_review()` in `agentic_devtools/cli/github/request_copilot_review.py`:
+  replace inline retry loop with single call to the reviewer-requested check helper, destructure `VerificationResult`,
+  add `elapsedSeconds` and `diagnostics` fields to JSON result, preserve all existing keys (FR-006, FR-007)
 - [ ] T018 [US4] Write test verifying `diagnostics` key is omitted when `verified=True` and present when `verified=False` at
   `tests/unit/cli/github/request_copilot_review/test_request_copilot_review.py` (FR-006)
 - [ ] T019 [US4] Write backward compatibility test: all existing JSON keys preserved, no renames or removals at `tests/unit/cli/github/request_copilot_review/test_request_copilot_review.py` (FR-007)
