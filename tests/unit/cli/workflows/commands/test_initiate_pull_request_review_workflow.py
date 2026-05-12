@@ -262,6 +262,61 @@ class TestInitiatePRReviewWorkflowBranches:
         # The PR→Jira cross-lookup must have been called
         mock_find.assert_called_once_with(25858)
 
+    def test_repersists_jira_key_when_changed(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Validates that jira.issue_key is updated if it differs from resolved_issue_key."""
+        # Pre-set a DIFFERENT issue key in state
+        state.set_value("jira.issue_key", "OLD-999")
+
+        with patch("agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue") as mock_find:
+            mock_find.return_value = 11111  # cross-lookup resolves PR
+            with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch") as mock_src:
+                mock_src.side_effect = Exception("stop early")  # stop execution after the logic we want to test
+
+                with pytest.raises(SystemExit):
+                    commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "NEW-1234"])
+
+        # Verify the key was updated according to the logic at line 418
+        assert state.get_value("jira.issue_key") == "NEW-1234"
+        assert state.get_value("pull_request_id") == "11111"
+
+    def test_repersists_jira_key_when_state_dir_diverged(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Exercises the re-persist branch when existing value != resolved value.
+
+        Simulates the race condition where the state directory changes between
+        the initial set_value (line 354) and the re-persist get_value (line 419),
+        causing the latter to read a stale value from a different directory.
+        """
+        original_get = state.get_value
+
+        def mock_get(key, **kwargs):
+            if key == "jira.issue_key":
+                # Simulate reading from a stale state directory that still
+                # has the old value, triggering the != branch at line 420.
+                return "STALE-FROM-OLD-DIR"
+            return original_get(key, **kwargs)
+
+        with (
+            patch("agentic_devtools.state.get_value", side_effect=mock_get),
+            patch(
+                "agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue",
+                return_value=11111,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch",
+                side_effect=Exception("stop early"),
+            ),
+        ):
+            with pytest.raises(SystemExit):
+                commands.initiate_pull_request_review_workflow(_argv=["--issue-key", "NEW-1234"])
+
+        # After the patch is removed, the real set_value at line 421 wrote
+        # "NEW-1234" to the actual state file.
+        assert state.get_value("jira.issue_key") == "NEW-1234"
+
 
 @pytest.fixture
 def mock_copilot_session():

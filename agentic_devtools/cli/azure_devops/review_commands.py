@@ -755,7 +755,11 @@ def setup_pull_request_review() -> None:
         jira_issue_key = jira_issue_key_norm
 
         worktree_key = jira_issue_key if jira_issue_key else f"PR{pull_request_id}"
-        set_bootstrap_state(worktree_key=worktree_key)
+        # FR-004: Skip bootstrap modification when AGENTIC_DEVTOOLS_STATE_DIR is set.
+        # The env var already pins the state directory; modifying runtime-bootstrap.json
+        # would be redundant and could cause a race condition for concurrent commands.
+        if not os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR", "").strip():
+            set_bootstrap_state(worktree_key=worktree_key)
 
         # Re-set context keys that were read from the old (_unscoped) state
         # directory.  set_bootstrap_state() may have changed the resolved
