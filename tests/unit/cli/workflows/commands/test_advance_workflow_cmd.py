@@ -111,8 +111,29 @@ class TestAdvanceWorkflowCmd:
 
         with patch.object(sys, "argv", ["agdt-advance-workflow"]):
             with patch("agentic_devtools.cli.workflows.advance_pull_request_review_workflow") as mock_advance:
-                advance_workflow_cmd()
-                mock_advance.assert_called_once_with(None)
+                with patch("agentic_devtools.state.refresh_pin_file_ttl") as mock_refresh:
+                    advance_workflow_cmd()
+                    mock_advance.assert_called_once_with(None)
+                    mock_refresh.assert_called_once()
+
+    def test_advance_workflow_work_on_jira_issue_does_not_refresh_pin(self, temp_state_dir, clear_state_before):
+        """Pin file TTL is NOT refreshed for work-on-jira-issue workflows."""
+        import sys
+
+        from agentic_devtools.cli.workflows import advance_workflow_cmd
+
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="active",
+            step="research",
+            context={"jira_issue_key": "TEST-PIN"},
+        )
+
+        with patch.object(sys, "argv", ["agdt-advance-workflow"]):
+            with patch("agentic_devtools.cli.workflows.advance_work_on_jira_issue_workflow"):
+                with patch("agentic_devtools.state.refresh_pin_file_ttl") as mock_refresh:
+                    advance_workflow_cmd()
+                    mock_refresh.assert_not_called()
 
     def test_advance_workflow_with_step_argument(self, temp_state_dir, clear_state_before):
         """Test advance workflow command with explicit step argument."""
@@ -131,3 +152,28 @@ class TestAdvanceWorkflowCmd:
             with patch("agentic_devtools.cli.workflows.advance_work_on_jira_issue_workflow") as mock_advance:
                 advance_workflow_cmd()
                 mock_advance.assert_called_once_with("implement")
+
+    def test_advance_workflow_pin_refresh_oserror_emits_warning(self, temp_state_dir, clear_state_before, capsys):
+        """OSError in refresh_pin_file_ttl emits a warning but does not abort the command."""
+        import sys
+
+        from agentic_devtools.cli.workflows import advance_workflow_cmd
+
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="active",
+            step="review",
+            context={"pull_request_id": "789"},
+        )
+
+        with patch.object(sys, "argv", ["agdt-advance-workflow"]):
+            with patch("agentic_devtools.cli.workflows.advance_pull_request_review_workflow"):
+                with patch(
+                    "agentic_devtools.state.refresh_pin_file_ttl",
+                    side_effect=OSError("disk full"),
+                ):
+                    advance_workflow_cmd()  # Should NOT raise
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        assert "disk full" in captured.err

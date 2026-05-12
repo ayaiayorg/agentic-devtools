@@ -49,6 +49,7 @@ Thumbs.db
 .pytest_cache/
 .coverage
 .coverage.*
+coverage.txt
 htmlcov/
 .tox/
 
@@ -107,4 +108,5 @@ test_output2.txt
 test_run_output.txt
 test_result.txt
 test_results.txt
+output.txt
 output.json

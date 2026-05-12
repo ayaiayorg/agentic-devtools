@@ -628,6 +628,20 @@ class TestSetupPullRequestReviewPersistence:
 
         mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
 
+    def test_skips_set_bootstrap_state_when_env_var_set(self, monkeypatch):
+        """FR-004: set_bootstrap_state() must NOT be called when AGENTIC_DEVTOOLS_STATE_DIR is set."""
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "/tmp/pinned-state")
+        mock_set_bootstrap, _, _ = self._run_setup_with_captures()
+
+        mock_set_bootstrap.assert_not_called()
+
+    def test_skips_set_bootstrap_state_when_env_var_whitespace_only(self, monkeypatch):
+        """FR-004: whitespace-only AGENTIC_DEVTOOLS_STATE_DIR is treated as unset (calls bootstrap)."""
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", "   ")
+        mock_set_bootstrap, _, _ = self._run_setup_with_captures()
+
+        mock_set_bootstrap.assert_called_once_with(worktree_key="PR123")
+
     def test_sets_agdt_run_id_with_12_char_hex(self):
         """Regression: agdt_run_id must be stored as a 12-character hex string."""
         import re

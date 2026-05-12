@@ -266,6 +266,127 @@ class TestGetStateDirFallback:
                     assert result.exists()
 
 
+class TestGetStateDirPinFile:
+    """Tests for pin file resolution (step 2 in priority chain)."""
+
+    def _write_pin(self, git_root, state_dir, workflow="pull-request-review", ttl_hours=24, created_utc=None):
+        """Helper to write a pin file."""
+        import json
+        from datetime import datetime, timezone
+
+        agdt_dir = git_root / ".agdt"
+        agdt_dir.mkdir(parents=True, exist_ok=True)
+        if created_utc is None:
+            created_utc = datetime.now(timezone.utc).isoformat()
+        data = {
+            "state_dir": str(state_dir),
+            "workflow": workflow,
+            "created_utc": created_utc,
+            "ttl_hours": ttl_hours,
+        }
+        (agdt_dir / state.PIN_FILENAME).write_text(json.dumps(data), encoding="utf-8")
+
+    def test_valid_pin_honored_as_step_2(self, tmp_path):
+        """Valid pin file is used when env var is not set."""
+        state._pin_logged = False
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+        self._write_pin(tmp_path, state_dir)
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                result = state.get_state_dir()
+                assert result == state_dir
+
+    def test_env_var_takes_priority_over_pin(self, tmp_path):
+        """Env var must bypass pin file (step 1 > step 2)."""
+        state._pin_logged = False
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+        self._write_pin(tmp_path, state_dir)
+
+        custom_dir = tmp_path / "env_override"
+        with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": str(custom_dir)}, clear=True):
+            result = state.get_state_dir()
+            assert result == custom_dir
+            assert result != state_dir
+
+    def test_expired_pin_falls_through_to_bootstrap(self, tmp_path):
+        """Expired pin falls through to bootstrap resolution."""
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        state._pin_logged = False
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+        expired = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        self._write_pin(tmp_path, state_dir, created_utc=expired)
+
+        # Set up bootstrap to return a different path
+        agdt_dir = tmp_path / ".agdt"
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "ama", "worktree_key": "OTHER-KEY"}),
+            encoding="utf-8",
+        )
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                with patch.object(state, "_read_identity_cache", return_value={"identity": "ama"}):
+                    result = state.get_state_dir()
+                    # Should resolve via bootstrap, not pin
+                    expected = tmp_path / ".agdt" / "workflows" / "ama" / "OTHER-KEY"
+                    assert result == expected
+
+    def test_no_pin_uses_bootstrap_unchanged(self, tmp_path):
+        """Without pin file, bootstrap chain works as before."""
+        import json
+
+        state._pin_logged = False
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"identity": "ama", "worktree_key": "PROJ-456"}),
+            encoding="utf-8",
+        )
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {}, clear=True):
+                with patch.object(state, "_read_identity_cache", return_value={"identity": "ama"}):
+                    result = state.get_state_dir()
+                    expected = tmp_path / ".agdt" / "workflows" / "ama" / "PROJ-456"
+                    assert result == expected
+
+    def test_empty_env_var_treated_as_unset(self, tmp_path):
+        """Empty AGENTIC_DEVTOOLS_STATE_DIR falls through to pin/bootstrap."""
+
+        state._pin_logged = False
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-1"
+        state_dir.mkdir(parents=True)
+        self._write_pin(tmp_path, state_dir)
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": ""}, clear=True):
+                result = state.get_state_dir()
+                # Pin should be honored since env var is empty
+                assert result == state_dir
+
+    def test_whitespace_only_env_var_treated_as_unset(self, tmp_path):
+        """Whitespace-only AGENTIC_DEVTOOLS_STATE_DIR falls through to pin/bootstrap."""
+
+        state._pin_logged = False
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-1"
+        state_dir.mkdir(parents=True)
+        self._write_pin(tmp_path, state_dir)
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.dict(
+                "os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": "   "}, clear=True
+            ):
+                result = state.get_state_dir()
+                # Pin should be honored since whitespace-only env var is treated as unset
+                assert result == state_dir
+
+
 class TestGetGitRepoRoot:
     """Tests for _get_git_repo_root function (called by get_state_dir)."""
 

@@ -45,7 +45,7 @@ def advance_workflow_cmd() -> None:
 
     # Currently only work-on-jira-issue supports manual advancement
     # Future: Check which workflow is active and call appropriate advance function
-    from ...state import get_workflow_state
+    from ...state import get_workflow_state, refresh_pin_file_ttl
 
     workflow = get_workflow_state()
     if not workflow:
@@ -60,6 +60,14 @@ def advance_workflow_cmd() -> None:
     else:
         print(f"ERROR: Workflow '{workflow_name}' does not support manual advancement.", file=sys.stderr)
         sys.exit(1)
+
+    # Refresh pin file TTL after successful advancement (FR-010)
+    # Only refresh for pull-request-review — other workflows don't use pin files.
+    if workflow_name == "pull-request-review":
+        try:
+            refresh_pin_file_ttl()
+        except OSError as exc:
+            print(f"WARNING: Pin file TTL refresh failed: {exc}", file=sys.stderr)
 
 
 __all__ = [

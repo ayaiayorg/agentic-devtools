@@ -19,6 +19,7 @@ import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from agentic_devtools.state import get_state_dir
 
@@ -322,6 +323,25 @@ Examples:
     else:
         # Neither provided — fall back to identity-only; the error path below will exit.
         _ensure_bootstrap_identity()
+
+    # FR-001/FR-005: Write pin file and set env var BEFORE spawning any background tasks.
+    # This ensures all child processes and independent CLI commands resolve to the same
+    # state directory, eliminating the race condition from #1180.
+    from ...state import delete_pin_file, get_state_dir, write_pin_file
+
+    # Skip pin file operations when the env var is already set externally —
+    # the explicit override takes precedence and must not be overwritten.
+    env_override = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR", "").strip()
+    if env_override:
+        resolved_state_dir = Path(env_override)
+        resolved_state_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # Delete any stale pin file first so get_state_dir() resolves from the
+        # freshly-computed bootstrap scope, not a leftover from a previous run.
+        delete_pin_file()
+        resolved_state_dir = get_state_dir()
+        write_pin_file(resolved_state_dir, workflow="pull-request-review")
+        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(resolved_state_dir)
 
     # Clear workflow tracking state now that the bootstrap scope is set;
     # load_state()/save_state() will use the correctly scoped directory.

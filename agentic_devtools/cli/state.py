@@ -173,5 +173,5 @@ def clear_workflow_cmd() -> None:
         print("No workflow is currently active.")
     else:
         workflow_name = workflow.get("active", "unknown")
-        clear_workflow_state()
+        clear_workflow_state(force_delete=True)
         print(f"Workflow '{workflow_name}' cleared.")

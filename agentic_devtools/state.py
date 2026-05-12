@@ -23,6 +23,9 @@ import json
 import os
 import re
 import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +37,16 @@ BOOTSTRAP_FILENAME = "runtime-bootstrap.json"
 IDENTITY_CACHE_FILENAME = "identity.json"
 IDENTITY_OWNER_FILENAME = ".identity-owner"
 
+# Pin file for state directory resolution (race condition fix #1180)
+PIN_FILENAME = "pinned-state-dir.json"
+RECOGNIZED_PIN_WORKFLOWS: frozenset[str] = frozenset({"pull-request-review"})
+DEFAULT_PIN_TTL_HOURS = 24
+
 # Default lock timeout in seconds
 DEFAULT_LOCK_TIMEOUT = 5.0
+
+# Module-level flag to emit pin file diagnostic only once per process
+_pin_logged = False
 
 
 def _get_git_repo_root() -> Path | None:
@@ -484,29 +495,307 @@ def set_bootstrap_state(
             owner_file.write_text(email, encoding="utf-8")
 
 
+# ---------------------------------------------------------------------------
+# Pin file infrastructure (race condition fix #1180)
+# ---------------------------------------------------------------------------
+
+
+def write_pin_file(
+    state_dir: str | Path,
+    workflow: str,
+    ttl_hours: int = DEFAULT_PIN_TTL_HOURS,
+) -> Path | None:
+    """Write the pin file atomically at ``.agdt/pinned-state-dir.json``.
+
+    The pin file allows independent CLI invocations to resolve the same state
+    directory that was determined at workflow initiation time, eliminating the
+    race condition where ``runtime-bootstrap.json`` could be modified by a
+    background task between reads.
+
+    Args:
+        state_dir: Absolute path to the resolved state directory.
+        workflow: Workflow name (must be in ``RECOGNIZED_PIN_WORKFLOWS``).
+        ttl_hours: Hours before the pin expires (default 24).
+
+    Returns:
+        Path to the written pin file, or ``None`` if not in a git repo.
+
+    Raises:
+        ValueError: If ``workflow`` is not in ``RECOGNIZED_PIN_WORKFLOWS``
+            or ``ttl_hours`` is not a positive integer.
+    """
+    if workflow not in RECOGNIZED_PIN_WORKFLOWS:
+        raise ValueError(f"workflow must be one of {sorted(RECOGNIZED_PIN_WORKFLOWS)}, got {workflow!r}")
+    if not isinstance(ttl_hours, int) or isinstance(ttl_hours, bool) or ttl_hours <= 0:
+        raise ValueError(f"ttl_hours must be a positive integer, got {ttl_hours!r}")
+
+    git_root = _get_git_repo_root()
+    if git_root is None:
+        return None
+
+    agdt_dir = git_root / ".agdt"
+    agdt_dir.mkdir(parents=True, exist_ok=True)
+    pin_path = agdt_dir / PIN_FILENAME
+
+    resolved = Path(state_dir).resolve()
+    payload = {
+        "state_dir": str(resolved),
+        "workflow": workflow,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "ttl_hours": ttl_hours,
+    }
+
+    # Atomic write: write to temp file then os.replace()
+    fd, tmp_path = tempfile.mkstemp(dir=str(agdt_dir), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        os.replace(tmp_path, str(pin_path))
+    except BaseException:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+    return pin_path
+
+
+def read_and_validate_pin_file(git_root: Path) -> Path | None:
+    """Read and validate the pin file, returning the pinned state directory.
+
+    Validation checks (any failure causes the pin to be ignored):
+    1. File exists and is valid JSON.
+    2. Required fields (``state_dir``, ``workflow``, ``created_utc``, ``ttl_hours``) present.
+    3. ``workflow`` is in ``RECOGNIZED_PIN_WORKFLOWS``.
+    4. ``state_dir`` is an absolute path.
+    5. ``state_dir`` is inside ``.agdt/workflows/`` (directory traversal safety).
+    6. TTL not expired (``created_utc`` + ``ttl_hours`` > now).
+    7. ``state_dir`` exists or can be created.
+
+    Args:
+        git_root: Path to the git repository root.
+
+    Returns:
+        Validated ``Path`` to the state directory, or ``None`` if invalid/absent.
+    """
+    pin_path = git_root / ".agdt" / PIN_FILENAME
+
+    try:
+        if not pin_path.is_file():
+            return None
+        raw = pin_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    # Parse JSON
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        _emit_pin_diagnostic("Pin file is not valid JSON, ignoring")
+        return None
+
+    if not isinstance(data, dict):
+        _emit_pin_diagnostic("Pin file content is not a JSON object, ignoring")
+        return None
+
+    # Required fields
+    state_dir_str = data.get("state_dir")
+    workflow = data.get("workflow")
+    created_utc = data.get("created_utc")
+    ttl_hours = data.get("ttl_hours")
+
+    if state_dir_str is None or workflow is None or created_utc is None or ttl_hours is None:
+        _emit_pin_diagnostic("Pin file missing required fields, ignoring")
+        return None
+
+    if not state_dir_str or not workflow or not created_utc:
+        _emit_pin_diagnostic("Pin file has empty required string fields, ignoring")
+        return None
+
+    # ttl_hours must be a positive number
+    if not isinstance(ttl_hours, (int, float)) or isinstance(ttl_hours, bool) or ttl_hours <= 0:
+        _emit_pin_diagnostic(f"Pin file has invalid ttl_hours ({ttl_hours!r}), ignoring")
+        return None
+
+    # Workflow must be recognized
+    if workflow not in RECOGNIZED_PIN_WORKFLOWS:
+        _emit_pin_diagnostic(f"Pin file workflow '{workflow}' not recognized, ignoring")
+        return None
+
+    # state_dir must be absolute
+    state_dir_path = Path(state_dir_str)
+    if not state_dir_path.is_absolute():
+        _emit_pin_diagnostic("Pin file state_dir is not absolute, ignoring")
+        return None
+
+    # state_dir must be inside .agdt/workflows/ (directory traversal check)
+    try:
+        resolved_state = state_dir_path.resolve()
+        resolved_root = git_root.resolve()
+        workflows_root = resolved_root / ".agdt" / "workflows"
+        resolved_state.relative_to(workflows_root)
+    except (ValueError, OSError):
+        _emit_pin_diagnostic("Pin file state_dir is outside .agdt/workflows/, ignoring")
+        return None
+
+    # TTL check
+    try:
+        created = datetime.fromisoformat(created_utc)
+        # Ensure timezone-aware comparison
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        elapsed_hours = (now - created).total_seconds() / 3600
+        if elapsed_hours > ttl_hours:
+            _emit_pin_diagnostic(
+                f"Pin file expired (created {created_utc}, TTL {ttl_hours}h), falling back to bootstrap"
+            )
+            return None
+    except (ValueError, TypeError, OverflowError):
+        _emit_pin_diagnostic("Pin file has invalid created_utc timestamp, ignoring")
+        return None
+
+    # state_dir must exist or be creatable — use the resolved path consistently
+    try:
+        resolved_state.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        _emit_pin_diagnostic(f"Pin file state_dir '{state_dir_str}' does not exist and cannot be created, ignoring")
+        return None
+
+    return resolved_state
+
+
+def delete_pin_file(git_root: Path | None = None) -> None:
+    """Delete the pin file if it exists. Silent no-op if absent.
+
+    Args:
+        git_root: Path to the git repository root. If None, auto-detected.
+    """
+    if git_root is None:
+        git_root = _get_git_repo_root()
+    if git_root is None:
+        return
+
+    pin_path = git_root / ".agdt" / PIN_FILENAME
+    try:
+        pin_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def refresh_pin_file_ttl() -> None:
+    """Refresh the pin file's ``created_utc`` to prevent TTL expiration.
+
+    Reads the existing pin, validates it minimally (must be valid JSON with
+    required fields), then atomically rewrites with updated ``created_utc``.
+    No-op if pin file is absent, invalid, or not in a git repo.
+    """
+    git_root = _get_git_repo_root()
+    if git_root is None:
+        return
+
+    pin_path = git_root / ".agdt" / PIN_FILENAME
+    try:
+        if not pin_path.is_file():
+            return
+        raw = pin_path.read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return
+
+    if not isinstance(data, dict):
+        return
+
+    # Must have minimum required fields to be worth refreshing
+    if not all(data.get(k) for k in ("state_dir", "workflow", "created_utc", "ttl_hours")):
+        return
+
+    # Validate fields match what read_and_validate_pin_file() would accept
+    workflow = data["workflow"]
+    ttl_hours = data["ttl_hours"]
+    state_dir_str = data["state_dir"]
+
+    if workflow not in RECOGNIZED_PIN_WORKFLOWS:
+        return
+
+    if not isinstance(ttl_hours, (int, float)) or isinstance(ttl_hours, bool) or ttl_hours <= 0:
+        return
+
+    state_dir_path = Path(state_dir_str)
+    if not state_dir_path.is_absolute():
+        return
+
+    # Directory traversal check — must be under .agdt/workflows/
+    try:
+        resolved_state = state_dir_path.resolve()
+        resolved_root = git_root.resolve()
+        workflows_root = resolved_root / ".agdt" / "workflows"
+        resolved_state.relative_to(workflows_root)
+    except (ValueError, OSError):
+        return
+
+    # Update created_utc
+    data["created_utc"] = datetime.now(timezone.utc).isoformat()
+
+    # Atomic write
+    agdt_dir = git_root / ".agdt"
+    fd, tmp_path = tempfile.mkstemp(dir=str(agdt_dir), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, str(pin_path))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _emit_pin_diagnostic(message: str) -> None:
+    """Emit a diagnostic message about pin file resolution to stderr.
+
+    Uses a module-level flag to emit only once per process, avoiding spam
+    when get_state_dir() is called multiple times.
+    """
+    global _pin_logged  # noqa: PLW0603
+    if not _pin_logged:
+        print(f"[agdt] {message}", file=sys.stderr)
+        _pin_logged = True
+
+
 def get_state_dir() -> Path:
     """Get the directory for storing the state file.
 
     Priority:
     1. ``AGENTIC_DEVTOOLS_STATE_DIR`` environment variable
-    2. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root.
+    2. ``.agdt/pinned-state-dir.json`` — validated pin file (race condition fix)
+    3. ``.agdt/workflows/{identity}/{worktree_key}/`` relative to git root.
        Identity is read from ``.agdt/identity.json``; worktree_key from
        ``.agdt/runtime-bootstrap.json``.  Legacy installations that have not
        yet created ``identity.json`` fall back to reading identity from the
        bootstrap file.
-    3. ``.agdt/workflows/_unscoped/`` relative to git root (when identity or
+    4. ``.agdt/workflows/_unscoped/`` relative to git root (when identity or
        worktree_key is missing or incomplete)
-    4. ``.agdt-temp/`` in CWD (when not in a git repo)
+    5. ``.agdt-temp/`` in CWD (when not in a git repo)
     """
     # 1. Environment variable override
-    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+    env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR", "").strip()
     if env_dir:
         path = Path(env_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    # 2/3. Git-based resolution
+    # 2. Pin file resolution (race condition fix #1180)
     git_root = _get_git_repo_root()
+    if git_root:
+        pinned = read_and_validate_pin_file(git_root)
+        if pinned is not None:
+            return pinned
+
+    # 3/4. Git-based resolution
     if git_root:
         agdt_dir = git_root / ".agdt"
 
@@ -544,7 +833,7 @@ def get_state_dir() -> Path:
         unscoped.mkdir(parents=True, exist_ok=True)
         return unscoped
 
-    # 4. Final fallback — not in a git repo
+    # 5. Final fallback — not in a git repo
     fallback = Path.cwd() / ".agdt-temp"
     fallback.mkdir(exist_ok=True)
     return fallback
@@ -579,7 +868,7 @@ def _update_bootstrap_worktree_key(worktree_key: str) -> None:
         # get_state_dir()'s env-var check):
         # 1. AGENTIC_DEVTOOLS_STATE_DIR
         # 2. Current working directory as a reasonable default inside the repo
-        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+        env_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR", "").strip()
         if env_dir:
             base_dir = Path(env_dir)
         else:
@@ -1298,9 +1587,35 @@ def set_workflow_state(
     set_value("workflow", workflow_data)
 
 
-def clear_workflow_state() -> None:
-    """Clear the workflow state (end the current workflow)."""
+def clear_workflow_state(force_delete: bool = False, completing_workflow: str | None = None) -> None:
+    """Clear the workflow state (end the current workflow).
+
+    Args:
+        force_delete: When True (used by ``agdt-clear-workflow``), unconditionally
+            delete the pin file regardless of its ``workflow`` field.
+        completing_workflow: When provided (used by workflow-completion handlers),
+            delete the pin file only if its ``workflow`` field matches this value.
+    """
     delete_value("workflow")
+
+    # Pin file cleanup
+    git_root = _get_git_repo_root()
+    if git_root is None:
+        return
+
+    if force_delete:
+        # Unconditional delete (agdt-clear-workflow)
+        delete_pin_file(git_root)
+    elif completing_workflow:
+        # Conditional delete: only if pin workflow matches the completing workflow
+        pin_path = git_root / ".agdt" / PIN_FILENAME
+        try:
+            if pin_path.is_file():
+                data = json.loads(pin_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data.get("workflow") == completing_workflow:
+                    delete_pin_file(git_root)
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
 
 
 def is_workflow_active(workflow_name: str | None = None) -> bool:
