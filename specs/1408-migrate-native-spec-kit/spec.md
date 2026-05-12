@@ -83,7 +83,9 @@ error message during installation.
 
 ## User Scenarios & Testing
 
-### US-1 (P1): Upgrade spec-kit core without conflicts
+### User Story 1 (P1): Upgrade spec-kit core without conflicts
+
+Related Requirements: FR-001, FR-002
 
 As a developer maintaining agentic-devtools, I want to upgrade spec-kit core to the latest
 version without merge conflicts so that I can adopt upstream bugfixes and features quickly.
@@ -95,7 +97,9 @@ version without merge conflicts so that I can adopt upstream bugfixes and featur
 - AC-1.2: Given a new spec-kit release is available, when a developer pulls the update,
   then no manual resolution is needed for files that were previously customized in-repo.
 
-### US-2 (P1): Install extension and preset packages
+### User Story 2 (P1): Install extension and preset packages
+
+Related Requirements: FR-003, FR-004, FR-005
 
 As a developer setting up a fresh clone of agentic-devtools, I want to install the AGDT
 extension and preset with a single command so that I can start using the custom workflows
@@ -108,7 +112,9 @@ immediately.
 - AC-2.2: Given the preset is published, when the preset is referenced in
   `.specify/config.yml`, then all custom templates are loaded automatically.
 
-### US-3 (P2): Onboard new contributors
+### User Story 3 (P2): Onboard new contributors
+
+Related Requirements: FR-006, FR-012
 
 As a new contributor to agentic-devtools, I want clear documentation on how to set up
 the spec-kit environment so that I can start working without tribal knowledge.
@@ -120,7 +126,9 @@ the spec-kit environment so that I can start working without tribal knowledge.
 - AC-3.2: Given the developer guidelines exist, when a contributor wants to modify a
   template, then they know whether to edit the preset or the local override.
 
-### US-4 (P2): Adopt community extensions
+### User Story 4 (P2): Adopt community extensions
+
+Related Requirements: FR-008, FR-009
 
 As a developer, I want to evaluate and adopt community spec-kit extensions where they
 overlap with our custom scripts so that we reduce maintenance burden.
@@ -132,7 +140,9 @@ overlap with our custom scripts so that we reduce maintenance burden.
 - AC-4.2: Given a community extension is adopted, when it receives updates, then those
   updates are available via `specify upgrade` without manual intervention.
 
-### US-5 (P2): Pin extension/preset versions
+### User Story 5 (P2): Pin extension/preset versions
+
+Related Requirements: FR-007, FR-012
 
 As a release engineer, I want extension and preset versions pinned in configuration so
 that builds are reproducible and upgrades are intentional.
@@ -144,7 +154,9 @@ that builds are reproducible and upgrades are intentional.
 - AC-5.2: Given a pin is updated, when the team reviews the changelog, then they can
   assess breaking changes before merging.
 
-### US-6 (P3): Community adoption of the extension
+### User Story 6 (P3): Community adoption of the extension
+
+Related Requirements: FR-005, FR-011
 
 As an external developer using spec-kit, I want the AGDT extension to be discoverable
 in the community catalog so that I can reuse agentic workflow patterns.
@@ -154,7 +166,9 @@ in the community catalog so that I can reuse agentic workflow patterns.
 - AC-6.1: Given the extension is published, when listed in the community catalog, then
   its README clearly describes capabilities and installation.
 
-### US-7 (P3): Clean up deprecated in-repo assets
+### User Story 7 (P3): Clean up deprecated in-repo assets
+
+Related Requirements: FR-010
 
 As a maintainer, I want all superseded in-repo scripts and templates removed after
 migration so that the repository has a single source of truth.
@@ -172,18 +186,18 @@ migration so that the repository has a single source of truth.
 
 | ID | Requirement | Priority | User Story |
 |----|-------------|----------|------------|
-| FR-001 | Inventory all customized files in `.specify/scripts/` and `.specify/templates/` | P1 | US-1 |
-| FR-002 | Categorize each file as extension command, preset template, or local-only | P1 | US-1 |
-| FR-003 | Create a spec-kit extension package with proper manifest and command registration | P1 | US-2 |
-| FR-004 | Create a spec-kit preset package with template overrides | P1 | US-2 |
-| FR-005 | Publish both packages to public repositories | P1 | US-2, US-6 |
-| FR-006 | Add installation instructions to developer documentation | P2 | US-3 |
-| FR-007 | Add version pins to `.specify/config.yml` for both packages | P2 | US-5 |
-| FR-008 | Evaluate community extensions against the inventory for potential replacements | P2 | US-4 |
-| FR-009 | Replace custom scripts with community extensions where ≥80% overlap exists | P2 | US-4 |
-| FR-010 | Remove all superseded in-repo files after migration is verified | P3 | US-7 |
-| FR-011 | Update README with links to extension and preset repositories | P3 | US-6 |
-| FR-012 | Document the upgrade strategy for core, extension, and preset | P2 | US-3, US-5 |
+| FR-001 | Inventory all customized files in `.specify/scripts/` and `.specify/templates/` | P1 | User Story 1 |
+| FR-002 | Categorize each file as extension command, preset template, or local-only | P1 | User Story 1 |
+| FR-003 | Create a spec-kit extension package with proper manifest and command registration | P1 | User Story 2 |
+| FR-004 | Create a spec-kit preset package with template overrides | P1 | User Story 2 |
+| FR-005 | Publish both packages to public repositories | P1 | User Story 2, User Story 6 |
+| FR-006 | Add installation instructions to developer documentation | P2 | User Story 3 |
+| FR-007 | Add version pins to `.specify/config.yml` for both packages | P2 | User Story 5 |
+| FR-008 | Evaluate community extensions against the inventory for potential replacements | P2 | User Story 4 |
+| FR-009 | Replace custom scripts with community extensions where ≥80% overlap exists | P2 | User Story 4 |
+| FR-010 | Remove all superseded in-repo files after migration is verified | P3 | User Story 7 |
+| FR-011 | Update README with links to extension and preset repositories | P3 | User Story 6 |
+| FR-012 | Document the upgrade strategy for core, extension, and preset | P2 | User Story 3, User Story 5 |
 
 ### Non-Functional Requirements
 

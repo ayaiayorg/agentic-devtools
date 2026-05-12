@@ -1,0 +1,187 @@
+{
+  "findings": [],
+  "coverage": {
+    "FR-001": {
+      "fr_id": "FR-001",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T003"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-002": {
+      "fr_id": "FR-002",
+      "priority": 1,
+      "user_story": "US1",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T004"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-003": {
+      "fr_id": "FR-003",
+      "priority": 1,
+      "user_story": "US2",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T008",
+        "T019",
+        "T021",
+        "T022",
+        "T043",
+        "T046"
+      ],
+      "test_types": [
+        "ci",
+        "e2e",
+        "verification"
+      ]
+    },
+    "FR-004": {
+      "fr_id": "FR-004",
+      "priority": 1,
+      "user_story": "US2",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T009",
+        "T020",
+        "T021",
+        "T043",
+        "T046"
+      ],
+      "test_types": [
+        "ci",
+        "e2e",
+        "verification"
+      ]
+    },
+    "FR-005": {
+      "fr_id": "FR-005",
+      "priority": 1,
+      "user_story": "US2",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T015"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-006": {
+      "fr_id": "FR-006",
+      "priority": 2,
+      "user_story": "US3",
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T044"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-007": {
+      "fr_id": "FR-007",
+      "priority": 2,
+      "user_story": "US5",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T031",
+        "T045"
+      ],
+      "test_types": [
+        "e2e",
+        "verification"
+      ]
+    },
+    "FR-008": {
+      "fr_id": "FR-008",
+      "priority": 2,
+      "user_story": "US4",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T027"
+      ],
+      "test_types": [
+        "validation"
+      ]
+    },
+    "FR-009": {
+      "fr_id": "FR-009",
+      "priority": 2,
+      "user_story": "US4",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T028"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-010": {
+      "fr_id": "FR-010",
+      "priority": 3,
+      "user_story": "US7",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T038",
+        "T039",
+        "T043"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-011": {
+      "fr_id": "FR-011",
+      "priority": 3,
+      "user_story": "US6",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T041"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    },
+    "FR-012": {
+      "fr_id": "FR-012",
+      "priority": 2,
+      "user_story": "US3",
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T026"
+      ],
+      "test_types": [
+        "verification"
+      ]
+    }
+  },
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-001 | US1 | T003 | verification | ✅ Covered |\n| FR-002 | US1 | T004 | verification | ✅ Covered |\n| FR-003 | US2 | T008, T019, T021, T022, T043, T046 | ci, e2e, verification | ✅ Covered |\n| FR-004 | US2 | T009, T020, T021, T043, T046 | ci, e2e, verification | ✅ Covered |\n| FR-005 | US2 | T015 | verification | ✅ Covered |\n| FR-006 | US3 | T044 | verification | ✅ Covered |\n| FR-007 | US5 | T031, T045 | e2e, verification | ✅ Covered |\n| FR-008 | US4 | T027 | validation | ✅ Covered |\n| FR-009 | US4 | T028 | verification | ✅ Covered |\n| FR-010 | US7 | T038, T039, T043 | verification | ✅ Covered |\n| FR-011 | US6 | T041 | verification | ✅ Covered |\n| FR-012 | US3 | T026 | verification | ✅ Covered |\n",
+  "summary": {
+    "total_frs": 12,
+    "covered_frs": 12,
+    "uncovered_frs": 0,
+    "total_test_tasks": 20,
+    "unmapped_test_tasks": 0,
+    "total_findings": 0
+  }
+}

@@ -141,7 +141,7 @@ Key design decisions made during research:
 | 2.6 | Add CI for preset (markdownlint, validate) | GitHub Actions workflow |
 | 2.7 | Tag initial release (v1.0.0) | Semantic versioning |
 
-### Phase 3: Integration & Configuration (FR-007, US-1, US-2)
+### Phase 3: Integration & Configuration (FR-007, US1, US2)
 
 **Deliverables**: `.specify/config.yml` with version pins, working installation
 
