@@ -81,3 +81,10 @@ class TestVerifyReviewerRequested:
             text=True,
             shell=False,
         )
+
+    @patch(f"{MODULE}.run_safe")
+    def test_bot_found_in_teams_slug_returns_true(self, mock_run):
+        """Returns True when bot slug appears in teams array."""
+        data = {"users": [], "teams": [{"slug": COPILOT_REVIEWER_LOGIN}]}
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(data), stderr="")
+        assert _verify_reviewer_requested(42, "owner", "repo") is True

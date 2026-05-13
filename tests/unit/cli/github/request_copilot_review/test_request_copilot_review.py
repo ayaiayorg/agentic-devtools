@@ -5,6 +5,8 @@ from unittest.mock import call, patch
 import pytest
 
 from agentic_devtools.cli.github.request_copilot_review import (
+    _INITIAL_BACKOFF_SECONDS,
+    _MAX_VERIFY_RETRIES,
     COPILOT_REVIEWER_LOGIN,
     request_copilot_review,
 )
@@ -17,10 +19,10 @@ class TestRequestCopilotReview:
 
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", return_value=True)
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
-    def test_success_immediate_verification(self, mock_which, mock_post, mock_verify, mock_set):
-        """Successful POST + immediate verification → retries=0."""
+    def test_success_immediate_verification_via_get(self, mock_which, mock_post, mock_verify, mock_set):
+        """Successful POST + immediate GET verification → retries=0."""
         result = request_copilot_review(42, "owner/repo")
         assert result["prNumber"] == 42
         assert result["repo"] == "owner/repo"
@@ -29,33 +31,62 @@ class TestRequestCopilotReview:
         assert result["verified"] is True
         assert result["retries"] == 0
 
+    @patch(f"{MODULE}.set_value")
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, True))
+    @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
+    def test_success_immediate_verification_from_post_response(self, mock_which, mock_post, mock_set):
+        """POST response confirms reviewer → verified=True, retries=0, no GET calls."""
+        result = request_copilot_review(42, "owner/repo")
+        assert result["verified"] is True
+        assert result["retries"] == 0
+        mock_set.assert_any_call("github.copilot_review_requested", True)
+        mock_set.assert_any_call("github.copilot_review_request_verified", True)
+
     @patch(f"{MODULE}.time.sleep")
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", side_effect=[False, True])
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_success_after_one_retry(self, mock_which, mock_post, mock_verify, mock_set, mock_sleep):
         """Verification fails then succeeds on retry 1 → retries=1."""
         result = request_copilot_review(42, "owner/repo")
         assert result["verified"] is True
         assert result["retries"] == 1
-        mock_sleep.assert_called_once_with(5.0)
+        mock_sleep.assert_called_once_with(_INITIAL_BACKOFF_SECONDS)
 
     @patch(f"{MODULE}.time.sleep")
     @patch(f"{MODULE}.set_value")
+    @patch(f"{MODULE}._check_reviewer_in_reviews", return_value=False)
     @patch(f"{MODULE}._verify_reviewer_requested", return_value=False)
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
-    def test_all_verification_attempts_fail(self, mock_which, mock_post, mock_verify, mock_set, mock_sleep):
-        """All 3 verification attempts fail → verified=False, retries=2."""
+    def test_all_verification_attempts_fail(
+        self, mock_which, mock_post, mock_verify, mock_reviews, mock_set, mock_sleep,
+    ):
+        """All verification attempts fail including reviews fallback → verified=False."""
         result = request_copilot_review(42, "owner/repo")
         assert result["verified"] is False
-        assert result["retries"] == 2
-        assert mock_verify.call_count == 3  # initial + 2 retries
-        assert mock_sleep.call_count == 2
+        assert result["retries"] == _MAX_VERIFY_RETRIES
+        assert mock_verify.call_count == _MAX_VERIFY_RETRIES + 1  # initial + retries
+        assert mock_sleep.call_count == _MAX_VERIFY_RETRIES
+        mock_reviews.assert_called_once()
+
+    @patch(f"{MODULE}.time.sleep")
+    @patch(f"{MODULE}.set_value")
+    @patch(f"{MODULE}._check_reviewer_in_reviews", return_value=True)
+    @patch(f"{MODULE}._verify_reviewer_requested", return_value=False)
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
+    @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
+    def test_reviews_fallback_succeeds(self, mock_which, mock_post, mock_verify, mock_reviews, mock_set, mock_sleep):
+        """Requested-reviewers verification fails but reviews fallback succeeds → verified=True."""
+        result = request_copilot_review(42, "owner/repo")
+        assert result["verified"] is True
+        assert result["retries"] == _MAX_VERIFY_RETRIES
+        mock_reviews.assert_called_once()
+        mock_set.assert_any_call("github.copilot_review_request_verified", True)
 
     @patch(f"{MODULE}.set_value")
-    @patch(f"{MODULE}._post_review_request", return_value=(False, "Validation Failed"))
+    @patch(f"{MODULE}._post_review_request", return_value=(False, "Validation Failed", False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_post_failure(self, mock_which, mock_post, mock_set):
         """POST failure → requested=False, error present."""
@@ -68,7 +99,7 @@ class TestRequestCopilotReview:
 
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", return_value=True)
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_state_keys_written_on_success(self, mock_which, mock_post, mock_verify, mock_set):
         """State keys are written correctly on successful POST."""
@@ -77,7 +108,7 @@ class TestRequestCopilotReview:
         mock_set.assert_any_call("github.copilot_review_request_verified", True)
 
     @patch(f"{MODULE}.set_value")
-    @patch(f"{MODULE}._post_review_request", return_value=(False, "error"))
+    @patch(f"{MODULE}._post_review_request", return_value=(False, "error", False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_state_keys_written_on_failure(self, mock_which, mock_post, mock_set):
         """State keys are written correctly on POST failure."""
@@ -119,22 +150,28 @@ class TestRequestCopilotReview:
     @patch(f"{MODULE}.time.sleep")
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", side_effect=[False, False, True])
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
-    def test_sleep_called_between_retries(self, mock_which, mock_post, mock_verify, mock_set, mock_sleep):
-        """time.sleep(5.0) is called between each verification retry."""
+    def test_exponential_backoff_between_retries(self, mock_which, mock_post, mock_verify, mock_set, mock_sleep):
+        """Exponential backoff delays are used between retries."""
         request_copilot_review(42, "owner/repo")
-        assert mock_sleep.call_args_list == [call(5.0), call(5.0)]
+        assert mock_sleep.call_args_list == [
+            call(_INITIAL_BACKOFF_SECONDS),        # 2s
+            call(_INITIAL_BACKOFF_SECONDS * 2),    # 4s
+        ]
 
     @patch(f"{MODULE}.time.sleep")
     @patch(f"{MODULE}.set_value")
+    @patch(f"{MODULE}._check_reviewer_in_reviews", return_value=False)
     @patch(
         f"{MODULE}._verify_reviewer_requested",
         return_value=False,
     )
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
-    def test_state_keys_written_on_unverified(self, mock_which, mock_post, mock_verify, mock_set, mock_sleep):
+    def test_state_keys_written_on_unverified(
+        self, mock_which, mock_post, mock_verify, mock_reviews, mock_set, mock_sleep,
+    ):
         """State keys reflect verified=False when verification exhausted."""
         request_copilot_review(42, "owner/repo")
         mock_set.assert_any_call("github.copilot_review_requested", True)
@@ -142,7 +179,7 @@ class TestRequestCopilotReview:
 
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", return_value=True)
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_repo_with_git_suffix_normalized(self, mock_which, mock_post, mock_verify, mock_set):
         """Repo with .git suffix is accepted and normalized."""
@@ -153,7 +190,7 @@ class TestRequestCopilotReview:
 
     @patch(f"{MODULE}.set_value")
     @patch(f"{MODULE}._verify_reviewer_requested", return_value=True)
-    @patch(f"{MODULE}._post_review_request", return_value=(True, None))
+    @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_repo_with_whitespace_normalized(self, mock_which, mock_post, mock_verify, mock_set):
         """Repo with leading/trailing whitespace is accepted and normalized."""
