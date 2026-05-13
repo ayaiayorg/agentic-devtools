@@ -17,13 +17,18 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 1. **Trigger Guards**: Prevents redundant runs — if triggered by Copilot review but checks are still pending,
    polls every 30 seconds for up to 10 minutes (skips on timeout);
    if a Copilot review on the head commit has `CHANGES_REQUESTED` state, blocks merge until resolved
-2. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; `do-not-auto-merge` prevents merge but allows fixes/approval
-3. **Layer 1 — Deterministic fixers**: Downloads and applies lint patches produced by the unprivileged "AI PR Loop Lint" workflow
-4. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
-5. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved
-6. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
-7. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
-8. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
+2. **Dispatch Pre-Check (FR-009)**: When triggered by `workflow_run`, checks the lint run's conclusion —
+   if `action_required` (pending workflow approval) or `null` (not yet finalized), skips dispatch to avoid
+   wasting resources; the `workflow-approval-monitor.yml` handles approval separately
+3. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; `do-not-auto-merge` prevents merge but allows fixes/approval
+4. **Layer 1 — Deterministic fixers**: Downloads and applies lint patches produced by the unprivileged "AI PR Loop Lint" workflow
+5. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
+6. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved
+7. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
+8. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
+9. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
+10. **Fallback Path (FR-006)**: When triggered via `pull_request_review` with a workflow-approval-fallback
+    marker, logs a breadcrumb indicating the lint workflow is in `action_required` state
 
 **Required Permissions**:
 
@@ -51,6 +56,74 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - `actions: read`
 
 **Concurrency**: Single instance per PR (`ai-pr-loop-lint-{pr_number}`), cancel-in-progress
+
+**Workflow Approval Behavior**: When triggered by PRs from bot accounts that are repository
+collaborators (e.g., `copilot-swe-agent[bot]`, `github-actions[bot]`), this workflow runs
+immediately without requiring manual approval. For non-collaborator bot accounts, the workflow
+enters `action_required` state and is automatically approved by `workflow-approval-monitor.yml`.
+
+### workflow-approval-monitor.yml
+
+**Programmatic Workflow Approval for Trusted Bots**
+
+- Runs on: `schedule` (every 5 minutes) and `workflow_dispatch` (manual)
+- Purpose: Automatically approves workflow runs that are stuck in `action_required` state
+  for PRs authored by trusted bot accounts, eliminating manual intervention in the autonomous
+  AI PR loop
+
+**How it works**:
+
+1. Loads the trusted bot allow-list from `.github/ai-pr-loop-config.json`
+2. Lists recent `ai-pr-loop-lint.yml` runs with `conclusion=action_required`
+3. Filters to runs older than 2-minute threshold (FR-004)
+4. Validates each run's associated PR author is in the trusted list and PR is same-repo (not fork)
+5. Approves eligible runs via `POST /repos/{owner}/{repo}/actions/runs/{run_id}/approve`
+6. Emits structured JSON audit log entries for each action (success/failure/skip)
+7. Tracks retry count per (pr_number, head_sha) via PR comment markers — stops after 3 failures
+8. After retry limit: posts PR comment with manual resolution instructions
+9. Graceful degradation: posts synthetic review to trigger `pull_request_review` fallback path
+
+**Config file**: `.github/ai-pr-loop-config.json`
+
+```json
+{
+  "trusted_bot_accounts": ["copilot-swe-agent[bot]", "github-actions[bot]"],
+  "lookback_hours": 48
+}
+```
+
+- `trusted_bot_accounts` — GitHub usernames of bots eligible for automatic approval
+- `lookback_hours` — How far back (in hours) to scan for stuck runs (default: 48)
+
+**Required Permissions**:
+
+- `actions: read` (list/get workflow runs)
+- `pull-requests: read` (read PR metadata)
+- `issues: write` (post PR comments)
+- `contents: read` (read config file)
+
+**Required Secrets**:
+
+- `COPILOT_GITHUB_TOKEN` — PAT with Actions write permission (fine-grained: "Actions: Read and write";
+  classic: `workflow` scope). Used for the approve API call per FR-003/NFR-003.
+- `SPECKIT_PR_TOKEN` — Used for synthetic review fallback (optional; graceful degradation only)
+
+**Concurrency**: Single instance (`workflow-approval-monitor`), queued (no cancel-in-progress)
+
+### Fork Pull Request Workflows Policy
+
+To eliminate the approval gate for trusted bot accounts (FR-001/FR-002), configure the
+repository settings:
+
+1. Go to **Settings → Actions → General → Fork pull request workflows**
+2. Under "Run workflows from fork pull requests", ensure trusted bot accounts are
+   added as repository collaborators with at least `read` access
+3. Bot accounts with collaborator status will have their PRs' workflows run automatically
+   without requiring manual approval
+
+**Note**: GitHub App bot accounts (e.g., `copilot-swe-agent[bot]`) may not be addable as
+traditional collaborators. In this case, the `workflow-approval-monitor.yml` serves as the
+automatic fallback to programmatically approve their workflow runs.
 
 ### synthetic-copilot-review.yml
 

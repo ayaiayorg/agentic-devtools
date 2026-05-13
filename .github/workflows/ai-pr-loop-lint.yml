@@ -9,6 +9,14 @@ name: AI PR Loop Lint
 # 1. CodeQL does not flag it as untrusted-checkout-in-privileged-context
 # 2. Fork PRs are automatically sandboxed by GitHub
 # 3. No secrets are available to the job
+#
+# WORKFLOW APPROVAL NOTE (FR-001/FR-002):
+# When triggered by PRs from bot accounts listed as repository collaborators
+# (e.g., copilot-swe-agent[bot], github-actions[bot]), this workflow executes
+# immediately without requiring manual approval. The collaborator status
+# eliminates the "first-time contributor" approval gate. If the bot account
+# is NOT a collaborator, the workflow enters action_required state and is
+# handled by the workflow-approval-monitor.yml scheduled workflow.
 
 on:
   pull_request:

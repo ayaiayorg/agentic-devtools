@@ -88,6 +88,13 @@ jobs:
               prNumber = context.payload.pull_request.number;
               headBranch = context.payload.pull_request.head.ref;
               headSha = context.payload.pull_request.head.sha;
+
+              // FR-006 breadcrumb: log when triggered via pull_request_review while a
+              // workflow-approval-fallback marker is present in the review body
+              const reviewBody = context.payload.review.body || '';
+              if (reviewBody.includes('<!-- workflow-approval-fallback -->')) {
+                core.info('Proceeding via pull_request_review fallback — lint workflow in action_required state');
+              }
             } else {
               // workflow_run event — find associated PR
               const workflowRun = context.payload.workflow_run;
@@ -583,6 +590,23 @@ jobs:
             core.setOutput('repair_type', '');
             core.setOutput('review_url', reviewUrl);
             core.setOutput('repair_comment_id', '');
+
+            // ── Guard: Dispatch pre-check for action_required lint runs (FR-009) ──
+            // When triggered by workflow_run, check the triggering lint run's conclusion.
+            // If the lint run is in action_required state (pending workflow approval), skip
+            // dispatch — the workflow-approval-monitor will handle approval separately.
+            if (context.eventName === 'workflow_run') {
+              const triggeringRun = context.payload.workflow_run;
+              if (triggeringRun.conclusion === 'action_required') {
+                core.info(`Triggering lint run ${triggeringRun.id} has conclusion action_required — ` +
+                          `skipping dispatch (workflow approval pending).`);
+                return;
+              }
+              if (triggeringRun.conclusion === null) {
+                core.info(`Triggering lint run ${triggeringRun.id} has no conclusion — skipping dispatch.`);
+                return;
+              }
+            }
 
             // Only dispatch when there's something to fix
             if (!hasComments && !hasFailedChecks) {
