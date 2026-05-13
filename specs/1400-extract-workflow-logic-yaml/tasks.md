@@ -1,183 +1,279 @@
 # Tasks: CI-Provider Abstraction & Workflow Extraction
 
+**Feature**: Extract workflow logic from YAML to agentic-devtools library with CI-provider abstraction
+**Issue**: #1400
+**Spec**: `specs/1400-extract-workflow-logic-yaml/spec.md`
+**Plan**: `specs/1400-extract-workflow-logic-yaml/plan.md`
+
+---
+
 ## Phase Mapping: Plan → Tasks
 
-| Plan Phase | Plan Section | Task Phase(s) | Tasks |
-|------------|-------------|---------------|-------|
-| Phase 1: Foundation (Provider Interface + Models) | §4.1 | Phase 1 (Setup), Phase 2 (Foundational), Phase 3 (US1) | T001–T016 |
-| Phase 2: GitHub Actions Provider | §4.2 | Phase 4 (US2) | T017–T027 |
-| Phase 3: Guards Module | §4.3 | Phase 5 (US3, guards portion) | T028–T034 |
-| Phase 4: Orchestrator Extraction | §4.4 | Phase 5 (US3, orchestrator portion) | T035–T042 |
-| Phase 5: SpecKit Trigger Extraction | §4.5 | Phase 6 (US4) | T043–T046 |
-| Phase 6: CLI Entry Points & Comment Templates | §4.6 | Phase 7 (US5) | T047–T059 |
-| Phase 7: YAML Minimization & Feature Flag | §4.7 | Phase 7 (US5, YAML tasks) | T055–T059 |
-| Phase 8: Latency Benchmark & ADO Provider Stub | §4.8 | Phase 8 (US6), Final Phase | T060–T070 |
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | Phase 1: Foundation §4.1 | Project scaffolding (T001–T004) |
+| Phase 2: Foundational | Phase 1: Foundation §4.1 | Exceptions, models, retry, provider ABC (T005–T014) |
+| Phase 3: US1 | Phase 1: Foundation §4.1, Phase 8: Latency Benchmark & ADO Provider Stub §4.8 | CI-platform provider interface validation (T015–T016) |
+| Phase 4: US2 | Phase 2: GitHub Actions Provider §4.2 | GitHub Actions provider implementation (T017–T028) |
+| Phase 5: US3 | Phase 3: Guards §4.3, Phase 4: Orchestrator §4.4 | Guards, orchestrator, patch handler (T029–T043) |
+| Phase 6: US4 | Phase 5: SpecKit Trigger §4.5 | SpecKit trigger extraction (T044–T047) |
+| Phase 7: US5 | Phase 6: CLI Entry Points §4.6, Phase 7: YAML Minimization §4.7 | CLI entry points, templates, YAML minimization (T048–T060) |
+| Phase 8: US6 | Phase 8: Latency Benchmark & ADO Provider Stub §4.8 | Azure DevOps provider stub deliverables (T061–T063) |
+| Phase 9: Polish | Phase 8: Latency Benchmark & ADO Provider Stub §4.8 | Latency benchmark, cross-cutting concerns, final validation (T064–T074) |
 
-## Phase 1: Setup — Package Scaffolding
+---
 
-- [ ] T001 Create package directory and init file `agentic_devtools/cli/ci/__init__.py` (FR-001)
-- [ ] T002 Create test directory structure `tests/unit/cli/ci/__init__.py` with all required `__init__.py` files (FR-001)
-- [ ] T003 Create test fixtures directory `tests/fixtures/ci_events/` with sample GitHub webhook payloads (`pull_request.json`, `pull_request_review.json`, `issues_labeled.json`) (FR-002, SC-004)
-- [ ] T004 Create prompt templates directory `agentic_devtools/prompts/ci/` with `__init__.py` (FR-007)
+## Phase 1: Setup — Project Scaffolding
+
+- [ ] T001 Create package directory `agentic_devtools/cli/ci/` with `__init__.py`
+- [ ] T002 Create test directory tree `tests/unit/cli/ci/` with `__init__.py` files for all subdirectories (`exceptions/`, `models/`, `retry/`, `provider/`, `github_provider/`, `guards/`,
+  `orchestrator/`, `patch_handler/`, `speckit_trigger/`, `commands/`, `ado_provider/`)
+- [ ] T003 Create test fixtures directory `tests/fixtures/ci_events/` with placeholder `README.md` documenting fixture format (data-only directory, no `__init__.py` —
+  consistent with existing fixture directories like `tests/e2e_smoke/fixtures/`)
+- [ ] T004 Create prompt template directory `agentic_devtools/prompts/ci/` with `__init__.py`
+
+---
 
 ## Phase 2: Foundational — Exceptions, Models, Retry, Provider ABC
 
-- [ ] T005 Write tests for custom exceptions `tests/unit/cli/ci/exceptions/test_malformedeventerror.py` and `tests/unit/cli/ci/exceptions/test_providerratelimiterror.py` (FR-001, FR-002)
-- [ ] T006 Implement `agentic_devtools/cli/ci/exceptions.py` — `MalformedEventError(ValueError)` and `ProviderRateLimitError` with reset-time attribute (FR-001, FR-002)
-- [ ] T007 [P] Write tests for `EventPayload` dataclass `tests/unit/cli/ci/models/test_eventpayload.py` — fields: `pr_number`, `head_branch`, `head_sha`, `base_branch`, `action`, `trigger_label`,
-  `repository_full_name` (snake_case per codebase convention; JSON mapping layer handles camelCase serialization) (FR-002)
-- [ ] T008 [P] Write tests for `PRMetadata`, `CheckRunStatus`, `ReviewInfo` dataclasses `tests/unit/cli/ci/models/test_prmetadata.py`, `tests/unit/cli/ci/models/test_checkrunstatus.py`,
-  `tests/unit/cli/ci/models/test_reviewinfo.py` (FR-001, FR-002)
-- [ ] T009 Implement `agentic_devtools/cli/ci/models.py` — all dataclasses (`EventPayload`, `PRMetadata`, `CheckRunStatus`, `ReviewInfo`) (FR-001, FR-002)
-- [ ] T010 Write tests for retry utility `tests/unit/cli/ci/retry/test_retry_with_backoff.py` (NFR-003) — exponential backoff, jitter, `Retry-After` header honoring, max 5 retries,
-  `ProviderRateLimitError` after exhaustion
-- [ ] T011 Implement `agentic_devtools/cli/ci/retry.py` — `retry_with_backoff()` decorator/utility (1s initial, 60s cap, 5 max retries, jitter, honors `Retry-After`) (NFR-003)
-- [ ] T012 Write tests for `CIPlatformProvider` ABC `tests/unit/cli/ci/provider/test_ciplatformprovider.py` — verify abstract methods, mock concrete implementation satisfies contract (FR-001)
-- [ ] T013 Implement `agentic_devtools/cli/ci/provider.py` — `CIPlatformProvider` ABC with all abstract methods: `parse_event`, `get_pr_metadata`, `list_check_runs`, `list_reviews`, `post_comment`,
-  `update_comment`, `find_comment`, `approve_pr`, `merge_pr`, `request_reviewer`, `list_pr_files`, `get_check_annotations` (FR-001)
+- [ ] T005 Write failing tests for `MalformedEventError` and `ProviderRateLimitError` in `tests/unit/cli/ci/exceptions/test_malformedeventerror.py` and
+  `tests/unit/cli/ci/exceptions/test_providerratelimiterror.py`
+- [ ] T006 Implement `agentic_devtools/cli/ci/exceptions.py` — `MalformedEventError(ValueError)` with descriptive message fields, `ProviderRateLimitError` with remaining reset time attribute
+- [ ] T007 [P] Write failing tests for `EventPayload` dataclass in `tests/unit/cli/ci/models/test_eventpayload.py` — validate fields: `pr_number`, `head_branch`, `head_sha`, `base_branch`, `action`,
+  `trigger_label`, `repository_full_name` (snake_case per codebase convention; JSON mapping layer handles camelCase serialization)
+- [ ] T008 [P] Write failing tests for `PRMetadata`, `CheckRunStatus`, `ReviewInfo` dataclasses in `tests/unit/cli/ci/models/test_prmetadata.py`, `tests/unit/cli/ci/models/test_checkrunstatus.py`,
+  `tests/unit/cli/ci/models/test_reviewinfo.py`
+- [ ] T009 Implement `agentic_devtools/cli/ci/models.py` — all dataclasses (`EventPayload`, `PRMetadata`, `CheckRunStatus`, `ReviewInfo`) to make T007 and T008 pass
+- [ ] T010 Write failing tests for retry utility in `tests/unit/cli/ci/retry/test_retry_with_backoff.py` — cover exponential backoff (1s initial, 60s cap), jitter, max 5 retries, `Retry-After` header
+  honoring (HTTP 429/403), `ProviderRateLimitError` after exhaustion
+- [ ] T011 Implement `agentic_devtools/cli/ci/retry.py` — `retry_with_backoff()` decorator/function to make T010 pass
+- [ ] T012 Write failing tests for `CIPlatformProvider` ABC in `tests/unit/cli/ci/provider/test_ciplatformprovider.py` — verify all abstract methods are defined (including
+  `parse_event(raw_payload: dict, event_name: str)` signature matching plan §4.1), verify a mock concrete implementation satisfies the contract structurally AND behaviorally (exercise each method with
+  mock data and assert expected call signatures/return types)
+- [ ] T013 Implement `agentic_devtools/cli/ci/provider.py` — `CIPlatformProvider` ABC with all abstract methods: `parse_event(raw_payload, event_name)`, `get_pr_metadata`, `list_check_runs`,
+  `list_reviews`, `post_comment`, `update_comment`, `find_comment`, `approve_pr`, `merge_pr`, `request_reviewer`, `list_pr_files`, `get_check_annotations` to make T012 pass
+- [ ] T014 Export Phase 2 public API from `agentic_devtools/cli/ci/__init__.py` — re-export `CIPlatformProvider`, all models, all exceptions (partial; final reconciliation in T073)
 
-## Phase 3: User Story 1 — CI-Platform Provider Interface [P1]
+---
 
-- [ ] T014 [US1] Write mock provider test `tests/unit/cli/ci/provider/test_mock_provider_contract.py` — verify a mock implementation exercises all ABC method contracts independently (FR-001)
-- [ ] T015 [US1] Write ADO stub contract test `tests/unit/cli/ci/provider/test_ado_stub_contract.py` — verify a stubbed ADO provider satisfies the same ABC without orchestration changes (FR-001,
-  acceptance scenario 2)
-- [ ] T016 [US1] Create reusable `MockCIPlatformProvider` test fixture in `tests/unit/cli/ci/conftest.py` for use across all subsequent test phases (FR-001)
+## Phase 3: User Story 1 — CI-Platform Provider Interface Validation [US1]
 
-## Phase 4: User Story 2 — GitHub Actions Provider [P1]
+- [ ] T015 [US1] Write integration test in `tests/unit/cli/ci/provider/test_ciplatformprovider_integration.py` verifying that a stub Azure DevOps provider class compiles and satisfies the same ABC
+  contract without changes to orchestration code (acceptance scenario 2)
+- [ ] T016 [US1] Implement stub `_StubAdoProvider` in the test file from T015 to make the test green — validates extensibility of the ABC
 
-- [ ] T017 [US2] Write tests for event parsing `tests/unit/cli/ci/github_provider/test_parse_event.py` — `pull_request`, `pull_request_review`, `issues.labeled` payloads; malformed payload raises
-  `MalformedEventError` (FR-002)
-- [ ] T018 [US2] [P] Write tests for PR metadata resolution `tests/unit/cli/ci/github_provider/test_get_pr_metadata.py` — verifies same `prNumber`, `headBranch`, `headSha` as inline JS (FR-002,
-  acceptance scenario 1)
-- [ ] T019 [US2] [P] Write tests for label parsing `tests/unit/cli/ci/github_provider/test_parse_label_event.py` — matches current shell validation output (FR-002, acceptance scenario 2)
-- [ ] T020 [US2] [P] Write tests for check runs listing `tests/unit/cli/ci/github_provider/test_list_check_runs.py` (FR-002)
-- [ ] T021 [US2] [P] Write tests for reviews listing `tests/unit/cli/ci/github_provider/test_list_reviews.py` (FR-002)
-- [ ] T022 [US2] [P] Write tests for comment operations `tests/unit/cli/ci/github_provider/test_post_comment.py`, `tests/unit/cli/ci/github_provider/test_update_comment.py`,
-  `tests/unit/cli/ci/github_provider/test_find_comment.py` (FR-002)
-- [ ] T023 [US2] [P] Write tests for PR actions `tests/unit/cli/ci/github_provider/test_approve_pr.py`, `tests/unit/cli/ci/github_provider/test_merge_pr.py`,
-  `tests/unit/cli/ci/github_provider/test_request_reviewer.py` (FR-002)
-- [ ] T024 [US2] [P] Write tests for file listing `tests/unit/cli/ci/github_provider/test_list_pr_files.py` (FR-002)
-- [ ] T025 [US2] Implement `agentic_devtools/cli/ci/github_provider.py` — `GitHubActionsProvider(CIPlatformProvider)` with full method implementations using `run_safe` with `shell=False` for
-  user-controlled text (FR-002)
-- [ ] T026 [US2] Write integration test `tests/unit/cli/ci/github_provider/test_behavioral_equivalence.py` — golden-file comparison against recorded fixtures in `tests/fixtures/ci_events/` (SC-004)
-- [ ] T027 [US2] Add retry integration to provider — wrap API calls with `retry_with_backoff`, handle HTTP 429/403 rate limits (NFR-003)
+---
 
-## Phase 5: User Story 3 — PR Loop Orchestrator Extraction [P1]
+## Phase 4: User Story 2 — GitHub Actions Provider [US2]
 
-- [ ] T028 [US3] Write tests for guards module `tests/unit/cli/ci/guards/test_check_privileged_paths.py` — `.github/workflows/`, `.github/actions/`, `.github/scripts/` excluding `*.md` (FR-004
-  privileged-path guard)
-- [ ] T029 [US3] [P] Write tests for docker guard `tests/unit/cli/ci/guards/test_check_docker_files.py` — `Dockerfile`, `docker-compose.yml`, `docker-compose.yaml`, `.dockerignore`, `Dockerfile.*`
-  (FR-004 docker-file guard)
-- [ ] T030 [US3] [P] Write tests for deduplication guard `tests/unit/cli/ci/guards/test_check_deduplication.py` — marker comment parsing, dispatch count tracking, max dispatches (FR-004 deduplication
-  guard)
-- [ ] T031 [US3] [P] Write tests for exclusion labels `tests/unit/cli/ci/guards/test_check_exclusion_labels.py` — `ai-pr-loop-ignore`, `do-not-auto-merge` (FR-004)
-- [ ] T032 [US3] [P] Write tests for fork PR guard `tests/unit/cli/ci/guards/test_check_fork_pr.py` (FR-004)
-- [ ] T033 [US3] [P] Write tests for cycle limit guard `tests/unit/cli/ci/guards/test_check_cycle_limit.py` (FR-004)
-- [ ] T034 [US3] Implement `agentic_devtools/cli/ci/guards.py` — all guard functions: `check_privileged_paths`, `check_docker_files`, `check_deduplication`, `check_exclusion_labels`, `check_fork_pr`,
-  `check_cycle_limit` (FR-004)
-- [ ] T035 [US3] Write tests for orchestrator state machine `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop.py` — metadata resolution → guards → review evaluation → merge gate → approval → merge
-  (FR-003)
-- [ ] T036 [US3] [P] Write tests for merge condition evaluation `tests/unit/cli/ci/orchestrator/test_evaluate_merge_readiness.py` — all checks pass + branch up-to-date (FR-004 merge condition)
-- [ ] T037 [US3] [P] Write tests for review condition evaluation `tests/unit/cli/ci/orchestrator/test_evaluate_review_condition.py` — required approvals met, no changes-requested outstanding (FR-004
-  review condition)
-- [ ] T038 [US3] [P] Write tests for PR with no linked issue `tests/unit/cli/ci/orchestrator/test_no_linked_issue.py` — logs warning, surfaces advisory in status comment, does NOT block (FR-003)
-- [ ] T039 [US3] Implement `agentic_devtools/cli/ci/orchestrator.py` — `run_ai_pr_loop(provider, event_payload) -> int` state machine (FR-003)
-- [ ] T040 [US3] [P] Write tests for patch handler `tests/unit/cli/ci/patch_handler/test_apply_lint_patch.py` (FR-003)
-- [ ] T041 [US3] Implement `agentic_devtools/cli/ci/patch_handler.py` — lint patch download, validation, and apply logic (FR-003)
-- [ ] T042 [US3] Write orchestrator golden-file integration test `tests/unit/cli/ci/orchestrator/test_golden_file_equivalence.py` — mocked provider, compare API call sequences against expected outputs
-  (FR-003, SC-001)
+- [ ] T017 [US2] Create recorded webhook payload fixtures in `tests/fixtures/ci_events/`: `pull_request_opened.json`, `pull_request_synchronize.json`, `pull_request_review_submitted.json`,
+  `issues_labeled.json`, `workflow_run_completed.json`
+- [ ] T018 [US2] Write failing tests for `GitHubActionsProvider.parse_event(raw_payload, event_name)` in `tests/unit/cli/ci/github_provider/test_parse_event.py` — valid
+  `pull_request_review` payload with matching `event_name` returns correct `pr_number`, `head_branch`, `head_sha`; malformed payload raises `MalformedEventError`;
+  mismatched `event_name` (e.g., `"issues"` with a `pull_request` payload) raises `MalformedEventError`
+- [ ] T019 [US2] Write failing tests for `GitHubActionsProvider.parse_event(raw_payload, event_name)` label event in `tests/unit/cli/ci/github_provider/test_parse_event_label.py` — `event_name="issues"`
+  with `action="labeled"` payload returns correct `trigger_label` matching current shell validation (snake_case field; JSON mapping layer handles camelCase input)
+- [ ] T020 [US2] [P] Write failing tests for `GitHubActionsProvider.get_pr_metadata()` in `tests/unit/cli/ci/github_provider/test_get_pr_metadata.py` — mock `run_safe` calls, verify return type
+- [ ] T021 [US2] [P] Write failing tests for `GitHubActionsProvider.list_check_runs()` in `tests/unit/cli/ci/github_provider/test_list_check_runs.py`
+- [ ] T022 [US2] [P] Write failing tests for `GitHubActionsProvider.list_reviews()` in `tests/unit/cli/ci/github_provider/test_list_reviews.py`
+- [ ] T023 [US2] [P] Write failing tests for `GitHubActionsProvider.post_comment()` and `update_comment()` in `tests/unit/cli/ci/github_provider/test_post_comment.py` and
+  `tests/unit/cli/ci/github_provider/test_update_comment.py`
+- [ ] T024 [US2] [P] Write failing tests for `GitHubActionsProvider.find_comment()` in `tests/unit/cli/ci/github_provider/test_find_comment.py` — returns `(comment_id, comment_body)` tuple or `None`
+- [ ] T025 [US2] [P] Write failing tests for `GitHubActionsProvider.approve_pr()`, `merge_pr()`, `request_reviewer()` in `tests/unit/cli/ci/github_provider/test_approve_pr.py`,
+  `tests/unit/cli/ci/github_provider/test_merge_pr.py`, `tests/unit/cli/ci/github_provider/test_request_reviewer.py`
+- [ ] T026 [US2] [P] Write failing tests for `GitHubActionsProvider.list_pr_files()` and `get_check_annotations()` in `tests/unit/cli/ci/github_provider/test_list_pr_files.py` and
+  `tests/unit/cli/ci/github_provider/test_get_check_annotations.py`
+- [ ] T027 [US2] Write failing test for retry integration in `tests/unit/cli/ci/github_provider/test_retry_integration.py` — verify provider methods use `retry_with_backoff`, honor rate limits, raise
+  `ProviderRateLimitError` after 5 retries
+- [ ] T028 [US2] Implement `agentic_devtools/cli/ci/github_provider.py` — full `GitHubActionsProvider` class using `run_safe` with `shell=False` for all user-controlled text, `gh` CLI for API calls,
+  retry decorator from `retry.py`, pagination via `--paginate` — make T018–T027 pass
 
-## Phase 6: User Story 4 — SpecKit Trigger Extraction [P2]
+---
 
-- [ ] T043 [US4] Write tests for speckit label validation `tests/unit/cli/ci/speckit_trigger/test_validate_speckit_label.py` — valid label triggers correct phase (FR-006, acceptance scenario 1)
-- [ ] T044 [US4] [P] Write tests for deduplication `tests/unit/cli/ci/speckit_trigger/test_deduplication_guard.py` — duplicate trigger skips and logs reason (FR-006, acceptance scenario 2)
-- [ ] T045 [US4] [P] Write tests for phase transitions `tests/unit/cli/ci/speckit_trigger/test_phase_transition.py` — all valid phase progressions (FR-006)
-- [ ] T046 [US4] Implement `agentic_devtools/cli/ci/speckit_trigger.py` — `process_speckit_label_event(provider, event_payload) -> int` with label validation, idempotency, phase transition (FR-006)
+## Phase 5: User Story 3 — PR Loop Orchestrator Extraction [US3]
 
-## Phase 7: User Story 5 — YAML Minimization & CLI Entry Points [P2]
+### Guards (Phase 3 in plan, prerequisite for orchestrator)
 
-- [ ] T047 [US5] Write tests for CLI entry point `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py` — reads `GITHUB_EVENT_PATH`, invokes orchestrator, returns exit code (FR-005)
-- [ ] T048 [US5] [P] Write tests for speckit CLI entry point `tests/unit/cli/ci/commands/test_speckit_trigger_command.py` (FR-005)
-- [ ] T049 [US5] [P] Write tests for `load_ci_template` helper `tests/unit/prompts/loader/test_load_ci_template.py` — resolves templates from `prompts/ci/` directory (FR-007)
-- [ ] T050 [US5] Implement `load_ci_template()` in `agentic_devtools/prompts/loader.py` — loads templates from `prompts/ci/` subdirectory without performing substitution (FR-007)
-- [ ] T051 [US5] Create comment templates using `{{variable}}` syntax rendered by `substitute_variables()`: `agentic_devtools/prompts/ci/timeout-comment.md`, `exhausted-comment.md`,
-  `merge-failed-comment.md`, `ready-no-merge-comment.md` (FR-007)
-- [ ] T052 [US5] Implement `agentic_devtools/cli/ci/commands.py` — `ai_pr_loop_command()` and `speckit_trigger_command()` CLI entry points running synchronously (FR-005)
-  > **Note:** These CI-invoked commands run synchronously (not as background tasks) because they are executed by
-  > GitHub Actions runners that need the exit code for step status.
-  > This is an intentional exception to NFR-004's background-task convention.
-- [ ] T053 [US5] Add entry points to `pyproject.toml`: `agdt-ai-pr-loop` and `agdt-speckit-trigger` (FR-005)
-- [ ] T054 [US5] Write test for feature flag routing `tests/unit/cli/ci/commands/test_feature_flag.py` — `AGDT_USE_PYTHON_ORCHESTRATOR=1` selects Python path (FR-005)
-- [ ] T055 [US5] Minimize `ai-pr-loop.yml` to ≤50 lines: triggers, permissions, env vars, feature flag check, single `agdt-ai-pr-loop` call (FR-008, SC-002, acceptance scenario 1)
-- [ ] T056 [US5] Minimize speckit trigger YAML workflows to ≤30 lines each (FR-008)
-- [ ] T057 [US5] Write regression test `tests/unit/cli/ci/commands/test_yaml_minimization_guards.py` — assert minimized YAML still enforces the same guards and semantics as original workflows
-  (FR-008, acceptance scenario: golden-file comparison of guard behavior pre/post minimization)
-- [ ] T058 [US5] Write test for missing CLI binary `tests/unit/cli/ci/commands/test_missing_binary.py` — workflow fails with clear error within 5s (FR-005, acceptance scenario 2)
-- [ ] T059 [US5] Write end-to-end smoke test `tests/unit/cli/ci/commands/test_e2e_smoke.py` — feature flag on/off produces identical behavior (SC-004)
+- [ ] T029 [US3] Write failing tests for `check_privileged_paths()` in `tests/unit/cli/ci/guards/test_check_privileged_paths.py` — `.github/workflows/`, `.github/actions/`, `.github/scripts/` trigger
+  guard; `*.md` files excluded
+- [ ] T030 [US3] Write failing tests for `check_docker_files()` in `tests/unit/cli/ci/guards/test_check_docker_files.py` — `Dockerfile`, `docker-compose.yml`, `docker-compose.yaml`, `.dockerignore`,
+  `Dockerfile.*` trigger guard
+- [ ] T031 [US3] Write failing tests for `check_deduplication()` in `tests/unit/cli/ci/guards/test_check_deduplication.py` — marker comment `<!-- repair-dispatch:<sha>:<count> -->` parsing, increment,
+  max dispatch limit (default 3)
+- [ ] T032 [US3] [P] Write failing tests for `check_exclusion_labels()` in `tests/unit/cli/ci/guards/test_check_exclusion_labels.py` — `ai-pr-loop-ignore` skips entirely, `do-not-auto-merge` sets flag
+- [ ] T033 [US3] [P] Write failing tests for `check_fork_pr()` in `tests/unit/cli/ci/guards/test_check_fork_pr.py` — head repo differs from base repo
+- [ ] T034 [US3] [P] Write failing tests for `check_cycle_limit()` in `tests/unit/cli/ci/guards/test_check_cycle_limit.py` — `<!-- ai-pr-loop-cycle-tracker -->` comment, default 50 max
+- [ ] T035 [US3] Implement `agentic_devtools/cli/ci/guards.py` — all guard functions to make T029–T034 pass
 
-## Phase 8: User Story 6 — Azure DevOps Provider [P3]
+### Orchestrator
 
-- [ ] T060 [US6] Write tests for ADO event parsing `tests/unit/cli/ci/ado_provider/test_parse_event.py` — ADO service hook JSON normalized to same `EventPayload` fields (FR-001,
-  acceptance scenario 1)
-- [ ] T061 [US6] [P] Write tests for ADO PR metadata `tests/unit/cli/ci/ado_provider/test_get_pr_metadata.py` (FR-001)
-- [ ] T062 [US6] Implement `agentic_devtools/cli/ci/ado_provider.py` — `AzureDevOpsProvider(CIPlatformProvider)` stub using ADO REST API mocks (SC-003)
-- [ ] T063 [US6] Write integration test `tests/unit/cli/ci/ado_provider/test_orchestrator_integration.py` — same orchestrator tests run against ADO provider (SC-003)
+- [ ] T036 [US3] Write failing tests for `run_ai_pr_loop()` state machine in `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop.py` — mock provider, verify: metadata resolution → guards → review
+  evaluation → dispatch decision → merge gate → approval → merge sequence
+- [ ] T037 [US3] Write failing test for orchestrator with PR in "ready for review" state in `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop_ready.py` — verify same API call sequence as current
+  YAML (acceptance scenario 1)
+- [ ] T038 [US3] Write failing test for orchestrator with failing CI checks in `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop_blocked.py` — verify merge blocked + correct status comment posted
+  (acceptance scenario 2)
+- [ ] T039 [US3] Write failing test for malformed event handling in `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop_malformed.py` — `MalformedEventError` caught, structured JSON error to stderr,
+  non-zero exit code
+- [ ] T040 [US3] Write failing test for PR with no linked issue in `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop_no_issue.py` — warning logged, processing continues, advisory in status comment
+- [ ] T041 [US3] Implement `agentic_devtools/cli/ci/orchestrator.py` — `run_ai_pr_loop(provider, event_payload) -> int` state machine to make T036–T040 pass
 
-## Final Phase: Polish & Cross-Cutting
+### Patch Handler
 
-- [ ] T064 Create `scripts/measure-orchestrator-latency.py` benchmark script — measures Python orchestrator vs baseline, reports delta ≤500ms (NFR-002)
-- [ ] T065 Run full test suite and verify 100% coverage on all `agentic_devtools/cli/ci/` modules (NFR-001)
-- [ ] T066 Update `pyproject.toml` with any new dependencies required by the CI module
-- [ ] T067 Update `.github/copilot-instructions.md` — document new `agdt-ai-pr-loop` and `agdt-speckit-trigger` commands, CI provider architecture
-- [ ] T068 Add `agdt-ai-pr-loop` and `agdt-speckit-trigger` to the command mapping table in copilot-instructions
-- [ ] T069 Run `python scripts/validate_test_structure.py` to confirm 1:1:1 test layout compliance (NFR-001)
-- [ ] T070 Run `bash scripts/run-pr-checks.sh` to verify all CI-blocking checks pass (NFR-001)
+- [ ] T042 [US3] Write failing tests for lint patch handling in `tests/unit/cli/ci/patch_handler/test_apply_lint_patch.py` — download, validation, apply logic
+- [ ] T043 [US3] Implement `agentic_devtools/cli/ci/patch_handler.py` — lint patch download, validation, and apply logic to make T042 pass
 
-## Dependencies
+---
 
-| Task | Depends On |
-|------|------------|
-| T006 | T005 |
-| T009 | T007, T008 |
-| T011 | T010, T006 |
-| T013 | T012, T009, T011 |
-| T014 | T013 |
-| T015 | T013 |
-| T016 | T013 |
-| T025 | T017–T024, T013 |
-| T026 | T025, T003 |
-| T027 | T025, T011 |
-| T034 | T028–T033 |
-| T039 | T035–T038, T034, T025 |
-| T041 | T040 |
-| T042 | T039 |
-| T046 | T043–T045, T013 |
-| T050 | T049 |
-| T052 | T047, T048, T039, T046, T050 |
-| T053 | T052 |
-| T055 | T052, T053 |
-| T056 | T052, T053 |
-| T057 | T055, T056 |
-| T059 | T055, T056 |
-| T062 | T060, T061, T013 |
-| T063 | T062, T039 |
-| T064 | T039 |
-| T065 | T059, T063 |
-| T069 | T065 |
-| T070 | T069 |
+## Phase 6: User Story 4 — SpecKit Trigger Extraction [US4]
 
-## FR Coverage Matrix
+- [ ] T044 [US4] Write failing tests for `process_speckit_label_event()` in `tests/unit/cli/ci/speckit_trigger/test_process_speckit_label_event.py` — valid label triggers correct speckit phase
+  (acceptance scenario 1)
+- [ ] T045 [US4] Write failing test for duplicate trigger deduplication in `tests/unit/cli/ci/speckit_trigger/test_process_speckit_label_event_dedup.py` — duplicate event skipped with logged reason
+  (acceptance scenario 2)
+- [ ] T046 [US4] Write failing tests for label validation and phase transition edge cases in `tests/unit/cli/ci/speckit_trigger/test_label_validation.py`
+- [ ] T047 [US4] Implement `agentic_devtools/cli/ci/speckit_trigger.py` — `process_speckit_label_event(provider, event_payload) -> int` with label validation, idempotency, phase transitions to make
+  T044–T046 pass
 
-| FR | Tasks |
-|----|-------|
-| FR-001 | T001, T002, T005, T006, T008, T009, T012, T013, T014, T015, T016, T060, T061 |
-| FR-002 | T003, T005, T006, T007, T008, T009, T017, T018, T019, T020, T021, T022, T023, T024, T025, T026 |
-| FR-003 | T035, T038, T039, T040, T041, T042 |
-| FR-004 | T028, T029, T030, T031, T032, T033, T034, T036, T037 |
-| FR-005 | T047, T048, T052, T053, T054, T058 |
-| FR-006 | T043, T044, T045, T046 |
-| FR-007 | T004, T049, T050, T051 |
-| FR-008 | T055, T056, T057 |
+---
+
+## Phase 7: User Story 5 — CLI Entry Points, Templates & YAML Minimization [US5]
+
+### CLI Entry Points & Comment Templates
+
+- [ ] T048 [US5] Create comment template files: `agentic_devtools/prompts/ci/timeout-comment.md`, `exhausted-comment.md`, `merge-failed-comment.md`, `ready-no-merge-comment.md` using `{{variable}}`
+  syntax
+- [ ] T049 [US5] Write failing tests for `load_ci_template()` in `tests/unit/prompts/loader/test_load_ci_template.py` — loads raw template from `prompts/ci/` directory without substitution
+- [ ] T050 [US5] Implement `load_ci_template()` in `agentic_devtools/prompts/loader.py` — resolves templates from `prompts/ci/` subdirectory, returns raw string, callers invoke
+  `substitute_variables()` separately (FR-007)
+- [ ] T051 [US5] Write failing tests for `ai_pr_loop_command()` CLI entry point in `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py` — reads `GITHUB_EVENT_PATH` and `GITHUB_EVENT_NAME`,
+  constructs provider, invokes orchestrator
+- [ ] T052 [US5] Write failing tests for `speckit_trigger_command()` CLI entry point in `tests/unit/cli/ci/commands/test_speckit_trigger_command.py`
+- [ ] T053 [US5] Write failing test for missing `gh` CLI dependency in `tests/unit/cli/ci/commands/test_ai_pr_loop_command_missing_dep.py` — when `gh` is not found on PATH,
+  `ai_pr_loop_command()` fails with a clear error message within 5s (internal dependency check; see T074 for the spec US5 acceptance scenario 2 — missing `agdt-ai-pr-loop` binary)
+- [ ] T054 [US5] Implement `agentic_devtools/cli/ci/commands.py` — `ai_pr_loop_command()` and `speckit_trigger_command()` CLI entry points to make T051–T053 pass
+- [ ] T055 [US5] Add CLI entry points to `pyproject.toml` under `[project.scripts]`: `agdt-ai-pr-loop` and `agdt-speckit-trigger` following existing `agdt-*` naming convention (NFR-004)
+- [ ] T056 [US5] Reinstall package (`pip install -e .`) and verify entry points are callable
+
+### YAML Minimization & Feature Flag
+
+- [ ] T057 [US5] Write failing test for feature flag routing in `tests/unit/cli/ci/commands/test_feature_flag.py` — `AGDT_USE_PYTHON_ORCHESTRATOR=1` selects Python path; unset/0 selects legacy JS path
+- [ ] T058 [US5] Implement feature flag logic in `agentic_devtools/cli/ci/commands.py` — `AGDT_USE_PYTHON_ORCHESTRATOR` env var selects execution path, synchronous execution (not background task)
+- [ ] T059 [US5] Create minimized `ai-pr-loop.yml` (≤50 lines) — triggers, permissions, env vars, single `agdt-ai-pr-loop` call with feature flag gate (SC-002, FR-008)
+- [ ] T060 [US5] Create minimized speckit trigger workflow YAML (≤30 lines each) — triggers, permissions, single `agdt-speckit-trigger` call (FR-008)
+
+---
+
+## Phase 8: User Story 6 — Azure DevOps Provider Stub [US6]
+
+- [ ] T061 [US6] Write failing tests for `AzureDevOpsProvider` stub in `tests/unit/cli/ci/ado_provider/test_azuredevopsprovider.py` — verify it satisfies `CIPlatformProvider` ABC, `parse_event()`
+  returns `EventPayload` with correct fields (acceptance scenario 1)
+- [ ] T062 [US6] Implement `agentic_devtools/cli/ci/ado_provider.py` — stub `AzureDevOpsProvider` with `NotImplementedError` on action methods, basic `parse_event()` for ADO service hook JSON format
+  to make T061 pass
+- [ ] T063 [US6] Write integration test verifying the same orchestrator tests run against the ADO provider stub without orchestration code changes (SC-003)
+
+---
+
+## Phase 9: Polish & Cross-Cutting
+
+### Latency Benchmark
+
+- [ ] T064 Create `scripts/measure-orchestrator-latency.py` — benchmark script measuring orchestrator entry-point latency using `time.perf_counter()`, averages over 10 runs with fixture payloads,
+  reports delta vs baseline (NFR-002)
+
+### End-to-End & Integration
+
+- [ ] T065 Write end-to-end smoke tests comparing old YAML path vs new Python path outputs using golden-file fixtures under `tests/fixtures/ci_events/` covering `pull_request`, `pull_request_review`,
+  `issues` with `action="labeled"`, `workflow_run` event types (SC-004)
+- [ ] T066 Write integration test verifying all comment templates render correctly via `substitute_variables()` with representative variable dicts (FR-007)
+- [ ] T067 Verify minimized `ai-pr-loop.yml` line count ≤50 and speckit YAMLs ≤30 lines each (FR-008, SC-002)
+
+### Coverage & Validation
+
+- [ ] T068 Run full test suite (`agdt-test` + `agdt-task-wait`) and verify 100% coverage for all modules under `agentic_devtools/cli/ci/` (NFR-001)
+- [ ] T069 Run `python scripts/validate_test_structure.py` to confirm 1:1:1 test layout compliance for all new test files
+- [ ] T070 Run `bash scripts/run-pr-checks.sh` — all checks must pass before push
+
+### Documentation
+
+- [ ] T071 Update `.github/copilot-instructions.md` — add CI module section documenting `agdt-ai-pr-loop`, `agdt-speckit-trigger` commands, provider abstraction, and feature flag
+- [ ] T072 Update `pyproject.toml` package metadata if needed — ensure `cli.ci` subpackage is included in package discovery
+- [ ] T073 Reconcile `agentic_devtools/cli/ci/__init__.py` exports — verify all public symbols from Phases 2–8 are re-exported and importable from the package root
+  (final reconciliation of T014's partial export; see F-05)
+
+### Missing Binary E2E
+
+- [ ] T074 [US5] Write integration test validating that when `agdt-ai-pr-loop` is not installed (binary missing from PATH), the minimized YAML workflow fails with a non-zero exit code and a clear
+  "command not found" error message within 5s (spec US5 acceptance scenario 2; complements T053 which covers the internal `gh` dependency failure mode)
+
+---
+
+## Dependency Graph
+
+```text
+T001–T004 (setup, sequential)
+    │
+    ▼
+T005–T006 (exceptions)
+    │
+    ├──► T007–T009 (models, parallelizable after exceptions)
+    ├──► T010–T011 (retry, parallelizable after exceptions)
+    │
+    ▼
+T012–T014 (provider ABC, depends on models + exceptions)
+    │
+    ├──► T015–T016 [US1] (ABC validation, after provider)
+    │
+    ├──► T017–T028 [US2] (GitHub provider, after provider ABC + retry)
+    │    │
+    │    ├──► T029–T035 [US3] (guards, parallel with provider impl)
+    │    │    │
+    │    │    ▼
+    │    └──► T036–T041 [US3] (orchestrator, after provider + guards)
+    │              │
+    │              ├──► T042–T043 [US3] (patch handler, after orchestrator)
+    │              │
+    │    T044–T047 [US4] (speckit trigger, parallel with orchestrator)
+    │              │
+    │              ▼
+    │         T048–T060 [US5] (CLI + templates + YAML, after orchestrator + speckit)
+    │              │
+    │              ▼
+    │         T061–T063 [US6] (ADO stub, after provider ABC)
+    │
+    ▼
+T064–T073 (polish, after all implementation phases)
+T074 (missing binary E2E, after T055 + T059)
+```
+
+---
+
+## Requirements Traceability
+
+| Requirement | Tasks |
+|---|---|
+| FR-001 (CIPlatformProvider ABC) | T012, T013, T014 |
+| FR-002 (GitHub Actions provider) | T017–T028 |
+| FR-003 (Orchestrator extraction) | T036–T041 |
+| FR-004 (Safety guards preserved) | T029–T035 |
+| FR-005 (CLI entry point) | T051, T052, T053, T054, T055, T074 |
+| FR-006 (SpecKit trigger extraction) | T044–T047 |
+| FR-007 (substitute_variables for templates) | T048–T050, T066 |
+| FR-008 (YAML minimization) | T059, T060, T067 |
+| FR-009 (Lint patch handling) | T042, T043 |
+| NFR-001 (100% coverage) | T068 |
+| NFR-002 (≤500ms latency delta) | T064 |
+| NFR-003 (Retry/backoff) | T010, T011, T027 |
+| NFR-004 (agdt-* naming) | T055 |
+| SC-001 (All inline JS covered by tests) | T036–T040, T065 |
+| SC-002 (≤50 lines YAML) | T059, T067 |
+| SC-003 (New provider without orchestrator changes) | T063 |
+| SC-004 (Golden-file E2E verification) | T017, T065 |
+| Edge: Malformed event | T005, T006, T018, T039 |
+| Edge: Rate limits | T010, T011, T027 |
+| Edge: No linked issue | T040 |
+| Migration: Feature flag | T057, T058 |
+| Migration: Parallel operation | T059 |
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*

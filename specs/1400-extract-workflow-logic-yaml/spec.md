@@ -32,7 +32,8 @@ library behind a CI-platform provider abstraction.
 - Q: Who owns event payload parsing — the provider or the orchestrator (EventPayload entity)? → A: The provider owns raw event parsing. Each `CIPlatformProvider` implementation MUST parse its
   platform-specific event format (e.g., GitHub webhook JSON, ADO service hook JSON) and return a normalized `EventPayload` dataclass. The orchestrator only consumes the normalized dataclass.
 - Q: How should end-to-end CI behavior equivalence be verified (SC-004) given production event logs may not be available? → A: Use recorded/synthetic webhook payloads committed as test fixtures under
-  `tests/fixtures/ci_events/`. Capture representative payloads from each supported event type (`pull_request`, `pull_request_review`, `issues.labeled`) during development. Production event logs are
+  `tests/fixtures/ci_events/`. Capture representative payloads from each supported event type (`pull_request`, `pull_request_review`, `issues` with `action="labeled"`,
+  `workflow_run`) during development. Production event logs are
   NOT required; golden-file fixtures provide deterministic, reproducible verification.
 - Q: What should the system do when a CI event payload is malformed or missing expected fields? → A: The provider MUST raise a `MalformedEventError` (custom exception inheriting from `ValueError`)
   with a descriptive message identifying the missing/invalid fields. The orchestrator MUST catch this and exit with a non-zero exit code and structured JSON error output to stderr. The workflow MUST
@@ -80,8 +81,8 @@ identical outputs to current inline JS logic.
 **Acceptance Scenarios**:
 
 1. **Given** a `pull_request_review` event payload, **When** the provider
-   resolves PR metadata, **Then** it returns the same `prNumber`, `headBranch`,
-   and `headSha` as the current inline JS.
+   resolves PR metadata, **Then** it returns the same `pr_number`, `head_branch`,
+   and `head_sha` values as the current inline JS.
 2. **Given** a label event, **When** the provider parses the trigger label,
    **Then** it matches the output of the current shell validation script.
 
@@ -157,9 +158,11 @@ the same orchestrator integration tests.
 
 1. **Given** an ADO pipeline trigger, **When** the provider resolves PR
    metadata, **Then** it returns an `EventPayload` containing the same fields
-   as the GitHub provider: `prNumber` (int), `headBranch` (str), `headSha`
-   (str, 40-char hex), `baseBranch` (str), `action` (str), `triggerLabel`
-   (Optional[str]), and `repositoryFullName` (str, `owner/repo` format).
+   as the GitHub provider: `pr_number` (int), `head_branch` (str), `head_sha`
+   (str, 40-char hex), `base_branch` (str), `action` (str), `trigger_label`
+   (Optional[str]), and `repository_full_name` (str, `owner/repo` format).
+   Field names are snake_case per codebase convention; camelCase is strictly
+   a JSON serialization/input concern handled by the mapping layer.
 
 ### Edge Cases
 
@@ -185,8 +188,11 @@ the same orchestrator integration tests.
 
 - **FR-001**: System MUST define a `CIPlatformProvider` abstract interface
   covering event parsing, PR metadata, check-status queries, and comment posting.
-  The interface MUST include a `parse_event(raw_payload: dict) -> EventPayload`
-  method that returns a normalized `EventPayload` dataclass on success, or raises
+  The interface MUST include a
+  `parse_event(raw_payload: dict, event_name: str) -> EventPayload` method
+  that accepts the raw platform-specific payload and the event type name
+  (e.g., `"pull_request"`, `"pull_request_review"`, `"issues"`), returns a
+  normalized `EventPayload` dataclass on success, or raises
   `MalformedEventError` when the payload is missing required fields or
   structurally invalid.
 - **FR-002**: System MUST implement a GitHub Actions provider satisfying the
@@ -200,12 +206,25 @@ the same orchestrator integration tests.
     and `.github/scripts/` (excluding `*.md` files within those directories).
     Changes to these paths require explicit human approval.
   - **Docker-file guard**: Force human intervention when diffs modify
-    `Dockerfile`, `docker-compose.yml`, or `docker-compose.yaml` files, since
-    container definition changes carry deployment risk that automated review
-    cannot fully assess.
+    `Dockerfile`, `Dockerfile.*` (multi-stage variants), `docker-compose.yml`,
+    `docker-compose.yaml`, or `.dockerignore` files, since container definition
+    and build-context changes carry deployment risk that automated review
+    cannot fully assess. **Note**: The `Dockerfile.*` and `.dockerignore`
+    patterns are an intentional safety hardening beyond the current
+    `ai-pr-loop.yml` guard scope; this is a documented exception to SC-004's
+    "identical behavior" criterion (see SC-004 exception clause below).
+  - **Exclusion-label guard**: Skip PR processing entirely when the PR carries
+    the `ai-pr-loop-ignore` label. When the `do-not-auto-merge` label is
+    present, continue review but block the automated merge step.
+  - **Fork-PR guard**: Skip automated processing when the PR head repository
+    differs from the base repository (fork PRs), since fork PRs do not have
+    access to repository secrets required for CI operations.
+  - **Cycle-limit guard**: Halt automated processing when the PR loop iteration
+    count (tracked via a `<!-- ai-pr-loop-cycle-tracker -->` marker comment)
+    exceeds `MAX_CYCLE_LIMIT` (default: 50) to prevent runaway automation.
   - **Deduplication guard**: Skip processing when the same PR head SHA has
     already been processed up to `MAX_DISPATCHES_PER_SHA` times (default: 3).
-    Deduplication is tracked via a marker comment posted per `headSha` on the
+    Deduplication is tracked via a marker comment posted per `head_sha` on the
     PR — there is no time-based expiry window.
   - **Review condition**: Block merge unless the required number of approving
     reviews is met and no "changes requested" reviews are outstanding.
@@ -224,10 +243,18 @@ the same orchestrator integration tests.
   - `ai-pr-loop.yml`: ≤50 lines (see SC-002).
   - All other affected workflow YAMLs (e.g., SpecKit trigger workflows): ≤30
     lines each, since they have fewer trigger/permission combinations.
+- **FR-009**: System MUST extract lint patch handling into a reusable module
+  (`patch_handler.py`) that downloads, validates, and applies lint-fix patches
+  generated by CI check annotations. The module MUST:
+  - Download patch content from check-run annotation URLs via the provider.
+  - Validate patch integrity (non-empty, applies cleanly to the working tree).
+  - Apply the patch and stage the resulting changes.
+  - Raise a descriptive error if download fails or the patch does not apply
+    cleanly.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: Extracted modules MUST achieve ≥95% unit test coverage.
+- **NFR-001**: Extracted modules MUST achieve 100% unit test coverage.
 - **NFR-002**: Orchestration latency MUST NOT increase by more than 500ms
   compared to current inline execution. Measurement methodology:
   - **Baseline**: Record wall-clock time from workflow step start to first
@@ -245,7 +272,10 @@ the same orchestrator integration tests.
   honor the `Retry-After` header. After max retries, providers MUST raise
   `ProviderRateLimitError`.
 - **NFR-004**: CLI commands MUST follow existing `agdt-*` naming and background
-  task conventions.
+  task conventions. **Exception**: CLI commands invoked as CI workflow steps
+  (e.g., `agdt-ai-pr-loop`) MUST execute synchronously (not as background
+  tasks) so that the CI step blocks until completion and returns the correct
+  exit code to the workflow runner.
 
 ### Key Entities
 
@@ -303,7 +333,13 @@ the same orchestrator integration tests.
 - **SC-004**: End-to-end CI behavior remains identical as verified by golden-file
   test fixtures (recorded/synthetic webhook payloads committed under
   `tests/fixtures/ci_events/`) covering all supported event types
-  (`pull_request`, `pull_request_review`, `issues.labeled`).
+  (`pull_request`, `pull_request_review`, `issues` with `action="labeled"`, `workflow_run`).
+  **Exception**: The Docker-file guard expansion (`Dockerfile.*`,
+  `.dockerignore`) is an intentional safety hardening that constitutes a
+  documented, net-positive deviation from the current inline JS behavior.
+  Golden-file tests for PRs touching these additional patterns MUST verify
+  the new (stricter) guard behavior rather than replicating the old (narrower)
+  scope.
 
 ---
 
