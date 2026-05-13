@@ -19,6 +19,11 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 
 ### For Manual Use
 
+> **Transition note**: The scripts below are repo-local helpers that remain
+> available today. Once the extension package (`speckit-ext-agdt`) is published
+> and installed via `specify install`, these scripts will be superseded by
+> the extension's built-in commands.
+
 ```bash
 # Create new feature (pass the GitHub issue number)
 .specify/scripts/bash/create-new-feature.sh --issue 1175 "feature-name"
@@ -33,12 +38,33 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 .specify/scripts/bash/update-agent-context.sh
 ```
 
+### Package Management (Post-Migration)
+
+> **Command namespacing**: After migration, AGDT-customized commands will
+> use the `agdt:` prefix (e.g., `/speckit.agdt:plan`, `/speckit.agdt:tasks`)
+> instead of the current `/speckit.plan`, `/speckit.tasks` names. See
+> T007/T010/T019 in the migration tasks for details.
+
+```bash
+# Install extension + preset (reads .specify/config.yml)
+specify install
+
+# Check compatibility and health
+specify doctor
+
+# Upgrade spec-kit core (does not change extension/preset)
+specify upgrade
+```
+
 ## Directory Structure
 
 ```text
 .specify/
+├── config.yml                   # Version pins for extension + preset
 ├── memory/constitution.md       # Project governance
-├── templates/                   # All SDD templates
+├── memory/markdown-rules.md     # Markdown formatting rules
+├── SDD_QUICK_REFERENCE.md       # This file
+├── templates/                   # Template overrides (preset provides defaults)
 │   ├── spec-template.md
 │   ├── plan-template.md
 │   ├── tasks-template.md
@@ -223,4 +249,11 @@ agdt-task-status
 
 - [GitHub spec-kit](https://github.com/github/spec-kit)
 - [Full Documentation](https://github.github.io/spec-kit/)
-- [Local Guide](SPEC_DRIVEN_DEVELOPMENT.md)
+- [Local Guide](../SPEC_DRIVEN_DEVELOPMENT.md)
+- [AGDT Extension](https://github.com/ayaiayorg/speckit-ext-agdt) — Commands and scripts
+- [AGDT Preset](https://github.com/ayaiayorg/speckit-preset-agdt) — Template overrides
+- [Migration Inventory](../docs/speckit-migration-inventory.md) — File categorization
+
+> **Note**: The AGDT Extension and Preset links above are placeholder
+> repositories that may 404 until published (see T016/T017 in the
+> [migration issue](https://github.com/ayaiayorg/agentic-devtools/issues/1408)).
