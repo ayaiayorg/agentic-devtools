@@ -31,8 +31,15 @@ _MAX_VERIFY_RETRIES = 3
 _INITIAL_BACKOFF_SECONDS = 2.0
 
 
-def _login_matches(login: str) -> bool:
-    """Return ``True`` if *login* matches the Copilot reviewer bot (case-insensitive)."""
+def _login_matches(login: str | None) -> bool:
+    """Return ``True`` if *login* matches the Copilot reviewer bot (case-insensitive).
+
+    Accepts ``None`` gracefully (returns ``False``) since JSON values retrieved
+    via ``dict.get("key", "")`` can still be ``None`` when the key exists with
+    a null value.
+    """
+    if not login:
+        return False
     return login.lower() == COPILOT_REVIEWER_LOGIN.lower()
 
 
