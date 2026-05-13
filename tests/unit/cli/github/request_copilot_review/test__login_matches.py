@@ -29,6 +29,10 @@ class TestLoginMatches:
         """Returns False for empty string."""
         assert _login_matches("") is False
 
+    def test_none_returns_false(self):
+        """Returns False for None input (JSON null values)."""
+        assert _login_matches(None) is False
+
     def test_partial_match(self):
         """Returns False for partial match."""
         assert _login_matches("copilot-pull-request-reviewer") is False
