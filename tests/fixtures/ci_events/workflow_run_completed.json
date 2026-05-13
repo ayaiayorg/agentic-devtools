@@ -1,0 +1,25 @@
+{
+  "action": "completed",
+  "workflow_run": {
+    "id": 9876543,
+    "name": "CI",
+    "head_branch": "feature/new-feature",
+    "head_sha": "abc123def456789012345678901234567890abcd",
+    "conclusion": "success",
+    "pull_requests": [
+      {
+        "number": 42,
+        "head": {
+          "ref": "feature/new-feature",
+          "sha": "abc123def456789012345678901234567890abcd"
+        },
+        "base": {
+          "ref": "main"
+        }
+      }
+    ]
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}

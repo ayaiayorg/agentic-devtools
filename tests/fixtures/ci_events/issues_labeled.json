@@ -1,0 +1,17 @@
+{
+  "action": "labeled",
+  "label": {
+    "name": "speckit-ready"
+  },
+  "issue": {
+    "number": 100,
+    "title": "Feature request",
+    "labels": [
+      {"name": "speckit-ready"},
+      {"name": "enhancement"}
+    ]
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}
