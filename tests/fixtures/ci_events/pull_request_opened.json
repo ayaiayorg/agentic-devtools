@@ -1,0 +1,29 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "feat: add new feature",
+    "head": {
+      "ref": "feature/new-feature",
+      "sha": "abc123def456789012345678901234567890abcd",
+      "repo": {
+        "full_name": "owner/repo"
+      }
+    },
+    "base": {
+      "ref": "main",
+      "repo": {
+        "full_name": "owner/repo"
+      }
+    },
+    "labels": [
+      {"name": "enhancement"}
+    ],
+    "draft": false,
+    "mergeable": true
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}

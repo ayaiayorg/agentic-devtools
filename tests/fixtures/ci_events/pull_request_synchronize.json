@@ -1,0 +1,27 @@
+{
+  "action": "synchronize",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "feat: add new feature",
+    "head": {
+      "ref": "feature/new-feature",
+      "sha": "def456abc789012345678901234567890abcdef01",
+      "repo": {
+        "full_name": "owner/repo"
+      }
+    },
+    "base": {
+      "ref": "main",
+      "repo": {
+        "full_name": "owner/repo"
+      }
+    },
+    "labels": [],
+    "draft": false,
+    "mergeable": null
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}

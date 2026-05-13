@@ -35,6 +35,43 @@ def get_prompts_dir() -> Path:
     return Path(__file__).parent
 
 
+def load_ci_template(template_name: str) -> str:
+    """
+    Load a CI comment template from the prompts/ci/ subdirectory.
+
+    This helper only loads raw template content (reads the file from disk
+    and returns the string). It does NOT perform variable substitution.
+    Callers are responsible for invoking ``substitute_variables(template, variables)``
+    separately with the appropriate variables dict.
+
+    Args:
+        template_name: Template filename (e.g., "timeout-comment.md").
+
+    Returns:
+        Raw template content as a string.
+
+    Raises:
+        FileNotFoundError: If the template file does not exist.
+        ValueError: If the template name contains path separators or escapes
+            the prompts/ci directory.
+    """
+    # Validate template_name is a simple filename (no path separators)
+    if "/" in template_name or "\\" in template_name or template_name != Path(template_name).name:
+        raise ValueError(
+            f"Invalid template name (must be a simple filename): {template_name!r}"
+        )
+    ci_dir = get_prompts_dir() / "ci"
+    template_path = (ci_dir / template_name).resolve()
+    # Ensure resolved path stays within the ci directory
+    if not template_path.is_relative_to(ci_dir.resolve()):
+        raise ValueError(
+            f"Template path escapes prompts/ci directory: {template_name!r}"
+        )
+    if not template_path.exists():
+        raise FileNotFoundError(f"CI template not found: {template_path}")
+    return template_path.read_text(encoding="utf-8")
+
+
 def get_temp_output_dir() -> Path:
     """
     Get the temp directory for generated prompts.
