@@ -1,0 +1,451 @@
+name: Workflow Approval Monitor
+
+# Scheduled monitor that programmatically approves workflow runs for trusted
+# bot-authored PRs that are stuck in action_required state. This is the
+# automated fallback for when collaborator-based auto-approval (FR-001/FR-002)
+# is insufficient due to org-level policy overrides.
+#
+# Architecture:
+# 1. Loads trusted bot allow-list from .github/ai-pr-loop-config.json
+# 2. Lists recent lint workflow runs with conclusion=action_required
+# 3. Validates PR author is in trusted list and PR is same-repo (not fork)
+# 4. Approves eligible runs via REST API
+# 5. Tracks retry count per (pr_number, head_sha) via PR comment markers
+# 6. Falls back to synthetic review path after max retries exhausted
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  actions: read
+  pull-requests: read
+  issues: write
+  contents: read
+
+concurrency:
+  group: workflow-approval-monitor
+  cancel-in-progress: false
+
+jobs:
+  approve-trusted-runs:
+    name: Approve Trusted Bot Workflow Runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Approve pending workflow runs
+        uses: actions/github-script@v7
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const MAX_RETRIES = 3;
+            const THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes (FR-004)
+
+            // ── Step 1: Load config file (FR-007) ──
+            let config;
+            let trustedAccounts;
+            try {
+              const { data: configFile } = await github.rest.repos.getContent({
+                owner, repo,
+                path: '.github/ai-pr-loop-config.json',
+              });
+              if (!configFile.content || Array.isArray(configFile)) {
+                core.setFailed('Config path did not resolve to a file with content.');
+                return;
+              }
+              const content = Buffer.from(configFile.content, 'base64').toString('utf-8');
+              config = JSON.parse(content);
+              trustedAccounts = config.trusted_bot_accounts;
+              if (!Array.isArray(trustedAccounts) || trustedAccounts.length === 0) {
+                core.setFailed('Config file has empty or invalid trusted_bot_accounts array.');
+                return;
+              }
+              // Validate each entry is a non-empty string (fail fast on malformed config)
+              const invalidEntries = trustedAccounts.filter(
+                entry => typeof entry !== 'string' || entry.trim() === ''
+              );
+              if (invalidEntries.length > 0) {
+                core.setFailed(`Config trusted_bot_accounts contains invalid entries: ${JSON.stringify(invalidEntries)}`);
+                return;
+              }
+              // Reject entries containing wildcard characters (security: prevent overly broad patterns)
+              const wildcardEntries = trustedAccounts.filter(
+                entry => /[*?]/.test(entry)
+              );
+              if (wildcardEntries.length > 0) {
+                core.setFailed(`Config trusted_bot_accounts contains wildcard characters: ${JSON.stringify(wildcardEntries)}`);
+                return;
+              }
+              core.info(`Loaded ${trustedAccounts.length} trusted accounts: ${trustedAccounts.join(', ')}`);
+            } catch (error) {
+              core.setFailed(`Failed to load config: ${error.message}`);
+              return;
+            }
+
+            // ── Step 2: List workflow runs and filter for action_required (FR-004) ──
+            // Lookback window is configurable via config.lookback_hours (default: 48h).
+            // Using a generous default ensures runs are not missed if the monitor
+            // is temporarily disabled or delayed.
+            const lookbackHours = (config.lookback_hours && Number.isFinite(config.lookback_hours) && config.lookback_hours > 0)
+              ? config.lookback_hours
+              : 48;
+            const cutoffTime = Date.now() - lookbackHours * 60 * 60 * 1000;
+            let stuckRuns = [];
+            try {
+              const MAX_PAGES = 10;
+              let page = 1;
+              let stopPaginating = false;
+              while (!stopPaginating && page <= MAX_PAGES) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner, repo,
+                  workflow_id: 'ai-pr-loop-lint.yml',
+                  status: 'completed',
+                  per_page: 100,
+                  page,
+                });
+                const runs = data.workflow_runs;
+                if (runs.length === 0) break;
+                for (const run of runs) {
+                  const runCreated = new Date(run.created_at).getTime();
+                  if (runCreated < cutoffTime) {
+                    stopPaginating = true;
+                    break;
+                  }
+                  if (run.conclusion === 'action_required') {
+                    stuckRuns.push(run);
+                  }
+                }
+                page++;
+              }
+              core.info(`Found ${stuckRuns.length} run(s) with conclusion=action_required (scanned ${page - 1} page(s)).`);
+            } catch (error) {
+              core.setFailed(`Failed to list workflow runs: ${error.message}`);
+              return;
+            }
+
+            if (stuckRuns.length === 0) {
+              core.info('No stuck runs found — nothing to approve.');
+              return;
+            }
+
+            // ── Process each stuck run ──
+            for (const run of stuckRuns) {
+              const runStarted = new Date(run.run_started_at || run.created_at).getTime();
+              const ageMs = Date.now() - runStarted;
+
+              // Skip runs newer than threshold (FR-004)
+              if (ageMs < THRESHOLD_MS) {
+                core.info(`Run ${run.id} is only ${Math.round(ageMs / 1000)}s old — below 2-min threshold, skipping.`);
+                continue;
+              }
+
+              // ── Step 3: Resolve PR and check author eligibility (FR-001/FR-002) ──
+              const prRef = run.pull_requests && run.pull_requests[0];
+              if (!prRef) {
+                core.info(`Run ${run.id} has no associated PR — skipping.`);
+                continue;
+              }
+
+              let pr;
+              try {
+                const { data: prData } = await github.rest.pulls.get({
+                  owner, repo,
+                  pull_number: prRef.number,
+                });
+                pr = prData;
+              } catch (error) {
+                core.warning(`Failed to fetch PR #${prRef.number} for run ${run.id}: ${error.message}`);
+                continue;
+              }
+
+              // Fork check — only approve same-repo PRs
+              // Guard against null repos (e.g., deleted forks where head.repo is null)
+              if (!pr.head.repo || !pr.base.repo || pr.head.repo.full_name !== pr.base.repo.full_name) {
+                core.info(`Run ${run.id} is from fork PR #${pr.number} — skipping (security: fork PRs excluded).`);
+                continue;
+              }
+
+              // Author check — case-insensitive match against trusted list
+              const prAuthor = pr.user.login.toLowerCase();
+              const isTrusted = trustedAccounts.some(
+                account => account.toLowerCase() === prAuthor
+              );
+              if (!isTrusted) {
+                core.info(`Run ${run.id} PR #${pr.number} author "${pr.user.login}" not in trusted list — skipping.`);
+                continue;
+              }
+
+              // ── Step 4: Idempotency guard (FR-008) ──
+              // Re-verify conclusion is still action_required before approving
+              try {
+                const { data: currentRun } = await github.rest.actions.getWorkflowRun({
+                  owner, repo,
+                  run_id: run.id,
+                });
+                if (currentRun.conclusion !== 'action_required') {
+                  const auditEntry = {
+                    event: 'workflow_approval',
+                    actor: 'workflow-approval-monitor',
+                    timestamp: new Date().toISOString(),
+                    pr_number: pr.number,
+                    run_id: run.id,
+                    head_sha: run.head_sha,
+                    source: 'programmatic',
+                    result: 'skipped',
+                    reason: `Run conclusion changed to ${currentRun.conclusion} (no longer action_required)`,
+                  };
+                  core.info(JSON.stringify(auditEntry));
+                  continue;
+                }
+              } catch (error) {
+                core.warning(`Failed to re-check run ${run.id} status: ${error.message}`);
+                continue;
+              }
+
+              // ── Step 5: Check retry count via PR comment markers (NFR-006) ──
+              const markerPattern = `<!-- workflow-approval-retry:${run.head_sha}:`;
+              let retryCount = 0;
+              let markerCommentId = null;
+
+              try {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner, repo,
+                  issue_number: pr.number,
+                  per_page: 100,
+                });
+                const markerComment = comments.find(
+                  c => c.body && c.body.includes(markerPattern)
+                );
+                if (markerComment) {
+                  markerCommentId = markerComment.id;
+                  const countMatch = markerComment.body.match(
+                    /<!-- workflow-approval-retry:[a-f0-9]+:(\d+) -->/
+                  );
+                  retryCount = countMatch ? parseInt(countMatch[1], 10) : 0;
+                }
+              } catch (error) {
+                core.warning(`Failed to check retry markers for PR #${pr.number}: ${error.message}`);
+              }
+
+              if (retryCount >= MAX_RETRIES) {
+                core.info(`Run ${run.id} PR #${pr.number} SHA ${run.head_sha.slice(0, 7)} — retry limit (${MAX_RETRIES}) reached, skipping.`);
+                continue;
+              }
+
+              // ── Step 6: Approve the workflow run (FR-003) ──
+              let approvalResult = 'success';
+              let approvalReason = null;
+
+              try {
+                // Use COPILOT_GITHUB_TOKEN for the approve API call (FR-003/NFR-003)
+                const token = process.env.COPILOT_GITHUB_TOKEN;
+                if (!token) {
+                  throw new Error('COPILOT_GITHUB_TOKEN secret is not configured');
+                }
+                const response = await fetch(
+                  `https://api.github.com/repos/${owner}/${repo}/actions/runs/${run.id}/approve`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'workflow-approval-monitor',
+                    },
+                  }
+                );
+
+                if (response.status === 201 || response.status === 202) {
+                  core.info(`✅ Approved run ${run.id} for PR #${pr.number} (SHA: ${run.head_sha.slice(0, 7)})`);
+                } else if (response.status === 403) {
+                  const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+                  const retryAfter = response.headers.get('retry-after');
+                  let responseBody = '';
+                  try { responseBody = await response.text(); } catch (_) { /* ignore */ }
+
+                  if (rateLimitRemaining === '0' || retryAfter) {
+                    // Rate-limited — do not consume a retry
+                    approvalResult = 'skipped';
+                    approvalReason = `Rate-limited (403) — retry-after: ${retryAfter || 'n/a'}, will retry next cycle`;
+                    core.info(`⏳ Run ${run.id} rate-limited: ${approvalReason}`);
+                  } else {
+                    approvalResult = 'failure';
+                    const detail = responseBody ? ` — ${responseBody.slice(0, 200)}` : '';
+                    approvalReason = `Permission denied (403)${detail}`;
+                    core.warning(`❌ Failed to approve run ${run.id}: ${approvalReason}`);
+                  }
+                } else if (response.status === 429) {
+                  // Rate-limited (429) — do not consume a retry, will retry next cycle
+                  const retryAfter429 = response.headers.get('retry-after');
+                  approvalResult = 'skipped';
+                  approvalReason = `Rate-limited (429) — retry-after: ${retryAfter429 || 'n/a'}, will retry next cycle`;
+                  core.info(`⏳ Run ${run.id} rate-limited: ${approvalReason}`);
+                } else if (response.status === 404 || response.status === 409) {
+                  approvalResult = 'skipped';
+                  approvalReason = `Run not approvable (HTTP ${response.status})`;
+                  core.info(`⏭️ Run ${run.id} not approvable: ${approvalReason}`);
+                } else {
+                  approvalResult = 'failure';
+                  approvalReason = `Unexpected HTTP ${response.status}`;
+                  core.warning(`❌ Failed to approve run ${run.id}: ${approvalReason}`);
+                }
+              } catch (error) {
+                approvalResult = 'failure';
+                approvalReason = error.message;
+                core.warning(`❌ Failed to approve run ${run.id}: ${error.message}`);
+              }
+
+              // ── Step 7: Structured audit logging (FR-005) ──
+              const auditEntry = {
+                event: 'workflow_approval',
+                actor: 'workflow-approval-monitor',
+                timestamp: new Date().toISOString(),
+                pr_number: pr.number,
+                run_id: run.id,
+                head_sha: run.head_sha,
+                source: 'programmatic',
+                result: approvalResult,
+                reason: approvalReason,
+              };
+              core.info(JSON.stringify(auditEntry));
+
+              // ── Step 8: Update retry tracking (NFR-006) ──
+              if (approvalResult === 'failure') {
+                const newCount = retryCount + 1;
+                const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${run.id}`;
+                const actionsUrl = `https://github.com/${owner}/${repo}/actions`;
+
+                if (newCount >= MAX_RETRIES) {
+                  // Post failure notification after max retries
+                  const failureBody = [
+                    `<!-- workflow-approval-retry:${run.head_sha}:${newCount} -->`,
+                    `## ⚠️ Workflow Approval Failed`,
+                    ``,
+                    `Automated workflow approval failed after ${MAX_RETRIES} attempts for SHA \`${run.head_sha.slice(0, 7)}\`.`,
+                    ``,
+                    `**Stuck run**: [Run #${run.id}](${runUrl})`,
+                    `**Reason**: ${approvalReason}`,
+                    ``,
+                    `Please approve the workflow run manually:`,
+                    `1. Go to the [Actions tab](${actionsUrl})`,
+                    `2. Find the pending run and click "Approve and run"`,
+                  ].join('\n');
+
+                  try {
+                    if (markerCommentId) {
+                      await github.rest.issues.updateComment({
+                        owner, repo,
+                        comment_id: markerCommentId,
+                        body: failureBody,
+                      });
+                    } else {
+                      await github.rest.issues.createComment({
+                        owner, repo,
+                        issue_number: pr.number,
+                        body: failureBody,
+                      });
+                    }
+                  } catch (commentError) {
+                    const commentAudit = {
+                      event: 'retry_tracking_comment_failed',
+                      actor: 'workflow-approval-monitor',
+                      timestamp: new Date().toISOString(),
+                      pr_number: pr.number,
+                      run_id: run.id,
+                      head_sha: run.head_sha,
+                      error: commentError.message,
+                    };
+                    core.warning(`Failed to post retry tracking comment for PR #${pr.number}: ${commentError.message}`);
+                    core.info(JSON.stringify(commentAudit));
+                  }
+                  core.warning(`Retry limit reached for PR #${pr.number} SHA ${run.head_sha.slice(0, 7)} — posted failure notice.`);
+                } else {
+                  // Update retry counter
+                  const retryBody = [
+                    `<!-- workflow-approval-retry:${run.head_sha}:${newCount} -->`,
+                    `🔄 Workflow approval attempt ${newCount}/${MAX_RETRIES} failed for SHA \`${run.head_sha.slice(0, 7)}\`.`,
+                    `**Reason**: ${approvalReason}`,
+                    `Will retry on next monitor cycle.`,
+                  ].join('\n');
+
+                  try {
+                    if (markerCommentId) {
+                      await github.rest.issues.updateComment({
+                        owner, repo,
+                        comment_id: markerCommentId,
+                        body: retryBody,
+                      });
+                    } else {
+                      await github.rest.issues.createComment({
+                        owner, repo,
+                        issue_number: pr.number,
+                        body: retryBody,
+                      });
+                    }
+                  } catch (commentError) {
+                    const commentAudit = {
+                      event: 'retry_tracking_comment_failed',
+                      actor: 'workflow-approval-monitor',
+                      timestamp: new Date().toISOString(),
+                      pr_number: pr.number,
+                      run_id: run.id,
+                      head_sha: run.head_sha,
+                      error: commentError.message,
+                    };
+                    core.warning(`Failed to update retry counter comment for PR #${pr.number}: ${commentError.message}`);
+                    core.info(JSON.stringify(commentAudit));
+                  }
+                }
+              }
+
+              // ── Step 9: Graceful degradation fallback (FR-006) ──
+              // If approval has been failing and retries exhausted, trigger the
+              // pull_request_review fallback path via synthetic review
+              if (approvalResult === 'failure' && retryCount + 1 >= MAX_RETRIES) {
+                const specKitToken = process.env.SPECKIT_PR_TOKEN;
+                if (specKitToken) {
+                  try {
+                    const syntheticBody = [
+                      `<!-- synthetic-copilot-review -->`,
+                      `<!-- workflow-approval-fallback -->`,
+                      `Workflow approval monitor fallback: lint workflow stuck in action_required state ` +
+                      `after ${MAX_RETRIES} approval attempts. Triggering pull_request_review path.`,
+                    ].join('\n');
+
+                    const reviewResponse = await fetch(
+                      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${specKitToken}`,
+                          'Accept': 'application/vnd.github+json',
+                          'Content-Type': 'application/json',
+                          'X-GitHub-Api-Version': '2022-11-28',
+                          'User-Agent': 'workflow-approval-monitor',
+                        },
+                        body: JSON.stringify({
+                          event: 'COMMENT',
+                          body: syntheticBody,
+                        }),
+                      }
+                    );
+                    if (reviewResponse.ok) {
+                      core.info(`Posted synthetic review fallback for PR #${pr.number} to trigger pull_request_review path.`);
+                    } else {
+                      const reviewText = await reviewResponse.text();
+                      core.warning(`Synthetic review fallback failed for PR #${pr.number}: HTTP ${reviewResponse.status} — ${reviewText}`);
+                    }
+                  } catch (error) {
+                    core.warning(`Failed to post synthetic review fallback: ${error.message}`);
+                  }
+                } else {
+                  core.info('SPECKIT_PR_TOKEN not available — skipping synthetic review fallback.');
+                }
+              }
+            }
