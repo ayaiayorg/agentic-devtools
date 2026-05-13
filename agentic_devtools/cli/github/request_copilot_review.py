@@ -242,6 +242,7 @@ def request_copilot_review(pr_number: int, repo: str) -> dict:
         )
         sys.exit(1)
 
+    repo = validated
     owner, repo_name = validated.split("/")
 
     # --- POST the review request ---

@@ -185,6 +185,7 @@ class TestRequestCopilotReview:
         """Repo with .git suffix is accepted and normalized."""
         result = request_copilot_review(42, "owner/repo.git")
         assert result["requested"] is True
+        assert result["repo"] == "owner/repo"
         # _post_review_request should receive the normalized repo name
         mock_post.assert_called_once_with(42, "owner", "repo")
 
@@ -196,4 +197,5 @@ class TestRequestCopilotReview:
         """Repo with leading/trailing whitespace is accepted and normalized."""
         result = request_copilot_review(42, "  owner/repo  ")
         assert result["requested"] is True
+        assert result["repo"] == "owner/repo"
         mock_post.assert_called_once_with(42, "owner", "repo")
