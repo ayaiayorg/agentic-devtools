@@ -81,6 +81,11 @@ Edit `specs/ISSUE-feature-name/spec.md`:
 
 ### 4. Create Implementation Plan
 
+> **Note**: The command names below (e.g., `/speckit.plan`) reflect the
+> current pre-migration setup. After migration, AGDT-specific commands
+> will be namespaced as `/speckit.agdt:<command>` — see
+> [Extension & Preset Architecture](#extension--preset-architecture).
+
 AI assistants can use the `/speckit.plan` command:
 
 ```text
@@ -131,15 +136,119 @@ AI assistant will:
 - Run tests continuously
 - Update documentation
 
+## Extension & Preset Architecture
+
+The SDD infrastructure uses a **split-package model** to maintain upstream
+spec-kit compatibility while preserving AGDT-specific customizations:
+
+> **Placeholder links**: The `speckit-ext-agdt` and `speckit-preset-agdt`
+> repositories listed below are not yet created (see T001/T002 and T016/T017
+> in the migration tasks). Links may 404 until those tasks are completed.
+
+| Package | Repository | Purpose |
+|---------|-----------|---------|
+| spec-kit core | [github/spec-kit](https://github.com/github/spec-kit) | Base SDD framework (upstream) |
+| `speckit-ext-agdt` | [ayaiayorg/speckit-ext-agdt](https://github.com/ayaiayorg/speckit-ext-agdt) | AGDT commands and scripts |
+| `speckit-preset-agdt` | [ayaiayorg/speckit-preset-agdt](https://github.com/ayaiayorg/speckit-preset-agdt) | AGDT template overrides |
+
+Version pins are declared in `.specify/config.yml` for reproducible builds.
+See [#1408](https://github.com/ayaiayorg/agentic-devtools/issues/1408) for
+current migration status.
+
+### Installation & Setup (Post-Migration)
+
+> **Not yet available**: The steps below require the extension and preset
+> packages to be published (see T016/T017 in the migration tasks). Until
+> then, use the repo-local scripts in `.specify/scripts/` and templates
+> in `.specify/templates/` directly.
+
+After cloning agentic-devtools, install the extension and preset:
+
+```bash
+# Install spec-kit core (if not already installed)
+npm install -g @github/spec-kit
+
+# Install the AGDT extension and preset (reads .specify/config.yml)
+specify install
+```
+
+This installs the pinned versions of both packages. After migration,
+AGDT-specific commands will be namespaced with an `agdt:` prefix
+(e.g., `/speckit.agdt:plan`, `/speckit.agdt:tasks`) to avoid collision
+with spec-kit core commands (see T007/T010/T019 in the migration tasks).
+The AGDT extension adds custom scripts and lifecycle hooks invoked via
+spec-kit's extension system; template overrides from the preset become
+available immediately.
+
+### When to Edit Preset vs Local Override
+
+| Scenario | Where to Edit | Why |
+|----------|---------------|-----|
+| Change applies to all AGDT users | `speckit-preset-agdt` repo → publish new version | Shared improvement |
+| Change is specific to your fork/branch | Create a local override in `.specify/templates/` | Won't affect others |
+| New template section needed | `speckit-preset-agdt` repo | Template structure change |
+| One-off experiment | Local `.specify/templates/` override | Temporary, not shared |
+
+**Local overrides**: Place a file with the same name in `.specify/templates/`
+to override the preset version. Local files take precedence over preset
+templates.
+
+### Upgrade Strategy
+
+#### Upgrading spec-kit core
+
+```bash
+# Check for available updates
+specify doctor
+
+# Upgrade core (extension/preset versions remain pinned)
+specify upgrade
+```
+
+Core upgrades do not affect extension or preset files — they are managed
+separately via version pins.
+
+#### Upgrading the extension or preset
+
+1. Review the changelog in the package repository
+2. Assess breaking changes against current workflows
+3. Update the version pin in `.specify/config.yml`:
+
+   ```yaml
+   extensions:
+     speckit-ext-agdt: "1.1.0"  # Updated from 1.0.0
+   ```
+
+4. Run `specify install` to apply the update
+5. Run `specify doctor` to verify compatibility
+6. Test all SDD commands work correctly
+
+#### Rollback procedure
+
+If an upgrade causes issues, revert the version pin in `.specify/config.yml`
+and run `specify install` again.
+
 ## Repository SDD Assets
 
-The `.specify/` directory contains the SDD templates and helper scripts:
+> **Transition note**: The extension and preset packages (`speckit-ext-agdt`,
+> `speckit-preset-agdt`) are not yet published. Until they are, the
+> `.specify/templates/` and `.specify/scripts/` directories remain the
+> canonical source for all templates and commands. Once the packages are
+> published and installed via `specify install`, the repo-local files will be
+> superseded and can be removed (see Phase 9 in the migration tasks).
+
+The `.specify/` directory contains local per-project configuration and memory.
+After migration, commands and templates will be managed by the extension and
+preset packages:
 
 ```text
 .specify/
+├── config.yml               # Version pins for extension + preset
 ├── memory/
-│   └── constitution.md      # Project principles and governance
-├── templates/
+│   ├── constitution.md      # Project principles and governance
+│   └── markdown-rules.md    # Markdown formatting rules
+├── SDD_QUICK_REFERENCE.md   # Quick reference (local docs)
+├── templates/               # Template overrides (preset provides defaults)
 │   ├── spec-template.md     # Feature specification template
 │   ├── plan-template.md     # Implementation plan template
 │   ├── tasks-template.md    # Task breakdown template
@@ -148,7 +257,13 @@ The `.specify/` directory contains the SDD templates and helper scripts:
 └── scripts/                 # Helper scripts (bash & PowerShell)
 ```
 
-### SDD Command Templates
+### SDD Command Templates (Current, Pre-Migration)
+
+> **Pre-migration commands**: The command names below reflect the current
+> repo-local setup. After migration (T007/T010/T019), these will be
+> namespaced as `/speckit.agdt:<command>` (e.g., `/speckit.agdt:plan`).
+> See [Extension & Preset Architecture](#extension--preset-architecture)
+> for details.
 
 AI assistants can use these command templates (in
 `.specify/templates/commands/`):
@@ -203,7 +318,11 @@ agentic-devtools/
 
   “Developer‑only”, “End‑User”).
 
-## SDD Commands for AI Assistants
+## SDD Commands for AI Assistants (Current, Pre-Migration)
+
+> **Pre-migration commands**: The command names below reflect the current
+> repo-local setup. After migration (T007/T010/T019), these will be
+> namespaced as `/speckit.agdt:<command>` (e.g., `/speckit.agdt:plan`).
 
 These slash commands are available when properly configured:
 

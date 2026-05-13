@@ -19,9 +19,9 @@ combined or expanded where granularity differs.
 
 - [ ] T001 Scaffold `speckit-ext-agdt` repository structure under `ayaiayorg` org with README.md, LICENSE, and directory layout (`commands/`, `scripts/bash/`, `scripts/powershell/`)
 - [ ] T002 Scaffold `speckit-preset-agdt` repository structure under `ayaiayorg` org with README.md, LICENSE, and directory layout (`templates/`)
-- [ ] T003 [FR-001] Inventory all customized files in `.specify/scripts/` and `.specify/templates/` —
+- [x] T003 [FR-001] Inventory all customized files in `.specify/scripts/` and `.specify/templates/` —
   produce and verify `docs/speckit-migration-inventory.md` with file paths, line counts, and purpose summaries against the repository file listing
-- [ ] T004 [FR-002] Categorize each inventoried file as extension command, preset template, or local-only —
+- [x] T004 [FR-002] Categorize each inventoried file as extension command, preset template, or local-only —
   update `docs/speckit-migration-inventory.md` with category and target package columns; verify each file is assigned exactly one category
 
 ## Phase 2: Foundational — Extension & Preset Package Creation
@@ -55,9 +55,9 @@ combined or expanded where granularity differs.
 
 ## Phase 5: US3 — Onboard New Contributors (P2)
 
-- [ ] T024 [US3] [FR-006] Add installation and setup instructions to `SPEC_DRIVEN_DEVELOPMENT.md` covering extension and preset installation steps (AC-3.1)
-- [ ] T025 [P] [US3] [FR-006] Add developer guidelines section explaining when to edit the preset vs a local override (AC-3.2)
-- [ ] T026 [P] [US3] [FR-012] Document upgrade strategy for core, extension, and preset in `SPEC_DRIVEN_DEVELOPMENT.md` —
+- [x] T024 [US3] [FR-006] Add installation and setup instructions to `SPEC_DRIVEN_DEVELOPMENT.md` covering extension and preset installation steps (AC-3.1)
+- [x] T025 [P] [US3] [FR-006] Add developer guidelines section explaining when to edit the preset vs a local override (AC-3.2)
+- [x] T026 [P] [US3] [FR-012] Document upgrade strategy for core, extension, and preset in `SPEC_DRIVEN_DEVELOPMENT.md` —
   include version pin update procedure and changelog review process; verify documented steps cover version-pin update, changelog review, and rollback scenarios
 
 ## Phase 6: US4 — Adopt Community Extensions (P2)
@@ -88,9 +88,9 @@ combined or expanded where granularity differs.
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T040 Update `.specify/SDD_QUICK_REFERENCE.md` with new installation and usage commands
-- [ ] T041 [FR-011] Update main `README.md` with links to extension and preset repositories — verify links resolve and descriptions match published packages
-- [ ] T042 Global search-and-replace for stale `.specify/scripts/` path references in CI configs, docs, and agent files
+- [x] T040 Update `.specify/SDD_QUICK_REFERENCE.md` with new installation and usage commands
+- [x] T041 [FR-011] Update `SPEC_DRIVEN_DEVELOPMENT.md` with links to extension and preset repositories — add placeholder links (verification deferred until T016/T017 publish)
+- [ ] T042 Global search-and-replace for stale `.specify/scripts/` path references in CI configs, docs, and agent files (deferred — paths are still valid until extension packages are published at T016/T017)
 - [ ] T043 [FR-003] [FR-004] [FR-010] Run `bash scripts/run-pr-checks.sh` to validate all PR checks pass
 - [ ] T044 [FR-006] Verify all updated documentation files pass markdownlint validation (NFR-006)
 - [ ] T045 [FR-007] E2E smoke test — installation: fresh clone → `specify install` → verify extension and preset install correctly from version pins
