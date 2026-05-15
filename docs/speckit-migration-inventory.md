@@ -139,6 +139,44 @@ The following `.github/` files reference `.specify/scripts/` or
 
 ## Migration Notes
 
+### Community Extension Evaluation (T027-T030)
+
+Catalog review was completed against the Spec-Kit community catalog
+(`docs/community/extensions.md` in the spec-kit repository, which backs
+[`speckit-community.github.io/extensions`](https://speckit-community.github.io/extensions/)).
+The upstream spec-kit community documentation also points to this same catalog
+URL: [github/spec-kit/docs/community/extensions.md](https://github.com/github/spec-kit/blob/main/docs/community/extensions.md).
+
+Repository structure check for #1444 status:
+
+- `.specify/extensions/` not present
+- `.specify/scripts/bash/` and `.specify/scripts/powershell/` still present
+
+This indicates #1444 has **not** landed in this branch, so the T027-T030
+comparison and replacement decision is scoped to the current in-repo script
+layout.
+
+#### Candidate overlap analysis (≥80% threshold)
+
+| Community extension | Closest inventoried custom scope | Estimated overlap | Decision |
+|---------------------|----------------------------------|-------------------|----------|
+| `spec-kit-branch-convention` | `.specify/scripts/bash/create-new-feature.sh` + `.ps1` equivalent (branch naming/pattern checks) | ~35% | Not adopted |
+| `spec-kit-brownfield` | `.specify/scripts/bash/check-prerequisites.sh`, `create-new-feature.sh` (bootstrap/setup concepts) | ~30% | Not adopted |
+| `speckit-utils` | `.specify/scripts/bash/check-prerequisites.sh` and `setup-plan.sh` (workflow health/utility helpers) | ~25% | Not adopted |
+
+**Result:** No community extension meets the **≥80% functionality overlap**
+threshold required by FR-008/FR-009 and User Story 4 acceptance criteria (see
+`specs/1408-migrate-native-spec-kit/spec.md` Functional Requirements table:
+FR-008/FR-009 and User Story 4 acceptance criteria).
+
+T028/T029/T030 close-out for this branch:
+
+- No substitutions were made.
+- `.specify/config.yml` received no community extension pins because no
+  qualifying replacement was found.
+- No scripts were removed from `.specify/scripts/bash/` or
+  `.specify/scripts/powershell/`.
+
 ### Command Namespacing
 
 After migration, extension commands will be namespaced with the `agdt:` prefix to avoid
