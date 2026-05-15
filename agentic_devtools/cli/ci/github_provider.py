@@ -24,9 +24,6 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
 
-# Copilot login names used in review detection
-COPILOT_LOGINS = frozenset({"Copilot", "copilot-pull-request-reviewer[bot]"})
-
 
 def _build_repair_comment(
     *,
@@ -83,7 +80,7 @@ def _build_repair_comment(
         for check in failed_checks:
             parts.append("")
             parts.append(f"### ❌ {check.name}")
-            parts.append(f"- **Status**: {check.conclusion}")
+            parts.append(f"- **Conclusion**: {check.conclusion}")
 
     if not review_comments and not failed_checks:
         parts.append("")

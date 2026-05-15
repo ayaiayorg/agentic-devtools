@@ -23,7 +23,7 @@ class TestDispatchRepair:
             repair_needed=True,
             repair_type="review",
             review_id=100,
-            failed_checks=[],
+            failed_checks=(),
         )
         result = _dispatch_repair(
             provider=provider,
@@ -46,7 +46,7 @@ class TestDispatchRepair:
         provider = MagicMock()
         provider.dispatch_repair.return_value = 301
 
-        failed = [CheckRunStatus(id=1, name="lint", status="completed", conclusion="failure")]
+        failed = (CheckRunStatus(id=1, name="lint", status="completed", conclusion="failure"),)
         decision = RepairDecision(
             repair_needed=True,
             repair_type="ci",
@@ -69,7 +69,7 @@ class TestDispatchRepair:
         provider.list_review_comments.return_value = ["Use better names"]
         provider.dispatch_repair.return_value = 302
 
-        failed = [CheckRunStatus(id=2, name="test", status="completed", conclusion="failure")]
+        failed = (CheckRunStatus(id=2, name="test", status="completed", conclusion="failure"),)
         decision = RepairDecision(
             repair_needed=True,
             repair_type="both",
@@ -94,7 +94,7 @@ class TestDispatchRepair:
             repair_needed=True,
             repair_type="ci",
             review_id=0,
-            failed_checks=[],
+            failed_checks=(),
         )
         result = _dispatch_repair(
             provider=provider,
@@ -114,7 +114,7 @@ class TestDispatchRepair:
             repair_needed=True,
             repair_type="review",
             review_id=100,
-            failed_checks=[],
+            failed_checks=(),
         )
         result = _dispatch_repair(
             provider=provider,

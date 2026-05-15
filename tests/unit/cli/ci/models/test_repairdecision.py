@@ -11,10 +11,10 @@ class TestRepairDecision:
         assert decision.repair_needed is False
         assert decision.repair_type == ""
         assert decision.review_id == 0
-        assert decision.failed_checks == []
+        assert decision.failed_checks == ()
 
     def test_custom_values(self) -> None:
-        checks = [CheckRunStatus(id=1, name="ci", status="completed", conclusion="failure")]
+        checks = (CheckRunStatus(id=1, name="ci", status="completed", conclusion="failure"),)
         decision = RepairDecision(
             repair_needed=True,
             repair_type="both",
