@@ -141,8 +141,8 @@ tribal knowledge.
 - **FR-001**: The `approve_pr()` function in `agentic_devtools/cli/ci/github_provider.py` MUST authenticate using the `AGDT_PR_APPROVER_PAT` environment variable (when set) for the
   `pulls.createReview` API call, with the secret wired via the `env` block of the "Run AI PR loop orchestrator" step in `.github/workflows/ai-pr-loop.yml`.
 - **FR-002**: The `AGDT_PR_APPROVER_PAT` MUST NOT be used by any workflow step other than the orchestrator step that executes PR approval, and MUST NOT be consumed by merge or comment code paths.
-- **FR-003**: The `approve_pr()` function MUST include an early-exit guard that validates the approver PAT is available (non-empty) before attempting the approval API call, logging a structured warning
-  if it is missing and skipping the approval gracefully (orchestrator continues without approving).
+- **FR-003**: The `approve_pr()` function MUST include an early-exit guard that validates the approver PAT is available (non-empty) before attempting the approval API call,
+  logging a structured warning if it is missing and skipping the approval gracefully (orchestrator continues without approving).
 - **FR-004**: The existing SHA-mismatch safety check (abort approval if head SHA changed) MUST be preserved unchanged.
 - **FR-005**: The merge step MUST continue to use its existing token (not the approver PAT).
 - **FR-006**: Workflow comments MUST document why a separate PAT is required for the approval step.
