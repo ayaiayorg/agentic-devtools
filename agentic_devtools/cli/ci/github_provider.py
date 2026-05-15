@@ -24,6 +24,77 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
 
+# Copilot login names used in review detection
+COPILOT_LOGINS = frozenset({"Copilot", "copilot-pull-request-reviewer[bot]"})
+
+
+def _build_repair_comment(
+    *,
+    head_sha: str,
+    repair_type: str,
+    failed_checks: list[CheckRunStatus],
+    review_comments: list[str],
+) -> str:
+    """Build the @copilot-tagged comment body for repair dispatch.
+
+    The comment MUST begin with ``@copilot`` for reliable AI agent session
+    triggering. This is a hard requirement — comments that tag @copilot
+    but don't begin with @copilot have been observed to trigger agent
+    sessions unreliably.
+
+    Args:
+        head_sha: Current HEAD SHA for context.
+        repair_type: ``"review"``, ``"ci"``, or ``"both"``.
+        failed_checks: List of failed check runs (for CI repair context).
+        review_comments: List of review comment bodies (for review repair context).
+
+    Returns:
+        Comment body string beginning with ``@copilot``.
+    """
+    parts: list[str] = ["@copilot"]
+
+    if repair_type in ("review", "both") and review_comments:
+        parts.append("")
+        parts.append("## Copilot Review Feedback")
+        parts.append("")
+        parts.append(
+            "Please address the following review comments. "
+            "For each comment, make the necessary code changes, "
+            "then reply to the comment explaining what you changed "
+            "and resolve the thread."
+        )
+        for i, comment in enumerate(review_comments, 1):
+            parts.append("")
+            parts.append(f"### Comment {i}")
+            parts.append("")
+            # Quote the original review comment
+            quoted = "\n".join(f"> {line}" for line in comment.splitlines())
+            parts.append(quoted)
+
+    if repair_type in ("ci", "both") and failed_checks:
+        parts.append("")
+        parts.append("## CI Failure Context")
+        parts.append("")
+        parts.append(
+            "The following CI checks have failed. Please fix the issues "
+            "described below. Use `ruff check --fix .` and `ruff format .` "
+            "for lint/format failures."
+        )
+        for check in failed_checks:
+            parts.append("")
+            parts.append(f"### ❌ {check.name}")
+            parts.append(f"- **Status**: {check.conclusion}")
+
+    if not review_comments and not failed_checks:
+        parts.append("")
+        parts.append(f"Please review the PR and fix any issues found. Current HEAD: `{head_sha[:8]}`.")
+
+    parts.append("")
+    parts.append("---")
+    parts.append(f"*Automated repair dispatch for commit `{head_sha[:8]}` (type: {repair_type})*")
+
+    return "\n".join(parts)
+
 
 def _gh_api(
     endpoint: str,
@@ -401,3 +472,47 @@ class GitHubActionsProvider(CIPlatformProvider):
         response = _gh_api(self._repo_api(f"/check-runs/{check_run_id}/annotations"))
         annotations = json.loads(response)
         return [a.get("message", "") for a in annotations[:limit]]
+
+    @retry_with_backoff()
+    def dispatch_repair(
+        self,
+        pr_number: int,
+        head_sha: str,
+        repair_type: str,
+        failed_checks: list[CheckRunStatus],
+        review_comments: list[str],
+    ) -> int:
+        """Post a @copilot-tagged comment to trigger an AI agent repair session.
+
+        The comment MUST begin with ``@copilot`` for reliable agent triggering.
+        Uses ``COPILOT_GITHUB_TOKEN`` for authentication when available.
+        """
+        body = _build_repair_comment(
+            head_sha=head_sha,
+            repair_type=repair_type,
+            failed_checks=failed_checks,
+            review_comments=review_comments,
+        )
+
+        # Use COPILOT_GITHUB_TOKEN when available for PAT-authenticated comment
+        copilot_token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
+        token = copilot_token or None
+
+        response = _gh_api(
+            self._repo_api(f"/issues/{pr_number}/comments"),
+            method="POST",
+            body={"body": body},
+            token=token,
+        )
+        data = json.loads(response)
+        return data["id"]
+
+    @retry_with_backoff()
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+        """List inline comments from a specific review."""
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/reviews/{review_id}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        return [c.get("body", "") for c in comments]

@@ -7,13 +7,13 @@ from agentic_devtools.cli.ci.models import (
     EventPayload,
     PRMetadata,
 )
-from agentic_devtools.cli.ci.orchestrator import EXIT_MERGE_BLOCKED, run_ai_pr_loop
+from agentic_devtools.cli.ci.orchestrator import EXIT_REPAIR_DISPATCHED, run_ai_pr_loop
 
 
-class TestRunAIPRLoopBlocked:
-    """Tests verifying orchestrator blocks merge on failed checks."""
+class TestRunAIPRLoopRepairDispatch:
+    """Tests verifying orchestrator dispatches repair on failed checks."""
 
-    def test_failed_checks_blocks_merge(self) -> None:
+    def test_failed_checks_dispatches_repair(self) -> None:
         provider = MagicMock()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=42,
@@ -30,12 +30,15 @@ class TestRunAIPRLoopBlocked:
             CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="success"),
             CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure"),
         ]
+        provider.list_reviews.return_value = []
         provider.find_comment.return_value = None
         provider.post_comment.return_value = 100
+        provider.dispatch_repair.return_value = 200
 
         payload = EventPayload(pr_number=42, head_sha="sha456")
         result = run_ai_pr_loop(provider, payload)
 
-        assert result == EXIT_MERGE_BLOCKED
+        assert result == EXIT_REPAIR_DISPATCHED
         provider.merge_pr.assert_not_called()
         provider.approve_pr.assert_not_called()
+        provider.dispatch_repair.assert_called_once()

@@ -31,6 +31,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     PRMetadata,
+    RepairDecision,
     ReviewInfo,
 )
 from agentic_devtools.cli.ci.orchestrator import run_ai_pr_loop
@@ -46,6 +47,7 @@ __all__ = [
     "MalformedEventError",
     "PRMetadata",
     "ProviderRateLimitError",
+    "RepairDecision",
     "RetryableError",
     "ReviewInfo",
     "check_cycle_limit",

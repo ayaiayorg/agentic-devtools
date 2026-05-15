@@ -95,3 +95,21 @@ class ReviewInfo:
     user: str
     state: str
     body: str = ""
+
+
+@dataclass(frozen=True)
+class RepairDecision:
+    """Result of the dispatch decision for repair.
+
+    Attributes:
+        repair_needed: Whether a repair dispatch should be triggered.
+        repair_type: Type of repair needed: ``"review"``, ``"ci"``, or ``"both"``.
+            Empty string when no repair is needed.
+        review_id: ID of the Copilot review that requested changes (0 if N/A).
+        failed_checks: List of failed check run details (name and annotations).
+    """
+
+    repair_needed: bool = False
+    repair_type: str = ""
+    review_id: int = 0
+    failed_checks: list[CheckRunStatus] = field(default_factory=list)

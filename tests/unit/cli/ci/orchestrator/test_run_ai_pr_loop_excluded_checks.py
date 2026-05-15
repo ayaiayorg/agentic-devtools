@@ -28,11 +28,7 @@ def _make_provider(
         labels=[],
     )
     provider.list_pr_files.return_value = ["src/main.py"]
-    provider.list_check_runs.return_value = (
-        check_runs
-        if check_runs is not None
-        else []
-    )
+    provider.list_check_runs.return_value = check_runs if check_runs is not None else []
     provider.list_reviews.return_value = [
         ReviewInfo(id=1, user="reviewer", state="APPROVED"),
     ]
