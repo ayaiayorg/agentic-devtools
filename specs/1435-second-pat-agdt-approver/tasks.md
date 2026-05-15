@@ -29,15 +29,15 @@
 
 ## Phase 3: User Story 1 — Automated PR Approval with Approver PAT (P1)
 
-- [ ] T007 [US1] Add `AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}` to the "Run AI PR loop
+- [x] T007 [US1] Add `AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}` to the "Run AI PR loop
   orchestrator" step `env` block in `.github/workflows/ai-pr-loop.yml` and update
   `agentic_devtools/cli/ci/github_provider.py` so `approve_pr()` uses `AGDT_PR_APPROVER_PAT`
   (when set) instead of the default `GH_TOKEN`, attributing the approval review to
   `ayaiayorg-pr-approver`
   (FR-001)
-- [ ] T008 [US1] Add inline workflow YAML comment above the `AGDT_PR_APPROVER_PAT` env entry explaining why a
+- [x] T008 [US1] Add inline workflow YAML comment above the `AGDT_PR_APPROVER_PAT` env entry explaining why a
   separate PAT is required (GitHub prevents approving your own PR) per FR-006
-- [ ] T009 [US1] Preserve head-SHA safety behavior in `agentic_devtools/cli/ci/github_provider.py` (FR-004) by
+- [x] T009 [US1] Preserve head-SHA safety behavior in `agentic_devtools/cli/ci/github_provider.py` (FR-004) by
   ensuring `approve_pr()` continues to bind the approval to the expected `head_sha`/`commit_id` in the
   `POST /pulls/{pr}/reviews` call, avoiding logic regressions in approval targeting
 - [ ] T011 [US1] [happy-path] End-to-end validation: trigger `ai-pr-loop` on a bot-authored PR and assert the approval review is created
@@ -45,12 +45,12 @@
 
 ## Phase 4: User Story 2 — Graceful Degradation for Missing PAT (P2)
 
-- [ ] T012 [US2] Add early-exit guard in `agentic_devtools/cli/ci/github_provider.py` `approve_pr()` that checks
+- [x] T012 [US2] Add early-exit guard in `agentic_devtools/cli/ci/github_provider.py` `approve_pr()` that checks
   `AGDT_PR_APPROVER_PAT` is non-empty before the approval API call; when missing, log a warning and
   skip the approval (return without calling the API) (FR-003)
-- [ ] T013 [US2] Log a structured warning in `github_provider.py` naming `AGDT_PR_APPROVER_PAT` and corrective
+- [x] T013 [US2] Log a structured warning in `github_provider.py` naming `AGDT_PR_APPROVER_PAT` and corrective
   action when PAT is missing/empty, then skip approval (orchestrator continues without approving) (FR-003)
-- [ ] T014 [US2] Add explicit 401 (expired/invalid PAT) handling in `github_provider.py` `approve_pr()`
+- [x] T014 [US2] Add explicit 401 (expired/invalid PAT) handling in `github_provider.py` `approve_pr()`
   try/except with clear authentication diagnostics logged, then skip approval gracefully (FR-003)
 - [ ] T015 [US2] [negative-path] Validation: temporarily remove `AGDT_PR_APPROVER_PAT`, trigger workflow,
   and assert warning is logged and approval is skipped (orchestrator completes without approving) (FR-003)
@@ -69,10 +69,10 @@
 
 ## Phase 6: User Story 4 — Documentation & Maintainer Guidance (P3)
 
-- [ ] T019 [US4] [P] Add documentation section describing `AGDT_PR_APPROVER_PAT`: purpose, required permissions (fine-grained, `Pull requests: Write`, single-repo scope), and rotation procedure
+- [x] T019 [US4] [P] Add documentation section describing `AGDT_PR_APPROVER_PAT`: purpose, required permissions (fine-grained, `Pull requests: Write`, single-repo scope), and rotation procedure
   (FR-007) in `docs/` or `CONTRIBUTING.md`
-- [ ] T020 [US4] [P] Document troubleshooting guidance for common errors: 401 (expired PAT), 403 (insufficient access), self-approval misconfiguration (FR-007)
-- [ ] T022 [US4] [P] Document the 90-day PAT rotation schedule and steps to rotate the secret
+- [x] T020 [US4] [P] Document troubleshooting guidance for common errors: 401 (expired PAT), 403 (insufficient access), self-approval misconfiguration (FR-007)
+- [x] T022 [US4] [P] Document the 90-day PAT rotation schedule and steps to rotate the secret
 - [ ] T023 [US4] Validate that the inline workflow comment added by T008 explaining the separate-identity rationale is present and accurate (FR-006)
 - [ ] T024 [US4] Verify documentation completeness: confirm docs section covers PAT purpose, permissions, rotation procedure, and troubleshooting (FR-007)
 

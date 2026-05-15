@@ -54,4 +54,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          # Separate identity for PR approval — GitHub prevents a user from
+          # approving their own PR, so bot-authored PRs require a distinct
+          # account's token for the approval step.
+          AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: agdt-ai-pr-loop
