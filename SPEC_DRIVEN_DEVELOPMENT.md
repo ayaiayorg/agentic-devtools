@@ -81,15 +81,14 @@ Edit `specs/ISSUE-feature-name/spec.md`:
 
 ### 4. Create Implementation Plan
 
-> **Note**: The command names below (e.g., `/speckit.plan`) reflect the
-> current pre-migration setup. After migration, AGDT-specific commands
-> will be namespaced as `/speckit.agdt:<command>` — see
+> **Note**: AGDT-specific commands are namespaced as
+> `/speckit.agdt:<command>` (for example, `/speckit.agdt:plan`) — see
 > [Extension & Preset Architecture](#extension--preset-architecture).
 
-AI assistants can use the `/speckit.plan` command:
+AI assistants can use the `/speckit.agdt:plan` command:
 
 ```text
-/speckit.plan
+/speckit.agdt:plan
 Technology stack:
 - Python 3.11+
 - Click for CLI
@@ -107,10 +106,10 @@ This creates `specs/ISSUE-feature-name/plan.md` with:
 
 ### 5. Break Down into Tasks
 
-Use `/speckit.tasks` to generate task list:
+Use `/speckit.agdt:tasks` to generate task list:
 
 ```text
-/speckit.tasks
+/speckit.agdt:tasks
 ```
 
 This creates `specs/ISSUE-feature-name/tasks.md` with:
@@ -125,7 +124,7 @@ This creates `specs/ISSUE-feature-name/tasks.md` with:
 Execute the implementation:
 
 ```text
-/speckit.implement
+/speckit.agdt:implement
 ```
 
 AI assistant will:
@@ -257,24 +256,22 @@ preset packages:
 └── scripts/                 # Helper scripts (bash & PowerShell)
 ```
 
-### SDD Command Templates (Current, Pre-Migration)
+### SDD Command Templates
 
-> **Pre-migration commands**: The command names below reflect the current
-> repo-local setup. After migration (T007/T010/T019), these will be
-> namespaced as `/speckit.agdt:<command>` (e.g., `/speckit.agdt:plan`).
-> See [Extension & Preset Architecture](#extension--preset-architecture)
-> for details.
+> AGDT command templates are namespaced as `/speckit.agdt:<command>`
+> (for example, `/speckit.agdt:plan`). See
+> [Extension & Preset Architecture](#extension--preset-architecture) for details.
 
 AI assistants can use these command templates (in
 `.specify/templates/commands/`):
 
-- `/speckit.constitution` - Update project principles
-- `/speckit.specify` - Create feature specifications
-- `/speckit.plan` - Develop implementation plans
-- `/speckit.tasks` - Generate task lists
-- `/speckit.implement` - Execute implementation
-- `/speckit.analyze` - Validate cross-artifact consistency
-- `/speckit.checklist` - Generate quality checklists
+- `/speckit.agdt:constitution` - Update project principles
+- `/speckit.agdt:specify` - Create feature specifications
+- `/speckit.agdt:plan` - Develop implementation plans
+- `/speckit.agdt:tasks` - Generate task lists
+- `/speckit.agdt:implement` - Execute implementation
+- `/speckit.agdt:analyze` - Validate cross-artifact consistency
+- `/speckit.agdt:checklist` - Generate quality checklists
 
 ## Directory Structure
 
@@ -318,64 +315,63 @@ agentic-devtools/
 
   “Developer‑only”, “End‑User”).
 
-## SDD Commands for AI Assistants (Current, Pre-Migration)
+## SDD Commands for AI Assistants
 
-> **Pre-migration commands**: The command names below reflect the current
-> repo-local setup. After migration (T007/T010/T019), these will be
-> namespaced as `/speckit.agdt:<command>` (e.g., `/speckit.agdt:plan`).
+> AGDT commands are namespaced as `/speckit.agdt:<command>`
+> (for example, `/speckit.agdt:plan`).
 
 These slash commands are available when properly configured:
 
 ### Core Workflow
 
-1. **`/speckit.constitution`** - Update project principles
+1. **`/speckit.agdt:constitution`** - Update project principles
 
    ```text
-   /speckit.constitution Update testing standards to require 95% coverage
+   /speckit.agdt:constitution Update testing standards to require 95% coverage
    ```
 
-2. **`/speckit.specify`** - Create feature specification
+2. **`/speckit.agdt:specify`** - Create feature specification
 
    ```text
-   /speckit.specify Build a command that exports Jira issues to CSV format
+   /speckit.agdt:specify Build a command that exports Jira issues to CSV format
    ```
 
-3. **`/speckit.plan`** - Create implementation plan
+3. **`/speckit.agdt:plan`** - Create implementation plan
 
    ```text
-   /speckit.plan Use pandas for CSV export, Click for CLI
+   /speckit.agdt:plan Use pandas for CSV export, Click for CLI
    ```
 
-4. **`/speckit.tasks`** - Generate task list
+4. **`/speckit.agdt:tasks`** - Generate task list
 
    ```text
-   /speckit.tasks
+   /speckit.agdt:tasks
    ```
 
-5. **`/speckit.implement`** - Execute implementation
+5. **`/speckit.agdt:implement`** - Execute implementation
 
    ```text
-   /speckit.implement
+   /speckit.agdt:implement
    ```
 
 ### Quality Assurance
 
-- **`/speckit.analyze`** - Check cross-artifact consistency
+- **`/speckit.agdt:analyze`** - Check cross-artifact consistency
 
   ```text
-  /speckit.analyze
+  /speckit.agdt:analyze
   ```
 
-- **`/speckit.checklist`** - Generate quality checklist
+- **`/speckit.agdt:checklist`** - Generate quality checklist
 
   ```text
-  /speckit.checklist
+  /speckit.agdt:checklist
   ```
 
-- **`/speckit.clarify`** - Clarify underspecified areas
+- **`/speckit.agdt:clarify`** - Clarify underspecified areas
 
   ```text
-  /speckit.clarify
+  /speckit.agdt:clarify
   ```
 
 ## Integration with Existing Workflows
@@ -607,7 +603,7 @@ vim .specify/memory/constitution.md
 Run consistency check:
 
 ```text
-/speckit.analyze
+/speckit.agdt:analyze
 ```
 
 ## Additional Resources

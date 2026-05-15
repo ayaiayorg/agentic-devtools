@@ -247,11 +247,11 @@ For complete details on the SDD workflow, see [SPEC_DRIVEN_DEVELOPMENT.md](SPEC_
 
 AI assistants can use these commands:
 
-- `/speckit.specify` - Create feature specifications
-- `/speckit.plan` - Develop implementation plans
-- `/speckit.tasks` - Generate task lists
-- `/speckit.implement` - Execute implementation
-- `/speckit.analyze` - Validate cross-artifact consistency
+- `/speckit.agdt:specify` - Create feature specifications
+- `/speckit.agdt:plan` - Develop implementation plans
+- `/speckit.agdt:tasks` - Generate task lists
+- `/speckit.agdt:implement` - Execute implementation
+- `/speckit.agdt:analyze` - Validate cross-artifact consistency
 
 ## Protected / Auto-Generated Files
 

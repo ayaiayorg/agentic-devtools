@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See
+**Note**: This template is filled in by the `/speckit.agdt:plan` command. See
 `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
@@ -48,12 +48,12 @@ CLARIFICATION]
 
 ```text
 specs/[###-feature]/
-├── plan.md              # This file (/speckit.plan command output)
-├── research.md          # Phase 0 output (/speckit.plan command)
-├── data-model.md        # Phase 1 output (/speckit.plan command)
-├── quickstart.md        # Phase 1 output (/speckit.plan command)
-├── contracts/           # Phase 1 output (/speckit.plan command)
-└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
+├── plan.md              # This file (/speckit.agdt:plan command output)
+├── research.md          # Phase 0 output (/speckit.agdt:plan command)
+├── data-model.md        # Phase 1 output (/speckit.agdt:plan command)
+├── quickstart.md        # Phase 1 output (/speckit.agdt:plan command)
+├── contracts/           # Phase 1 output (/speckit.agdt:plan command)
+└── tasks.md             # Phase 2 output (/speckit.agdt:tasks command - NOT created by /speckit.agdt:plan)
 ```text
 
 ### Source Code (repository root)
