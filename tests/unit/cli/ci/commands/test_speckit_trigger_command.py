@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import tempfile
 from unittest.mock import patch
 
@@ -28,7 +29,8 @@ class TestSpeckitTriggerCommand:
             assert exc_info.value.code == 10
 
     @patch("shutil.which", return_value="/usr/bin/gh")
-    def test_processes_label_event(self, mock_which) -> None:
+    @patch("agentic_devtools.cli.ci.commands.process_speckit_label_event", return_value=0)
+    def test_processes_label_event(self, mock_process, mock_which) -> None:
         payload = {
             "action": "labeled",
             "label": {"name": "speckit-ready"},
@@ -48,7 +50,8 @@ class TestSpeckitTriggerCommand:
             with patch.dict(os.environ, env, clear=False):
                 with pytest.raises(SystemExit) as exc_info:
                     speckit_trigger_command()
-                assert exc_info.value.code == 11
+                assert exc_info.value.code == 0
+            mock_process.assert_called_once()
         finally:
             os.unlink(event_path)
 
@@ -98,5 +101,132 @@ class TestSpeckitTriggerCommand:
                 with pytest.raises(SystemExit) as exc_info:
                     speckit_trigger_command()
                 assert exc_info.value.code == 2
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    @patch("agentic_devtools.cli.ci.commands.run_safe")
+    @patch("agentic_devtools.cli.ci.commands.process_speckit_label_event", return_value=0)
+    def test_workflow_dispatch_fetches_issue_and_processes(self, mock_process, mock_run_safe, mock_which) -> None:
+        """workflow_dispatch fetches issue via gh api and calls process_speckit_label_event."""
+        issue_data = {"number": 42, "title": "Feature", "body": "Do it", "labels": [{"name": "enhancement"}]}
+        mock_run_safe.return_value = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout=json.dumps(issue_data), stderr=""
+        )
+        payload = {"inputs": {"issue_number": "42"}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "workflow_dispatch",
+                "GITHUB_REPOSITORY": "owner/repo",
+                "SPECKIT_TRIGGER_LABEL": "speckit",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    speckit_trigger_command()
+                assert exc_info.value.code == 0
+            mock_process.assert_called_once()
+            # Verify EventPayload was constructed with action=labeled and trigger_label=speckit
+            call_args = mock_process.call_args[0]
+            event_payload = call_args[1]
+            assert event_payload.action == "labeled"
+            assert event_payload.trigger_label == "speckit"
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_workflow_dispatch_exits_2_when_no_issue_number(self, mock_which) -> None:
+        """workflow_dispatch without issue_number input exits with code 2."""
+        payload = {"inputs": {}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "workflow_dispatch",
+                "GITHUB_REPOSITORY": "owner/repo",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    speckit_trigger_command()
+                assert exc_info.value.code == 2
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    @patch("agentic_devtools.cli.ci.commands.run_safe")
+    def test_workflow_dispatch_exits_10_when_gh_api_fails(self, mock_run_safe, mock_which) -> None:
+        """workflow_dispatch exits 10 when gh api fails to fetch issue."""
+        mock_run_safe.return_value = subprocess.CompletedProcess(
+            args=["gh"], returncode=1, stdout="", stderr="Not Found"
+        )
+        payload = {"inputs": {"issue_number": "9999"}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "workflow_dispatch",
+                "GITHUB_REPOSITORY": "owner/repo",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    speckit_trigger_command()
+                assert exc_info.value.code == 10
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_workflow_dispatch_exits_2_when_issue_number_non_numeric(self, mock_which) -> None:
+        """workflow_dispatch with non-numeric issue_number exits with code 2."""
+        payload = {"inputs": {"issue_number": "abc"}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "workflow_dispatch",
+                "GITHUB_REPOSITORY": "owner/repo",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    speckit_trigger_command()
+                assert exc_info.value.code == 2
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_workflow_dispatch_exits_10_when_repo_invalid(self, mock_which) -> None:
+        """workflow_dispatch with invalid GITHUB_REPOSITORY exits with code 10."""
+        payload = {"inputs": {"issue_number": "42"}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "workflow_dispatch",
+                "GITHUB_REPOSITORY": "",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with pytest.raises(SystemExit) as exc_info:
+                    speckit_trigger_command()
+                assert exc_info.value.code == 10
         finally:
             os.unlink(event_path)
