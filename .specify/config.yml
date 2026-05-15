@@ -1,20 +1,17 @@
 # Spec-Kit Configuration
 # See: https://github.github.io/spec-kit/reference/configuration.html
 #
-# This file pins the AGDT extension and preset packages to exact semver versions
-# for reproducible builds. Update version pins intentionally after reviewing
-# changelogs (see SPEC_DRIVEN_DEVELOPMENT.md for upgrade procedure).
+# This file references local extension and preset packages using relative paths.
+# The monorepo approach keeps AGDT-specific code atomic and easier to evolve
+# without cross-repo maintenance burden. See issue #1444 for rationale.
 #
-# NOTE: These pins will only resolve after the packages are published
-# (T016/T017 in the migration tasks). Until then, `specify install` will
-# fail — use repo-local .specify/scripts/ and .specify/templates/ directly.
+# To publish to the community catalog later, replace relative paths with
+# published package names and version pins.
 
 extensions:
   # AGDT-specific commands and scripts for agentic-devtools workflows
-  # Repository: https://github.com/ayaiayorg/speckit-ext-agdt
-  speckit-ext-agdt: "1.0.0"
+  - "./.specify/extensions/agdt-workflows"
 
 presets:
   # AGDT-specific template overrides (spec, plan, tasks, checklist, agent-file)
-  # Repository: https://github.com/ayaiayorg/speckit-preset-agdt
-  speckit-preset-agdt: "1.0.0"
+  - "./.specify/presets/agdt-templates"

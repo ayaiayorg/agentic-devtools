@@ -1,0 +1,36 @@
+name: agdt-workflows
+version: 1.0.0
+description: >
+  AGDT-specific commands and scripts for agentic-devtools spec-driven
+  development workflows. Provides custom slash commands (specify, plan,
+  tasks, implement, analyze, clarify, checklist, constitution, taskstoissues)
+  and supporting bash/powershell scripts.
+
+author: ayaiayorg
+license: MIT
+repository: https://github.com/ayaiayorg/agentic-devtools
+
+commands:
+  - analyze.md
+  - checklist.md
+  - clarify.md
+  - constitution.md
+  - implement.md
+  - plan.md
+  - specify.md
+  - tasks.md
+  - taskstoissues.md
+
+scripts:
+  bash:
+    - check-prerequisites.sh
+    - common.sh
+    - create-new-feature.sh
+    - setup-plan.sh
+    - update-agent-context.sh
+  powershell:
+    - check-prerequisites.ps1
+    - common.ps1
+    - create-new-feature.ps1
+    - setup-plan.ps1
+    - update-agent-context.ps1

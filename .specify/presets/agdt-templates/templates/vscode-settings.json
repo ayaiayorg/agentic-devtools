@@ -7,8 +7,8 @@
         "speckit.implement": true
     },
     "chat.tools.terminal.autoApprove": {
-        ".specify/scripts/bash/": true,
-        ".specify/scripts/powershell/": true
+        ".specify/extensions/agdt-workflows/scripts/bash/": true,
+        ".specify/extensions/agdt-workflows/scripts/powershell/": true
     }
 }
 

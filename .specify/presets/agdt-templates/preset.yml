@@ -1,0 +1,21 @@
+name: agdt-templates
+version: 1.0.0
+description: >
+  AGDT-specific template overrides for agentic-devtools spec-driven
+  development. Provides custom versions of spec, plan, tasks, checklist,
+  and agent-file templates, along with VS Code settings for prompt
+  file recommendations.
+
+author: ayaiayorg
+license: MIT
+repository: https://github.com/ayaiayorg/agentic-devtools
+
+templates:
+  - agent-file-template.md
+  - checklist-template.md
+  - plan-template.md
+  - spec-template.md
+  - tasks-template.md
+
+assets:
+  - vscode-settings.json
