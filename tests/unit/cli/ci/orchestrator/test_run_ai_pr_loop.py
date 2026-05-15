@@ -172,8 +172,11 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
-    def test_changes_requested_dispatches_repair(self) -> None:
-        provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")])
+    def test_copilot_changes_requested_dispatches_repair(self) -> None:
+        """Copilot CHANGES_REQUESTED triggers repair dispatch."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")]
+        )
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["fix this"]
         payload = EventPayload(pr_number=42, head_sha="abc123")
@@ -181,6 +184,17 @@ class TestRunAIPRLoop:
         assert result == EXIT_REPAIR_DISPATCHED
         provider.merge_pr.assert_not_called()
         provider.dispatch_repair.assert_called_once()
+
+    def test_human_changes_requested_does_not_dispatch_repair(self) -> None:
+        """Human CHANGES_REQUESTED blocks merge but does NOT trigger repair."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
 
     def test_merge_failure_returns_blocked(self) -> None:
         from agentic_devtools.cli.ci.orchestrator import EXIT_MERGE_BLOCKED
@@ -203,3 +217,45 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
+
+    def test_copilot_older_changes_requested_superseded_by_approval(self) -> None:
+        """Older Copilot CHANGES_REQUESTED is superseded by a later APPROVED from same user."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix"),
+                ReviewInfo(id=5, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()
+
+    def test_human_older_changes_requested_superseded_by_approval(self) -> None:
+        """Older human CHANGES_REQUESTED is superseded by a later APPROVED from same user."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=2, user="reviewer", state="CHANGES_REQUESTED", body="fix"),
+                ReviewInfo(id=7, user="reviewer", state="APPROVED", body="lgtm"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_called_once()
+
+    def test_latest_copilot_changes_requested_still_triggers_repair(self) -> None:
+        """Latest Copilot review is CHANGES_REQUESTED — repair still dispatched."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="ok"),
+                ReviewInfo(id=9, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix"),
+            ]
+        )
+        provider.dispatch_repair.return_value = 200
+        provider.list_review_comments.return_value = ["fix this"]
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()

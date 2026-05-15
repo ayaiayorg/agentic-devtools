@@ -169,7 +169,7 @@ class CIPlatformProvider(ABC):
     ) -> int:
         """Dispatch a repair by posting a @copilot comment on the PR.
 
-        Posts a PAT-authenticated comment tagging ``@copilot`` that begins
+        Posts an authenticated comment tagging ``@copilot`` that begins
         with ``@copilot`` (required for reliable AI agent session triggering).
         The comment body includes failing CI details and/or review feedback
         depending on the repair type.

@@ -97,6 +97,10 @@ class ReviewInfo:
     body: str = ""
 
 
+# Copilot login names used in review detection (provider-agnostic)
+COPILOT_LOGINS = frozenset({"Copilot", "copilot-pull-request-reviewer[bot]"})
+
+
 @dataclass(frozen=True)
 class RepairDecision:
     """Result of the dispatch decision for repair.
@@ -106,10 +110,10 @@ class RepairDecision:
         repair_type: Type of repair needed: ``"review"``, ``"ci"``, or ``"both"``.
             Empty string when no repair is needed.
         review_id: ID of the Copilot review that requested changes (0 if N/A).
-        failed_checks: List of failed check run details (name and annotations).
+        failed_checks: Failed check run details (name, status, conclusion).
     """
 
     repair_needed: bool = False
     repair_type: str = ""
     review_id: int = 0
-    failed_checks: list[CheckRunStatus] = field(default_factory=list)
+    failed_checks: tuple[CheckRunStatus, ...] = ()

@@ -57,7 +57,7 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 
 - [ ] T007 [P] [US1] Create a manual test plan document (in-memory, not committed) for review comment repair: create a test PR with intentional issues, trigger Copilot review, observe dispatch →
   repair → push → re-review cycle, verify repair comment posted, threads resolved, Copilot re-requested (FR-001, FR-009)
-- [ ] T051 [US1] Verify the dispatch-decision step correctly identifies actionable Copilot review comments (CHANGES_REQUESTED with inline comments) and sets `repair_needed=true`,
+- [x] T051 [US1] Verify the dispatch-decision step correctly identifies actionable Copilot review comments (CHANGES_REQUESTED with inline comments) and sets `repair_needed=true`,
   `repair_type='review'` (FR-001, happy-path)
   - Depends on: T002, T005
 - [ ] T052 [US1] Verify the `agentic-repair` job specifies `runs-on: ubuntu-latest` in `.github/workflows/ai-pr-loop.yml` (FR-003, happy-path)
@@ -148,7 +148,7 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
 - [x] T027 [US4] Verify the `agentic-repair` job in `.github/workflows/ai-pr-loop.yml` does NOT contain any approve or merge API calls (`pulls.createReview` with `APPROVE`, `pulls.merge`) — FR-006:
   these remain exclusively in the `ai-pr-loop` job. Add a code comment documenting this security invariant
   - Depends on: T025
-- [ ] T060 [US4] Verify the `agentic-repair` job's scope is limited to code changes, comment replies, thread resolution, and re-requesting review — no approve or merge capabilities present (FR-006, happy-path)
+- [x] T060 [US4] Verify the `agentic-repair` job's scope is limited to code changes, comment replies, thread resolution, and re-requesting review — no approve or merge capabilities present (FR-006, happy-path)
   - Depends on: T027
 - [x] T028 [US4] Add explicit constraint in the CI-safe prompt (`.github/prompts/agdt.address-copilot-review.ci-repair.prompt.md`): "You MUST NOT approve or merge the PR. Your scope is limited to:
   code changes, comment replies, thread resolution, and re-requesting review" — FR-006
@@ -196,7 +196,7 @@ below remains unchanged from Phase 4 (62 tasks, T001–T062).
   required check suites on `pull_request_review` events) and set `has_failed_checks` output. On `workflow_run` events, rely on the existing guards step's check-run query rather than
   additional polling. Only dispatch when actionable failures are detected (FR-002 deterministic decision)
   - Depends on: T002
-- [ ] T057 [US2] Verify CI failure detection: dispatch-decision step polls all required check suites to terminal state and sets `repair_needed=true`, `repair_type='ci'` when at least one has
+- [x] T057 [US2] Verify CI failure detection: dispatch-decision step polls all required check suites to terminal state and sets `repair_needed=true`, `repair_type='ci'` when at least one has
   `conclusion: failure` (FR-002, happy-path)
   - Depends on: T034
 

@@ -15,7 +15,6 @@ import json
 import logging
 import sys
 
-from agentic_devtools.cli.ci.github_provider import COPILOT_LOGINS
 from agentic_devtools.cli.ci.guards import (
     check_cycle_limit,
     check_deduplication,
@@ -24,12 +23,29 @@ from agentic_devtools.cli.ci.guards import (
     check_fork_pr,
     check_privileged_paths,
 )
-from agentic_devtools.cli.ci.models import EventPayload, RepairDecision
+from agentic_devtools.cli.ci.models import (
+    COPILOT_LOGINS,
+    CheckRunStatus,
+    EventPayload,
+    RepairDecision,
+    ReviewInfo,
+)
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 logger = logging.getLogger(__name__)
 
-# Exit codes
+# Exit codes used by the AI PR loop orchestrator.
+#
+# These codes are consumed by the calling CI workflow (.github/workflows/ai-pr-loop.yml).
+# Non-zero codes are intentional — they signal distinct outcomes to the workflow so it
+# can decide whether to retry, re-trigger, or halt:
+#
+#   EXIT_REPAIR_DISPATCHED (5): A repair was posted via @copilot comment.  The Copilot
+#       agent commits a fix, which triggers a new workflow_run event and re-runs this
+#       orchestrator automatically.  The non-zero exit marks the current job as failed
+#       (expected) to clearly signal that a repair cycle was initiated rather than a
+#       clean pass.  Changing this to 0 would make repair dispatches indistinguishable
+#       from "nothing to do" in CI logs and status checks.
 EXIT_SUCCESS = 0
 EXIT_GUARD_BLOCKED = 1
 EXIT_MALFORMED_EVENT = 2
@@ -123,7 +139,7 @@ def run_ai_pr_loop(
     has_unknown_conclusion = False
     any_failed = False
     any_pending = False
-    failed_checks = []
+    failed_checks: list[CheckRunStatus] = []
     for cr in check_runs:
         # Skip self-referencing workflows to avoid deadlock
         if cr.name in excluded_check_names:
@@ -156,24 +172,33 @@ def run_ai_pr_loop(
         return EXIT_GUARD_BLOCKED
 
     # Step 5: Evaluate reviews
+    # Collapse to effective latest state per reviewer (highest review.id wins)
     reviews = provider.list_reviews(pr_number)
-    has_approval = any(r.state == "APPROVED" for r in reviews)
-    has_changes_requested = False
+    latest_by_user: dict[str, ReviewInfo] = {}
+    for review in reviews:
+        existing = latest_by_user.get(review.user)
+        if existing is None or review.id > existing.id:
+            latest_by_user[review.user] = review
+
+    effective_reviews = list(latest_by_user.values())
+    has_approval = any(r.state == "APPROVED" for r in effective_reviews)
+    copilot_changes_requested = False
+    any_changes_requested = False
     copilot_review_id = 0
 
-    # Detect actionable Copilot review comments (CHANGES_REQUESTED with inline comments)
-    for review in reviews:
+    # Detect actionable Copilot review (CHANGES_REQUESTED state from Copilot)
+    for review in effective_reviews:
         if review.state == "CHANGES_REQUESTED" and review.user in COPILOT_LOGINS:
-            has_changes_requested = True
+            copilot_changes_requested = True
             copilot_review_id = review.id
             break
         if review.state == "CHANGES_REQUESTED":
-            has_changes_requested = True
+            any_changes_requested = True
 
-    # Step 6: Dispatch repair decision
+    # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
     decision = _evaluate_repair_decision(
         any_failed=any_failed,
-        has_changes_requested=has_changes_requested,
+        copilot_changes_requested=copilot_changes_requested,
         copilot_review_id=copilot_review_id,
         failed_checks=failed_checks,
     )
@@ -187,10 +212,9 @@ def run_ai_pr_loop(
         )
 
     # Step 7: Merge gate
-    if any_failed:
-        logger.info("PR #%d has failed checks — merge blocked", pr_number)
-        return EXIT_MERGE_BLOCKED
-
+    # Note: any_failed and copilot_changes_requested are guaranteed False here —
+    # both conditions trigger repair dispatch in Step 6 which returns before
+    # reaching this point.
     if has_unknown_conclusion:
         logger.info(
             "PR #%d has checks with non-success conclusions — cannot merge",
@@ -198,7 +222,7 @@ def run_ai_pr_loop(
         )
         return EXIT_MERGE_BLOCKED
 
-    if has_changes_requested:
+    if any_changes_requested:
         logger.info("PR #%d has changes requested — waiting for updates", pr_number)
         return EXIT_SUCCESS
 
@@ -224,22 +248,25 @@ def run_ai_pr_loop(
 def _evaluate_repair_decision(
     *,
     any_failed: bool,
-    has_changes_requested: bool,
+    copilot_changes_requested: bool,
     copilot_review_id: int,
-    failed_checks: list,
+    failed_checks: list[CheckRunStatus],
 ) -> RepairDecision:
     """Evaluate whether a repair dispatch is needed and determine the type.
 
+    Only Copilot CHANGES_REQUESTED reviews trigger repair dispatch (not human
+    reviews). Human review feedback must be addressed manually.
+
     Args:
         any_failed: True if any CI check has failed.
-        has_changes_requested: True if any review requests changes.
+        copilot_changes_requested: True if Copilot specifically requested changes.
         copilot_review_id: ID of the Copilot review (0 if none).
         failed_checks: List of failed check runs.
 
     Returns:
         RepairDecision indicating whether and what type of repair is needed.
     """
-    has_review_repair = has_changes_requested
+    has_review_repair = copilot_changes_requested
     has_ci_repair = any_failed
 
     if not has_review_repair and not has_ci_repair:
@@ -256,7 +283,7 @@ def _evaluate_repair_decision(
         repair_needed=True,
         repair_type=repair_type,
         review_id=copilot_review_id,
-        failed_checks=failed_checks,
+        failed_checks=tuple(failed_checks),
     )
 
 
@@ -295,7 +322,7 @@ def _dispatch_repair(
             pr_number=pr_number,
             head_sha=head_sha,
             repair_type=decision.repair_type,
-            failed_checks=decision.failed_checks,
+            failed_checks=list(decision.failed_checks),
             review_comments=review_comments,
         )
         logger.info(
