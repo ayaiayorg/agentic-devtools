@@ -55,16 +55,7 @@ def _run_speckit_command(event_file: str, event_name: str, flag_value: str) -> d
         ("pull_request_opened.json", "pull_request", "ai", "golden_pull_request.json"),
         ("pull_request_review_submitted.json", "pull_request_review", "ai", "golden_pull_request_review.json"),
         ("workflow_run_completed.json", "workflow_run", "ai", "golden_workflow_run.json"),
-        pytest.param(
-            "issues_labeled.json",
-            "issues",
-            "speckit",
-            "golden_issues_labeled.json",
-            marks=pytest.mark.xfail(
-                reason="speckit_trigger_command is a stub (exit 11); parity test deferred to Phase 6",
-                strict=True,
-            ),
-        ),
+        ("issues_labeled.json", "issues", "speckit", "golden_issues_labeled.json"),
     ],
 )
 def test_legacy_and_python_paths_match_goldens(
