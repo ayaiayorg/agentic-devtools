@@ -1,0 +1,19 @@
+{
+  "legacy": {
+    "exit_code": 0,
+    "run_ai_pr_loop_called": false
+  },
+  "python": {
+    "exit_code": 0,
+    "run_ai_pr_loop_called": true,
+    "event_payload": {
+      "pr_number": 42,
+      "head_branch": "feature/new-feature",
+      "head_sha": "abc123def456789012345678901234567890abcd",
+      "base_branch": "main",
+      "action": "opened",
+      "trigger_label": "",
+      "repository_full_name": "owner/repo"
+    }
+  }
+}

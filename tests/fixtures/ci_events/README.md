@@ -12,6 +12,10 @@ from `$GITHUB_EVENT_PATH`. Files are named by event type and action:
 - `pull_request_review_submitted.json` — `pull_request_review` event with `action: "submitted"`
 - `issues_labeled.json` — `issues` event with `action: "labeled"`
 - `workflow_run_completed.json` — `workflow_run` event with `action: "completed"`
+- `golden_pull_request.json` — expected legacy vs Python command outputs for `pull_request`
+- `golden_pull_request_review.json` — expected legacy vs Python command outputs for `pull_request_review`
+- `golden_workflow_run.json` — expected legacy vs Python command outputs for `workflow_run`
+- `golden_issues_labeled.json` — expected legacy vs Python command outputs for `issues/labeled`
 
 ## Usage
 
