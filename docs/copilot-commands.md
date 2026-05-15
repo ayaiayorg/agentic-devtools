@@ -25,7 +25,7 @@ agents. Each agent maps directly to a file in `.github/agents/`:
 
 ```text
 /agdt.work-on-jira-issue.initiate   →  .github/agents/agdt.work-on-jira-issue.initiate.agent.md
-/speckit.agdt:specify                    →  .github/agents/speckit.agdt:specify.agent.md
+/speckit.agdt:specify                    →  .github/agents/speckit.specify.agent.md
 ```
 
 When you invoke a slash command:
