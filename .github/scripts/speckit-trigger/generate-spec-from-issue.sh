@@ -1973,7 +1973,7 @@ capture_missing_mandatory_sections() {
 # ---------------------------------------------------------------------------
 run_specify_phase() {
     # Load the spec template
-    local template_file="$REPO_ROOT/.specify/templates/spec-template.md"
+    local template_file="$REPO_ROOT/.specify/presets/agdt-templates/templates/spec-template.md"
     local spec_template=""
     if [[ -f "$template_file" ]]; then
         spec_template=$(cat "$template_file")
